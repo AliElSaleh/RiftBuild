@@ -1,0 +1,38 @@
+if debug ModeStr Debug else ModeStr Dist-Log
+
+Depends engine-core | mode=$ModeStr
+
+include Config/$(ModeStr).buildvariables
+
+Assembly RiftBuild
+
+MajorVersion 0
+MinorVersion 9
+PatchVersion 3
+
+if debug TitleName Rift Build (Debug) else TitleName Rift Build
+Description A simpler build tool for C/C++, because fuck cmake
+Version $(MajorVersion).$(MinorVersion).$(PatchVersion)
+CompanyName Ali El Saleh
+Copyright 2024 Copyright, Ali El Saleh
+
+BaseDirectory Apps/RiftBuild
+SourceDirectory $(BaseDirectory)/Source
+IntermediateDirectory $(BaseDirectory)/Intermediate
+BuildDirectory $(BaseDirectory)/Build/$ModeStr
+
+CompilerFlags $SharedCompilerFlags -mno-stack-arg-probe -mstack-probe-size=999999999 -Wno-incompatible-library-redeclaration -Wno-unknown-warning-option
+LinkerFlags $SharedLinkerFlags
+IncludeFlags $SharedIncludeFlags $BaseDirectory
+
+if _platform == windows LinkerFlags -nostdlib -Wl,-entry:ProgramStart,-subsystem:console -Xlinker /stack:0x400000,0x400000
+
+if _platform == linux Libraries UUID
+if _platform == linux LibraryDirectories Libraries/Linux
+
+Libraries RiftEngine-CoreS %_NativeLibs
+LibraryDirectories Build/Core-$ModeStr
+
+Defines $SharedDefines HEADLESS RIFT_STATIC NO_LOG_FILE MAJOR_VERSION=$MajorVersion MINOR_VERSION=$MinorVersion PATCH_VERSION=$PatchVersion
+
+Icon riftbuild.ico
