@@ -28,11 +28,12 @@ Compiler clang # or gcc/cl or you can specify an absolute or relative path to yo
 Assembly SomeName
 Extension exe # or dll/lib/a/so/dylib or even better replace this line with Type app
 
-# below are optional but you can overide for your program's needs
+# below are optional but you can edit for your project's needs
 # these directories are relative to where you run "riftbuild" from
-SourceDirectory src
-BuildDirectory bin
-IntermediateDirectory int
+
+SourceDirectory src       # default value is nothing
+BuildDirectory bin        # default value is Build
+IntermediateDirectory int # default value is Intermediate
 
 # fill in the blanks below for your program
 CompilerFlags -std=c11 -O3 etc...
