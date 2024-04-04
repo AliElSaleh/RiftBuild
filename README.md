@@ -20,7 +20,7 @@ That's it
 # How to write a .build file
 Writing a .build file is simple and straightforward. It almost has no syntax
 
-```
+```make
 # This is a comment!
 
 Compiler clang # or gcc/cl or you can specify an absolute or relative path to your C compiler
