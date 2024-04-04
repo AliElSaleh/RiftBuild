@@ -36,7 +36,7 @@ IntermediateDirectory int # default value is Intermediate
 # fill in the blanks below for your program
 CompilerFlags -std=c11 -O3 etc...
 LinkerFlags 
-IncludeFlags path/to/include-dir anotherdir thirdparty/dir
+IncludeFlags path/to/include-dir thirdparty/dir anotherdir
 
 Libraries somelib opengl32 etc...
 LibraryDirectories path/to/lib/dir another/one
