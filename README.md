@@ -26,7 +26,7 @@ Writing a .build file is simple and straightforward. It almost has no syntax
 Compiler clang # or gcc/cl or you can specify an absolute or relative path to your C compiler
 
 Assembly SomeName
-Extension exe # or dll/lib/a/so/dylib or even better replace this line with Type app
+Extension exe # or dll/lib/a/so/dylib or replace this line with Type app or lib
 
 # below are optional but you can edit for your project's needs
 # these directories are relative to where you run "riftbuild" from
