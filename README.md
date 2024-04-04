@@ -28,7 +28,7 @@ Compiler clang # or gcc/cl or you can specify an absolute or relative path to yo
 Assembly SomeName
 Extension exe # or dll/lib/a/so/dylib or replace this line with Type app or lib
 
-# below are optional but you can edit for your project's needs
+# below are optional but you can edit them for your project's needs
 # these directories are relative to where you run "riftbuild" from
 
 SourceDirectory src       # default value is nothing
@@ -49,9 +49,9 @@ Defines MAX_STUFF=5 SOME_DEFINE
 ---
 
 # Advanced Stuff
-The above .build file example is the simplest way to write one for a simple project.
+The above .build file example is the simplest way to write one for a basic project.
 
-However, complex projects require some quality of life features, like referencing variables, the PATH, command line args, control flow, includes, dependencies, pre/post build commands, icons, windows rc files, platform-specific options and excluding specific files and directories
+However, complex projects require some quality of life features, like referencing variables, the PATH, command line args, control flow, includes, dependencies, pre/post build commands, icons, windows .rc files, platform-specific options and excluding specific files and directories
 ```
 TODO
 ```
