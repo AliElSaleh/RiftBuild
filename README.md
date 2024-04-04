@@ -45,6 +45,14 @@ Defines MAX_STUFF=5 SOME_DEFINE
 ```
 
 ---
+# I'm not sold on this
+Forks of a few open source projects that I've successfully translated from CMake (and other build systems) to Rift Build. They can be built with just a single call to `riftbuild`
+
+- [TODO](https://google.com)
+- [TODO](https://google.com)
+- [TODO](https://google.com)
+
+---
 
 # Advanced Stuff
 The above .build file example is the simplest way to write one for a basic project.
