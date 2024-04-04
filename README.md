@@ -64,7 +64,7 @@ Note: keywords like `if`, `switch`, `goto`, etc are not considered variables.
 CompilerFlags -std=c99 -O3 -Wall ...
 ```
 
-To reference a variable in another variable. Place a `$` before the name of the variable. (Case Insensitive)
+To reference a variable in another variable, place a `$` before the name of the variable. (Case Insensitive)
 ```make
 CommonFlags some flags
 CompilerFlags $CommonFlags
@@ -80,4 +80,23 @@ Sometimes you would want to concatenate using a variable. Wrap the variable arou
 ```make
 ThirdPartyFolder Source/ThirdParty
 LibraryDirectories $(ThirdPartyFolder)/SomeLib/bin
+```
+
+---
+
+### Environment Variables
+To reference environment variables, place an `@` before the name of the environment variable and wrap around with `()`. This is mandatory when referencing environment variables
+```make
+LibraryDirectories @(CURL_PATH)/lib
+```
+This will expand to
+```ini
+LibraryDirectories "C:\Program Files\curl"/lib # riftbuild will take care of fixing up the paths, so don't worry too much
+```
+
+---
+
+### Internal/Command Line Variables
+```make
+
 ```
