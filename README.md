@@ -104,13 +104,13 @@ LibraryDirectories "C:/Program Files/curl/lib"
 
 ---
 
-### Internal/Command Line Variables
-To reference a command line variable passed into `riftbuild` or an internal variable, place a `%` before the variable. (Case Insensitive)
+### Internal Variables/Command Line Arguments
+To reference a command line argument passed into `riftbuild` or an internal variable, place a `%` before the variable. (Case Insensitive)
 ```make
 Assembly %_FileName # an internal variable that will expand to whatever the .build is called (without the extension)
 ```
 
-Sometimes you need to access a value inside the build file from what was given on the command line. Command line variables can be a singular phrase or a `Key=Value` option
+Sometimes you need to access a value inside the build file from what was given on the command line. Command line arguments can be a singular phrase or a `Key=Value` option
 ```make
 riftbuild someapp.build thisisacmdvar
 riftbuild someapp.build somekey=somevalue
@@ -119,7 +119,8 @@ riftbuild someapp.build somekey=somevalue
 CompilerFlags %somekey # this will expand to somevalue
 Hello %thisisacmdvar   # this will expand to 1 (or 0 if not mentioned in the cmd line)
 ```
-Command line variables can come in handy where you want to do some basic control flow. Like enabling address sanitizer for example
+
+Command line arguments can come in handy when you want to do some basic control flow. Like enabling address sanitizer for example
 ```make
 riftbuild someapp.build asan mode=debug
 
@@ -130,4 +131,4 @@ if mode == release CompilerFlags -O3
 
 CompilerFlags -std=c99 -Wall $AsanFlags
 ```
-Notice how `%` was not present in the `asan` and `mode` if statement. This is because only internal/command line variables can be used with control flow statements, therefore to save on typing and to simplify the syntax, the `%` is optional.
+Notice how `%` was not present in the `asan` and `mode` if statement. This is because only internal variables/command line arguments can be used with control flow statements, therefore to save on typing and to simplify the syntax, the `%` is optional.
