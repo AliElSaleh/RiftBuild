@@ -49,7 +49,35 @@ Defines MAX_STUFF=5 SOME_DEFINE
 # Advanced Stuff
 The above .build file example is the simplest way to write one for a basic project.
 
-However, complex projects require some quality of life features, like referencing variables, the PATH, command line args, control flow, includes, dependencies, pre/post build commands, icons, windows .rc files, platform-specific options and excluding specific files and directories
+However, complex projects require some quality of life features, like referencing variables, the PATH, command line args, control flow, includes, dependencies, pre/post build commands, icons, windows .rc files, platform-specific options and excluding specific files and directories.
+
+Let's go through each aspect.
+
+### Variables
+A .build file is made up of key value pairs. Before the first whitespace is the Key, anything after that is the Value. Keys are case insensitive
+
+Note: keywords like `if`, `switch`, `goto`, etc are not considered variables.
+```make
+-------------------------------------
+|    Key     |        Value         |
+-------------------------------------
+CompilerFlags -std=c99 -O3 -Wall ...
 ```
-TODO
+
+To reference a variable in another variable. Place a `$` before the name of the variable. (Case Insensitive)
+```make
+CommonFlags some flags
+CompilerFlags $CommonFlags
+```
+
+This will expand to
+```make
+CommonFlags some flags
+CompilerFlags some flags
+```
+
+Sometimes you would want to concatenate using a variable. Wrap the variable around with `$()`
+```make
+ThirdPartyFolder Source/ThirdParty
+LibraryDirectories $(ThirdPartyFolder)/SomeLib/bin
 ```
