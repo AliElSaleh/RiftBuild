@@ -45,3 +45,11 @@ LibraryDirectories path/to/lib/dir another/one
 
 Defines MAX_STUFF=5 SOME_DEFINE
 ```
+
+---
+
+# Advanced Stuff
+The above .build file example is the simplest way to write one for a simple program/project. However, more complex programs/projects require some quality of life features, like referencing variables, the PATH, command line args, control flow, includes and platform-specific options
+```
+TODO
+```
