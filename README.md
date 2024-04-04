@@ -99,7 +99,7 @@ LibraryDirectories @(CURL_PATH)/lib
 ```
 This will expand to
 ```ini
-LibraryDirectories "C:\Program Files\curl"/lib # riftbuild will take care of fixing up the paths, so don't worry too much
+LibraryDirectories "C:\Program Files\curl"/lib # riftbuild will fix up the paths, so don't worry
 ```
 
 ---
