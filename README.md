@@ -14,3 +14,33 @@ To build with a specific build file
 riftbuild someapp.build
 ```
 That's it
+
+---
+
+# How to write a .build file
+Writing a .build file is simple and straightforward. It almost has no syntax
+
+```
+# This is a comment!
+
+Compiler clang # or gcc/cl or you can specify an absolute or relative path to your C compiler
+
+Assembly SomeName
+Extension exe # or dll/lib/a/so/dylib or even better replace this line with Type app
+
+# below are optional but you can overide for your program's needs
+# these directories are relative to where you run "riftbuild" from
+SourceDirectory src
+BuildDirectory bin
+IntermediateDirectory int
+
+# fill in the blanks below for your program
+CompilerFlags -std=c11 -O3 etc...
+LinkerFlags 
+IncludeFlags path/to/include-dir another/one thirdparty/dir
+
+Libraries somelib opengl32 etc...
+LibraryDirectories path/to/lib/dir another/one
+
+Defines MAX_STUFF=5 SOME_DEFINE
+```
