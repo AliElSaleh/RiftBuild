@@ -49,7 +49,7 @@ Defines MAX_STUFF=5 SOME_DEFINE
 ---
 
 # Advanced Stuff
-The above .build file example is the simplest way to write one for a simple program/project. However, more complex programs/projects require some quality of life features, like referencing variables, the PATH, command line args, control flow, includes, excluding specific files/directories and platform-specific options
+The above .build file example is the simplest way to write one for a simple program/project. However, more complex programs/projects require some quality of life features, like referencing variables, the PATH, command line args, control flow, includes, platform-specific options and excluding specific files/directories
 ```
 TODO
 ```
