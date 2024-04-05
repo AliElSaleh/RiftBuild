@@ -48,8 +48,8 @@ Defines MAX_STUFF=5 SOME_DEFINE
 # I'm not sold on this
 It is wise to be skeptical. Below are forks of a few open source projects that I've translated from CMake (and other build systems) to Rift Build. They can be built with just a single `riftbuild` call at the terminal.
 
-- [Craft]([https://google.com](https://github.com/fogleman/Craft))
-- [RAD Debugger]([https://google.com](https://github.com/EpicGamesExt/raddebugger))
+- [Craft](https://github.com/fogleman/Craft)
+- [RAD Debugger](https://github.com/EpicGamesExt/raddebugger)
 - [TODO](https://google.com)
 
 ---
