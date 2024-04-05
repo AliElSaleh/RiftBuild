@@ -4,12 +4,12 @@ A simpler build tool for C/C++, because fuck CMake
 ---
 
 ### Usage
-A simple build call will look like this (in a directory with or without a .build file)
+A simple build call will look like this (in a directory with or without a .build file).
 ```bash
 riftbuild
 ```
 
-To build with a specific build file
+To build with a specific build file.
 ```bash
 riftbuild someapp.build
 ```
@@ -18,7 +18,7 @@ That's it
 ---
 
 # How to write a .build file
-Writing a .build file is simple and straightforward. It almost has no syntax
+Writing a .build file is simple and straight-forward. It almost has no syntax.
 
 ```make
 Compiler clang # or gcc/cl or you can specify an absolute or relative path to your C compiler
@@ -46,10 +46,10 @@ Defines MAX_STUFF=5 SOME_DEFINE
 
 ---
 # I'm not sold on this
-Forks of a few open source projects that I've successfully translated from CMake (and other build systems) to Rift Build. They can be built with just a single call to `riftbuild`
+It is wise to be skeptical. Below are forks of a few open source projects that I've translated from CMake (and other build systems) to Rift Build. They can be built with just a single `riftbuild` call at the terminal.
 
-- [TODO](https://google.com)
-- [TODO](https://google.com)
+- [Craft]([https://google.com](https://github.com/fogleman/Craft))
+- [RAD Debugger]([https://google.com](https://github.com/EpicGamesExt/raddebugger))
 - [TODO](https://google.com)
 
 ---
@@ -62,7 +62,7 @@ However, complex projects require some quality of life features, like referencin
 Let's go through each aspect.
 
 ### Variables
-A .build file is made up of key value pairs. Before the first whitespace is the Key, anything after that is the Value. Keys are case insensitive
+A .build file is made up of key value pairs. Before the first whitespace is the Key, anything after that is the Value. Keys are case insensitive.
 
 Note: keywords like `if`, `switch`, `goto`, etc are not considered variables.
 ```make
@@ -84,7 +84,7 @@ CommonFlags some flags
 CompilerFlags some flags
 ```
 
-Sometimes you would want to concatenate using a variable. Wrap the variable around with `$()`
+Sometimes you would want to concatenate using a variable. Wrap the variable around with `$()`.
 ```make
 ThirdPartyFolder Source/ThirdParty
 LibraryDirectories $(ThirdPartyFolder)/SomeLib/bin
@@ -110,7 +110,7 @@ To reference a command line argument passed into `riftbuild` or an internal vari
 Assembly %_FileName # an internal variable that will expand to whatever the .build is called (without the extension)
 ```
 
-Sometimes you need to access a value inside the build file from what was given on the command line. Command line arguments can be a singular phrase or a `Key=Value` option
+Sometimes you need to access a value inside the build file from what was given on the command line. Command line arguments can be a singular phrase or a `Key=Value` option.
 ```make
 riftbuild someapp.build thisisacmdvar
 riftbuild someapp.build somekey=somevalue
@@ -120,7 +120,7 @@ CompilerFlags %somekey # this will expand to somevalue
 Hello %thisisacmdvar   # this will expand to 1 (or 0 if not mentioned in the cmd line)
 ```
 
-Command line arguments can come in handy when you want to do some basic control flow. Like enabling address sanitizer for example
+Command line arguments can come in handy when you want to do some basic control flow. Like enabling address sanitizer for example.
 ```make
 riftbuild someapp.build asan mode=debug
 
