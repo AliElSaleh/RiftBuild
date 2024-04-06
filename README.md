@@ -1,7 +1,6 @@
 # Rift Build
 A simpler build tool for C/C++, because fuck CMake
 
----
 
 ### Usage
 A simple build call will look like this (in a directory with or without a .build file).
