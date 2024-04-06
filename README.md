@@ -153,3 +153,8 @@ Notice how `%` was not present in the `asan` and `mode` if statement. This is be
 
 # Dependencies
 - No dependencies (other than a working C/C++ compiler)
+
+---
+
+# Why did i make this?
+I was trying to build my game engine using CMake (previously used a .bat file) and ended by spending several hours trying to figure out how to use it correctly by googling and watching youtube tutorials and became really depressed with how complicated it was and didn't want to proceed any further, so I spent a day developing my own build system. Writing a build file **should** be so much simpler than whatever the fuck CMake has concocted. I firmly believe that you shouldn't have to learn another language to build your program. A simple declarative build file is understood by everyone, thus there is no need to learn any complicated syntax to successfully write one.
