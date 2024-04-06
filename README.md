@@ -164,3 +164,5 @@ I was trying to build my game engine using CMake (previously used a .bat file) a
 I also tried alternative build systems like Meson, Ninja, Bazel, Premake, etc., and they were all too complicated and bloated for what should be a straight-forward thing, so I spent a day developing my own build system. With Rift Build you don't even need to write a .build file if your program is dead simple.
 
 Writing a build file **should** be so much simpler than whatever the fuck CMake has concocted, and I firmly believe that you shouldn't have to learn **another** language (or a DSL) to build your program. A simple declarative build file is understood by everyone, thus there is no need to learn any complicated syntax to successfully write one. You get to skip the `cmake .`, `make`, `make install` dance and go straight to the compiler with just one command, `riftbuild`.
+
+Note: You may encounter situations where CMake may cover more cases than Rift Build, but i don't care. My mental health and happiness is more important.
