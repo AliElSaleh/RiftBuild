@@ -62,6 +62,7 @@ It is wise to be skeptical of new tools. Below are forks of a few open source pr
 - [PCSX2 TODO](https://google.com)
 - [RPCS3 TODO](https://google.com)
 - [Raylib TODO](https://google.com)
+- [Playdate SDK TODO](https://google.com)
 
 ---
 
