@@ -157,4 +157,8 @@ Notice how `%` was not present in the `asan` and `mode` if statement. This is be
 ---
 
 # Why did i make this?
-I was trying to build my game engine using CMake (previously used a .bat file) and ended by spending several hours trying to figure out how to use it correctly by googling and watching youtube tutorials and became really depressed with how complicated it was and didn't want to proceed any further. I searched for and tried alternative build systems like Meson, Ninja, Bazel, etc., and they were all too complicated and bloated for what should be a straight-forward thing, so I spent a day developing my own build system. Writing a build file **should** be so much simpler than whatever the fuck CMake has concocted, and I firmly believe that you shouldn't have to learn **another** language (or a DSL) to build your program. A simple declarative build file is understood by everyone, thus there is no need to learn any complicated syntax to successfully write one.
+I was trying to build my game engine using CMake (previously used a .bat file) and ended by spending several hours trying to figure out how to use it correctly by googling and watching youtube tutorials and became really depressed with how complicated it was and didn't want to proceed any further.
+
+I also tried alternative build systems like Meson, Ninja, Bazel, etc., and they were all too complicated and bloated for what should be a straight-forward thing, so I spent a day developing my own build system.
+
+Writing a build file **should** be so much simpler than whatever the fuck CMake has concocted, and I firmly believe that you shouldn't have to learn **another** language (or a DSL) to build your program. A simple declarative build file is understood by everyone, thus there is no need to learn any complicated syntax to successfully write one.
