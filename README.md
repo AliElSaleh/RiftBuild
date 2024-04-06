@@ -45,8 +45,6 @@ Defines MAX_STUFF=5 SOME_DEFINE
 ```
 
 ---
-# Dependencies
-- No dependencies (other than a working C/C++ compiler)
 
 # I'm not sold on this
 It is wise to be skeptical of new tools. Below are forks of a few open source projects that I've translated from CMake (and other build systems) to Rift Build. They can be built with just a single `riftbuild` call on the terminal at the project root directory.
@@ -143,3 +141,6 @@ Notice how `%` was not present in the `asan` and `mode` if statement. This is be
 - Windows (64-bit only)
 - Linux (Debian and Arch based only)
 - MacOS
+
+# Dependencies
+- No dependencies (other than a working C/C++ compiler)
