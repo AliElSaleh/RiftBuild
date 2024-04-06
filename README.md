@@ -27,7 +27,6 @@ Extension exe # or dll/lib/a/so/dylib or replace this line with Type app or lib
 
 # below are optional but you can edit them for your project's needs
 # these directories are relative to where you run "riftbuild" from
-
 SourceDirectory src       # default value is nothing
 BuildDirectory bin        # default value is Build
 IntermediateDirectory int # default value is Intermediate
@@ -35,7 +34,7 @@ IntermediateDirectory int # default value is Intermediate
 # fill in the blanks below for your program
 CompilerFlags -std=c11 -O3 etc...
 LinkerFlags 
-IncludeFlags path/to/include-dir thirdparty/dir anotherdir
+Includes path/to/include-dir thirdparty/dir anotherdir
 
 Libraries somelib opengl32 etc...
 LibraryDirectories path/to/lib/dir another/one
