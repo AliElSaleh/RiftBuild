@@ -145,6 +145,15 @@ Notice how `%` was not present in the `asan` and `mode` if statement. This is be
 
 ---
 
+# Icon
+To set an icon for an executable, either specify the .ico name or give an absolute or relative path to the .ico file.
+```make
+Icon someicon.ico
+```
+The fact that other build systems can't do this is fucking pathetic
+
+---
+
 # Supported Platforms
 - Windows (64-bit only)
 - Linux (Debian and Arch based only)
