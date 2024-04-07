@@ -2,13 +2,11 @@ if debug ModeStr Debug else ModeStr Dist-Log
 
 Depends engine-core | mode=$ModeStr
 
-include Config/$(ModeStr).buildvariables
+include Config/$(ModeStr).buildvars
 
 Assembly RiftBuild
 
-MajorVersion 0
-MinorVersion 9
-PatchVersion 3
+MajorVersion 0 ; MinorVersion 9 ; PatchVersion 3
 
 if debug TitleName Rift Build (Debug) else TitleName Rift Build
 Description A simpler build tool for C/C++, because fuck cmake
@@ -16,14 +14,12 @@ Version $(MajorVersion).$(MinorVersion).$(PatchVersion)
 CompanyName Ali El Saleh
 Copyright 2024 Copyright, Ali El Saleh
 
-BaseDirectory Apps/RiftBuild
-SourceDirectory $(BaseDirectory)/Source
-IntermediateDirectory $(BaseDirectory)/Intermediate
-BuildDirectory $(BaseDirectory)/Build/$ModeStr
+SourceDirectory Source
+BuildDirectory Build/$ModeStr
 
-CompilerFlags $SharedCompilerFlags -mno-stack-arg-probe -mstack-probe-size=999999999 -Wno-incompatible-library-redeclaration -Wno-unknown-warning-option
+CompilerFlags $SharedCompilerFlags -mno-stack-arg-probe -mstack-probe-size=999999999 -Wno-incompatible-library-redeclaration
 LinkerFlags $SharedLinkerFlags
-IncludeFlags $SharedIncludeFlags $BaseDirectory
+IncludeFlags $SharedIncludeFlags Core
 
 if _platform == windows LinkerFlags -nostdlib -Wl,-entry:ProgramStart,-subsystem:console -Xlinker /stack:0x400000,0x400000
 
