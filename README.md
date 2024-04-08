@@ -178,8 +178,9 @@ Note: You may encounter situations where CMake may cover more cases than Rift Bu
 # Shitting on other build systems
 
 The most basic rift build project is an executable built from a single source file. For simple projects like this, **NO** build file is required.
-![image](https://github.com/AliElSaleh/Rift-Build/assets/19608222/fa00ddf9-3cb0-4d74-a30d-7e1be1881f0c)
 
+![image](https://github.com/AliElSaleh/Rift-Build/assets/19608222/fa00ddf9-3cb0-4d74-a30d-7e1be1881f0c)
+--
 
 Bazel can't even work with paths that have spaces in them... like what??
 ![image](https://github.com/AliElSaleh/Rift-Build/assets/19608222/fe030f44-99dd-4e03-9fb0-2c3f190238fa)
@@ -187,5 +188,9 @@ Bazel can't even work with paths that have spaces in them... like what??
 but Rift Build can...
 
 ![image](https://github.com/AliElSaleh/Rift-Build/assets/19608222/53c106ca-241f-40d2-8322-6262deedfa21)
+--
+Trying to gather all c files in a makefile is horrendous 🤮
+
+![image](https://github.com/AliElSaleh/Rift-Build/assets/19608222/f14b03df-3572-4798-a90c-629a64086ea5)
 
 
