@@ -47,20 +47,23 @@ Defines MAX_STUFF=5 SOME_DEFINE
 # I'm not sold on this
 It is wise to be skeptical of new tools. Below are forks of a few open source projects that I've translated from CMake (and other build systems) to Rift Build. They can be built with just a single `riftbuild` call on the terminal at the project root directory.
 
-- [Craft TODO](https://github.com/fogleman/Craft)
-- [RAD Debugger TODO](https://github.com/EpicGamesExt/raddebugger)
 - [Jolt Physics TODO](https://github.com/AliElSaleh/JoltPhysics)
 - [Refterm TODO](https://google.com)
-- [Kinema TODO](https://google.com)
+- [Craft TODO](https://github.com/fogleman/Craft)
+- [RAD Debugger TODO](https://github.com/EpicGamesExt/raddebugger)
 - [PhysX TODO](https://google.com)
 - [SDL2 TODO](https://google.com)
-- [StarRuler2]()
+- [Star Ruler 2](https://github.com/AliElSaleh/StarRuler2-Source)
 - [fmt](https://github.com/AliElSaleh/fmt)
+- [GLFW TODO](https://github.com/AliElSaleh/glfw)
+- [FreeType TODO](https://github.com/AliElSaleh/freetype)
+- [libpng TODO](https://github.com/pnggroup/libpng)
 - [Hazel TODO](https://google.com)
 - [PCSX2 TODO](https://google.com)
 - [RPCS3 TODO](https://google.com)
 - [Raylib TODO](https://google.com)
 - [Playdate SDK TODO](https://google.com)
+- [Kinema TODO](https://google.com)
 
 ---
 
