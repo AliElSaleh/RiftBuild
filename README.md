@@ -17,7 +17,7 @@ That's it
 ---
 
 # How to write a .build file
-Writing a .build file is simple and straight-forward. It almost has no syntax.
+Writing a .build file is simple. It almost has no syntax.
 
 ```make
 Compiler clang # or gcc/cl or you can specify an absolute or relative path to your C compiler
@@ -45,7 +45,7 @@ Defines MAX_STUFF=5 SOME_DEFINE
 ---
 
 # I'm not sold on this
-It is wise to be skeptical of new tools. Below are forks of a few open source projects that I've translated from CMake (and other build systems) to Rift Build. They can be built with just a single `riftbuild` call on the terminal at the project root directory.
+It is wise to be skeptical of new tools. Below are forks of a few open-source projects that I've translated from CMake (and other build systems) to Rift Build. They can be built with just a single `riftbuild` call on the terminal at the project root directory.
 
 - [Jolt Physics TODO](https://github.com/AliElSaleh/JoltPhysics)
 - [Refterm TODO](https://google.com)
@@ -71,12 +71,12 @@ It is wise to be skeptical of new tools. Below are forks of a few open source pr
 # Advanced Stuff
 The above .build file example is the simplest way to write one for a basic project.
 
-However, complex projects require some quality of life features, like referencing variables, the PATH, command line args, control flow, includes, dependencies, pre/post build commands, icons, windows .rc files, platform-specific options and excluding specific files and directories.
+However, complex projects require some quality-of-life features, like referencing variables, the PATH, command line args, control flow, includes, dependencies, pre/post build commands, icons, windows .rc files, platform-specific options and excluding specific files and directories.
 
 Let's go through each aspect.
 
 ### Variables
-A .build file is made up of key value pairs. Before the first whitespace is the Key, anything after that is the Value. Keys are case insensitive.
+A .build file is made up of key-value pairs. Before the first whitespace is the Key, anything after that is the Value. Keys are case insensitive.
 
 Note: keywords like `if`, `switch`, `goto`, etc are not considered variables.
 ```make
@@ -160,7 +160,7 @@ The fact that other build systems can't do this is fucking pathetic
 
 # Supported Platforms
 - Windows (64-bit only)
-- Linux (Debian and Arch based only)
+- Linux (Debian and Arch-based only)
 - MacOS
 
 # Dependencies
@@ -168,16 +168,16 @@ The fact that other build systems can't do this is fucking pathetic
 
 ---
 
-# Why did i make this?
+# Why did I make this?
 I hate CMake with every fiber of my being.
 
-I was trying to build my game engine using CMake (previously used a .bat file) and ended up spending several hours trying to figure out how to use it correctly by googling and watching youtube tutorials and became really depressed with how complicated it was and didn't want to proceed any further.
+I was trying to build my game engine using CMake (previously used a .bat file) and ended up spending several hours trying to figure out how to use it correctly by googling and watching youtube tutorials and became depressed with how complicated it was and didn't want to proceed any further.
 
-I also tried alternative build systems like Meson, Ninja, Bazel, Premake, etc., and they were all too complicated and bloated for what should be a straight-forward thing, so I spent a day developing my own build system. With Rift Build you don't even need to write a .build file if your program is dead simple.
+I also tried alternative build systems like Meson, Ninja, Bazel, Premake, etc., and they were all too complicated and bloated for what should be a straightforward thing, so I spent a day developing my own build system. With Rift Build you don't even need to write a .build file if your program is dead simple.
 
 Writing a build file **should** be so much simpler than whatever the fuck CMake has concocted, and I firmly believe that you shouldn't have to learn **another** language (or a DSL) to build your program. A simple declarative build file is understood by everyone, thus there is no need to learn any complicated syntax to successfully write one. You get to skip the `cmake .`, `make`, `make install` dance bullshit and go straight to the compiler with just one command, `riftbuild`.
 
-Note: You may encounter situations where CMake may cover more cases than Rift Build, but i don't care. My mental health and happiness is more important.
+Note: You may encounter situations where CMake may cover more cases than Rift Build, but I don't care. My mental health and happiness is more important.
 
 # Shitting on other build systems
 
