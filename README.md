@@ -107,7 +107,7 @@ LibraryDirectories $(ThirdPartyFolder)/SomeLib/bin
 ---
 
 ### Environment Variables
-To reference environment variables, place an `@` before the name of the environment variable and wrap around with `()`. This is mandatory when referencing environment variables. (Case sensitive)
+To reference environment variables, place an `@` before the name of the environment variable. (Case sensitive)
 ```make
 LibraryDirectories @(CURL_PATH)/lib
 ```
@@ -126,8 +126,9 @@ Assembly %_FileName # an internal variable that will expand to whatever the .bui
 
 Sometimes you need to access a value inside the build file from what was given on the command line. Command line arguments can be a singular phrase or a `Key=Value` option.
 ```make
-riftbuild someapp.build thisisacmdvar
-riftbuild someapp.build somekey=somevalue
+# on the cmd line
+> riftbuild someapp.build thisisacmdvar
+> riftbuild someapp.build somekey=somevalue
 
 # inside the .build file
 CompilerFlags %somekey # this will expand to somevalue
@@ -136,7 +137,8 @@ Hello %thisisacmdvar   # this will expand to 1 (or 0 if not mentioned in the cmd
 
 Command line arguments can come in handy when you want to do some basic control flow. Like enabling address sanitizer for example.
 ```make
-riftbuild someapp.build asan mode=debug
+# on the cmd line
+> riftbuild someapp.build asan mode=debug
 
 # inside the .build file
 if asan AsanFlags -fsantize=address -fsanitize-trap
