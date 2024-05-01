@@ -49,7 +49,7 @@ It is wise to be skeptical of new tools. Below are forks of a few open-source pr
 
 - [Jolt Physics TODO](https://github.com/AliElSaleh/JoltPhysics)
 - [Refterm TODO](https://google.com)
-- [Craft TODO](https://github.com/fogleman/Craft)
+- [Craft](https://github.com/AliElSaleh/Craft)
 - [RAD Debugger](https://github.com/AliElSaleh/raddebugger)
 - [PhysX TODO](https://google.com)
 - [SDL2 TODO](https://google.com)
