@@ -55,7 +55,7 @@ It is wise to be skeptical of new tools. Below are forks of a few open-source pr
 - [SDL2 TODO](https://google.com)
 - [Star Ruler 2](https://github.com/AliElSaleh/StarRuler2-Source)
 - [fmt](https://github.com/AliElSaleh/fmt)
-- [GLFW TODO](https://github.com/AliElSaleh/glfw)
+- [GLFW](https://github.com/AliElSaleh/glfw)
 - [FreeType TODO](https://github.com/AliElSaleh/freetype)
 - [libpng TODO](https://github.com/pnggroup/libpng)
 - [Hazel TODO](https://google.com)
@@ -64,8 +64,7 @@ It is wise to be skeptical of new tools. Below are forks of a few open-source pr
 - [Raylib TODO](https://google.com)
 - [Playdate SDK TODO](https://google.com)
 - [Kinema TODO](https://google.com)
-- [PhysFS TODO]()
-- [GLFW TODO]()
+- [PhysFS](https://github.com/AliElSaleh/physfs)
 
 ---
 
