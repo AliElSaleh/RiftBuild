@@ -1,34 +1,52 @@
-if debug ModeStr Debug else ModeStr Dist-Log
+if debug Mode Debug else Mode Dist-Log
+include Config/$(Mode).buildvariables
 
-Depends engine-core | mode=$ModeStr
-
-include Config/$(ModeStr).buildvars
+Depends engine-core | mode=$Mode %warn_leaks
 
 Assembly RiftBuild
-
-MajorVersion 0 ; MinorVersion 9 ; PatchVersion 3
+Icon riftbuild.ico
 
 if debug TitleName Rift Build (Debug) else TitleName Rift Build
-Description A simpler build tool for C/C++, because fuck cmake
-Version $(MajorVersion).$(MinorVersion).$(PatchVersion)
-CompanyName Ali El Saleh
-Copyright 2024 Copyright, Ali El Saleh
+Description  A simpler build tool for C/C++, because fuck cmake
+Version      0.9.4
+CompanyName  Ali El Saleh
+Copyright    2024 Copyright, Ali El Saleh
 
-SourceDirectory Source
-BuildDirectory Build/$ModeStr
+BaseDirectory         %_FileDirectory
+SourceDirectory       $(BaseDirectory)/Source
+IntermediateDirectory $(BaseDirectory)/Intermediate
+BuildDirectory        $(BaseDirectory)/Build/$Mode
 
-CompilerFlags $SharedCompilerFlags -mno-stack-arg-probe -mstack-probe-size=999999999 -Wno-incompatible-library-redeclaration
-LinkerFlags $SharedLinkerFlags
-IncludeFlags $SharedIncludeFlags Core
+ExcludedSourceFiles   Entry.c
+
+CompilerFlags         $SharedCompilerFlags -mno-stack-arg-probe -mstack-probe-size=999999999
+LinkerFlags           $SharedLinkerFlags
+Includes              $SharedIncludeFlags
+Defines               $SharedDefines HEADLESS RIFT_STATIC NO_LOG_FILE %^%hood
+Libraries             %_NativeLibs RiftEngine-CoreS
+LibraryDirectories    Build/Core-$Mode
 
 if _platform == windows LinkerFlags -nostdlib -Wl,-entry:ProgramStart,-subsystem:console -Xlinker /stack:0x400000,0x400000
+if _platform == linux   Libraries UUID ; LibraryDirectories Libraries/Linux
 
-if _platform == linux Libraries UUID
-if _platform == linux LibraryDirectories Libraries/Linux
+AssertWorkingDirectory ../../
+AssertLibExists RiftEngine-CoreS
 
-Libraries RiftEngine-CoreS %_NativeLibs
-LibraryDirectories Build/Core-$ModeStr
+##
+Blah "get on the FLOOR!"
+test $^Blah
+test $-Blah
+#test2 @^VULKAN_SDK
+dafwf %_FileDirectory
+shjea %_UserDirectory
+arch "%(_arch)"
+username %_user
+accountname %_account
+##
 
-Defines $SharedDefines HEADLESS RIFT_STATIC NO_LOG_FILE MAJOR_VERSION=$MajorVersion MINOR_VERSION=$MinorVersion PATCH_VERSION=$PatchVersion
-
-Icon riftbuild.ico
+targetcross x86_64-win32
+targetcross i386-win32
+targetcross i386-unknown-linux
+targetcross arm64-unknown-linux
+targetcross arm64-apple-darwin
+targetcross i386-apple-darwin
