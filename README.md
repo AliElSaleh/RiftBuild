@@ -45,7 +45,9 @@ Defines MAX_STUFF=5 SOME_DEFINE
 ---
 
 # I'm not sold on this
-It is wise to be skeptical of new tools. Below are forks of a few open-source projects that I've translated from CMake (and other build systems) to Rift Build. They can be built with just a single `riftbuild` call on the terminal at the project root directory.
+It is wise to be skeptical of new tools.
+
+Below are forks of a few open-source projects that I've translated from CMake (and other build systems) to Rift Build. They can be built with just a single `riftbuild` call on the terminal at the project root directory.
 
 - [Jolt Physics TODO](https://github.com/AliElSaleh/JoltPhysics)
 - [Refterm TODO](https://google.com)
