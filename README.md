@@ -69,7 +69,7 @@ It is wise to be skeptical of new tools. Below are forks of a few open-source pr
 ---
 
 # Advanced Stuff
-The above .build file example is the simplest way to write one for a basic project.
+The above .build file example is the simplest way to write one for a basic project. In fact, if your program is too simple, you don't even need to write a build file.
 
 However, complex projects require some quality-of-life features, like referencing variables, the PATH, command line args, control flow, includes, dependencies, pre/post build commands, icons, windows .rc files, platform-specific options and excluding specific files and directories.
 
