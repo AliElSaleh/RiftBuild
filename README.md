@@ -127,7 +127,7 @@ Assembly %_FileName # an internal variable that will expand to whatever the .bui
 Sometimes you need to access a value inside the build file from what was given on the command line. Command line arguments can be a singular phrase or a `Key=Value` option.
 ```make
 # on the cmd line
-> riftbuild someapp.build thisisacmdvar
+> riftbuild someapp.build thisisacmdarg
 > riftbuild someapp.build somekey=somevalue
 
 # inside the .build file
@@ -164,6 +164,7 @@ The fact that other build systems can't do this is fucking pathetic
 - Windows (64-bit only)
 - Linux (Debian and Arch-based only)
 - MacOS
+- FreeBSD/OpenBSD (TODO)
 
 # Dependencies
 - No dependencies (other than a working C/C++ compiler)
