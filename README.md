@@ -1,4 +1,4 @@
-# Rift Build
+# Rift Build (ALPHA)
 A simpler build tool for C/C++, because fuck CMake
 
 
