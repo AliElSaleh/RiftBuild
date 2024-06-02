@@ -1168,22 +1168,22 @@ SystemTime Platform_GetSystemLocalTime(void)
 
 void Platform_Sleep(f64 ms)
 {
-        if (ms > 0)
+    if (ms > 0)
+    {
+        struct timespec t = {0};
+        clock_gettime(CLOCK_REALTIME, &t);
+        const f64 Start = (f64)t.tv_sec + ((f64)t.tv_nsec * 0.000000001); // 1e-9
+
+        f64 Target = ms/1000.0;
+
+        while (1)
         {
-            struct timespec t = {0};
             clock_gettime(CLOCK_REALTIME, &t);
-            const f64 Start = (f64)t.tv_sec + ((f64)t.tv_nsec * 0.000000001); // 1e-9
-
-            f64 Target = ms/1000.0;
-
-            while (1)
-            {
-                clock_gettime(CLOCK_REALTIME, &t);
-                const f64 Now = (f64)t.tv_sec + ((f64)t.tv_nsec * 0.000000001); // 1e-9
-                if ((Now-Start) >= Target)
-                    break;
-            }
+            const f64 Now = (f64)t.tv_sec + ((f64)t.tv_nsec * 0.000000001); // 1e-9
+            if ((Now-Start) >= Target)
+                break;
         }
+    }
 }
 
 void Platform_ShowCursor(bool bShow)

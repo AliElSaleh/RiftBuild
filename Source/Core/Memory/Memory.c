@@ -481,7 +481,7 @@ const char* MemoryTagToString(EMemoryTag Tag)
 
 u64 MemoryUtils_CalculatePaddingWithHeader(u64 Ptr, u64 Alignment, u64 HeaderSize)
 {
-    ASSERT(LIKELY(Alignment != 0) && ((Alignment & (Alignment-1)) == 0)LIKELY(Alignment != 0) && ((Alignment & (Alignment-1)) == 0));
+    ASSERT(LIKELY(Alignment != 0) && ((Alignment & (Alignment-1)) == 0));
 
     u64 p = Ptr;
     u64 a = Alignment;
