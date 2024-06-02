@@ -40,7 +40,7 @@
 #include <ftw.h>
 #include <fcntl.h>
 #include <pwd.h>
-#include <uuid/uuid.h>
+#include "uuid.h"
 #include <sys/mman.h>
 #include <sys/ioctl.h>
 #include <spawn.h>

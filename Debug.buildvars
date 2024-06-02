@@ -21,6 +21,8 @@ SharedDefines DEVELOPER NO_PROFILING _GLIBCXX_ASSERTIONS _GLIBCXX_DEBUG _GLIBCXX
 
 SharedIncludeFlags Source/Core Libraries/Vendor
 
+if _platform == linux SharedIncludeFlags Libraries/Linux
+
 if _arch == x64 CompilerFlags -msse2
 if _arch == x64 SecurityFlags -mshstk
 

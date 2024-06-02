@@ -16,6 +16,7 @@ SharedLinkerFlags
 SharedDefines NO_ASSERT NO_PROFILING _NO_CRT_STDIO_INLINE
 SharedIncludeFlags Source/Core Libraries/Vendor
 
+if _platform == linux SharedIncludeFlags Libraries/Linux
 if _platform == linux SharedLinkerFlags -Wl,-z,nodlopen -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now
 
 if _arch == x64 CompilerFlags -msse2
