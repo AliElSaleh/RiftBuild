@@ -2,22 +2,12 @@
 
 #if PLATFORM_MAC
 
-#include "Input/Input.h"
 #include "Memory/Memory.h"
 #include "String/StringUtils.h"
 #include "Uuid.h"
-#include "Platform/FileWatcher.h"
 #include "Platform/Filesystem.h"
-#include "Profiling/ProfilingSubsystem.h"
 #include "Math/Math.h"
 #include "Log.h"
-
-#ifndef NO_VULKAN
-#define VK_USE_PLATFORM_METAL_EXT
-#include "Renderer/Vulkan/VulkanTypes.inl"
-#include "Renderer/Vulkan/VulkanPlatform.h"
-#include "Renderer/Vulkan/volk.h"
-#endif
 
 #undef internal
 #undef global
@@ -50,19 +40,17 @@
 
 STRUCT(MacPlatformState)
 {
+#if !HEADLESS
     ApplicationDelegate* AppDelegate;
     WindowDelegate* WindowDelegate;
     NSWindow* Window;
     ContentView* View;
     CAMetalLayer* MetalLayer;
-
-    #ifndef NO_VULKAN
-    VkSurfaceKHR Surface;
-    #endif
+    u8 ModifierKeyStates;
+#endif
 
     bool bInitialized;
     bool bQuit;
-    u8 ModifierKeyStates;
 
     u64 ThreadID;
 };
@@ -1381,13 +1369,6 @@ f64 Platform_GetAbsoluteTime(void)
     f64 Nano = ((f64)Time * (f64)info.numer) / (f64)info.denom;
 
     return Nano/1.0e9;
-
-    /*
-    struct timespec t = {0};
-    clock_gettime(CLOCK_REALTIME, &t);
-    const f64 a = (f64)t.tv_sec + ((f64)t.tv_nsec * 0.000000001); // 1e-9
-    return a;
-    */
 }
 
 SystemTime Platform_GetSystemLocalTime(void)
@@ -1412,8 +1393,6 @@ SystemTime Platform_GetSystemLocalTime(void)
 
 void Platform_Sleep(f64 ms)
 {
-    PROFILE_FUNCTION()
-    {
         if (ms > 0)
         {
             mach_timebase_info_data_t info;
@@ -1435,7 +1414,6 @@ void Platform_Sleep(f64 ms)
                     break;
             }
         }
-    }
 }
 
 void Platform_ShowCursor(bool bShow)
@@ -2469,66 +2447,6 @@ bool Filesystem_SanitizeQuotes(String* Dest, const String Path)
     return Dest->Length > 0;
 }
 
-bool FileWatcher_Initialize(void* Memory)
-{
-    return true;
-}
-
-void FileWatcher_Shutdown(void)
-{
-}
-
-u64 FileWatcher_GetMemoryRequirement(void)
-{
-    return 4;
-}
-
-bool FileWatcher_WatchFileOrDirectory(FileWatchReference* Reference)
-{
-    return true;
-}
-
-i32 Rand(void)
-{
-    return rand();
-}
-
-// https://stackoverflow.com/questions/4768180/rand-implementation
-static u32 next = 1;
-
-void RandSeed(void)
-{
-	next = (u32)Platform_GetAbsoluteTime();
-}
-
-i32 RandFast(void)
-{
-    next = (u32)Platform_GetAbsoluteTime();
-    next *= 1103515245 + 12345;
-
-    return (next/65536) % 32768;
-}
-
-f32 FRand(void)
-{
-    // inline Absi32 function
-    i32 Value = Rand();
-	i32 Temp = Value >> 31;
-	Value ^= Temp;
-	Value += Temp & 1;
-
-	return (f32)Value / (f32)INT32_MAX;
-}
-
-f32 FRandFast(void)
-{
-    next = (u32)Platform_GetAbsoluteTime();
-    next *= 1103515245 + 12345;
-    
-    f32 RandFastResult = (f32)((next/65536) % 32768);
-	return RandFastResult / (f32)RAND_MAX;
-}
-
 Uuid UUID_Generate(void)
 {
     uuid_t id;
@@ -2564,43 +2482,6 @@ Uuid UUID_FromString(const String IDString)
     uuid_parse(IDString.Data, id);
 
     return *(Uuid*)id;
-}
-
-
-#ifndef NO_VULKAN
-static const char* GExtensionListBuffer[UINT8_MAX] =
-{
-    VK_EXT_METAL_SURFACE_EXTENSION_NAME,
-    // VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME // not needed
-};
-#endif
-
-#ifndef NO_VULKAN
-const char** Platform_GetRequiredExtensionNames(void)
-{
-    return &GExtensionListBuffer[0];
-}
-
-bool Platform_CreateVulkanSurface(struct VulkanContext* Context)
-{
-    VkMetalSurfaceCreateInfoEXT CreateInfo = { 0 };
-    CreateInfo.sType = VK_STRUCTURE_TYPE_METAL_SURFACE_CREATE_INFO_EXT;
-    CreateInfo.pLayer = GMacPlatformState->MetalLayer;
-
-    VkResult Result = vkCreateMetalSurfaceEXT(Context->Instance, &CreateInfo, Context->Allocator, &GMacPlatformState->Surface);
-    if (Result != VK_SUCCESS)
-    {
-        return false;
-    }
-
-    Context->Surface = GMacPlatformState->Surface;
-    return true;
-}
-#endif
-
-u8 ConvertInputKeyToUnicodeCharacter(EKey Key)
-{
-    return (u8)Key;
 }
 
 bool Platform_GetTerminalDimensions(u32* OutRows, u32* OutColumns)
