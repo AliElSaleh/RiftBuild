@@ -162,7 +162,7 @@ The fact that other build systems can't do this is fucking pathetic
 
 ---
 
-# Building riftbuild
+# Building RiftBuild
 RiftBuild can of course build itself with just a single call like this
 ```
 riftbuild
