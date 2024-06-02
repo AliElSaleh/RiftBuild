@@ -1,52 +1,37 @@
-if debug Mode Debug else Mode Dist-Log
-include Config/$(Mode).buildvariables
-
-Depends engine-core | mode=$Mode %warn_leaks
+if debug Mode Debug else Mode Dist
+include $(Mode).buildvars
 
 Assembly RiftBuild
-Icon riftbuild.ico
+Icon     riftbuild.ico
 
-if debug TitleName Rift Build (Debug) else TitleName Rift Build
-Description  A simpler build tool for C/C++, because fuck cmake
-Version      0.9.4
-CompanyName  Ali El Saleh
-Copyright    2024 Copyright, Ali El Saleh
+TitleName               Rift Build ($(Mode))
+Description             A simpler build tool for C/C++, because fuck cmake
+Version                 0.9.5
+CompanyName             Ali El Saleh
+Copyright               Copyright (c) 2024 Ali El Saleh
 
-BaseDirectory         %_FileDirectory
-SourceDirectory       $(BaseDirectory)/Source
-IntermediateDirectory $(BaseDirectory)/Intermediate
-BuildDirectory        $(BaseDirectory)/Build/$Mode
+SourceDirectory         Source
+IntermediateDirectory   Intermediate
+BuildDirectory          Build/$Mode
 
-ExcludedSourceFiles   Entry.c
+CompilerFlags           $SharedCompilerFlags -mno-stack-arg-probe -mstack-probe-size=999999999
+LinkerFlags             $SharedLinkerFlags
+Includes                $SharedIncludeFlags
+Defines                 $SharedDefines HEADLESS RIFT_STATIC NO_LOG_FILE %^%hood
+Libraries               %_NativeLibs
 
-CompilerFlags         $SharedCompilerFlags -mno-stack-arg-probe -mstack-probe-size=999999999
-LinkerFlags           $SharedLinkerFlags
-Includes              $SharedIncludeFlags
-Defines               $SharedDefines HEADLESS RIFT_STATIC NO_LOG_FILE %^%hood
-Libraries             %_NativeLibs RiftEngine-CoreS
-LibraryDirectories    Build/Core-$Mode
+IncludedSourceFiles     Clock.c Math.c Memory.c Allocators.c StringUtils.c Containers.c Globals.c Log.c EngineUtils.c Program.c CBackend.c MSVCBackend.c Exporter.c Parse.c
+
+if _platform == windows IncludedSourceFiles Platform_Windows.c
+if _platform == linux   IncludedSourceFiles Platform_Linux.c
+if _platform == macos   IncludedSourceFiles Platform_Mac.m
+if _platform == bsd     IncludedSourceFiles Platform_BSD.c
 
 if _platform == windows LinkerFlags -nostdlib -Wl,-entry:ProgramStart,-subsystem:console -Xlinker /stack:0x400000,0x400000
+if _platform == windows Defines WIN32_LEAN_AND_MEAN
+
+if _platform == apple   LinkerFlags -ObjC -framework Foundation -framework QuartzCore -framework AppKit
+
 if _platform == linux   Libraries UUID ; LibraryDirectories Libraries/Linux
 
-AssertWorkingDirectory ../../
-AssertLibExists RiftEngine-CoreS
-
-##
-Blah "get on the FLOOR!"
-test $^Blah
-test $-Blah
-#test2 @^VULKAN_SDK
-dafwf %_FileDirectory
-shjea %_UserDirectory
-arch "%(_arch)"
-username %_user
-accountname %_account
-##
-
-targetcross x86_64-win32
-targetcross i386-win32
-targetcross i386-unknown-linux
-targetcross arm64-unknown-linux
-targetcross arm64-apple-darwin
-targetcross i386-apple-darwin
+AssertWorkingDirectory .
