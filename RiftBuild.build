@@ -30,8 +30,6 @@ if _platform == bsd     IncludedSourceFiles Platform_BSD.c
 if _platform == windows LinkerFlags -nostdlib -Wl,-entry:ProgramStart,-subsystem:console -Xlinker /stack:0x400000,0x400000
 if _platform == windows Defines WIN32_LEAN_AND_MEAN
 
-if _platform == apple   LinkerFlags -ObjC -framework Foundation -framework QuartzCore -framework AppKit
-
 if _platform == linux   Libraries UUID ; LibraryDirectories Libraries/Linux
 
 AssertWorkingDirectory .
