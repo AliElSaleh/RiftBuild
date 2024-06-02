@@ -168,18 +168,15 @@ RiftBuild can of course build itself with just a single call like this
 riftbuild
 ```
 
-However if you'd like to build the old fashioned way, there are OS specific script files that you can run from the Scripts/ directory on Windows/Mac/Linux/BSD. Within the `Scripts` directory, run the build script
+However if you'd like to build the old fashioned way, there are OS specific build scripts that you can use.
+From the project root directory, run them like so
 ### Windows
 ```
-build.bat
+Scripts\build_windows.bat
 ```
-### Mac OS
+### Unix (Linux / Mac OS / BSD)
 ```
-build.command
-```
-### Linux or BSD
-```
-./build.sh
+./Scripts/build_unix.sh
 ```
 RiftBuild compiles with Clang so make sure that is installed before building
 
