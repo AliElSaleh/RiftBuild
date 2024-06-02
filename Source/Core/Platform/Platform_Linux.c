@@ -1633,12 +1633,14 @@ bool Filesystem_ConvertRelativeToAbsolutePath(String* OutFullPath)
 
 internal void Internal_IterateDirectory(const String BasePath, const String DirectoryPath, DirectoryIterator Callback, bool bRecursive, void* UserData)
 {
+    const String RealBasePath = BasePath.Length == 0 ? S(".") : BasePath;
+    
     struct dirent* entry = NULL;
-    DIR* dp = opendir(BasePath.Data);
+    DIR* dp = opendir(RealBasePath.Data);
     if (!dp)
     {
         StringLocal(Message, MAX_PATH_LENGTH);
-        String_Format(&Message, S("Failed to iterate directory for path \"%S\""), MAX_PATH_LENGTH, BasePath);
+        String_Format(&Message, S("Failed to iterate directory for path \"%S\""), MAX_PATH_LENGTH, RealBasePath);
         LogLastError(Message);
         return;
     }
@@ -1661,7 +1663,7 @@ internal void Internal_IterateDirectory(const String BasePath, const String Dire
         const String EntryName = CStr(entry->d_name);
 
         StringLocal(FullPath, MAX_PATH_LENGTH);
-        String_BuildPath(&FullPath, BasePath, EntryName);
+        String_BuildPath(&FullPath, RealBasePath, EntryName);
         
         StringLocal(RelativePath, MAX_PATH_LENGTH);
 
