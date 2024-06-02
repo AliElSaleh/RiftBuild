@@ -1,3 +1,5 @@
+// Copyright (c) 2024 Ali El Saleh
+
 #include "Backend.h"
 
 #if PLATFORM_WINDOWS
@@ -9,22 +11,29 @@
 
 /// TODO: if multithreaded and more than on soruce file. use /MP and call cl.exe only once
 
-STRUCT(CompileData)
-{
-    const BuildParams* Params;
-    u32* NumCompiled;
-    u32 NumSources;
-    u32 NumHeaders;
-    u32 NumRcSources;
-    u32 Index;
-    bool bSuccess;
-};
+// C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build 
 
-STRUCT(LinkData)
-{
-    const BuildParams* Params;
-    String* CmdLine;
-};
+/*
+    // find the vcvars bat file so we can run cl from a regular cmd line. luckily the bat file is always in the same place relative to where cl.exe lives
+    u32 LastSlash = 0;
+    String_IndexOfLastPathSlash(Params->CompilerPath, &LastSlash);
+    const String CompilerPathNoExt = StrSlice(Params->CompilerPath.Data, LastSlash+1);
+    String_AppendChar(&CmdLine, '"');
+    String_Append(&CmdLine, CompilerPathNoExt);
+    String_Append(&CmdLine, StrLit("../../../../../../Auxiliary/Build/"));
+    if (Filesystem_DoesDirectoryExist(StrShiftF(CmdLine, 1)))
+    {
+        String_Append(&CmdLine, StrLit("vcvars64.bat")); //todo: switch between 32 or 64 bit?
+        String_AppendChar(&CmdLine, '"');
+        String_Append(&CmdLine, StrLit(" >NUL 2>&1 && ")); // suppress output logs from the bat script
+    }
+    else
+    {
+        String_Empty(&CmdLine);
+    }
+
+
+*/
 
 bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String RelativePath);
 
@@ -32,7 +41,7 @@ internal bool AsmSourceFileDirectoryIterator(const String FullPath, const String
 {
     if (FileSize > 0)
     {
-        if (String_StartsWith(FileName, StrLit("__"), false))
+        if (String_StartsWith(FileName, S("__"), false))
         {
             return true;
         }
@@ -40,7 +49,7 @@ internal bool AsmSourceFileDirectoryIterator(const String FullPath, const String
         CompileData* Data = (CompileData*)UserData;
         const BuildParams* Params = Data->Params;
 
-        if (String_EndsWith(RelativePath, StrLit(".asm"), false) &&
+        if (String_EndsWith(RelativePath, S(".asm"), false) &&
             FilterSourceFile(Data->Params->RootDirectory, Data->Params->SourceDirectory, FullPath, RelativePath, Data->Params->WhitelistFiles, Data->Params->BlacklistFiles, Data->Params->WhitelistDirectories, Data->Params->BlacklistDirectories))
         {
             // ignore the intermediate and build directories
@@ -58,7 +67,7 @@ internal bool AsmSourceFileDirectoryIterator(const String FullPath, const String
 
             StringLocal(FilePath, MAX_PATH_LENGTH);
             String_Append(&FilePath, StrSlice(FileName.Data, LastDot));
-            String_Append(&FilePath, StrLit(".obj"));
+            String_Append(&FilePath, S(".obj"));
 
             StringLocal(ObjectFilePath, MAX_PATH_LENGTH);
             String_BuildPath(&ObjectFilePath, Params->IntermediateDirectory, FilePath);
@@ -69,14 +78,14 @@ internal bool AsmSourceFileDirectoryIterator(const String FullPath, const String
             if (SourceFileWriteTime >= ObjectFileWriteTime)
             {
                 StringLocal(CmdLine, Kibibytes(4));
-                String_Append(&CmdLine, StrLit("ml64 /nologo /c /Fo\""));
+                String_Append(&CmdLine, S("ml64 /nologo /c /Fo\""));
 
                 StringLocal(ObjectPath, MAX_PATH_LENGTH);
                 String_BuildPath(&ObjectPath, Params->IntermediateDirectory);
                 String_EatPathSeparatorsInlineFromEnd(&ObjectPath);
 
                 String_Append(&CmdLine, ObjectPath);
-                String_Append(&CmdLine, StrLit("\\\\\" "));
+                String_Append(&CmdLine, S("\\\\\" "));
 
                 StringLocal(SourcePath, MAX_PATH_LENGTH);
                 String_BuildPath(&SourcePath, Params->SourceDirectory, RelativePath);
@@ -102,59 +111,11 @@ internal bool AsmSourceFileDirectoryIterator(const String FullPath, const String
     return true;
 }
 
-internal bool SourceFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
-{
-    if (FileSize > 0)
-    {
-        if (String_StartsWith(FileName, StrLit("__"), false))
-        {
-            return true;
-        }
-
-        CompileData* Data = (CompileData*)UserData;
-
-        // ignore the intermediate and build directories
-        if (String_IndexOfFirstPathSlash(RelativePath, NULL))
-        {
-            if (String_StartsWith(RelativePath, Data->Params->IntermediateDirectory, false) ||
-                String_StartsWith(RelativePath, Data->Params->BuildDirectory, false))
-            {
-                return true;
-            }
-        }
-
-        u32 DotIndex = 0;
-        String_IndexOfLastChar(FileName, '.', &DotIndex);
-
-        const String Extension = StrShiftF(FileName, DotIndex);
-
-        if (IsSource(Extension))
-        {
-            if (String_IsEqual(Extension, StrLit(".asm"), false) ||
-                String_IsEqual(Extension, StrLit(".rc"), false))
-            {
-                return true;
-            }
-
-            if (FilterSourceFile(Data->Params->RootDirectory, Data->Params->SourceDirectory, FullPath, RelativePath, Data->Params->WhitelistFiles, Data->Params->BlacklistFiles, Data->Params->WhitelistDirectories, Data->Params->BlacklistDirectories))
-            {
-                if (!MSVC_DoCompile(Data, FullPath, RelativePath))
-                {
-                    Data->bSuccess = false;
-                    return false;
-                }
-            }
-        }
-    }
-
-    return true;
-}
-
 internal bool ResourceFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
     if (FileSize > 0)
     {
-        if (String_StartsWith(FileName, StrLit("__"), false))
+        if (String_StartsWith(FileName, S("__"), false))
         {
             return true;
         }
@@ -171,16 +132,16 @@ internal bool ResourceFileDirectoryIterator(const String FullPath, const String 
             }
         }
 
-        if (String_EndsWith(FileName, StrLit(".rc"), false))
+        if (String_EndsWith(FileName, S(".rc"), false))
         {
-            if (String_EndsWith(RelativePath, StrLit("icon.rc"), false))
+            if (String_EndsWith(RelativePath, S("icon.rc"), false))
                 return true;
 
             if (FilterSourceFile(Data->Params->RootDirectory, Data->Params->SourceDirectory, FullPath, RelativePath, Data->Params->WhitelistFiles, Data->Params->BlacklistFiles, Data->Params->WhitelistDirectories, Data->Params->BlacklistDirectories))
             {
                 StringLocal(CmdLine, 1024);
-                String_Append(&CmdLine, StrLit("llvm-rc"));
-                String_Append(&CmdLine, StrLit(" \""));
+                String_Append(&CmdLine, S("llvm-rc"));
+                String_Append(&CmdLine, S(" \""));
                 String_Append(&CmdLine, FullPath);
                 String_AppendChar(&CmdLine, '"');
 
@@ -217,7 +178,7 @@ internal bool Link_SourceFileDirectoryIterator(const String FullPath, const Stri
 {
     if (FileSize > 0)
     {
-        if (String_StartsWith(FileName, StrLit("__"), false))
+        if (String_StartsWith(FileName, S("__"), false))
         {
             return true;
         }
@@ -247,9 +208,9 @@ internal bool Link_SourceFileDirectoryIterator(const String FullPath, const Stri
                 u32 LastDot = 0;
                 String_IndexOfLastChar(FileName, '.', &LastDot);
 
-                if (String_EndsWith(RelativePath, StrLit(".rc"), false))
+                if (String_EndsWith(RelativePath, S(".rc"), false))
                 {
-                    if (String_EndsWith(RelativePath, StrLit("icon.rc"), false))
+                    if (String_EndsWith(RelativePath, S("icon.rc"), false))
                         return true;
 
                     u32 LastSlash = 0;
@@ -257,7 +218,7 @@ internal bool Link_SourceFileDirectoryIterator(const String FullPath, const Stri
 
                     StringLocal(FilePath, MAX_PATH_LENGTH);
                     String_Append(&FilePath, StrSlice(FileName.Data, LastDot));
-                    String_Append(&FilePath, StrLit(".res"));
+                    String_Append(&FilePath, S(".res"));
 
                     const String Dir = StrSlice(FullPath.Data, LastSlash);
                     String_BuildPath(&ObjectPath, Dir, FilePath);
@@ -269,7 +230,7 @@ internal bool Link_SourceFileDirectoryIterator(const String FullPath, const Stri
 
                     StringLocal(FilePath, MAX_PATH_LENGTH);
                     String_Append(&FilePath, StrSlice(RelativePath.Data, LastPathDot));
-                    String_Append(&FilePath, StrLit(".obj"));
+                    String_Append(&FilePath, S(".obj"));
 
                     String_BuildPath(&ObjectPath, Data->Params->IntermediateDirectory, FilePath);
                 }
@@ -285,14 +246,16 @@ internal bool Link_SourceFileDirectoryIterator(const String FullPath, const Stri
     return true;
 }
 
-bool MSVC_CompileV2(const BuildParams* Params, u32* NumCompiled)
+bool MSVC_Compile(const BuildParams* Params, u32* NumCompiled)
 {
+    if (NEVER(Params == NULL)) return false;
+
     StringLocal(SourceDir, MAX_PATH_LENGTH);
     String_BuildPath(&SourceDir, Params->RootDirectory, Params->SourceDirectory);
 
     // compile all .asm files first
     {
-        CompileData UserData = { Params, NumCompiled, Params->NumSources, Params->NumHeaders, Params->NumRcSources, 0, true };
+        CompileData UserData = { NULL, Params, NumCompiled, 0, true, NULL };
         Filesystem_IterateDirectory_Ex(SourceDir, AsmSourceFileDirectoryIterator, true, &UserData);
         if (!UserData.bSuccess)
         {
@@ -300,8 +263,9 @@ bool MSVC_CompileV2(const BuildParams* Params, u32* NumCompiled)
         }
     }
 
+    // compile all .c files
     {
-        CompileData UserData = { Params, NumCompiled, Params->NumSources, Params->NumHeaders, Params->NumRcSources, 0, true };
+        CompileData UserData = { MSVC_DoCompile, Params, NumCompiled, 0, true, NULL };
         Filesystem_IterateDirectory_Ex(SourceDir, SourceFileDirectoryIterator, true, &UserData);
         if (!UserData.bSuccess)
         {
@@ -336,9 +300,9 @@ bool MSVC_CompileV2(const BuildParams* Params, u32* NumCompiled)
     }
 
     // compile resource files
-    if (Platform_FindProgram(StrLit("llvm-rc"))) // TODO: use rc.exe instead
+    if (Platform_FindProgram(S("llvm-rc"))) // TODO: use rc.exe instead
     {
-        CompileData RcUserData = { Params, NumCompiled, Params->NumSources, Params->NumHeaders, Params->NumRcSources, 0, true };
+        CompileData RcUserData = { NULL, Params, NumCompiled, 0, true, NULL };
         Filesystem_IterateDirectory_Ex(SourceDir, ResourceFileDirectoryIterator, true, &RcUserData);
         if (!RcUserData.bSuccess)
         {
@@ -351,6 +315,9 @@ bool MSVC_CompileV2(const BuildParams* Params, u32* NumCompiled)
 
 bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String RelativePath)
 {
+    ASSERT(Data != NULL);
+    ASSERT(Data->Params != NULL);
+
     const BuildParams* Params = Data->Params;
 
     TArray(PlatformHandle) Processes = *Params->Processes;
@@ -382,7 +349,7 @@ bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String Relat
     Data->Index++;
     
     StringLocal(CmdLine, UINT16_MAX);
-    String_Append(&CmdLine, StrLit("cl /nologo "));
+    String_Append(&CmdLine, S("cl /nologo "));
 
     u32 LastSlash = 0;
     String_IndexOfLastPathSlash(RelativePath, &LastSlash);
@@ -392,7 +359,7 @@ bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String Relat
 
     StringLocal(FilePath, MAX_PATH_LENGTH);
     String_Append(&FilePath, StrSlice(RelativePath.Data, LastDot));
-    String_Append(&FilePath, StrLit(".obj"));
+    String_Append(&FilePath, S(".obj"));
 
     // build object path
     StringLocal(ObjectFilePath, MAX_PATH_LENGTH);
@@ -434,12 +401,16 @@ bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String Relat
 
     Filesystem_OpenDirectory(FullObjectPath);
 
-    String_Append(&CmdLine, StrLit(" /Fo\""));
+    String_Append(&CmdLine, S(" /Fo\""));
     String_Append(&CmdLine, ObjectPath);
-    String_Append(&CmdLine, StrLit("\\\\\" /c"));
+    String_Append(&CmdLine, S("\\\\\" /c"));
+
+    if (bQuietBuild) Logging_Enable();
 
     if (Params->bShouldWaitPerCompileProcess)
-        LOG_INLINE(" [%i/%i] Compiling ", Data->Index, Data->NumSources);
+        LOG_INLINE("[%i/%i] Compiling ", Data->Index, Params->NumSources);
+
+    if (bQuietBuild) Logging_Disable();
 
     if (Params->bVerbose)
     {
@@ -463,268 +434,11 @@ bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String Relat
     return true;
 }
 
-/*
-bool MSVC_Compile(const BuildParams* Params, u32* NumCompiled)
+bool MSVC_Link(const BuildParams* Params)
 {
-    // compile all .asm files first
-    for each (It, Params->SourceFiles)
-    {
-        if (String_EndsWith(It->RelativePath, StrLit(".asm"), false))
-        {
-            u32 LastSlash = 0;
-            String_IndexOfLastPathSlash(It->RelativePath, &LastSlash);
-            String FileName = LastSlash > 0 ? StrShiftF(It->RelativePath, LastSlash+1) : It->RelativePath;
+    if (NEVER(Params == NULL)) return false;
 
-            u32 LastDot = 0;
-            String_IndexOfLastChar(FileName, '.', &LastDot);
-
-            StringLocal(FilePath, MAX_PATH_LENGTH);
-            String_Append(&FilePath, StrSlice(FileName.Data, LastDot));
-            String_Append(&FilePath, StrLit(".obj"));
-
-            StringLocal(ObjectFilePath, MAX_PATH_LENGTH);
-            String_BuildPath(&ObjectFilePath, Params->IntermediateDirectory, FilePath);
-
-            u64 ObjectFileWriteTime = Filesystem_GetLastWriteTime(ObjectFilePath);
-            u64 SourceFileWriteTime = Filesystem_GetLastWriteTime(It->FullPath);
-
-            if (SourceFileWriteTime >= ObjectFileWriteTime)
-            {
-                StringLocal(CmdLine, Kibibytes(4));
-                String_Append(&CmdLine, StrLit("ml64 /nologo /c /Fo\""));
-
-                StringLocal(ObjectPath, MAX_PATH_LENGTH);
-                String_BuildPath(&ObjectPath, Params->IntermediateDirectory);
-                String_EatPathSeparatorsInlineFromEnd(&ObjectPath);
-
-                String_Append(&CmdLine, ObjectPath);
-                String_Append(&CmdLine, StrLit("\\\\\" "));
-
-                StringLocal(SourcePath, MAX_PATH_LENGTH);
-                String_BuildPath(&SourcePath, Params->SourceDirectory, It->RelativePath);
-                String_Append(&CmdLine, SourcePath);
-                String_AppendSpace(&CmdLine);
-
-                String_Append(&CmdLine, Params->IncludeFlags);
-
-                //LOG("CMD: %S", CmdLine);
-
-                PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory);
-                Platform_WaitForHandle(H, -1);
-
-                const u32 ExitCode = Platform_GetExitCodeForProcess(H);
-                if (ExitCode != 0)
-                {
-                    return false;
-                }
-            }
-        }
-    }
-
-    TArray(PlatformHandle) Processes = *Params->Processes;
-
-    u32 TotalWorkDone = 0;
-    for each (It, Params->SourceFiles)
-    {
-        if (String_EndsWith(It->RelativePath, StrLit(".rc"), false))
-        {
-            // we will build this later
-            continue;
-        }
-
-        SourceFileData File = *It;
-
-        u32 LastSlash = 0;
-        String_IndexOfLastPathSlash(File.RelativePath, &LastSlash);
-        String FileName = LastSlash > 0 ? StrShiftF(File.RelativePath, LastSlash+1) : File.RelativePath;
-
-        u32 LastDot = 0;
-        if (!String_IndexOfLastChar(FileName, '.', &LastDot))
-        {
-            // no extension? huh??
-            // this should theoretically never happen because of C_IsSource() func which checks for extensions before we get here
-            // but it's good to cover these edge cases anyway
-            continue;
-        }
-
-        bool bIsAsm = String_EndsWith(File.RelativePath, StrLit(".asm"), false);
-        if (bIsAsm)
-            continue;
-
-        if (Params->MaxCompilersAtOnce > 0 && !Params->bShouldWaitPerCompileProcess)
-        {
-            u32 Num = (u32)Array_Num(Processes);
-            if (Num == Params->MaxCompilersAtOnce)
-            {
-                for each (Process, Processes)
-                {
-                    Platform_WaitForHandle(Process, -1);
-                    const u32 ExitCode = Platform_GetExitCodeForProcess(Process);
-                    if (ExitCode != 0)
-                    {
-                        #ifndef HOOD
-                        LOG_ERROR("Compiler errors detected. See above errors to fix. Exit code for process: %u. Aborting build...", ExitCode);
-                        #else
-                        LOG_ERROR("seen some compiler errors homie, gon' stop right here");
-                        #endif
-
-                        return false;
-                    }
-
-                    Array_Remove(Processes, Process);
-                    break;
-                }
-            }
-        }
-        
-        StringLocal(CmdLine, UINT16_MAX);
-        String_Append(&CmdLine, StrLit("cl /nologo "));
-
-        StringLocal(FilePath, MAX_PATH_LENGTH);
-        String_Append(&FilePath, StrSlice(FileName.Data, LastDot));
-        String_Append(&FilePath, StrLit(".obj"));
-
-        // build object path
-        StringLocal(ObjectFilePath, MAX_PATH_LENGTH);
-        String_BuildPath(&ObjectFilePath, Params->IntermediateDirectory, FilePath);
-
-        u64 ObjectFileWriteTime = Filesystem_GetLastWriteTime(ObjectFilePath);
-        u64 SourceFileWriteTime = Filesystem_GetLastWriteTime(File.FullPath);
-
-        if (ObjectFileWriteTime >= SourceFileWriteTime)
-        {
-            #ifndef HOOD
-            LOG("[Skipping] %S", File.FullPath);
-            #else
-            LOG("skip'n dis shit %S", File.FullPath);
-            #endif
-
-            continue;
-        }
-
-        TotalWorkDone++;
-
-        StringLocal(FullSourcePath, MAX_PATH_LENGTH+2);
-        String_BuildPath(&FullSourcePath, Params->SourceDirectory, File.RelativePath);
-
-        String_AppendChar(&CmdLine, '"');
-        String_Append(&CmdLine, FullSourcePath);
-        String_AppendChar(&CmdLine, '"');
-        String_AppendSpace(&CmdLine);
-
-        String_BuildSeparator(&CmdLine, ' ', Params->CompilerFlags, Params->DefineFlags, Params->IncludeFlags);
-        String_EatSpacesInlineFromEnd(&CmdLine);
-
-        StringLocal(ObjectPath, MAX_PATH_LENGTH);
-        String_BuildPath(&ObjectPath, Params->IntermediateDirectory);
-        String_EatPathSeparatorsInlineFromEnd(&ObjectPath);
-
-        String_Append(&CmdLine, StrLit(" /Fo\""));
-        String_Append(&CmdLine, ObjectPath);
-        String_Append(&CmdLine, StrLit("\\\\\" /c"));
-
-        if (Params->bShouldWaitPerCompileProcess)
-            LOG_INLINE("[%i/%i] Compiling ", TotalWorkDone, Array_Num(Params->SourceFiles));
-
-        if (Params->bVerbose)
-        {
-            LOG("    %S", CmdLine);
-        }
-
-        PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory);
-        Array_Add(Processes, H);
-
-        if (Params->bShouldWaitPerCompileProcess)
-        {
-            Platform_WaitForHandle(H, -1);
-
-            const u32 ExitCode = Platform_GetExitCodeForProcess(H);
-            if (ExitCode != 0)
-            {
-                LOG_ERROR("Compiler errors detected. See above errors to fix. Exit code for process: %u. Aborting build...", ExitCode);
-
-                return false;
-            }
-        }
-    }
-
-    *NumCompiled = TotalWorkDone;
-
-    if (TotalWorkDone == 0)
-    {
-        #ifndef HOOD
-        LOG("\nNothing to compile - source files unchanged since last build");
-        #else
-        LOG("\nno work to do homie");
-        #endif
-    
-        return true;
-    }
-
-    Platform_WaitForMultipleHandles(Processes, (u32)Array_Num(Processes), -1, true);
-
-    for each (Process, Processes)
-    {
-        const u32 ExitCode = Platform_GetExitCodeForProcess(Process);
-        if (ExitCode != 0)
-        {
-            #ifndef HOOD
-            LOG_ERROR("Compiler errors detected. See above errors to fix. Exit code for process: %u. Aborting build...", ExitCode);
-            #else
-            LOG_ERROR("seen some compiler errors homie, gon' stop right here");
-            #endif
-
-            return false;
-        }
-    }
-
-    // compile resource files
-    u32 i = 0;
-    // TODO: use rc.exe instead of llvm-rc
-    String RCProgram = StrLit("llvm-rc");
-    bool bHasRcProgram = Platform_FindProgram(RCProgram);
-
-    if (bHasRcProgram)
-    {
-        for each_i (i, It, Params->SourceFiles)
-        {
-            if (String_EndsWith(It->RelativePath, StrLit(".rc"), false))
-            {
-                if (String_EndsWith(It->RelativePath, StrLit("icon.rc"), false))
-                    continue;
-
-                StringLocal(CmdLine, 1024);
-                String_Append(&CmdLine, RCProgram);
-                String_Append(&CmdLine, StrLit(" \""));
-                String_Append(&CmdLine, It->FullPath);
-                String_AppendChar(&CmdLine, '"');
-
-                LOG("\nCompiling resource file \"%S\"", It->FullPath);
-                LOG("    %S", CmdLine);
-
-                if (i < Array_Num(Params->SourceFiles)-1)
-                {
-                    LOG_LINE_BREAK();
-                }
-
-                PlatformHandle h = Platform_RunCommand(CmdLine, Params->RootDirectory);
-                u32 ExitCode = Platform_WaitForProcessAndGetExitCode(h);
-                if (ExitCode != 0)
-                {
-                    LOG("Failed to build resource file \"%S\" for %S. Aborting build...", It->RelativePath, Params->AssemblyWithExt);
-                    return false;
-                }
-            }
-        }
-    }
-
-    return true;
-}
-*/
-
-bool MSVC_LinkV2(const BuildParams* Params)
-{
-    if (String_IsEqual(Params->Extension, StrLit(".pch"), false))
+    if (String_IsEqual(Params->Extension, S(".pch"), false))
     {
         return true;
     }
@@ -738,14 +452,14 @@ bool MSVC_LinkV2(const BuildParams* Params)
 
     StringLocal(CmdLine, UINT16_MAX);
 
-    bool bIsDLL = String_IsEqual(Params->Extension, StrLit(".dll"), false);
-    if (String_IsEqual(Params->Extension, StrLit(".exe"), false) ||
+    bool bIsDLL = String_IsEqual(Params->Extension, S(".dll"), false);
+    if (String_IsEqual(Params->Extension, S(".exe"), false) ||
         bIsDLL)
     {
-        String_Append(&CmdLine, StrLit("link"));
+        String_Append(&CmdLine, S("link"));
         if (bIsDLL)
-            String_Append(&CmdLine, StrLit(" /dll"));
-        String_Append(&CmdLine, StrLit(" /nologo "));
+            String_Append(&CmdLine, S(" /dll"));
+        String_Append(&CmdLine, S(" /nologo "));
 
         String_BuildSeparator(&CmdLine, ' ', Params->LinkerDefineFlags, Params->LinkerFlags, Params->IconResFilePath, Params->VersionResFilePath, Params->Libraries, Params->LibraryDirectories)//, AllObjFiles);
         String_AppendSpace(&CmdLine);
@@ -754,16 +468,16 @@ bool MSVC_LinkV2(const BuildParams* Params)
         Filesystem_IterateDirectory_Ex(SourceDir, Link_SourceFileDirectoryIterator, true, &Data);
 
         String_EatSpacesInlineFromEnd(&CmdLine);
-        String_Concat(&CmdLine, StrLit(" /OUT:\""), BuildPath, Params->AssemblyWithExt, StrLit("\"")); // make this first then the flags?
+        String_Concat(&CmdLine, S(" /OUT:\""), BuildPath, Params->AssemblyWithExt, S("\"")); // make this first then the flags?
     }
-    else if (String_IsEqual(Params->Extension, StrLit(".lib"), false))
+    else if (String_IsEqual(Params->Extension, S(".lib"), false))
     {
-        String_Append(&CmdLine, StrLit("lib /nologo /OUT:\""));
+        String_Append(&CmdLine, S("lib /nologo /OUT:\""));
 
         String_Append(&CmdLine, BuildPath);
         String_Append(&CmdLine, Params->Assembly);
         
-        String_Append(&CmdLine, StrLit(".lib\" "));
+        String_Append(&CmdLine, S(".lib\" "));
 
         String_BuildSeparator(&CmdLine, ' ', Params->Libraries, Params->LibraryDirectories, Params->VersionResFilePath);
         String_AppendSpace(&CmdLine);
@@ -772,9 +486,23 @@ bool MSVC_LinkV2(const BuildParams* Params)
         Filesystem_IterateDirectory_Ex(SourceDir, Link_SourceFileDirectoryIterator, true, &Data);
     }
 
-    LOG_LINE_BREAK();
-    LogString_WordWrapped(S("Linking: "), CmdLine, false);
-    //LOG("\nLinking: %S\n", CmdLine);
+    if (bQuietBuild) Logging_Enable();
+
+    LOG("\nLinking %S%S", Params->Assembly, Params->Extension);
+
+    if (bQuietBuild) Logging_Disable();
+
+    if (Params->bVerbose)
+    {
+        if (bNoWordWrapLogging)
+        {
+            LOG("    %S", CmdLine);
+        }
+        else
+        {
+            LogString_WordWrapped(*Params->Arena, S("    "), CmdLine, false);
+        }
+    }
     LOG_LINE_BREAK();
 
     PlatformHandle Handle = Platform_RunCommand(CmdLine, Params->RootDirectory);
@@ -794,15 +522,15 @@ bool MSVC_LinkV2(const BuildParams* Params)
     if (bIsDLL)
     {
         String_Empty(&CmdLine);
-        String_Append(&CmdLine, StrLit("dumpbin /EXPORTS /NOLOGO /OUT:\""));
+        String_Append(&CmdLine, S("dumpbin /EXPORTS /NOLOGO /OUT:\""));
 
         String_Append(&CmdLine, BuildPath);
         String_Append(&CmdLine, Params->Assembly);
-        String_Append(&CmdLine, StrLit(".def\" \""));
+        String_Append(&CmdLine, S(".def\" \""));
 
         String_Append(&CmdLine, BuildPath);
         String_Append(&CmdLine, Params->Assembly);
-        String_Append(&CmdLine, StrLit(".dll\""));
+        String_Append(&CmdLine, S(".dll\""));
 
         PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory);
         ExitCode = Platform_WaitForProcessAndGetExitCode(H);
@@ -820,145 +548,7 @@ bool MSVC_LinkV2(const BuildParams* Params)
 
     return true;
 }
-
-/*
-bool MSVC_Link(const BuildParams* Params)
-{
-    if (String_IsEqual(Params->Extension, StrLit(".pch"), false))
-    {
-        return true;
-    }
-
-    StringLocal(BuildPath, MAX_PATH_LENGTH);
-    String_BuildPath(&BuildPath, Params->RootDirectory, Params->BuildDirectory);
-    String_AppendPathSeparator(&BuildPath);
-
-    StringLocal(CmdLine, UINT16_MAX);
-
-    StringLocal(AllObjFiles, Kibibytes(24));
-    for each (It, Params->SourceFiles)
-    {
-        SourceFileData File = *It;
-
-        StringLocal(ObjectPath, MAX_PATH_LENGTH);
-
-        if (String_EndsWith(File.RelativePath, StrLit(".rc"), false))
-        {
-            if (String_EndsWith(It->RelativePath, StrLit("icon.rc"), false))
-                continue;
-
-            u32 LastSlash = 0;
-            String_IndexOfLastPathSlash(File.FullPath, &LastSlash);
-            String FileName = LastSlash > 0 ? StrShiftF(File.FullPath, LastSlash+1) : File.FullPath;
-
-            u32 LastDot = 0;
-            String_IndexOfLastChar(FileName, '.', &LastDot);
-
-            StringLocal(FilePath, MAX_PATH_LENGTH);
-            String_Append(&FilePath, StrSlice(FileName.Data, LastDot));
-            String_Append(&FilePath, StrLit(".res"));
-
-            const String Dir = StrSlice(File.FullPath.Data, LastSlash);
-            String_BuildPath(&ObjectPath, Dir, FilePath);
-        }
-        else
-        {
-            u32 LastSlash = 0;
-            String_IndexOfLastPathSlash(File.RelativePath, &LastSlash);
-            String FileName = LastSlash > 0 ? StrShiftF(File.RelativePath, LastSlash+1) : File.RelativePath;
-
-            u32 LastDot = 0;
-            String_IndexOfLastChar(FileName, '.', &LastDot);
-
-            StringLocal(FilePath, MAX_PATH_LENGTH);
-            String_Append(&FilePath, StrSlice(FileName.Data, LastDot));
-            String_Append(&FilePath, StrLit(".obj"));
-
-            String_BuildPath(&ObjectPath, Params->IntermediateDirectory, FilePath);
-        }
-
-        String_AppendChar(&AllObjFiles, '"');
-        String_Append(&AllObjFiles, ObjectPath);
-        String_AppendChar(&AllObjFiles, '"');
-        String_AppendSpace(&AllObjFiles);
-    }
-
-    bool bIsDLL = String_IsEqual(Params->Extension, StrLit(".dll"), false);
-    if (String_IsEqual(Params->Extension, StrLit(".exe"), false) ||
-        bIsDLL)
-    {
-        String_Append(&CmdLine, StrLit("link"));
-        if (bIsDLL)
-            String_Append(&CmdLine, StrLit(" /dll"));
-        String_Append(&CmdLine, StrLit(" /nologo "));
-
-        String_BuildSeparator(&CmdLine, ' ', Params->LinkerDefineFlags, Params->LinkerFlags, Params->IconResFilePath, Params->VersionResFilePath, Params->Libraries, Params->LibraryDirectories, AllObjFiles);
-
-        String_EatSpacesInlineFromEnd(&CmdLine);
-        String_Concat(&CmdLine, StrLit(" /OUT:\""), BuildPath, Params->AssemblyWithExt, StrLit("\" "));
-        String_EatSpacesInlineFromEnd(&CmdLine);
-    }
-    else if (String_IsEqual(Params->Extension, StrLit(".lib"), false))
-    {
-        String_Append(&CmdLine, StrLit("lib /nologo /OUT:\""));
-
-        String_Append(&CmdLine, BuildPath);
-        String_Append(&CmdLine, Params->Assembly);
-        
-        String_Append(&CmdLine, StrLit(".lib\" "));
-
-        String_BuildSeparator(&CmdLine, ' ', Params->Libraries, Params->LibraryDirectories, Params->VersionResFilePath, AllObjFiles);
-    }
-
-    LOG("\nLinking: %S\n", CmdLine);
-
-    PlatformHandle Handle = Platform_RunCommand(CmdLine, Params->RootDirectory);
-    u32 ExitCode = Platform_WaitForProcessAndGetExitCode(Handle);
-    if (ExitCode != 0)
-    {
-        #ifndef HOOD
-        LOG_ERROR("Compiler errors detected. See above errors to fix. Exit code for process: %u. Aborting build...", ExitCode);
-        #else
-        LOG_ERROR("seen some compiler errors homie. fix yo shit up, something aint linkin' right");
-        #endif
-        
-        return false;
-    }
-
-    // generate a .def file if we are building a dll file (for convenience)
-    if (bIsDLL)
-    {
-        String_Empty(&CmdLine);
-        String_Append(&CmdLine, StrLit("dumpbin /EXPORTS /NOLOGO /OUT:\""));
-
-        String_Append(&CmdLine, BuildPath);
-        String_Append(&CmdLine, Params->Assembly);
-        String_Append(&CmdLine, StrLit(".def\" \""));
-
-        String_Append(&CmdLine, BuildPath);
-        String_Append(&CmdLine, Params->Assembly);
-        String_Append(&CmdLine, StrLit(".dll\""));
-
-        PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory);
-        ExitCode = Platform_WaitForProcessAndGetExitCode(H);
-
-        if (ExitCode != 0)
-        {
-            #ifndef HOOD
-            LOG_ERROR("Dumpbin errors detected. See above errors to fix. Aborting build...");
-            #else
-            LOG_ERROR("seen some dump bin errors homie. fix yo shit up, something aint right");
-            #endif
-            return false;
-        }
-    }
-
-    return true;
-}
-*/
 #else
 bool MSVC_Compile(const BuildParams* Params, u32* OutNumCompiled) { return false; }
 bool MSVC_Link(const BuildParams* Params) { return false; }
-bool MSVC_CompileV2(const BuildParams* Params, u32* OutNumCompiled) { return false; }
-bool MSVC_LinkV2(const BuildParams* Params) { return false; }
 #endif // PLATFORM_WINDOWS

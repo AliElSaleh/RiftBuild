@@ -8,6 +8,7 @@ STRUCT(FileVariable)
 {
     String Name;
     String Value;
+    bool   bHasSpecial;
 };
 
 STRUCT(InternalVariable)
@@ -16,7 +17,10 @@ STRUCT(InternalVariable)
     String Value;
 };
 
-extern TArray(InternalVariable) InternalVariablesDB;
+global TArray(InternalVariable) InternalVariablesDB;
+global bool bHasWrittenJSON;
+global bool bQuietBuild;
+global bool bNoWordWrapLogging;
 
 STRUCT(SourceFileData)
 {
@@ -42,15 +46,19 @@ ENUM(EComparisonType)
     Cmp_LessThanOrEqual,
 };
 
-/*
-ENUM_TYPED(ECompiler, u8)
+ENUM(EGenerator)
 {
-    Compiler_Clang,
-    Compiler_GCC,
-    Compiler_MSVC,
-    Compiler_Other
+    Generator_None,
+    Generator_CompileCommandsJSON,
+    Generator_VisualStudioSolution,
+    Generator_XCodeProject,
 };
-*/
+
+ENUM(EBuildMode)
+{
+    BuildMode_Build,
+    BuildMode_Export,
+};
 
 STRUCT(BuildParams)
 {
@@ -70,6 +78,7 @@ STRUCT(BuildParams)
     String LinkerFlags;
     String IncludeFlags;
     String DefineFlags;
+    String UnDefineFlags;
     String LinkerDefineFlags;
     String Libraries;
     String LibraryDirectories;
@@ -82,9 +91,6 @@ STRUCT(BuildParams)
 
     LinearAllocator* Arena;
 
-    TArray(SourceFileData*) SourceFiles;
-    TArray(SourceFileData) SourceFiles_Unfiltered;
-    
     #if PLATFORM_WINDOWS
     TArray(void*)* Processes;
     #else
@@ -103,15 +109,28 @@ STRUCT(BuildParams)
     bool bVerbose;
 };
 
-bool MSVC_Compile(const BuildParams* Params, u32* OutNumCompiled);
-bool MSVC_CompileV2(const BuildParams* Params, u32* OutNumCompiled);
-bool MSVC_Link(const BuildParams* Params);
-bool MSVC_LinkV2(const BuildParams* Params);
-bool C_Compile(const BuildParams* Params, u32* OutNumCompiled);
-bool C_CompileV2(const BuildParams* Params, u32* OutNumCompiled);
-bool C_Link(const BuildParams* Params);
-bool C_LinkV2(const BuildParams* Params);
+STRUCT(CompileData)
+{
+    bool (*Callback)(CompileData* Data, const String FullPath, const String RelativePath);
 
+    const BuildParams* Params;
+    u32* NumCompiled;
+    u32 Index;
+    bool bSuccess;
+
+    void* AdditionalData;
+};
+
+STRUCT(LinkData)
+{
+    const BuildParams* Params;
+    String* CmdLine;
+};
+
+bool MSVC_Compile(const BuildParams* Params, u32* OutNumCompiled);
+bool MSVC_Link(const BuildParams* Params);
+bool C_Compile(const BuildParams* Params, u32* OutNumCompiled);
+bool C_Link(const BuildParams* Params);
 
 bool IsSource(const String Extension);
 bool IsHeader(const String Extension);
@@ -120,22 +139,14 @@ bool C_IsHeader(const String Extension);
 
 // Utils
 
-bool ExtensionHas(const String ExtensionString, const String Ext);
-
-/*
-bool DoesCmdVarExist(const String Name);
-bool DoesBuildVarExist(const String Name);
-
-String GetCmdOptionValue(const String Name);
-String GetExpandedVariableValue(const String Name);
-StringList GetVariableValueList(LinearAllocator* Arena, const String Name);
-*/
+bool ExtensionHas(LinearAllocator Scratch, const String ExtensionString, const String Ext);
 
 bool DoesCmdVarExist(TArray(CmdOption) CmdOptionsDB, const String Name);
 bool DoesBuildVarExist(TArray(FileVariable) VariablesDB, const String Name);
 
 String GetCmdOptionValue(TArray(CmdOption) CmdOptionsDB, const String Name);
-String GetExpandedVariableValue(TArray(FileVariable) ExpandedVariablesDB, const String Name);
+String GetVariableValue(TArray(FileVariable) Variables, const String Name);
+String* GetVariableValue_Ref(TArray(FileVariable) Variables, const String Name);
 StringList GetVariableValueList(LinearAllocator* Arena, TArray(FileVariable) VariablesDB, const String Name);
 
 bool FilterSourceFile(const String WorkingDirectory, const String SourceDirectory, 
@@ -143,9 +154,13 @@ bool FilterSourceFile(const String WorkingDirectory, const String SourceDirector
                       StringList WhitelistFiles, StringList BlacklistFiles,
                       StringList WhitelistDirectories, StringList BlacklistDirectories);
 
-bool LogStringList_WordWrapped(const String Name, const StringList List);
-bool LogString_WordWrapped(const String Name, const String Value, const bool bAddNewLine);
+bool LogStringList_WordWrapped(LinearAllocator Arena, const String Name, const StringList List);
+bool LogString_WordWrapped    (LinearAllocator Arena, const String Name, const String Value, const bool bAddNewLine);
 
+bool LogCustomErrorMessage(TArray(FileVariable) VariablesDB, const String Context, const String Key, const bool bLineBreak);
+
+void LogPathEnvVarTutorialSteps(void);
+void LogRegularEnvVarTutorialSteps(void);
 
 bool ParseBuildFile(LinearAllocator* Arena,
                     FileHandle* H,
@@ -161,6 +176,14 @@ bool ParseBuildFile(LinearAllocator* Arena,
                     StringList* Includes,
                     bool bIsAssemblyExe);
 
-bool ExpandBuildVariable(TArray(FileVariable) VariablesDB, TArray(CmdOption) CmdOptionsDB,
-                                  String* Dest, const String Key, const String Value, const String Root, bool bLowerStrings,
-                                  bool bIsAssemblyExe);
+bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) VariablesDB, TArray(CmdOption) CmdOptionsDB,
+                         String* Dest, const String Key, const String Value, const String Root, const String WorkingDirectory,
+                         bool bLowerStrings, bool bIsAssemblyExe);
+
+bool ExportCompileCommands(const BuildParams* Params,
+                           const String CompileFlags, const String IncludeFlags,
+                           const String DefineFlags, const String UnDefineFlags,
+                           const bool bIsLastBuild);
+
+
+bool SourceFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData);
