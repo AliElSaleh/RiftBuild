@@ -168,7 +168,7 @@ RiftBuild can of course build itself with just a single call like this
 riftbuild
 ```
 
-However if you'd like to build the old fashioned way, there are OS specific build scripts that you can use.
+However, if you'd like to compile from source without `riftbuild`, then there are OS specific build scripts that you can use.
 From the project root directory, run them like so
 ### Windows
 ```
