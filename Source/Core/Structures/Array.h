@@ -25,6 +25,7 @@ enum
 };
 
 #define ArrayLocal(Type, Name, Capacity) TArray(Type) Name = _ArrayCreate(Capacity, sizeof(Type))
+#define ArrayLocal_Arena(Type, Name, Capacity, Arena) TArray(Type) Name = _ArrayCreateStatic(LinearAllocator_Allocate(Arena, _ArrayCalculateMemRequirement(Capacity, sizeof(Type))), Capacity, sizeof(Type))
 
 #define Array_Create(Type) _ArrayCreate(ARRAY_DEFAULT_CAPACITY, sizeof(Type))
 #define Array_CreateStatic(Type, Capacity, Memory) _ArrayCreateStatic(Memory, Capacity, sizeof(Type))
@@ -79,7 +80,7 @@ do {\
 } while (0)
 
 #define Array_RemoveLast(Array, Value) _ArrayRemoveLast(Array, Value)
-#define Array_RemoveAt(Array, Value, Index) _ArrayRemoveAt(Array, &(Value), Index)
+#define Array_RemoveAt(Array, Value, Index) _ArrayRemoveAt(Array, Value, Index)
 
 #define Array_Empty(Array) _ArrayFieldSet(Array, ArrayField_Num, 0)
 #define Array_Capacity(Array) _ArrayFieldGet(Array, ArrayField_Capacity)

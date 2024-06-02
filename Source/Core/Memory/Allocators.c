@@ -459,4 +459,3 @@ void FreeListAllocator_Free(FreeListAllocator* Allocator, void* Memory, u64* Out
     
     Internal_FreeListAllocator_Coalesce(Allocator, PrevNode, FreeNode);
 }
-

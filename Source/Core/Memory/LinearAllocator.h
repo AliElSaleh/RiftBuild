@@ -2,21 +2,21 @@
 
 #include "Globals.h"
 
-typedef struct LinearAllocator
+STRUCT(LinearAllocator)
 {
-	u64 TotalSize;
-	u64 Allocated;
-	bool bOwnsMemory;
-	bool bAlignMemory;
-	
-	void* Memory;
-} LinearAllocator;
+    u64 TotalSize;
+    u64 Allocated;
+    bool bOwnsMemory;
+    bool bAlignMemory;
+    
+    void* Memory;
+};
 
-typedef struct LinearAllocator_Scratch
+STRUCT(LinearAllocator_Scratch)
 {
-	LinearAllocator* Allocator;
-	u64 StartPosition;
-} LinearAllocator_Scratch;
+    LinearAllocator* Allocator;
+    u64 StartPosition;
+};
 
 #define SCRATCH(Allocator, Name) LinearAllocator_Scratch Name = {0}; DEFER(LinearAllocator_GetScratchInline(Allocator, &(Name)), LinearAllocator_ReleaseScratch(&(Name)))
 
@@ -32,4 +32,3 @@ RIFT_API void* LinearAllocator_MemoryHead(LinearAllocator* Allocator);
 RIFT_API LinearAllocator_Scratch LinearAllocator_GetScratch(LinearAllocator* Allocator);
 RIFT_API void LinearAllocator_GetScratchInline(LinearAllocator* Allocator, LinearAllocator_Scratch* OutScratch);
 RIFT_API void LinearAllocator_ReleaseScratch(LinearAllocator_Scratch* Scratch);
-

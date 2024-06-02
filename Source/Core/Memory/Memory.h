@@ -3,38 +3,38 @@
 #include "Globals.h"
 #include "LinearAllocator.h"
 
-typedef enum EMemoryTag
+ENUM(EMemoryTag)
 {
-	MemoryTag_Unknown = 0,
-	MemoryTag_Array,
-	MemoryTag_Table,
-	MemoryTag_Map,
-	MemoryTag_LinearAllocator,
-	MemoryTag_DynamicArray,
-	MemoryTag_Dictionary,
-	MemoryTag_RingQueue,
-	MemoryTag_Engine,
-	MemoryTag_Profiling,
-	MemoryTag_BST,
-	MemoryTag_String,
-	MemoryTag_Application,
-	MemoryTag_MetaReflection,
-	MemoryTag_Console,
-	MemoryTag_Job,
-	MemoryTag_Test,
-	MemoryTag_Texture,
-	MemoryTag_MaterialInstance,
-	MemoryTag_Renderer,
-	MemoryTag_RendererBackend,
-	MemoryTag_Game,
-	MemoryTag_Config,
-	MemoryTag_Transform,
-	MemoryTag_Entity,
-	MemoryTag_EntityNode,
-	MemoryTag_Scene,
-	
-	MemoryTag_Count
-} EMemoryTag;
+    MemoryTag_Unknown = 0,
+    MemoryTag_Array,
+    MemoryTag_Table,
+    MemoryTag_Map,
+    MemoryTag_LinearAllocator,
+    MemoryTag_DynamicArray,
+    MemoryTag_Dictionary,
+    MemoryTag_RingQueue,
+    MemoryTag_Engine,
+    MemoryTag_Profiling,
+    MemoryTag_BST,
+    MemoryTag_String,
+    MemoryTag_Application,
+    MemoryTag_MetaReflection,
+    MemoryTag_Console,
+    MemoryTag_Job,
+    MemoryTag_Test,
+    MemoryTag_Texture,
+    MemoryTag_MaterialInstance,
+    MemoryTag_Renderer,
+    MemoryTag_RendererBackend,
+    MemoryTag_Game,
+    MemoryTag_Config,
+    MemoryTag_Transform,
+    MemoryTag_Entity,
+    MemoryTag_EntityNode,
+    MemoryTag_Scene,
+    
+    MemoryTag_Count
+};
 
 STRUCT(MemoryRange)
 {
@@ -42,7 +42,7 @@ STRUCT(MemoryRange)
     u64 Size;
 };
 
-#define TEMP_SCRATCH(Name) LinearAllocator_Scratch CONCAT(Scratch_, Name) = Memory_GetScratch(); for (i32 MACRO_VAR(_i_) = 0; !MACRO_VAR(_i_); MACRO_VAR(_i_)+=1, Memory_ReleaseScratch(&CONCAT(Scratch_, Name)))
+//#define TEMP_SCRATCH(Name) LinearAllocator_Scratch CONCAT(Scratch_, Name) = Memory_GetScratch(); for (i32 MACRO_VAR(_i_) = 0; !MACRO_VAR(_i_); MACRO_VAR(_i_)+=1, Memory_ReleaseScratch(&CONCAT(Scratch_, Name)))
 
 #ifdef RIFT_DEBUG_MEMORY
 RIFT_API bool Memory_Initialize(void* Memory, u64 MemSize, void* DebugMemory, u64 DebugMemSize, void* Dump, void* ScratchMemory, u64 ScratchSize);

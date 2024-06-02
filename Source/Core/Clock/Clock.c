@@ -128,7 +128,7 @@ void Time_ToString(f64 Seconds, bool bAutoConvertTimeUnit, String* OutString)
 		}
 	}
 
-	String_Format(OutString, StrLit("%f%S"), OutString->Capacity, TimeAdjusted, StrComp(TimeUnit, Len));
+	String_Format(OutString, S("%f%S"), OutString->Capacity, TimeAdjusted, StrSlice(TimeUnit, Len));
 }
 
 void Time_ToStringEx(f64 Seconds, bool bAutoConvertTimeUnit, String* OutString, const String Format)
@@ -177,9 +177,9 @@ void Time_ToStringEx(f64 Seconds, bool bAutoConvertTimeUnit, String* OutString, 
 	}
 
     StringLocal(TimeFormat, 32);
-    String a = StrLit("%S");
+    String a = S("%S");
     String_Concat(&TimeFormat, Format, a);
-	String_Format(OutString, TimeFormat, 64, TimeAdjusted, StrComp(TimeUnit, Len));
+	String_Format(OutString, TimeFormat, 64, TimeAdjusted, StrSlice(TimeUnit, Len));
 }
 
 void Clock_PrintElapsedTime(const Clock* C, bool bAutoConvertTimeUnit)

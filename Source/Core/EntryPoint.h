@@ -1,3 +1,4 @@
+#ifndef META_GENERATED
 #pragma once
 
 #ifndef HEADLESS
@@ -19,15 +20,6 @@ global u64 GEngineDebugMemoryAmount;
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wmissing-prototypes"
-
-#if PLATFORM_WINDOWS && !defined(RIFT_STATIC) && !defined(RIFT_ASAN)
-u64 __security_cookie = 0;
-void __fastcall __security_check_cookie(u64 cookie)
-{
-    if (cookie != __security_cookie)
-        __debugbreak();
-}
-#endif
 
 #ifndef RIFT_STATIC
 C_LINKAGE_BEGIN
@@ -125,10 +117,12 @@ void ProgramStart(void)
         Platform_MemZero(EngineMemory, MemoryAmount + MemoryDebugAmount + MemoryDumpAmount + ScratchAmount);
 
         // fill the memory debug with the address of it's own
+        /*
         for (u64 i = 0; i < MemoryDumpAmount/sizeof(u64); i++)
         {
             ((u64*)EngineMemoryDump)[i] = *(u64*)&EngineMemoryDump;
         }
+        */
         
         // Initialize core engine subsystems
         // Memory subsystem
@@ -160,12 +154,6 @@ void ProgramStart(void)
         }
         #endif
 
-        // Profiling subsystem
-        #ifndef NO_PROFILING
-        void* ProfilingSubsystemState = MemAlloc(Profiling_GetMemoryRequirement(), MemoryTag_Profiling);
-        Profiling_Initialize(ProfilingSubsystemState);
-        #endif
-
         #ifdef HEADLESS
         ReturnVal = RunApplication(Arguments);
         goto Shutdown_Lvl2;
@@ -173,7 +161,6 @@ void ProgramStart(void)
         LOG_INFO("Engine Startup");
         
         App Instance = { 0 };
-        PROFILE_SCOPE("Engine Startup")
         {
             // Initialize and setup application
             InitializeApplication(&Instance);
@@ -221,11 +208,6 @@ void ProgramStart(void)
         #endif // HEADLESS
 
 Shutdown_Lvl2:
-        #ifndef NO_PROFILING
-        Profiling_Shutdown();
-        MemFree(ProfilingSubsystemState, MemoryTag_Profiling);
-        #endif
-        
         #ifndef NO_LOG
         Logging_Shutdown();
         MemFree(LogSubsystemState, MemoryTag_Engine);
@@ -251,3 +233,5 @@ Shutdown_Lvl0:
 }
 
 #pragma clang diagnostic pop
+
+#endif // META_GENERATED

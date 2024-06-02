@@ -59,8 +59,8 @@ void InitializeGlobals(void* Memory, u64 Size)
         Str.List->Data = LinearAllocator_Allocate(&GlobalsAllocator, sizeof(char) * 256);
         Str.List->Capacity = 255;
         Str.List->Length = 0;
-        Str.Iterator.Index = 0;
-        Str.Iterator.Current = NULL;
+        Str.IterIndex = 0;
+        Str.IterCurrent = NULL;
         GGlobals.NullStringArray = Str;
     }
 
@@ -78,6 +78,9 @@ void InitializeGlobals(void* Memory, u64 Size)
 
 bool IsValidFileHandle(const FileHandle* Handle)
 {
+    if (!IsValid(Handle))
+        return false;
+
     //if (Handle == GGlobals.NullFileHandle)
         //return false;
     

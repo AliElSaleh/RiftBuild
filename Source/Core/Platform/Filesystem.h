@@ -12,6 +12,9 @@
 #elif PLATFORM_APPLE // todo: subdivide into mac, ios
     #define MAX_PATH_LENGTH 1024
     #define MAX_PATH_LENGTH_EX 1024
+#elif PLATFORM_BSD
+    #define MAX_PATH_LENGTH 1024
+    #define MAX_PATH_LENGTH_EX 1024
 #endif
 
 STRUCT(FileHandle)
@@ -59,6 +62,8 @@ RIFT_API u64  Filesystem_GetCreationTimeH(const FileHandle* Handle);
 RIFT_API FileTimeData  Filesystem_GetFileTime(const String FilePath);
 RIFT_API FileTimeData  Filesystem_GetFileTimeH(const FileHandle* Handle);
 
+RIFT_API bool Filesystem_ReadPipe(PlatformPipe Handle, u64 DataSize, void* OutData, u64* OutBytesRead);
+
 RIFT_API bool Filesystem_Read(const FileHandle* Handle, u64 DataSize, void* OutData, u64* OutBytesRead);
 RIFT_API bool Filesystem_ReadEntireFile(const FileHandle* Handle, void* OutData, u64* OutBytesRead);
 RIFT_API bool Filesystem_ReadLine(const FileHandle* Handle, String* LineBuffer);
@@ -66,6 +71,7 @@ RIFT_API bool Filesystem_ReadLine_Backwards(const FileHandle* Handle, String* Li
 
 RIFT_API bool Filesystem_Write(const FileHandle* Handle, u64 DataSize, const void* Data, u64* OutBytesWritten);
 RIFT_API bool Filesystem_WriteLine(const FileHandle* Handle, const String Text, u64* OutBytesWritten);
+RIFT_API bool Filesystem_WriteLineFormatted(const FileHandle* Handle, const String Text, u64* OutBytesWritten, ...);
 
 RIFT_API bool Filesystem_DoesFileExist(const String FilePath);
 RIFT_API bool Filesystem_DoesDirectoryExist(const String FilePath);

@@ -5,6 +5,7 @@
 #include "Math/Math.h"
 #include "Memory/LinearAllocator.h"
 #include "Memory/Memory.h"
+#include "EngineUtils.h"
 #include "String/BaseString.h"
 
 #define STB_SPRINTF_IMPLEMENTATION
@@ -180,13 +181,13 @@ bool String_IsEqual(const String StringA, const String StringB, bool bCaseSensit
         return true;
     }
 
-    u64 Length = StringA.Length;
+    u32 Length = StringA.Length;
     if (Length != StringB.Length)
         return false;
     
     if (bCaseSensitive)
     {
-        for (u64 i = 0; i < Length; i++)
+        for (u32 i = 0; i < Length; i++)
         {
             if (StringA.Data[i] != StringB.Data[i])
             {
@@ -197,7 +198,7 @@ bool String_IsEqual(const String StringA, const String StringB, bool bCaseSensit
         return true;
     }
 
-    for (u64 i = 0; i < Length; i++)
+    for (u32 i = 0; i < Length; i++)
     {
         char A = StringA.Data[i];
         char B = StringB.Data[i];
@@ -326,17 +327,10 @@ void String_CopyN(String* Dest, const String Source, u32 Length)
 
 void StringInternal_Concat(String* Dest, const StringArray Array)
 {
-    //va_list Args;
-    //va_start(Args, NumArgs);
-
     for (u8 i = 0; i < Array.Num; i++)
     {
-        //String Param = va_arg(Args, String);
-
         String_Append(Dest, Array.List[i]);
     }
-
-    //va_end(Args);
 }
 
 void String_Append(String* Dest, const String Source)
@@ -398,20 +392,20 @@ void String_AppendPathSeparator_Checked(String* Dest)
 #endif
 }
 
-i32 String_Format(String* Dest, const String Format, u32 MaxLength, ...)
+i32 String_Format(String* Dest, const String Format, u32 Capacity, ...)
 {
     va_list Args;
-    va_start(Args, MaxLength);
-    i32 Written = stbsp_vsnprintf(Dest->Data, (i32)MaxLength, Format.Data, Args);
+    va_start(Args, Capacity);
+    i32 Written = stbsp_vsnprintf(Dest->Data, (i32)Capacity, Format.Data, Args);
     Dest->Length = (u32)Written;
     va_end(Args);
 
     return Written;
 }
 
-u32 String_FormatV(String* Dest, const String Format, u32 MaxLength, void* VAList)
+u32 String_FormatV(String* Dest, const String Format, u32 Capacity, void* VAList)
 {
-    Dest->Length = (u32)stbsp_vsnprintf(Dest->Data, (i32)MaxLength, Format.Data, VAList);
+    Dest->Length = (u32)stbsp_vsnprintf(Dest->Data, (i32)Capacity, Format.Data, VAList);
     return Dest->Length;
 }
 
@@ -489,22 +483,27 @@ void StringInternal_BuildSeparator(String* Dest, char Separator, const StringArr
 
 void String_Empty(String* Str)
 {
-    MemZero(Str->Data, Str->Length);
-    Str->Length = 0;
+    if (Str->Length > 0)
+    {
+        MemZero(Str->Data, Str->Length);
+        Str->Length = 0;
+    }
 }
 
 void String_Zero(String* Str)
 {
-    ASSERT(Str->Length != 0);
-
-    MemZero(Str, Str->Length);
+    if (Str->Length > 0)
+    {
+        MemZero(Str->Data, Str->Length);
+    }
 }
 
 void String_Fill(String* Str, char C)
 {
-    ASSERT(Str->Length != 0);
-
-    MemSet(Str, C, Str->Length);
+    if (Str->Length > 0)
+    {
+        MemSet(Str->Data, C, Str->Length);
+    }
 }
 
 void String_ToLower(String* Str)
@@ -585,7 +584,23 @@ String String_EatSpaces(String Str)
         }
     }
 
-    return StrCompC(Str.Data + i, Str.Length - i, Str.Capacity);
+    return StrShiftF(Str, i);
+    //return StrCompC(Str.Data + i, Str.Length - i, Str.Capacity);
+}
+
+String String_EatNewLines(String Str)
+{
+    u32 i = 0;
+    for (; i < Str.Length; i++)
+    {
+        if (!IsNewline(Str.Data[i]))
+        {
+            break;
+        }
+    }
+
+    return StrShiftF(Str, i);
+    //return StrCompC(Str.Data + i, Str.Length - i, Str.Capacity);
 }
 
 bool String_EatSpacesInline(String* Str)
@@ -683,7 +698,8 @@ String String_EatChar(String Str, char Char)
         }
     }
 
-    return StrCompC(Str.Data + i, Str.Length - i, Str.Capacity);
+    return StrShiftF(Str, i);
+    //return StrCompC(Str.Data + i, Str.Length - i, Str.Capacity);
 }
 
 String String_EatPathSeparatorsFromEnd(String Str)
@@ -706,7 +722,8 @@ String String_EatPathSeparatorsFromEnd(String Str)
         i++;
     }
 
-    return StrCompC(Str.Data, i, Str.Capacity);
+    return StrSlice(Str.Data, i);
+    //return StrCompC(Str.Data, i, Str.Capacity);
 }
 
 String String_EatPathSeparators(String Str)
@@ -720,7 +737,8 @@ String String_EatPathSeparators(String Str)
         }
     }
 
-    return StrCompC(Str.Data + i, Str.Length - i, Str.Capacity);
+    return StrShiftF(Str, i);
+    //return StrCompC(Str.Data + i, Str.Length - i, Str.Capacity);
 }
 
 bool String_EatCharInline(String* Str, char Char)
@@ -789,7 +807,8 @@ String String_EatCharFromEnd(String Str, char Char)
         i++;
     }
 
-    return StrCompC(Str.Data, i, Str.Capacity);
+    return StrSlice(Str.Data, i);
+    //return StrCompC(Str.Data, i, Str.Capacity);
 }
 
 bool String_EatCharInlineFromEnd(String* Str, char Char)
@@ -838,7 +857,32 @@ String String_EatSpacesFromEnd(String Str)
         i++;
     }
 
-    return StrCompC(Str.Data, i, Str.Capacity);
+    return StrSlice(Str.Data, i);
+    //return StrCompC(Str.Data, i, Str.Capacity);
+}
+
+String String_EatNewLinesFromEnd(String Str)
+{
+    if (Str.Length == 0 || !IsNewline(Str.Data[Str.Length-1]))
+        return Str;
+
+    u32 i = Str.Length-1;
+    for (; i > 0; i--)
+    {
+        if (!IsNewline(Str.Data[i]))
+        {
+            i++;
+            break;
+        }
+    }
+
+    if (i == 0 && !IsNewline(Str.Data[0]))
+    {
+        i++;
+    }
+
+    return StrSlice(Str.Data, i);
+    //return StrCompC(Str.Data, i, Str.Capacity);
 }
 
 bool String_EatSpacesInlineFromEnd(String* Str)
@@ -857,6 +901,48 @@ bool String_EatSpacesInlineFromEnd(String* Str)
     }
 
     if (i == 0 && !IsWhitespace(Str->Data[0]))
+    {
+        i++;
+    }
+
+    bool bAnyChange = i < Str->Length;
+    Str->Length = i;
+    return bAnyChange;
+}
+
+bool String_EatNewLinesInline(String* Str)
+{
+    u32 i = 0;
+    for (; i < Str->Length; i++)
+    {
+        if (IsNewline(Str->Data[i]))
+        {
+            break;
+        }
+    }
+
+    Str->Data += i;
+    Str->Length -= i;
+
+    return i > 0;
+}
+
+bool String_EatNewLinesInlineFromEnd(String* Str)
+{
+    if (Str->Length == 0 || !IsNewline(Str->Data[Str->Length-1]))
+        return false;
+
+    u32 i = Str->Length-1;
+    for (; i > 0; i--)
+    {
+        if (!IsNewline(Str->Data[i]))
+        {
+            i++;
+            break;
+        }
+    }
+
+    if (i == 0 && !IsNewline(Str->Data[0]))
     {
         i++;
     }
@@ -905,6 +991,234 @@ String String_ScanUntil(const String* Str, char Char)
     }
 
     return (String){ .Data = Str->Data, .Length = NewLength, .Capacity = Str->Capacity };
+}
+
+String String_SubString_Range(String Str, u32 Start, u32 End)
+{
+    Start = ClampMax(Start, Str.Length);
+    End = ClampMax(End, Str.Length);
+    
+    if (Start > End)
+    {
+        SWAP(Start, End)
+    }
+    
+    Str.Length = End - Start;
+    Str.Data += Start;
+    
+    return Str;
+}
+
+void CString_ToLower(char* String)
+{
+    char* p = String;
+    for (; *p; ++p) *p = ToLower(*p);
+}
+
+void CString_ToUpper(char* String)
+{
+    char* p = String;
+    for (; *p; ++p) *p = ToUpper(*p);
+}
+
+void CString_ToWide(const char* FromString, wchar* ToString)
+{
+    u64 Len = String_GetLength(FromString);
+    for (u64 i = 0; i < Len; i++)
+    {
+        ToString[i] = (wchar)FromString[i];
+    }
+}
+
+void CString_ToNarrow(const wchar* FromString, char* ToString)
+{
+    u64 Len = String16_GetLength(FromString);
+    for (u64 i = 0; i < Len; i++)
+    {
+        ToString[i] = (char)FromString[i];
+    }
+}
+
+u64 CString_Copy(char* Dest, const char* Source)
+{
+    u64 Len = String_GetLength(Source)+1;
+    MemCopy(Dest, Source, Len);
+    return Len;
+}
+
+u64 CString_CopyN(char* Dest, const char* Source, u64 Length)
+{
+    u64 SourceLen = String_GetLength(Source)+1;
+    MemCopy(Dest, Source, SourceLen < Length ? SourceLen : Length);
+    return SourceLen;
+}
+
+u64 CString_ScanUntil(const char* Str, char Char)
+{
+    u64 NewLength = 0;
+    while (Str[NewLength] != 0)
+    {
+        if (Str[NewLength] == Char)
+        {
+            NewLength--;
+            return NewLength;
+        }
+
+        NewLength++;
+    }
+
+    return NewLength;
+}
+
+
+void CString_SubString(char* Dest, const char* Source, u32 Start, u32 Length)
+{
+    u32 SourceLength = String_GetLength(Source);
+    if (Start >= SourceLength)
+    {
+        Dest[0] = 0;
+        return;
+    }
+    
+    if (Length > 0)
+    {
+        u32 i = Start;
+        for (u32 j = 0; j < Length && Source[i]; ++i, ++j)
+        {
+            Dest[j] = Source[i];
+        }
+        
+        Dest[Start + Length] = 0;
+    }
+    else
+    {
+        u32 j = 0;
+        for (u32 i = Start; Source[i]; ++i, ++j)
+        {
+            Dest[j] = Source[i];
+        }
+        
+        Dest[Start + j] = 0;
+    }
+}
+
+char* CString_Empty(char* Str)
+{
+    MemZero(Str, String_GetLength(Str));
+    return Str;
+}
+
+void CString_Zero(char* Str, u32 Length)
+{
+    ASSERT(Length != 0);
+
+    MemZero(Str, Length);
+}
+
+void CString_Fill(char* Str, u32 Length, char N)
+{
+    ASSERT(Length != 0);
+
+    MemSet(Str, N, Length);
+}
+
+
+i32 CString_Format(char* Dest, const char* Format, u32 Capacity, ...)
+{
+    va_list Args;
+    va_start(Args, Capacity);
+    i32 Written = stbsp_vsnprintf(Dest, (i32)Capacity, Format, Args);
+    va_end(Args);
+
+    return Written;
+}
+
+i32 CString_FormatV(char* Dest, const char* Format, u32 Capacity, void* VAList)
+{
+    return stbsp_vsnprintf(Dest, (i32)Capacity, Format, VAList);
+}
+
+
+void CString_ToBytes(const char* Data, u64 Length, u8* OutBytes)
+{
+    MemCopy(OutBytes, Data, Length);
+}
+
+void CString_FromBytes(const u8* Data, u64 Length, char* OutCharacters)
+{
+    MemCopy(OutCharacters, Data, Length);
+}
+
+bool CString_IsEqual(const char* StringA, const char* StringB, bool bCaseSensitive)
+{
+    u64 Length = String_GetLength(StringA);
+    u64 LengthB = String_GetLength(StringB);
+
+    if (UNLIKELY(Length == 0 && LengthB == 0))
+    {
+        return true;
+    }
+
+    if (Length != LengthB)
+        return false;
+
+    if (bCaseSensitive)
+    {
+        for (u64 i = 0; i < Length; i++)
+        {
+            if (StringA[i] != StringB[i])
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    for (u64 i = 0; i < Length; i++)
+    {
+        char A = StringA[i];
+        char B = StringB[i];
+
+        if ((A >= 'A' && A <= 'Z'))
+        {
+            A += 32;
+        }
+
+        if ((B >= 'A' && B <= 'Z'))
+        {
+            B += 32;
+        }
+
+        if (A != B)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool CString_IndexOfChar(const char* Str, char C, u32* OutIndex)
+{
+    u32 i = 0;
+    while (Str[i] != 0)
+    {
+        if (Str[i] == C)
+        {
+            *OutIndex = i;
+            return true;
+        }
+
+        i++;
+    }
+
+    return false;
+}
+
+bool CString_ToBool(const char* Str)
+{
+    return String_IsEqual(CStrView(Str), S("1"), false) || String_IsEqual(CStrView(Str), S("true"), false);
 }
 
 bool String_IndexOfChar(const String Str, char C, u32* OutIndex)
@@ -1086,9 +1400,13 @@ bool String_ToF32(const String Str, f32* OutFloat)
     u64 Index = 0;
 
     i8 Sign = 1;
-    if (Str.Data[0] == '-' || Str.Data[0] == '+')
+    if (Str.Data[0] == '-')
     {
         Sign = -1;
+        Index++;
+    }
+    else if (Str.Data[0] == '+')
+    {
         Index++;
     }
 
@@ -1113,18 +1431,18 @@ bool String_ToF32(const String Str, f32* OutFloat)
 
             if ((FLT_MAX - Digit) / 10 < Num)
             {
-                *OutFloat = FLT_MAX * Sign;
+                *OutFloat = 0;
                 return false;
             }
 
             if (bDecimalFound)
             {
                 DecimalPlaces++;
-                Num = Num + Digit / Pow(10.0f, (f32)DecimalPlaces);
+                Num = Num + (f32)Digit / Pow(10.0f, (f32)DecimalPlaces);
             }
             else
             {
-                Num = Num * 10.0f + Digit;
+                Num = Num * 10.0f + (f32)Digit;
             }
         }
         else if (c == '.')
@@ -1133,7 +1451,7 @@ bool String_ToF32(const String Str, f32* OutFloat)
         }
         else
         {
-            *OutFloat = Num * Sign;
+            *OutFloat = Num * (f32)Sign;
             return true;
         }
 
@@ -1155,9 +1473,13 @@ bool String_ToF64(const String Str, f64* OutFloat)
     u64 Index = 0;
 
     i8 Sign = 1;
-    if (Str.Data[0] == '-' || Str.Data[0] == '+')
+    if (Str.Data[0] == '-')
     {
         Sign = -1;
+        Index++;
+    }
+    else if (Str.Data[0] == '+')
+    {
         Index++;
     }
 
@@ -1180,16 +1502,16 @@ bool String_ToF64(const String Str, f64* OutFloat)
         {
             i8 Digit = c - '0';
 
-            if ((DBL_MAX - Digit) / 10 < Num)
+            if ((DBL_MAX - (f64)Digit) / 10.0 < Num)
             {
-                *OutFloat = DBL_MAX * Sign;
+                *OutFloat = 0;
                 return false;
             }
 
             if (bDecimalFound)
             {
                 DecimalPlaces++;
-                Num = Num + Digit / Powd(10.0, (f64)DecimalPlaces);
+                Num = Num + (f64)Digit / Powd(10.0, (f64)DecimalPlaces);
             }
             else
             {
@@ -1218,7 +1540,7 @@ bool String_ToU8(const String Str, u8* OutInt)
 {
     // 0-255
     
-    if (!String_IsValid(Str))
+    if (!String_IsValid(Str) || Str.Length > 3)
     {
         return false;
     }
@@ -1228,6 +1550,8 @@ bool String_ToU8(const String Str, u8* OutInt)
     if (Str.Data[0] == '-' || Str.Data[0] == '+')
     {
         Index++;
+        if (Str.Data[0] == '-')
+            return false;
     }
 
     if (Index >= Str.Length)
@@ -1249,7 +1573,7 @@ bool String_ToU8(const String Str, u8* OutInt)
 
             if ((UINT8_MAX - Digit) / 10 < Num)
             {
-                *OutInt = UINT8_MAX;
+                *OutInt = 0;
                 return false;
             }
 
@@ -1273,7 +1597,7 @@ bool String_ToU16(const String Str, u16* OutInt)
 {
     // 0-65535
     
-    if (!String_IsValid(Str))
+    if (!String_IsValid(Str) || Str.Length > 5)
     {
         return false;
     }
@@ -1283,6 +1607,8 @@ bool String_ToU16(const String Str, u16* OutInt)
     if (Str.Data[0] == '-' || Str.Data[0] == '+')
     {
         Index++;
+        if (Str.Data[0] == '-')
+            return false;
     }
 
     if (Index >= Str.Length)
@@ -1304,11 +1630,11 @@ bool String_ToU16(const String Str, u16* OutInt)
 
             if ((UINT16_MAX - Digit) / 10 < Num)
             {
-                *OutInt = UINT16_MAX;
+                *OutInt = 0;
                 return false;
             }
 
-            Num = (u8)(Num * 10 + Digit);
+            Num = (u16)(Num * 10 + Digit);
         }
         else
         {
@@ -1338,6 +1664,8 @@ bool String_ToU32(const String Str, u32* OutInt)
     if (Str.Data[0] == '-' || Str.Data[0] == '+')
     {
         Index++;
+        if (Str.Data[0] == '-')
+            return false;
     }
 
     if (Index >= Str.Length)
@@ -1359,7 +1687,7 @@ bool String_ToU32(const String Str, u32* OutInt)
 
             if ((UINT32_MAX - (u32)Digit) / 10 < Num)
             {
-                *OutInt = UINT32_MAX;
+                *OutInt = 0;
                 return false;
             }
 
@@ -1393,6 +1721,8 @@ bool String_ToU64(const String Str, u64* OutInt)
     if (Str.Data[0] == '-' || Str.Data[0] == '+')
     {
         Index++;
+        if (Str.Data[0] == '-')
+            return false;
     }
 
     if (Index >= Str.Length)
@@ -1414,7 +1744,7 @@ bool String_ToU64(const String Str, u64* OutInt)
 
             if ((UINT64_MAX - (u64)Digit) / 10 < Num)
             {
-                *OutInt = UINT64_MAX;
+                *OutInt = 0;
                 return false;
             }
 
@@ -1475,7 +1805,7 @@ bool String_ToI8(const String Str, i8* OutInt)
 
             if ((INT8_MAX - Digit) / 10 < Num)
             {
-                *OutInt = INT8_MAX * Sign;
+                *OutInt = 0;
                 return false;
             }
 
@@ -1536,7 +1866,7 @@ bool String_ToI16(const String Str, i16* OutInt)
 
             if ((INT16_MAX - Digit) / 10 < Num)
             {
-                *OutInt = INT16_MAX * Sign;
+                *OutInt = 0;
                 return false;
             }
 
@@ -1592,7 +1922,7 @@ bool String_ToI32(const String Str, i32* OutInt)
 
             if ((INT32_MAX - Digit) / 10 < Num)
             {
-                *OutInt = INT32_MAX * Sign;
+                *OutInt = 0;
                 return false;
             }
 
@@ -1645,7 +1975,7 @@ bool String_ToI64(const String Str, i64* OutInt)
 
             if ((INT64_MAX - Digit) / 10 < Num)
             {
-                *OutInt = INT64_MAX * Sign;
+                *OutInt = 0;
                 return false;
             }
 
@@ -1667,28 +1997,28 @@ bool String_ToI64(const String Str, i64* OutInt)
 
 bool String_ToBool(const String Str)
 {
-    return String_IsEqual(Str, StrLit("1"), false) || String_IsEqual(Str, StrLit("true"), false);
+    return String_IsEqual(Str, S("1"), false) || String_IsEqual(Str, S("true"), false);
 }
 
 String* StringArray_Iterate_Next(StringArray *InArray)
 {
-    if (InArray->Iterator.Index >= InArray->Num)
+    if (InArray->IterIndex >= InArray->Num)
     {
-        InArray->Iterator.Current = NULL;
+        InArray->IterCurrent = NULL;
         return NULL;
     }
 
-    String* Current = &InArray->List[InArray->Iterator.Index];
-    InArray->Iterator.Current = Current;
-    InArray->Iterator.Index++;
+    String* Current = &InArray->List[InArray->IterIndex];
+    InArray->IterCurrent = Current;
+    InArray->IterIndex++;
 
     return Current;
 }
 
 String* StringArray_Iterate_Begin(StringArray* InArray)
 {
-    InArray->Iterator.Index = 0;
-    InArray->Iterator.Current = NULL;
+    InArray->IterIndex = 0;
+    InArray->IterCurrent = NULL;
     return StringArray_Iterate_Next(InArray);
 }
 
@@ -1719,6 +2049,82 @@ bool StringArray_Contains(const StringArray InArray, const String SubString, boo
     }
 
     return false;
+}
+
+// the problem is that we want to separate one long collection of paths into an array of paths,
+// but we cant just do a simple split on the space character because some paths have spaces in them,
+// so we need to be able to detect when a space is inside of a " " and ignore it. sigh...
+StringList String_SplitIntoList(LinearAllocator* Arena, const String Value, char Delimiter, bool bHandleQuotes)
+{
+    StringList List = {0};
+    List.Next = NULL;
+
+    bool bInsideQuote = false;
+    bool bSawDelimiter = false;
+
+    if (Value.Length > 0)
+    {
+        u32 Offset = 0;
+        u32 CurrentLength = 0;
+        for (u32 i = 0; i < Value.Length+1; i++)
+        {
+            char C = i < Value.Length ? Value.Data[i] : 0;
+
+            bool bLastChar = i == Value.Length-1;
+            if (C == Delimiter || bLastChar)
+            {
+                bSawDelimiter = true;
+
+                if (bLastChar)
+                {
+                    CurrentLength++;
+                }
+            }
+            else
+            {
+                if (bSawDelimiter)
+                {
+                    bSawDelimiter = false;
+
+                    if (!bInsideQuote)
+                    {
+                        String Slice = String_EatSpacesFromEnd(StrSlice(Value.Data+Offset, CurrentLength-1));
+
+                        if (List.String.Data == NULL)
+                        {
+                            List.String = String_Create(Arena, Slice);
+                        }
+                        else
+                        {
+                            StringList* Entry = LinearAllocator_Allocate(Arena, sizeof(StringList));
+                            Entry->String = String_Create(Arena, Slice);
+                            Entry->Next = NULL;
+
+                            StringList** Next = &List.Next;
+                            while (*Next)
+                            {
+                                Next = &(*Next)->Next;
+                            }
+
+                            *Next = Entry;
+                        }
+
+                        Offset += CurrentLength;
+                        CurrentLength = 0;
+                    }
+                }
+            }
+
+            if (C == '"' && bHandleQuotes)
+            {
+                bInsideQuote = !bInsideQuote;
+            }
+
+            CurrentLength++;
+        }
+    }
+
+    return List;
 }
 
 StringArray String_SplitIntoArray(LinearAllocator* Arena, const String Str, const String Delimiter, u32 StartingIndex, u32 MaxCount)

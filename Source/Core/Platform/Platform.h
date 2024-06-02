@@ -23,19 +23,29 @@ STRUCT(StackTraceData)
     u16 Index;
 };
 
-#if PLATFORM_WINDOWS
-typedef void* PlatformHandle;
-typedef void* PlatformCriticalSection;
-#else
-typedef i32 PlatformHandle;
-typedef void* PlatformCriticalSection;
-#endif
+STRUCT(PlatformMutex)
+{
+    void* Handle;
+    String Name;
+};
+
+bool Platform_Startup(void* State, const String ApplicationName, i32 X, i32 Y, u32 Width, u32 Height);
+void Platform_Shutdown(void);
+u64 Platform_GetMemoryRequirement(void);
+
+bool Platform_PushMessages(void);
+
+void Platform_ShowWindow(void);
+void Platform_HideWindow(void);
 
 RIFT_API void Platform_PreInitialize(void);
 RIFT_API f64 Platform_GetClockFrequency(void);
 
+RIFT_API void* Platform_GetWindowHandle(void);
+
 RIFT_API void Platform_Abort(u32 ExitCode);
 
+//RIFT_API wchar** Platform_GetCommandLineArgs(i32* NumArgs);
 RIFT_API StringArray Platform_GetCommandLineArgs(void);
 
 RIFT_API void* Platform_MemAlloc(u64 Size);
@@ -51,7 +61,10 @@ RIFT_API bool Platform_MemEqual(const void* Block1, const void* Block2, u64 Size
 RIFT_API void Platform_ConsoleWrite(const char* Message, u8 Color, bool bIsError);
 RIFT_API void Platform_ConsoleWrite_CustomLength(const char* Message, u64 Length, u8 Color, bool bIsError);
 
+RIFT_API PlatformHandle Platform_CreateThread(const String Name, u32* OutThreadID, u32 (*ThreadEntryPoint)(void* ThreadParameter), void* UserData);
 RIFT_API PlatformHandle Platform_RunCommand(const String CmdLine, const String WorkingDirectory);
+RIFT_API PlatformHandle Platform_RunCommand_Ex(const String CmdLine, const String WorkingDirectory, PlatformPipe* StdOutPipe);
+
 RIFT_API bool Platform_TerminateProcess(PlatformHandle Handle, u32 ExitCode);
 
 RIFT_API bool Platform_FindProgram(String ProgramName);
@@ -62,7 +75,7 @@ RIFT_API bool Platform_FindFile_Ex(String FileName, String ExtensionWithDot, Str
 RIFT_API u32 Platform_GetExitCodeForProcess(PlatformHandle Handle);
 RIFT_API u32 Platform_WaitForProcessAndGetExitCode(PlatformHandle Handle);
 RIFT_API void Platform_WaitForHandle(PlatformHandle Handle, i32 Milliseconds);
-RIFT_API void Platform_WaitForMultipleHandles(PlatformHandle* Handles, u32 NumHandles, i32 Milliseconds, bool bWaitAll);
+RIFT_API u32 Platform_WaitForMultipleHandles(PlatformHandle* Handles, u32 NumHandles, i32 Milliseconds, bool bWaitAll);
 RIFT_API void Platform_CloseHandle(PlatformHandle Handle);
 RIFT_API bool Platform_IsValidHandle(const PlatformHandle Handle);
 
@@ -72,8 +85,19 @@ RIFT_API void Platform_DeleteCriticalSection(PlatformCriticalSection CriticalSec
 RIFT_API void Platform_EnterCriticalSection(PlatformCriticalSection CriticalSection);
 RIFT_API void Platform_ExitCriticalSection(PlatformCriticalSection CriticalSection);
 
+RIFT_API bool Platform_CreateMutex(const String Name, PlatformMutex* OutMutex);
+RIFT_API bool Platform_ReleaseMutex(PlatformMutex* Mutex);
+
+RIFT_API u32  Platform_GetConsoleProcessCount(void);
+
 RIFT_API f64 Platform_GetAbsoluteTime(void);
 RIFT_API SystemTime Platform_GetSystemLocalTime(void);
+
+RIFT_API void Platform_Sleep(f64 ms);
+
+RIFT_API void Platform_ShowCursor(bool bShow);
+
+RIFT_API void Platform_GetMousePosition(f32* X, f32* Y);
 
 RIFT_API u64 Platform_GetCurrentThreadID(void);
 RIFT_API u64 Platform_GetMainThreadID(void);
@@ -91,6 +115,13 @@ RIFT_API bool Platform_GetAccountName(String* OutName);
 RIFT_API bool Platform_GetUserName(String* OutName);
 RIFT_API bool Platform_GetUserDirectory(String* OutDirectory);
 
+RIFT_API bool Platform_GetCurrentProcessName(String* OutName);
 RIFT_API u64  Platform_GetCurrentProcessID(void);
+RIFT_API bool Platform_GetThreadName(void* ThreadHandle, String* OutName);
+
+RIFT_API void* Platform_GetDeviceContext(void);
 
 RIFT_API bool Platform_IsProgramRunning(const String ProgramName);
+
+RIFT_API bool Platform_GetTerminalDimensions(u32* OutRows, u32* OutColumns);
+

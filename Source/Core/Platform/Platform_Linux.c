@@ -43,9 +43,13 @@
 #include <errno.h>
 #include <ftw.h>
 #include <fcntl.h>
+#include <pwd.h>
 #include <uuid/uuid.h>
 #include <sys/mman.h>
+#include <sys/ioctl.h>
 #include <spawn.h>
+#include <termios.h>
+#include <semaphore.h>
 
 extern int fileno (FILE *__stream) __THROW __wur;
 
@@ -196,8 +200,8 @@ bool Platform_Startup(void* State, const String ApplicationName, i32 X, i32 Y, u
                          ApplicationName.Data);
 
     // tell the server to notify when the window manager is trying to close the window
-    const String WmDeleteWindow = StrLit("WM_DELETE_WINDOW");
-    const String WmProtocols = StrLit("WM_PROTOCOLS");
+    const String WmDeleteWindow = S("WM_DELETE_WINDOW");
+    const String WmProtocols = S("WM_PROTOCOLS");
     xcb_intern_atom_cookie_t DeleteCookie = xcb_intern_atom(GLinuxPlatformState->Connection, 0, (u16)WmDeleteWindow.Length, WmDeleteWindow.Data);
     xcb_intern_atom_cookie_t ProtocolsCookie = xcb_intern_atom(GLinuxPlatformState->Connection, 0, (u16)WmProtocols.Length, WmProtocols.Data);
     xcb_intern_atom_reply_t* DeleteReply = xcb_intern_atom_reply(GLinuxPlatformState->Connection, DeleteCookie, NULL);
@@ -799,10 +803,10 @@ PlatformHandle Platform_RunCommand(const String CmdLine, const String WorkingDir
     StringLocal(Copy, MAX_PATH_LENGTH*2);
     if (WorkingDirectory.Length > 0)
     {
-        String_Append(&Copy, StrLit("cd \""));
+        String_Append(&Copy, S("cd \""));
         String_Append(&Copy, WorkingDirectory);
         String_EatPathSeparatorsInlineFromEnd(&Copy);
-        String_Append(&Copy, StrLit("\"; "));
+        String_Append(&Copy, S("\"; "));
         String_Append(&Copy, CmdLine);
 
         Command = Copy;
@@ -816,7 +820,7 @@ PlatformHandle Platform_RunCommand(const String CmdLine, const String WorkingDir
 
     if (pid < 0)
     {
-        LogLastError(StrLit("fork() failed"));
+        LogLastError(S("fork() failed"));
     }
     else if (pid > 0)
     {
@@ -824,7 +828,6 @@ PlatformHandle Platform_RunCommand(const String CmdLine, const String WorkingDir
     }
     else
     {
-        //execl("/bin/sh", "sh", "-c", Command.Data, (char *)NULL);
         execvp("/bin/sh", (char*[]){"sh", "-c", Command.Data, NULL});
 
         exit(0);
@@ -833,27 +836,98 @@ PlatformHandle Platform_RunCommand(const String CmdLine, const String WorkingDir
     return pid;
 }
 
-bool Platform_FindProgram(String ProgramName, String ExtensionWithDot)
+PlatformHandle Platform_RunCommand_Ex(const String CmdLine, const String WorkingDirectory, PlatformPipe* StdOutPipe)
 {
-    return Platform_FindProgram_Ex(ProgramName, ExtensionWithDot, NULL);
+    String Command;
+    StringLocal(Copy, MAX_PATH_LENGTH*2);
+    if (WorkingDirectory.Length > 0)
+    {
+        String_Append(&Copy, S("cd \""));
+        String_Append(&Copy, WorkingDirectory);
+        String_EatPathSeparatorsInlineFromEnd(&Copy);
+        String_Append(&Copy, S("\"; "));
+        String_Append(&Copy, CmdLine);
+
+        Command = Copy;
+    }
+    else
+    {
+        Command = CmdLine;
+    }
+
+    i32 PipeData[2] = {0};
+    if (pipe(PipeData) != 0)
+    {
+        LogLastError(S("pipe() failed"));
+        return -1;
+    }
+
+    pid_t pid = fork();
+
+    if (pid < 0)
+    {
+        close(PipeData[0]);
+        close(PipeData[1]);
+        LogLastError(S("fork() failed"));
+    }
+    else if (pid > 0) // parent path
+    {
+        close(PipeData[0]);
+        close(PipeData[1]);
+        return pid;
+    }
+    else // child path
+    {
+        close(PipeData[0]);
+        dup2(PipeData[1], STDOUT_FILENO);
+
+        (*StdOutPipe)[0] = PipeData[0]; // read pipe
+        (*StdOutPipe)[1] = PipeData[1]; // write pipe
+
+        execvp("/bin/sh", (char*[]){"sh", "-c", Command.Data, NULL});
+        exit(0);
+    }
+
+    return pid;
 }
 
-bool Platform_FindProgram_Ex(String ProgramName, String ExtensionWithDot, String* OutProgramPath)
+bool Platform_FindProgram(String ProgramName)
+{
+    return Platform_FindFile_Ex(ProgramName, S(""), NULL);
+}
+
+bool Platform_FindProgram_Ex(String FileName, String* OutFilePath)
+{
+    return Platform_FindFile_Ex(FileName, S(""), OutFilePath);
+}
+
+bool Platform_FindFile(String FileName, String ExtensionWithDot)
+{
+    return Platform_FindFile_Ex(FileName, ExtensionWithDot, NULL);
+}
+
+bool Platform_FindFile_Ex(String FileName, String ExtensionWithDot, String* OutFilePath)
 {
     char* Path = getenv("PATH");
     const String PathStr = CStr(Path);
 
     bool bFound = false;
 
-    TEMP_SCRATCH(Find)
+    StringLocal(P, MAX_PATH_LENGTH);
+    u32 Offset = 0;
+    u32 Len = 0;
+    for (u32 i = 0; i < PathStr.Length; i++)
     {
-        StringArray Paths = String_ParseIntoArray(Scratch_Find.Allocator, PathStr, ':', 0, 256);
-        for each_str (P, Paths)
+        if (PathStr.Data[i] == ':' || i == PathStr.Length-1) // end of an entry, process it
         {
+            String_Copy(&P, StrSlice(StrShiftF(PathStr, Offset).Data, Len));
+            Offset = i+1;
+            Len = 0;
+
             if (bFound)
                 break;
 
-            DIR* dir = opendir(P->Data);
+            DIR* dir = opendir(P.Data);
             if (dir == NULL)
             {
                 continue;
@@ -871,7 +945,7 @@ bool Platform_FindProgram_Ex(String ProgramName, String ExtensionWithDot, String
                 const String EntryName = CStr(Entry->d_name);
 
                 StringLocal(FullPath, MAX_PATH_LENGTH);
-                String_BuildPath(&FullPath, *P, EntryName);
+                String_BuildPath(&FullPath, P, EntryName);
                 
                 if (Entry->d_type != DT_DIR)
                 {
@@ -891,8 +965,8 @@ bool Platform_FindProgram_Ex(String ProgramName, String ExtensionWithDot, String
                                 u32 LastDot = 0;
                                 if (String_IndexOfLastChar(EntryName, '.', &LastDot))
                                 {
-                                    if (String_IsEqual(ProgramName, StrSlice(EntryName.Data, LastDot), false) &&
-                                        String_EndsWith(ProgramName, ExtensionWithDot, true))
+                                    if (String_IsEqual(FileName, StrSlice(EntryName.Data, LastDot), false) &&
+                                        String_EndsWith(FileName, ExtensionWithDot, true))
                                     {
                                         bFound = true;
                                     }
@@ -900,7 +974,7 @@ bool Platform_FindProgram_Ex(String ProgramName, String ExtensionWithDot, String
                             }
                             else
                             {
-                                if (String_IsEqual(ProgramName, EntryName, false))
+                                if (String_IsEqual(FileName, EntryName, false))
                                 {
                                     bFound = true;
                                 }
@@ -908,8 +982,8 @@ bool Platform_FindProgram_Ex(String ProgramName, String ExtensionWithDot, String
 
                             if (bFound)
                             {
-                                if (OutProgramPath)
-                                    String_Copy(OutProgramPath, FullPath);
+                                if (OutFilePath)
+                                    String_Copy(OutFilePath, FullPath);
 
                                 break;
                             }
@@ -917,6 +991,10 @@ bool Platform_FindProgram_Ex(String ProgramName, String ExtensionWithDot, String
                     }
                 }
             }
+        }
+        else
+        {
+            Len++;
         }
     }
 
@@ -958,7 +1036,7 @@ void Platform_WaitForHandle(PlatformHandle Handle, i32 Milliseconds)
     waitpid(Handle, NULL, 0);
 }
 
-void Platform_WaitForMultipleHandles(PlatformHandle* Handles, u32 NumHandles, i32 Milliseconds, bool bWaitAll)
+u32 Platform_WaitForMultipleHandles(PlatformHandle* Handles, u32 NumHandles, i32 Milliseconds, bool bWaitAll)
 {
     if (bWaitAll)
     {
@@ -967,7 +1045,7 @@ void Platform_WaitForMultipleHandles(PlatformHandle* Handles, u32 NumHandles, i3
             waitpid(Handles[i], NULL, 0);
         }
 
-        return;
+        return 0;
     }
 
     //bool bNeedsReset = false;
@@ -975,8 +1053,12 @@ void Platform_WaitForMultipleHandles(PlatformHandle* Handles, u32 NumHandles, i3
     {
         Platform_WaitForHandle(Handles[i], Milliseconds);
         if (!bWaitAll)
-            return;
+        {
+            return i;
+        }
     }
+
+    return 0;
 }
 
 void Platform_CloseHandle(PlatformHandle Handle)
@@ -1008,6 +1090,63 @@ void Platform_EnterCriticalSection(PlatformCriticalSection CriticalSection)
 
 void Platform_ExitCriticalSection(PlatformCriticalSection CriticalSection)
 {
+}
+
+bool Platform_CreateMutex(const String Name, PlatformMutex* OutMutex)
+{
+    if ((NEVER(Name.Length == 0)) || (NEVER(OutMutex == NULL)))
+    {
+        return false;
+    }
+
+    u32 Diff = Name.Length > 30 ? Name.Length - 30 : 0; // 31 is max name length for posix semaphores
+    String ClampedName = StrShiftF(Name, Diff);
+
+    sem_t* Semaphore = sem_open(ClampedName.Data, O_CREAT|O_EXCL, 0644, 1);
+    if (Semaphore == SEM_FAILED)
+    {
+        if (errno == EACCES || errno == EEXIST)
+        {
+            return false;
+        }
+
+        StringLocal(Prefix, 512);
+        String_Format(&Prefix, S("Failed to create mutex %S"), Prefix.Capacity, ClampedName);
+        LogLastError(Prefix);
+        return false;
+    }
+
+    OutMutex->Handle = Semaphore;
+    OutMutex->Name = ClampedName;
+    return true;
+}
+
+bool Platform_ReleaseMutex(PlatformMutex* Mutex)
+{
+    if ((NEVER(Mutex->Name.Length == 0)) || (NEVER(Mutex == NULL)))
+    {
+        return false;
+    }
+
+    if (sem_close(Mutex->Handle) == -1)
+    {
+        StringLocal(Prefix, 512);
+        String_Format(&Prefix, S("Failed to release mutex %S"), Prefix.Capacity, Mutex->Name);
+        LogLastError(Prefix);
+        return false;
+    }
+
+    // for some fucking reason semaphores have kernel persistence, so we need to unlink them, otherwise the user will have to shutdown their machine
+    // which is why again windows dominates the market, go look at the code in Platform_Windows.c!!!
+    if (sem_unlink(Mutex->Name.Data) == -1)
+    {
+        StringLocal(Prefix, 512);
+        String_Format(&Prefix, S("Failed to unlink mutex %S"), Prefix.Capacity, Mutex->Name);
+        LogLastError(Prefix);
+        return false;
+    }
+
+    return true;
 }
 
 f64 Platform_GetAbsoluteTime(void)
@@ -1084,6 +1223,12 @@ u64 Platform_GetMainThreadID(void)
     return (u64)getpid();
 }
 
+u32 Platform_GetConsoleProcessCount(void)
+{
+    // TODO
+    return 0;
+}
+
 void Platform_GetWorkingDirectory(String* OutPath)
 {
     getcwd(OutPath->Data, MAX_PATH_LENGTH);
@@ -1092,36 +1237,24 @@ void Platform_GetWorkingDirectory(String* OutPath)
 
 bool Platform_GetEnvironmentVariableValue(String Name, String* OutVariable)
 {
-    // sigh... if only linux used length delimited strings...
-    char Temp = Name.Data[Name.Length];
-    Name.Data[Name.Length] = 0;
-    
     char* Value = getenv(Name.Data);
     if (Value == NULL)
     {
-        Name.Data[Name.Length] = Temp;
         return false;
     }
 
     String_Copy(OutVariable, CStr(Value));
-    Name.Data[Name.Length] = Temp;
     return true;
 }
 
 bool Platform_DoesEnvironmentVariableExist(String Name)
 {
-    // sigh... if only linux used length delimited strings...
-    char Temp = Name.Data[Name.Length];
-    Name.Data[Name.Length] = 0;
-    
     char* Value = getenv(Name.Data);
     if (Value == NULL)
     {
-        Name.Data[Name.Length] = Temp;
         return false;
     }
 
-    Name.Data[Name.Length] = Temp;
     return true;
 }
 
@@ -1138,11 +1271,109 @@ u32 Platform_GetNumLogicalProcessors(void)
     return number_of_processors;
 }
 
-String Platform_GetCurrentProcessName(void)
+bool Platform_GetAccountName(String* OutName)
 {
-    // todo: use argv[0]. store it from main()
-    return StrLit("");
-    //return CStr(__progname);
+    return Platform_GetUserName(OutName);
+}
+
+bool Platform_GetUserName(String* OutName)
+{
+    struct passwd pwd = {0};
+    struct passwd* result = NULL;
+    char Buffer[4096] = {0};
+
+    getpwuid_r(getuid(), &pwd, Buffer, 4096, &result);
+    if (result == NULL)
+    {
+        StringLocal(Message, 512);
+        String_Format(&Message, S("Failed to get user name"), Message.Capacity);
+        LogLastError(Message);
+        return false;
+    }
+
+    String_Copy(OutName, CStr(pwd.pw_name));
+    return true;
+}
+
+bool Platform_GetUserDirectory(String* OutDirectory)
+{
+    struct passwd pwd = {0};
+    struct passwd* result = NULL;
+    char Buffer[4096] = {0};
+
+    getpwuid_r(getuid(), &pwd, Buffer, 4096, &result);
+    if (result == NULL)
+    {
+        StringLocal(Prefix, MAX_PATH_LENGTH);
+        String_Format(&Prefix, S("Failed to get user directory"), Prefix.Capacity);
+        LogLastError(Prefix);
+        return false;
+    }
+
+    String_Copy(OutDirectory, CStr(pwd.pw_dir));
+    return true;
+}
+
+bool Filesystem_GetFilePath(const FileHandle* Handle, String* OutPath)
+{
+    if (!IsValidFileHandle(Handle))
+    {
+        return false;
+    }
+
+    char Path[PATH_MAX] = {0};
+
+    const i32 fd = fileno(Handle->Data);
+    snprintf(Path, PATH_MAX, "/proc/self/fd/%d", fd);
+
+    ssize_t Result = readlink(Path, OutPath->Data, OutPath->Capacity);
+    if (Result == -1)
+    {
+        LogLastError(S("Failed to retrieve file path for file handle"));
+        return false;
+    }
+
+    OutPath->Length = (u32)Result;
+    return true;
+}
+
+bool Filesystem_IsPathRelative(const String Path)
+{
+    return Path.Data[0] != '/';
+}
+
+bool Filesystem_SanitizeQuotes(String* Dest, const String Path)
+{
+    bool bHasQuote = false;
+    for (u32 i = 0; i < Path.Length; i++)
+    {
+        char c = Path.Data[i];
+        if (c == '"' && bHasQuote)
+        {
+            // ignore all subsequent quotes
+            continue;
+        }
+
+        String_AppendChar(Dest, c);
+
+        if (c == '"')
+        {
+            bHasQuote = true;
+        }
+    }
+
+    if (bHasQuote)
+    {
+        String_AppendChar(Dest, '"');
+    }
+
+    return Dest->Length > 0;
+}
+
+bool Platform_GetCurrentProcessName(String* OutName)
+{
+    // todo: from cmdline args
+    return false;
 }
 
 u64  Platform_GetCurrentProcessID(void)
@@ -1214,15 +1445,15 @@ bool Filesystem_Open(const String FilePath, u32 Mode, FileHandle* OutHandle)
 
     if (((Mode & FileMode_Read) != 0) && ((Mode & FileMode_Write) != 0)) // read and write
     {
-        ModeStr = StrLit("a+");
+        ModeStr = S("a+");
     }
     else if (((Mode & FileMode_Read) != 0) && ((Mode & FileMode_Write) == 0)) // read only
     {
-        ModeStr = StrLit("r");
+        ModeStr = S("r");
     }
     else if (((Mode & FileMode_Read) == 0) && ((Mode & FileMode_Write) != 0)) // write only
     {
-        ModeStr = StrLit("w");
+        ModeStr = S("w");
     }
     else
     {
@@ -1244,19 +1475,19 @@ bool Filesystem_Open(const String FilePath, u32 Mode, FileHandle* OutHandle)
         String ModeString;
         if (((Mode & FileMode_Read) != 0) && ((Mode & FileMode_Write) != 0)) // read and write
         {
-            ModeString = StrLit("for reading/writing");
+            ModeString = S("for reading/writing");
         }
         else if (((Mode & FileMode_Read) != 0) && ((Mode & FileMode_Write) == 0)) // read only
         {
-            ModeString = StrLit("for reading");
+            ModeString = S("for reading");
         }
         else
         {
-            ModeString = StrLit("for writing");
+            ModeString = S("for writing");
         }
 
         StringLocal(Message, MAX_PATH_LENGTH);
-        String_Format(&Message, StrLit("Failed to open file %S -> \"%S\""), MAX_PATH_LENGTH, ModeString, FilePath);
+        String_Format(&Message, S("Failed to open file %S -> \"%S\""), MAX_PATH_LENGTH, ModeString, FilePath);
         LogLastError(Message);
         return false;
     }
@@ -1264,11 +1495,12 @@ bool Filesystem_Open(const String FilePath, u32 Mode, FileHandle* OutHandle)
     ASSERT(OutHandle != NULL);
 
     OutHandle->Data = File;
-    fseek(File, 0, SEEK_END);
-    OutHandle->Size = (u64)ftell(File);
-    fseek(File, 0, SEEK_SET);
+    OutHandle->Data2 = NULL;
+    //fseek(File, 0, SEEK_END);
+    //OutHandle->Size = (u64)ftell(File);
+    //fseek(File, 0, SEEK_SET);
 
-    StringN_Copy(OutHandle->Path, FilePath);
+    //StringN_Copy(OutHandle->Path, FilePath);
 
     return true;
 }
@@ -1324,12 +1556,15 @@ bool Filesystem_Open_MemoryMapped(const String FilePath, u32 Mode, FileHandle* O
         ProtectFlags = PROT_WRITE;
     }
 
-    void* Address = mmap(NULL, OutHandle->Size, ProtectFlags, MAP_SHARED, fileno(OutHandle->Data), 0);
+    u64 Size = 0;
+    Filesystem_GetFileSize(OutHandle, &Size);
+
+    void* Address = mmap(NULL, Size, ProtectFlags, MAP_SHARED, fileno(OutHandle->Data), 0);
 
     if (Address == MAP_FAILED)
     {
         StringLocal(Prefix, 512);
-        String_Format(&Prefix, StrLit("Failed to memory map file \"%S\""), Prefix.Capacity, FilePath);
+        String_Format(&Prefix, S("Failed to memory map file \"%S\""), Prefix.Capacity, FilePath);
         LogLastError(Prefix);
         return false;
     }
@@ -1340,7 +1575,7 @@ bool Filesystem_Open_MemoryMapped(const String FilePath, u32 Mode, FileHandle* O
         *OutData = (u8*)Address;
 
     if (OutSize) 
-        *OutSize = OutHandle->Size;
+        *OutSize = Size;
 
     return 0;
 }
@@ -1366,9 +1601,9 @@ bool Filesystem_OpenDirectory(const String FilePath)
 
                 StringLocal(BaseDirectory, MAX_PATH_LENGTH);
                 if (FilePath.Length-1 == i)
-                    String_Copy(&BaseDirectory, StrViewComp(FilePath.Data, i+1));
+                    String_Copy(&BaseDirectory, StrSlice(FilePath.Data, i+1));
                 else
-                    String_Copy(&BaseDirectory, StrViewComp(FilePath.Data, i));
+                    String_Copy(&BaseDirectory, StrSlice(FilePath.Data, i));
 
                 NextSlashIndex = i+1;
 
@@ -1379,7 +1614,7 @@ bool Filesystem_OpenDirectory(const String FilePath)
                     if (ErrorCode == -1)
                     {
                         StringLocal(Prefix, MAX_PATH_LENGTH);
-                        String_Format(&Prefix, StrLit("Failed to open directory \"%S\""), Prefix.Capacity, BaseDirectory);
+                        String_Format(&Prefix, S("Failed to open directory \"%S\""), Prefix.Capacity, BaseDirectory);
                         LogLastError(Prefix);
                         return false;
                     }
@@ -1400,7 +1635,7 @@ bool Filesystem_OpenDirectory(const String FilePath)
     if (ErrorCode == -1)
     {
         StringLocal(Prefix, MAX_PATH_LENGTH);
-        String_Format(&Prefix, StrLit("Failed to open directory \"%S\""), Prefix.Capacity, FilePath);
+        String_Format(&Prefix, S("Failed to open directory \"%S\""), Prefix.Capacity, FilePath);
         LogLastError(Prefix);
         return false;
     }
@@ -1419,10 +1654,17 @@ bool Filesystem_Close(FileHandle* Handle)
     if (Handle->Data2)
     {
         Handle->Data2 = NULL;
-        if (munmap(Handle->Data2, Handle->Size) == -1)
+
+        u64 Size = 0;
+        Filesystem_GetFileSize(Handle, &Size);
+
+        if (munmap(Handle->Data2, Size) == -1)
         {
+            StringLocal(Path, MAX_PATH_LENGTH);
+            Filesystem_GetFilePath(Handle, &Path);
+
             StringLocal(Prefix, 512);
-            String_Format(&Prefix, StrLit("Failed to unmap memory for file \"%S\""), Prefix.Capacity, StrView(Handle->Path));
+            String_Format(&Prefix, S("Failed to unmap memory for file \"%S\""), Prefix.Capacity, Path);
             LogLastError(Prefix);
             bFailedUnmap = true;
         }
@@ -1443,8 +1685,11 @@ bool Filesystem_Seek(const FileHandle* Handle, i64 Offset)
     i32 ErrorCode = fseek(Handle->Data, Offset, SEEK_CUR);
     if (ErrorCode == -1)
     {
+        StringLocal(Path, MAX_PATH_LENGTH);
+        Filesystem_GetFilePath(Handle, &Path);
+
         StringLocal(Prefix, 512);
-        String_Format(&Prefix, StrLit("Seek failed for \"%S\""), Prefix.Capacity, StrView(Handle->Path));
+        String_Format(&Prefix, S("Seek failed for \"%S\""), Prefix.Capacity, Path);
         LogLastError(Prefix);
         return false;
     }
@@ -1457,8 +1702,11 @@ bool Filesystem_SeekFromBeginning(const FileHandle* Handle, u64 Offset)
     i32 ErrorCode = fseek(Handle->Data, (i32)Offset, SEEK_SET);
     if (ErrorCode == -1)
     {
+        StringLocal(Path, MAX_PATH_LENGTH);
+        Filesystem_GetFilePath(Handle, &Path);
+
         StringLocal(Prefix, 512);
-        String_Format(&Prefix, StrLit("SeekFromBeginning failed for \"%S\""), Prefix.Capacity, StrView(Handle->Path));
+        String_Format(&Prefix, S("SeekFromBeginning failed for \"%S\""), Prefix.Capacity, Path);
         LogLastError(Prefix);
         return false;
     }
@@ -1471,8 +1719,11 @@ bool Filesystem_SeekFromEnd(const FileHandle* Handle, u64 Offset)
     i32 ErrorCode = fseek(Handle->Data, (i32)Offset, SEEK_END);
     if (ErrorCode == -1)
     {
+        StringLocal(Path, MAX_PATH_LENGTH);
+        Filesystem_GetFilePath(Handle, &Path);
+
         StringLocal(Prefix, 512);
-        String_Format(&Prefix, StrLit("SeekFromEnd failed for \"%S\""), Prefix.Capacity, StrView(Handle->Path));
+        String_Format(&Prefix, S("SeekFromEnd failed for \"%S\""), Prefix.Capacity, Path);
         LogLastError(Prefix);
         return false;
     }
@@ -1485,8 +1736,11 @@ bool Filesystem_SeekToBeginning(const FileHandle* Handle)
     i32 ErrorCode = fseek(Handle->Data, 0, SEEK_SET);
     if (ErrorCode == -1)
     {
+        StringLocal(Path, MAX_PATH_LENGTH);
+        Filesystem_GetFilePath(Handle, &Path);
+
         StringLocal(Prefix, 512);
-        String_Format(&Prefix, StrLit("SeekToBeginning failed for \"%S\""), Prefix.Capacity, StrView(Handle->Path));
+        String_Format(&Prefix, S("SeekToBeginning failed for \"%S\""), Prefix.Capacity, Path);
         LogLastError(Prefix);
         return false;
     }
@@ -1499,8 +1753,11 @@ bool Filesystem_SeekToEnd(const FileHandle* Handle)
     i32 ErrorCode = fseek(Handle->Data, 0, SEEK_END);
     if (ErrorCode == -1)
     {
+        StringLocal(Path, MAX_PATH_LENGTH);
+        Filesystem_GetFilePath(Handle, &Path);
+
         StringLocal(Prefix, 512);
-        String_Format(&Prefix, StrLit("SeekToEnd failed for \"%S\""), Prefix.Capacity, StrView(Handle->Path));
+        String_Format(&Prefix, S("SeekToEnd failed for \"%S\""), Prefix.Capacity, Path);
         LogLastError(Prefix);
         return false;
     }
@@ -1523,7 +1780,7 @@ u64  Filesystem_GetLastWriteTime(const String FilePath)
     if (ErrorCode == -1)
     {
         StringLocal(Prefix, MAX_PATH_LENGTH);
-        String_Format(&Prefix, StrLit("Failed to retrieve last write time for file \"%S\""), Prefix.Capacity, FilePath);
+        String_Format(&Prefix, S("Failed to retrieve last write time for file \"%S\""), Prefix.Capacity, FilePath);
         LogLastError(Prefix);
         return 0;
     }
@@ -1541,7 +1798,7 @@ u64  Filesystem_GetLastAccessTime(const String FilePath)
     if (ErrorCode == -1)
     {
         StringLocal(Prefix, MAX_PATH_LENGTH);
-        String_Format(&Prefix, StrLit("Failed to retrieve last access time for file \"%S\""), Prefix.Capacity, FilePath);
+        String_Format(&Prefix, S("Failed to retrieve last access time for file \"%S\""), Prefix.Capacity, FilePath);
         LogLastError(Prefix);
         return 0;
     }
@@ -1578,7 +1835,7 @@ u64  Filesystem_GetCreationTime(const String FilePath)
     if (ErrorCode == -1)
     {
         StringLocal(Prefix, MAX_PATH_LENGTH);
-        String_Format(&Prefix, StrLit("Failed to retrieve creation time for file \"%S\""), Prefix.Capacity, FilePath);
+        String_Format(&Prefix, S("Failed to retrieve creation time for file \"%S\""), Prefix.Capacity, FilePath);
         LogLastError(Prefix);
         return 0;
     }
@@ -1588,39 +1845,72 @@ u64  Filesystem_GetCreationTime(const String FilePath)
 
 u64  Filesystem_GetLastWriteTimeH(const FileHandle* Handle)
 {
-    return Filesystem_GetLastWriteTime(StrView(Handle->Path));
+    StringLocal(Path, MAX_PATH_LENGTH);
+    Filesystem_GetFilePath(Handle, &Path);
+
+    return Filesystem_GetLastWriteTime(Path);
 }
 
 u64  Filesystem_GetLastAccessTimeH(const FileHandle* Handle)
 {
-    return Filesystem_GetLastAccessTime(StrView(Handle->Path));
+    StringLocal(Path, MAX_PATH_LENGTH);
+    Filesystem_GetFilePath(Handle, &Path);
+
+    return Filesystem_GetLastAccessTime(Path);
 }
 
 u64  Filesystem_GetCreationTimeH(const FileHandle* Handle)
 {
-    return Filesystem_GetCreationTime(StrView(Handle->Path));
+    StringLocal(Path, MAX_PATH_LENGTH);
+    Filesystem_GetFilePath(Handle, &Path);
+
+    return Filesystem_GetCreationTime(Path);
 }
 
 FileTimeData  Filesystem_GetFileTimeH(const FileHandle* Handle)
 {
+    StringLocal(Path, MAX_PATH_LENGTH);
+    Filesystem_GetFilePath(Handle, &Path);
+
     FileTimeData a = {0};
-    a.CreationTime = Filesystem_GetCreationTime(StrView(Handle->Path));
-    a.LastAccessTime = Filesystem_GetLastAccessTime(StrView(Handle->Path));
-    a.LastWriteTime = Filesystem_GetLastWriteTime(StrView(Handle->Path));
+    a.CreationTime = Filesystem_GetCreationTime(Path);
+    a.LastAccessTime = Filesystem_GetLastAccessTime(Path);
+    a.LastWriteTime = Filesystem_GetLastWriteTime(Path);
     return a;
+}
+
+bool Filesystem_ReadPipe(PlatformPipe Handle, u64 DataSize, void* OutData, u64* OutBytesRead)
+{
+    if (NEVER(Handle[0] == -1)) return false;
+    if (NEVER(Handle[1] == -1)) return false;
+
+    i64 BytesRead = read(Handle[0], OutData, DataSize);
+    if (BytesRead < 0)
+    {
+        StringLocal(Prefix, MAX_PATH_LENGTH);
+        String_Format(&Prefix, S("Failed to read pipe from handle -> Read: %i | Write: %i"), Prefix.Capacity, Handle[0], Handle[1]);
+        LogLastError(Prefix);
+        return false;
+    }
+
+    if (OutBytesRead)
+        *OutBytesRead = (u64)BytesRead;
+
+    return true;
 }
 
 bool Filesystem_Read(const FileHandle* Handle, u64 DataSize, void* OutData, u64* OutBytesRead)
 {
-    ASSERT(IsValidFileHandle(Handle));
-
-    Filesystem_SeekToBeginning(Handle);
+    if (NEVER(!IsValidFileHandle(Handle))) return false;
 
     u64 BytesRead = fread(OutData, 1, DataSize, Handle->Data);
     if (BytesRead == 0)
     {
+        StringLocal(Path, MAX_PATH_LENGTH);
+        Filesystem_GetFilePath(Handle, &Path);
+
         StringLocal(Prefix, MAX_PATH_LENGTH);
-        String_Format(&Prefix, StrLit("Failed to read file \"%S\""), Prefix.Capacity, StrView(Handle->Path));
+        String_Format(&Prefix, S("Failed to read file \"%S\""), Prefix.Capacity, Path);
         LogLastError(Prefix);
         return false;
     }
@@ -1633,8 +1923,9 @@ bool Filesystem_Read(const FileHandle* Handle, u64 DataSize, void* OutData, u64*
 
 bool Filesystem_ReadEntireFile(const FileHandle* Handle, void* OutData, u64* OutBytesRead)
 {
-    ASSERT(IsValidFileHandle(Handle));
+    if (NEVER(!IsValidFileHandle(Handle))) return false;
 
+    // todo: remove this?
     Filesystem_SeekToBeginning(Handle);
     
     u64 Size = 0;
@@ -1643,8 +1934,11 @@ bool Filesystem_ReadEntireFile(const FileHandle* Handle, void* OutData, u64* Out
     u64 BytesRead = fread(OutData, 1, Size, Handle->Data);
     if (BytesRead == 0)
     {
+        StringLocal(Path, MAX_PATH_LENGTH);
+        Filesystem_GetFilePath(Handle, &Path);
+
         StringLocal(Prefix, MAX_PATH_LENGTH);
-        String_Format(&Prefix, StrLit("Failed to entire read file \"%S\""), Prefix.Capacity, StrView(Handle->Path));
+        String_Format(&Prefix, S("Failed to entire read file \"%S\""), Prefix.Capacity, Path);
         LogLastError(Prefix);
         return false;
     }
@@ -1658,10 +1952,16 @@ bool Filesystem_ReadEntireFile(const FileHandle* Handle, void* OutData, u64* Out
 // todo: move to core
 bool Filesystem_ReadLine(const FileHandle* Handle, String* LineBuffer)
 {
-    ASSERT(IsValidFileHandle(Handle));
+    if (NEVER(!IsValidFileHandle(Handle))) return false;
+    if (NEVER(LineBuffer == NULL)) return false;
+    if (NEVER(LineBuffer->Data == NULL || LineBuffer->Data == String_Null().Data)) return false;
 
     u64 CurrentPosition = Filesystem_GetCurrentFilePosition(Handle);
-    u64 FileSize = Handle->Size;
+
+    u64 Size = 0;
+    Filesystem_GetFileSize(Handle, &Size);
+    u64 FileSize = Size;
+
     if (CurrentPosition >= FileSize)
     {
         Filesystem_SeekToBeginning(Handle);
@@ -1672,8 +1972,11 @@ bool Filesystem_ReadLine(const FileHandle* Handle, String* LineBuffer)
     u64 BytesRead = fread(TempBuffer, 1, 8191, Handle->Data);
     if (BytesRead == 0)
     {
+        StringLocal(Path, MAX_PATH_LENGTH);
+        Filesystem_GetFilePath(Handle, &Path);
+
         StringLocal(Prefix, MAX_PATH_LENGTH);
-        String_Format(&Prefix, StrLit("Failed to read line for file \"%S\""), Prefix.Capacity, StrView(Handle->Path));
+        String_Format(&Prefix, S("Failed to read line for file \"%S\""), Prefix.Capacity, Path);
         LogLastError(Prefix);
         return false;
     }
@@ -1688,14 +1991,10 @@ bool Filesystem_ReadLine(const FileHandle* Handle, String* LineBuffer)
         {
             FilePointerOffset = Counter;
 
-            char* p = &TempBuffer[i];
-
-            // eat new lines and returns
-            while (*p == '\n' || *p == '\r')
-            {
-                p++;
+            if (TempBuffer[i] == '\r' && TempBuffer[i+1] == '\n') // todo: bounds check
+                FilePointerOffset += 2;
+            else
                 FilePointerOffset++;
-            }
 
             TempBuffer[i] = 0;
 
@@ -1720,12 +2019,16 @@ bool Filesystem_ReadLine(const FileHandle* Handle, String* LineBuffer)
 
     if (LineLength > 0)
     {
-        String_Copy(LineBuffer, StrViewComp(TempBuffer, LineLength));
+        String_Copy(LineBuffer, StrSlice(TempBuffer, LineLength));
+    }
+    else
+    {
+        String_Empty(LineBuffer);
     }
 
     Filesystem_SeekFromBeginning(Handle, CurrentPosition + FilePointerOffset);
 
-    return Counter > 0;
+    return true;
 }
 
 bool Filesystem_ReadLine_Backwards(const FileHandle* Handle, String* LineBuffer)
@@ -1746,8 +2049,41 @@ bool Filesystem_Write(const FileHandle* Handle, u64 DataSize, const void* Data, 
     u64 BytesWritten = fwrite(Data, 1, DataSize, Handle->Data);
     if (BytesWritten == 0)
     {
+        StringLocal(Path, MAX_PATH_LENGTH);
+        Filesystem_GetFilePath(Handle, &Path);
+
         StringLocal(Prefix, MAX_PATH_LENGTH);
-        String_Format(&Prefix, StrLit("Failed to write to file \"%S\""), Prefix.Capacity, StrView(Handle->Path));
+        String_Format(&Prefix, S("Failed to write to file \"%S\""), Prefix.Capacity, Path);
+        LogLastError(Prefix);
+        return false;
+    }
+
+    if (OutBytesWritten)
+        *OutBytesWritten = BytesWritten;
+
+    return true;
+}
+
+bool Filesystem_WriteLineFormatted(const FileHandle* Handle, const String Text, u64* OutBytesWritten, ...)
+{
+    if (NEVER(!IsValidFileHandle(Handle))) return false;
+
+    Filesystem_SeekToEnd(Handle);
+    
+    va_list Args;
+    va_start(Args, OutBytesWritten);
+    StringLocal(Buffer, 32768);
+    String_FormatV(&Buffer, Text, 32768, Args);
+    va_end(Args);
+
+    u64 BytesWritten = fwrite(Buffer.Data, 1, Buffer.Length, Handle->Data);
+    if (BytesWritten == 0)
+    {
+        StringLocal(Path, MAX_PATH_LENGTH);
+        Filesystem_GetFilePath(Handle, &Path);
+
+        StringLocal(Prefix, MAX_PATH_LENGTH);
+        String_Format(&Prefix, S("Failed to write line to file \"%S\""), Prefix.Capacity, Path);
         LogLastError(Prefix);
         return false;
     }
@@ -1767,8 +2103,11 @@ bool Filesystem_WriteLine(const FileHandle* Handle, const String Text, u64* OutB
     u64 BytesWritten = fwrite(Text.Data, 1, Text.Length, Handle->Data);
     if (BytesWritten == 0)
     {
+        StringLocal(Path, MAX_PATH_LENGTH);
+        Filesystem_GetFilePath(Handle, &Path);
+
         StringLocal(Prefix, MAX_PATH_LENGTH);
-        String_Format(&Prefix, StrLit("Failed to write line to file \"%S\""), Prefix.Capacity, StrView(Handle->Path));
+        String_Format(&Prefix, S("Failed to write line to file \"%S\""), Prefix.Capacity, Path);
         LogLastError(Prefix);
         return false;
     }
@@ -1797,6 +2136,9 @@ bool Filesystem_DoesDirectoryExist(const String FilePath)
     DIR* Found = opendir(FilePath.Data);
     if (!Found)
     {
+        //StringLocal(Prefix, MAX_PATH_LENGTH);
+        //String_Format(&Prefix, S("Failed to open directory \"%S\""), Prefix.Capacity, FilePath);
+        //LogLastError(Prefix);
         return false;
     }
 
@@ -1805,8 +2147,11 @@ bool Filesystem_DoesDirectoryExist(const String FilePath)
 
 bool Filesystem_GetFileSize(const FileHandle* File, u64* OutSize)
 {
+    StringLocal(Path, MAX_PATH_LENGTH);
+    Filesystem_GetFilePath(File, &Path);
+
     struct stat filestat = {0};
-    stat(File->Path.Data, &filestat);
+    stat(Path.Data, &filestat);
     *OutSize = (u64)filestat.st_size;
     return true;
 }
@@ -1849,7 +2194,7 @@ bool Filesystem_ConvertRelativeToAbsolutePath(String* OutFullPath)
     if (Result == NULL)
     {
         StringLocal(Format, MAX_PATH_LENGTH);
-        String_Format(&Format, StrLit("Failed to convert \"%S\" to an absolute path"), MAX_PATH_LENGTH, Copy);
+        String_Format(&Format, S("Failed to convert \"%S\" to an absolute path"), MAX_PATH_LENGTH, Copy);
         LogLastError(Format);
         return false;
     }
@@ -1859,14 +2204,14 @@ bool Filesystem_ConvertRelativeToAbsolutePath(String* OutFullPath)
     return true;
 }
 
-internal void Internal_IterateDirectory(const String BasePath, const String DirectoryPath, DirectoryIterator Callback, bool bRecursive)
+internal void Internal_IterateDirectory(const String BasePath, const String DirectoryPath, DirectoryIterator Callback, bool bRecursive, void* UserData)
 {
     struct dirent* entry = NULL;
     DIR* dp = opendir(BasePath.Data);
     if (!dp)
     {
         StringLocal(Message, MAX_PATH_LENGTH);
-        String_Format(&Message, StrLit("Failed to iterate directory for path \"%S\""), MAX_PATH_LENGTH, BasePath);
+        String_Format(&Message, S("Failed to iterate directory for path \"%S\""), MAX_PATH_LENGTH, BasePath);
         LogLastError(Message);
         return;
     }
@@ -1897,12 +2242,12 @@ internal void Internal_IterateDirectory(const String BasePath, const String Dire
         {
             String_BuildPath(&RelativePath, DirectoryPath, EntryName);
 
-            bool bResult = Callback(FullPath, RelativePath, EntryName, 0, true);
+            bool bResult = Callback(FullPath, RelativePath, EntryName, 0, true, UserData);
             if (!bResult) break;
 
             if (bRecursive)
             {
-                Internal_IterateDirectory(FullPath, RelativePath, Callback, true);
+                Internal_IterateDirectory(FullPath, RelativePath, Callback, true, UserData);
             }
         }
         else
@@ -1921,7 +2266,7 @@ internal void Internal_IterateDirectory(const String BasePath, const String Dire
                 String_Copy(&RelativePath, EntryName);
             }
 
-            bool bResult = Callback(FullPath, RelativePath, EntryName, FileSize, false);
+            bool bResult = Callback(FullPath, RelativePath, EntryName, FileSize, false, UserData);
             if (!bResult) break;
         }
     }
@@ -1931,20 +2276,25 @@ internal void Internal_IterateDirectory(const String BasePath, const String Dire
 
 void Filesystem_IterateDirectory(const String BasePath, DirectoryIterator Callback, bool bRecursive)
 {
-    Internal_IterateDirectory(BasePath, StrLit(""), Callback, bRecursive);
+    Internal_IterateDirectory(BasePath, S(""), Callback, bRecursive, NULL);
+}
+
+void Filesystem_IterateDirectory_Ex(const String BasePath, DirectoryIterator Callback, bool bRecursive, void* UserData)
+{
+    Internal_IterateDirectory(BasePath, S(""), Callback, bRecursive, UserData);
 }
 
 bool Filesystem_DeleteFiles(const String FilePath, const String Wildcard, bool bRecursive)
 {
     StringLocal(Cmd, MAX_PATH_LENGTH);
-    String_Append(&Cmd, StrLit("rm "));
+    String_Append(&Cmd, S("rm -f "));
     if (bRecursive)
-        String_Append(&Cmd, StrLit("-r \""));
+        String_Append(&Cmd, S("-r \""));
     String_Append(&Cmd, FilePath);
     String_AppendPathSeparator_Checked(&Cmd);
     String_AppendChar(&Cmd, '"');
     String_Append(&Cmd, Wildcard);
-    String_Append(&Cmd, StrLit(" 2> /dev/null"));
+    String_Append(&Cmd, S(" 2> /dev/null"));
     i32 Result = system(Cmd.Data);
     return Result == 0;
 }
@@ -1952,14 +2302,14 @@ bool Filesystem_DeleteFiles(const String FilePath, const String Wildcard, bool b
 bool Filesystem_DeleteDirectory(const String DirectoryPath)
 {
     StringLocal(Cmd, MAX_PATH_LENGTH);
-    String_Append(&Cmd, StrLit("rm "));
+    String_Append(&Cmd, S("rm "));
     //if (bRecursive)
-    //    String_Append(&Cmd, StrLit("-r \""));A
+    //    String_Append(&Cmd, S("-r \""));A
     String_Append(&Cmd, DirectoryPath);
     String_AppendPathSeparator_Checked(&Cmd);
     //String_AppendChar(&Cmd, '"');
     //String_Append(&Cmd, Wildcard);
-    String_Append(&Cmd, StrLit(" 2> /dev/null"));
+    String_Append(&Cmd, S(" 2> /dev/null"));
     i32 Result = system(Cmd.Data);
     return Result == 0;
 }
@@ -1974,6 +2324,42 @@ bool Filesystem_ArePathsCommon(String PathA, String PathB)
 i32 Rand(void)
 {
     return rand();
+}
+
+// https://stackoverflow.com/questions/4768180/rand-implementation
+static u32 next = 1;
+
+void RandSeed(void)
+{
+	next = (u32)Platform_GetAbsoluteTime();
+}
+
+i32 RandFast(void)
+{
+    next = (u32)Platform_GetAbsoluteTime();
+    next *= 1103515245 + 12345;
+
+    return (next/65536) % 32768;
+}
+
+f32 FRand(void)
+{
+    // inline Absi32 function
+    i32 Value = Rand();
+	i32 Temp = Value >> 31;
+	Value ^= Temp;
+	Value += Temp & 1;
+
+	return (f32)Value / (f32)INT32_MAX;
+}
+
+f32 FRandFast(void)
+{
+    next = (u32)Platform_GetAbsoluteTime();
+    next *= 1103515245 + 12345;
+    
+    f32 RandFastResult = (f32)((next/65536) % 32768);
+	return RandFastResult / (f32)RAND_MAX;
 }
 
 Uuid UUID_Generate(void)
@@ -2082,6 +2468,21 @@ u8 ConvertInputKeyToUnicodeCharacter(EKey Key)
     //printf("Shift is %spressed\n", bShiftPressed ? "" : "not ");
 
     //return (u8)Key;
+}
+
+bool Platform_GetTerminalDimensions(u32* OutRows, u32* OutColumns)
+{
+    struct winsize w;
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == -1)
+    {
+        LogLastError(S("Failed to get terminal dimensions"));
+        return false;
+    }
+
+    *OutRows = w.ws_row;
+    *OutColumns = w.ws_col;
+
+    return true;
 }
 
 #endif // PLATFORM_LINUX

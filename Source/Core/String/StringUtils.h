@@ -28,6 +28,37 @@ MemZero((s).Data, (s).Length);\
 
 #define StringN_IsValid(s) ((s).Data != NULL && (s).Length > 0)
 
+// C String Helpers
+// ----------------------------------
+
+RIFT_API u64 CString_Copy(char* Dest, const char* Source);
+RIFT_API u64 CString_CopyN(char* Dest, const char* Source, u64 Length);
+
+RIFT_API void CString_ToBytes(const char* Data, u64 Length, u8* OutBytes);
+RIFT_API void CString_FromBytes(const u8* Data, u64 Length, char* OutCharacters);
+
+RIFT_API bool CString_IsEqual(const char* StringA, const char* StringB, bool bCaseSensitive);
+
+RIFT_API i32 CString_Format(char* Dest, const char* Format, u32 MaxLength, ...);
+RIFT_API i32 CString_FormatV(char* Dest, const char* Format, u32 MaxLength, void* VAList);
+
+RIFT_API void CString_Zero(char* Str, u32 Length);
+RIFT_API void CString_Fill(char* Str, u32 Length, char N);
+
+RIFT_API char* CString_Empty(char* Str);
+
+RIFT_API void CString_ToLower(char* String);
+RIFT_API void CString_ToUpper(char* String);
+
+RIFT_API void CString_ToWide(const char* FromString, wchar* ToString);
+RIFT_API void CString_ToNarrow(const wchar* FromString, char* ToString);
+
+RIFT_API u64 CString_ScanUntil(const char* Str, char Char);
+
+RIFT_API void CString_SubString(char* Dest, const char* Source, u32 Start, u32 Length);
+
+RIFT_API bool CString_IndexOfChar(const char* Str, char C, u32* OutIndex);
+
 // String Helpers
 // ----------------------------------
 RIFT_API String String_Create(LinearAllocator* Arena, const String Source); // todo: deprecate
@@ -88,9 +119,9 @@ RIFT_API void StringInternal_Concat(String* Dest, const StringArray Array);
 RIFT_API void StringInternal_BuildSeparator(String* Dest, char Separator, const StringArray Array);
 RIFT_API void StringInternal_BuildPath(String* Dest, const StringArray Array);
 
-RIFT_API i32 String_Format(String* Dest, const String Format, u32 MaxLength, ...);//todo: remove maxlength
-RIFT_API i32 String_Format_Ex(String* Dest, const String Format, u32 MaxLength, ...);
-RIFT_API u32 String_FormatV(String* Dest, const String Format, u32 MaxLength, void* VAList);
+RIFT_API i32 String_Format(String* Dest, const String Format, u32 Capacity, ...);//todo: remove maxlength
+RIFT_API i32 String_Format_Ex(String* Dest, const String Format, u32 Capacity, ...);
+RIFT_API u32 String_FormatV(String* Dest, const String Format, u32 Capacity, void* VAList);
 
 RIFT_API void String_Empty(String* Str);
 
@@ -111,17 +142,21 @@ RIFT_API bool String_CollapseMatching(String* Dest, const String A, const String
 
 RIFT_API String String_EatChar(String Str, char Char); // maybe make an s version or single version?
 RIFT_API String String_EatSpaces(String Str);
+RIFT_API String String_EatNewLines(String Str);
 RIFT_API String String_EatPathSeparators(String Str);
 RIFT_API String String_EatCharFromEnd(String Str, char Char);
 RIFT_API String String_EatSpacesFromEnd(String Str);
+RIFT_API String String_EatNewLinesFromEnd(String Str);
 RIFT_API String String_EatPathSeparatorsFromEnd(String Str);
 
-RIFT_API bool String_EatSpacesInline(String* Str);
 RIFT_API bool String_EatCharInline(String* Str, char Char);
 RIFT_API bool String_EatCharInline_Single(String* Str, char Char);
-RIFT_API bool String_EatPathSeparatorsInline(String* Str);
 RIFT_API bool String_EatCharInlineFromEnd(String* Str, char Char);
+RIFT_API bool String_EatSpacesInline(String* Str);
 RIFT_API bool String_EatSpacesInlineFromEnd(String* Str);
+RIFT_API bool String_EatNewLinesInline(String* Str);
+RIFT_API bool String_EatNewLinesInlineFromEnd(String* Str);
+RIFT_API bool String_EatPathSeparatorsInline(String* Str);
 RIFT_API bool String_EatPathSeparatorsInlineFromEnd(String* Str);
 
 RIFT_API String String_ScanUntil(const String* Str, char Char);
@@ -137,6 +172,7 @@ RIFT_API u32 String_CountChar(const String Str, char C);
 RIFT_API u32 String_CountSpaces(const String Str);
 RIFT_API u32 String_CountPathSeparators(const String Str);
 
+
 RIFT_API String* StringArray_Iterate_Next(StringArray* InArray);
 RIFT_API String* StringArray_Iterate_Begin(StringArray* InArray);
 
@@ -145,7 +181,10 @@ RIFT_API StringList StringList_Iterate_Begin(StringList InList);
 
 RIFT_API bool StringArray_Contains(const StringArray InArray, const String SubString, bool bCaseSensitive);
 
+RIFT_API StringList String_SplitIntoList(LinearAllocator* Arena, const String Value, char Delimiter, bool bHandleQuotes);
+
 RIFT_API StringArray String_SplitIntoArray(LinearAllocator* Arena, const String Str, const String Delimiter, u32 StartingIndex, u32 MaxCount);
+// rename
 RIFT_API StringArray String_ParseIntoArray(LinearAllocator* Arena, const String Str, char Delimiter, u32 StartingIndex, u32 MaxCount);
 RIFT_API StringArray String_ParseIntoArray_IntoExistingBuffer(String* ArrayBuffer, const String Str, char Delimiter, u32 StartingIndex, u32 MaxCount);
 
