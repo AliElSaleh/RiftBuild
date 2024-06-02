@@ -503,7 +503,6 @@ bool MSVC_Link(const BuildParams* Params)
             LogString_WordWrapped(*Params->Arena, S("    "), CmdLine, false);
         }
     }
-    LOG_LINE_BREAK();
 
     PlatformHandle Handle = Platform_RunCommand(CmdLine, Params->RootDirectory);
     u32 ExitCode = Platform_WaitForProcessAndGetExitCode(Handle);
