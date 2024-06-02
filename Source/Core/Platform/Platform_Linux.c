@@ -1,12 +1,8 @@
 #include "Platform.h"
 
 #if PLATFORM_LINUX
-#include "Input/Input.h"
 #include "Log.h"
 
-#include "Event/Event.h"
-#include "FileWatcher.h"
-#include "Profiling/ProfilingSubsystem.h"
 #include "Uuid.h"
 #include "Filesystem.h"
 #include "Math/Math.h"
@@ -53,6 +49,7 @@
 
 extern int fileno (FILE *__stream) __THROW __wur;
 
+#if !HEADLESS
 // todo: pull these in locally
 #undef internal // fucking x11 dude....
 #include <xcb/xcb.h>
@@ -89,26 +86,18 @@ enum WMSizeHintsFlag
   WM_SIZE_HINT_BASE_SIZE     = 1U << 8,
   WM_SIZE_HINT_P_WIN_GRAVITY = 1U << 9
 };
-
-#ifndef NO_VULKAN
-#define VK_USE_PLATFORM_XCB_KHR
-#include "Renderer/Vulkan/VulkanTypes.inl"
-#include "Renderer/Vulkan/VulkanPlatform.h"
-#include "Renderer/Vulkan/volk.h"
 #endif
 
 STRUCT(LinuxPlatformState)
 {
+#if !HEADLESS
     Display* Display;
     xcb_connection_t* Connection;
     xcb_window_t Window;
     xcb_screen_t* Screen;
     xcb_atom_t wm_protocols;
     xcb_atom_t wm_delete_win;
-
-    #ifndef NO_VULKAN
-    VkSurfaceKHR Surface;
-    #endif
+#endif
 
     bool bInitialized;
     u64 ThreadID;
@@ -1179,8 +1168,6 @@ SystemTime Platform_GetSystemLocalTime(void)
 
 void Platform_Sleep(f64 ms)
 {
-    PROFILE_FUNCTION()
-    {
         if (ms > 0)
         {
             struct timespec t = {0};
@@ -1197,9 +1184,6 @@ void Platform_Sleep(f64 ms)
                     break;
             }
         }
-
-        //usleep((u32)(ms * 1000));
-    }
 }
 
 void Platform_ShowCursor(bool bShow)
@@ -2321,47 +2305,6 @@ bool Filesystem_ArePathsCommon(String PathA, String PathB)
     return bPrefixMatch;
 }
 
-i32 Rand(void)
-{
-    return rand();
-}
-
-// https://stackoverflow.com/questions/4768180/rand-implementation
-static u32 next = 1;
-
-void RandSeed(void)
-{
-	next = (u32)Platform_GetAbsoluteTime();
-}
-
-i32 RandFast(void)
-{
-    next = (u32)Platform_GetAbsoluteTime();
-    next *= 1103515245 + 12345;
-
-    return (next/65536) % 32768;
-}
-
-f32 FRand(void)
-{
-    // inline Absi32 function
-    i32 Value = Rand();
-	i32 Temp = Value >> 31;
-	Value ^= Temp;
-	Value += Temp & 1;
-
-	return (f32)Value / (f32)INT32_MAX;
-}
-
-f32 FRandFast(void)
-{
-    next = (u32)Platform_GetAbsoluteTime();
-    next *= 1103515245 + 12345;
-    
-    f32 RandFastResult = (f32)((next/65536) % 32768);
-	return RandFastResult / (f32)RAND_MAX;
-}
-
 Uuid UUID_Generate(void)
 {
     uuid_t id;
@@ -2397,77 +2340,6 @@ Uuid UUID_FromString(const String IDString)
     uuid_parse(IDString.Data, id);
 
     return *(Uuid*)id;
-}
-
-bool FileWatcher_WatchFileOrDirectory(FileWatchReference* Reference)
-{
-    //UNIMPLEMENTED;
-    return false;
-}
-
-bool FileWatcher_Initialize(void* Memory)
-{
-    //UNIMPLEMENTED;
-    return true;
-}
-
-void FileWatcher_Shutdown(void)
-{
-    //UNIMPLEMENTED;
-}
-
-u64 FileWatcher_GetMemoryRequirement(void)
-{
-    return 4;
-}
-
-#ifndef NO_VULKAN
-static const char* GExtensionListBuffer[255] =
-{
-    VK_KHR_XCB_SURFACE_EXTENSION_NAME
-};
-#endif
-
-#ifndef NO_VULKAN
-const char** Platform_GetRequiredExtensionNames(void)
-{
-    return &GExtensionListBuffer[0];
-}
-
-bool Platform_CreateVulkanSurface(struct VulkanContext* Context)
-{
-    VkXcbSurfaceCreateInfoKHR CreateInfo = { 0 };
-    CreateInfo.sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
-    CreateInfo.connection = GLinuxPlatformState->Connection;
-    CreateInfo.window = GLinuxPlatformState->Window;
-
-    VkResult Result = vkCreateXcbSurfaceKHR(Context->Instance, &CreateInfo, Context->Allocator, &GLinuxPlatformState->Surface);
-    if (Result != VK_SUCCESS)
-    {
-        LOG_ERROR("Failed to create vulkan surface");
-        return false;
-    }
-
-    Context->Surface = GLinuxPlatformState->Surface;
-    return true;
-}
-#endif
-
-u8 ConvertInputKeyToUnicodeCharacter(EKey Key)
-{
-    return (u8)Key;
-    /*
-    char keys_return[256] = {0};
-    XQueryKeymap(GLinuxPlatformState->Display, keys_return);
-    KeyCode kc2 = XKeysymToKeycode(GLinuxPlatformState->Display, Key);
-    return kc2;
-    */
-
-    //bool bShiftPressed = !!( keys_return[ kc2>>3 ] & ( 1<<(kc2&7) ) );
-
-    //printf("Shift is %spressed\n", bShiftPressed ? "" : "not ");
-
-    //return (u8)Key;
 }
 
 bool Platform_GetTerminalDimensions(u32* OutRows, u32* OutColumns)
