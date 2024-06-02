@@ -176,7 +176,7 @@ Scripts\build_windows.bat
 ```
 ### Unix (Linux / Mac OS / BSD)
 ```
-./Scripts/build_unix.sh
+./Scripts/build_[linux/mac/bsd].sh
 ```
 RiftBuild compiles with Clang so make sure that is installed before building
 
