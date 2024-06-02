@@ -49,7 +49,7 @@ You are wise to be skeptical of new tools.
 
 Below are forks of a few open-source projects that I've translated from CMake (and other build systems) to Rift Build. They can be built with just a single `riftbuild` call on the terminal at the project root directory.
 
-- [Jolt Physics TODO](https://github.com/AliElSaleh/JoltPhysics)
+- [Jolt Physics](https://github.com/AliElSaleh/JoltPhysics)
 - [Refterm TODO](https://google.com)
 - [Craft](https://github.com/AliElSaleh/Craft)
 - [RAD Debugger](https://github.com/AliElSaleh/raddebugger)
@@ -159,6 +159,29 @@ To set an icon for an executable, either specify the .ico name or give an absolu
 Icon someicon.ico # or path/to/icon/file.ico
 ```
 The fact that other build systems can't do this is fucking pathetic
+
+---
+
+# Building riftbuild
+RiftBuild can of course build itself with just a single call like this
+```
+riftbuild
+```
+
+However if you'd like to build the old fashioned way, there are OS specific script files that you can run from the Scripts/ directory on Windows/Mac/Linux/BSD. Within the `Scripts` directory, run the build script
+### Windows
+```
+build.bat
+```
+### Mac OS
+```
+build.command
+```
+### Linux or BSD
+```
+./build.sh
+```
+RiftBuild compiles with Clang so make sure that is installed before building
 
 ---
 
