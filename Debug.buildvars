@@ -19,7 +19,7 @@ if _platform == linux SharedLinkerFlags -Wl,-z,nodlopen -Wl,-z,noexecstack -Wl,-
 
 SharedDefines DEVELOPER NO_PROFILING _GLIBCXX_ASSERTIONS _GLIBCXX_DEBUG _GLIBCXX_DEBUG_PEDANTIC _NO_CRT_STDIO_INLINE _FORTIFY_SOURCE=3
 
-SharedIncludeFlags Source/Core Source/Vendor
+SharedIncludeFlags Source/Core Libraries/Vendor
 
 if _arch == x64 CompilerFlags -msse2
 if _arch == x64 SecurityFlags -mshstk
