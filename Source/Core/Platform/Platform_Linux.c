@@ -46,6 +46,7 @@
 #include <spawn.h>
 #include <termios.h>
 #include <semaphore.h>
+#include <stdarg.h>
 
 extern int fileno (FILE *__stream) __THROW __wur;
 
