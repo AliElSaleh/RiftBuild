@@ -12,7 +12,7 @@ Copyright               Copyright (c) 2024 Ali El Saleh
 
 SourceDirectory         Source
 IntermediateDirectory   Intermediate
-BuildDirectory          Build/$Mode
+BuildDirectory          Build/$(Mode)/%%Hood
 
 CompilerFlags           $SharedCompilerFlags -mno-stack-arg-probe -mstack-probe-size=999999999
 LinkerFlags             $SharedLinkerFlags
