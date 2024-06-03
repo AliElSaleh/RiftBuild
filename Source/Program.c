@@ -2320,7 +2320,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 LOG_ERROR("yo dis program \"%S\" don exist cuh. need to be installed and set in da path ma nigga", Trimmed);
                 #endif
 
-                if (LogCustomErrorMessage(VariablesDB, S("Program"), Trimmed, false))
+                if (LogCustomErrorMessage(ExpandedVariablesDB, S("Program"), Trimmed, false))
                 {
                     LOG_LINE_BREAK();
                 }
@@ -2346,7 +2346,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 LOG_ERROR("yo da environment var \"%S\" don exist cuh. need to be setup n' shit ma nigga\n", Trimmed);
                 #endif
 
-                if (LogCustomErrorMessage(VariablesDB, S("Env"), Trimmed, false))
+                if (LogCustomErrorMessage(ExpandedVariablesDB, S("Env"), Trimmed, false))
                 {
                     LOG_LINE_BREAK();
                 }
@@ -2443,7 +2443,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 #endif
 
                 // TODO: this may not work
-                LogCustomErrorMessage(VariablesDB, S("Platform"), S(PLATFORM_STRING), true);
+                LogCustomErrorMessage(ExpandedVariablesDB, S("Platform"), S(PLATFORM_STRING), true);
 
                 return 1;
             }
@@ -2505,7 +2505,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 #endif
 
                 // TODO: this may not work
-                LogCustomErrorMessage(VariablesDB, S("Arch"), S(CPU_ARCHITECTURE_STRING), true);
+                LogCustomErrorMessage(ExpandedVariablesDB, S("Arch"), S(CPU_ARCHITECTURE_STRING), true);
 
                 return 1;
             }
@@ -2925,7 +2925,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                     LOG_ERROR("cant find this library nigga \"%S\". i searched fuckin everywhere bro\n", TrimmedCopy);
                     #endif
 
-                    if (LogCustomErrorMessage(VariablesDB, S("Lib"), TrimmedCopy, false))
+                    if (LogCustomErrorMessage(ExpandedVariablesDB, S("Lib"), TrimmedCopy, false))
                     {
                         LOG_LINE_BREAK();
                     }

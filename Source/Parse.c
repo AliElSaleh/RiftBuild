@@ -1434,58 +1434,68 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
         }
         else
         {
-            // fix duplicate spaces when expanding
-            if (Dest->Length > 0)
+            bool bCheckChar = true;
+
+            if (String_EndsWith(Key, S(".errormessage"), false))
             {
-                if (IsWhitespace(Dest->Data[Dest->Length-1]) && IsWhitespace(C))
-                {
-                    continue;
-                }
-            }
-            else
-            {
-                // the first char should never be whitespace
-                if (IsWhitespace(C))
-                {
-                    continue;
-                }
+                bCheckChar = false;
             }
 
-            // when expanding, turn tab spaces into regular spaces
-            if (C == '\t')
+            if (bCheckChar)
             {
-                C = ' ';
-            }
-
-            if (C == '/' || C == '\\')
-            {
-                const String KeysToCareAbout[] = 
+                // fix duplicate spaces when expanding
+                if (Dest->Length > 0)
                 {
-                    S("SourceDirectory"),
-                    S("BuildDirectory"),
-                    S("IntermediateDirectory"),
-                    S("LibraryDirectories"),
-                    S("Includes"),
-                    S("Icon"),
-                    S("Compiler"),
-                    S("IncludedSourceDirectories"),
-                    S("ExcludedSourceDirectories"),
-                    S("ExternalSourceDirectories"),
-                    S("IncludedSourceFiles"),
-                    S("ExcludedSourceFiles"),
-                };
-
-                for (u8 j = 0; j < SArray_Capacity(KeysToCareAbout); j++)
-                {
-                    if (String_IsEqual(Key, KeysToCareAbout[j], false))
+                    if (IsWhitespace(Dest->Data[Dest->Length-1]) && IsWhitespace(C))
                     {
-                        #if PLATFORM_WINDOWS
-                        C = '\\';
-                        #else
-                        C = '/';
-                        #endif
-                        
-                        break;
+                        continue;
+                    }
+                }
+                else
+                {
+                    // the first char should never be whitespace
+                    if (IsWhitespace(C))
+                    {
+                        continue;
+                    }
+                }
+
+                // when expanding, turn tab spaces into regular spaces
+                if (C == '\t')
+                {
+                    C = ' ';
+                }
+
+                if (C == '/' || C == '\\')
+                {
+                    const String KeysToCareAbout[] = 
+                    {
+                        S("SourceDirectory"),
+                        S("BuildDirectory"),
+                        S("IntermediateDirectory"),
+                        S("LibraryDirectories"),
+                        S("Includes"),
+                        S("Icon"),
+                        S("Compiler"),
+                        S("IncludedSourceDirectories"),
+                        S("ExcludedSourceDirectories"),
+                        S("ExternalSourceDirectories"),
+                        S("IncludedSourceFiles"),
+                        S("ExcludedSourceFiles"),
+                    };
+
+                    for (u8 j = 0; j < SArray_Capacity(KeysToCareAbout); j++)
+                    {
+                        if (String_IsEqual(Key, KeysToCareAbout[j], false))
+                        {
+                            #if PLATFORM_WINDOWS
+                            C = '\\';
+                            #else
+                            C = '/';
+                            #endif
+                            
+                            break;
+                        }
                     }
                 }
             }
