@@ -8,7 +8,7 @@ A simple build call will look like this (in a directory with or without a .build
 riftbuild
 ```
 
-To build with a specific build file.
+To build with a specific build file. (specifying the .build extension is optional)
 ```bash
 riftbuild someapp.build
 ```
