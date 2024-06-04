@@ -11,7 +11,6 @@ CompanyName             Ali El Saleh
 Copyright               Copyright (c) 2024 Ali El Saleh
 
 SourceDirectory         Source
-IntermediateDirectory   Intermediate
 BuildDirectory          Build/$(Mode)/%%Hood
 
 CompilerFlags           $SharedCompilerFlags -mno-stack-arg-probe -mstack-probe-size=999999999
@@ -31,5 +30,3 @@ if _platform == windows LinkerFlags -nostdlib -Wl,-entry:ProgramStart,-subsystem
 if _platform == windows Defines WIN32_LEAN_AND_MEAN
 
 if _platform == linux   Libraries UUIDS ; LibraryDirectories Libraries/Linux
-
-AssertWorkingDirectory .
