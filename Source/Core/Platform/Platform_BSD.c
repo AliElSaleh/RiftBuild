@@ -1655,7 +1655,7 @@ internal bool Internal_IterateDirectory(const String BasePath, const String Dire
         StringLocal(Message, MAX_PATH_LENGTH);
         String_Format(&Message, S("Failed to iterate directory for path \"%S\""), MAX_PATH_LENGTH, RealBasePath);
         LogLastError(Message);
-        return;
+        return false;
     }
     
     bool bSuccess = true;
