@@ -171,7 +171,7 @@ if mode == release CompilerFlags -O3
 
 CompilerFlags -std=c99 -Wall $AsanFlags
 ```
-Notice how `%` was not present in the `asan` and `mode` if statement. This is because only internal variables/command line arguments can be used with control flow statements, therefore to save on typing and to simplify the syntax, the `%` is optional.
+Notice how `%` was not present in the `asan` and `mode` if statement. This is because we search all variables whether it be a user made build file variable or a command line argument, therefore to save on typing and to simplify the syntax, the `%` or `$` is optional.
 
 ---
 
