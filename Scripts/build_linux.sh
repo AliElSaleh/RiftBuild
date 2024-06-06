@@ -25,6 +25,6 @@ clang -c "Source/Parse.c"                        $CompilerFlags -o "Intermediate
 clang -c "Source/Exporter.c"                     $CompilerFlags -o "Intermediate/Exporter.c.o"
 
 echo "Building binary"
-clang -o Build/Dist/riftbuild "Intermediate/Clock.c.o" "Intermediate/Math.c.o" "Intermediate/Memory.c.o" "Intermediate/Allocators.c.o" "Intermediate/StringUtils.c.o" "Intermediate/Containers.c.o" "Intermediate/Log.c.o" "Intermediate/Globals.c.o" "Intermediate/EngineUtils.c.o" "Intermediate/Platform_Linux.c.o" "Intermediate/Program.c.o" "Intermediate/CBackend.c.o" "Intermediate/MSVCBackend.c.o" "Intermediate/Parse.c.o" "Intermediate/Exporter.c.o" -LLibraries/Linux -lUUIDS -Wl,-rpath,'$ORIGIN'
+clang -o Build/Dist/riftbuild "Intermediate/Clock.c.o" "Intermediate/Math.c.o" "Intermediate/Memory.c.o" "Intermediate/Allocators.c.o" "Intermediate/StringUtils.c.o" "Intermediate/Containers.c.o" "Intermediate/Log.c.o" "Intermediate/Globals.c.o" "Intermediate/EngineUtils.c.o" "Intermediate/Platform_Linux.c.o" "Intermediate/Program.c.o" "Intermediate/CBackend.c.o" "Intermediate/MSVCBackend.c.o" "Intermediate/Parse.c.o" "Intermediate/Exporter.c.o" -LSource/Libraries/Linux -lUUIDS -Wl,-rpath,'$ORIGIN'
 
 echo "  Done: Build/Dist/riftbuild"
