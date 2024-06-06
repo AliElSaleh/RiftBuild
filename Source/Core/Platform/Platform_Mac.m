@@ -19,6 +19,9 @@
 #include <QuartzCore/QuartzCore.h>
 #include <mach/mach_time.h>
 
+#define internal static
+#define global extern
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <memory.h>
