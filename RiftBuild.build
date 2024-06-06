@@ -23,7 +23,7 @@ IncludedSourceFiles     Clock.c Math.c Memory.c Allocators.c StringUtils.c Conta
 
 if _platform == windows IncludedSourceFiles Platform_Windows.c
 if _platform == linux   IncludedSourceFiles Platform_Linux.c
-if _platform == macos   IncludedSourceFiles Platform_Mac.m
+if _platform == macos   IncludedSourceFiles Platform_Mac.c
 if _platform == bsd     IncludedSourceFiles Platform_BSD.c
 
 if _platform == windows LinkerFlags -nostdlib -Wl,-entry:ProgramStart,-subsystem:console -Xlinker /stack:0x400000,0x400000

@@ -14,9 +14,6 @@
 #undef internal
 #undef global
 
-#include <Foundation/Foundation.h>
-#include <Cocoa/Cocoa.h>
-#include <QuartzCore/QuartzCore.h>
 #include <mach/mach_time.h>
 
 #define internal static
@@ -38,6 +35,9 @@
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <sys/ioctl.h>
+#include <sys/syslimits.h>
+
+#include <stdarg.h>
 
 static void LogLastError(const String Prefix)
 {
