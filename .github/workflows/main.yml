@@ -1,0 +1,27 @@
+name: Build Riftbuild on Windows, Mac and Linux on every push
+on:
+  push:
+    branches:
+    - main
+
+jobs:
+  RunOnUbuntu:
+    name: Build RiftBuild (Ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./Scripts/build_linux.sh
+  
+  RunOnWindows:
+    name: Build RiftBuild (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: Scripts\build_windows.bat
+  
+  RunOnMacOS:
+    name: Build RiftBuild (Mac OS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./Scripts/build_mac.sh
