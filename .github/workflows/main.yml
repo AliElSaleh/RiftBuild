@@ -1,4 +1,4 @@
-name: Build Riftbuild on Windows, Mac and Linux on every push
+name: Build (Windows/MacOS/Linux)
 on:
   push:
     branches:
