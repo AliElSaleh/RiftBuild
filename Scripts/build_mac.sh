@@ -19,7 +19,7 @@ clang -c "Source/Core/Structures/Containers.c" $CompilerFlags -o "Intermediate/C
 clang -c "Source/Core/Log.c"                   $CompilerFlags -o "Intermediate/Log.c.o"
 clang -c "Source/Core/Globals.c"               $CompilerFlags -o "Intermediate/Globals.c.o"
 clang -c "Source/Core/EngineUtils.c"           $CompilerFlags -o "Intermediate/EngineUtils.c.o"
-clang -c "Source/Core/Platform/Platform_Mac.m" $CompilerFlags -o "Intermediate/Platform_Mac.m.o"
+clang -c "Source/Core/Platform/Platform_Mac.c" $CompilerFlags -o "Intermediate/Platform_Mac.c.o"
 clang -c "Source/Program.c"                    $CompilerFlags -o "Intermediate/Program.c.o"
 clang -c "Source/CBackend.c"                   $CompilerFlags -o "Intermediate/CBackend.c.o"
 clang -c "Source/MSVCBackend.c"                $CompilerFlags -o "Intermediate/MSVCBackend.c.o"
@@ -27,6 +27,6 @@ clang -c "Source/Parse.c"                      $CompilerFlags -o "Intermediate/P
 clang -c "Source/Exporter.c"                   $CompilerFlags -o "Intermediate/Exporter.c.o"
 
 echo "Building binary"
-clang -o Build/Dist/riftbuild "Intermediate/Clock.c.o" "Intermediate/Math.c.o" "Intermediate/Memory.c.o" "Intermediate/Allocators.c.o" "Intermediate/StringUtils.c.o" "Intermediate/Containers.c.o" "Intermediate/Log.c.o" "Intermediate/Globals.c.o" "Intermediate/EngineUtils.c.o" "Intermediate/Platform_Mac.m.o" "Intermediate/Program.c.o" "Intermediate/CBackend.c.o" "Intermediate/MSVCBackend.c.o" "Intermediate/Parse.c.o" "Intermediate/Exporter.c.o" -Wl,-rpath,'$ORIGIN'
+clang -o Build/Dist/riftbuild "Intermediate/Clock.c.o" "Intermediate/Math.c.o" "Intermediate/Memory.c.o" "Intermediate/Allocators.c.o" "Intermediate/StringUtils.c.o" "Intermediate/Containers.c.o" "Intermediate/Log.c.o" "Intermediate/Globals.c.o" "Intermediate/EngineUtils.c.o" "Intermediate/Platform_Mac.c.o" "Intermediate/Program.c.o" "Intermediate/CBackend.c.o" "Intermediate/MSVCBackend.c.o" "Intermediate/Parse.c.o" "Intermediate/Exporter.c.o" -Wl,-rpath,'$ORIGIN'
 
 echo "  Done: Build/Dist/riftbuild"
