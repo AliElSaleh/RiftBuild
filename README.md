@@ -33,7 +33,7 @@ SourceDirectory src       # default value is nothing
 BuildDirectory bin        # default value is Build
 IntermediateDirectory int # default value is Intermediate
 
-# fill in the blanks below for your program
+# fill in/replace the following below for your program/project
 CompilerFlags -std=c11 -O3 etc...
 LinkerFlags 
 Includes path/to/include-dir thirdparty/dir anotherdir
@@ -49,7 +49,7 @@ Defines MAX_STUFF=5 SOME_DEFINE
 # I'm not sold on this
 You are wise to be skeptical of new tools.
 
-Below are forks of a few open-source projects that I've translated from CMake (and other build systems) to Rift Build. They can be built with just a single `riftbuild` call on the terminal at the project root directory.
+Below are forks of a few open-source projects that I've translated from CMake (and other build systems) to Rift Build. They can be built with just a single `riftbuild` call on the terminal at the project root directory on Windows, Mac and Linux (where appropriate).
 
 - [Jolt Physics](https://github.com/AliElSaleh/JoltPhysics)
 - [Refterm TODO](https://google.com)
