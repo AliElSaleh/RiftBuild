@@ -1,5 +1,7 @@
 #! /bin/sh
 
+set -e
+
 mkdir -p Build
 mkdir -p Build/Dist
 mkdir -p Intermediate
