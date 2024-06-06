@@ -1,3 +1,5 @@
+[![Build Status](https://github.com/AliElSaleh/RiftBuild/actions/workflows/main.yml/badge.svg)](https://github.com/AliElSaleh/RiftBuild/actions/)
+
 # Rift Build (ALPHA)
 A simpler build tool for C/C++, because fuck CMake
 
