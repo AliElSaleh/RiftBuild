@@ -1,3 +1,5 @@
+// Copyright (c) 2024 Ali El Saleh
+
 #include "Platform.h"
 
 #if PLATFORM_LINUX

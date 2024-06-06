@@ -28,4 +28,4 @@ if _platform == bsd     IncludedSourceFiles Platform_BSD.c
 
 if _platform == windows LinkerFlags -nostdlib -Wl,-entry:ProgramStart,-subsystem:console -Xlinker /stack:0x400000,0x400000
 
-if _platform == linux   Libraries UUIDS ; LibraryDirectories Libraries/Linux
+if _platform == linux   Libraries UUIDS ; LibraryDirectories Source/Libraries/Linux
