@@ -127,6 +127,8 @@ typedef void VoidFunc(void);
 #if defined(__clang__) || defined(__gcc__)
     #define STATIC_ASSERT _Static_assert
     #define typeof        __typeof__
+
+    //#define STATIC_ASSERT(e) typedef char __C_ASSERT__[(e)?1:-1]
 #else
     #define STATIC_ASSERT static_assert
     #define typeof 

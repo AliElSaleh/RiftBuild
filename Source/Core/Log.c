@@ -1,4 +1,6 @@
-﻿#ifndef NO_LOG
+﻿// Copyright (c) 2024 Ali El Saleh 
+
+#ifndef NO_LOG
 #include "Log.h"
 
 #include "Platform/Platform.h"

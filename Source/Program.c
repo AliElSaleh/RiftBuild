@@ -3,7 +3,7 @@
 #include "EntryPoint.h"
 
 u64 GEngineMemoryAmount  = Kibibytes(650);
-u64 GEngineScratchAmount = 0; //Kibibytes(32);
+u64 GEngineScratchAmount = 0;
 
 #include "Platform/Filesystem.h"
 #include "String/StringUtils.h"

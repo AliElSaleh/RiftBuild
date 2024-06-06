@@ -1,3 +1,5 @@
+// Copyright (c) 2024 Ali El Saleh 
+
 #include "Clock.h"
 
 #include "Platform/Platform.h"

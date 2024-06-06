@@ -1,3 +1,5 @@
+// Copyright (c) 2024 Ali El Saleh 
+
 #include "Globals.h"
 #include "Memory/LinearAllocator.h"
 #include "String/StringUtils.h"

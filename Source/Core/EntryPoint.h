@@ -35,7 +35,7 @@ extern u32 RunApplication(const StringArray Arguments);
 extern void InitializeApplication(App* Instance);
 #endif
 
-#if !PLATFORM_WINDOWS || defined(RIFT_ASAN)
+#if !PLATFORM_WINDOWS
 #define USE_MAIN 1
 extern void pre_main(int argc, char* argv[], char* env[]);
 #else

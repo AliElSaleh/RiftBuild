@@ -1591,7 +1591,7 @@ bool Filesystem_ConvertRelativeToAbsolutePath(String* OutFullPath)
     return true;
 }
 
-static void Internal_IterateDirectory(const String BasePath, const String DirectoryPath, DirectoryIterator Callback, bool bRecursive, void* UserData)
+internal bool Internal_IterateDirectory(const String BasePath, const String DirectoryPath, DirectoryIterator Callback, bool bRecursive, void* UserData)
 {
     const String RealBasePath = BasePath.Length == 0 ? S(".") : BasePath;
     
@@ -1605,6 +1605,8 @@ static void Internal_IterateDirectory(const String BasePath, const String Direct
         return;
     }
     
+    bool bSuccess = true;
+
     while ((entry = readdir(dp)))
     {
         if (entry->d_type != DT_REG && entry->d_type != DT_DIR)
@@ -1632,11 +1634,19 @@ static void Internal_IterateDirectory(const String BasePath, const String Direct
             String_BuildPath(&RelativePath, DirectoryPath, EntryName);
 
             bool bResult = Callback(FullPath, RelativePath, EntryName, 0, true, UserData);
-            if (!bResult) break;
+            if (!bResult)
+            {
+                bSuccess = false;
+                break;
+            }
 
             if (bRecursive)
             {
-                Internal_IterateDirectory(FullPath, RelativePath, Callback, true, UserData);
+                if (!Internal_IterateDirectory(FullPath, RelativePath, Callback, true, UserData))
+                {
+                    bSuccess = false;
+                    break;
+                }
             }
         }
         else
@@ -1656,11 +1666,16 @@ static void Internal_IterateDirectory(const String BasePath, const String Direct
             }
 
             bool bResult = Callback(FullPath, RelativePath, EntryName, FileSize, false, UserData);
-            if (!bResult) break;
+            if (!bResult)
+            {
+                bSuccess = false;
+                break;
+            }
         }
     }
     
     closedir(dp);
+    return bSuccess;
 }
 
 void Filesystem_IterateDirectory(const String BasePath, DirectoryIterator Callback, bool bRecursive)

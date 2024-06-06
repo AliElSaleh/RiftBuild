@@ -9,8 +9,6 @@
 *
 *******************************************************************************/
 
-#include <Windows.h>
-
 #if defined (_M_IX86) && defined (_CRTBLD) && defined (_DEBUG)
 /*
  * __security_init_cookie must be called before any exception handlers using
@@ -112,7 +110,7 @@ static UINT_PTR __get_entropy(void)
 
     QueryPerformanceCounter(&perfctr);
 #if defined (_WIN64)
-    cookie ^= (((UINT_PTR)perfctr.LowPart << 32) ^ (UINT_PTR)perfctr.QuadPart);
+    cookie ^= (((UINT_PTR)(perfctr.LowPart) << 32) ^ (UINT_PTR)perfctr.QuadPart);
 #else  /* defined (_WIN64) */
     cookie ^= perfctr.LowPart;
     cookie ^= perfctr.HighPart;
@@ -154,6 +152,8 @@ static UINT_PTR __get_entropy(void)
 *
 *******************************************************************************/
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wmissing-prototypes"
 void __cdecl __security_init_cookie(void)
 {
     UINT_PTR cookie;
@@ -203,3 +203,4 @@ void __cdecl __security_init_cookie(void)
     __security_cookie_complement = ~cookie;
 
 }
+#pragma clang diagnostic pop

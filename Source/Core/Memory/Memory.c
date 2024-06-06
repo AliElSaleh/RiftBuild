@@ -1,3 +1,5 @@
+// Copyright (c) 2024 Ali El Saleh
+
 #include "Memory.h"
 #include "MemoryUtils.h"
 
@@ -8,9 +10,7 @@
 
 #include "Math/Math.h"
 
-#ifndef RIFT_ASAN
 #include "memory/libmemory.c"
-#endif
 
 #ifdef META_GENERATED
 #include "Memory.generated.c"
@@ -306,6 +306,11 @@ void* MemMove(void* restrict Destination, const void* restrict Source, u64 Size)
 bool MemEqual(const void* Block1, const void* Block2, u64 Size)
 {
     return Platform_MemEqual(Block1, Block2, Size);
+}
+
+bool Platform_MemEqual(const void* Block1, const void* Block2, u64 Size)
+{
+    return memcmp((void*)Block1, (void*)Block2, Size) == 0;
 }
 
 char* Memory_GetUsageInfo(struct MemoryStats* Stats)

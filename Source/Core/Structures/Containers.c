@@ -1,3 +1,5 @@
+// Copyright (c) 2024 Ali El Saleh
+
 #include "Array.h"
 
 #include "Memory/Memory.h"
