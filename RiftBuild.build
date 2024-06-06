@@ -16,7 +16,7 @@ BuildDirectory          Build/$(Mode)/%%Hood
 CompilerFlags           $SharedCompilerFlags -mno-stack-arg-probe -mstack-probe-size=999999999
 LinkerFlags             $SharedLinkerFlags
 Includes                $SharedIncludeFlags
-Defines                 $SharedDefines HEADLESS RIFT_STATIC NO_LOG_FILE %^%hood
+Defines                 $SharedDefines RIFT_STATIC NO_LOG_FILE %^%hood
 Libraries               %_NativeLibs
 
 IncludedSourceFiles     Clock.c Math.c Memory.c Allocators.c StringUtils.c Containers.c Globals.c Log.c EngineUtils.c Program.c CBackend.c MSVCBackend.c Exporter.c Parse.c

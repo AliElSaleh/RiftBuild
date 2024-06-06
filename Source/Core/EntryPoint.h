@@ -1,9 +1,4 @@
-#ifndef META_GENERATED
 #pragma once
-
-#ifndef HEADLESS
-#include "AppTypes.h"
-#endif
 
 #include "Platform/Platform.h"
 #include "Memory/Memory.h"
@@ -13,10 +8,6 @@
 
 global u64 GEngineMemoryAmount;
 global u64 GEngineScratchAmount;
-
-#ifdef RIFT_DEBUG_MEMORY
-global u64 GEngineDebugMemoryAmount;
-#endif
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wmissing-prototypes"
@@ -29,11 +20,7 @@ C_LINKAGE_END
 void* nullptr_z = NULL;
 #endif
 
-#ifdef HEADLESS
 extern u32 RunApplication(const StringArray Arguments);
-#else
-extern void InitializeApplication(App* Instance);
-#endif
 
 #if !PLATFORM_WINDOWS
 #define USE_MAIN 1
@@ -109,118 +96,50 @@ void ProgramStart(void)
     
     StringArray Arguments = Platform_GetCommandLineArgs();
 
-    #ifndef HEADLESS
-    do
+    // "Use" the memory so the OS assigns it all to us
+    Platform_MemZero(EngineMemory, MemoryAmount + MemoryDebugAmount + MemoryDumpAmount + ScratchAmount);
+    
+    // Initialize core engine subsystems
+    // Memory subsystem
+    #ifdef RIFT_DEBUG_MEMORY
+    if (!Memory_Initialize(EngineMemory, MemoryAmount, DebugMemory, MemoryDebugAmount, EngineMemoryDump, EngineScratch, GEngineScratchAmount))
+    #else
+    if (!Memory_Initialize(EngineMemory, MemoryAmount, EngineMemoryDump, EngineScratch, GEngineScratchAmount))
     #endif
     {
-        // "Use" the memory so the OS assigns it all to us
-        Platform_MemZero(EngineMemory, MemoryAmount + MemoryDebugAmount + MemoryDumpAmount + ScratchAmount);
+        Platform_ConsoleWrite("Failed to initialize memory subsystem. Required for engine to run. Aborting...\n", 4, true);
 
-        // fill the memory debug with the address of it's own
-        /*
-        for (u64 i = 0; i < MemoryDumpAmount/sizeof(u64); i++)
-        {
-            ((u64*)EngineMemoryDump)[i] = *(u64*)&EngineMemoryDump;
-        }
-        */
-        
-        // Initialize core engine subsystems
-        // Memory subsystem
-        #ifdef RIFT_DEBUG_MEMORY
-        if (!Memory_Initialize(EngineMemory, MemoryAmount, DebugMemory, MemoryDebugAmount, EngineMemoryDump, EngineScratch, GEngineScratchAmount))
-        #else
-        if (!Memory_Initialize(EngineMemory, MemoryAmount, EngineMemoryDump, EngineScratch, GEngineScratchAmount))
-        #endif
-        {
-            Platform_ConsoleWrite("Failed to initialize memory subsystem. Required for engine to run. Aborting...\n", 4, true);
+        ReturnVal = 1;
+        goto Shutdown_Lvl0;
+    }
+    
+    // Logging subsystem
+    #ifndef NO_LOG
+    void* LogSubsystemState = MemAlloc(Logging_GetMemoryRequirement(), MemoryTag_Engine);
+    bool bLogFileOnStartup = true;
+    #ifdef NO_LOG_FILE
+    bLogFileOnStartup = false;
+    #endif
+    if (!Logging_Initialize(LogSubsystemState, bLogFileOnStartup))
+    {
+        Platform_ConsoleWrite("Failed to initialize logging subsystem. Required for engine to run. Aborting...\n", 4, true);
 
-            ReturnVal = 1;
-            goto Shutdown_Lvl0;
-        }
-        
-        // Logging subsystem
-        #ifndef NO_LOG
-        void* LogSubsystemState = MemAlloc(Logging_GetMemoryRequirement(), MemoryTag_Engine);
-        bool bLogFileOnStartup = true;
-        #ifdef NO_LOG_FILE
-        bLogFileOnStartup = false;
-        #endif
-        if (!Logging_Initialize(LogSubsystemState, bLogFileOnStartup))
-        {
-            Platform_ConsoleWrite("Failed to initialize logging subsystem. Required for engine to run. Aborting...\n", 4, true);
+        ReturnVal = 1;
+        goto Shutdown_Lvl1;
+    }
+    #endif
 
-            ReturnVal = 1;
-            goto Shutdown_Lvl1;
-        }
-        #endif
+    ReturnVal = RunApplication(Arguments);
 
-        #ifdef HEADLESS
-        ReturnVal = RunApplication(Arguments);
-        goto Shutdown_Lvl2;
-        #else
-        LOG_INFO("Engine Startup");
-        
-        App Instance = { 0 };
-        {
-            // Initialize and setup application
-            InitializeApplication(&Instance);
-
-            // Ensure proper values are set
-            if (Instance.AppConfig.WindowWidth <= 0 || Instance.AppConfig.WindowHeight <= 0)
-            {
-                LOG_FATAL("Cannot create an application with a window size of 0 in any dimension");
-                ReturnVal = 1;
-                goto Shutdown_Lvl2;
-            }
-            
-            if (!Instance.Initialize || !Instance.Shutdown || !Instance.Tick || !Instance.Render || !Instance.OnWindowResize)
-            {
-                LOG_FATAL("One or more application callbacks were not assigned. Cannot proceed until all callbacks for the app are assigned");
-                ReturnVal = 1;
-                goto Shutdown_Lvl2;
-            }
-
-            Instance.Arguments = Arguments;
-
-            #ifdef _DEBUG
-            Clock StartupClock;
-            Clock_Start(&StartupClock);
-            #endif
-
-            if (!Application_Create(&Instance))
-            {
-                LOG_FATAL("Failed to create application. Aborting...");
-                ReturnVal = 1;
-                goto Shutdown_Lvl2;
-            }
-            
-            #ifdef _DEBUG
-            Clock_Tick(&StartupClock);
-            StringLocal(TimeString, 16);
-            Time_ToString(StartupClock.ElapsedTime, true, &TimeString);
-            LOG_INFO("Engine Startup Time: %s", TimeString.Data);
-            #endif
-        }
-        
-        Application_Run();
-
-        LOG_SUCCESS("Engine Shutdown");
-        #endif // HEADLESS
-
-Shutdown_Lvl2:
-        #ifndef NO_LOG
-        Logging_Shutdown();
-        MemFree(LogSubsystemState, MemoryTag_Engine);
-        #endif
+    #ifndef NO_LOG
+    Logging_Shutdown();
+    MemFree(LogSubsystemState, MemoryTag_Engine);
+    #endif
 
 #ifndef NO_LOG
 Shutdown_Lvl1:
 #endif
-        Memory_Shutdown();
-    }
-    #ifndef HEADLESS
-    while (Application_ShouldRestart());
-    #endif
+    Memory_Shutdown();
 
 Shutdown_Lvl0:
     Platform_MemFree(EngineMemory);
@@ -233,5 +152,3 @@ Shutdown_Lvl0:
 }
 
 #pragma clang diagnostic pop
-
-#endif // META_GENERATED
