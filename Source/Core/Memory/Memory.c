@@ -308,10 +308,12 @@ bool MemEqual(const void* Block1, const void* Block2, u64 Size)
     return Platform_MemEqual(Block1, Block2, Size);
 }
 
+#if PLATFORM_WINDOWS
 bool Platform_MemEqual(const void* Block1, const void* Block2, u64 Size)
 {
     return memcmp((void*)Block1, (void*)Block2, Size) == 0;
 }
+#endif
 
 char* Memory_GetUsageInfo(struct MemoryStats* Stats)
 {
