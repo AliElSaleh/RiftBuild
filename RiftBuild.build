@@ -1,5 +1,5 @@
 if debug Mode Debug else Mode Dist
-include $(Mode).buildvars
+include Source/$(Mode).buildvars
 
 Assembly RiftBuild
 Icon     riftbuild.ico
