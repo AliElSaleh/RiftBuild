@@ -60,7 +60,7 @@ Below are forks of a few open-source projects that I've translated from CMake (a
 - [Star Ruler 2](https://github.com/AliElSaleh/StarRuler2-Source)
 - [fmt](https://github.com/AliElSaleh/fmt)
 - [GLFW](https://github.com/AliElSaleh/glfw)
-- [FreeType TODO](https://github.com/AliElSaleh/freetype)
+- [FreeType](https://github.com/AliElSaleh/freetype)
 - [libpng TODO](https://github.com/pnggroup/libpng)
 - [Hazel TODO](https://google.com)
 - [PCSX2 TODO](https://google.com)
