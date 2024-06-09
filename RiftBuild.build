@@ -1,8 +1,8 @@
 if debug Mode Debug else Mode Dist
 include Source/$(Mode).buildvars
 
-Assembly RiftBuild
-Icon     riftbuild.ico
+Assembly                RiftBuild
+Icon                    riftbuild.ico
 
 TitleName               Rift Build ($(Mode))
 Description             A simpler build tool for C/C++, because fuck cmake

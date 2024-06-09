@@ -585,8 +585,8 @@ internal bool BuildFileDirectoryIterator(const String FullPath, const String Rel
 
         if ((IsBuildFile(FileName) && !Data->bSearchOnlyBuildBatch) || (Data->bSearchOnlyBuildBatch && IsBuildBatchFile(FileName)))
         {
-            ASSERT(Data->Name->Data);
-            ASSERT(Data->Path->Data);
+            if (NEVER(Data->Name == NULL       || Data->Path == NULL)) return false;
+            if (NEVER(Data->Name->Data == NULL || Data->Path->Data == NULL)) return false;
 
             if (String_StartsWith(FileName, S("__"), false))
             {

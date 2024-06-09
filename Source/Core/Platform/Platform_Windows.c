@@ -194,8 +194,8 @@ bool Platform_ReleaseMutex(PlatformMutex* Mutex)
 
 u32 Platform_GetConsoleProcessCount(void)
 {
-    DWORD Processes[1] = {0};
-    DWORD Count = GetConsoleProcessList(Processes, 1);
+    DWORD Processes[4] = {0};
+    DWORD Count = GetConsoleProcessList(Processes, 4);
     return Count;
 }
 
@@ -1284,9 +1284,9 @@ bool Filesystem_ReadLine(const FileHandle* Handle, String* LineBuffer)
 // todo: make internal function, code duplication
 bool Filesystem_ReadLine_Backwards(const FileHandle* Handle, String* LineBuffer)
 {
-    ASSERT(IsValidFileHandle(Handle));
+    if (NEVER(!IsValidFileHandle(Handle))) return false;
+    if (NEVER(LineBuffer == NULL)) return false;
 
-    if (LineBuffer)
     {
         DWORD CurrentPosition = SetFilePointer(Handle->Data, 0, NULL, FILE_CURRENT);
 
@@ -1376,16 +1376,12 @@ bool Filesystem_ReadLine_Backwards(const FileHandle* Handle, String* LineBuffer)
 
         return Counter > 0;
     }
-
-    return false;
 }
 
 bool Filesystem_Write(const FileHandle* Handle, u64 DataSize, const void* Data, u64* OutBytesWritten)
 {
-    ASSERT(IsValidFileHandle(Handle));
-
-    if (DataSize == 0)
-        return false;
+    if (NEVER(!IsValidFileHandle(Handle))) return false;
+    if (DataSize == 0) return false;
 
     Filesystem_SeekToBeginning(Handle);
 
@@ -1409,7 +1405,7 @@ bool Filesystem_Write(const FileHandle* Handle, u64 DataSize, const void* Data, 
 
 bool Filesystem_WriteLine(const FileHandle* Handle, const String Text, u64* OutBytesWritten)
 {
-    ASSERT(IsValidFileHandle(Handle));
+    if (NEVER(!IsValidFileHandle(Handle))) return false;
 
     Filesystem_SeekToEnd(Handle);
 
@@ -1433,7 +1429,7 @@ bool Filesystem_WriteLine(const FileHandle* Handle, const String Text, u64* OutB
 
 bool Filesystem_WriteLineFormatted(const FileHandle* Handle, const String Text, u64* OutBytesWritten, ...)
 {
-    ASSERT(IsValidFileHandle(Handle));
+    if (NEVER(!IsValidFileHandle(Handle))) return false;
 
     Filesystem_SeekToEnd(Handle);
 
@@ -2069,11 +2065,7 @@ void Platform_ExitCriticalSection(PlatformCriticalSection CriticalSection)
 
 u32 Platform_GetExitCodeForProcess(PlatformHandle Handle)
 {
-    ASSERT(Platform_IsValidHandle(Handle));
-    if (!Platform_IsValidHandle(Handle))
-    {
-        return 0;
-    }
+    if (NEVER(!Platform_IsValidHandle(Handle))) return 0;
 
     DWORD ExitCode = 0;
     if (!GetExitCodeProcess(Handle, &ExitCode))
@@ -2086,11 +2078,7 @@ u32 Platform_GetExitCodeForProcess(PlatformHandle Handle)
 
 u32 Platform_WaitForProcessAndGetExitCode(PlatformHandle Handle)
 {
-    ASSERT(Platform_IsValidHandle(Handle));
-    if (!Platform_IsValidHandle(Handle))
-    {
-        return 0;
-    }
+    if (NEVER(!Platform_IsValidHandle(Handle))) return 0;
 
     WaitForSingleObject(Handle, INFINITE);
 
@@ -2111,11 +2099,7 @@ u32 Platform_WaitForMultipleHandles(PlatformHandle* Handles, u32 NumHandles, i32
 
 void Platform_WaitForHandle(PlatformHandle Handle, i32 Milliseconds)
 {
-    ASSERT(Platform_IsValidHandle(Handle));
-    if (!Platform_IsValidHandle(Handle))
-    {
-        return;
-    }
+    if (NEVER(!Platform_IsValidHandle(Handle))) return;
 
     i32 Time = Milliseconds <= 0 ? (i32)INFINITE : Milliseconds;
     WaitForSingleObject(Handle, (u32)Time);
@@ -2123,8 +2107,7 @@ void Platform_WaitForHandle(PlatformHandle Handle, i32 Milliseconds)
 
 void Platform_CloseHandle(PlatformHandle Handle)
 {
-    ASSERT(Platform_IsValidHandle(Handle));
-    if (!Platform_IsValidHandle(Handle))
+    if (NEVER(!Platform_IsValidHandle(Handle)))
     {
         return;
     }

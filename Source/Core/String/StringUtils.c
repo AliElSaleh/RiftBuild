@@ -1002,7 +1002,7 @@ String String_SubString_Range(String Str, u32 Start, u32 End)
     
     if (Start > End)
     {
-        SWAP(Start, End)
+        SWAP(Start, End);
     }
     
     Str.Length = End - Start;
@@ -1112,18 +1112,19 @@ char* CString_Empty(char* Str)
 
 void CString_Zero(char* Str, u32 Length)
 {
-    ASSERT(Length != 0);
-
-    MemZero(Str, Length);
+    if (Length > 0)
+    {
+        MemZero(Str, Length);
+    }
 }
 
 void CString_Fill(char* Str, u32 Length, char N)
 {
-    ASSERT(Length != 0);
-
-    MemSet(Str, N, Length);
+    if (Length > 0)
+    {
+        MemSet(Str, N, Length);
+    }
 }
-
 
 i32 CString_Format(char* Dest, const char* Format, u32 Capacity, ...)
 {

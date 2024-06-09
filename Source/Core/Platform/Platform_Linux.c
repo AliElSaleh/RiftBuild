@@ -871,6 +871,8 @@ void* Platform_GetDeviceContext(void)
 
 bool Filesystem_Open(const String FilePath, u32 Mode, FileHandle* OutHandle)
 {
+    if (NEVER(OutHandle == NULL)) return false;
+
     String ModeStr = String_Null();
 
     if (((Mode & FileMode_Read) != 0) && ((Mode & FileMode_Write) != 0)) // read and write
@@ -922,15 +924,8 @@ bool Filesystem_Open(const String FilePath, u32 Mode, FileHandle* OutHandle)
         return false;
     }
 
-    ASSERT(OutHandle != NULL);
-
     OutHandle->Data = File;
     OutHandle->Data2 = NULL;
-    //fseek(File, 0, SEEK_END);
-    //OutHandle->Size = (u64)ftell(File);
-    //fseek(File, 0, SEEK_SET);
-
-    //StringN_Copy(OutHandle->Path, FilePath);
 
     return true;
 }
@@ -1469,10 +1464,8 @@ bool Filesystem_ReadLine_Backwards(const FileHandle* Handle, String* LineBuffer)
 
 bool Filesystem_Write(const FileHandle* Handle, u64 DataSize, const void* Data, u64* OutBytesWritten)
 {
-    ASSERT(IsValidFileHandle(Handle));
-
-    if (DataSize == 0)
-        return false;
+    if (NEVER(!IsValidFileHandle(Handle))) return false;
+    if (DataSize == 0) return false;
 
     Filesystem_SeekToBeginning(Handle);
 
@@ -1526,7 +1519,7 @@ bool Filesystem_WriteLineFormatted(const FileHandle* Handle, const String Text, 
 
 bool Filesystem_WriteLine(const FileHandle* Handle, const String Text, u64* OutBytesWritten)
 {
-    ASSERT(IsValidFileHandle(Handle));
+    if (NEVER(!IsValidFileHandle(Handle))) return false;
 
     Filesystem_SeekToEnd(Handle);
 

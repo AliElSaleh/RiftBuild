@@ -859,6 +859,8 @@ bool Platform_IsProgramRunning(const String ProgramName)
 
 bool Filesystem_Open(const String FilePath, u32 Mode, FileHandle* OutHandle)
 {
+    if (NEVER(OutHandle == NULL)) return false;
+
     String ModeStr = String_Null();
 
     if (((Mode & FileMode_Read) != 0) && ((Mode & FileMode_Write) != 0)) // read and write
@@ -895,8 +897,6 @@ bool Filesystem_Open(const String FilePath, u32 Mode, FileHandle* OutHandle)
         LogLastError(Message);
         return false;
     }
-
-    ASSERT(OutHandle != NULL);
 
     OutHandle->Data = File;
 
@@ -1411,7 +1411,8 @@ bool Filesystem_ReadLine_Backwards(const FileHandle* Handle, String* LineBuffer)
 
 bool Filesystem_Write(const FileHandle* Handle, u64 DataSize, const void* Data, u64* OutBytesWritten)
 {
-    ASSERT(IsValidFileHandle(Handle));
+    if (NEVER(!IsValidFileHandle(Handle))) return false;
+    if (DataSize == 0) return false;
 
     if (DataSize == 0)
         return false;

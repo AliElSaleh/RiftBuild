@@ -5,24 +5,32 @@
 #ifdef NO_ASSERT
     #define ASSERT(Expression)
     #define ASSERT_MSG(Expression, Text, ...)
+    #define ENSURE(Expression)
+    #define ENSURE_MSG(Expression, Text, ...)
 #else
     #ifdef NO_LOG
         #define ASSERT(Expression) do { if (Expression) {} else { DEBUG_BREAK(); _Crash_; } } while (0)
+        #define ENSURE(Expression) do { if (Expression) {} else { DEBUG_BREAK(); } } while (0)
     #else
         #ifdef FAST_LOG
-        #define ASSERT(Expression) do { if (Expression) {} else { if (Logging_ShouldCrashOnFatal()) { Logging_Flush(); DEBUG_BREAK(); _Crash_; } } } while (0)
+        #define ASSERT(Expression) do { if (Expression) {} else { Logging_Flush(); DEBUG_BREAK(); _Crash_; } } while (0)
+        #define ENSURE(Expression) do { if (Expression) {} else { Logging_Flush(); DEBUG_BREAK(); } } while (0)
         #else
-        #define ASSERT(Expression) do { if (Expression) {} else { if (Logging_ShouldCrashOnFatal()) { DEBUG_BREAK(); _Crash_; } } } while (0)
+        #define ASSERT(Expression) do { if (Expression) {} else { DEBUG_BREAK(); _Crash_; } } while (0)
+        #define ENSURE(Expression) do { if (Expression) {} else { DEBUG_BREAK(); } } while (0)
         #endif
     #endif
 
     #ifdef NO_LOG
         #define ASSERT_MSG(Expression, Text, ...) do { if (Expression) {} else { DEBUG_BREAK(); _Crash_; } } while (0)
+        #define ENSURE_MSG(Expression, Text, ...) do { if (Expression) {} else { DEBUG_BREAK(); } } while (0)
     #else
         #ifdef FAST_LOG
-        #define ASSERT_MSG(Expression, Text, ...) do { if (Expression) {} else { LOG_DEBUG_T(LOG_TYPE_FATAL, "Assert Failed: '" STRINGIZE(Expression) "'" ". " Text, ##__VA_ARGS__); if (Logging_ShouldCrashOnFatal()) { Logging_Flush(); DEBUG_BREAK(); _Crash_; } } } while (0)
+        #define ASSERT_MSG(Expression, Text, ...) do { if (Expression) {} else { LOG_DEBUG_T(LOG_TYPE_FATAL, "Assert Failed: '" STRINGIZE(Expression) "'" ". " Text, ##__VA_ARGS__); Logging_Flush(); DEBUG_BREAK();  _Crash_; } } while (0)
+        #define ENSURE_MSG(Expression, Text, ...) do { if (Expression) {} else { LOG_DEBUG_T(LOG_TYPE_FATAL, "Assert Failed: '" STRINGIZE(Expression) "'" ". " Text, ##__VA_ARGS__); Logging_Flush(); DEBUG_BREAK(); } } while (0)
         #else
-        #define ASSERT_MSG(Expression, Text, ...) do { if (Expression) {} else { LOG_DEBUG_T(LOG_TYPE_FATAL, "Assert Failed: '" STRINGIZE(Expression) "'" "\n" Text, ##__VA_ARGS__); if (Logging_ShouldCrashOnFatal()) { DEBUG_BREAK(); _Crash_; } } } while (0)
+        #define ASSERT_MSG(Expression, Text, ...) do { if (Expression) {} else { LOG_DEBUG_T(LOG_TYPE_FATAL, "Assert Failed: '" STRINGIZE(Expression) "'" "\n" Text, ##__VA_ARGS__); DEBUG_BREAK();  _Crash_; } } while (0)
+        #define ENSURE_MSG(Expression, Text, ...) do { if (Expression) {} else { LOG_DEBUG_T(LOG_TYPE_FATAL, "Assert Failed: '" STRINGIZE(Expression) "'" "\n" Text, ##__VA_ARGS__); DEBUG_BREAK(); } } while (0)
         #endif
     #endif
 #endif // NO_ASSERT

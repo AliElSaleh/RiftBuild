@@ -347,7 +347,7 @@ global void* nullptr_z; // points to the engine memory dump
 #define nullptr nullptr_z
 #endif
 
-#define SWAP(A, B) { typeof(A) Temp = (A); (A) = (B); (B) = Temp; }
+#define SWAP(A, B) do { typeof(A) Temp = (A); (A) = (B); (B) = Temp; } while (0)
 
 #if DEVELOPER
     RIFT_API bool __always__(bool bCondition);

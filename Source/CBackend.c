@@ -279,6 +279,11 @@ bool C_DoCompile(CompileData* Data, const String FullPath, const String Relative
                 LOG_ERROR("seen some compiler errors homie, gon' stop right here");
                 #endif
 
+                for (u8 i = 0; i < Num; i++)
+                {
+                    Platform_TerminateProcess(Processes[i], 1);
+                }
+
                 return false;
             }
 
