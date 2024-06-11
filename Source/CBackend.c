@@ -24,11 +24,21 @@ bool SourceFileDirectoryIterator(const String FullPath, const String RelativePat
         // ignore the intermediate and build directories
         if (String_IndexOfFirstPathSlash(RelativePath, NULL))
         {
+            if (RelativePath.Length == Data->Params->IntermediateBaseDirectory.Length)
+                if (String_StartsWith(RelativePath, Data->Params->IntermediateDirectory, false))
+                    return true;
+
+            if (RelativePath.Length == Data->Params->BuildDirectory.Length)
+                if (String_StartsWith(RelativePath, Data->Params->BuildDirectory, false))
+                    return true;
+
+            /*
             if (String_StartsWith(RelativePath, Data->Params->IntermediateDirectory, false) ||
                 String_StartsWith(RelativePath, Data->Params->BuildDirectory, false))
             {
                 return true;
             }
+            */
         }
 
         u32 DotIndex = 0;

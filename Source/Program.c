@@ -384,6 +384,8 @@ internal bool SourceFileCounterDirectoryIterator(const String FullPath, const St
             bool bHasCppFiles;
         };
 
+        // TODO: ignore intermediate and build directories
+
         struct SourceCountData* Data = (struct SourceCountData*)UserData;
 
         u32 DotIndex = 0;
@@ -1228,6 +1230,7 @@ void LogRegularEnvVarTutorialSteps(void)
     #endif
 }
 
+// TODO: have a relook at this filter code
 bool FilterSourceFile(const String WorkingDirectory, const String SourceDirectory,
                       const String FullPath, const String RelativePath,
                       StringList WhitelistFiles, StringList BlacklistFiles,
@@ -1362,9 +1365,20 @@ bool FilterSourceFile(const String WorkingDirectory, const String SourceDirector
             {
                 String Left = StrSlice(It.String.Data, Index);
                 String Right = StrShiftF(It.String, Index+1);
-                if (Index < TrimmedFileName.Length)
+
+                u32 LeftLastSlash = 0;
+                String_IndexOfLastPathSlash(Left, &LeftLastSlash);
+                String TrimmedLeft = StrShiftF(Left, LeftLastSlash+1);
+
+                if (String_StartsWith(RelativePath, Left, true) &&
+                    String_EndsWith(RelativePath, Right, true))
                 {
-                    if ((Index == 0 || String_IsEqual(Left, StrSlice(TrimmedFileName.Data, Index), true)) &&
+                    bIsAllowed = true;
+                    break;
+                }
+
+                {
+                    if (String_IsEqual(TrimmedLeft, StrSlice(TrimmedFileName.Data, Index), true) &&
                         String_IsEqual(Right, StrSlice(TrimmedFileName.Data+TrimmedFileName.Length-Right.Length, Right.Length), true))
                     {
                         bIsAllowed = true;
@@ -3514,6 +3528,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
         StringLocal(IntermediateDirectoryPath, MAX_PATH_LENGTH);
         String_BuildPath(&IntermediateDirectoryPath, IntermediateBaseDirectory/*, SourceDirectory*/);
+        String_AppendPathSeparator_Checked(&IntermediateDirectoryPath);
 
         // Delete intermediate directory based on given source directory
         if (Filesystem_DoesDirectoryExist(IntermediateDirectoryPath))
