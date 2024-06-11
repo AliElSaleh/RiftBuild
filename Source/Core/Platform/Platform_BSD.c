@@ -638,6 +638,11 @@ void Platform_Sleep(f64 ms)
     }
 }
 
+bool Platform_TerminateProcess(PlatformHandle Handle, u32 ExitCode)
+{
+    return kill(Handle, SIGKILL) == 0;
+}
+
 void Platform_ShowCursor(bool bShow)
 {
     UNIMPLEMENTED;
