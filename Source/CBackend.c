@@ -86,11 +86,13 @@ internal bool ResourceFileDirectoryIterator(const String FullPath, const String 
         // ignore the intermediate and build directories
         if (String_IndexOfFirstPathSlash(RelativePath, NULL))
         {
-            if (String_StartsWith(RelativePath, Data->Params->IntermediateDirectory, false) ||
-                String_StartsWith(RelativePath, Data->Params->BuildDirectory, false))
-            {
-                return true;
-            }
+            if (RelativePath.Length == Data->Params->IntermediateBaseDirectory.Length)
+                if (String_StartsWith(RelativePath, Data->Params->IntermediateDirectory, false))
+                    return true;
+
+            if (RelativePath.Length == Data->Params->BuildDirectory.Length)
+                if (String_StartsWith(RelativePath, Data->Params->BuildDirectory, false))
+                    return true;
         }
 
         if (String_EndsWith(FileName, S(".rc"), false))
@@ -98,32 +100,36 @@ internal bool ResourceFileDirectoryIterator(const String FullPath, const String 
             if (String_EndsWith(RelativePath, S("icon.rc"), false))
                 return true;
 
-            StringLocal(CmdLine, 1024);
-            String_Append(&CmdLine, S("llvm-rc"));
-            String_Append(&CmdLine, S(" \""));
-            String_Append(&CmdLine, FullPath);
-            String_AppendChar(&CmdLine, '"');
-
-            LOG("Compiling resource file \"%S\"", RelativePath);
-            
-            if (Data->Params->bVerbose)
-                LOG("    %S", CmdLine);
-
-            /*
-            if (Data->NumRcSources > 1 && Data->Index < Data->NumRcSources-1)
+            if (FilterSourceFile(Data->Params->RootDirectory, Data->Params->SourceDirectory, FullPath, RelativePath, Data->Params->WhitelistFiles, Data->Params->BlacklistFiles, Data->Params->WhitelistDirectories, Data->Params->BlacklistDirectories))
             {
-                LOG_LINE_BREAK();
-            }
-            */
+                StringLocal(CmdLine, 1024);
+                String_Append(&CmdLine, S("llvm-rc"));
+                String_Append(&CmdLine, S(" \""));
+                String_Append(&CmdLine, FullPath);
+                String_AppendChar(&CmdLine, '"');
 
-            PlatformHandle h = Platform_RunCommand(CmdLine, Data->Params->RootDirectory);
-            u32 ExitCode = Platform_WaitForProcessAndGetExitCode(h);
-            if (ExitCode != 0)
-            {
-                Data->bSuccess = false;
-                LOG("Failed to build resource file \"%S\" for %S. Aborting build...", RelativePath, Data->Params->AssemblyWithExt);
-                return false;
+                LOG("Compiling resource file \"%S\"", RelativePath);
+                
+                if (Data->Params->bVerbose)
+                    LOG("    %S", CmdLine);
+
+                /*
+                if (Data->NumRcSources > 1 && Data->Index < Data->NumRcSources-1)
+                {
+                    LOG_LINE_BREAK();
+                }
+                */
+
+                PlatformHandle h = Platform_RunCommand(CmdLine, Data->Params->RootDirectory);
+                u32 ExitCode = Platform_WaitForProcessAndGetExitCode(h);
+                if (ExitCode != 0)
+                {
+                    Data->bSuccess = false;
+                    LOG("Failed to build resource file \"%S\" for %S. Aborting build...", RelativePath, Data->Params->AssemblyWithExt);
+                    return false;
+                }
             }
+
         }
 
         Data->Index++;

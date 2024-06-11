@@ -5,7 +5,7 @@
 #ifdef NO_ASSERT
     #define ASSERT(Expression)
     #define ASSERT_MSG(Expression, Text, ...)
-    #define ENSURE(Expression)
+    #define ENSURE(Expression)               
     #define ENSURE_MSG(Expression, Text, ...)
 #else
     #ifdef NO_LOG
@@ -110,11 +110,11 @@ typedef struct String String; // forward declare
 #define LOG_INLINE_WARNING(Text, ...)                  LogDirectMessage(LOG_TYPE_WARNING, S(Text), ##__VA_ARGS__)
 #define LOG_INLINE_ERROR(Text, ...)                    LogDirectMessage(LOG_TYPE_ERROR,   S(Text), ##__VA_ARGS__)
 
-#define LOG_INT(Int)                                   LOG(#Int    ": %i", Int)
-#define LOG_UINT(Int)                                  LOG(#Int    ": %u", Int)
+#define LOG_INT(Int)                                   LOG(#Int    ": %i", (i32)Int)
+#define LOG_UINT(Int)                                  LOG(#Int    ": %u", (u32)Int)
 #define LOG_FLOAT(Float)                               LOG(#Float  ": %f", (f64)Float)
-#define LOG_BOOL(Bool)                                 LOG(#Bool   ": %s", ((Bool) ? "true" : "false"))
-#define LOG_STRING(String)                             LOG(#String ": %s", (String).Data)
+#define LOG_BOOL(Bool)                                 LOG(#Bool   ": %S", ((Bool) ? S("true") : S("false")))
+#define LOG_STRING(String)                             LOG(#String ": %S", String)
 
 #define UNIMPLEMENTED                                  Platform_ConsoleWrite(__FUNCTION__, 4, true); Platform_ConsoleWrite(" not implemented!\n", 4, true); _Crash_
 

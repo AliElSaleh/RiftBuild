@@ -233,6 +233,7 @@ STATIC_ASSERT(sizeof(void*) == 8, "Expected size of a pointer to be 8 bytes.");
 #endif
 
 // CPU arch detection
+// https://github.com/cpredef/predef/blob/master/Architectures.md
 #if defined(_M_IX86) || defined(_M_X64) || defined(__i386__) || defined(__x86_64__)
     #define __CPU_X86 1
     #define __CACHE_LINE_SIZE 64
@@ -241,8 +242,10 @@ STATIC_ASSERT(sizeof(void*) == 8, "Expected size of a pointer to be 8 bytes.");
         #define __CPU_X64 1
         #define PLATFORM_64_BIT 1
         #define CPU_ARCHITECTURE_STRING "x64"
+        #define CPU_ARCHITECTURE_STRING_EX "x64|x86"
     #else
         #define CPU_ARCHITECTURE_STRING "x86"
+        #define CPU_ARCHITECTURE_STRING_EX "x86"
         #define PLATFORM_32_BIT 1
     #endif
 
@@ -258,9 +261,11 @@ STATIC_ASSERT(sizeof(void*) == 8, "Expected size of a pointer to be 8 bytes.");
     #if defined(__aarch64__) || defined(_M_ARM64)
         #define __CPU_ARM64 1
         #define CPU_ARCHITECTURE_STRING "arm64"
+        #define CPU_ARCHITECTURE_STRING_EX "arm64|arm|aarch|aarch64"
         #define PLATFORM_64_BIT 1
     #else
         #define CPU_ARCHITECTURE_STRING "arm"
+        #define CPU_ARCHITECTURE_STRING_EX "arm|aarch"
         #define PLATFORM_32_BIT 1
     #endif
 
@@ -268,7 +273,16 @@ STATIC_ASSERT(sizeof(void*) == 8, "Expected size of a pointer to be 8 bytes.");
     #define __CPU_MIPS 1
     #define __CACHE_LINE_SIZE 64
     #define CPU_ARCHITECTURE_STRING "mips"
+    // todo: 64 bit
+    #define CPU_ARCHITECTURE_STRING_EX "mips|mipsel|mips64|mips64el"
     #define PLATFORM_32_BIT 1
+
+#elif defined(__loongarch__)
+    #define __CPU_LOONGARCH 1
+    #define __CACHE_LINE_SIZE 64
+    #define PLATFORM_32_BIT 1
+    #define CPU_ARCHITECTURE_STRING "loongarch"
+    #define CPU_ARCHITECTURE_STRING_EX "loongarch"
 
 #else
     #error Unknown CPU Type
