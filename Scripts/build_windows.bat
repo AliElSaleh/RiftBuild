@@ -27,4 +27,4 @@ clang -c "Source/Exporter.c"                       %CompilerFlags% -o "Intermedi
 echo Building binary
 clang -o Build/Dist/RiftBuild.exe "Intermediate/Clock.c.o" "Intermediate/Math.c.o" "Intermediate/Memory.c.o" "Intermediate/Allocators.c.o" "Intermediate/StringUtils.c.o" "Intermediate/Containers.c.o" "Intermediate/Log.c.o" "Intermediate/Globals.c.o" "Intermediate/EngineUtils.c.o" "Intermediate/Platform_Windows.c.o" "Intermediate/Program.c.o" "Intermediate/CBackend.c.o" "Intermediate/MSVCBackend.c.o" "Intermediate/Parse.c.o" "Intermediate/Exporter.c.o" -nostdlib -Wl,-entry:ProgramStart,-subsystem:console -Xlinker /stack:0x400000,0x400000 -lkernel32 -luser32 -lopengl32 -lshell32 -lgdi32 -lcomdlg32 -lcomctl32 -lws2_32 -lwinmm -lnetapi32 -lole32 -ladvapi32 -lwldap32 -lcrypt32 -lrpcrt4 -lshlwapi -ldbghelp -lbcrypt -lversion -limm32 -lcfgmgr32 -lsetupapi -loleaut32 -luuid -lodbc32 -lodbccp32 -ldelayimp -lpathcch || exit /b 1
 
-echo   Done: Build/Dist/RiftBuild.exe
+echo [32m  Done: Build/Dist/RiftBuild.exe[0m

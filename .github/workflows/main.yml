@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: ./Scripts/build_linux.sh
+      - run: ./Scripts/build_unix.sh
   
   RunOnWindows:
     name: Build RiftBuild (Windows)
@@ -28,4 +28,4 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - run: ./Scripts/build_mac.sh
+      - run: ./Scripts/build_unix.sh
