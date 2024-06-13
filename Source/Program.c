@@ -4610,6 +4610,18 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
 
                     LOG_LINE_BREAK();
 
+                    u32 Rows = 0, Cols = 0;
+                    if (Platform_GetTerminalDimensions(&Rows, &Cols))
+                    {
+                        char Separator[256] = {'='};
+                        for (u32 i = 0; i < Min(Cols, 255); i++)
+                        {
+                            Separator[i] = '=';
+                        }
+
+                        LOG("%S\n", StrSlice(Separator, Cols));
+                    }
+
                     // "free" the memory back to the original spot
                     Arena->Allocated = Allocated;
                 }
