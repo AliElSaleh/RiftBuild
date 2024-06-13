@@ -130,8 +130,7 @@ void* Platform_MemAlloc(u64 Size)
 
 void* Platform_MemAllocZero(u64 Size)
 {
-    void* Mem = malloc(Size);
-    memset(Mem, 0, Size);
+    void* Mem = calloc(1, Size);
     return Mem;
 }
 
