@@ -4608,6 +4608,8 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
                         return ReturnValue;
                     }
 
+                    if (bQuietBuild) Logging_Enable();
+
                     LOG_LINE_BREAK();
 
                     u32 Rows = 0, Cols = 0;
@@ -4621,6 +4623,8 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
 
                         LOG("%S\n", StrSlice(Separator, Cols));
                     }
+
+                    if (bQuietBuild) Logging_Disable();
 
                     // "free" the memory back to the original spot
                     Arena->Allocated = Allocated;
