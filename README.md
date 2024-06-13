@@ -62,7 +62,7 @@ Below are forks of a few open-source projects that I've translated from CMake (a
 - [GLFW](https://github.com/AliElSaleh/glfw)
 - [FreeType](https://github.com/AliElSaleh/freetype)
 - [libpng](https://github.com/AliElSaleh/libpng)
-- [zlib TODO](https://github.com/AliElSaleh/zlib)
+- [zlib](https://github.com/AliElSaleh/zlib)
 - [Hazel TODO](https://google.com)
 - [PCSX2 TODO](https://google.com)
 - [RPCS3 TODO](https://google.com)
