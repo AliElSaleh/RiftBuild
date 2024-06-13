@@ -650,6 +650,7 @@ bool C_IsSource(const String Extension)
             || String_IsEqual(Extension, S(".rc"), false);
             #elif PLATFORM_APPLE
             || String_IsEqual(Extension, S(".m"), false);
+            || String_IsEqual(Extension, S(".mm"), false);
             #else
             ;
             #endif
