@@ -4515,45 +4515,10 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
     Data.Name = &BuildFileName;
     Data.Path = &BuildFilePath;
     Data.Arguments = Arguments;
-    Data.bSearchOnlyBuildBatch = false;
+    Data.bSearchOnlyBuildBatch = true;
 
-    if (BuildFilePath.Length == 0) // only search if we did not get an explicit build file path from the user
+    // first, find .buildbatch files
     {
-        if (bNoBuildFileSpecifiedInCmd)
-        {
-            Filesystem_IterateDirectory_Ex(WorkingDirectory, BuildFileDirectoryIterator, false, &Data);
-            if (Data.NumBuildFilesFound == 1)
-            {
-                Data.bFoundBuildFile = true;
-            }
-
-            if ((!Data.bFoundBuildFile || Data.NumBuildFilesFound > 1) && Arguments.Num > 0)
-            {
-                Filesystem_IterateDirectory_Ex(WorkingDirectory, BuildFileDirectoryIterator_Args, true, &Data);
-            }
-        }
-        else
-        {
-            Filesystem_IterateDirectory_Ex(WorkingDirectory, BuildFileDirectoryIterator, true, &Data);
-        }
-    }
-    else
-    {
-        Data.bFoundBuildFile = Filesystem_DoesFileExist(BuildFilePath);
-        if (!Data.bFoundBuildFile)
-        {
-            LOG_ERROR("Failed to find %S in %S", BuildFilePath, WorkingDirectory);
-            return 1;
-        }
-    }
-
-    if (!Data.bFoundBuildFile)
-    {
-        String_Empty(&BuildFileName);
-        String_Empty(&BuildFilePath);
-
-        Data.bSearchOnlyBuildBatch = true;
-
         for (u8 i = 0; i < Arguments.Num; i++)
         {
             if (IsBuildBatchFile(Arguments.List[i]))
@@ -4569,7 +4534,6 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
             Filesystem_IterateDirectory_Ex(WorkingDirectory, BuildFileDirectoryIterator_Args, true, &Data);
         }
 
-        //Filesystem_IterateDirectory_Ex(WorkingDirectory, BuildFileDirectoryIterator, false, &Data);
         if (Data.bFoundBuildFile)
         {
             u64 Allocated = Arena->Allocated;
@@ -4657,7 +4621,41 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
             return 1;
         }
     }
-    
+
+    String_Empty(&BuildFileName);
+    String_Empty(&BuildFilePath);
+    Data.bSearchOnlyBuildBatch = false;
+
+    if (BuildFilePath.Length == 0) // only search if we did not get an explicit build file path from the user
+    {
+        if (bNoBuildFileSpecifiedInCmd)
+        {
+            Filesystem_IterateDirectory_Ex(WorkingDirectory, BuildFileDirectoryIterator, false, &Data);
+            if (Data.NumBuildFilesFound == 1)
+            {
+                Data.bFoundBuildFile = true;
+            }
+
+            if ((!Data.bFoundBuildFile || Data.NumBuildFilesFound > 1) && Arguments.Num > 0)
+            {
+                Filesystem_IterateDirectory_Ex(WorkingDirectory, BuildFileDirectoryIterator_Args, true, &Data);
+            }
+        }
+        else
+        {
+            Filesystem_IterateDirectory_Ex(WorkingDirectory, BuildFileDirectoryIterator, true, &Data);
+        }
+    }
+    else
+    {
+        Data.bFoundBuildFile = Filesystem_DoesFileExist(BuildFilePath);
+        if (!Data.bFoundBuildFile)
+        {
+            LOG_ERROR("Failed to find %S in %S", BuildFilePath, WorkingDirectory);
+            return 1;
+        }
+    }
+
     if (!Data.bFoundBuildFile)
     {
         if (bNoBuildFileSpecifiedInCmd)
