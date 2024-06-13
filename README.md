@@ -1,4 +1,5 @@
 [![Build Status](https://github.com/AliElSaleh/RiftBuild/actions/workflows/main.yml/badge.svg)](https://github.com/AliElSaleh/RiftBuild/actions/)
+[![Codacy Badge](https://app.codacy.com/project/badge/Grade/ff3c18bcf56545d2b1b08fa100281bfd)](https://app.codacy.com?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
 
 # Rift Build (ALPHA)
 A simpler build tool for C/C++, because fuck CMake
