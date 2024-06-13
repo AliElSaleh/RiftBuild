@@ -4523,7 +4523,7 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
         {
             if (IsBuildBatchFile(Arguments.List[i]))
             {
-                String_Append(&BuildFileName, Arguments.List[i]);
+                String_Copy(&BuildFileName, Arguments.List[i]);
                 Filesystem_IterateDirectory_Ex(WorkingDirectory, BuildFileDirectoryIterator, false, &Data);
                 break;
             }
@@ -4622,8 +4622,6 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
         }
     }
 
-    String_Empty(&BuildFileName);
-    String_Empty(&BuildFilePath);
     Data.bSearchOnlyBuildBatch = false;
 
     if (BuildFilePath.Length == 0) // only search if we did not get an explicit build file path from the user
