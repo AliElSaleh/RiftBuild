@@ -62,6 +62,7 @@ Below are forks of a few open-source projects that I've translated from CMake (a
 - [fmt](https://github.com/AliElSaleh/fmt)
 - [GLFW](https://github.com/AliElSaleh/glfw)
 - [FreeType](https://github.com/AliElSaleh/freetype)
+- [libjpeg-turbo](https://github.com/AliElSaleh/libjpeg-turbo)
 - [libpng](https://github.com/AliElSaleh/libpng)
 - [zlib](https://github.com/AliElSaleh/zlib)
 - [Hazel TODO](https://google.com)
