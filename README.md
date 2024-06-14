@@ -183,7 +183,7 @@ To set an icon for an executable, either specify the .ico name or give an absolu
 ```make
 Icon someicon.ico # or path/to/icon/file.ico
 ```
-The fact that other build systems can't do this is fucking pathetic
+The fact that other build systems are unable to do this is fucking pathetic
 
 ---
 
