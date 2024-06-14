@@ -17,7 +17,7 @@ SharedCompilerFlags -std=c17 -O0 -g3 -MD -gcodeview -fdeclspec -fno-exceptions -
 SharedLinkerFlags -g3
 if _platform == linux SharedLinkerFlags -Wl,-z,nodlopen -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now
 
-SharedDefines DEVELOPER NO_PROFILING _GLIBCXX_ASSERTIONS _GLIBCXX_DEBUG _GLIBCXX_DEBUG_PEDANTIC _NO_CRT_STDIO_INLINE _FORTIFY_SOURCE=3
+SharedDefines DEVELOPER NO_PROFILING _GLIBCXX_ASSERTIONS _GLIBCXX_DEBUG _GLIBCXX_DEBUG_PEDANTIC _NO_CRT_STDIO_INLINE #_FORTIFY_SOURCE=3
 
 SharedIncludeFlags Source/Core Source/Libraries/Vendor
 
