@@ -498,6 +498,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
                         const String Arg = StringArray_GetStringFromIndex(MsgArgsList, ArgIndex);
                         ArgIndex++;
 
+                        //todo :expand to 0 if not exist but expand to nothing if it has an =
                         String Var = String_EatChar(Arg, '%');
                         String Val = GetCmdOptionValue(CmdOptionsDB, Var);
                         String_Append(&FormattedMsg, Val);

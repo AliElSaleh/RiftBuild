@@ -3417,8 +3417,9 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         String_BuildPath(&OutputDebugFile, IntermediateBaseDirectory, GenFileName);
 
         bool bFileExists = Filesystem_DoesFileExist(OutputDebugFile);
-        if ((!bFileExists && RiftCmdLine.Length > 0) ||
-            bFileExists)
+        if (bFileExists)
+        //if ((!bFileExists && RiftCmdLine.Length > 0) ||
+        //    bFileExists)
         {
             FileHandle h = {0};
             Filesystem_Open(OutputDebugFile, FileMode_Read, &h);

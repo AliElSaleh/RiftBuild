@@ -122,7 +122,7 @@ void Platform_PreInitialize(void)
 
     if (!bCriticalSectionInitialized)
     {
-        InitializeCriticalSection(&GCriticalSection);
+        InitializeCriticalSectionAndSpinCount(&GCriticalSection, 0);
         bCriticalSectionInitialized = true;
     }
 
@@ -2045,7 +2045,7 @@ u64 Platform_GetCriticalSectionMemoryRequirement(void)
 
 void Platform_InitializeCriticalSection(PlatformCriticalSection OutCriticalSection)
 {
-    InitializeCriticalSection(OutCriticalSection);
+    InitializeCriticalSectionAndSpinCount(OutCriticalSection, 0);
 }
 
 void Platform_DeleteCriticalSection(PlatformCriticalSection CriticalSection)

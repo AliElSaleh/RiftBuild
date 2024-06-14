@@ -1347,7 +1347,7 @@ DWORD FormatMessageW(
     va_list *Arguments
 );
 
-void InitializeCriticalSection(LPCRITICAL_SECTION lpCriticalSection);
+void InitializeCriticalSectionAndSpinCount(LPCRITICAL_SECTION lpCriticalSection, DWORD dwSpinCount);
 LPWSTR* CommandLineToArgvW(LPCWSTR lpCmdLine, int* pNumArgs); 
 LPWSTR GetCommandLineW(void);
 HLOCAL LocalFree(HLOCAL hMem);
