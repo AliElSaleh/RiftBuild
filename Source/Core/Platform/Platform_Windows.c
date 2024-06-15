@@ -1893,6 +1893,52 @@ bool Filesystem_Copy(const String Source, const String Destination)
     return true;
 }
 
+bool Filesystem_Move(const String Source, const String Destination)
+{
+    StringLocal(SourceCopy, MAX_PATH);
+    StringLocal(DestinationCopy, MAX_PATH);
+    String_Copy(&SourceCopy, Source);
+    String_Copy(&DestinationCopy, Destination);
+
+    String_ConvertSlashToPlatformSlash(&SourceCopy);
+    String_ConvertSlashToPlatformSlash(&DestinationCopy);
+
+    u32 LastSlash = 0;
+    String_IndexOfLastPathSlash(SourceCopy, &LastSlash);
+
+    const String FileName = StrShiftF(SourceCopy, LastSlash);
+    if (!String_EndsWith(DestinationCopy, FileName, false))
+    {
+        String_BuildPath(&DestinationCopy, FileName);
+    }
+
+    // TODO: allow source to be a direcotry and copy everything from there
+
+    // try to create the directory if it doesn't exist
+    String_IndexOfLastPathSlash(DestinationCopy, &LastSlash);
+    Filesystem_OpenDirectory(StrSlice(DestinationCopy.Data, LastSlash));
+
+    // remove the read only attribute if we're copying from a source which had a readonly attribute set on it,
+    // otherwise the copy will fail if the file already exists at the destination
+    /*
+    if (Filesystem_DoesFileExist(DestinationCopy))
+    {
+        SetFileAttributes(DestinationCopy.Data, (u32)GetFileAttributes(DestinationCopy.Data) & (u32)~FILE_ATTRIBUTE_READONLY);
+    }
+    */
+
+    BOOL bResult = MoveFileEx(SourceCopy.Data, DestinationCopy.Data, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
+    if (bResult == 0)
+    {
+        StringLocal(Msg, 512);
+        String_Format(&Msg, S("Failed to move \"%S\" to \"%S\""), Msg.Capacity, Source, Destination);
+        LogLastError(Msg);
+        return false;
+    }
+
+    return true;
+}
+
 bool Filesystem_ArePathsCommon(String PathA, String PathB)
 {
     StringLocal(CommonPath, MAX_PATH);

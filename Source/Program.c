@@ -869,7 +869,7 @@ internal void ListVariables(LinearAllocator Arena, const String Name, TArray(Fil
     }
 }
 
-internal bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String Name, const String Value, u32* ExitCode)
+internal bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String Name, const String Value, bool bHasSpecial, u32* ExitCode)
 {
     if (!String_IsValid(Value))
         return true;
@@ -894,7 +894,7 @@ internal bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const Stri
         LOG("da cmd: %S", Cmd);
         #endif
 
-        bool bIgnoreErrors = String_EndsWith(Name, S("_Cmd"), false);
+        bool bIgnoreErrors = bHasSpecial;
 
         PlatformHandle Handle = Platform_RunCommand(CmdLine, WorkingDirectory);
         if (!Platform_IsValidHandle(Handle) && !bIgnoreErrors)
@@ -906,6 +906,10 @@ internal bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const Stri
         *ExitCode = Platform_WaitForProcessAndGetExitCode(Handle);
         if (*ExitCode != 0 && !bIgnoreErrors)
         {
+            LOG("    You can ignore this error by using ._Cmd instead\n"
+            "    or you can use .Cmd! to check whether the source files exist\n"
+            "    and gracefully skip the move operation if they don't.\n");
+
             return false;
         }
     }
@@ -916,23 +920,136 @@ internal bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const Stri
         u32 FirstSpace = 0;
         String_IndexOfFirstWhitespace(Cmd, &FirstSpace);
 
-        const String SourceFile           = StrSlice(Cmd.Data, FirstSpace);
-        const String DestinationDirectory = String_EatSpaces(StrShiftF(Cmd, FirstSpace+1));
+        const String SourceFile           = String_EatPathSeparatorsFromEnd(StrSlice(Cmd.Data, FirstSpace));
+        const String DestinationDirectory = String_EatPathSeparatorsFromEnd(String_EatSpaces(StrShiftF(Cmd, FirstSpace+1)));
 
         LOG("Copy: %S", Cmd);
+
+        // only copy if dest does not exist
+        if (bHasSpecial)
+        {
+            u32 LastDot = 0;
+            String_IndexOfLastChar(DestinationDirectory, '.', &LastDot);
+
+            bool bHasExtension = false;
+            bool bHasPathSeparator = String_IndexOfFirstPathSlash(StrShiftF(DestinationDirectory, LastDot), NULL);
+            if (!bHasPathSeparator)
+            {
+                bHasExtension = true;
+            }
+
+            if (bHasExtension)
+            {
+                if (Filesystem_DoesFileExist(DestinationDirectory))
+                {
+                    return true;
+                }
+            }
+            else
+            {
+                if (Filesystem_DoesDirectoryExist(DestinationDirectory))
+                {
+                    return true;
+                }
+            }
+        }
 
         bool bIgnoreErrors = String_EndsWith(Name, S("_Copy"), false);
 
         if (!Filesystem_Copy(SourceFile, DestinationDirectory) && !bIgnoreErrors)
         {
+            LOG("    You can ignore this error by using ._Copy instead\n"
+            "    or you can use .Copy! to check whether the source files exist\n"
+            "    and gracefully skip the move operation if they don't.\n");
+
             *ExitCode = 1;
             return false;
         }
     }
-    //else if (String_EndsWith(Name, S("Move"), false))
+    else if (String_EndsWith(Name, S("Move"), false))
+    {
+        // TODO: only deal with relative paths?
+
+        const String Cmd = Value;
+
+        u32 FirstSpace = 0;
+        String_IndexOfFirstWhitespace(Cmd, &FirstSpace);
+
+        const String SourceFile           = String_EatPathSeparatorsFromEnd(StrSlice(Cmd.Data, FirstSpace));
+        const String DestinationDirectory = String_EatPathSeparatorsFromEnd(String_EatSpaces(StrShiftF(Cmd, FirstSpace+1)));
+
+        LOG("Move: %S", Cmd);
+
+        // only move if dest does not exist
+        if (bHasSpecial)
+        {
+            u32 LastDot = 0, LastSlash = 0;
+            bool bHasDot = String_IndexOfLastChar(SourceFile, '.', &LastDot);
+            String_IndexOfLastPathSlash(SourceFile, &LastSlash);
+
+            bool bHasExtension = false;
+            bool bHasPathSeparator = String_IndexOfFirstPathSlash(StrShiftF(SourceFile, LastDot), NULL);
+            if (bHasDot && !bHasPathSeparator)
+            {
+                bHasExtension = true;
+            }
+
+            StringLocal(FullPath, MAX_PATH_LENGTH);
+            String_BuildPath(&FullPath, WorkingDirectory, StrSlice(SourceFile.Data, LastSlash));
+            if (!Filesystem_DoesDirectoryExist(FullPath))
+            {
+                return true;
+            }
+
+            String_Empty(&FullPath);
+            String_BuildPath(&FullPath, WorkingDirectory, SourceFile);
+            if (!Filesystem_DoesFileExist(FullPath))
+            {
+                return true;
+            }
+
+            String FileName = StrShiftF(SourceFile, LastSlash == 0 ? 0 : LastSlash+1);
+            String_BuildPath(&FullPath, WorkingDirectory, DestinationDirectory, FileName);
+
+            if (bHasExtension)
+            {
+                if (Filesystem_DoesFileExist(FullPath))
+                {
+                    //LOG("file - nothing happened yay");
+                    return true;
+                }
+            }
+            else
+            {
+                if (Filesystem_DoesDirectoryExist(FullPath))
+                {
+                    //LOG("dir - nothing happened yay");
+                    return true;
+                }
+            }
+        }
+
+        bool bIgnoreErrors = String_EndsWith(Name, S("_Move"), false);
+
+        if (bIgnoreErrors) Logging_Disable();
+        bool bResult = Filesystem_Move(SourceFile, DestinationDirectory);
+        if (bIgnoreErrors) Logging_Enable();
+
+        if (!bResult && !bIgnoreErrors)
+        {
+            LOG("    You can ignore this error by using ._Move instead\n"
+            "    or you can use .Move! to check whether the source files exist\n"
+            "    and gracefully skip the move operation if they don't.\n");
+
+            *ExitCode = 1;
+            return false;
+        }
+    }
+    //else if (String_EndsWith(Name, S("Rename"), false))
     //else if (String_EndsWith(Name, S("Delete"), false))
     //else if (String_EndsWith(Name, S("NewFile"), false))
     //else if (String_EndsWith(Name, S("NewDirectory"), false))
+    //else if (String_EndsWith(Name, S("NewDir"), false))
 
     return true;
 }
@@ -2822,7 +2939,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             if (String_StartsWith(Var.Name, S("PreBuild"), false))
             {
                 u32 ExitCode = 0;
-                bool bResult = Internal_ExecuteBuildCmd(WorkingPath, Var.Name, Var.Value, &ExitCode);
+                bool bResult = Internal_ExecuteBuildCmd(WorkingPath, Var.Name, Var.Value, Var.bHasSpecial, &ExitCode);
                 if (!bResult)
                 {
                     #ifndef HOOD
@@ -3425,13 +3542,13 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             Filesystem_Open(OutputDebugFile, FileMode_Read, &h);
             StringLocal(SavedCmdLine, 2048);
             Filesystem_ReadLine(&h, &SavedCmdLine);
-            if (SavedCmdLine.Length > 0 && RiftCmdLine.Length > 0)
+            //if (SavedCmdLine.Length > 0 && RiftCmdLine.Length > 0)
             {
                 if (!String_IsEqual(SavedCmdLine, RiftCmdLine, false))
                 {
                     LOG("Different command line given. Forcing rebuild...");
-                    LOG("    Previous: %S", SavedCmdLine);
-                    LOG("    Current:  %S", RiftCmdLine);
+                    LOG("    Previous: %S", SavedCmdLine.Length == 0 ? S("<empty>") : SavedCmdLine);
+                    LOG("    Current:  %S", RiftCmdLine.Length == 0 ? S("<empty>") : RiftCmdLine);
                     LOG_LINE_BREAK();
 
                     bIsRebuild = true;
@@ -4237,7 +4354,7 @@ PostBuild:
             if (String_StartsWith(Var.Name, S("PostBuild"), false))
             {
                 u32 ExitCode = 0;
-                bool bResult = Internal_ExecuteBuildCmd(WorkingPath, Var.Name, Var.Value, &ExitCode);
+                bool bResult = Internal_ExecuteBuildCmd(WorkingPath, Var.Name, Var.Value, Var.bHasSpecial, &ExitCode);
                 if (!bResult)
                 {
                     #ifndef HOOD

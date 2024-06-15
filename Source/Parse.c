@@ -207,12 +207,12 @@ bool ParseBuildFile(LinearAllocator* Arena,
                     continue;
                 }
             }
+        }
 
-            if (Trimmed.Data[0] == '}')
-            {
-                bInsideIf = false;
-                continue;
-            }
+        if (Trimmed.Data[0] == '}')
+        {
+            bInsideIf = false;
+            continue;
         }
 
         if (bIsSwitch)
@@ -404,6 +404,17 @@ bool ParseBuildFile(LinearAllocator* Arena,
 
         if (bInsideSquareBrackets)
         {
+            if (bIfFailed)
+            {
+                if (Trimmed.Data[0] == ']')
+                {
+                    bInsideSquareBrackets = false;
+                    bIfFailed = false;
+                }
+
+                continue;
+            }
+
             String* LastValue = &VariablesDB[Array_Num(VariablesDB)-1].Value;
 
             if (Trimmed.Data[0] == ']')
@@ -523,6 +534,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
             String_IndexOfFirstWhitespace(VarValue, &Index);
 
             bool bIsMultiLineIf = String_IndexOfChar(VarValue, '{', NULL);
+            bool bIsMultiLineVar = String_IndexOfChar(VarValue, '[', NULL);
             bInsideIf = bIsMultiLineIf;
             bInsideElse = false;
 
@@ -534,6 +546,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
 
             bool bIsNot = Condition.Data[0] == '!';
             String_EatCharInline(&Condition, '!');
+            bool bCaseSensitive = String_EatCharInline(&Condition, '^');
 
             bool bConditionMet = false;
 
@@ -587,35 +600,24 @@ bool ParseBuildFile(LinearAllocator* Arena,
             String_IndexOfFirstWhitespace(ComparisonOperator, &SecondWhitespaceIndex);
             ComparisonOperator = StrSlice(ComparisonOperator.Data, SecondWhitespaceIndex);
 
-            if (String_IsEqual(ComparisonOperator, S("=="), false))
+            if (String_IsEqual(ComparisonOperator, S("!="), false)) // ignore !=
             {
-                Comparison = Cmp_Equal;
+                if (String_EatCharInline(&ComparisonOperator, '!'))
+                {
+                    bIsNot = true;
+                }
             }
-            else if (String_IsEqual(ComparisonOperator, S("!="), false))
-            {
-                Comparison = Cmp_NotEqual;
-            }
-            else if (String_IsEqual(ComparisonOperator, S(">="), false))
-            {
-                Comparison = Cmp_GreaterThanOrEqual;
-            }
-            else if (String_IsEqual(ComparisonOperator, S("<="), false))
-            {
-                Comparison = Cmp_LessThanOrEqual;
-            }
-            else if (String_IsEqual(ComparisonOperator, S(">"), false))
-            {
-                Comparison = Cmp_GreaterThan;
-            }
-            else if (String_IsEqual(ComparisonOperator, S("<"), false))
-            {
-                Comparison = Cmp_LessThan;
-            }
-            // TODO: starts_with and ends_with, contains, has char
-            else
-            {
-                Comparison = Cmp_None;
-            }
+
+            if      (String_IsEqual(ComparisonOperator, S("=="), false))           Comparison = Cmp_Equal;
+            else if (String_IsEqual(ComparisonOperator, S("!="), false))           Comparison = Cmp_NotEqual;
+            else if (String_IsEqual(ComparisonOperator, S(">="), false))           Comparison = Cmp_GreaterThanOrEqual;
+            else if (String_IsEqual(ComparisonOperator, S("<="), false))           Comparison = Cmp_LessThanOrEqual;
+            else if (String_IsEqual(ComparisonOperator, S(">"), false))            Comparison = Cmp_GreaterThan;
+            else if (String_IsEqual(ComparisonOperator, S("<"), false))            Comparison = Cmp_LessThan;
+            else if (String_IsEqual(ComparisonOperator, S("starts_with"), false))  Comparison = Cmp_StartsWith;
+            else if (String_IsEqual(ComparisonOperator, S("ends_with"), false))    Comparison = Cmp_EndsWith;
+            else if (String_IsEqual(ComparisonOperator, S("contains"), false))     Comparison = Cmp_Contains;
+            else                                                                   Comparison = Cmp_None;
 
             String TestValue = String_EatSpaces(StrSlice(VarValue.Data+Index+1+SecondWhitespaceIndex, VarValue.Length-Index-1-SecondWhitespaceIndex));
             u32 ThirdWhitespaceIndex = 0;
@@ -642,16 +644,17 @@ bool ParseBuildFile(LinearAllocator* Arena,
                         StringArray Values = String_ParseIntoArray(&Scratch, TestValue, '|', 0, 128);
                         for each_str (v, Values)
                         {
-                            bConditionMet = String_IsEqual(ConditionValuePtr, *v, false);
+                            bConditionMet = String_IsEqual(ConditionValuePtr, *v, bCaseSensitive);
                             if (bConditionMet)
                             {
                                 break;
                             }
 
+                            // if the condition value has more than one value separated by a space
                             StringArray Values2 = String_ParseIntoArray(&Scratch, ConditionValuePtr, ' ', 0, 128);
                             for each_str (v2, Values2)
                             {
-                                bConditionMet = String_IsEqual(*v, *v2, false);
+                                bConditionMet = String_IsEqual(*v, *v2, bCaseSensitive);
                                 if (bConditionMet)
                                 {
                                     break;
@@ -677,16 +680,17 @@ bool ParseBuildFile(LinearAllocator* Arena,
                         StringArray Values = String_ParseIntoArray(&Scratch, TestValue, '|', 0, 128);
                         for each_str (v, Values)
                         {
-                            bConditionMet = !String_IsEqual(ConditionValuePtr, *v, false);
+                            bConditionMet = !String_IsEqual(ConditionValuePtr, *v, bCaseSensitive);
                             if (bConditionMet)
                             {
                                 break;
                             }
 
+                            // if the condition value has more than one value separated by a space
                             StringArray Values2 = String_ParseIntoArray(&Scratch, ConditionValuePtr, ' ', 0, 128);
                             for each_str (v2, Values2)
                             {
-                                bConditionMet = !String_IsEqual(*v, *v2, false);
+                                bConditionMet = !String_IsEqual(*v, *v2, bCaseSensitive);
                                 if (bConditionMet)
                                 {
                                     break;
@@ -753,6 +757,99 @@ bool ParseBuildFile(LinearAllocator* Arena,
                     }
 
                     bConditionMet = LeftInt < RightInt;
+                }
+                break;
+
+                case Cmp_StartsWith:
+                {
+                    LinearAllocator Scratch = *Arena;
+                    StringArray Values = String_ParseIntoArray(&Scratch, TestValue, '|', 0, 128);
+                    for each_str (v, Values)
+                    {
+                        bConditionMet = String_StartsWith(ConditionValuePtr, *v, bCaseSensitive);
+                        if (bConditionMet)
+                        {
+                            break;
+                        }
+
+                        // if the condition value has more than one value separated by a space
+                        StringArray Values2 = String_ParseIntoArray(&Scratch, ConditionValuePtr, ' ', 0, 128);
+                        for each_str (v2, Values2)
+                        {
+                            bConditionMet = String_StartsWith(*v2, *v, bCaseSensitive);
+                            if (bConditionMet)
+                            {
+                                break;
+                            }
+                        }
+
+                        if (bConditionMet)
+                        {
+                            break;
+                        }
+                    }
+                }
+                break;
+
+                case Cmp_EndsWith:
+                {
+                    LinearAllocator Scratch = *Arena;
+                    StringArray Values = String_ParseIntoArray(&Scratch, TestValue, '|', 0, 128);
+                    for each_str (v, Values)
+                    {
+                        bConditionMet = String_EndsWith(ConditionValuePtr, *v, bCaseSensitive);
+                        if (bConditionMet)
+                        {
+                            break;
+                        }
+
+                        // if the condition value has more than one value separated by a space
+                        StringArray Values2 = String_ParseIntoArray(&Scratch, ConditionValuePtr, ' ', 0, 128);
+                        for each_str (v2, Values2)
+                        {
+                            bConditionMet = String_EndsWith(*v2, *v, bCaseSensitive);
+                            if (bConditionMet)
+                            {
+                                break;
+                            }
+                        }
+
+                        if (bConditionMet)
+                        {
+                            break;
+                        }
+                    }
+                }
+                break;
+
+                case Cmp_Contains:
+                {
+                    LinearAllocator Scratch = *Arena;
+                    StringArray Values = String_ParseIntoArray(&Scratch, TestValue, '|', 0, 128);
+                    for each_str (v, Values)
+                    {
+                        bConditionMet = String_Contains(ConditionValuePtr, *v, bCaseSensitive);
+                        if (bConditionMet)
+                        {
+                            break;
+                        }
+
+                        // if the condition value has more than one value separated by a space
+                        StringArray Values2 = String_ParseIntoArray(&Scratch, ConditionValuePtr, ' ', 0, 128);
+                        for each_str (v2, Values2)
+                        {
+                            bConditionMet = String_Contains(*v2, *v, bCaseSensitive);
+                            if (bConditionMet)
+                            {
+                                break;
+                            }
+                        }
+
+                        if (bConditionMet)
+                        {
+                            break;
+                        }
+                    }
                 }
                 break;
             }
@@ -824,7 +921,8 @@ bool ParseBuildFile(LinearAllocator* Arena,
             }
             else
             {
-                if (bIsMultiLineIf)
+                bInsideSquareBrackets = bIsMultiLineVar;
+                if (bIsMultiLineIf || bIsMultiLineVar)
                 {
                     bIfFailed = true;
                 }

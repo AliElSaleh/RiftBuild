@@ -29,3 +29,13 @@ if _platform == bsd     IncludedSourceFiles Platform_BSD.c
 if _platform == windows LinkerFlags -nostdlib -Wl,-entry:ProgramStart,-subsystem:console -Xlinker /stack:0x400000,0x400000
 
 if _platform == linux   Libraries UUIDS ; LibraryDirectories Source/Libraries/Linux
+
+#PreBuild.Copy          Libraries/glew-2.1.0/lib/Release/x64/glew32s.lib Build/Libs
+#PreBuild.NewDirectory  gen/dahbwiod/dawjiod
+#PreBuild.NewDir        hello/test\dw//dw/oho\../\\
+#PreBuild.NewFile       unknown/dir/yay.txt
+#PreBuild.Move!          unknown/dir/yay.txt test/hello/../hey
+#PreBuild.Move!          test/yay.txt blo/blah
+#PreBuild.Move!          unknown new
+#PreBuild.Rename        unknown/dir/yay.txt unknown/dir/nay.txt
+#PreBuild.Delete        unknown/dir/yay.txt

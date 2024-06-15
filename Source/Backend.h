@@ -44,6 +44,9 @@ ENUM(EComparisonType)
     Cmp_LessThan,
     Cmp_GreaterThanOrEqual,
     Cmp_LessThanOrEqual,
+    Cmp_StartsWith,
+    Cmp_EndsWith,
+    Cmp_Contains,
 };
 
 ENUM(EGenerator)

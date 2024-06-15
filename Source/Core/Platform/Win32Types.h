@@ -466,6 +466,15 @@ typedef struct _CONSOLE_SCREEN_BUFFER_INFO {
 #define  _WIN32_WINNT   0x0A00
 #define  WINVER         0x0A00
 
+#define MOVEFILE_REPLACE_EXISTING       0x00000001
+#define MOVEFILE_COPY_ALLOWED           0x00000002
+#define MOVEFILE_DELAY_UNTIL_REBOOT     0x00000004
+#define MOVEFILE_WRITE_THROUGH          0x00000008
+#if (_WIN32_WINNT >= 0x0500)
+#define MOVEFILE_CREATE_HARDLINK        0x00000010
+#define MOVEFILE_FAIL_IF_NOT_TRACKABLE  0x00000020
+#endif // (_WIN32_WINNT >= 0x0500)
+
 #define PROCESS_TERMINATE                  (0x0001)  
 #define PROCESS_CREATE_THREAD              (0x0002)  
 #define PROCESS_SET_SESSIONID              (0x0004)  
@@ -1404,6 +1413,7 @@ BOOL QueryPerformanceFrequency(LARGE_INTEGER *lpFrequency);
     #define SetFileAttributes    SetFileAttributesW
 
     #define CopyFileEx           CopyFileExW
+    #define MoveFileEx           MoveFileExW
 
     #define PathCommonPrefix     PathCommonPrefixW
 
@@ -1456,6 +1466,7 @@ BOOL QueryPerformanceFrequency(LARGE_INTEGER *lpFrequency);
     #define SetFileAttributes    SetFileAttributesA
 
     #define CopyFileEx           CopyFileExA
+    #define MoveFileEx           MoveFileExA
 
     #define PathCommonPrefix     PathCommonPrefixA
 
@@ -1707,6 +1718,9 @@ BOOL CopyFileExW(
     LPBOOL             pbCancel,
     DWORD              dwCopyFlags
 );
+
+BOOL MoveFileExA(LPCSTR lpExistingFileName, LPCSTR lpNewFileName, DWORD  dwFlags);
+BOOL MoveFileExW(LPCWSTR lpExistingFileName, LPCWSTR lpNewFileName, DWORD  dwFlags);
 
 int PathCommonPrefixA(LPCSTR pszFile1, LPCSTR pszFile2, LPSTR  achPath);
 int PathCommonPrefixW(LPCWSTR pszFile1, LPCWSTR pszFile2, LPWSTR  achPath);

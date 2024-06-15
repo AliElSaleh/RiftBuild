@@ -99,6 +99,7 @@ RIFT_API bool Filesystem_DeleteFiles(const String FilePath, const String Wildcar
 RIFT_API bool Filesystem_DeleteDirectory(const String DirectoryPath);
 
 RIFT_API bool Filesystem_Copy(const String Source, const String Destination);
+RIFT_API bool Filesystem_Move(const String Source, const String Destination);
 
 RIFT_API bool Filesystem_ArePathsCommon(String PathA, String PathB);
 
