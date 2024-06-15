@@ -600,7 +600,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
             String_IndexOfFirstWhitespace(ComparisonOperator, &SecondWhitespaceIndex);
             ComparisonOperator = StrSlice(ComparisonOperator.Data, SecondWhitespaceIndex);
 
-            if (String_IsEqual(ComparisonOperator, S("!="), false)) // ignore !=
+            if (!String_IsEqual(ComparisonOperator, S("!="), false)) // ignore !=
             {
                 if (String_EatCharInline(&ComparisonOperator, '!'))
                 {
