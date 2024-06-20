@@ -74,6 +74,7 @@ Below are forks of a few open-source projects that I've translated from CMake (a
 - [Playdate SDK TODO](https://google.com)
 - [Kinema TODO](https://google.com)
 - [PhysFS](https://github.com/AliElSaleh/physfs)
+- [Zydis](https://github.com/AliElSaleh/zydis)
 
 ---
 
