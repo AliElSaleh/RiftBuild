@@ -8,23 +8,8 @@ set CompilerFlags= -std=c17 -Os -fdeclspec -fno-exceptions -fno-math-errno -fdia
 
 echo Compiling sources (Windows)
 
-clang -c "Source/Core/Clock/Clock.c"               %CompilerFlags% -o "Intermediate/Clock.c.o"            || exit /b 1
-clang -c "Source/Core/Math/Math.c"                 %CompilerFlags% -o "Intermediate/Math.c.o"             || exit /b 1
-clang -c "Source/Core/Memory/Memory.c"             %CompilerFlags% -o "Intermediate/Memory.c.o"           || exit /b 1
-clang -c "Source/Core/Memory/Allocators.c"         %CompilerFlags% -o "Intermediate/Allocators.c.o"       || exit /b 1
-clang -c "Source/Core/String/StringUtils.c"        %CompilerFlags% -o "Intermediate/StringUtils.c.o"      || exit /b 1
-clang -c "Source/Core/Structures/Containers.c"     %CompilerFlags% -o "Intermediate/Containers.c.o"       || exit /b 1
-clang -c "Source/Core/Log.c"                       %CompilerFlags% -o "Intermediate/Log.c.o"              || exit /b 1
-clang -c "Source/Core/Globals.c"                   %CompilerFlags% -o "Intermediate/Globals.c.o"          || exit /b 1
-clang -c "Source/Core/EngineUtils.c"               %CompilerFlags% -o "Intermediate/EngineUtils.c.o"      || exit /b 1
-clang -c "Source/Core/Platform/Platform_Windows.c" %CompilerFlags% -o "Intermediate/Platform_Windows.c.o" || exit /b 1
-clang -c "Source/Program.c"                        %CompilerFlags% -o "Intermediate/Program.c.o"          || exit /b 1
-clang -c "Source/CBackend.c"                       %CompilerFlags% -o "Intermediate/CBackend.c.o"         || exit /b 1
-clang -c "Source/MSVCBackend.c"                    %CompilerFlags% -o "Intermediate/MSVCBackend.c.o"      || exit /b 1
-clang -c "Source/Parse.c"                          %CompilerFlags% -o "Intermediate/Parse.c.o"            || exit /b 1
-clang -c "Source/Exporter.c"                       %CompilerFlags% -o "Intermediate/Exporter.c.o"         || exit /b 1
-
-echo Building binary
-clang -o Build/Dist/RiftBuild.exe "Intermediate/Clock.c.o" "Intermediate/Math.c.o" "Intermediate/Memory.c.o" "Intermediate/Allocators.c.o" "Intermediate/StringUtils.c.o" "Intermediate/Containers.c.o" "Intermediate/Log.c.o" "Intermediate/Globals.c.o" "Intermediate/EngineUtils.c.o" "Intermediate/Platform_Windows.c.o" "Intermediate/Program.c.o" "Intermediate/CBackend.c.o" "Intermediate/MSVCBackend.c.o" "Intermediate/Parse.c.o" "Intermediate/Exporter.c.o" -nostdlib -Wl,-entry:ProgramStart,-subsystem:console -Xlinker /stack:0x400000,0x400000 -lkernel32 -luser32 -lopengl32 -lshell32 -lgdi32 -lcomdlg32 -lcomctl32 -lws2_32 -lwinmm -lnetapi32 -lole32 -ladvapi32 -lwldap32 -lcrypt32 -lrpcrt4 -lshlwapi -ldbghelp -lbcrypt -lversion -limm32 -lcfgmgr32 -lsetupapi -loleaut32 -luuid -lodbc32 -lodbccp32 -ldelayimp -lpathcch || exit /b 1
+clang "Source/Core/Clock/Clock.c" "Source/Core/Math/Math.c" "Source/Core/Memory/Memory.c" "Source/Core/Memory/Allocators.c" "Source/Core/String/StringUtils.c" "Source/Core/Structures/Containers.c" "Source/Core/Log.c" "Source/Core/Globals.c" "Source/Core/EngineUtils.c" "Source/Core/Platform/Platform_Windows.c" "Source/Program.c" "Source/CBackend.c" "Source/MSVCBackend.c" "Source/Parse.c" "Source/Exporter.c" %CompilerFlags% -o Build/Dist/RiftBuild.exe -nostdlib -Wl,-entry:ProgramStart,-subsystem:console -Xlinker /stack:0x400000,0x400000 -lkernel32 -luser32 -lopengl32 -lshell32 -lgdi32 -lcomdlg32 -lcomctl32 -lws2_32 -lwinmm -lnetapi32 -lole32 -ladvapi32 -lwldap32 -lcrypt32 -lrpcrt4 -lshlwapi -ldbghelp -lbcrypt -lversion -limm32 -lcfgmgr32 -lsetupapi -loleaut32 -luuid -lodbc32 -lodbccp32 -ldelayimp -lpathcch || exit /b 1
 
 echo [32m  Done: Build/Dist/RiftBuild.exe[0m
+
+pause
