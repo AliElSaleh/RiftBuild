@@ -663,5 +663,6 @@ bool C_IsHeader(const String Extension)
             String_IsEqual(Extension, S(".hpp"), false) ||
             String_IsEqual(Extension, S(".hxx"), false) ||
             String_IsEqual(Extension, S(".h++"), false) ||
+            String_IsEqual(Extension, S(".inc"), false) ||
             String_IsEqual(Extension, S(".inl"), false);
 }

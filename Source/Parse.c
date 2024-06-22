@@ -1270,8 +1270,8 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
         {
             String VarValue = String_Null();
 
-            const bool bHasNot = String_EatCharInline(&Slice, '!');
-            const bool bWantsPaste = String_EatCharInline(&Slice, '%');
+            const bool bHasNot = Slice.Length > 1 ? String_EatCharInline(&Slice, '!') : false;
+            const bool bWantsPaste = Slice.Length > 1 ? String_EatCharInline(&Slice, '%') : false;
 
             bool bFoundCmd = false;
             bool bEqualsToSomething = false;

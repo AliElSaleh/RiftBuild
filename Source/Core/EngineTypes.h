@@ -92,14 +92,6 @@ typedef void VoidFunc(void);
 #define ENUM(Name)              typedef u8 Name; enum
 #define ENUM_TYPED(Name, Type)  typedef Type Name; enum
 
-#define UNUSED           __attribute__((unused))
-#define CONST_ATTRIB     __attribute__((const))
-#define PURE_ATTRIB      __attribute__((pure))
-#define NO_DISCARD       __attribute__((warn_unused_result))
-#define FALL_THROUGH     __attribute__((fallthrough))
-#define NO_RETURN        __attribute__((noreturn))
-#define RETURN_NON_NULL  __attribute__((returns_nonnull))
-
 #define INVALID_ID UINT32_MAX
 
 // move to engine.h?
@@ -338,6 +330,22 @@ STATIC_ASSERT(sizeof(void*) == 8, "Expected size of a pointer to be 8 bytes.");
     #define FORCEINLINE    __attribute__((always_inline))
     #define FORCENOINLINE
     #define read_only 
+#endif
+
+#define UNUSED           __attribute__((unused))
+#define CONST_ATTRIB     __attribute__((const))
+#define PURE_ATTRIB      __attribute__((pure))
+#define NO_DISCARD       __attribute__((warn_unused_result))
+#define FALL_THROUGH     __attribute__((fallthrough))
+#define NO_RETURN        __attribute__((noreturn))
+#define RETURN_NON_NULL  __attribute__((returns_nonnull))
+
+#if COMPILER_CLANG || COMPILER_GCC
+    #define DEPRECATED   __attribute__((__deprecated__))
+#elif COMPILER_MSVC
+    #define DEPRECATED __declspec(deprecated)
+#else
+    #define DEPRECATED
 #endif
 
 #define UNLIKELY(Expression) __builtin_expect(!!(Expression), 0)

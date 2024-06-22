@@ -34,8 +34,8 @@ if _platform == linux   Libraries UUIDS ; LibraryDirectories Source/Libraries/Li
 #PreBuild.NewDirectory  gen/dahbwiod/dawjiod
 #PreBuild.NewDir        hello/test\dw//dw/oho\../\\
 #PreBuild.NewFile       unknown/dir/yay.txt
-#PreBuild.Move!          unknown/dir/yay.txt test/hello/../hey
-#PreBuild.Move!          test/yay.txt blo/blah
-#PreBuild.Move!          unknown new
+#PreBuild.Move!         unknown/dir/yay.txt test/hello/../hey
+#PreBuild.Move!         test/yay.txt blo/blah
+#PreBuild.Move!         unknown new
 #PreBuild.Rename        unknown/dir/yay.txt unknown/dir/nay.txt
-#PreBuild.Delete        unknown/dir/yay.txt
+#PreBuild.Delete        unknown

@@ -966,7 +966,8 @@ internal bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const Stri
             return false;
         }
     }
-    else if (String_EndsWith(Name, S("Move"), false))
+    else if (String_EndsWith(Name, S("Move"), false) ||
+             String_EndsWith(Name, S("Rename"), false))
     {
         // TODO: only deal with relative paths?
 
@@ -978,7 +979,11 @@ internal bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const Stri
         const String SourceFile           = String_EatPathSeparatorsFromEnd(StrSlice(Cmd.Data, FirstSpace));
         const String DestinationDirectory = String_EatPathSeparatorsFromEnd(String_EatSpaces(StrShiftF(Cmd, FirstSpace+1)));
 
-        LOG("Move: %S", Cmd);
+        bool bIsRename = String_EndsWith(Name, S("Rename"), false);
+        if (bIsRename)
+            LOG("Rename: %S", Cmd);
+        else
+            LOG("Move: %S", Cmd);
 
         // only move if dest does not exist
         if (bHasSpecial)
@@ -1015,7 +1020,6 @@ internal bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const Stri
             {
                 if (Filesystem_DoesFileExist(FullPath))
                 {
-                    //LOG("file - nothing happened yay");
                     return true;
                 }
             }
@@ -1023,33 +1027,122 @@ internal bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const Stri
             {
                 if (Filesystem_DoesDirectoryExist(FullPath))
                 {
-                    //LOG("dir - nothing happened yay");
                     return true;
                 }
             }
         }
 
-        bool bIgnoreErrors = String_EndsWith(Name, S("_Move"), false);
+        bool bIgnoreErrors = String_EndsWith(Name, S("_Move"), false) ||
+                             String_EndsWith(Name, S("_Rename"), false);
 
         if (bIgnoreErrors) Logging_Disable();
-        bool bResult = Filesystem_Move(SourceFile, DestinationDirectory);
+        bool bResult = Filesystem_Move(SourceFile, DestinationDirectory, bIsRename);
         if (bIgnoreErrors) Logging_Enable();
 
         if (!bResult && !bIgnoreErrors)
         {
-            LOG("    You can ignore this error by using ._Move instead\n"
-            "    or you can use .Move! to check whether the source files exist\n"
-            "    and gracefully skip the move operation if they don't.\n");
+            LOG("    You can ignore this error by using %S instead\n"
+            "    or you can use %S to check whether the source files exist\n"
+            "    and gracefully skip the move operation if they don't.\n",
+            bIsRename ? S("._Rename") : S("._Move"),
+            bIsRename ? S(".Rename!") : S(".Move!"));
 
             *ExitCode = 1;
             return false;
         }
     }
-    //else if (String_EndsWith(Name, S("Rename"), false))
-    //else if (String_EndsWith(Name, S("Delete"), false))
-    //else if (String_EndsWith(Name, S("NewFile"), false))
-    //else if (String_EndsWith(Name, S("NewDirectory"), false))
-    //else if (String_EndsWith(Name, S("NewDir"), false))
+    else if (String_EndsWith(Name, S("Delete"), false))
+    {
+        const String Cmd = Value;
+
+        LOG("Delete: %S", Cmd);
+
+        // todo: make sure we only delete stuff relative to the working directory
+
+        if (String_IsEqual(Cmd, S("*"), false) ||
+            String_IsEqual(Cmd, S("."), false) ||
+            String_IsEqual(Cmd, S(".."), false))
+        {
+            return false;
+        }
+
+        // todo: handle wildcards?
+
+        u32 LastDot = 0, LastSlash = 0;
+        bool bHasDot = String_IndexOfLastChar(Cmd, '.', &LastDot);
+        String_IndexOfLastPathSlash(Cmd, &LastSlash);
+
+        bool bHasExtension = false;
+        bool bHasPathSeparator = String_IndexOfFirstPathSlash(StrShiftF(Cmd, LastDot), NULL);
+        if (bHasDot && !bHasPathSeparator)
+        {
+            bHasExtension = true;
+        }
+
+        bool bIgnoreErrors = String_EndsWith(Name, S("_Delete"), false);
+
+        if (bIgnoreErrors) Logging_Disable();
+        bool bResult = false;
+        if (bHasExtension)
+        {
+            if (!Filesystem_DoesFileExist(Cmd))
+                return true;
+
+            bResult = Filesystem_DeleteFile(Cmd);
+        }
+        else
+        {
+            if (!Filesystem_DoesDirectoryExist(Cmd))
+                return true;
+
+            bResult = Filesystem_DeleteDirectory(Cmd);
+        }
+        if (bIgnoreErrors) Logging_Enable();
+
+        if (!bResult && !bIgnoreErrors)
+        {
+            *ExitCode = 1;
+            return false;
+        }
+    }
+    else if (String_EndsWith(Name, S("NewFile"), false))
+    {
+        const String Cmd = Value;
+
+        LOG("New File: %S", Cmd);
+
+        bool bIgnoreErrors = String_EndsWith(Name, S("_NewFile"), false);
+
+        if (bIgnoreErrors) Logging_Disable();
+        bool bResult = Filesystem_NewFile(Cmd);
+        if (bIgnoreErrors) Logging_Enable();
+
+        if (!bResult && !bIgnoreErrors)
+        {
+            *ExitCode = 1;
+            return false;
+        }
+    }
+    else if (String_EndsWith(Name, S("NewDirectory"), false) ||
+             String_EndsWith(Name, S("NewDir"), false))
+    {
+        const String Cmd = Value;
+
+        LOG("New Directory: %S", Cmd);
+
+        bool bIgnoreErrors = String_EndsWith(Name, S("_NewDirectory"), false) ||
+                             String_EndsWith(Name, S("_NewDir"), false);
+
+        if (bIgnoreErrors) Logging_Disable();
+        bool bResult = Filesystem_OpenDirectory(Cmd);
+        if (bIgnoreErrors) Logging_Enable();
+
+        if (!bResult && !bIgnoreErrors)
+        {
+            *ExitCode = 1;
+            return false;
+        }
+    }
 
     return true;
 }
@@ -3975,8 +4068,9 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         // only build the version resource if we have TitleName, CompanyName, Description, Version, Copyright, or CompanyName
         // and no custom resource file was specified
         if (//Resource.Length == 0 && 
-            (TitleName.Length > 0 || CompanyName.Length > 0 || Description.Length > 0 ||
-            (!bFallbackVersion && Version.Length > 0) || CompanyName.Length > 0 || Copyright.Length > 0))
+            CountData.NumRcSources == 0 &&
+            ((TitleName.Length > 0 || CompanyName.Length > 0 || Description.Length > 0 ||
+            (!bFallbackVersion && Version.Length > 0) || CompanyName.Length > 0 || Copyright.Length > 0)))
         {
             if (bHasRcProgram)
             {

@@ -956,7 +956,7 @@ bool Filesystem_Copy(const String Source, const String Destination)
     return false;
 }
 
-bool Filesystem_Move(const String Source, const String Destination)
+bool Filesystem_Move(const String Source, const String Destination, bool bRename)
 {
     UNIMPLEMENTED;
     return false;
