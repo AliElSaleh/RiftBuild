@@ -1304,29 +1304,39 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
                 {
                     if (String_IsEqual(Var.Name, S("AssertCmdVarExists"), false))
                     {
-                        //TEMP_SCRATCH(Assert)
+                        StringArray CmdVarsArray = String_ParseIntoArray(&Scratch, Var.Value, ' ', 0, 128);
+
+                        for each_str (S, CmdVarsArray)
                         {
-                            StringArray CmdVarsArray = String_ParseIntoArray(&Scratch, Var.Value, ' ', 0, 128);
+                            const String Trimmed = String_EatSpaces(*S);
 
-                            for each_str (S, CmdVarsArray)
+                            bool bFound = false;
+                            for each (o, CmdOptionsDB)
                             {
-                                const String Trimmed = String_EatSpaces(*S);
-
-                                bool bFound = DoesCmdVarExist(CmdOptionsDB, Trimmed);
-
-                                if (!bFound)
+                                if (String_IsEqual(o.Name, Trimmed, false))
                                 {
-                                    #ifndef HOOD
-                                    LOG_ERROR("Build assertion failure. Command line argument \"%S\" or \"%S=VALUE\" was not given."
-                                    "\n        This is needed for the build to work properly. Aborting build...", Trimmed, Trimmed);
-                                    #else
-                                    LOG_ERROR("yo da cmd line var \"%S\" don exist cuh. dat shit not there nigga", Trimmed);
-                                    #endif
-
-                                    LogCustomErrorMessage(VariablesDB, S(""), Trimmed, true);
-
-                                    return false;
+                                    bFound = true;
+                                    if (o.bEqualsToSomething && o.Value.Length == 0)
+                                    {
+                                        bFound = false;
+                                    }
+                                    
+                                    break;
                                 }
+                            }
+
+                            if (!bFound)
+                            {
+                                #ifndef HOOD
+                                LOG_ERROR("Build assertion failure. Command line argument \"%S\" or \"%S=VALUE\" was not given."
+                                "\n        This is needed for the build to work properly. Aborting build...", Trimmed, Trimmed);
+                                #else
+                                LOG_ERROR("yo da cmd line var \"%S\" don exist cuh. dat shit not there nigga", Trimmed);
+                                #endif
+
+                                LogCustomErrorMessage(VariablesDB, S("Cmd"), Trimmed, true);
+
+                                return false;
                             }
                         }
                     }

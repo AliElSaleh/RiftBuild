@@ -320,7 +320,7 @@ internal bool IconFileDirectoryIterator(const String FullPath, const String Rela
             String* IconFilePath;
         };
 
-        struct Data* D = (struct Data*)UserData;
+        struct Data* D = UserData;
 
         if (String_IsEqual(FileName, GetVariableValue(D->ExpandedVarsArray, S("Icon")), false))
         {
@@ -386,7 +386,7 @@ internal bool SourceFileCounterDirectoryIterator(const String FullPath, const St
 
         // TODO: ignore intermediate and build directories
 
-        struct SourceCountData* Data = (struct SourceCountData*)UserData;
+        struct SourceCountData* Data = UserData;
 
         u32 DotIndex = 0;
         String_IndexOfLastChar(FileName, '.', &DotIndex);
