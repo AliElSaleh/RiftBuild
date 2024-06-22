@@ -956,6 +956,12 @@ bool Filesystem_Copy(const String Source, const String Destination)
     return false;
 }
 
+bool Filesystem_Move(const String Source, const String Destination)
+{
+    UNIMPLEMENTED;
+    return false;
+}
+
 bool Filesystem_Open_MemoryMapped(const String FilePath, u32 Mode, FileHandle* OutHandle, u8** OutData, u64* OutSize)
 {
     if (OutSize)
