@@ -1730,6 +1730,12 @@ bool Filesystem_Copy(const String Source, const String Destination)
     return false;
 }
 
+bool Filesystem_Move(const String Source, const String Destination)
+{
+    UNIMPLEMENTED;
+    return false;
+}
+
 bool Filesystem_ArePathsCommon(String PathA, String PathB)
 {
     bool bPrefixMatch = String_StartsWith(PathB, PathA, true);

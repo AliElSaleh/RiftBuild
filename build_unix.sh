@@ -21,6 +21,6 @@ CompilerFlags="-std=c17 -Os -fdeclspec -fno-exceptions -fno-math-errno -fdiagnos
 
 printf "Compiling sources (${platform})\n"
 
-clang "Source/Core/Clock/Clock.c" "Source/Core/Math/Math.c" "Source/Core/Memory/Memory.c" "Source/Core/Memory/Allocators.c" "Source/Core/String/StringUtils.c" "Source/Core/Structures/Containers.c" "Source/Core/Log.c" "Source/Core/Globals.c" "Source/Core/EngineUtils.c" "Source/Core/Platform/Platform_${platform}.c" "Source/Program.c" "Source/CBackend.c" "Source/MSVCBackend.c" "Source/Parse.c" "Source/Exporter.c" %CompilerFlags% -o Build/Dist/riftbuild ${LinuxLinkerFlags} -Wl,-rpath,'$ORIGIN'
+clang "Source/Core/Clock/Clock.c" "Source/Core/Math/Math.c" "Source/Core/Memory/Memory.c" "Source/Core/Memory/Allocators.c" "Source/Core/String/StringUtils.c" "Source/Core/Structures/Containers.c" "Source/Core/Log.c" "Source/Core/Globals.c" "Source/Core/EngineUtils.c" "Source/Core/Platform/Platform_${platform}.c" "Source/Program.c" "Source/CBackend.c" "Source/MSVCBackend.c" "Source/Parse.c" "Source/Exporter.c" $CompilerFlags -o Build/Dist/riftbuild ${LinuxLinkerFlags} -Wl,-rpath,'$ORIGIN'
 
 printf "\033[0;32m  Done: Build/Dist/riftbuild\033[0m\n"
