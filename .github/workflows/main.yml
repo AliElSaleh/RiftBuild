@@ -21,7 +21,6 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - shell: cmd
       - run: call build_windows.bat
   
   RunOnMacOS:
