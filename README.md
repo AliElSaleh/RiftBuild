@@ -88,11 +88,11 @@ However, if you'd like to compile from source without `riftbuild`, then there ar
 From the project root directory, run them like so
 ### Windows
 ```
-build_windows.bat
+build.bat
 ```
 ### Unix (Linux / Mac OS / BSD)
 ```
-./build_unix.sh
+./build.sh
 ```
 RiftBuild compiles with Clang so make sure that is installed before building
 
