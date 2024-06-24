@@ -229,38 +229,35 @@ bool ParseBuildFile(LinearAllocator* Arena,
             {
                 bool bFoundNextCase = false;
 
-                //TEMP_SCRATCH(Case)
+                LinearAllocator Scratch = *Arena;
+                StringArray Cases = String_ParseIntoArray(&Scratch, Trimmed, ' ', 0, 128);
+
+                String CmdValue = GetCmdOptionValue(CmdOptionsDB, SwitchValue);
+
+                if (!String_IsValid(CmdValue))
                 {
-                    LinearAllocator Scratch = *Arena;
-                    StringArray Cases = String_ParseIntoArray(&Scratch, Trimmed, ' ', 0, 128);
-
-                    String CmdValue = GetCmdOptionValue(CmdOptionsDB, SwitchValue);
-
-                    if (!String_IsValid(CmdValue))
+                    for each (o, VariablesDB) // intentional that we're not using expanded DB, this should only be used for simple things anyway
                     {
-                        for each (o, VariablesDB) // intentional that we're not using expanded DB, this should only be used for simple things anyway
+                        bool bMatch = String_IsEqual(o.Name, SwitchValue, false);
+                        if (bMatch)
                         {
-                            bool bMatch = String_IsEqual(o.Name, SwitchValue, false);
-                            if (bMatch)
-                            {
-                                CmdValue = o.Value;
-                                break;
-                            }
-                        }
-                    }
-
-                    for each_str (m, Cases)
-                    {
-                        if (!String_IsValid(*m))
-                            continue;
-
-                        if (String_IsEqual(*m, CmdValue, false) ||
-                            (String_IsEqual(*m, S("Default"), false) && !String_IsValid(CmdValue)))
-                        {
-                            bSkipUntilNextCase = false;
-                            bFoundNextCase = true;
+                            CmdValue = o.Value;
                             break;
                         }
+                    }
+                }
+
+                for each_str (m, Cases)
+                {
+                    if (!String_IsValid(*m))
+                        continue;
+
+                    if (String_IsEqual(*m, CmdValue, false) ||
+                        (String_IsEqual(*m, S("Default"), false) && !String_IsValid(CmdValue)))
+                    {
+                        bSkipUntilNextCase = false;
+                        bFoundNextCase = true;
+                        break;
                     }
                 }
 
@@ -494,30 +491,27 @@ bool ParseBuildFile(LinearAllocator* Arena,
 
             StringLocal(FormattedMsg, 256);
 
-            //TEMP_SCRATCH(MsgList)
+            LinearAllocator Scratch = *Arena;
+            StringArray MsgArgsList = String_ParseIntoArray(&Scratch, RestOfTheLine, ' ', 0, 64);
+
+            u8 ArgIndex = 0;
+            String MsgString = StrSlice(Trimmed.Data+1, LastQuoteIndex-1);
+            for (u32 i = 0; i < MsgString.Length; i++)
             {
-                LinearAllocator Scratch = *Arena;
-                StringArray MsgArgsList = String_ParseIntoArray(&Scratch, RestOfTheLine, ' ', 0, 64);
-
-                u8 ArgIndex = 0;
-                String MsgString = StrSlice(Trimmed.Data+1, LastQuoteIndex-1);
-                for (u32 i = 0; i < MsgString.Length; i++)
+                char C = MsgString.Data[i];
+                if (C == '%')
                 {
-                    char C = MsgString.Data[i];
-                    if (C == '%')
-                    {
-                        const String Arg = StringArray_GetStringFromIndex(MsgArgsList, ArgIndex);
-                        ArgIndex++;
+                    const String Arg = StringArray_GetStringFromIndex(MsgArgsList, ArgIndex);
+                    ArgIndex++;
 
-                        //todo :expand to 0 if not exist but expand to nothing if it has an =
-                        String Var = String_EatChar(Arg, '%');
-                        String Val = GetCmdOptionValue(CmdOptionsDB, Var);
-                        String_Append(&FormattedMsg, Val);
-                        continue;
-                    }
-
-                    String_AppendChar(&FormattedMsg, C);
+                    //todo :expand to 0 if not exist but expand to nothing if it has an =
+                    String Var = String_EatChar(Arg, '%');
+                    String Val = GetCmdOptionValue(CmdOptionsDB, Var);
+                    String_Append(&FormattedMsg, Val);
+                    continue;
                 }
+
+                String_AppendChar(&FormattedMsg, C);
             }
 
             if (FormattedMsg.Length > 0)
@@ -608,6 +602,8 @@ bool ParseBuildFile(LinearAllocator* Arena,
                 }
             }
 
+            Comparison = Cmp_None;
+
             if      (String_IsEqual(ComparisonOperator, S("=="), false))           Comparison = Cmp_Equal;
             else if (String_IsEqual(ComparisonOperator, S("!="), false))           Comparison = Cmp_NotEqual;
             else if (String_IsEqual(ComparisonOperator, S(">="), false))           Comparison = Cmp_GreaterThanOrEqual;
@@ -617,9 +613,9 @@ bool ParseBuildFile(LinearAllocator* Arena,
             else if (String_IsEqual(ComparisonOperator, S("starts_with"), false))  Comparison = Cmp_StartsWith;
             else if (String_IsEqual(ComparisonOperator, S("ends_with"), false))    Comparison = Cmp_EndsWith;
             else if (String_IsEqual(ComparisonOperator, S("contains"), false))     Comparison = Cmp_Contains;
-            else                                                                   Comparison = Cmp_None;
 
-            String TestValue = String_EatSpaces(StrSlice(VarValue.Data+Index+1+SecondWhitespaceIndex, VarValue.Length-Index-1-SecondWhitespaceIndex));
+            //String TestValue = String_EatSpaces(StrSlice(VarValue.Data+Index+1+SecondWhitespaceIndex, VarValue.Length-Index-1-SecondWhitespaceIndex));
+            String TestValue = String_EatSpaces(StrShiftF(VarValue, Index+1+SecondWhitespaceIndex));
             u32 ThirdWhitespaceIndex = 0;
             String_IndexOfFirstWhitespace(TestValue, &ThirdWhitespaceIndex);
             TestValue = StrSlice(TestValue.Data, ThirdWhitespaceIndex);
@@ -633,78 +629,67 @@ bool ParseBuildFile(LinearAllocator* Arena,
             switch (Comparison)
             {
                 default:
-                case Cmp_None:
-                break;
+                case Cmp_None: break;
 
                 case Cmp_Equal:
                 {
-                    //TEMP_SCRATCH(Cond)
+                    LinearAllocator Scratch = *Arena;
+                    StringArray Values = String_ParseIntoArray(&Scratch, TestValue, '|', 0, 128);
+                    for each_str (v, Values)
                     {
-                        LinearAllocator Scratch = *Arena;
-                        StringArray Values = String_ParseIntoArray(&Scratch, TestValue, '|', 0, 128);
-                        for each_str (v, Values)
+                        bConditionMet = String_IsEqual(ConditionValuePtr, *v, bCaseSensitive);
+                        if (bConditionMet)
                         {
-                            bConditionMet = String_IsEqual(ConditionValuePtr, *v, bCaseSensitive);
-                            if (bConditionMet)
-                            {
-                                break;
-                            }
+                            break;
+                        }
 
-                            // if the condition value has more than one value separated by a space
-                            StringArray Values2 = String_ParseIntoArray(&Scratch, ConditionValuePtr, ' ', 0, 128);
-                            for each_str (v2, Values2)
-                            {
-                                bConditionMet = String_IsEqual(*v, *v2, bCaseSensitive);
-                                if (bConditionMet)
-                                {
-                                    break;
-                                }
-                            }
-
+                        // if the condition value has more than one value separated by a space
+                        StringArray Values2 = String_ParseIntoArray(&Scratch, ConditionValuePtr, ' ', 0, 128);
+                        for each_str (v2, Values2)
+                        {
+                            bConditionMet = String_IsEqual(*v, *v2, bCaseSensitive);
                             if (bConditionMet)
                             {
                                 break;
                             }
                         }
-                    }
 
-                    //bConditionMet = String_IsEqual(ConditionValuePtr, TestValue, false);
+                        if (bConditionMet)
+                        {
+                            break;
+                        }
+                    }
                 }
                 break;
 
                 case Cmp_NotEqual:
                 {
-                    //TEMP_SCRATCH(Cond)
+                    LinearAllocator Scratch = *Arena;
+                    StringArray Values = String_ParseIntoArray(&Scratch, TestValue, '|', 0, 128);
+                    for each_str (v, Values)
                     {
-                        LinearAllocator Scratch = *Arena;
-                        StringArray Values = String_ParseIntoArray(&Scratch, TestValue, '|', 0, 128);
-                        for each_str (v, Values)
+                        bConditionMet = !String_IsEqual(ConditionValuePtr, *v, bCaseSensitive);
+                        if (bConditionMet)
                         {
-                            bConditionMet = !String_IsEqual(ConditionValuePtr, *v, bCaseSensitive);
-                            if (bConditionMet)
-                            {
-                                break;
-                            }
+                            break;
+                        }
 
-                            // if the condition value has more than one value separated by a space
-                            StringArray Values2 = String_ParseIntoArray(&Scratch, ConditionValuePtr, ' ', 0, 128);
-                            for each_str (v2, Values2)
-                            {
-                                bConditionMet = !String_IsEqual(*v, *v2, bCaseSensitive);
-                                if (bConditionMet)
-                                {
-                                    break;
-                                }
-                            }
-
+                        // if the condition value has more than one value separated by a space
+                        StringArray Values2 = String_ParseIntoArray(&Scratch, ConditionValuePtr, ' ', 0, 128);
+                        for each_str (v2, Values2)
+                        {
+                            bConditionMet = !String_IsEqual(*v, *v2, bCaseSensitive);
                             if (bConditionMet)
                             {
                                 break;
                             }
                         }
-                    }
 
-                    //bConditionMet = !String_IsEqual(ConditionValuePtr, TestValue, false);
+                        if (bConditionMet)
+                        {
+                            break;
+                        }
+                    }
                 }
                 break;
 
@@ -865,7 +850,6 @@ bool ParseBuildFile(LinearAllocator* Arena,
             // else statement detection
             u32 LengthCap = 0;
             bool bHasElse = false;
-            //TEMP_SCRATCH(Else)
             {
                 LinearAllocator Scratch = *Arena;
                 StringArray Strings = String_ParseIntoArray(&Scratch, RestOfTheLine, ' ', 0, 128);
@@ -1155,7 +1139,9 @@ bool ParseBuildFile(LinearAllocator* Arena,
 
                 Array_Add(IncludeFiles, IncludeFileHandle);
 
-                if (!ParseBuildFile(Arena, &IncludeFileHandle, BuildFilePath, WorkingDirectory, VariablesDB, ExpandedVariablesDB, CmdOptionsDB, Messages, IncludeFiles, ReturnCode, true, Includes, bIsAssemblyExe))
+                if (!ParseBuildFile(Arena, &IncludeFileHandle, BuildFilePath, WorkingDirectory,
+                                    VariablesDB, ExpandedVariablesDB, CmdOptionsDB, Messages,
+                                    IncludeFiles, ReturnCode, true, Includes, bIsAssemblyExe))
                 {
                     return false;
                 }

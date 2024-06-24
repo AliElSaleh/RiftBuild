@@ -2036,6 +2036,7 @@ bool Platform_TerminateProcess(PlatformHandle Handle, u32 ExitCode)
 
 bool Platform_FindProgram(String ProgramName)
 {
+    // todo: .com executable as well
     return Platform_FindFile_Ex(ProgramName, S(".exe"), NULL);
 }
 

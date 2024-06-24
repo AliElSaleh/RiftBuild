@@ -453,7 +453,7 @@ internal bool HeaderFileRebuildCheckDirectoryIterator(const String FullPath, con
                 bool* bShouldRebuild;
             };
 
-            struct HeaderIterData* Data = (struct HeaderIterData*)UserData;
+            struct HeaderIterData* Data = UserData;
 
             u64 HeaderFileTime = Filesystem_GetLastWriteTime(FullPath);
 
@@ -653,74 +653,22 @@ bool LogStringList_WordWrapped(LinearAllocator Scratch, const String Name, const
     u32 ParentCount = 0;
     bool bLogged = false;
 
-    //SCRATCH(Arena, Log)
+    for each_str_list (List)
     {
-        for each_str_list (List)
+        StringList ValueList = String_SplitIntoList(&Scratch, It.String, ' ', true);
+        u32 Count = 0;
+        u32 Spaces = 0;
+        u32 Index = 0;
+
+        u32 Num = 0;
+        for each_str_list_it (_, ValueList) Num++;
+
+        for each_str_list_it (v, ValueList)
         {
-            StringList ValueList = String_SplitIntoList(&Scratch, It.String, ' ', true);
-            u32 Count = 0;
-            u32 Spaces = 0;
-            u32 Index = 0;
-
-            u32 Num = 0;
-            for each_str_list_it (_, ValueList) Num++;
-
-            for each_str_list_it (v, ValueList)
-            {
-                u32 Rows = 0, Cols = 0;
-                Platform_GetTerminalDimensions(&Rows, &Cols);
-                Cols = Clamp(Cols, 30, 1000);
-                if (v.String.Length + ParentCount + Spaces > (u32)((f32)Cols/1.5f))
-                {
-                    StringList** Next = &History.Next;
-                    while (*Next)
-                    {
-                        const String Slice = String_EatSpacesFromEnd((*Next)->String);
-                        LOG_INLINE("%S ", Slice);
-
-                        Next = &(*Next)->Next;
-                    }
-
-                    History = (StringList){0};
-
-                    LOG_LINE_BREAK();
-
-                    String NameCopy = String_Reserve(&Scratch, Name.Length);
-                    String_Copy(&NameCopy, Name);
-                    NameCopy.Length = Name.Length;
-                    for (u32 i = 0; i < Name.Length; i++)
-                    {
-                        NameCopy.Data[i] = ' ';
-                    }
-
-                    // i could put this in that loop, but logging is relatively slowww, so just do it once
-                    LOG_INLINE("%S", NameCopy);
-
-                    Count = 0;
-                    ParentCount = 0;
-                    Spaces = 0;
-                }
-
-                Count += v.String.Length;
-                ParentCount += v.String.Length;
-                if (Index != Num-1)
-                    Spaces++; // for the spaces in between
-                Index++;
-
-                StringList* Entry = LinearAllocator_Allocate(&Scratch, sizeof(StringList));
-                Entry->String = v.String;
-                Entry->Next = NULL;
-
-                StringList** Next = &History.Next;
-                while (*Next)
-                {
-                    Next = &(*Next)->Next;
-                }
-
-                *Next = Entry;
-            }
-
-            if (Count > 0)
+            u32 Rows = 0, Cols = 0;
+            Platform_GetTerminalDimensions(&Rows, &Cols);
+            Cols = Clamp(Cols, 30, 1000);
+            if (v.String.Length + ParentCount + Spaces > (u32)((f32)Cols/1.5f))
             {
                 StringList** Next = &History.Next;
                 while (*Next)
@@ -732,10 +680,59 @@ bool LogStringList_WordWrapped(LinearAllocator Scratch, const String Name, const
                 }
 
                 History = (StringList){0};
+
+                LOG_LINE_BREAK();
+
+                String NameCopy = String_Reserve(&Scratch, Name.Length);
+                String_Copy(&NameCopy, Name);
+                NameCopy.Length = Name.Length;
+                for (u32 i = 0; i < Name.Length; i++)
+                {
+                    NameCopy.Data[i] = ' ';
+                }
+
+                // i could put this in that loop, but logging is relatively slowww, so just do it once
+                LOG_INLINE("%S", NameCopy);
+
+                Count = 0;
+                ParentCount = 0;
+                Spaces = 0;
             }
 
-            bLogged = true;
+            Count += v.String.Length;
+            ParentCount += v.String.Length;
+            if (Index != Num-1)
+                Spaces++; // for the spaces in between
+            Index++;
+
+            StringList* Entry = LinearAllocator_Allocate(&Scratch, sizeof(StringList));
+            Entry->String = v.String;
+            Entry->Next = NULL;
+
+            StringList** Next = &History.Next;
+            while (*Next)
+            {
+                Next = &(*Next)->Next;
+            }
+
+            *Next = Entry;
         }
+
+        if (Count > 0)
+        {
+            StringList** Next = &History.Next;
+            while (*Next)
+            {
+                const String Slice = String_EatSpacesFromEnd((*Next)->String);
+                LOG_INLINE("%S ", Slice);
+
+                Next = &(*Next)->Next;
+            }
+
+            History = (StringList){0};
+        }
+
+        bLogged = true;
     }
 
     return bLogged;
@@ -760,22 +757,19 @@ internal void LogBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Var
 {
     LOG_INLINE("%S", DisplayName);
 
-    //SCRATCH(Arena, Log)
-    {
-        StringList List = GetVariableValueList(&Scratch, VariablesDB, Name);
+    StringList List = GetVariableValueList(&Scratch, VariablesDB, Name);
 
-        if (bWordWrap)
+    if (bWordWrap)
+    {
+        LogStringList_WordWrapped(Scratch, DisplayName, List);
+    }
+    else
+    {
+        for each_str_list (List)
         {
-            LogStringList_WordWrapped(Scratch, DisplayName, List);
-        }
-        else
-        {
-            for each_str_list (List)
+            if (String_IsValid(It.String))
             {
-                if (String_IsValid(It.String))
-                {
-                    LOG_INLINE("%S", It.String);
-                }
+                LOG_INLINE("%S", It.String);
             }
         }
     }
@@ -1368,9 +1362,9 @@ internal void CheckForBuildVariableOverrides(TArray(FileVariable) VariablesDB, T
 void LogPathEnvVarTutorialSteps(void)
 {
     #ifdef HOOD
-    LOG("aight lisen up dawg, this is how you put a new entry to the path env var on yo system:");
+    LOG_INLINE_WARNING("aight lisen up dawg, this is how you put a new entry to the path env var on yo system:\n");
     #else
-    LOG("Here is how to add a new entry to the path environment variable:");
+    LOG_INLINE_WARNING("Here is how to add a new entry to the path environment variable:\n");
     #endif
 
     #if PLATFORM_WINDOWS
@@ -1406,9 +1400,9 @@ void LogPathEnvVarTutorialSteps(void)
 void LogRegularEnvVarTutorialSteps(void)
 {
     #ifdef HOOD
-    LOG("aight lisen up dawg, this is how you put a new env var on yo system:");
+    LOG_INLINE_WARNING("aight lisen up dawg, this is how you put a new env var on yo system:\n");
     #else
-    LOG("Here is how to add a new environment variable:");
+    LOG_INLINE_WARNING("Here is how to add a new environment variable:\n");
     #endif
 
     #if PLATFORM_WINDOWS
@@ -1438,6 +1432,38 @@ void LogRegularEnvVarTutorialSteps(void)
     LOG("    6. Press Enter to confirm");
     LOG("    7. Restart the terminal (by closing and opening it again) for changes to take effect");
     #endif
+}
+
+internal void PrintUsage(void)
+{
+    LOG_LINE_BREAK();
+
+    LOG_INLINE_WARNING("Usage\n");
+    LOG("    riftbuild");
+    LOG("    riftbuild [options]");
+    LOG("    riftbuild [.build file] [options]");
+
+    LOG_LINE_BREAK();
+
+    //LOG_INLINE_WARNING("Build Files\n");
+    // scan build files in the current directory and log them here
+
+    //LOG_LINE_BREAK();
+
+    // TODO: custom usage message from each build file
+    // TODO: custom descrption message for each build file
+
+    LOG_INLINE_WARNING("Options\n");
+    LOG("    -h, --help, -u, --usage, /?, -?, ? : Display this help message");
+    LOG("    -v                                 : Enable verbose logging");
+    LOG("    -q                                 : Quiet mode. Disables logging but outputs necessary information, like errors");
+    LOG("    -t                                 : Display a tutorial on how to set environment variables");
+    LOG("    clean                              : Delete all intermediate and binary files");
+    LOG("    rebuild                            : Clean all and build");
+    LOG("    list                               : List all the build files in the current directory");
+    LOG("    override                           : Override a build variable");
+    LOG("    export                             : Generate a compile_commands.json, visual studio or xcode project");
+    LOG("    preset                             : Build with a preset of command line arguments");
 }
 
 // TODO: have a relook at this filter code
@@ -1922,8 +1948,6 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             {
                 StringLocal(ExpandedVar, 64);
 
-                //TEMP_SCRATCH(Exp)
-                //SCRATCH(Arena, Exp)
                 {
                     LinearAllocator Scratch = *Arena;
                     StringList List = GetVariableValueList(&Scratch, VariablesDB, v.Name);
@@ -1931,7 +1955,6 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                     {
                         if (!ExpandBuildVariable(Scratch, VariablesDB, CmdOptionsDB, &ExpandedVar, v.Name, It.String, v.Name, WorkingPath, false, bIsAssemblyExe))
                         {
-                            //Memory_ReleaseScratch(&Scratch);
                             return 1;
                         }
 
@@ -2093,34 +2116,31 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                     const u32 NumDots = String_CountChar(ExpandedVar, '.');
                     if (NumDots > 0)
                     {
-                        //TEMP_SCRATCH(_)
+                        StringArray Versions = String_ParseIntoArray(Arena, ExpandedVar, '.', 0, 128);
+
+                        u8 i = 0;
+                        for each_str (v, Versions)
                         {
-                            StringArray Versions = String_ParseIntoArray(Arena, ExpandedVar, '.', 0, 128);
-
-                            u8 i = 0;
-                            for each_str (v, Versions)
+                            if (v->Length > 0)
                             {
-                                if (v->Length > 0)
+                                StringLocal(VersionDefine, 256);
+                                if (i < 3)
                                 {
-                                    StringLocal(VersionDefine, 256);
-                                    if (i < 3)
-                                    {
-                                        String_Format(&VersionDefine, S("%S_%S_VERSION=%S"), VersionDefine.Capacity, AssemblyNameUpper, VersionLevels[i], *v);
-                                    }
-                                    else
-                                    {
-                                        String_Format(&VersionDefine, S("%S_DETAIL_VERSION_%hhu=%S"), VersionDefine.Capacity, AssemblyNameUpper, i-3, *v);
-                                    }
-
-                                    // TODO: wrap into function
-                                    FileVariable Var;
-                                    Var.Name = S("Defines");
-                                    Var.Value = String_Create(Arena, VersionDefine);
-                                    Var.bHasSpecial = false;
-                                    Array_Add(VariablesDB, Var);
-
-                                    i++;
+                                    String_Format(&VersionDefine, S("%S_%S_VERSION=%S"), VersionDefine.Capacity, AssemblyNameUpper, VersionLevels[i], *v);
                                 }
+                                else
+                                {
+                                    String_Format(&VersionDefine, S("%S_DETAIL_VERSION_%hhu=%S"), VersionDefine.Capacity, AssemblyNameUpper, i-3, *v);
+                                }
+
+                                // TODO: wrap into function
+                                FileVariable Var;
+                                Var.Name = S("Defines");
+                                Var.Value = String_Create(Arena, VersionDefine);
+                                Var.bHasSpecial = false;
+                                Array_Add(VariablesDB, Var);
+
+                                i++;
                             }
                         }
                     }
@@ -2185,21 +2205,17 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 if (bAlreadyExpanded)
                     continue;
 
-                //TEMP_SCRATCH(Exp)
+                LinearAllocator Scratch = *Arena;
+                StringList List = GetVariableValueList(&Scratch, VariablesDB, v.Name);
+                for each_str_list (List)
                 {
-                    LinearAllocator Scratch = *Arena;
-                    StringList List = GetVariableValueList(&Scratch, VariablesDB, v.Name);
-                    for each_str_list (List)
+                    if (!ExpandBuildVariable(Scratch, VariablesDB, CmdOptionsDB, &ExpandedVar, v.Name, It.String, v.Name, WorkingPath, false, bIsAssemblyExe))
                     {
-                        if (!ExpandBuildVariable(Scratch, VariablesDB, CmdOptionsDB, &ExpandedVar, v.Name, It.String, v.Name, WorkingPath, false, bIsAssemblyExe))
-                        {
-                            //Memory_ReleaseScratch(&Scratch);
-                            return 1;
-                        }
-
-                        if (ExpandedVar.Length > 0)
-                            String_AppendSpace(&ExpandedVar);
+                        return 1;
                     }
+
+                    if (ExpandedVar.Length > 0)
+                        String_AppendSpace(&ExpandedVar);
                 }
             }
             else
@@ -2521,7 +2537,6 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     }
 
     // run through the assert lists
-    //TEMP_SCRATCH(Assert)
     {
         LinearAllocator Scratch = *Arena;
         StringArray ProgramsArray      = String_ParseIntoArray(&Scratch, AssertPrograms, ' ', 0, 128);
@@ -3051,42 +3066,116 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     // assert libraries exist
     if (!bIsClean)
     {
-        //TEMP_SCRATCH(LibTests)
+        LinearAllocator Scratch = *Arena;
+        // TODO: support native libraries. windows kits, msvc lib paths, etc
+        StringArray LibsArray = String_ParseIntoArray(&Scratch, AssertLibs, ' ', 0, 128);
+        for each_str (S, LibsArray)
         {
-            LinearAllocator Scratch = *Arena;
-            // TODO: support native libraries. windows kits, msvc lib paths, etc
-            StringArray LibsArray = String_ParseIntoArray(&Scratch, AssertLibs, ' ', 0, 128);
-            for each_str (S, LibsArray)
+            const String Trimmed = String_EatSpaces(*S);
+
+            StringLocal(TrimmedCopy, MAX_PATH_LENGTH);
+            #if !PLATFORM_WINDOWS
+            String_Append(&TrimmedCopy, S("lib"));
+            String_Append(&TrimmedCopy, Trimmed);
+            #else
+            String_Copy(&TrimmedCopy, Trimmed);
+            #endif
+
+            bool bExactFile = false;
+            u32 LastDot = 0;
+            if (String_IndexOfLastChar(TrimmedCopy, '.', &LastDot))
             {
-                const String Trimmed = String_EatSpaces(*S);
+                bExactFile = true;
+            }
 
-                StringLocal(TrimmedCopy, MAX_PATH_LENGTH);
-                #if !PLATFORM_WINDOWS
-                String_Append(&TrimmedCopy, S("lib"));
-                String_Append(&TrimmedCopy, Trimmed);
-                #else
-                String_Copy(&TrimmedCopy, Trimmed);
-                #endif
+            bool bAnyFound = false;
 
-                bool bExactFile = false;
-                u32 LastDot = 0;
-                if (String_IndexOfLastChar(TrimmedCopy, '.', &LastDot))
+            struct _blah_
+            {
+                String* LibName;
+                bool* bFound;
+                bool bWithExtension;
+            };
+
+            struct _blah_ Packet = {.LibName = &TrimmedCopy, .bFound = &bAnyFound, .bWithExtension = bExactFile};
+
+            StringList DirList = String_SplitIntoList(&Scratch, LibraryDirectories, ' ', true);
+            for each_str_list (DirList)
+            {
+                StringLocal(DirPath, MAX_PATH_LENGTH);
+
+                if (Filesystem_IsPathRelative(It.String))
                 {
-                    bExactFile = true;
+                    String_BuildPath(&DirPath, WorkingPath, It.String);
+                }
+                else
+                {
+                    String_Copy(&DirPath, It.String);
                 }
 
-                bool bAnyFound = false;
+                Filesystem_ConvertRelativeToAbsolutePath(&DirPath);
 
-                struct _blah_
+                if (Filesystem_DoesDirectoryExist(DirPath))
                 {
-                    String* LibName;
-                    bool* bFound;
-                    bool bWithExtension;
-                };
+                    Filesystem_IterateDirectory_Ex(DirPath, LibraryDirectoryIterator, false, &Packet);
+                }
+            }
+            
+            if (!bAnyFound)
+            {
+                if (bExactFile)
+                {
+                    StringLocal(Copy, 256);
+                    String_Copy(&Copy, StrSlice(TrimmedCopy.Data, LastDot));
+                    bAnyFound = Platform_FindFile(Copy, StrShiftF(TrimmedCopy, LastDot));
+                }
+                else
+                {
+                    #if PLATFORM_WINDOWS
+                    bAnyFound = Platform_FindFile(TrimmedCopy, S(".lib"));
+                    #else
+                    bAnyFound = Platform_FindFile(TrimmedCopy, S(".a"));
+                    if (!bAnyFound)
+                        bAnyFound = Platform_FindFile(TrimmedCopy, S(".so"));
+                    #endif
+                }
+            }
 
-                struct _blah_ Packet = {.LibName = &TrimmedCopy, .bFound = &bAnyFound, .bWithExtension = bExactFile};
+            if (!bAnyFound)
+            {
+                #ifndef HOOD
+                if (bExactFile)
+                {
+                    LOG_ERROR("Build assertion failure. Library \"%S\" does not exist. Aborting build...\n", TrimmedCopy);
+                }
+                else
+                {
+                    #if PLATFORM_WINDOWS
+                    LOG_ERROR("Build assertion failure. Library \"%S.lib\" does not exist. Aborting build...\n", TrimmedCopy);
+                    #elif PLATFORM_APPLE
+                    LOG_ERROR("Build assertion failure. Library \"%S(.dylib/.a)\" does not exist. Aborting build...\n", TrimmedCopy);
+                    #else
+                    LOG_ERROR("Build assertion failure. Library \"%S(.so/.a)\" does not exist. Aborting build...\n", TrimmedCopy);
+                    #endif
+                }
+                #else
+                LOG_ERROR("cant find this library nigga \"%S\". i searched fuckin everywhere bro\n", TrimmedCopy);
+                #endif
 
-                StringList DirList = String_SplitIntoList(&Scratch, LibraryDirectories, ' ', true);
+                if (LogCustomErrorMessage(ExpandedVariablesDB, S("Lib"), TrimmedCopy, false))
+                {
+                    LOG_LINE_BREAK();
+                }
+
+                StringLocal(PathValue, Kibibytes(32));
+                #if PLATFORM_WINDOWS
+                Platform_GetEnvironmentVariableValue(S("Path"), &PathValue);
+                #else
+                Platform_GetEnvironmentVariableValue(S("PATH"), &PathValue);
+                #endif
+
+                LOG("Here is a list of the directories that was searched through:\n");
+                LOG_INLINE_WARNING("Library Directories\n");
                 for each_str_list (DirList)
                 {
                     StringLocal(DirPath, MAX_PATH_LENGTH);
@@ -3102,98 +3191,21 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
                     Filesystem_ConvertRelativeToAbsolutePath(&DirPath);
 
-                    if (Filesystem_DoesDirectoryExist(DirPath))
-                    {
-                        Filesystem_IterateDirectory_Ex(DirPath, LibraryDirectoryIterator, false, &Packet);
-                    }
+                    LOG("    %S", DirPath);
                 }
-                
-                if (!bAnyFound)
+                LOG_LINE_BREAK();
+                LOG_INLINE_WARNING("PATH environment\n");
+                #if PLATFORM_WINDOWS
+                StringArray Values = String_ParseIntoArray(&Scratch, PathValue, ';', 0, 128);
+                #else
+                StringArray Values = String_ParseIntoArray(&Scratch, PathValue, ':', 0, 128);
+                #endif
+                for each_str (v, Values)
                 {
-                    if (bExactFile)
-                    {
-                        StringLocal(Copy, 256);
-                        String_Copy(&Copy, StrSlice(TrimmedCopy.Data, LastDot));
-                        bAnyFound = Platform_FindFile(Copy, StrShiftF(TrimmedCopy, LastDot));
-                    }
-                    else
-                    {
-                        #if PLATFORM_WINDOWS
-                        bAnyFound = Platform_FindFile(TrimmedCopy, S(".lib"));
-                        #else
-                        bAnyFound = Platform_FindFile(TrimmedCopy, S(".a"));
-                        if (!bAnyFound)
-                            bAnyFound = Platform_FindFile(TrimmedCopy, S(".so"));
-                        #endif
-                    }
+                    LOG("    %S", *v);
                 }
 
-                if (!bAnyFound)
-                {
-                    #ifndef HOOD
-                    if (bExactFile)
-                    {
-                        LOG_ERROR("Build assertion failure. Library \"%S\" does not exist. Aborting build...\n", TrimmedCopy);
-                    }
-                    else
-                    {
-                        #if PLATFORM_WINDOWS
-                        LOG_ERROR("Build assertion failure. Library \"%S.lib\" does not exist. Aborting build...\n", TrimmedCopy);
-                        #elif PLATFORM_APPLE
-                        LOG_ERROR("Build assertion failure. Library \"%S(.dylib/.a)\" does not exist. Aborting build...\n", TrimmedCopy);
-                        #else
-                        LOG_ERROR("Build assertion failure. Library \"%S(.so/.a)\" does not exist. Aborting build...\n", TrimmedCopy);
-                        #endif
-                    }
-                    #else
-                    LOG_ERROR("cant find this library nigga \"%S\". i searched fuckin everywhere bro\n", TrimmedCopy);
-                    #endif
-
-                    if (LogCustomErrorMessage(ExpandedVariablesDB, S("Lib"), TrimmedCopy, false))
-                    {
-                        LOG_LINE_BREAK();
-                    }
-
-                    StringLocal(PathValue, Kibibytes(32));
-                    #if PLATFORM_WINDOWS
-                    Platform_GetEnvironmentVariableValue(S("Path"), &PathValue);
-                    #else
-                    Platform_GetEnvironmentVariableValue(S("PATH"), &PathValue);
-                    #endif
-
-                    LOG("Here is a list of the directories that was searched through:\n");
-                    LOG_INLINE_WARNING("Library Directories\n");
-                    for each_str_list (DirList)
-                    {
-                        StringLocal(DirPath, MAX_PATH_LENGTH);
-
-                        if (Filesystem_IsPathRelative(It.String))
-                        {
-                            String_BuildPath(&DirPath, WorkingPath, It.String);
-                        }
-                        else
-                        {
-                            String_Copy(&DirPath, It.String);
-                        }
-
-                        Filesystem_ConvertRelativeToAbsolutePath(&DirPath);
-
-                        LOG("    %S", DirPath);
-                    }
-                    LOG_LINE_BREAK();
-                    LOG_INLINE_WARNING("PATH environment\n");
-                    #if PLATFORM_WINDOWS
-                    StringArray Values = String_ParseIntoArray(&Scratch, PathValue, ';', 0, 128);
-                    #else
-                    StringArray Values = String_ParseIntoArray(&Scratch, PathValue, ':', 0, 128);
-                    #endif
-                    for each_str (v, Values)
-                    {
-                        LOG("    %S", *v);
-                    }
-
-                    return 1;
-                }
+                return 1;
             }
         }
     }
@@ -3221,7 +3233,6 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
     // assert that the given directories exist before proceeding with the build
     // ignoring build/intermediate since they will be created if they don't exist
-    //TEMP_SCRATCH(DirTests)
     {
         LinearAllocator Scratch = *Arena;
         if (!Filesystem_DoesDirectoryExist(SourceDir))
@@ -3279,19 +3290,16 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     /*
     if (String_IsValid(OutsideSourceDirectories))
     {
-        TEMP_SCRATCH(Search)
+        StringArray Dirs = String_ParseIntoArray(Scratch_Search.Allocator, OutsideSourceDirectories, ' ', 0, 128);
+        for each_str (Dir, Dirs)
         {
-            StringArray Dirs = String_ParseIntoArray(Scratch_Search.Allocator, OutsideSourceDirectories, ' ', 0, 128);
-            for each_str (Dir, Dirs)
-            {
-                StringLocal(DirCopy, MAX_PATH_LENGTH);
-                String_Copy(&DirCopy, *Dir);
-                String_EatPathSeparatorsInlineFromEnd(&DirCopy);
-                String_AppendPathSeparator(&DirCopy);
-                String_ConvertSlashToPlatformSlash(&DirCopy);
+            StringLocal(DirCopy, MAX_PATH_LENGTH);
+            String_Copy(&DirCopy, *Dir);
+            String_EatPathSeparatorsInlineFromEnd(&DirCopy);
+            String_AppendPathSeparator(&DirCopy);
+            String_ConvertSlashToPlatformSlash(&DirCopy);
 
-                Filesystem_IterateDirectory(DirCopy, SourceFileDirectoryIterator, true);
-            }
+            Filesystem_IterateDirectory(DirCopy, SourceFileDirectoryIterator, true);
         }
     }
     */
@@ -3458,21 +3466,18 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 /*
                 if (String_IsValid(OutsideSourceDirectories))
                 {
-                    TEMP_SCRATCH(Search)
+                    StringArray Dirs = String_ParseIntoArray(Scratch_Search.Allocator, OutsideSourceDirectories, ' ', 0, 128);
+                    for each_str (Dir, Dirs)
                     {
-                        StringArray Dirs = String_ParseIntoArray(Scratch_Search.Allocator, OutsideSourceDirectories, ' ', 0, 128);
-                        for each_str (Dir, Dirs)
-                        {
-                            StringLocal(DirCopy, MAX_PATH_LENGTH);
-                            String_Copy(&DirCopy, *Dir);
-                            String_EatPathSeparatorsInlineFromEnd(&DirCopy);
-                            String_AppendPathSeparator(&DirCopy);
-                            String_ConvertSlashToPlatformSlash(&DirCopy);
+                        StringLocal(DirCopy, MAX_PATH_LENGTH);
+                        String_Copy(&DirCopy, *Dir);
+                        String_EatPathSeparatorsInlineFromEnd(&DirCopy);
+                        String_AppendPathSeparator(&DirCopy);
+                        String_ConvertSlashToPlatformSlash(&DirCopy);
 
-                            Filesystem_IterateDirectory_Ex(DirCopy, DetectCppFilesDirectoryIterator, true, &bHasCppFiles);
-                            if (bHasCppFiles)
-                                break;
-                        }
+                        Filesystem_IterateDirectory_Ex(DirCopy, DetectCppFilesDirectoryIterator, true, &bHasCppFiles);
+                        if (bHasCppFiles)
+                            break;
                     }
                 }
                 */
@@ -5080,6 +5085,29 @@ u32 RunApplication(const StringArray Arguments)
 {
     Logging_ToggleLogTimeStamp(false);
     Logging_ToggleLogCategory(false);
+
+    // TODO: if "help" was given just log the .build files' custom help message
+
+    if (StringArray_Contains(Arguments, S("-h"), false) ||
+        StringArray_Contains(Arguments, S("--help"), false) ||
+        StringArray_Contains(Arguments, S("-u"), false) ||
+        StringArray_Contains(Arguments, S("--usage"), false) ||
+        StringArray_Contains(Arguments, S("?"), false) ||
+        StringArray_Contains(Arguments, S("-?"), false) ||
+        StringArray_Contains(Arguments, S("/?"), false))
+    {
+        PrintUsage();
+        return 0;
+    }
+
+    if (StringArray_Contains(Arguments, S("-t"), false))
+    {
+        LOG_LINE_BREAK();
+        LogPathEnvVarTutorialSteps();
+        LOG_LINE_BREAK();
+        LogRegularEnvVarTutorialSteps();
+        return 0;
+    }
 
     // todo: clean, rebuild, verbose
     bNoWordWrapLogging = StringArray_Contains(Arguments, S("-nowordwrap"), false);
