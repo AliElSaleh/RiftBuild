@@ -1178,6 +1178,7 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
 
     bool bLowerAll = bLowerStrings || (String_IsEqual(Key, S("Assembly"), false) && bLinux); // hack but whatever. todo: revisit this
 
+    bool bInsideQuote = false; // what happens when we expand a variable inside a quote and recursively call this func?
     u32 Offset = 1;
     for (u32 i = 0; i < Value.Length; i+=Offset)
     {
@@ -1186,7 +1187,10 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
         String StrVal = StrSlice(Value.Data+i, Value.Length-i);
         char C = Value.Data[i];
 
-        if (C == '#') // a comment. disgard everything and exit
+        if (bInsideQuote  && C == '"') bInsideQuote = false;
+        if (!bInsideQuote && C == '"') bInsideQuote = true;
+
+        if (!bInsideQuote && C == '#') // a comment. disgard everything and exit
         {
             goto End;
         }
@@ -1195,7 +1199,8 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
         bool bWantsToLower = false;
         bool bWantsToUpper = false;
 
-        if (String_EndsWith(Key, S(".errormessage"), false))
+        if (String_EndsWith(Key, S(".errormessage"), false) ||
+            String_EndsWith(Key, S(".Cmd"), false)) // todo: rethink
         {
             if (C == '!')
             {

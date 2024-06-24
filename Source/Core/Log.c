@@ -281,7 +281,7 @@ void LogMessage(u8 LogType, const String LogCat, const String Text, ...)
 
 	Buffer.Data[Buffer.Length] = '\n';
 
-	String FormattedText = { .Length = Buffer.Length+1, .Data = GLoggingSystemState->Buffer };
+	String FormattedText = { .Length = Buffer.Length+1, .Data = Buffer.Data };
 	String TrimmedFmt = String_EatChar(FormattedText, '\n');
 	String TrimmedNewLines = StrSlice(FormattedText.Data, (u32)(TrimmedFmt.Data - FormattedText.Data));
 

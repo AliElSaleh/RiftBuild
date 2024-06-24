@@ -1632,7 +1632,7 @@ bool Filesystem_ConvertRelativeToAbsolutePath(String* OutFullPath)
         return false;
     }
 
-    OutFullPath->Length = String_GetLength(Result);
+    OutFullPath->Length = String_GetLength_Ex(Result, MAX_PATH_LENGTH);
 
     return true;
 }

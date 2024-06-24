@@ -671,19 +671,35 @@ SystemTime Platform_GetSystemLocalTime(void)
     time_t mytime = time(0);
     ctime(&mytime);
 
-    struct tm* lt = localtime(&mytime);
+    struct tm lt = {0};
+
+    localtime_r(&mytime, &lt);
 
     SystemTime t;
-    t.Year = (u16)lt->tm_year + 1900;
-    t.Month = (u16)lt->tm_mon + 1;
-    t.DayOfWeek = 0;
-    t.Day = (u16)lt->tm_mday;
-    t.Hour = (u16)lt->tm_hour;
-    t.Minute = (u16)lt->tm_min;
-    t.Second = (u16)lt->tm_sec;
+    t.Year = (u16)lt.tm_year + 1900;
+    t.Month = (u16)lt.tm_mon + 1;
+    t.DayOfWeek = (u16)lt.tm_mday/7;
+    t.Day = (u16)lt.tm_mday;
+    t.Hour = (u16)lt.tm_hour;
+    t.Minute = (u16)lt.tm_min;
+    t.Second = (u16)lt.tm_sec;
     t.Millisecond = 0;
 
     return t;
+}
+
+bool Platform_GetTimeZone(String* OutTimeZone)
+{
+    time_t mytime = time(0);
+    ctime(&mytime);
+
+    struct tm lt = {0};
+
+    localtime_r(&mytime, &lt);
+
+    String_Copy(OutTimeZone, CStr(lt.tm_zone));
+
+    return true;
 }
 
 void Platform_Sleep(f64 ms)
@@ -1597,7 +1613,7 @@ bool Filesystem_ConvertRelativeToAbsolutePath(String* OutFullPath)
         return false;
     }
 
-    OutFullPath->Length = String_GetLength(Result);
+    OutFullPath->Length = String_GetLength_Ex(Result, MAX_PATH_LENGTH);
 
     return true;
 }

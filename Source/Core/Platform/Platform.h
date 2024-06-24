@@ -92,6 +92,7 @@ RIFT_API u32  Platform_GetConsoleProcessCount(void);
 
 RIFT_API f64 Platform_GetAbsoluteTime(void);
 RIFT_API SystemTime Platform_GetSystemLocalTime(void);
+RIFT_API bool Platform_GetTimeZone(String* OutTimeZone);
 
 RIFT_API void Platform_Sleep(f64 ms);
 

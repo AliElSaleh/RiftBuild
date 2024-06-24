@@ -1873,12 +1873,20 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     }
 
     SystemTime TimeNow = Platform_GetSystemLocalTime();
+    
+    StringLocal(TimeZone, 16);
+    Platform_GetTimeZone(&TimeZone);
+
     StringLocal(TimeStamp, 64);
-    String_Format(&TimeStamp, S("%hu-%.2hu-%.2hu %.2hu:%.2hu:%.2hu"), TimeStamp.Capacity, TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
+    String_Format(&TimeStamp, S("%hu-%.2hu-%.2hu %.2hu:%.2hu:%.2hu [%S]"), TimeStamp.Capacity, TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second, TimeZone);
 
     StringLocal(TimeStampVar, 64);
     String_Format(&TimeStampVar, S("%hu.%.2hu.%.2hu.%.2hu.%.2hu.%.2hu"), TimeStamp.Capacity, TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
     AddCmdOption(&CmdOptionsDB, S("_Timestamp"), TimeStampVar);
+
+    // add another for time zone information
+    String_Format(&TimeStampVar, S("%hu.%.2hu.%.2hu.%.2hu.%.2hu.%.2hu.%S"), TimeStamp.Capacity, TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second, TimeZone);
+    AddCmdOption(&CmdOptionsDB, S("_Timestamp_z"), TimeStampVar);
 
     StringLocal(RiftBuildArgs, 4096);
 
@@ -4639,7 +4647,7 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
             }
             else
             {
-                WorkingDirectory = Arguments.List[RootPathIndex];
+                String_Copy(&WorkingDirectory, Arguments.List[RootPathIndex]);
             }
         }
 

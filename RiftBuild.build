@@ -2,7 +2,7 @@ if debug Mode Debug else Mode Dist
 include Source/$(Mode).buildvars
 
 Assembly                RiftBuild
-Icon                    riftbuild.ico
+Icon                    icon
 
 TitleName               Rift Build ($(Mode))
 Description             A simpler build tool for C/C++, because fuck cmake
@@ -29,6 +29,49 @@ if _platform == bsd     IncludedSourceFiles Platform_BSD.c
 if _platform == windows LinkerFlags -nostdlib -Wl,-entry:ProgramStart,-subsystem:console -Xlinker /stack:0x400000,0x400000
 
 if _platform == linux   Libraries UUIDS ; LibraryDirectories Source/Libraries/Linux
+
+if _platform == apple   CompilerFlags -mmacosx-version-min=10.5
+#if _platform == apple   LinkerFlags   -Wl,-sectcreate,__TEXT,__info_plist,Build/Info.plist
+#if _platform == apple   LinkerFlags   -Wl,-sectcreate,__ICON,__common,Build/riftbuild.icns
+
+icon_png Source/Resources/riftbuild.png
+
+##
+# app bundle creation
+if _platform == apple {
+    #PostBuild.Log
+    #PostBuild.Delete       Build/$(Assembly).app/
+    PostBuild.NewDirectory Build/$(Assembly).app/Contents/MacOS
+    PostBuild.NewDirectory Build/$(Assembly).app/Contents/Resources
+    PostBuild.NewDirectory Build/$(Assembly).app/Contents/Frameworks
+
+    #PostBuild.Delete       Build/$(Assembly).iconset
+    PostBuild.NewDirectory Build/$(Assembly).iconset
+
+    PostBuild.Cmd          sips -z 16 16 $icon_png --out Build/$(Assembly).iconset/icon_16x16.png
+    PostBuild.Cmd          sips -z 32 32 $icon_png --out Build/$(Assembly).iconset/icon_32x32.png
+    PostBuild.Cmd          sips -z 64 64 $icon_png --out Build/$(Assembly).iconset/icon_64x64.png
+    PostBuild.Cmd          sips -z 128 128 $icon_png --out Build/$(Assembly).iconset/icon_128x128.png
+    PostBuild.Cmd          sips -z 256 256 $icon_png --out Build/$(Assembly).iconset/icon_256x256.png
+    PostBuild.Cmd          sips -z 512 512 $icon_png --out Build/$(Assembly).iconset/icon_512x512.png
+    PostBuild.Cmd          iconutil -c icns -o Build/$(Assembly).icns Build/$(Assembly).iconset
+
+    PostBuild.Cmd          cp Build/Info.plist              Build/$(Assembly).app/Contents
+    PostBuild.Cmd          cp Build/PkgInfo                 Build/$(Assembly).app/Contents
+    PostBuild.Cmd          cp Build/$(Assembly).icns        Build/$(Assembly).app/Contents/Resources
+    PostBuild.Cmd          printf "#!/bin/sh\nopen -a Terminal %(_WorkingDirectory)/Build/riftbuild.app/Contents/MacOS/riftbuild-bin --args /Users/ali/Source" > Build/riftbuild.app/Contents/MacOS/riftbuild
+    PostBuild.Cmd          chmod 755 Build/riftbuild.app/Contents/MacOS/riftbuild
+    PostBuild.Cmd          cp $(BuildDirectory)/$(Assembly) Build/$(Assembly).app/Contents/MacOS/$(Assembly)-bin
+}
+##
+
+# simple console app icon (non-bundled app)
+if _platform == apple {
+    PostBuild.Cmd          derez -only icns $icon_png > $(IntermediateDirectory)/tmpicns.rsrc
+    PostBuild.Cmd          rez -append $(IntermediateDirectory)/tmpicns.rsrc -o $(BuildDirectory)/$(Assembly)
+    PostBuild.Cmd          SetFile -a C $(BuildDirectory)/$(Assembly)
+}
+
 
 #PreBuild.Copy          Libraries/glew-2.1.0/lib/Release/x64/glew32s.lib Build/Libs
 #PreBuild.NewDirectory  gen/dahbwiod/dawjiod
