@@ -10,7 +10,7 @@
 #include "Log.h"
 
 bool ParseBuildFile(LinearAllocator* Arena,
-                    FileHandle* H,
+                    const FileHandle H,
                     const String BuildFilePath,
                     const String WorkingDirectory,
                     TArray(FileVariable) VariablesDB,
@@ -1073,7 +1073,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
             }
 
             u64 Size = 0;
-            Filesystem_GetFileSize(&IncludeFileHandle, &Size);
+            Filesystem_GetFileSize(IncludeFileHandle, &Size);
 
             if (Size == 0)
             {
@@ -1086,7 +1086,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
             else
             {
                 StringLocal(IncludePath, MAX_PATH_LENGTH);
-                Filesystem_GetFilePath(&IncludeFileHandle, &IncludePath);
+                Filesystem_GetFilePath(IncludeFileHandle, &IncludePath);
 
                 if (Includes)
                 {
@@ -1139,7 +1139,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
 
                 Array_Add(IncludeFiles, IncludeFileHandle);
 
-                if (!ParseBuildFile(Arena, &IncludeFileHandle, BuildFilePath, WorkingDirectory,
+                if (!ParseBuildFile(Arena, IncludeFileHandle, BuildFilePath, WorkingDirectory,
                                     VariablesDB, ExpandedVariablesDB, CmdOptionsDB, Messages,
                                     IncludeFiles, ReturnCode, true, Includes, bIsAssemblyExe))
                 {

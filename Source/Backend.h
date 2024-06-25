@@ -166,7 +166,7 @@ void LogPathEnvVarTutorialSteps(void);
 void LogRegularEnvVarTutorialSteps(void);
 
 bool ParseBuildFile(LinearAllocator* Arena,
-                    FileHandle* H,
+                    const FileHandle H,
                     const String BuildFilePath,
                     const String WorkingDirectory,
                     TArray(FileVariable) VariablesDB,

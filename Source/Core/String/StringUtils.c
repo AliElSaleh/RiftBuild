@@ -241,6 +241,32 @@ bool String_Contains(const String Str, const String SubString, bool bCaseSensiti
     return false;
 }
 
+bool String_ContainsDigits(const String Str)
+{
+    for (u32 i = 0; i < Str.Length; i++)
+    {
+        if (IsDigit(Str.Data[i]))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool String_ContainsNonDigits(const String Str)
+{
+    for (u32 i = 0; i < Str.Length; i++)
+    {
+        if (!IsDigit(Str.Data[i]))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 bool String_StartsWith(const String Str, const String SubString, bool bCaseSensitive)
 {
     if (Str.Length < SubString.Length || SubString.Length == 0)
@@ -510,7 +536,7 @@ void String_Fill(String* Str, char C)
 
 void String_ToLower(String* Str)
 {
-    for (u64 i = 0; i < Str->Length; i++)
+    for (u32 i = 0; i < Str->Length; i++)
     {
         Str->Data[i] = ToLower(Str->Data[i]);
     }
@@ -518,7 +544,7 @@ void String_ToLower(String* Str)
 
 void String_ToUpper(String* Str)
 {
-    for (u64 i = 0; i < Str->Length; i++)
+    for (u32 i = 0; i < Str->Length; i++)
     {
         Str->Data[i] = ToUpper(Str->Data[i]);
     }
@@ -526,27 +552,29 @@ void String_ToUpper(String* Str)
 
 void String_ToWide(const String FromString, String16* ToString)
 {
-    for (u64 i = 0; i < FromString.Length; i++)
+    u32 MinLength = Min(FromString.Length, ToString->Capacity);
+    for (u32 i = 0; i < MinLength; i++)
     {
         ToString->Data[i] = (wchar)FromString.Data[i];
     }
 
-    ToString->Length = FromString.Length;
+    ToString->Length = MinLength;
 }
 
 void String_ToNarrow(const String16 FromString, String* ToString)
 {
-    for (u64 i = 0; i < FromString.Length; i++)
+    u32 MinLength = Min(FromString.Length, ToString->Capacity);
+    for (u32 i = 0; i < MinLength; i++)
     {
         ToString->Data[i] = (char)FromString.Data[i];
     }
 
-    ToString->Length = FromString.Length;
+    ToString->Length = MinLength;
 }
 
 void String_BackSlashToForwardSlash(String* Str)
 {
-    for (u64 i = 0; i < Str->Length; i++)
+    for (u32 i = 0; i < Str->Length; i++)
     {
         if (Str->Data[i] == '\\')
         {
@@ -557,7 +585,7 @@ void String_BackSlashToForwardSlash(String* Str)
 
 void String_ForwardSlashToBackSlash(String* Str)
 {
-    for (u64 i = 0; i < Str->Length; i++)
+    for (u32 i = 0; i < Str->Length; i++)
     {
         if (Str->Data[i] == '/')
         {

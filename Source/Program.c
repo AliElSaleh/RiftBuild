@@ -633,7 +633,7 @@ internal bool EnforceCopyright(CompileData* Data, const String FullPath, const S
     FileHandle f = FileHandle_Null();
     Filesystem_Open(FullPath, FileMode_Read, &f);
     StringLocal(Line, 4096);
-    Filesystem_ReadLine(&f, &Line);
+    Filesystem_ReadLine(f, &Line);
     if (!String_Contains(Line, AuxData->Content, false))
     {
         AuxData->bSuccess = false;
@@ -1141,7 +1141,7 @@ internal bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const Stri
     return true;
 }
 
-internal void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, FileHandle* BuildFileHandle, TArray(FileVariable) VariablesDB, TArray(FileVariable) ExpandedVariablesDB)
+internal void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const FileHandle BuildFileHandle, TArray(FileVariable) VariablesDB, TArray(FileVariable) ExpandedVariablesDB)
 {
     if (!DoesBuildVarExist(VariablesDB, S("Assembly")))
     {
@@ -1452,6 +1452,7 @@ internal void PrintUsage(void)
 
     // TODO: custom usage message from each build file
     // TODO: custom descrption message for each build file
+    // TODO: log the preset options as well
 
     LOG_INLINE_WARNING("Options\n");
     LOG("    -h, --help, -u, --usage, /?, -?, ? : Display this help message");
@@ -1714,7 +1715,7 @@ bool FilterSourceFile(const String WorkingDirectory, const String SourceDirector
 }
 
 internal u32 BuildTarget(LinearAllocator* Arena,
-                        FileHandle* BuildFileHandle, PlatformMutex* BuildMutex,
+                        const FileHandle BuildFileHandle, PlatformMutex* BuildMutex,
                         const String WorkingPath, const StringArray Parameters, const String CameFromBuildFile,
                         i8 BuildFileIndex, i8 RootPathIndex, bool bSingleThread, EGenerator Generator)
 {
@@ -1874,7 +1875,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
     SystemTime TimeNow = Platform_GetSystemLocalTime();
     
-    StringLocal(TimeZone, 16);
+    StringLocal(TimeZone, 64);
     Platform_GetTimeZone(&TimeZone);
 
     StringLocal(TimeStamp, 64);
@@ -2080,13 +2081,13 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         {
             StringLocal(ExpandedVar, 256);
             if (!ExpandBuildVariable(*Arena, VariablesDB, CmdOptionsDB, &ExpandedVar,
-                                    VersionKey, GetVariableValue(VariablesDB, VersionKey), VersionKey, WorkingPath, false, bIsAssemblyExe))
+                                    VersionKey, GetVariableValue(VariablesDB, VersionKey),
+                                    VersionKey, WorkingPath, false, bIsAssemblyExe))
             {
                 return 1;
             }
 
             String_EatSpacesInlineFromEnd(&ExpandedVar);
-            String_ReplaceNonAlphaNumericCharInline(&ExpandedVar, '.');
 
             if (ExpandedVar.Length > 0)
             {
@@ -2096,7 +2097,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 Array_Add(ExpandedVariablesDB, Expanded);
 
                 // add the defines (if desired)
-                if (!VariableHasSpecial(VariablesDB, S("Version")))
+                if (VariableHasSpecial(VariablesDB, S("Version")))
                 {
                     const String VersionLevels[3] = 
                     {
@@ -2121,6 +2122,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                         Array_Add(VariablesDB, Var);
                     }
 
+                    String_ReplaceNonAlphaNumericCharInline(&ExpandedVar, '.');
+
                     const u32 NumDots = String_CountChar(ExpandedVar, '.');
                     if (NumDots > 0)
                     {
@@ -2131,14 +2134,22 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                         {
                             if (v->Length > 0)
                             {
+                                const bool bContainsNonDigit = String_ContainsNonDigits(*v);
+
                                 StringLocal(VersionDefine, 256);
                                 if (i < 3)
                                 {
-                                    String_Format(&VersionDefine, S("%S_%S_VERSION=%S"), VersionDefine.Capacity, AssemblyNameUpper, VersionLevels[i], *v);
+                                    if (bContainsNonDigit)
+                                        String_Format(&VersionDefine, S("%S_%S_VERSION=\\\"%S\\\""), VersionDefine.Capacity, AssemblyNameUpper, VersionLevels[i], *v);
+                                    else
+                                        String_Format(&VersionDefine, S("%S_%S_VERSION=%S"), VersionDefine.Capacity, AssemblyNameUpper, VersionLevels[i], *v);
                                 }
                                 else
                                 {
-                                    String_Format(&VersionDefine, S("%S_DETAIL_VERSION_%hhu=%S"), VersionDefine.Capacity, AssemblyNameUpper, i-3, *v);
+                                    if (bContainsNonDigit)
+                                        String_Format(&VersionDefine, S("%S_EXTRA_VERSION_%hhu=\\\"%S\\\""), VersionDefine.Capacity, AssemblyNameUpper, i-3, *v);
+                                    else
+                                        String_Format(&VersionDefine, S("%S_EXTRA_VERSION_%hhu=%S"), VersionDefine.Capacity, AssemblyNameUpper, i-3, *v);
                                 }
 
                                 // TODO: wrap into function
@@ -2154,8 +2165,14 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                     }
                     else
                     {
+                        const bool bContainsNonDigit = String_ContainsNonDigits(ExpandedVar);
+
                         StringLocal(VersionDefine, 256);
-                        String_Format(&VersionDefine, S("%S_VERSION=%S"), VersionDefine.Capacity, AssemblyNameUpper, ExpandedVar);
+
+                        if (bContainsNonDigit)
+                            String_Format(&VersionDefine, S("%S_VERSION=\\\"%S\\\""), VersionDefine.Capacity, AssemblyNameUpper, ExpandedVar);
+                        else
+                            String_Format(&VersionDefine, S("%S_VERSION=%S"), VersionDefine.Capacity, AssemblyNameUpper, ExpandedVar);
 
                         FileVariable Var;
                         Var.Name = S("Defines");
@@ -2256,7 +2273,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
         // set defaults for a few key build variables
         FileHandle f = {0};
-        Internal_SetDefaultBuildVariables(Arena, &f, VariablesDB, ExpandedVariablesDB);
+        Internal_SetDefaultBuildVariables(Arena, f, VariablesDB, ExpandedVariablesDB);
         CheckForBuildVariableOverrides(VariablesDB, ExpandedVariablesDB, CmdOptionsDB);
     }
 
@@ -2994,7 +3011,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             }
 
             PlatformMutex NewMutex = {0};
-            u32 ExitCode = BuildTarget(&NewArena, &f, &NewMutex, CustomWorkingPath, NewParams, BuildFileName, -1, -1, bSingleThread, Generator);
+            u32 ExitCode = BuildTarget(&NewArena, f, &NewMutex, CustomWorkingPath, NewParams, BuildFileName, -1, -1, bSingleThread, Generator);
             if (NewMutex.Handle) Platform_ReleaseMutex(&NewMutex);
 
             Filesystem_Close(&f);
@@ -3589,14 +3606,14 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         {
             for each (Include, IncludeFiles)
             {
-                u64 IncludeFileTime = Filesystem_GetLastWriteTimeH(&Include);
+                u64 IncludeFileTime = Filesystem_GetLastWriteTimeH(Include);
 
                 if (IncludeFileTime >= AssemblyFileTime)
                 {
                     bIsRebuild = true;
 
                     StringLocal(Path, MAX_PATH_LENGTH);
-                    Filesystem_GetFilePath(&Include, &Path);
+                    Filesystem_GetFilePath(Include, &Path);
 
                     #ifndef HOOD
                     LOG("Build variables file \"%S\" has been modified since last build. Forcing rebuild...", Path);
@@ -3647,7 +3664,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             FileHandle h = {0};
             Filesystem_Open(OutputDebugFile, FileMode_Read, &h);
             StringLocal(SavedCmdLine, 2048);
-            Filesystem_ReadLine(&h, &SavedCmdLine);
+            Filesystem_ReadLine(h, &SavedCmdLine);
             //if (SavedCmdLine.Length > 0 && RiftCmdLine.Length > 0)
             {
                 if (!String_IsEqual(SavedCmdLine, RiftCmdLine, false))
@@ -3775,8 +3792,6 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
         if (!bIsRebuild)
         {
-            Filesystem_Close(BuildFileHandle);
-
             return 0;
         }
     }
@@ -3796,8 +3811,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         if (bSuccess)
         {
             // write the cmd line of this program to a file in the intermediate directory for comparison between subsequent runs
-            Filesystem_Write(&f, RiftCmdLine.Length, RiftCmdLine.Data, NULL);
-            Filesystem_WriteLine(&f, S("\n"), NULL);
+            Filesystem_Write(f, RiftCmdLine.Length, RiftCmdLine.Data, NULL);
+            Filesystem_WriteLine(f, S("\n"), NULL);
 
             for each (v, ExpandedVariablesDB)
             {
@@ -3806,7 +3821,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 String_AppendSpace(&Line);
                 String_Append(&Line, v.Value);
                 String_AppendChar(&Line, '\n');
-                Filesystem_WriteLine(&f, Line, NULL);
+                Filesystem_WriteLine(f, Line, NULL);
             }
         }
 
@@ -3997,7 +4012,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
                 StringLocal(IconString, 256);
                 String_Format(&IconString, S("id ICON \"%S\""), 256, IconName);
-                if (!Filesystem_Write(&f, IconString.Length, IconString.Data, NULL))
+                if (!Filesystem_Write(f, IconString.Length, IconString.Data, NULL))
                 {
                     LOG_ERROR("Failed to write icon data to \"%S\"", RcFilePath);
                     Filesystem_Close(&f);
@@ -4155,7 +4170,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                                            VersionCommas, VersionCommas, FileType, CompanyName, 
                                            Description, Version, Copyright, AssemblyWithExt, TitleName, Version);
 
-                Filesystem_Write(&VersionRCFile, FileData.Length, FileData.Data, NULL);
+                Filesystem_Write(VersionRCFile, FileData.Length, FileData.Data, NULL);
                 Filesystem_Close(&VersionRCFile);
 
                 StringLocal(CmdLine, 1024);
@@ -4772,7 +4787,7 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
                 bool bWantsRebuild = StringArray_Contains(Arguments, S("rebuild"), false);
                 bool bWantsClean = StringArray_Contains(Arguments, S("clean"), false);
 
-                while (Filesystem_ReadLine(&f, &Line))
+                while (Filesystem_ReadLine(f, &Line))
                 {
                     String Trimmed = String_EatSpaces(Line);
 
@@ -4994,7 +5009,7 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
                 GivenPresetIndex = -1;
             }
 
-            while (Filesystem_ReadLine(&BuildFileHandle, &Line))
+            while (Filesystem_ReadLine(BuildFileHandle, &Line))
             {
                 String Trimmed = String_EatSpaces(Line);
 
@@ -5049,7 +5064,7 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
                 }
             }
 
-            Filesystem_SeekToBeginning(&BuildFileHandle);
+            Filesystem_SeekToBeginning(BuildFileHandle);
         
             if (bFoundPreset)
             {
@@ -5083,8 +5098,10 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
     }
 
     PlatformMutex BuildMutex = {0};
-    u32 ExitCode = BuildTarget(Arena, &BuildFileHandle, &BuildMutex, WorkingDirectory, BuildArguments, S(""), BuildFileIndex, RootPathIndex, bSingleThreadMode, Generator);
+    u32 ExitCode = BuildTarget(Arena, BuildFileHandle, &BuildMutex, WorkingDirectory, BuildArguments, S(""), BuildFileIndex, RootPathIndex, bSingleThreadMode, Generator);
     if (BuildMutex.Handle) Platform_ReleaseMutex(&BuildMutex);
+
+    Filesystem_Close(&BuildFileHandle);
 
     return ExitCode;
 }
@@ -5129,12 +5146,12 @@ u32 RunApplication(const StringArray Arguments)
 
     #ifndef HOOD
         #ifdef DEVELOPER
-        LOG("\nRift Build System Alpha v%S (%S %S) [DEBUG]\n", S(RIFTBUILD_VERSION_STRING), S(PLATFORM_STRING), S(CPU_ARCHITECTURE_STRING));
+        LOG("\nRift Build System v%S (%S %S) [DEBUG]\n", S(RIFTBUILD_VERSION_STRING), S(PLATFORM_STRING), S(CPU_ARCHITECTURE_STRING));
         #else
-        LOG("\nRift Build System Alpha v%S (%S %S)\n", S(RIFTBUILD_VERSION_STRING), S(PLATFORM_STRING), S(CPU_ARCHITECTURE_STRING));
+        LOG("\nRift Build System v%S (%S %S)\n", S(RIFTBUILD_VERSION_STRING), S(PLATFORM_STRING), S(CPU_ARCHITECTURE_STRING));
         #endif
     #else
-        LOG("\nRift Build System Alpha v%S (%S %S) - (HOOD EDITION)", S(RIFTBUILD_VERSION_STRING), S(PLATFORM_STRING), S(CPU_ARCHITECTURE_STRING));
+        LOG("\nRift Build System v%S (%S %S) - (HOOD EDITION)", S(RIFTBUILD_VERSION_STRING), S(PLATFORM_STRING), S(CPU_ARCHITECTURE_STRING));
         LOG("\nwasssup yo. les get build'n...\n");
     #endif
 

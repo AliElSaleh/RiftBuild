@@ -258,6 +258,16 @@ typedef struct _SYSTEM_INFO {
     WORD wProcessorRevision;
 } SYSTEM_INFO, *LPSYSTEM_INFO;
 
+typedef struct _TIME_ZONE_INFORMATION {
+  LONG       Bias;
+  WCHAR      StandardName[32];
+  SYSTEMTIME StandardDate;
+  LONG       StandardBias;
+  WCHAR      DaylightName[32];
+  SYSTEMTIME DaylightDate;
+  LONG       DaylightBias;
+} TIME_ZONE_INFORMATION, *PTIME_ZONE_INFORMATION, *LPTIME_ZONE_INFORMATION;
+
 typedef struct _SYMBOL_INFO {
     ULONG       SizeOfStruct;
     ULONG       TypeIndex;        // Type Index of symbol
@@ -1832,3 +1842,5 @@ BOOL WINAPI GetConsoleScreenBufferInfo(
     HANDLE                      hConsoleOutput,
     PCONSOLE_SCREEN_BUFFER_INFO lpConsoleScreenBufferInfo
 );
+
+DWORD GetTimeZoneInformation(LPTIME_ZONE_INFORMATION lpTimeZoneInformation);

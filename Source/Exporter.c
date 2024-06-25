@@ -13,11 +13,11 @@ bool bHasWrittenJSON = false;
 
 STRUCT(ExportData)
 {
-    FileHandle* File;
+    FileHandle File;
     bool bIsLastBuild;
 };
 
-internal void WriteFlags(LinearAllocator Scratch, FileHandle* File, const String Flags, bool bConvertSlashes)
+internal void WriteFlags(LinearAllocator Scratch, const FileHandle File, const String Flags, bool bConvertSlashes)
 {
     u16 i = 0;
     StringArray List = String_ParseIntoArray(&Scratch, Flags, ' ', 0, 256);
@@ -96,13 +96,13 @@ bool ExportCompileCommands(const BuildParams* Params,
     FileHandle f = FileHandle_Null();
     if (Filesystem_Open(S("compile_commands.json"), !bHasWrittenJSON ? FileMode_Write : FileMode_Read|FileMode_Write, &f))
     {
-        if (!bHasWrittenJSON) Filesystem_WriteLine(&f, S("[\n"), NULL);
+        if (!bHasWrittenJSON) Filesystem_WriteLine(f, S("[\n"), NULL);
 
-        ExportData Data = { &f, bIsLastBuild };
+        ExportData Data = { f, bIsLastBuild };
         CompileData UserData = { GenCommandObject, Params, NULL, 0, true, &Data};
         Filesystem_IterateDirectory_Ex(Params->SourceDirectory, SourceFileDirectoryIterator, true, &UserData);
 
-        if (bIsLastBuild) Filesystem_WriteLine(&f, S("]\n"), NULL);
+        if (bIsLastBuild) Filesystem_WriteLine(f, S("]\n"), NULL);
 
         bHasWrittenJSON = true;
 

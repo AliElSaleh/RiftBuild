@@ -2,11 +2,11 @@ if debug Mode Debug else Mode Dist
 include Source/$(Mode).buildvars
 
 Assembly                RiftBuild
-Icon                    icon
+Icon                    riftbuild.ico
 
 TitleName               Rift Build ($(Mode))
 Description             A simpler build tool for C/C++, because fuck cmake
-Version                 0.9.6
+Version!                0.9.6-alpha
 CompanyName             Ali El Saleh
 Copyright!              Copyright (c) 2024 Ali El Saleh
 
@@ -38,7 +38,7 @@ icon_png Source/Resources/riftbuild.png
 
 ##
 # app bundle creation
-if _platform == apple {
+if apple {
     #PostBuild.Log
     #PostBuild.Delete       Build/$(Assembly).app/
     PostBuild.NewDirectory Build/$(Assembly).app/Contents/MacOS
@@ -66,7 +66,7 @@ if _platform == apple {
 ##
 
 # simple console app icon (non-bundled app)
-if _platform == apple {
+if apple {
     PostBuild.Cmd          derez -only icns $icon_png > $(IntermediateDirectory)/tmpicns.rsrc
     PostBuild.Cmd          rez -append $(IntermediateDirectory)/tmpicns.rsrc -o $(BuildDirectory)/$(Assembly)
     PostBuild.Cmd          SetFile -a C $(BuildDirectory)/$(Assembly)

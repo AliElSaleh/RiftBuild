@@ -74,6 +74,8 @@ RIFT_API bool String_IsEqual(const String StringA, const String StringB, bool bC
 RIFT_API bool String16_IsEqual(const String16 StringA, const String16 StringB, bool bCaseSensitive);
 
 RIFT_API bool String_Contains(const String Str, const String SubString, bool bCaseSensitive);
+RIFT_API bool String_ContainsDigits(const String Str);
+RIFT_API bool String_ContainsNonDigits(const String Str);
 RIFT_API bool String_StartsWith(const String Str, const String SubString, bool bCaseSensitive);
 RIFT_API bool String_EndsWith(const String Str, const String SubString, bool bCaseSensitive);
 

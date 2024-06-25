@@ -78,19 +78,12 @@ void InitializeGlobals(void* Memory, u64 Size)
     MemCopy(&GGlobals_InternalCopy, &GGlobals, sizeof(EngineGlobals));
 }
 
-bool IsValidFileHandle(const FileHandle* Handle)
+bool IsValidFileHandle(const FileHandle Handle)
 {
-    if (!IsValid(Handle))
-        return false;
-
-    //if (Handle == GGlobals.NullFileHandle)
-        //return false;
-    
-    //if (Handle->Data == ((FileHandle*)GGlobals.NullFileHandle)->Data)
-    if (Handle->Data == GGlobals.NullFileHandle.Data)
+    if (Handle.Data == GGlobals.NullFileHandle.Data)
         return false;
     
-    return IsValid(Handle->Data);
+    return IsValid(Handle.Data);
 }
 
 void Globals_AssertNullString(void)

@@ -384,24 +384,45 @@ SystemTime Platform_GetSystemLocalTime(void)
     return EngineTime;
 }
 
+bool Platform_GetTimeZone(String* OutTimeZone)
+{
+    TIME_ZONE_INFORMATION TimeZoneInfo = {0};
+    DWORD Result = GetTimeZoneInformation(&TimeZoneInfo);
+
+    if (Result == 1) // TIME_ZONE_ID_STANDARD
+    {
+        String16 StandardNameWide = CStr16(TimeZoneInfo.StandardName);
+        if (NEVER(StandardNameWide.Length > OutTimeZone->Capacity)) return false;
+        String_ToNarrow(StandardNameWide, OutTimeZone);
+    }
+    else if (Result == 2) // TIME_ZONE_ID_DAYLIGHT
+    {
+        String16 DaylightNameWide = CStr16(TimeZoneInfo.DaylightName);
+        if (NEVER(DaylightNameWide.Length > OutTimeZone->Capacity)) return false;
+        String_ToNarrow(DaylightNameWide, OutTimeZone);
+    }
+    
+    return Result > 0;
+}
+
 void Platform_Sleep(f64 ms)
 {
-	if (ms > 0)
-	{
-		LARGE_INTEGER Frequency, Now;
-		QueryPerformanceCounter(&Now);
-		QueryPerformanceFrequency(&Frequency);
+    if (ms > 0)
+    {
+        LARGE_INTEGER Frequency, Now;
+        QueryPerformanceCounter(&Now);
+        QueryPerformanceFrequency(&Frequency);
 
-		f64 Start = (f64)Now.QuadPart * (1.0/(f64)Frequency.QuadPart);
-		f64 Target = ms/1000.0;
+        f64 Start = (f64)Now.QuadPart * (1.0/(f64)Frequency.QuadPart);
+        f64 Target = ms/1000.0;
 
-		while (1)
-		{
-			QueryPerformanceCounter(&Now);
-			if ((((f64)Now.QuadPart * (1.0/(f64)Frequency.QuadPart)) - Start) >= Target)
-				break;
-		}
-	}
+        while (1)
+        {
+            QueryPerformanceCounter(&Now);
+            if ((((f64)Now.QuadPart * (1.0/(f64)Frequency.QuadPart)) - Start) >= Target)
+                break;
+        }
+    }
 }
 
 void Platform_ShowCursor(bool bShow)
@@ -827,12 +848,15 @@ bool Filesystem_Open_MemoryMapped(const String FilePath, u32 Mode, FileHandle* O
     if (OutData)
         *OutData = NULL;
 
-    if (!IsValidFileHandle(OutHandle))
+    if (NEVER(OutHandle == NULL))
+        return false;
+
+    if (!IsValidFileHandle(*OutHandle))
     {
         Filesystem_Open(FilePath, Mode, OutHandle);
     }
 
-    if (IsValidFileHandle(OutHandle))
+    if (IsValidFileHandle(*OutHandle))
     {
         DWORD ProtectFlag;
         if ((Mode & FileMode_Read) != 0 && (Mode & FileMode_Write) != 0)
@@ -990,10 +1014,13 @@ bool Filesystem_OpenDirectory_Ex(const String FilePath, FileHandle* OutHandle)
 
 bool Filesystem_Close(FileHandle* Handle)
 {
+    if (NEVER(Handle == NULL))
+        return false;
+
     if (Handle->Data2)
         CloseHandle(Handle->Data2);
 
-    if (IsValidFileHandle(Handle))
+    if (IsValidFileHandle(*Handle))
     {
         CloseHandle(Handle->Data);
         *Handle = FileHandle_Null();
@@ -1003,39 +1030,39 @@ bool Filesystem_Close(FileHandle* Handle)
     return false;
 }
 
-bool Filesystem_Seek(const FileHandle* Handle, i64 Offset)
+bool Filesystem_Seek(const FileHandle Handle, i64 Offset)
 {
-    DWORD Result = SetFilePointer(Handle->Data, (long)Offset, NULL, FILE_CURRENT);
+    DWORD Result = SetFilePointer(Handle.Data, (long)Offset, NULL, FILE_CURRENT);
     return Result != INVALID_SET_FILE_POINTER;
 }
 
-bool Filesystem_SeekFromBeginning(const FileHandle* Handle, u64 Offset)
+bool Filesystem_SeekFromBeginning(const FileHandle Handle, u64 Offset)
 {
-    DWORD Result = SetFilePointer(Handle->Data, (long)Offset, NULL, FILE_BEGIN);
+    DWORD Result = SetFilePointer(Handle.Data, (long)Offset, NULL, FILE_BEGIN);
     return Result != INVALID_SET_FILE_POINTER;
 }
 
-bool Filesystem_SeekFromEnd(const FileHandle* Handle, u64 Offset)
+bool Filesystem_SeekFromEnd(const FileHandle Handle, u64 Offset)
 {
-    DWORD Result = SetFilePointer(Handle->Data, (long)Offset, NULL, FILE_END);
+    DWORD Result = SetFilePointer(Handle.Data, (long)Offset, NULL, FILE_END);
     return Result != INVALID_SET_FILE_POINTER;
 }
 
-bool Filesystem_SeekToBeginning(const FileHandle* Handle)
+bool Filesystem_SeekToBeginning(const FileHandle Handle)
 {
-    DWORD Result = SetFilePointer(Handle->Data, 0, NULL, FILE_BEGIN);
+    DWORD Result = SetFilePointer(Handle.Data, 0, NULL, FILE_BEGIN);
     return Result != INVALID_SET_FILE_POINTER;
 }
 
-bool Filesystem_SeekToEnd(const FileHandle* Handle)
+bool Filesystem_SeekToEnd(const FileHandle Handle)
 {
-    DWORD Result = SetFilePointer(Handle->Data, 0, NULL, FILE_END);
+    DWORD Result = SetFilePointer(Handle.Data, 0, NULL, FILE_END);
     return Result != INVALID_SET_FILE_POINTER;
 }
 
-u64 Filesystem_GetCurrentFilePosition(const FileHandle* Handle)
+u64 Filesystem_GetCurrentFilePosition(const FileHandle Handle)
 {
-    return SetFilePointer(Handle->Data, 0, NULL, FILE_CURRENT);
+    return SetFilePointer(Handle.Data, 0, NULL, FILE_CURRENT);
 }
 
 u64 Filesystem_GetLastWriteTime(const String FilePath)
@@ -1114,41 +1141,41 @@ FileTimeData Filesystem_GetFileTime(const String FilePath)
     return Time;
 }
 
-u64 Filesystem_GetLastWriteTimeH(const FileHandle* Handle)
+u64 Filesystem_GetLastWriteTimeH(const FileHandle Handle)
 {
     FILETIME FileTimeStamp = {0};
-    GetFileTime(Handle->Data, NULL, NULL, &FileTimeStamp);
+    GetFileTime(Handle.Data, NULL, NULL, &FileTimeStamp);
 
     ULONGLONG a = (((ULONGLONG)FileTimeStamp.dwHighDateTime) << 32) + FileTimeStamp.dwLowDateTime;
     return a;
 }
 
-u64 Filesystem_GetLastAccessTimeH(const FileHandle* Handle)
+u64 Filesystem_GetLastAccessTimeH(const FileHandle Handle)
 {
     FILETIME FileTimeStamp = {0};
-    GetFileTime(Handle->Data, NULL, &FileTimeStamp, NULL);
+    GetFileTime(Handle.Data, NULL, &FileTimeStamp, NULL);
 
     ULONGLONG a = (((ULONGLONG)FileTimeStamp.dwHighDateTime) << 32) + FileTimeStamp.dwLowDateTime;
     return a;
 }
 
-u64 Filesystem_GetCreationTimeH(const FileHandle* Handle)
+u64 Filesystem_GetCreationTimeH(const FileHandle Handle)
 {
     FILETIME FileTimeStamp = {0};
-    GetFileTime(Handle->Data, &FileTimeStamp, NULL, NULL);
+    GetFileTime(Handle.Data, &FileTimeStamp, NULL, NULL);
 
     ULONGLONG a = (((ULONGLONG)FileTimeStamp.dwHighDateTime) << 32) + FileTimeStamp.dwLowDateTime;
     return a;
 }
 
-FileTimeData Filesystem_GetFileTimeH(const FileHandle* Handle)
+FileTimeData Filesystem_GetFileTimeH(const FileHandle Handle)
 {
     FileTimeData Time = {0};
 
     FILETIME CreationTime = {0};
     FILETIME LastAccessTime = {0};
     FILETIME LastWriteTime = {0};
-    GetFileTime(Handle->Data, &CreationTime, &LastAccessTime, &LastWriteTime);
+    GetFileTime(Handle.Data, &CreationTime, &LastAccessTime, &LastWriteTime);
 
     Time.CreationTime = (((ULONGLONG)CreationTime.dwHighDateTime) << 32) + CreationTime.dwLowDateTime;
     Time.LastAccessTime = (((ULONGLONG)LastAccessTime.dwHighDateTime) << 32) + LastAccessTime.dwLowDateTime;
@@ -1172,13 +1199,13 @@ bool Filesystem_ReadPipe(PlatformPipe Handle, u64 DataSize, void* OutData, u64* 
 }
 
 // todo: no pointer as param
-bool Filesystem_Read(const FileHandle* Handle, u64 DataSize, void* OutData, u64* OutBytesRead)
+bool Filesystem_Read(const FileHandle Handle, u64 DataSize, void* OutData, u64* OutBytesRead)
 {
     if (NEVER(!IsValidFileHandle(Handle)))
         return false;
 
     DWORD BytesRead = 0;
-    BOOL Result = ReadFile(Handle->Data, OutData, (DWORD)DataSize, &BytesRead, NULL);
+    BOOL Result = ReadFile(Handle.Data, OutData, (DWORD)DataSize, &BytesRead, NULL);
 
     if (OutBytesRead)
         *OutBytesRead = BytesRead;
@@ -1186,7 +1213,7 @@ bool Filesystem_Read(const FileHandle* Handle, u64 DataSize, void* OutData, u64*
     return Result;
 }
 
-bool Filesystem_ReadEntireFile(const FileHandle* Handle, void* OutData, u64* OutBytesRead)
+bool Filesystem_ReadEntireFile(const FileHandle Handle, void* OutData, u64* OutBytesRead)
 {
     if (NEVER(!IsValidFileHandle(Handle)))
         return false;
@@ -1198,7 +1225,7 @@ bool Filesystem_ReadEntireFile(const FileHandle* Handle, void* OutData, u64* Out
     Filesystem_SeekToBeginning(Handle);
 
     DWORD BytesRead = 0;
-    BOOL Result = ReadFile(Handle->Data, OutData, (DWORD)Size, &BytesRead, NULL);
+    BOOL Result = ReadFile(Handle.Data, OutData, (DWORD)Size, &BytesRead, NULL);
 
     if (OutBytesRead)
         *OutBytesRead = BytesRead;
@@ -1206,16 +1233,16 @@ bool Filesystem_ReadEntireFile(const FileHandle* Handle, void* OutData, u64* Out
     return Result;
 }
 
-bool Filesystem_ReadLine(const FileHandle* Handle, String* LineBuffer)
+bool Filesystem_ReadLine(const FileHandle Handle, String* LineBuffer)
 {
     if (NEVER(!IsValidFileHandle(Handle))) return false;
     if (NEVER(LineBuffer == NULL)) return false;
     if (NEVER(LineBuffer->Data == NULL || LineBuffer->Data == String_Null().Data)) return false;
 
-    DWORD CurrentPosition = SetFilePointer(Handle->Data, 0, NULL, FILE_CURRENT);
+    DWORD CurrentPosition = SetFilePointer(Handle.Data, 0, NULL, FILE_CURRENT);
 
     LARGE_INTEGER FileSize;
-    GetFileSizeEx(Handle->Data, &FileSize);
+    GetFileSizeEx(Handle.Data, &FileSize);
     u64 Size = (u64)FileSize.QuadPart;
 
     if (CurrentPosition >= Size)
@@ -1226,7 +1253,7 @@ bool Filesystem_ReadLine(const FileHandle* Handle, String* LineBuffer)
 
     char TempBuffer[8192] = {0};
     DWORD BytesRead = 0;
-    if (!ReadFile(Handle->Data, TempBuffer, 8192, &BytesRead, NULL))
+    if (!ReadFile(Handle.Data, TempBuffer, 8192, &BytesRead, NULL))
     {
         LogLastError(S("Filesystem_ReadLine | ReadFile() failed"));
 
@@ -1276,19 +1303,19 @@ bool Filesystem_ReadLine(const FileHandle* Handle, String* LineBuffer)
         String_Empty(LineBuffer);
     }
 
-    SetFilePointer(Handle->Data, (i32)(CurrentPosition + FilePointerOffset), NULL, FILE_BEGIN);
+    SetFilePointer(Handle.Data, (i32)(CurrentPosition + FilePointerOffset), NULL, FILE_BEGIN);
 
     return true;
 }
 
 // todo: make internal function, code duplication
-bool Filesystem_ReadLine_Backwards(const FileHandle* Handle, String* LineBuffer)
+bool Filesystem_ReadLine_Backwards(const FileHandle Handle, String* LineBuffer)
 {
     if (NEVER(!IsValidFileHandle(Handle))) return false;
     if (NEVER(LineBuffer == NULL)) return false;
 
     {
-        DWORD CurrentPosition = SetFilePointer(Handle->Data, 0, NULL, FILE_CURRENT);
+        DWORD CurrentPosition = SetFilePointer(Handle.Data, 0, NULL, FILE_CURRENT);
 
         if (CurrentPosition == 0)
         {
@@ -1298,11 +1325,11 @@ bool Filesystem_ReadLine_Backwards(const FileHandle* Handle, String* LineBuffer)
         DWORD BytesRead = 0;
         char Char[2] = {0};
 
-        SetFilePointer(Handle->Data, -2, NULL, FILE_CURRENT);
+        SetFilePointer(Handle.Data, -2, NULL, FILE_CURRENT);
 
         bool bFirstNewLineFound = false;
 
-        while (ReadFile(Handle->Data, Char, 1, &BytesRead, NULL))
+        while (ReadFile(Handle.Data, Char, 1, &BytesRead, NULL))
         {
             if (Char[0] == '\0' || Char[0] == '\n' || Char[0] == '\r')
             {
@@ -1315,16 +1342,16 @@ bool Filesystem_ReadLine_Backwards(const FileHandle* Handle, String* LineBuffer)
                     break;
                 }
             }
-            else if (SetFilePointer(Handle->Data, 0, NULL, FILE_CURRENT) == 0)
+            else if (SetFilePointer(Handle.Data, 0, NULL, FILE_CURRENT) == 0)
             {
                 break;
             }
 
-            SetFilePointer(Handle->Data, -2, NULL, FILE_CURRENT);
+            SetFilePointer(Handle.Data, -2, NULL, FILE_CURRENT);
         }
 
         char TempBuffer[8192] = {0};
-        if (!ReadFile(Handle->Data, TempBuffer, 8192, &BytesRead, NULL))
+        if (!ReadFile(Handle.Data, TempBuffer, 8192, &BytesRead, NULL))
         {
             LogLastError(S("Filesystem_ReadLine_Backwards | ReadFile() failed"));
 
@@ -1378,7 +1405,7 @@ bool Filesystem_ReadLine_Backwards(const FileHandle* Handle, String* LineBuffer)
     }
 }
 
-bool Filesystem_Write(const FileHandle* Handle, u64 DataSize, const void* Data, u64* OutBytesWritten)
+bool Filesystem_Write(const FileHandle Handle, u64 DataSize, const void* Data, u64* OutBytesWritten)
 {
     if (NEVER(!IsValidFileHandle(Handle))) return false;
     if (DataSize == 0) return false;
@@ -1386,7 +1413,7 @@ bool Filesystem_Write(const FileHandle* Handle, u64 DataSize, const void* Data, 
     Filesystem_SeekToBeginning(Handle);
 
     DWORD BytesWritten = 0;
-    BOOL bResult = WriteFile(Handle->Data, Data, (DWORD)DataSize, &BytesWritten, NULL);
+    BOOL bResult = WriteFile(Handle.Data, Data, (DWORD)DataSize, &BytesWritten, NULL);
 
     if (OutBytesWritten)
         *OutBytesWritten = BytesWritten;
@@ -1403,14 +1430,14 @@ bool Filesystem_Write(const FileHandle* Handle, u64 DataSize, const void* Data, 
     return bResult;
 }
 
-bool Filesystem_WriteLine(const FileHandle* Handle, const String Text, u64* OutBytesWritten)
+bool Filesystem_WriteLine(const FileHandle Handle, const String Text, u64* OutBytesWritten)
 {
     if (NEVER(!IsValidFileHandle(Handle))) return false;
 
     Filesystem_SeekToEnd(Handle);
 
     DWORD BytesWritten = 0;
-    BOOL bResult = WriteFile(Handle->Data, Text.Data, (DWORD)Text.Length, &BytesWritten, NULL);
+    BOOL bResult = WriteFile(Handle.Data, Text.Data, (DWORD)Text.Length, &BytesWritten, NULL);
 
     if (OutBytesWritten)
         *OutBytesWritten = BytesWritten;
@@ -1427,7 +1454,7 @@ bool Filesystem_WriteLine(const FileHandle* Handle, const String Text, u64* OutB
     return bResult;
 }
 
-bool Filesystem_WriteLineFormatted(const FileHandle* Handle, const String Text, u64* OutBytesWritten, ...)
+bool Filesystem_WriteLineFormatted(const FileHandle Handle, const String Text, u64* OutBytesWritten, ...)
 {
     if (NEVER(!IsValidFileHandle(Handle))) return false;
 
@@ -1440,7 +1467,7 @@ bool Filesystem_WriteLineFormatted(const FileHandle* Handle, const String Text, 
     va_end(Args);
 
     DWORD BytesWritten = 0;
-    BOOL bResult = WriteFile(Handle->Data, Buffer.Data, (DWORD)Buffer.Length, &BytesWritten, NULL);
+    BOOL bResult = WriteFile(Handle.Data, Buffer.Data, (DWORD)Buffer.Length, &BytesWritten, NULL);
 
     if (OutBytesWritten)
         *OutBytesWritten = BytesWritten;
@@ -1472,14 +1499,14 @@ bool Filesystem_DoesDirectoryExist(const String FilePath)
     return (Attrib != INVALID_FILE_ATTRIBUTES && (Attrib & FILE_ATTRIBUTE_DIRECTORY));
 }
 
-bool Filesystem_GetFilePath(const FileHandle* File, String* OutPath)
+bool Filesystem_GetFilePath(const FileHandle File, String* OutPath)
 {
     if (!IsValidFileHandle(File))
     {
         return false;
     }
 
-    u32 Length = GetFinalPathNameByHandle(File->Data, OutPath->Data, MAX_PATH, FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
+    u32 Length = GetFinalPathNameByHandle(File.Data, OutPath->Data, MAX_PATH, FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
     if (Length == 0)
     {
         LogLastError(S("Filesystem_GetFilePath failed"));
@@ -1491,12 +1518,12 @@ bool Filesystem_GetFilePath(const FileHandle* File, String* OutPath)
     return true;
 }
 
-bool Filesystem_GetFileSize(const FileHandle* File, u64* OutSize)
+bool Filesystem_GetFileSize(const FileHandle File, u64* OutSize)
 {
     if (IsValidFileHandle(File))
     {
         LARGE_INTEGER FileSize;
-        BOOL Result = GetFileSizeEx(File->Data, &FileSize);
+        BOOL Result = GetFileSizeEx(File.Data, &FileSize);
         *OutSize = (u64)FileSize.QuadPart;
         return Result;
     }

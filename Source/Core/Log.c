@@ -112,7 +112,7 @@ internal void Internal_WriteToLogFile(char* Text, u32 Length)
 
         u64 Written = 0;
 
-        if (!Filesystem_WriteLine(&GLoggingSystemState->LogFileHandle, StrSlice(Text, Length), &Written))
+        if (!Filesystem_WriteLine(GLoggingSystemState->LogFileHandle, StrSlice(Text, Length), &Written))
         {
             StringLocal(FormattedMessage, 256);
             u64 Len = (u64)String_Format(&FormattedMessage, S("Failed to write to %S"), 256, GLoggingSystemState->LogFileName);
@@ -255,72 +255,72 @@ bool Logging_ShouldCrashOnFatal(void)
 
 void LogMessage(u8 LogType, const String LogCat, const String Text, ...)
 {
-	bool bIsErrorMessage = (LogType == LOG_TYPE_ERROR || LogType == LOG_TYPE_FATAL);
-	if (UNLIKELY(GLoggingSystemState->bDisabled) && !(GLoggingSystemState->bEnableOnError && bIsErrorMessage))
-		return;
+    bool bIsErrorMessage = (LogType == LOG_TYPE_ERROR || LogType == LOG_TYPE_FATAL);
+    if (UNLIKELY(GLoggingSystemState->bDisabled) && !(GLoggingSystemState->bEnableOnError && bIsErrorMessage))
+        return;
 
-	Platform_EnterCriticalSection(GLoggingSystemState->CriticalSection);
+    Platform_EnterCriticalSection(GLoggingSystemState->CriticalSection);
 
 #ifdef FAST_LOG
-	if (UNLIKELY(GLoggingSystemState->SinkHead >= MAX_SINK_BUFFER_SIZE))
-	{
-		Internal_LogFlush();
-	}
+    if (UNLIKELY(GLoggingSystemState->SinkHead >= MAX_SINK_BUFFER_SIZE))
+    {
+        Internal_LogFlush();
+    }
 #endif
 
-	SystemTime TimeNow = Platform_GetSystemLocalTime();
+    SystemTime TimeNow = Platform_GetSystemLocalTime();
 
-	StringLocal(TimeStamp, 64);
-	String_Format(&TimeStamp, S("%hu-%.2hu-%.2hu %.2hu:%.2hu:%.2hu "), 64, TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
+    StringLocal(TimeStamp, 64);
+    String_Format(&TimeStamp, S("%hu-%.2hu-%.2hu %.2hu:%.2hu:%.2hu "), 64, TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
 
-	va_list Args;
-	va_start(Args, Text);
-	String Buffer = {.Data = GLoggingSystemState->Buffer, .Length = 0 };
-	String_FormatV(&Buffer, Text, MAX_LOG_MSG_LENGTH, Args);
-	va_end(Args);
+    va_list Args;
+    va_start(Args, Text);
+    String Buffer = {.Data = GLoggingSystemState->Buffer, .Length = 0 };
+    String_FormatV(&Buffer, Text, MAX_LOG_MSG_LENGTH, Args);
+    va_end(Args);
 
-	Buffer.Data[Buffer.Length] = '\n';
+    Buffer.Data[Buffer.Length] = '\n';
 
-	String FormattedText = { .Length = Buffer.Length+1, .Data = Buffer.Data };
-	String TrimmedFmt = String_EatChar(FormattedText, '\n');
-	String TrimmedNewLines = StrSlice(FormattedText.Data, (u32)(TrimmedFmt.Data - FormattedText.Data));
+    String FormattedText = { .Length = Buffer.Length+1, .Data = Buffer.Data };
+    String TrimmedFmt = String_EatChar(FormattedText, '\n');
+    String TrimmedNewLines = StrSlice(FormattedText.Data, (u32)(TrimmedFmt.Data - FormattedText.Data));
 
-	LinearAllocator_Scratch Temp = LinearAllocator_GetScratch(&GLoggingMemoryAllocator);
+    LinearAllocator_Scratch Temp = LinearAllocator_GetScratch(&GLoggingMemoryAllocator);
 
-	StringLocal(LogPrefix, 512);
+    StringLocal(LogPrefix, 512);
 
-	//if (GLoggingSystemState->bComfyMode)
-		//String_Append(&LogPrefix, S(" "));
+    //if (GLoggingSystemState->bComfyMode)
+        //String_Append(&LogPrefix, S(" "));
 
-	if (GLoggingSystemState->bLogTimestamp)
-		String_Append(&LogPrefix, TimeStamp);
+    if (GLoggingSystemState->bLogTimestamp)
+        String_Append(&LogPrefix, TimeStamp);
 
-	if (GLoggingSystemState->bLogCategory)
-	{
-		String_Append(&LogPrefix, S("["));
-		String_Append(&LogPrefix, LogCat);
-		String_Append(&LogPrefix, S("] "));
-	}
+    if (GLoggingSystemState->bLogCategory)
+    {
+        String_Append(&LogPrefix, S("["));
+        String_Append(&LogPrefix, LogCat);
+        String_Append(&LogPrefix, S("] "));
+    }
 
-	if (GLoggingSystemState->bLogType)
-	{
-		String_Append(&LogPrefix, LogTypeString[LogType]);
-	}
+    if (GLoggingSystemState->bLogType)
+    {
+        String_Append(&LogPrefix, LogTypeString[LogType]);
+    }
 
-	String FinalMsg = String_Join(Temp.Allocator, StrArray(TrimmedNewLines, LogPrefix, TrimmedFmt));
+    String FinalMsg = String_Join(Temp.Allocator, StrArray(TrimmedNewLines, LogPrefix, TrimmedFmt));
 
 #ifdef FAST_LOG
-	Platform_MemCopy(&GLoggingSystemState->SinkBuffer[GLoggingSystemState->SinkHead], FinalMsg.Data, FinalMsg.Length);
-	GLoggingSystemState->SinkHead += FinalMsg.Length;
+    Platform_MemCopy(&GLoggingSystemState->SinkBuffer[GLoggingSystemState->SinkHead], FinalMsg.Data, FinalMsg.Length);
+    GLoggingSystemState->SinkHead += FinalMsg.Length;
 #else
-	Platform_ConsoleWrite_CustomLength(FinalMsg.Data, FinalMsg.Length, LogType, LogType > LOG_TYPE_WARNING);
+    Platform_ConsoleWrite_CustomLength(FinalMsg.Data, FinalMsg.Length, LogType, LogType > LOG_TYPE_WARNING);
 
-	Internal_WriteToLogFile(FinalMsg.Data, FinalMsg.Length);
+    Internal_WriteToLogFile(FinalMsg.Data, FinalMsg.Length);
 #endif
 
-	LinearAllocator_ReleaseScratch(&Temp);
+    LinearAllocator_ReleaseScratch(&Temp);
 
-	Platform_ExitCriticalSection(GLoggingSystemState->CriticalSection);
+    Platform_ExitCriticalSection(GLoggingSystemState->CriticalSection);
 }
 
 void LogDirectMessage(u8 LogType, const String Text, ...)
