@@ -420,6 +420,8 @@ bool Platform_FindFile_Ex(String FileName, String ExtensionWithDot, String* OutF
                     }
                 }
             }
+
+            closedir(dir);
         }
         else
         {
@@ -1532,6 +1534,8 @@ bool Filesystem_DoesDirectoryExist(const String FilePath)
     {
         return false;
     }
+
+    closedir(Found);
 
     return true;
 }

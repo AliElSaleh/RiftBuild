@@ -2322,6 +2322,10 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                     }
                 }
 
+                // todo: put in function? clean up code routine?
+                for each (File, IncludeFiles)
+                    Filesystem_Close(&File);
+
                 return 0;
             }
         }
