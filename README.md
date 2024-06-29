@@ -192,7 +192,12 @@ Icon someicon # or path/to/icon/file
 ```
 
 RiftBuild will automatically choose the correct extension based on the operating system, .ico files will be searched first, then .png and .jpg
-`Note: MacOS does not support .ico files, so .png and .jpg files will only be searched`
+
+`Windows: .ico files are only searched`
+
+`Linux:   .ico/.png/.jpg files are searched`
+
+`MacOS:   .png/.jpg files are searched`
 
 Alternatively, you can specify the extension (if desired)
 ```make
