@@ -75,6 +75,9 @@ Below are forks of a few open-source projects that I've translated from CMake (a
 - [Kinema TODO](https://google.com)
 - [PhysFS](https://github.com/AliElSaleh/physfs)
 - [Zydis](https://github.com/AliElSaleh/zydis)
+- [Tracy](https://github.com/AliElSaleh/tracy)
+
+[Extended list can be found here]()
 
 ---
 
