@@ -164,8 +164,9 @@ Sometimes you need to access a value inside the build file from what was given o
 > riftbuild someapp.build somekey=somevalue
 
 # inside the .build file
-CompilerFlags %somekey # this will expand to somevalue
-Hello %thisisacmdvar   # this will expand to 1 (or 0 if not mentioned in the cmd line)
+CompilerFlags %somekey # this will expand to somevalue     (or nothing if not mentioned on the cmd line)
+Hello %thisisacmdvar   # this will expand to 1             (or 0 if not mentioned on the cmd line)
+Hello %%thisisacmdvar  # this will expand to thisisacmdvar (or nothing if not mentioned on the cmd line)
 ```
 
 Command line arguments can come in handy when you want to do some basic control flow. Like enabling address sanitizer for example.
@@ -185,11 +186,19 @@ Notice how `%` was not present in the `asan` and `mode` if statement. This is be
 ---
 
 # Icon
-To set an icon for an executable, either specify the .ico name or give an absolute or relative path to the .ico file.
+To set an icon for an executable, specify the name of the icon file (without the extension)
+```make
+Icon someicon # or path/to/icon/file
+```
+
+RiftBuild will automatically choose the correct extension based on the operating system, .ico files will be searched first, then .png and .jpg
+`Note: MacOS does not support .ico files, so .png and .jpg files will only be searched`
+
+Alternatively, you can specify the extension (if desired)
 ```make
 Icon someicon.ico # or path/to/icon/file.ico
 ```
-The fact that other build systems are unable to do this is fucking pathetic
+The fact that other build systems are unable to do this is fucking pathetic and embarrassing
 
 ---
 
