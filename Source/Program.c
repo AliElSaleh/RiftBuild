@@ -309,7 +309,7 @@ bool LogCustomErrorMessage(TArray(FileVariable) VariablesDB, const String Contex
     return bLogged;
 }
 
-#if PLATFORM_WINDOWS
+// todo: remove defines
 internal bool IconFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
     if (FileSize > 0)
@@ -318,20 +318,75 @@ internal bool IconFileDirectoryIterator(const String FullPath, const String Rela
         {
             TArray(FileVariable) ExpandedVarsArray;
             String* IconFilePath;
+            bool bSuccess;
         };
 
         struct Data* D = UserData;
 
-        if (String_IsEqual(FileName, GetVariableValue(D->ExpandedVarsArray, S("Icon")), false))
+        const String IconName = GetVariableValue(D->ExpandedVarsArray, S("Icon"));
+
+        u32 LastSlash = 0;
+        const bool bNameOnly = !String_IndexOfLastPathSlash(IconName, &LastSlash);
+
+        bool bHasExtension = false;
+        u32 LastDot = 0;
+        if (String_IndexOfLastChar(IconName, '.', &LastDot))
         {
-            String_Copy(D->IconFilePath, RelativePath);
-            return false;
+            bool bHasPathSeparator = String_IndexOfFirstPathSlash(StrShiftF(IconName, LastDot), NULL);
+            if (!bHasPathSeparator)
+            {
+                bHasExtension = true;
+            }
+        }
+
+        if (bHasExtension)
+        {
+            if (String_IsEqual(FileName, IconName, false))
+            {
+                String_Copy(D->IconFilePath, RelativePath);
+                D->bSuccess = true;
+                return false;
+            }
+        }
+        else
+        {
+            const String IconExtensions[] = 
+            {
+                #if PLATFORM_WINDOWS
+                S(".ico"),
+                #elif PLATFORM_APPLE
+                S(".png"),
+                S(".jpg"),
+                #else
+                S(".ico"),
+                S(".png"),
+                S(".jpg"),
+                #endif
+            };
+
+            for (u8 i = 0; i < SArray_Capacity(IconExtensions); i++)
+            {
+                StringLocal(TestName, MAX_PATH_LENGTH);
+                String_Append(&TestName, IconName);
+                String_Append(&TestName, IconExtensions[i]);
+
+                bool bMatch = (!bNameOnly && String_IsEqual(FileName, StrShiftF(TestName, LastSlash+1), false)) ||
+                              (bNameOnly && String_IsEqual(FileName, TestName, false));
+
+                if (bMatch)
+                {
+                    String_Copy(D->IconFilePath, RelativePath);
+                    D->bSuccess = true;
+                    return false;
+                }
+            }
         }
     }
 
     return true;
 }
 
+#if PLATFORM_WINDOWS || PLATFORM_APPLE
 /*
 internal bool ResourceFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory)
 {
@@ -1792,7 +1847,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     
     bool bFoundBuildFile = IsValidFileHandle(BuildFileHandle);
 
-    #if PLATFORM_WINDOWS
+    // todo: get rid of these defines
+    #if PLATFORM_WINDOWS || PLATFORM_APPLE
     StringLocal(IconFilePath, MAX_PATH_LENGTH);
     //StringLocal(ResourceFilePath, MAX_PATH_LENGTH);
     #endif
@@ -3938,6 +3994,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     LogNameValuePair(*Arena, S("Expanded UnDefine Flags: "), ExpandedUnDefineFlags,      !bNoWordWrapLogging);
     LogNameValuePair(*Arena, S("Expanded Linker Defines: "), ExpandedLinkerDefineFlags,  !bNoWordWrapLogging);
 
+    String IconName = Icon;
+
     // log "Building (Assembly)" ui text
     if (Generator == Generator_None)
     {
@@ -3969,8 +4027,53 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             #endif
         }
 
+        // find the icon path (if specified)
+        if (Icon.Length > 0)
+        {
+            u32 LastSlashIndex = 0;
+            if (String_IndexOfLastPathSlash(Icon, &LastSlashIndex))
+            {
+                IconName = StrShiftF(Icon, LastSlashIndex+1);
+            }
+
+            bool bHasExtension = false;
+            u32 LastDot = 0;
+            if (String_IndexOfLastChar(Icon, '.', &LastDot))
+            {
+                bool bHasPathSeparator = String_IndexOfFirstPathSlash(StrShiftF(Icon, LastDot), NULL);
+                if (!bHasPathSeparator)
+                {
+                    bHasExtension = true;
+                }
+            }
+
+            if (bHasExtension && LastSlashIndex) // is this an exact file path? if so, no need to search
+            {
+                String_Copy(&IconFilePath, Icon);
+            }
+            else
+            {
+                struct Data
+                {
+                    TArray(FileVariable) ExpandedVarsArray;
+                    String* IconFilePath;
+                    bool bSuccess;
+                };
+
+                struct Data d = {ExpandedVariablesDB, &IconFilePath, false};
+
+                Filesystem_IterateDirectory_Ex(WorkingPath, IconFileDirectoryIterator, true, &d);
+
+                if (!d.bSuccess)
+                {
+                    LOG_WARNING("Failed to find icon file \"%S\". Skipping icon build...", Icon);
+                    String_Empty(&IconFilePath);
+                }
+            }
+        }
+
+
         // compile executable icon just before we link (if specified)
-        // note: only works on windows atm
         #if PLATFORM_WINDOWS
         String RCProgram = S("llvm-rc");
         bool bHasRcProgram = Platform_FindProgram(RCProgram);
@@ -3979,27 +4082,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         {
             if (bHasRcProgram)
             {
-                String IconName = Icon;
-
                 u32 LastSlashIndex = 0;
-                if (String_IndexOfLastPathSlash(Icon, &LastSlashIndex))
-                {
-                    IconName = StrShiftF(Icon, LastSlashIndex+1);
-                    String_Copy(&IconFilePath, Icon);
-                }
-                else
-                {
-                    struct Data
-                    {
-                        TArray(FileVariable) ExpandedVarsArray;
-                        String* IconFilePath;
-                    };
-
-                    struct Data d = {ExpandedVariablesDB, &IconFilePath};
-
-                    Filesystem_IterateDirectory_Ex(WorkingPath, IconFileDirectoryIterator, true, &d);
-                }
-
                 String_IndexOfLastPathSlash(IconFilePath, &LastSlashIndex);
 
                 StringLocal(RcFilePath, MAX_PATH_LENGTH);
@@ -4382,6 +4465,69 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     {
         return 1;
     }
+
+    // build icon for mach-o executables
+    // todo: if we're doing a bundled build, skip this
+    #if PLATFORM_APPLE
+    if (IconFilePath.Length > 0)
+    {
+        LOG("\nCompiling icon \"%S\"", IconFilePath);
+
+        StringLocal(CmdLine, 4096);
+
+        StringLocal(AssemblyPath, MAX_PATH_LENGTH);
+        String_BuildPath(&AssemblyPath, WorkingPath, BuildDirectory, AssemblyNameWithExt);
+
+        // Step 1 ------------------
+        StringLocal(RsrcFilePath, MAX_PATH_LENGTH);
+        StringLocal(RsrcFileName, 256);
+        String_Append(&RsrcFileName, IconName);
+        String_Append(&RsrcFileName, S("-icns.rsrc"));
+        String_BuildPath(&RsrcFilePath, WorkingPath, IntermediateDirectory, RsrcFileName);
+
+        String_BuildSeparator(&CmdLine, ' ', S("derez -only icns"), IconFilePath, S(">"), RsrcFilePath);
+
+        if (bVerboseLog) LOG("    %S", CmdLine);
+
+        PlatformHandle h = Platform_RunCommand(CmdLine, WorkingPath);
+        u32 ExitCode = Platform_WaitForProcessAndGetExitCode(h);
+        if (ExitCode != 0)
+        {
+            LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
+            return 1;
+        }
+
+        String_Empty(&CmdLine);
+
+        // Step 2 ------------------
+        String_BuildSeparator(&CmdLine, ' ', S("rez -append"), RsrcFilePath, S("-o"), AssemblyPath);
+
+        if (bVerboseLog) LOG("    %S", CmdLine);
+
+        h = Platform_RunCommand(CmdLine, WorkingPath);
+        ExitCode = Platform_WaitForProcessAndGetExitCode(h);
+        if (ExitCode != 0)
+        {
+            LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
+            return 1;
+        }
+
+        String_Empty(&CmdLine);
+
+        // Step 3 ------------------
+        String_BuildSeparator(&CmdLine, ' ', S("SetFile -a C"), AssemblyPath);
+
+        if (bVerboseLog) LOG("    %S", CmdLine);
+
+        h = Platform_RunCommand(CmdLine, WorkingPath);
+        ExitCode = Platform_WaitForProcessAndGetExitCode(h);
+        if (ExitCode != 0)
+        {
+            LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
+            return 1;
+        }
+    }
+    #endif
 
     // TODO: postlink step
 
@@ -5169,14 +5315,24 @@ u32 RunApplication(const StringArray Arguments)
     // store internal options. like platform, native os .lib's, etc..
     #if PLATFORM_WINDOWS
     AddInternalVariable(S("_Platform"), S("Windows"));
+    AddInternalVariable(S("Windows"), S(""));
+    AddInternalVariable(S("Win32"), S(""));
     #elif PLATFORM_MAC
     AddInternalVariable(S("_Platform"), S("Apple MacOS Unix"));
+    AddInternalVariable(S("Apple"), S(""));
+    AddInternalVariable(S("Mac"), S(""));
+    AddInternalVariable(S("MacOS"), S(""));
+    AddInternalVariable(S("Unix"), S(""));
     #elif PLATFORM_LINUX
     AddInternalVariable(S("_Platform"), S("Linux Unix"));
+    AddInternalVariable(S("Linux"), S(""));
+    AddInternalVariable(S("Unix"), S(""));
     #elif PLATFORM_BSD
     AddInternalVariable(S("_Platform"), S("BSD " PLATFORM_STRING));
+    AddInternalVariable(S("BSD"), S(""));
     #else
     AddInternalVariable(S("_Platform"), S("Unix"));
+    AddInternalVariable(S("Unix"), S(""));
     #endif
 
     String Win32Libs = S("kernel32 user32 opengl32 shell32 gdi32 comdlg32 comctl32 ws2_32 winmm netapi32 ole32 advapi32 "

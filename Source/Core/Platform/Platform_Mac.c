@@ -949,7 +949,10 @@ bool Filesystem_Open_MemoryMapped(const String FilePath, u32 Mode, FileHandle* O
     if (OutData)
         *OutData = NULL;
 
-    if (!IsValidFileHandle(OutHandle))
+    if (NEVER(OutHandle == NULL))
+        return false;
+
+    if (!IsValidFileHandle(*OutHandle))
     {
         if (!Filesystem_Open(FilePath, Mode, OutHandle))
             return false;
@@ -971,7 +974,7 @@ bool Filesystem_Open_MemoryMapped(const String FilePath, u32 Mode, FileHandle* O
     }
 
     u64 Size = 0;
-    Filesystem_GetFileSize(OutHandle, &Size);
+    Filesystem_GetFileSize(*OutHandle, &Size);
 
     void* Address = mmap(NULL, Size, ProtectFlags, MAP_SHARED, fileno(OutHandle->Data), 0);
 
@@ -1052,16 +1055,19 @@ bool Filesystem_OpenDirectory_Ex(const String FilePath, FileHandle* OutHandle)
 
 bool Filesystem_Close(FileHandle* Handle)
 {
+    if (NEVER(Handle == NULL))
+        return false;
+
     bool bFailedUnmap = false;
     if (Handle->Data2)
     {
         Handle->Data2 = NULL;
         u64 Size = 0;
-        Filesystem_GetFileSize(Handle, &Size);
+        Filesystem_GetFileSize(*Handle, &Size);
         if (munmap(Handle->Data2, Size) == -1)
         {
             StringLocal(Path, MAX_PATH_LENGTH);
-            Filesystem_GetFilePath(Handle, &Path);
+            Filesystem_GetFilePath(*Handle, &Path);
 
             StringLocal(Prefix, 512);
             String_Format(&Prefix, S("Failed to unmap memory for file \"%S\""), Prefix.Capacity, Path);
@@ -1070,7 +1076,7 @@ bool Filesystem_Close(FileHandle* Handle)
         }
     }
 
-    if (IsValidFileHandle(Handle))
+    if (IsValidFileHandle(*Handle))
     {
         fclose(Handle->Data);
         *Handle = FileHandle_Null();
@@ -1080,9 +1086,9 @@ bool Filesystem_Close(FileHandle* Handle)
     return false;
 }
 
-bool Filesystem_Seek(const FileHandle* Handle, i64 Offset)
+bool Filesystem_Seek(const FileHandle Handle, i64 Offset)
 {
-    i32 ErrorCode = fseek(Handle->Data, Offset, SEEK_CUR);
+    i32 ErrorCode = fseek(Handle.Data, Offset, SEEK_CUR);
     if (ErrorCode == -1)
     {
         StringLocal(Path, MAX_PATH_LENGTH);
@@ -1097,9 +1103,9 @@ bool Filesystem_Seek(const FileHandle* Handle, i64 Offset)
     return true;
 }
 
-bool Filesystem_SeekFromBeginning(const FileHandle* Handle, u64 Offset)
+bool Filesystem_SeekFromBeginning(const FileHandle Handle, u64 Offset)
 {
-    i32 ErrorCode = fseek(Handle->Data, (i32)Offset, SEEK_SET);
+    i32 ErrorCode = fseek(Handle.Data, (i32)Offset, SEEK_SET);
     if (ErrorCode == -1)
     {
         StringLocal(Path, MAX_PATH_LENGTH);
@@ -1114,9 +1120,9 @@ bool Filesystem_SeekFromBeginning(const FileHandle* Handle, u64 Offset)
     return true;
 }
 
-bool Filesystem_SeekFromEnd(const FileHandle* Handle, u64 Offset)
+bool Filesystem_SeekFromEnd(const FileHandle Handle, u64 Offset)
 {
-    i32 ErrorCode = fseek(Handle->Data, (i32)Offset, SEEK_END);
+    i32 ErrorCode = fseek(Handle.Data, (i32)Offset, SEEK_END);
     if (ErrorCode == -1)
     {
         StringLocal(Path, MAX_PATH_LENGTH);
@@ -1131,9 +1137,9 @@ bool Filesystem_SeekFromEnd(const FileHandle* Handle, u64 Offset)
     return true;
 }
 
-bool Filesystem_SeekToBeginning(const FileHandle* Handle)
+bool Filesystem_SeekToBeginning(const FileHandle Handle)
 {
-    i32 ErrorCode = fseek(Handle->Data, 0, SEEK_SET);
+    i32 ErrorCode = fseek(Handle.Data, 0, SEEK_SET);
     if (ErrorCode == -1)
     {
         StringLocal(Path, MAX_PATH_LENGTH);
@@ -1148,9 +1154,9 @@ bool Filesystem_SeekToBeginning(const FileHandle* Handle)
     return true;
 }
 
-bool Filesystem_SeekToEnd(const FileHandle* Handle)
+bool Filesystem_SeekToEnd(const FileHandle Handle)
 {
-    i32 ErrorCode = fseek(Handle->Data, 0, SEEK_END);
+    i32 ErrorCode = fseek(Handle.Data, 0, SEEK_END);
     if (ErrorCode == -1)
     {
         StringLocal(Path, MAX_PATH_LENGTH);
@@ -1165,9 +1171,9 @@ bool Filesystem_SeekToEnd(const FileHandle* Handle)
     return true;
 }
 
-u64  Filesystem_GetCurrentFilePosition(const FileHandle* Handle)
+u64  Filesystem_GetCurrentFilePosition(const FileHandle Handle)
 {
-    return (u64)ftell(Handle->Data);
+    return (u64)ftell(Handle.Data);
 }
 
 u64  Filesystem_GetLastWriteTime(const String FilePath)
@@ -1243,7 +1249,7 @@ u64  Filesystem_GetCreationTime(const String FilePath)
     return (u64)birthtime(FileStat);
 }
 
-u64  Filesystem_GetLastWriteTimeH(const FileHandle* Handle)
+u64  Filesystem_GetLastWriteTimeH(const FileHandle Handle)
 {
     //fstat(fileno(Handle->Data), &FileStat);
     // TODO: something better
@@ -1252,21 +1258,21 @@ u64  Filesystem_GetLastWriteTimeH(const FileHandle* Handle)
     return Filesystem_GetLastWriteTime(Path);
 }
 
-u64  Filesystem_GetLastAccessTimeH(const FileHandle* Handle)
+u64  Filesystem_GetLastAccessTimeH(const FileHandle Handle)
 {
     StringLocal(Path, MAX_PATH_LENGTH);
     Filesystem_GetFilePath(Handle, &Path);
     return Filesystem_GetLastAccessTime(Path);
 }
 
-u64  Filesystem_GetCreationTimeH(const FileHandle* Handle)
+u64  Filesystem_GetCreationTimeH(const FileHandle Handle)
 {
     StringLocal(Path, MAX_PATH_LENGTH);
     Filesystem_GetFilePath(Handle, &Path);
     return Filesystem_GetCreationTime(Path);
 }
 
-FileTimeData  Filesystem_GetFileTimeH(const FileHandle* Handle)
+FileTimeData  Filesystem_GetFileTimeH(const FileHandle Handle)
 {
     StringLocal(Path, MAX_PATH_LENGTH);
     Filesystem_GetFilePath(Handle, &Path);
@@ -1298,11 +1304,11 @@ bool Filesystem_ReadPipe(PlatformPipe Handle, u64 DataSize, void* OutData, u64* 
     return true;
 }
 
-bool Filesystem_Read(const FileHandle* Handle, u64 DataSize, void* OutData, u64* OutBytesRead)
+bool Filesystem_Read(const FileHandle Handle, u64 DataSize, void* OutData, u64* OutBytesRead)
 {
     if (NEVER(!IsValidFileHandle(Handle))) return false;
 
-    u64 BytesRead = fread(OutData, 1, DataSize, Handle->Data);
+    u64 BytesRead = fread(OutData, 1, DataSize, Handle.Data);
     if (BytesRead == 0)
     {
         StringLocal(Path, MAX_PATH_LENGTH);
@@ -1320,7 +1326,7 @@ bool Filesystem_Read(const FileHandle* Handle, u64 DataSize, void* OutData, u64*
     return true;
 }
 
-bool Filesystem_ReadEntireFile(const FileHandle* Handle, void* OutData, u64* OutBytesRead)
+bool Filesystem_ReadEntireFile(const FileHandle Handle, void* OutData, u64* OutBytesRead)
 {
     if (NEVER(!IsValidFileHandle(Handle))) return false;
 
@@ -1329,7 +1335,7 @@ bool Filesystem_ReadEntireFile(const FileHandle* Handle, void* OutData, u64* Out
     u64 Size = 0;
     Filesystem_GetFileSize(Handle, &Size);
 
-    u64 BytesRead = fread(OutData, 1, Size, Handle->Data);
+    u64 BytesRead = fread(OutData, 1, Size, Handle.Data);
     if (BytesRead == 0)
     {
         StringLocal(Path, MAX_PATH_LENGTH);
@@ -1347,7 +1353,7 @@ bool Filesystem_ReadEntireFile(const FileHandle* Handle, void* OutData, u64* Out
     return true;
 }
 
-bool Filesystem_ReadLine(const FileHandle* Handle, String* LineBuffer)
+bool Filesystem_ReadLine(const FileHandle Handle, String* LineBuffer)
 {
     if (NEVER(!IsValidFileHandle(Handle))) return false;
     if (NEVER(LineBuffer == NULL)) return false;
@@ -1364,7 +1370,7 @@ bool Filesystem_ReadLine(const FileHandle* Handle, String* LineBuffer)
     }
 
     char TempBuffer[8192] = {0};
-    u64 BytesRead = fread(TempBuffer, 1, 8191, Handle->Data);
+    u64 BytesRead = fread(TempBuffer, 1, 8191, Handle.Data);
     if (BytesRead == 0)
     {
         StringLocal(Path, MAX_PATH_LENGTH);
@@ -1426,13 +1432,13 @@ bool Filesystem_ReadLine(const FileHandle* Handle, String* LineBuffer)
     return true;
 }
 
-bool Filesystem_ReadLine_Backwards(const FileHandle* Handle, String* LineBuffer)
+bool Filesystem_ReadLine_Backwards(const FileHandle Handle, String* LineBuffer)
 {
     UNIMPLEMENTED;
     return false;
 }
 
-bool Filesystem_Write(const FileHandle* Handle, u64 DataSize, const void* Data, u64* OutBytesWritten)
+bool Filesystem_Write(const FileHandle Handle, u64 DataSize, const void* Data, u64* OutBytesWritten)
 {
     if (NEVER(!IsValidFileHandle(Handle))) return false;
     if (DataSize == 0) return false;
@@ -1442,7 +1448,7 @@ bool Filesystem_Write(const FileHandle* Handle, u64 DataSize, const void* Data, 
 
     Filesystem_SeekToBeginning(Handle);
 
-    u64 BytesWritten = fwrite(Data, 1, DataSize, Handle->Data);
+    u64 BytesWritten = fwrite(Data, 1, DataSize, Handle.Data);
     if (BytesWritten == 0)
     {
         StringLocal(Path, MAX_PATH_LENGTH);
@@ -1460,13 +1466,13 @@ bool Filesystem_Write(const FileHandle* Handle, u64 DataSize, const void* Data, 
     return true;
 }
 
-bool Filesystem_WriteLine(const FileHandle* Handle, const String Text, u64* OutBytesWritten)
+bool Filesystem_WriteLine(const FileHandle Handle, const String Text, u64* OutBytesWritten)
 {
     if (NEVER(!IsValidFileHandle(Handle))) return false;
 
     Filesystem_SeekToEnd(Handle);
 
-    u64 BytesWritten = fwrite(Text.Data, 1, Text.Length, Handle->Data);
+    u64 BytesWritten = fwrite(Text.Data, 1, Text.Length, Handle.Data);
     if (BytesWritten == 0)
     {
         StringLocal(Path, MAX_PATH_LENGTH);
@@ -1484,7 +1490,7 @@ bool Filesystem_WriteLine(const FileHandle* Handle, const String Text, u64* OutB
     return true;
 }
 
-bool Filesystem_WriteLineFormatted(const FileHandle* Handle, const String Text, u64* OutBytesWritten, ...)
+bool Filesystem_WriteLineFormatted(const FileHandle Handle, const String Text, u64* OutBytesWritten, ...)
 {
     if (NEVER(!IsValidFileHandle(Handle))) return false;
 
@@ -1496,7 +1502,7 @@ bool Filesystem_WriteLineFormatted(const FileHandle* Handle, const String Text, 
     String_FormatV(&Buffer, Text, 32768, Args);
     va_end(Args);
 
-    u64 BytesWritten = fwrite(Buffer.Data, 1, Buffer.Length, Handle->Data);
+    u64 BytesWritten = fwrite(Buffer.Data, 1, Buffer.Length, Handle.Data);
     if (BytesWritten == 0)
     {
         StringLocal(Path, MAX_PATH_LENGTH);
@@ -1540,7 +1546,7 @@ bool Filesystem_DoesDirectoryExist(const String FilePath)
     return true;
 }
 
-bool Filesystem_GetFileSize(const FileHandle* File, u64* OutSize)
+bool Filesystem_GetFileSize(const FileHandle File, u64* OutSize)
 {
     StringLocal(Path, MAX_PATH_LENGTH);
     Filesystem_GetFilePath(File, &Path);
@@ -1551,13 +1557,13 @@ bool Filesystem_GetFileSize(const FileHandle* File, u64* OutSize)
     return true;
 }
 
-bool Filesystem_GetFilePath(const FileHandle* Handle, String* OutPath)
+bool Filesystem_GetFilePath(const FileHandle Handle, String* OutPath)
 {
     if (!IsValidFileHandle(Handle))
         return false;
 
     char Path[PATH_MAX] = {0};
-    if (fcntl(fileno(Handle->Data), F_GETPATH, Path) == -1)
+    if (fcntl(fileno(Handle.Data), F_GETPATH, Path) == -1)
     {
         StringLocal(Prefix, MAX_PATH_LENGTH);
         String_Format(&Prefix, S("Failed to retrieve file path for file handle"), Prefix.Capacity);
