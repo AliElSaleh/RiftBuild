@@ -4124,7 +4124,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 String_Append(&CmdLine, RcFilePath);
                 String_AppendChar(&CmdLine, '"');
 
-                LOG("Compiling icon \"%S\"", IconFilePath);
+                LOG("Compiling icon -> \"%S\"", IconFilePath);
 
                 if (bVerboseLog)
                     LOG("    %S\n", CmdLine);
@@ -4270,7 +4270,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 String_Append(&CmdLine, VersionRCPath);
                 String_AppendChar(&CmdLine, '"');
 
-                LOG("Compiling resource \"%S\"\n", VersionRCPath);
+                LOG("Compiling resource -> \"%S\"\n", VersionRCPath);
                 if (bVerboseLog)
                     LOG("    %S\n", CmdLine);
                 PlatformHandle h = Platform_RunCommand(CmdLine, WorkingPath);

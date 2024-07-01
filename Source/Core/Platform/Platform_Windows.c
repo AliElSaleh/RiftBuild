@@ -98,9 +98,6 @@ C_LINKAGE_END
 // INFO, SUCCESS, WARNING, ERROR, FATAL, NONE
 static u8 GConsoleColorLevels[6] = { CONSOLE_INFO_COLOR, CONSOLE_SUCCESS_COLOR, CONSOLE_WARNING_COLOR, CONSOLE_ERROR_COLOR, CONSOLE_FATAL_COLOR, CONSOLE_INFO_COLOR };
 
-static CRITICAL_SECTION GCriticalSection = {0};
-static bool bCriticalSectionInitialized = false;
-
 static char ArgumentBuffer[128][512] = {0};
 
 static String GArgV[128] = {0};
@@ -125,12 +122,6 @@ internal void LogLastError(const String Prefix)
 void Platform_PreInitialize(void)
 {
     Platform_GetClockFrequency();
-
-    if (!bCriticalSectionInitialized)
-    {
-        InitializeCriticalSectionAndSpinCount(&GCriticalSection, 0);
-        bCriticalSectionInitialized = true;
-    }
 
     i32 NumArgs = 0;
     wchar** ArgsW = CommandLineToArgvW(GetCommandLineW(), &NumArgs);
@@ -590,8 +581,6 @@ bool Platform_DoesEnvironmentVariableExist(String Name)
 
 bool Platform_CaptureStackTrace(LinearAllocator* Arena, TArray(StackTraceData)* OutInfo)
 {
-    EnterCriticalSection(&GCriticalSection);
-
     HANDLE ProcessHandle = GetCurrentProcess();
     SymInitialize(ProcessHandle, NULL, true);
 
@@ -624,8 +613,6 @@ bool Platform_CaptureStackTrace(LinearAllocator* Arena, TArray(StackTraceData)* 
     *OutInfo = StackTraceCache;
 
     Memory_ReleaseScratch(&Temp);
-
-    LeaveCriticalSection(&GCriticalSection);
 
     return true;
 }

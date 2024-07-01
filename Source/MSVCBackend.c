@@ -113,7 +113,7 @@ internal bool AsmSourceFileDirectoryIterator(const String FullPath, const String
     return true;
 }
 
-internal bool ResourceFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
+internal bool ResourceFileDirectoryIterator_MSVC(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
     if (FileSize > 0)
     {
@@ -176,7 +176,7 @@ internal bool ResourceFileDirectoryIterator(const String FullPath, const String 
     return true;
 }
 
-internal bool Link_SourceFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
+internal bool Link_SourceFileDirectoryIterator_MSVC(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
     if (FileSize > 0)
     {
@@ -314,7 +314,7 @@ bool MSVC_Compile(const BuildParams* Params, u32* NumCompiled)
     if (Platform_FindProgram(S("llvm-rc"))) // TODO: use rc.exe instead
     {
         CompileData RcUserData = { NULL, Params, NumCompiled, 0, true, NULL };
-        Filesystem_IterateDirectory_Ex(SourceDir, ResourceFileDirectoryIterator, true, &RcUserData);
+        Filesystem_IterateDirectory_Ex(SourceDir, ResourceFileDirectoryIterator_MSVC, true, &RcUserData);
         if (!RcUserData.bSuccess)
         {
             return false;
@@ -476,7 +476,7 @@ bool MSVC_Link(const BuildParams* Params)
         String_AppendSpace(&CmdLine);
 
         LinkData Data = { Params, &CmdLine };
-        Filesystem_IterateDirectory_Ex(SourceDir, Link_SourceFileDirectoryIterator, true, &Data);
+        Filesystem_IterateDirectory_Ex(SourceDir, Link_SourceFileDirectoryIterator_MSVC, true, &Data);
 
         String_EatSpacesInlineFromEnd(&CmdLine);
         String_Concat(&CmdLine, S(" /OUT:\""), BuildPath, Params->AssemblyWithExt, S("\"")); // make this first then the flags?
@@ -494,7 +494,7 @@ bool MSVC_Link(const BuildParams* Params)
         String_AppendSpace(&CmdLine);
 
         LinkData Data = { Params, &CmdLine };
-        Filesystem_IterateDirectory_Ex(SourceDir, Link_SourceFileDirectoryIterator, true, &Data);
+        Filesystem_IterateDirectory_Ex(SourceDir, Link_SourceFileDirectoryIterator_MSVC, true, &Data);
     }
 
     if (bQuietBuild) Logging_Enable();
