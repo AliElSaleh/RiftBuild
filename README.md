@@ -32,8 +32,8 @@ Extension exe # or dll/lib/a/so/dylib/elf or replace this line with Type app or 
 
 # below are optional but you can edit them for your project's needs
 # these directories are relative to where you run "riftbuild" from
-SourceDirectory src       # default value is nothing
-BuildDirectory bin        # default value is Build
+SourceDirectory       src # default value is nothing
+BuildDirectory        bin # default value is Build
 IntermediateDirectory int # default value is Intermediate
 
 # fill in/replace the following below for your program/project
@@ -52,7 +52,9 @@ Defines MAX_STUFF=5 SOME_DEFINE
 # I'm not sold on this
 You are wise to be skeptical of new tools.
 
-Below are forks of a few open-source projects that I've translated from CMake (and other build systems) to Rift Build. They can be built with just a single `riftbuild` call on the terminal at the project root directory on Windows, Mac and Linux (where appropriate).
+Below are forks of a few open-source projects that I've translated from CMake (and other build systems) to Rift Build. They can be built with just a single `riftbuild` call on the terminal at the project root directory.
+
+They work on Windows, Mac OS and Linux (where appropriate).
 
 - [Jolt Physics](https://github.com/AliElSaleh/JoltPhysics)
 - [Refterm TODO](https://google.com)
