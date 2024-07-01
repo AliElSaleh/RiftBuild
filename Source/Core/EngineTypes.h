@@ -57,11 +57,39 @@ typedef void VoidFunc(void);
 #define DBL_MAX_EXP      1024                    // max binary exponent
 
 // https://stackoverflow.com/questions/72532179/default-arguments-to-c-macros
+/*
 #define z__nargs100__(a00,a01,a02,a03,a04,a05,a06,a07,a08,a09,a0a,a0b,a0c,a0d,a0e,a0f,a10,a11,a12,a13,a14,a15,a16,a17,a18,a19,a1a,a1b,a1c,a1d,a1e,a1f,a20,a21,a22,a23,a24,a25,a26,a27,a28,a29,a2a,a2b,a2c,a2d,a2e,a2f,a30,a31,a32,a33,a34,a35,a36,a37,a38,a39,a3a,a3b,a3c,a3d,a3e,a3f,a40,a41,a42,a43,a44,a45,a46,a47,a48,a49,a4a,a4b,a4c,a4d,a4e,a4f,a50,a51,a52,a53,a54,a55,a56,a57,a58,a59,a5a,a5b,a5c,a5d,a5e,a5f,a60,a61,a62,a63,a64,a65,a66,a67,a68,a69,a6a,a6b,a6c,a6d,a6e,a6f,a70,a71,a72,a73,a74,a75,a76,a77,a78,a79,a7a,a7b,a7c,a7d,a7e,a7f,a80,a81,a82,a83,a84,a85,a86,a87,a88,a89,a8a,a8b,a8c,a8d,a8e,a8f,a90,a91,a92,a93,a94,a95,a96,a97,a98,a99,a9a,a9b,a9c,a9d,a9e,a9f,aa0,aa1,aa2,aa3,aa4,aa5,aa6,aa7,aa8,aa9,aaa,aab,aac,aad,aae,aaf,ab0,ab1,ab2,ab3,ab4,ab5,ab6,ab7,ab8,ab9,aba,abb,abc,abd,abe,abf,ac0,ac1,ac2,ac3,ac4,ac5,ac6,ac7,ac8,ac9,aca,acb,acc,acd,ace,acf,ad0,ad1,ad2,ad3,ad4,ad5,ad6,ad7,ad8,ad9,ada,adb,adc,add,ade,adf,ae0,ae1,ae2,ae3,ae4,ae5,ae6,ae7,ae8,ae9,aea,aeb,aec,aed,aee,aef,af0,af1,af2,af3,af4,af5,af6,af7,af8,af9,afa,afb,afc,afd,afe,aff,a100,...)  a100
 #define z__nargs__(...) z__nargs100__(,##__VA_ARGS__, ff,fe,fd,fc,fb,fa,f9,f8,f7,f6,f5,f4,f3,f2,f1,f0,ef,ee,ed,ec,eb,ea,e9,e8,e7,e6,e5,e4,e3,e2,e1,e0,df,de,dd,dc,db,da,d9,d8,d7,d6,d5,d4,d3,d2,d1,d0,cf,ce,cd,cc,cb,ca,c9,c8,c7,c6,c5,c4,c3,c2,c1,c0,bf,be,bd,bc,bb,ba,b9,b8,b7,b6,b5,b4,b3,b2,b1,b0,af,ae,ad,ac,ab,aa,a9,a8,a7,a6,a5,a4,a3,a2,a1,a0,9f,9e,9d,9c,9b,9a,99,98,97,96,95,94,93,92,91,90,8f,8e,8d,8c,8b,8a,89,88,87,86,85,84,83,82,81,80,7f,7e,7d,7c,7b,7a,79,78,77,76,75,74,73,72,71,70,6f,6e,6d,6c,6b,6a,69,68,67,66,65,64,63,62,61,60,5f,5e,5d,5c,5b,5a,59,58,57,56,55,54,53,52,51,50,4f,4e,4d,4c,4b,4a,49,48,47,46,45,44,43,42,41,40,3f,3e,3d,3c,3b,3a,39,38,37,36,35,34,33,32,31,30,2f,2e,2d,2c,2b,2a,29,28,27,26,25,24,23,22,21,20,1f,1e,1d,1c,1b,1a,19,18,17,16,15,14,13,12,11,10,f,e,d,c,b,a,9,8,7,6,5,4,3,2,1,0)
 #define z__vfn(name, n) name##n
 #define z_vfn(name, n)  z__vfn(name, n)
 #define vfn(fn, ...)    z_vfn(fn, z__nargs__(__VA_ARGS__))(__VA_ARGS__)
+*/
+
+// get number of arguments with __NARG__
+#define __NARG__(...)  __NARG_I_(__VA_ARGS__,__RSEQ_N())
+#define __NARG_I_(...) __ARG_N(__VA_ARGS__)
+#define __ARG_N( \
+      _1, _2, _3, _4, _5, _6, _7, _8, _9,_10, \
+     _11,_12,_13,_14,_15,_16,_17,_18,_19,_20, \
+     _21,_22,_23,_24,_25,_26,_27,_28,_29,_30, \
+     _31,_32,_33,_34,_35,_36,_37,_38,_39,_40, \
+     _41,_42,_43,_44,_45,_46,_47,_48,_49,_50, \
+     _51,_52,_53,_54,_55,_56,_57,_58,_59,_60, \
+     _61,_62,_63,N,...) N
+
+#define __RSEQ_N() \
+     63,62,61,60,                   \
+     59,58,57,56,55,54,53,52,51,50, \
+     49,48,47,46,45,44,43,42,41,40, \
+     39,38,37,36,35,34,33,32,31,30, \
+     29,28,27,26,25,24,23,22,21,20, \
+     19,18,17,16,15,14,13,12,11,10, \
+     9,8,7,6,5,4,3,2,1,0
+
+// general definition for any function name
+#define _VFUNC_(name, n) name##n
+#define _VFUNC(name, n)  _VFUNC_(name, n)
+#define vfn(func, ...)   _VFUNC(func, __NARG__(__VA_ARGS__))(__VA_ARGS__)
 
 #define BITS_PER_LONG (8*sizeof(long))
 #define OFF(x) ((x)%BITS_PER_LONG)
@@ -123,7 +151,7 @@ typedef void VoidFunc(void);
     //#define STATIC_ASSERT(e) typedef char __C_ASSERT__[(e)?1:-1]
 #else
     #define STATIC_ASSERT static_assert
-    #define typeof 
+    #define typeof  typeof
 #endif
 
 // Ensure all types are of the correct size
@@ -280,12 +308,12 @@ STATIC_ASSERT(sizeof(void*) == 8, "Expected size of a pointer to be 8 bytes.");
     #error Unknown CPU Type
 #endif
 
-#if defined(_MSC_VER)
-    #define COMPILER_MSVC 1
+#if defined(__clang__)
+    #define COMPILER_CLANG 1
 #elif defined(__GNUC__)
     #define COMPILER_GCC 1
-#elif defined(__clang__)
-    #define COMPILER_CLANG 1
+#elif defined(_MSC_VER)
+    #define COMPILER_MSVC 1
 #else
     #error Unknown compiler
 #endif
@@ -332,24 +360,43 @@ STATIC_ASSERT(sizeof(void*) == 8, "Expected size of a pointer to be 8 bytes.");
     #define read_only 
 #endif
 
-#define UNUSED           __attribute__((unused))
-#define CONST_ATTRIB     __attribute__((const))
-#define PURE_ATTRIB      __attribute__((pure))
-#define NO_DISCARD       __attribute__((warn_unused_result))
-#define FALL_THROUGH     __attribute__((fallthrough))
-#define NO_RETURN        __attribute__((noreturn))
-#define RETURN_NON_NULL  __attribute__((returns_nonnull))
-
 #if COMPILER_CLANG || COMPILER_GCC
-    #define DEPRECATED   __attribute__((__deprecated__))
+    #define DEPRECATED       __attribute__((__deprecated__))
+    #define UNUSED           __attribute__((unused))
+    #define CONST_ATTRIB     __attribute__((const))
+    #define PURE_ATTRIB      __attribute__((pure))
+    #define NO_DISCARD       __attribute__((warn_unused_result))
+    #define FALL_THROUGH     __attribute__((fallthrough))
+    #define NO_RETURN        __attribute__((noreturn))
+    #define RETURN_NON_NULL  __attribute__((returns_nonnull))
+    #define ASM              __asm__ \
+
+    #define UNLIKELY(Expression) __builtin_expect(!!(Expression), 0)
+    #define LIKELY(Expression)   __builtin_expect(!!(Expression), 1)
+
 #elif COMPILER_MSVC
-    #define DEPRECATED __declspec(deprecated)
-#else
-    #define DEPRECATED
+    #define PRAGMA_DISABLE_DEPRECATION_WARNINGS \
+        __pragma(warning(push)) \
+        __pragma(warning(disable: 4995)) /* 'function': name was marked as #pragma deprecated */ \
+        __pragma(warning(disable: 4996)) /* The compiler encountered a deprecated declaration. */
+
+    #define PRAGMA_ENABLE_DEPRECATION_WARNINGS \
+        __pragma(warning(pop)) \
+
+    #define DEPRECATED       __declspec(deprecated)
+    #define UNUSED           
+    #define CONST_ATTRIB     
+    #define PURE_ATTRIB      
+    #define NO_DISCARD       
+    #define FALL_THROUGH     
+    #define NO_RETURN        
+    #define RETURN_NON_NULL  
+    #define ASM              __asm
+
+    #define UNLIKELY(Expression) Expression
+    #define LIKELY(Expression)   Expression
 #endif
 
-#define UNLIKELY(Expression) __builtin_expect(!!(Expression), 0)
-#define LIKELY(Expression)   __builtin_expect(!!(Expression), 1)
 
 #ifdef __cplusplus
 #define C_LINKAGE_BEGIN extern "C" {

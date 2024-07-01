@@ -2,9 +2,11 @@
 // Execute this source with a shell to build libmemory.a.
 // This is free and unencumbered software released into the public domain.
 
+#if __clang__
+
 #if PLATFORM_WINDOWS
-typedef __SIZE_TYPE__    size_t;
-typedef __UINTPTR_TYPE__ uintptr_t;
+typedef u64  size_t;
+typedef u64* uintptr_t;
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wincompatible-library-redeclaration"
@@ -73,4 +75,5 @@ RIFT_API int memcmp(void* s1, void* s2, size_t len)
 
 #pragma clang diagnostic pop
 
+#endif
 #endif

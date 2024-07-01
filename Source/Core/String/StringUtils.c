@@ -1268,6 +1268,22 @@ bool String_IndexOfChar(const String Str, char C, u32* OutIndex)
     return false;
 }
 
+bool String_IsFirst(const String Str, char C)
+{
+    if (Str.Length == 0)
+        return false;
+
+    return Str.Data[0] == C;
+}
+
+bool String_IsLast(const String Str, char C)
+{
+    if (Str.Length == 0)
+        return false;
+
+    return Str.Data[Str.Length-1] == C;
+}
+
 bool String_IndexOfLastChar(const String Str, char C, u32* OutIndex)
 {
     if (Str.Length == 0)

@@ -27,8 +27,11 @@
 
 #include <gs_support.c>
 
+#if COMPILER_CLANG
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wmissing-prototypes"
+#endif
+
 u64 __security_cookie = 0;
 u64 __security_cookie_complement = 0;
 void __fastcall __security_check_cookie(u64 cookie)
@@ -36,7 +39,10 @@ void __fastcall __security_check_cookie(u64 cookie)
     if (cookie != __security_cookie)
         __debugbreak();
 }
+
+#if COMPILER_CLANG
 #pragma clang diagnostic pop
+#endif
 
 typedef enum WinConsoleForegroundColors
 {
@@ -2238,12 +2244,18 @@ bool Platform_GetTerminalDimensions(u32* OutRows, u32* OutColumns)
     return true;
 }
 
+#if COMPILER_CLANG
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wmissing-prototypes"
+#endif
+
 FORCENOINLINE BOOL __cdecl _DllMainCRTStartup(HANDLE hDllHandle, DWORD dwReason, LPVOID lpreserved)
 {
     return true;
 }
+
+#if COMPILER_CLANG
 #pragma clang diagnostic pop
+#endif
 
 #endif // PLATFORM_WINDOWS

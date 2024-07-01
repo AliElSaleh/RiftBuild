@@ -1,8 +1,10 @@
 if debug Mode Debug else Mode Dist
 include Source/$(Mode).buildvars
 
+if cl                   Compiler cl
+
 Assembly                RiftBuild
-Icon                    riftbuild.ico
+Icon                    riftbuild
 
 TitleName               Rift Build ($(Mode))
 Description             A simpler build tool for C/C++, because fuck cmake
@@ -13,7 +15,7 @@ Copyright!              Copyright (c) 2024 Ali El Saleh
 SourceDirectory         Source
 BuildDirectory          Build/$(Mode)/%%Hood
 
-CompilerFlags           $SharedCompilerFlags -mno-stack-arg-probe -mstack-probe-size=999999999
+CompilerFlags           $SharedCompilerFlags
 LinkerFlags             $SharedLinkerFlags
 Includes                $SharedIncludeFlags
 Defines                 $SharedDefines RIFT_STATIC NO_LOG_FILE %^%hood
@@ -21,12 +23,19 @@ Libraries               %_NativeLibs
 
 IncludedSourceFiles     Clock.c Math.c Memory.c Allocators.c StringUtils.c Containers.c Globals.c Log.c EngineUtils.c Program.c CBackend.c MSVCBackend.c Exporter.c Parse.c
 
+if cl                   IncludedSourceFiles memcmp.asm memset.asm
+
 if _platform == windows IncludedSourceFiles Platform_Windows.c
 if _platform == linux   IncludedSourceFiles Platform_Linux.c
 if _platform == macos   IncludedSourceFiles Platform_Mac.c
 if _platform == bsd     IncludedSourceFiles Platform_BSD.c
 
-if _platform == windows LinkerFlags -nostdlib -Wl,-entry:ProgramStart,-subsystem:console -Xlinker /stack:0x400000,0x400000
+if !cl                  CompilerFlags -mno-stack-arg-probe -mstack-probe-size=999999999
+if cl                   CompilerFlags /GS- /Gs999999999
+
+if !cl if _platform == windows LinkerFlags -nostdlib -Wl,-entry:ProgramStart,-subsystem:console -Xlinker /stack:0x400000,0x400000
+
+if cl if _platform == windows LinkerFlags /ENTRY:ProgramStart /SUBSYSTEM:CONSOLE /STACK:0x400000,0x400000
 
 if _platform == linux   Libraries UUIDS ; LibraryDirectories Source/Libraries/Linux
 
@@ -64,14 +73,6 @@ if apple {
     PostBuild.Cmd          cp $(BuildDirectory)/$(Assembly) Build/$(Assembly).app/Contents/MacOS/$(Assembly)-bin
 }
 ##
-
-# simple console app icon (non-bundled app)
-if apple {
-    PostBuild.Cmd          derez -only icns $icon_png > $(IntermediateDirectory)/tmpicns.rsrc
-    PostBuild.Cmd          rez -append $(IntermediateDirectory)/tmpicns.rsrc -o $(BuildDirectory)/$(Assembly)
-    PostBuild.Cmd          SetFile -a C $(BuildDirectory)/$(Assembly)
-}
-
 
 #PreBuild.Copy          Libraries/glew-2.1.0/lib/Release/x64/glew32s.lib Build/Libs
 #PreBuild.NewDirectory  gen/dahbwiod/dawjiod

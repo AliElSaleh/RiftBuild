@@ -170,6 +170,9 @@ RIFT_API bool String_IndexOfLastPathSlash(const String Str, u32* OutIndex);
 RIFT_API bool String_IndexOfFirstWhitespace(const String Str, u32* OutIndex);
 RIFT_API bool String_IndexOfLastWhitespace(const String Str, u32* OutIndex);
 
+RIFT_API bool String_IsFirst(const String Str, char C);
+RIFT_API bool String_IsLast(const String Str, char C);
+
 RIFT_API u32 String_CountChar(const String Str, char C);
 RIFT_API u32 String_CountSpaces(const String Str);
 RIFT_API u32 String_CountPathSeparators(const String Str);

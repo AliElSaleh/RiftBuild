@@ -46,7 +46,7 @@ STRUCT(LoggingSystemState)
     PlatformCriticalSection CriticalSection;
 };
 
-static const String LogTypeString[6] = {S("[INFO] "), S("[SUCCESS] "), S("[WARNING] "), S("[ERROR] "), S("[FATAL] "), S("")};
+static const String LogTypeString[6] = {SC("[INFO] "), SC("[SUCCESS] "), SC("[WARNING] "), SC("[ERROR] "), SC("[FATAL] "), SC("")};
 
 static LoggingSystemState* GLoggingSystemState = NULL;
 static LinearAllocator GLoggingMemoryAllocator = {0};

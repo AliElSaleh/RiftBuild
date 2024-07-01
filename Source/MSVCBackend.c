@@ -78,6 +78,7 @@ internal bool AsmSourceFileDirectoryIterator(const String FullPath, const String
             if (SourceFileWriteTime >= ObjectFileWriteTime)
             {
                 StringLocal(CmdLine, Kibibytes(4));
+                // todo: if targeting 32 bit, use ml
                 String_Append(&CmdLine, S("ml64 /nologo /c /Fo\""));
 
                 StringLocal(ObjectPath, MAX_PATH_LENGTH);
@@ -94,7 +95,8 @@ internal bool AsmSourceFileDirectoryIterator(const String FullPath, const String
 
                 String_Append(&CmdLine, Params->IncludeFlags);
 
-                //LOG("CMD: %S", CmdLine);
+                if (Params->bVerbose)
+                    LOG("CMD: %S", CmdLine);
 
                 // todo: parallelize this
                 PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory);
@@ -225,11 +227,20 @@ internal bool Link_SourceFileDirectoryIterator(const String FullPath, const Stri
                 }
                 else
                 {
-                    u32 LastPathDot = 0;
-                    String_IndexOfLastChar(RelativePath, '.', &LastPathDot);
 
                     StringLocal(FilePath, MAX_PATH_LENGTH);
-                    String_Append(&FilePath, StrSlice(RelativePath.Data, LastPathDot));
+                    // todo: make asm behave the same
+                    if (String_EndsWith(FileName, S(".asm"), false))
+                    {
+                        String_IndexOfLastChar(FileName, '.', &LastDot);
+                        String_Append(&FilePath, StrSlice(FileName.Data, LastDot));
+                    }
+                    else
+                    {
+                        u32 LastPathDot = 0;
+                        String_IndexOfLastChar(RelativePath, '.', &LastPathDot);
+                        String_Append(&FilePath, StrSlice(RelativePath.Data, LastPathDot));
+                    }
                     String_Append(&FilePath, S(".obj"));
 
                     String_BuildPath(&ObjectPath, Data->Params->IntermediateDirectory, FilePath);

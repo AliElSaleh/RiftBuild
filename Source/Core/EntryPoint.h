@@ -9,8 +9,10 @@
 global u64 GEngineMemoryAmount;
 global u64 GEngineScratchAmount;
 
+#if __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wmissing-prototypes"
+#endif
 
 #ifndef RIFT_STATIC
 C_LINKAGE_BEGIN
@@ -151,4 +153,6 @@ Shutdown_Lvl0:
     #endif
 }
 
+#if __clang__
 #pragma clang diagnostic pop
+#endif

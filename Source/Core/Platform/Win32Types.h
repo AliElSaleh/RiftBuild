@@ -987,9 +987,6 @@ typedef struct tagMSG {
 #define StringCchCat  StringCchCatA
 #endif // !UNICODE
 
-#define _in_
-#define _Out_writes_(...)
-
 #define STRSAFEWORKERAPI    static STRSAFEAPI
 
 // error return codes

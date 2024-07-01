@@ -212,6 +212,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
         if (Trimmed.Data[0] == '}')
         {
             bInsideIf = false;
+            bIfFailed = false;
             continue;
         }
 
@@ -528,7 +529,8 @@ bool ParseBuildFile(LinearAllocator* Arena,
             String_IndexOfFirstWhitespace(VarValue, &Index);
 
             bool bIsMultiLineIf = String_IndexOfChar(VarValue, '{', NULL);
-            bool bIsMultiLineVar = String_IndexOfChar(VarValue, '[', NULL);
+            //bool bIsMultiLineVar = VarValue.Data[VarValue.Length - 1];
+            bool bIsMultiLineVar = String_IsLast(VarValue, '[');
             bInsideIf = bIsMultiLineIf;
             bInsideElse = false;
 

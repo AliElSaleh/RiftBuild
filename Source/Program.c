@@ -309,7 +309,6 @@ bool LogCustomErrorMessage(TArray(FileVariable) VariablesDB, const String Contex
     return bLogged;
 }
 
-// todo: remove defines
 internal bool IconFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
     if (FileSize > 0)
@@ -450,10 +449,14 @@ internal bool SourceFileCounterDirectoryIterator(const String FullPath, const St
 
         if (IsSource(Extension))
         {
+            // we will build this later
             if (String_IsEqual(Extension, S(".rc"), false))
             {
-                // we will build this later
-                Data->NumRcSources++;
+                bool bIgnore = String_IsEqual(FileName, S("icon.rc"), false);
+
+                if (!bIgnore)
+                    Data->NumRcSources++;
+
                 return true;
             }
 
@@ -2472,6 +2475,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     StringLocal(VersionCommas, 64);
     String_Copy(&VersionCommas, Version);
     String_ReplaceCharInline(&VersionCommas, '.', ',');
+    String_ReplaceCharInline(&VersionCommas, '-', ',');
     // .rc files can only have 4 version numbers. sigh...
     u8 CommaCount = 0;
     for (u8 i = 0; i < VersionCommas.Length; i++)
@@ -3994,7 +3998,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     LogNameValuePair(*Arena, S("Expanded UnDefine Flags: "), ExpandedUnDefineFlags,      !bNoWordWrapLogging);
     LogNameValuePair(*Arena, S("Expanded Linker Defines: "), ExpandedLinkerDefineFlags,  !bNoWordWrapLogging);
 
-    String IconName = Icon;
+    //String IconName = Icon;
 
     // log "Building (Assembly)" ui text
     if (Generator == Generator_None)
@@ -4033,7 +4037,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             u32 LastSlashIndex = 0;
             if (String_IndexOfLastPathSlash(Icon, &LastSlashIndex))
             {
-                IconName = StrShiftF(Icon, LastSlashIndex+1);
+                //IconName = StrShiftF(Icon, LastSlashIndex+1);
             }
 
             bool bHasExtension = false;
@@ -4098,7 +4102,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 }
 
                 StringLocal(IconString, 256);
-                String_Format(&IconString, S("id ICON \"%S\""), 256, IconName);
+                String_Format(&IconString, S("id ICON \"%S\""), 256, StrShiftF(IconFilePath, LastSlashIndex == 0 ? 0 : LastSlashIndex+1));
                 if (!Filesystem_Write(f, IconString.Length, IconString.Data, NULL))
                 {
                     LOG_ERROR("Failed to write icon data to \"%S\"", RcFilePath);
@@ -4478,10 +4482,13 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         StringLocal(AssemblyPath, MAX_PATH_LENGTH);
         String_BuildPath(&AssemblyPath, WorkingPath, BuildDirectory, AssemblyNameWithExt);
 
+        u32 LastSlashIndex = 0;
+        String_IndexOfLastPathSlash(IconFilePath, &LastSlashIndex);
+
         // Step 1 ------------------
         StringLocal(RsrcFilePath, MAX_PATH_LENGTH);
         StringLocal(RsrcFileName, 256);
-        String_Append(&RsrcFileName, IconName);
+        String_Append(&RsrcFileName, StrShiftF(IconFilePath, LastSlashIndex == 0 ? 0 : LastSlashIndex+1));
         String_Append(&RsrcFileName, S("-icns.rsrc"));
         String_BuildPath(&RsrcFilePath, WorkingPath, IntermediateDirectory, RsrcFileName);
 

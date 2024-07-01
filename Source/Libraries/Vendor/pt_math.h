@@ -8,6 +8,7 @@
 extern "C" {
 #endif
 
+#ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wlanguage-extension-token"
 #pragma clang diagnostic ignored "-Wfloat-conversion"
@@ -17,6 +18,7 @@ extern "C" {
 #pragma clang diagnostic ignored "-Wunused-function"
 #pragma clang diagnostic ignored "-Wconditional-uninitialized"
 #pragma clang diagnostic ignored "-Wsign-conversion"
+#endif
 
 /* Absolute value functions */
 static int PT_abs(int x) { return x < 0 ? -x : x; }
@@ -445,7 +447,11 @@ static int PT_fclass(float x) {
 #define PT_isinf(f) (PT_fpclassify(f) == PT_FP_INFINITE)
 #define PT_isnan(f) (PT_fpclassify(f) == PT_FP_NAN)
 #define PT_isnormal(f) (PT_fpclassify(f) == PT_FP_NORMAL)
+
+#ifdef __clang__
 #pragma clang diagnostic pop
+#endif
+
 #ifdef __cplusplus
 }
 #endif

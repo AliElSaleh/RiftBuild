@@ -51,6 +51,7 @@ RIFT_API bool StringList_IsValid(const StringList Str);
 #define CStr16View(s)                       (const String16) {.Length = String16_GetLength(s), .Data = (wchar*)(s), .Capacity = 0}
 
 #define S(s)                                (const String)   {.Length = sizeof((s))-1, .Data = (char* )((s)), .Capacity = sizeof((s))-1}
+#define SC(s)                                                {.Length = sizeof((s))-1, .Data = (char* )((s)), .Capacity = sizeof((s))-1}
 #define S16(s)                              (const String16) {.Length = sizeof((s))-1, .Data = (wchar*)((s)), .Capacity = sizeof((s))-1}
 
 #define StrMake(s)                          (String){.Length = (s).Length, .Data = (s).Data, .Capacity = (s).Capacity}
