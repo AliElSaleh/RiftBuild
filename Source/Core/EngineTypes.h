@@ -155,22 +155,18 @@ typedef void VoidFunc(void);
 #endif
 
 // Ensure all types are of the correct size
-STATIC_ASSERT(sizeof(bool) == 1, "Expected size of bool to be 1 byte.");
-STATIC_ASSERT(sizeof(char) == 1, "Expected size of char to be 1 byte.");
-
-STATIC_ASSERT(sizeof(u8)   == 1, "Expected size of u8 to be 1 byte.");
-STATIC_ASSERT(sizeof(u16)  == 2, "Expected size of u16 to be 2 bytes.");
-STATIC_ASSERT(sizeof(u32)  == 4, "Expected size of u32 to be 4 bytes.");
-STATIC_ASSERT(sizeof(u64)  == 8, "Expected size of u64 to be 8 bytes.");
-
-STATIC_ASSERT(sizeof(i8)   == 1, "Expected size of i8 to be 1 byte.");
-STATIC_ASSERT(sizeof(i16)  == 2, "Expected size of i16 to be 2 bytes.");
-STATIC_ASSERT(sizeof(i32)  == 4, "Expected size of i32 to be 4 bytes.");
-STATIC_ASSERT(sizeof(i64)  == 8, "Expected size of i64 to be 8 bytes.");
-
-STATIC_ASSERT(sizeof(f32)  == 4, "Expected size of f32 to be 4 bytes.");
-STATIC_ASSERT(sizeof(f64)  == 8, "Expected size of f64 to be 8 bytes.");
-
+STATIC_ASSERT(sizeof(bool)  == 1, "Expected size of bool to be 1 byte.");
+STATIC_ASSERT(sizeof(char)  == 1, "Expected size of char to be 1 byte.");
+STATIC_ASSERT(sizeof(u8)    == 1, "Expected size of u8 to be 1 byte.");
+STATIC_ASSERT(sizeof(u16)   == 2, "Expected size of u16 to be 2 bytes.");
+STATIC_ASSERT(sizeof(u32)   == 4, "Expected size of u32 to be 4 bytes.");
+STATIC_ASSERT(sizeof(u64)   == 8, "Expected size of u64 to be 8 bytes.");
+STATIC_ASSERT(sizeof(i8)    == 1, "Expected size of i8 to be 1 byte.");
+STATIC_ASSERT(sizeof(i16)   == 2, "Expected size of i16 to be 2 bytes.");
+STATIC_ASSERT(sizeof(i32)   == 4, "Expected size of i32 to be 4 bytes.");
+STATIC_ASSERT(sizeof(i64)   == 8, "Expected size of i64 to be 8 bytes.");
+STATIC_ASSERT(sizeof(f32)   == 4, "Expected size of f32 to be 4 bytes.");
+STATIC_ASSERT(sizeof(f64)   == 8, "Expected size of f64 to be 8 bytes.");
 STATIC_ASSERT(sizeof(void*) == 8, "Expected size of a pointer to be 8 bytes.");
 
 // Platform detection
@@ -244,6 +240,12 @@ STATIC_ASSERT(sizeof(void*) == 8, "Expected size of a pointer to be 8 bytes.");
     #if defined(__linux__) || defined(__gnu_linux__)
         #define PLATFORM_LINUX 1
         #define PLATFORM_STRING "Linux"
+    
+    #if defined(__gnome__)
+        #define PLATFORM_LINUX_GNOME 1
+    #elif defined(__kde__)
+        #define PLATFORM_LINUX_KDE 1
+    #endif
     #else
         #error This UNIX operating system is not supported
     #endif
@@ -310,7 +312,7 @@ STATIC_ASSERT(sizeof(void*) == 8, "Expected size of a pointer to be 8 bytes.");
 
 #if defined(__clang__)
     #define COMPILER_CLANG 1
-#elif defined(__GNUC__)
+#elif defined(__GNUC__) || defined(__gcc__)
     #define COMPILER_GCC 1
 #elif defined(_MSC_VER)
     #define COMPILER_MSVC 1

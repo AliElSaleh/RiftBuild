@@ -4,9 +4,10 @@ include Source/$(Mode).buildvars
 if cl                   Compiler cl
 
 Assembly                RiftBuild
+#Icon                    /usr/share/icons/hicolor/32x32/apps/firefox.png
 Icon                    riftbuild
 
-TitleName               Rift Build ($(Mode))
+TitleName               Rift Build %^%debug
 Description             A simpler build tool for C/C++, because fuck cmake
 Version!                0.9.6-alpha
 CompanyName             Ali El Saleh
@@ -25,27 +26,31 @@ IncludedSourceFiles     Clock.c Math.c Memory.c Allocators.c StringUtils.c Conta
 
 if cl                   IncludedSourceFiles memcmp.asm memset.asm
 
-if _platform == windows IncludedSourceFiles Platform_Windows.c
-if _platform == linux   IncludedSourceFiles Platform_Linux.c
-if _platform == macos   IncludedSourceFiles Platform_Mac.c
-if _platform == bsd     IncludedSourceFiles Platform_BSD.c
+if windows              IncludedSourceFiles Platform_Windows.c
+if linux                IncludedSourceFiles Platform_Linux.c
+if macos                IncludedSourceFiles Platform_Mac.c
+if bsd                  IncludedSourceFiles Platform_BSD.c
+
+if apple                CompilerFlags -mmacosx-version-min=10.5
 
 if !cl                  CompilerFlags -mno-stack-arg-probe -mstack-probe-size=999999999
 if cl                   CompilerFlags /GS- /Gs999999999
 
-if !cl if _platform == windows LinkerFlags -nostdlib -Wl,-entry:ProgramStart,-subsystem:console -Xlinker /stack:0x400000,0x400000
+if !cl if windows       LinkerFlags -nostdlib -Wl,-entry:ProgramStart,-subsystem:console -Xlinker /stack:0x400000,0x400000
+if cl  if windows       LinkerFlags /ENTRY:ProgramStart /SUBSYSTEM:CONSOLE /STACK:0x400000,0x400000
 
-if cl if _platform == windows LinkerFlags /ENTRY:ProgramStart /SUBSYSTEM:CONSOLE /STACK:0x400000,0x400000
+if linux                Libraries UUIDS ; LibraryDirectories Source/Libraries/Linux
 
-if _platform == linux   Libraries UUIDS ; LibraryDirectories Source/Libraries/Linux
+# this is ugly. the env var could get deleted by accident... but it _seems_ to be the most reliable
+if linux {
+    if @XDG_CURRENT_DESKTOP contains GNOME Defines __gnome__
+    if @XDG_CURRENT_DESKTOP contains KDE   Defines __kde__
+    #if find(gnome-shell) Defines __gnome__
+}
 
-if _platform == apple   CompilerFlags -mmacosx-version-min=10.5
-#if _platform == apple   LinkerFlags   -Wl,-sectcreate,__TEXT,__info_plist,Build/Info.plist
-#if _platform == apple   LinkerFlags   -Wl,-sectcreate,__ICON,__common,Build/riftbuild.icns
-
-icon_png Source/Resources/riftbuild.png
 
 ##
+icon_png Source/Resources/riftbuild.png
 # app bundle creation
 if apple {
     #PostBuild.Log
@@ -83,3 +88,5 @@ if apple {
 #PreBuild.Move!         unknown new
 #PreBuild.Rename        unknown/dir/yay.txt unknown/dir/nay.txt
 #PreBuild.Delete        unknown
+
+#PostBuild.Cmd           gio set Build/Dist/riftbuild metadata::custom-icon file:///home/ali/Source/RiftBuild/Source/Resources/riftbuild.png

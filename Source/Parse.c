@@ -360,7 +360,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
 
         if (String_IsEqual(VarName, S("_stop"), false))
         {
-            LOG_INFO("Stopping build file parsing...");
+            //LOG_INFO("Stopping build file parsing...");
             break;
         }
 
@@ -540,26 +540,45 @@ bool ParseBuildFile(LinearAllocator* Arena,
             else
                 Condition = VarValue;
 
+            bool bSearchEnv = String_EatCharInline(&Condition, '@');
+
             bool bIsNot = Condition.Data[0] == '!';
             String_EatCharInline(&Condition, '!');
             bool bCaseSensitive = String_EatCharInline(&Condition, '^');
 
             bool bConditionMet = false;
+            String ConditionValuePtr = String_Null();
+
+            StringLocal(EnvValue, 1024);
+
+            if (bSearchEnv)
+            {
+                // find this variable
+                StringLocal(Temp, 256);
+                String_Copy(&Temp, Condition);
+                if (Platform_GetEnvironmentVariableValue(Temp, &EnvValue))
+                {
+                    ConditionValuePtr = EnvValue;
+                    bConditionMet = true;
+                }
+            }
 
             // check the condition string against the internal build vars passed in from the command line
             // override VarValue for single line if's, for multiline if's, loop back to the top and process each line until '}' is found
-            String ConditionValuePtr = String_Null();
-            for each (o, CmdOptionsDB)
+            if (!bConditionMet)
             {
-                bool bMatch = String_IsEqual(o.Name, Condition, false);
-                if (bMatch)
+                for each (o, CmdOptionsDB)
                 {
-                    if (!o.bEqualsToSomething || 
-                        (o.bEqualsToSomething && o.Value.Length > 0)) // make sure we have some value if we specified an '=' sign
+                    bool bMatch = String_IsEqual(o.Name, Condition, false);
+                    if (bMatch)
                     {
-                        ConditionValuePtr = o.Value;
-                        bConditionMet = true;
-                        break;
+                        if (!o.bEqualsToSomething || 
+                            (o.bEqualsToSomething && o.Value.Length > 0)) // make sure we have some value if we specified an '=' sign
+                        {
+                            ConditionValuePtr = o.Value;
+                            bConditionMet = true;
+                            break;
+                        }
                     }
                 }
             }

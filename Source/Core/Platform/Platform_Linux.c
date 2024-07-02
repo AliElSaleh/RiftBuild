@@ -1664,9 +1664,12 @@ bool Filesystem_ConvertRelativeToAbsolutePath(String* OutFullPath)
 internal bool Internal_IterateDirectory(const String BasePath, const String DirectoryPath, DirectoryIterator Callback, bool bRecursive, void* UserData)
 {
     const String RealBasePath = BasePath.Length == 0 ? S(".") : BasePath;
+
+    StringLocal(BasePathCopy, MAX_PATH_LENGTH);
+    String_Copy(&BasePathCopy, RealBasePath);
     
     struct dirent* entry = NULL;
-    DIR* dp = opendir(RealBasePath.Data);
+    DIR* dp = opendir(BasePathCopy.Data);
     if (!dp)
     {
         // quietly fail...

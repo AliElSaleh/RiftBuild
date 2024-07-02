@@ -342,7 +342,7 @@ internal bool IconFileDirectoryIterator(const String FullPath, const String Rela
         {
             if (String_IsEqual(FileName, IconName, false))
             {
-                String_Copy(D->IconFilePath, RelativePath);
+                String_Copy(D->IconFilePath, FullPath);
                 D->bSuccess = true;
                 return false;
             }
@@ -374,7 +374,7 @@ internal bool IconFileDirectoryIterator(const String FullPath, const String Rela
 
                 if (bMatch)
                 {
-                    String_Copy(D->IconFilePath, RelativePath);
+                    String_Copy(D->IconFilePath, FullPath);
                     D->bSuccess = true;
                     return false;
                 }
@@ -1850,11 +1850,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     
     bool bFoundBuildFile = IsValidFileHandle(BuildFileHandle);
 
-    // todo: get rid of these defines
-    #if PLATFORM_WINDOWS || PLATFORM_APPLE
     StringLocal(IconFilePath, MAX_PATH_LENGTH);
-    //StringLocal(ResourceFilePath, MAX_PATH_LENGTH);
-    #endif
 
     StringLocal(IconResFilePath, MAX_PATH_LENGTH);
     StringLocal(VersionResFilePath, MAX_PATH_LENGTH);
@@ -2420,8 +2416,9 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     const String PostBuildSetting           = GetVariableValue(ExpandedVariablesDB, S("RunPostBuildOnChange"));
     const String MaxCompilerErrors          = GetVariableValue(ExpandedVariablesDB, S("MaxCompilerErrors"));
 
-    #if PLATFORM_WINDOWS
     const String TitleName                  = GetVariableValue(ExpandedVariablesDB, S("TitleName"));
+
+    #if PLATFORM_WINDOWS
     const String Description                = GetVariableValue(ExpandedVariablesDB, S("Description"));
     const String CompanyName                = GetVariableValue(ExpandedVariablesDB, S("CompanyName"));
     const String Copyright                  = GetVariableValue(ExpandedVariablesDB, S("Copyright"));
@@ -4000,6 +3997,9 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
     //String IconName = Icon;
 
+    Clock IconClock = {0};
+    Clock ResourceCompileClock = {0};
+
     // log "Building (Assembly)" ui text
     if (Generator == Generator_None)
     {
@@ -4066,16 +4066,21 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
                 struct Data d = {ExpandedVariablesDB, &IconFilePath, false};
 
-                Filesystem_IterateDirectory_Ex(WorkingPath, IconFileDirectoryIterator, true, &d);
+                String SearchPath = WorkingPath;
+                if (LastSlashIndex && !Filesystem_IsPathRelative(Icon))
+                {
+                    SearchPath = StrSlice(Icon.Data, LastSlashIndex+1);
+                }
+
+                Filesystem_IterateDirectory_Ex(SearchPath, IconFileDirectoryIterator, true, &d);
 
                 if (!d.bSuccess)
                 {
-                    LOG_WARNING("Failed to find icon file \"%S\". Skipping icon build...", Icon);
+                    LOG_WARNING("Failed to find icon file \"%S\" in \"%S\". Skipping icon build...", Icon, SearchPath);
                     String_Empty(&IconFilePath);
                 }
             }
         }
-
 
         // compile executable icon just before we link (if specified)
         #if PLATFORM_WINDOWS
@@ -4086,6 +4091,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         {
             if (bHasRcProgram)
             {
+                Clock_Start(&IconClock);
+
                 u32 LastSlashIndex = 0;
                 String_IndexOfLastPathSlash(IconFilePath, &LastSlashIndex);
 
@@ -4093,7 +4100,15 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 String BasePath = StrSlice(IconFilePath.Data, LastSlashIndex);
                 String RcFile = S("icon.rc");
                 String ResFile = S("icon.res");
-                String_BuildPath(&RcFilePath, WorkingPath, BasePath, RcFile);
+                
+                if (Filesystem_IsPathRelative(IconFilePath))
+                {
+                    String_BuildPath(&RcFilePath, WorkingPath, BasePath, RcFile);
+                }
+                else
+                {
+                    String_BuildPath(&RcFilePath, BasePath, RcFile);
+                }
 
                 FileHandle f = {0};
                 if (!Filesystem_Open(RcFilePath, FileMode_Write, &f))
@@ -4136,6 +4151,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                     LOG_WARNING("Failed to build icon \"%S\" for %S%S. Skipping icon build...", IconFilePath, AssemblyName, Extension);
                     String_Empty(&IconResFilePath);
                 }
+
+                Clock_Tick(&IconClock);
             }
             else
             {
@@ -4146,53 +4163,16 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             }
         }
 
-        /*
-        if (Resource.Length > 0)
-        {
-            String ResourceProgram = S("llvm-rc");
-
-            if (Platform_FindProgram(ResourceProgram, S(".exe")))
-            {
-                u32 LastSlashIndex = 0;
-                if (String_IndexOfLastPathSlash(Resource, &LastSlashIndex))
-                {
-                    String_Copy(&GResourceFilePath, Resource);
-                }
-                else
-                {
-                    Filesystem_IterateDirectory(WorkingPath, ResourceFileDirectoryIterator, true);
-                }
-
-                String_IndexOfLastPathSlash(GResourceFilePath, &LastSlashIndex);
-
-                StringLocal(CmdLine, 1024);
-                String_BuildSeparator(&CmdLine, ' ', ResourceProgram, GResourceFilePath);
-                LOG("Building resource \"%S\"", GResourceFilePath);
-                LOG("    %S\n", CmdLine);
-                PlatformHandle h = Platform_RunCommand(CmdLine, WorkingPath);
-                u32 ExitCode = Platform_WaitForProcessAndGetExitCode(h);
-                if (ExitCode != 0)
-                {
-                    LOG("Failed to build resource \"%S\" for %S.%S. Aborting build...", GResourceFilePath, AssemblyName, Extension);
-                    return 1;
-                }
-            }
-            else
-            {
-                LOG_WARNING("Unable to build resource... \"llvm-rc\" tool does not exist. Download the LLVM toolchain and add a new environment path that points to \"llvm-rc\". Skipping resource build...");
-            }
-        }
-        */
-
         // only build the version resource if we have TitleName, CompanyName, Description, Version, Copyright, or CompanyName
         // and no custom resource file was specified
-        if (//Resource.Length == 0 && 
-            CountData.NumRcSources == 0 &&
+        if (CountData.NumRcSources == 0 &&
             ((TitleName.Length > 0 || CompanyName.Length > 0 || Description.Length > 0 ||
             (!bFallbackVersion && Version.Length > 0) || CompanyName.Length > 0 || Copyright.Length > 0)))
         {
             if (bHasRcProgram)
             {
+                Clock_Start(&ResourceCompileClock);
+
                 StringLocal(VersionRCPath, MAX_PATH_LENGTH);
                 const String VersionRCName = S("_version.rc");
                 const String VersionResName = S("_version.res");
@@ -4280,6 +4260,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                     LOG_WARNING("Failed to build resource file \"%S\" for %S%S. Skipping...", VersionRCPath, AssemblyName, Extension);
                     String_Empty(&VersionResFilePath);
                 }
+
+                Clock_Tick(&ResourceCompileClock);
             }
             else
             {
@@ -4475,6 +4457,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     #if PLATFORM_APPLE
     if (IconFilePath.Length > 0)
     {
+        Clock_Start(&IconClock);
+
         LOG("\nCompiling icon \"%S\"", IconFilePath);
 
         StringLocal(CmdLine, 4096);
@@ -4533,6 +4517,103 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
             return 1;
         }
+
+        Clock_Tick(&IconClock);
+    }
+    #endif
+
+    // build icon for linux executables
+    #if PLATFORM_LINUX
+    if (IconFilePath.Length > 0)
+    {
+        Clock_Start(&IconClock);
+        LOG("\nCompiling icon \"%S\"", IconFilePath);
+
+        StringLocal(AssemblyPath, MAX_PATH_LENGTH);
+        String_BuildPath(&AssemblyPath, WorkingPath, BuildDirectory, AssemblyNameWithExt);
+
+        StringLocal(UserDirectory, MAX_PATH_LENGTH);
+        bool bGotUsrDir = Platform_GetUserDirectory(&UserDirectory);
+
+        if (bIsAssemblyExe)
+        {
+            // build a .desktop file
+            StringLocal(DotDesktopFilePath, MAX_PATH_LENGTH);
+            StringLocal(DesktopFileName, 512);
+            String_Append(&DesktopFileName, AssemblyName);
+            String_Append(&DesktopFileName, S(".desktop"));
+            
+            if (bGotUsrDir)
+            {
+                String_BuildPath(&DotDesktopFilePath, UserDirectory, S(".local/share/applications/"), DesktopFileName);
+            }
+            else
+            {
+                String_BuildPath(&DotDesktopFilePath, WorkingPath, IntermediateDirectory, DesktopFileName);
+            }
+
+            FileHandle f = {0};
+            if (Filesystem_Open(DotDesktopFilePath, FileMode_Write, &f))
+            {
+                StringLocal(FileData, 4096);
+                String_Format(&FileData,
+                    S("# Generated by riftbuild on %S\n"
+                        "[Desktop Entry]\n"
+                        "Name=%S\n"
+                        "TryExec=%S\n"
+                        "Exec=%S\n"
+                        "Icon=%S\n"
+                        "Terminal=true\n"
+                        "Type=Application\n"
+                        "StartupNotify=false\n"),
+                        4096, 
+                        TimeStamp,
+                        TitleName,
+                        AssemblyPath,
+                        AssemblyPath,
+                        IconFilePath);
+
+                Filesystem_Write(f, FileData.Length, FileData.Data, NULL);
+                Filesystem_Close(&f);
+
+                /*
+                StringLocal(DotDesktopDestPath, MAX_PATH_LENGTH);
+                String_BuildPath(&DotDesktopDestPath, S("~/.local/share/applications/"), DesktopFileName);
+                Filesystem_Copy(DotDesktopFilePath, DotDesktopDestPath);
+                */
+
+                // todo??
+                // update-desktop-database ~/.local/share/applications
+                // update-desktop-database /usr/share/applications
+                // xdg-desktop-menu forceupdate
+            }
+        }
+
+        // try to natively override the default icon for the actual executable
+        // currently only supporting GNOME and KDE desktop environments
+        #if PLATFORM_LINUX_GNOME
+        StringLocal(CmdLine, 4096);
+
+        // todo: do it for libNameS.a
+
+        String_Append(&CmdLine, S("gio set "));
+        String_Append(&CmdLine, AssemblyPath);
+        String_Append(&CmdLine, S(" metadata::custom-icon file://"));
+        String_Append(&CmdLine, IconFilePath);
+
+        if (bVerboseLog) LOG("    %S", CmdLine);
+
+        PlatformHandle h = Platform_RunCommand(CmdLine, WorkingPath);
+        u32 ExitCode = Platform_WaitForProcessAndGetExitCode(h);
+        if (ExitCode != 0)
+        {
+            LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
+            return 1;
+        }
+        #elif PLATFORM_LINUX_KDE
+        #endif
+
+        Clock_Tick(&IconClock);
     }
     #endif
 
@@ -4549,6 +4630,18 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
     Clock_GetElapsedTime_ToString(&LinkClock, true, &TimeString);
     LOG("Link        time: %S", TimeString);
+
+    if (IconClock.StartTime > 0)
+    {
+        Clock_GetElapsedTime_ToString(&IconClock, true, &TimeString);
+        LOG("Icon        time: %S", TimeString);
+    }
+
+    if (ResourceCompileClock.StartTime > 0)
+    {
+        Clock_GetElapsedTime_ToString(&ResourceCompileClock, true, &TimeString);
+        LOG("Resource    time: %S", TimeString);
+    }
 
     if (bFoundBuildFile)
     {
@@ -4895,7 +4988,8 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
     String_EatPathSeparatorsInlineFromEnd(&WorkingDirectory);
 
     const bool bSingleThreadMode       = StringArray_Contains(Arguments, S("-singlethread"), false);
-    const bool bGenCompileCommandsJSON = StringArray_Contains(Arguments, S("export:compile_commands"), false);
+    const bool bGenCompileCommandsJSON = StringArray_Contains(Arguments, S("export:compile_commands"), false) ||
+                                         StringArray_Contains(Arguments, S("export:cc"), false);
     //const bool bGenVisualStudio        = StringArray_Contains(Arguments, S("export:visual_studio"), false);
     //const bool bGenXCode               = StringArray_Contains(Arguments, S("export:xcode"), false);
 

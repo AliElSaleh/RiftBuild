@@ -325,6 +325,7 @@ bool C_DoCompile(CompileData* Data, const String FullPath, const String Relative
     if (Params->MaxErrors > 0)
     {
         if (String_IsEqual(Params->CompilerProgram, S("gcc"), false) ||
+            String_IsEqual(Params->CompilerProgram, S("cc"), false) ||
             String_IsEqual(Params->CompilerProgram, S("g++"), false) ||
             String_Contains(Params->CompilerProgram, S("mingw32"), false) ||
             String_Contains(Params->CompilerProgram, S("-gcc"), false) ||
