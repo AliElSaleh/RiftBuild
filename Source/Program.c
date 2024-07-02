@@ -356,10 +356,13 @@ internal bool IconFileDirectoryIterator(const String FullPath, const String Rela
                 #elif PLATFORM_APPLE
                 S(".png"),
                 S(".jpg"),
+                S(".jpeg"),
                 #else
                 S(".ico"),
                 S(".png"),
+                S(".svg"),
                 S(".jpg"),
+                S(".jpeg"),
                 #endif
             };
 
@@ -4573,6 +4576,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                         AssemblyPath,
                         IconFilePath);
 
+                if (bVerboseLog) LOG("    Writing %S ...", DotDesktopFilePath);
+
                 Filesystem_Write(f, FileData.Length, FileData.Data, NULL);
                 Filesystem_Close(&f);
 
@@ -4582,36 +4587,97 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 Filesystem_Copy(DotDesktopFilePath, DotDesktopDestPath);
                 */
 
-                // todo??
-                // update-desktop-database ~/.local/share/applications
-                // update-desktop-database /usr/share/applications
-                // xdg-desktop-menu forceupdate
+                #if PLATFORM_LINUX_GNOME || PLATFORM_LINUX_KDE
+                const String Cmd = S("update-desktop-database ~/.local/share/applications");
+                if (bVerboseLog) LOG("    %S", Cmd);
+                PlatformHandle H = Platform_RunCommand(Cmd, WorkingPath);
+                u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
+                if (ExitCode != 0)
+                {
+                    LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
+                    return 1;
+                }
+
+                //update-desktop-database ~/.local/share/applications
+                //update-desktop-database /usr/share/applications
+                //xdg-desktop-menu forceupdate
+                #endif
+            }
+
+            // try to natively override the default icon for the actual executable
+            // currently only supporting GNOME and KDE desktop environments
+            {
+                #if PLATFORM_LINUX_GNOME
+                StringLocal(CmdLine, 4096);
+
+                String_Append(&CmdLine, S("gio set "));
+                String_Append(&CmdLine, AssemblyPath);
+                String_Append(&CmdLine, S(" metadata::custom-icon file://"));
+                String_Append(&CmdLine, IconFilePath);
+
+                if (bVerboseLog) LOG("    %S", CmdLine);
+
+                PlatformHandle h = Platform_RunCommand(CmdLine, WorkingPath);
+                u32 ExitCode = Platform_WaitForProcessAndGetExitCode(h);
+                if (ExitCode != 0)
+                {
+                    LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
+                    return 1;
+                }
+                #elif PLATFORM_LINUX_KDE
+                StringLocal(XmlFilePath, MAX_PATH_LENGTH);
+                StringLocal(XmlFileName, 512);
+                String_Append(&XmlFileName, S("application-"));
+                String_Append(&XmlFileName, AssemblyName);
+                String_Append(&XmlFileName, S(".xml"));
+                
+                if (bGotUsrDir)
+                {
+                    StringLocal(MimeDirectory, MAX_PATH_LENGTH);
+                    String_BuildPath(&MimeDirectory, UserDirectory, S(".local/share/mime/packages"));
+                    Filesystem_OpenDirectory(MimeDirectory);
+
+                    String_BuildPath(&XmlFilePath, UserDirectory, S(".local/share/mime/packages"), XmlFileName);
+                }
+                else
+                {
+                    String_BuildPath(&XmlFilePath, WorkingPath, IntermediateDirectory, XmlFileName);
+                }
+
+                if (Filesystem_Open(XmlFilePath, FileMode_Write, &f))
+                {
+                    StringLocal(FileData, 4096);
+                    String_Format(&FileData,
+                        S("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                            "<mime-info xmlns=\"http://www.freedesktop.org/standards/shared-mime-info\">\n"
+                            "    <mime-type type=\"application/%S\">\n"
+                            "       <icon name=\"%S\"/>\n"
+                            "       <glob-deleteall/>\n"
+                            "       <glob pattern=\"%S\"/>\n"
+                            "   </mime-type>\n"
+                            "</mime-info>\n"),
+                            4096, 
+                            AssemblyName, IconFilePath, AssemblyName);
+
+                    if (bVerboseLog) LOG("    Writing %S ...", XmlFilePath);
+
+                    Filesystem_Write(f, FileData.Length, FileData.Data, NULL);
+                    Filesystem_Close(&f);
+
+                    const String Cmd = S("update-mime-database ~/.local/share/mime");
+                    if (bVerboseLog) LOG("    %S", Cmd);
+
+                    PlatformHandle H = Platform_RunCommand(Cmd, WorkingPath);
+                    u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
+                    if (ExitCode != 0)
+                    {
+                        LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
+                        return 1;
+                    }
+                }
+                #endif
             }
         }
-
-        // try to natively override the default icon for the actual executable
-        // currently only supporting GNOME and KDE desktop environments
-        #if PLATFORM_LINUX_GNOME
-        StringLocal(CmdLine, 4096);
-
-        // todo: do it for libNameS.a
-
-        String_Append(&CmdLine, S("gio set "));
-        String_Append(&CmdLine, AssemblyPath);
-        String_Append(&CmdLine, S(" metadata::custom-icon file://"));
-        String_Append(&CmdLine, IconFilePath);
-
-        if (bVerboseLog) LOG("    %S", CmdLine);
-
-        PlatformHandle h = Platform_RunCommand(CmdLine, WorkingPath);
-        u32 ExitCode = Platform_WaitForProcessAndGetExitCode(h);
-        if (ExitCode != 0)
-        {
-            LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
-            return 1;
-        }
-        #elif PLATFORM_LINUX_KDE
-        #endif
 
         Clock_Tick(&IconClock);
     }
