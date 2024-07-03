@@ -5642,6 +5642,11 @@ u32 RunApplication(const StringArray Arguments)
         StringArray_Contains(Arguments, S("/?"), false))
     {
         PrintUsage();
+
+        #if !PLATFORM_WINDOWS
+        LOG_LINE_BREAK();
+        #endif
+
         return 0;
     }
 
@@ -5651,6 +5656,11 @@ u32 RunApplication(const StringArray Arguments)
         LogPathEnvVarTutorialSteps();
         LOG_LINE_BREAK();
         LogRegularEnvVarTutorialSteps();
+
+        #if !PLATFORM_WINDOWS
+        LOG_LINE_BREAK();
+        #endif
+
         return 0;
     }
 
@@ -5787,6 +5797,10 @@ u32 RunApplication(const StringArray Arguments)
         // TODO: any key to exit, to preserve exit code status
         Platform_Sleep(99999999.0f);
     }
+
+    #if !PLATFORM_WINDOWS
+    LOG_LINE_BREAK();
+    #endif
 
     return ExitCode;
 }
