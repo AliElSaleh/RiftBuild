@@ -255,3 +255,19 @@ Rift Build can handle them just fine...
 
 Trying to gather all .c files in a makefile is horrendous 🤮
 
+---
+
+#### CMake
+
+![image](https://github.com/AliElSaleh/RiftBuild/assets/19608222/04b059ce-3747-4d4f-af22-e37d8b110568)
+
+[Link](https://hansonry.wordpress.com/2010/12/15/windows-application-icon-using-mingw-and-cmake/)
+
+ahhh yes, very intuitive indeed!
+
+riftbuild however, only requires one step...
+```make
+Icon app.ico
+```
+
+---
