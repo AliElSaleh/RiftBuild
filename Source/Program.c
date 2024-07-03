@@ -355,14 +355,8 @@ internal bool IconFileDirectoryIterator(const String FullPath, const String Rela
                 S(".ico"),
                 #elif PLATFORM_APPLE
                 S(".png"),
-                S(".jpg"),
-                S(".jpeg"),
                 #else
-                S(".ico"),
                 S(".png"),
-                S(".svg"),
-                S(".jpg"),
-                S(".jpeg"),
                 #endif
             };
 
@@ -2420,9 +2414,9 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     const String MaxCompilerErrors          = GetVariableValue(ExpandedVariablesDB, S("MaxCompilerErrors"));
 
     const String TitleName                  = GetVariableValue(ExpandedVariablesDB, S("TitleName"));
+    const String Description                = GetVariableValue(ExpandedVariablesDB, S("Description"));
 
     #if PLATFORM_WINDOWS
-    const String Description                = GetVariableValue(ExpandedVariablesDB, S("Description"));
     const String CompanyName                = GetVariableValue(ExpandedVariablesDB, S("CompanyName"));
     const String Copyright                  = GetVariableValue(ExpandedVariablesDB, S("Copyright"));
     #endif
@@ -4571,7 +4565,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                         "StartupNotify=false\n"),
                         4096, 
                         TimeStamp,
-                        TitleName,
+                        TitleName.Length == 0 ? AssemblyName : TitleName,
                         AssemblyPath,
                         AssemblyPath,
                         IconFilePath);
@@ -4587,6 +4581,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 Filesystem_Copy(DotDesktopFilePath, DotDesktopDestPath);
                 */
 
+                /*
                 #if PLATFORM_LINUX_GNOME || PLATFORM_LINUX_KDE
                 const String Cmd = S("update-desktop-database ~/.local/share/applications");
                 if (bVerboseLog) LOG("    %S", Cmd);
@@ -4602,14 +4597,16 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 //update-desktop-database /usr/share/applications
                 //xdg-desktop-menu forceupdate
                 #endif
+                */
             }
 
             // try to natively override the default icon for the actual executable
             // currently only supporting GNOME and KDE desktop environments
             {
-                #if PLATFORM_LINUX_GNOME
+                #if PLATFORM_LINUX_GNOME || PLATFORM_LINUX_KDE
                 StringLocal(CmdLine, 4096);
 
+                /*
                 String_Append(&CmdLine, S("gio set "));
                 String_Append(&CmdLine, AssemblyPath);
                 String_Append(&CmdLine, S(" metadata::custom-icon file://"));
@@ -4624,7 +4621,9 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                     LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
                     return 1;
                 }
-                #elif PLATFORM_LINUX_KDE
+                */
+
+                //#elif PLATFORM_LINUX_KDE
                 StringLocal(XmlFilePath, MAX_PATH_LENGTH);
                 StringLocal(XmlFileName, 512);
                 String_Append(&XmlFileName, S("application-"));
@@ -4644,25 +4643,123 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                     String_BuildPath(&XmlFilePath, WorkingPath, IntermediateDirectory, XmlFileName);
                 }
 
+                u32 LastSlash = 0, LastDot = 0;
+                String_IndexOfLastPathSlash(IconFilePath, &LastSlash);
+                String_IndexOfLastChar(StrShiftF(IconFilePath, LastSlash+1), '.', &LastDot);
+
+                const String IconName = StrSlice(StrShiftF(IconFilePath, LastSlash+1).Data, LastDot);
+
                 if (Filesystem_Open(XmlFilePath, FileMode_Write, &f))
                 {
                     StringLocal(FileData, 4096);
                     String_Format(&FileData,
+                    /*
                         S("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
                             "<mime-info xmlns=\"http://www.freedesktop.org/standards/shared-mime-info\">\n"
                             "    <mime-type type=\"application/%S\">\n"
                             "       <icon name=\"%S\"/>\n"
-                            "       <glob-deleteall/>\n"
                             "       <glob pattern=\"%S\"/>\n"
                             "   </mime-type>\n"
                             "</mime-info>\n"),
                             4096, 
                             AssemblyName, IconFilePath, AssemblyName);
+                            */
+
+                        S("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                        "  <mime-info xmlns='http://www.freedesktop.org/standards/shared-mime-info'>\n"
+                        "    <mime-type type=\"application/%S\">\n"
+                        "      <comment>%S</comment>\n"
+                        "      <expanded-acronym>%S</expanded-acronym>\n"
+                        "      <glob pattern=\"%S\"/>\n"
+                        "      <generic-icon name=\"%S\"/>\n"
+                        "    </mime-type>\n"
+                        "  </mime-info>\n"),
+                        4096,
+                        AssemblyName, Description, TitleName.Length == 0 ? AssemblyName : TitleName,
+                        AssemblyName, IconName);
 
                     if (bVerboseLog) LOG("    Writing %S ...", XmlFilePath);
 
                     Filesystem_Write(f, FileData.Length, FileData.Data, NULL);
                     Filesystem_Close(&f);
+
+                    // update the databases
+
+                    //xdg-mime install --mode user ~/.local/share/mime/packages/application-riftbuild.xml 
+
+                    String_Append(&CmdLine, S("xdg-mime install --mode user "));
+                    String_Append(&CmdLine, XmlFilePath);
+                    if (bVerboseLog) LOG("    %S", CmdLine);
+
+                    PlatformHandle H = Platform_RunCommand(CmdLine, WorkingPath);
+                    u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
+                    if (ExitCode != 0)
+                    {
+                        LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
+                        return 1;
+                    }
+
+                    String_Empty(&CmdLine);
+
+                    //xdg-icon-resource install --context mimetypes --novendor --size 32 Source/Resources/riftbuild.png riftbuild
+                    String_Append(&CmdLine, S("xdg-icon-resource install --context mimetypes --novendor --size 32 "));
+                    String_Append(&CmdLine, IconFilePath);
+                    String_AppendSpace(&CmdLine);
+                    String_Append(&CmdLine, AssemblyName);
+                    if (bVerboseLog) LOG("    %S", CmdLine);
+
+                    H = Platform_RunCommand(CmdLine, WorkingPath);
+                    ExitCode = Platform_WaitForProcessAndGetExitCode(H);
+                    if (ExitCode != 0)
+                    {
+                        LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
+                        return 1;
+                    }
+
+                    String_Empty(&CmdLine);
+
+                    //update-desktop-database ~/.local/share/applications
+                    String_Copy(&CmdLine, S("update-desktop-database ~/.local/share/applications"));
+                    if (bVerboseLog) LOG("    %S", CmdLine);
+
+                    H = Platform_RunCommand(CmdLine, WorkingPath);
+                    ExitCode = Platform_WaitForProcessAndGetExitCode(H);
+                    if (ExitCode != 0)
+                    {
+                        LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
+                        return 1;
+                    }
+                    
+
+                    //update-mime-database ~/.local/share/mime
+                    String_Copy(&CmdLine, S("update-mime-database ~/.local/share/mime"));
+                    if (bVerboseLog) LOG("    %S", CmdLine);
+
+                    H = Platform_RunCommand(CmdLine, WorkingPath);
+                    ExitCode = Platform_WaitForProcessAndGetExitCode(H);
+                    if (ExitCode != 0)
+                    {
+                        LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
+                        return 1;
+                    }
+
+                    String_Empty(&CmdLine);
+
+                    //update-icon-caches ~/.local/share/icons/
+
+                    String_Copy(&CmdLine, S("update-icon-caches ~/.local/share/icons"));
+                    if (bVerboseLog) LOG("    %S", CmdLine);
+
+                    H = Platform_RunCommand(CmdLine, WorkingPath);
+                    ExitCode = Platform_WaitForProcessAndGetExitCode(H);
+                    if (ExitCode != 0)
+                    {
+                        LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
+                        return 1;
+                    }
+
+                    /*
+                    String_Empty(&CmdLine);
 
                     const String Cmd = S("update-mime-database ~/.local/share/mime");
                     if (bVerboseLog) LOG("    %S", Cmd);
@@ -4674,6 +4771,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                         LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
                         return 1;
                     }
+                    */
                 }
                 #endif
             }
