@@ -4542,6 +4542,10 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             
             if (bGotUsrDir)
             {
+                StringLocal(LocalAppsDirectory, MAX_PATH_LENGTH);
+                String_BuildPath(&LocalAppsDirectory, UserDirectory, S(".local/share/applications"));
+                Filesystem_OpenDirectory(LocalAppsDirectory);
+
                 String_BuildPath(&DotDesktopFilePath, UserDirectory, S(".local/share/applications/"), DesktopFileName);
             }
             else
@@ -4623,7 +4627,6 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 }
                 */
 
-                //#elif PLATFORM_LINUX_KDE
                 StringLocal(XmlFilePath, MAX_PATH_LENGTH);
                 StringLocal(XmlFileName, 512);
                 String_Append(&XmlFileName, S("application-"));
@@ -4801,6 +4804,85 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         }
 
         Clock_Tick(&IconClock);
+    }
+    else
+    {
+        // clean up icon files if we previously built one
+        // todo: store old assembly name in case that was renamed, read the build_generated file to find the old assembly name before doing a clean
+        // todo: if riftbuild clean was executed, also clean up these files
+        StringLocal(UserDirectory, MAX_PATH_LENGTH);
+        bool bGotUsrDir = Platform_GetUserDirectory(&UserDirectory);
+
+        StringLocal(XmlFilePath, MAX_PATH_LENGTH);
+        StringLocal(XmlFileName, 512);
+        String_Append(&XmlFileName, S("application-"));
+        String_Append(&XmlFileName, AssemblyName);
+        String_Append(&XmlFileName, S(".xml"));
+
+        StringLocal(DotDesktopFilePath, MAX_PATH_LENGTH);
+        StringLocal(DesktopFileName, 512);
+        String_Append(&DesktopFileName, AssemblyName);
+        String_Append(&DesktopFileName, S(".desktop"));
+        
+        if (bGotUsrDir)
+        {
+            StringLocal(MimeDirectory, MAX_PATH_LENGTH);
+            String_BuildPath(&MimeDirectory, UserDirectory, S(".local/share/mime/packages"));
+            Filesystem_OpenDirectory(MimeDirectory);
+
+            String_BuildPath(&XmlFilePath, UserDirectory, S(".local/share/mime/packages"), XmlFileName);
+
+            // ================================
+
+            StringLocal(LocalAppsDirectory, MAX_PATH_LENGTH);
+            String_BuildPath(&LocalAppsDirectory, UserDirectory, S(".local/share/applications"));
+            Filesystem_OpenDirectory(LocalAppsDirectory);
+
+            String_BuildPath(&DotDesktopFilePath, UserDirectory, S(".local/share/applications/"), DesktopFileName);
+        }
+        else
+        {
+            String_BuildPath(&XmlFilePath, WorkingPath, IntermediateDirectory, XmlFileName);
+
+            String_BuildPath(&DotDesktopFilePath, WorkingPath, IntermediateDirectory, DesktopFileName);
+        }
+        
+        const bool bHaveXml        = Filesystem_DoesFileExist(XmlFilePath);
+        const bool bHaveDotDesktop = Filesystem_DoesFileExist(DotDesktopFilePath);
+        if (bHaveXml || bHaveDotDesktop)
+        {
+            LOG("\nNo icon specified - cleaning up icon/resource files ...");
+
+            if (bHaveXml)
+            {
+                if (bVerboseLog) LOG("    Deleting %S ...", XmlFilePath);
+                Filesystem_DeleteFile(XmlFilePath);
+            }
+
+            if (bHaveDotDesktop)
+            {
+                if (bVerboseLog) LOG("    Deleting %S ...", DotDesktopFilePath);
+                Filesystem_DeleteFile(DotDesktopFilePath);
+            }
+
+            // update databases
+            {
+                StringLocal(CmdLine, 128);
+                String_Copy(&CmdLine, S("update-desktop-database ~/.local/share/applications"));
+                if (bVerboseLog) LOG("    %S", CmdLine);
+
+                PlatformHandle H = Platform_RunCommand(CmdLine, WorkingPath);
+                (void)Platform_WaitForProcessAndGetExitCode(H);
+
+                String_Empty(&CmdLine);
+
+                String_Copy(&CmdLine, S("update-mime-database ~/.local/share/mime"));
+                if (bVerboseLog) LOG("    %S", CmdLine);
+
+                H = Platform_RunCommand(CmdLine, WorkingPath);
+                (void)Platform_WaitForProcessAndGetExitCode(H);
+            }
+        }
     }
     #endif
 

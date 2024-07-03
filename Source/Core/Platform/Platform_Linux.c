@@ -962,20 +962,39 @@ bool Filesystem_NewFile(const String FilePath)
 
 bool Filesystem_DeleteFile(String FilePath)
 {
-    UNIMPLEMENTED;
-    return false;
+    StringLocal(Cmd, MAX_PATH_LENGTH);
+    String_Append(&Cmd, S("rm -f \""));
+    String_Append(&Cmd, FilePath);
+    String_AppendChar(&Cmd, '"');
+    String_Append(&Cmd, S(" 2> /dev/null"));
+    i32 Result = system(Cmd.Data);
+    return Result == 0;
 }
 
 bool Filesystem_Copy(const String Source, const String Destination)
 {
-    UNIMPLEMENTED;
-    return false;
+    StringLocal(Cmd, MAX_PATH_LENGTH);
+    String_Append(&Cmd, S("cp \""));
+    String_Append(&Cmd, Source);
+    String_AppendSpace(&Cmd);
+    String_Append(&Cmd, Destination);
+    String_AppendChar(&Cmd, '"');
+    String_Append(&Cmd, S(" 2> /dev/null"));
+    i32 Result = system(Cmd.Data);
+    return Result == 0;
 }
 
 bool Filesystem_Move(const String Source, const String Destination, bool bRename)
 {
-    UNIMPLEMENTED;
-    return false;
+    StringLocal(Cmd, MAX_PATH_LENGTH);
+    String_Append(&Cmd, S("mv \""));
+    String_Append(&Cmd, Source);
+    String_AppendSpace(&Cmd);
+    String_Append(&Cmd, Destination);
+    String_AppendChar(&Cmd, '"');
+    String_Append(&Cmd, S(" 2> /dev/null"));
+    i32 Result = system(Cmd.Data);
+    return Result == 0;
 }
 
 bool Filesystem_Open_MemoryMapped(const String FilePath, u32 Mode, FileHandle* OutHandle, u8** OutData, u64* OutSize)
