@@ -193,7 +193,7 @@ To set an icon for an executable, specify the name of the icon file (without the
 Icon someicon # or path/to/icon/file
 ```
 
-RiftBuild will automatically choose the correct extension based on the operating system, `.ico` files will be searched first, then `.png`
+RiftBuild will automatically choose the correct extension based on the operating system
 
 | Windows     | Linux       | MacOS       |
 | ----------- | ----------- | ----------- |
