@@ -37,8 +37,9 @@ BuildDirectory        bin # default value is Build
 IntermediateDirectory int # default value is Intermediate
 
 # fill in/replace the following below for your program/project
+# notice how you don't need to prefix with -D, -L or -I!
 CompilerFlags         -std=c11 -O2 etc.
-LinkerFlags           -fsomeflag
+LinkerFlags           -fsomeflag etc.
 Includes              path/to/include-dir thirdparty/dir etc.
 Libraries             somelib opengl32 etc.
 LibraryDirectories    path/to/lib/dir another/dir etc.
