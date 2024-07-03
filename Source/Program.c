@@ -4643,28 +4643,19 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                     String_BuildPath(&XmlFilePath, WorkingPath, IntermediateDirectory, XmlFileName);
                 }
 
+                #if PLATFORM_LINUX_GNOME
                 u32 LastSlash = 0, LastDot = 0;
                 String_IndexOfLastPathSlash(IconFilePath, &LastSlash);
                 String_IndexOfLastChar(StrShiftF(IconFilePath, LastSlash+1), '.', &LastDot);
 
                 const String IconName = StrSlice(StrShiftF(IconFilePath, LastSlash+1).Data, LastDot);
+                #endif
 
                 if (Filesystem_Open(XmlFilePath, FileMode_Write, &f))
                 {
                     StringLocal(FileData, 4096);
                     String_Format(&FileData,
-                    /*
-                        S("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-                            "<mime-info xmlns=\"http://www.freedesktop.org/standards/shared-mime-info\">\n"
-                            "    <mime-type type=\"application/%S\">\n"
-                            "       <icon name=\"%S\"/>\n"
-                            "       <glob pattern=\"%S\"/>\n"
-                            "   </mime-type>\n"
-                            "</mime-info>\n"),
-                            4096, 
-                            AssemblyName, IconFilePath, AssemblyName);
-                            */
-
+                        #if PLATFORM_LINUX_GNOME
                         S("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
                         "  <mime-info xmlns='http://www.freedesktop.org/standards/shared-mime-info'>\n"
                         "    <mime-type type=\"application/%S\">\n"
@@ -4677,6 +4668,32 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                         4096,
                         AssemblyName, Description, TitleName.Length == 0 ? AssemblyName : TitleName,
                         AssemblyName, IconName);
+                        #elif PLATFORM_LINUX_KDE
+                        S("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                        "  <mime-info xmlns='http://www.freedesktop.org/standards/shared-mime-info'>\n"
+                        "    <mime-type type=\"application/%S\">\n"
+                        "      <comment>%S</comment>\n"
+                        "      <expanded-acronym>%S</expanded-acronym>\n"
+                        "      <glob pattern=\"%S\"/>\n"
+                        "      <icon name=\"%S\"/>\n"
+                        "    </mime-type>\n"
+                        "  </mime-info>\n"),
+                        4096,
+                        AssemblyName, Description, TitleName.Length == 0 ? AssemblyName : TitleName,
+                        AssemblyName, IconFilePath);
+                        #endif
+
+                        /*
+                        S("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                            "<mime-info xmlns=\"http://www.freedesktop.org/standards/shared-mime-info\">\n"
+                            "    <mime-type type=\"application/%S\">\n"
+                            "       <icon name=\"%S\"/>\n"
+                            "       <glob pattern=\"%S\"/>\n"
+                            "   </mime-type>\n"
+                            "</mime-info>\n"),
+                            4096, 
+                            AssemblyName, IconFilePath, AssemblyName);
+                        */
 
                     if (bVerboseLog) LOG("    Writing %S ...", XmlFilePath);
 
@@ -4686,13 +4703,16 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                     // update the databases
 
                     //xdg-mime install --mode user ~/.local/share/mime/packages/application-riftbuild.xml 
+                    PlatformHandle H = {0};
+                    u32 ExitCode = 0;
 
+                    #if PLATFORM_LINUX_GNOME
                     String_Append(&CmdLine, S("xdg-mime install --mode user "));
                     String_Append(&CmdLine, XmlFilePath);
                     if (bVerboseLog) LOG("    %S", CmdLine);
 
-                    PlatformHandle H = Platform_RunCommand(CmdLine, WorkingPath);
-                    u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
+                    H = Platform_RunCommand(CmdLine, WorkingPath);
+                    ExitCode = Platform_WaitForProcessAndGetExitCode(H);
                     if (ExitCode != 0)
                     {
                         LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
@@ -4717,6 +4737,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                     }
 
                     String_Empty(&CmdLine);
+                    #endif
 
                     //update-desktop-database ~/.local/share/applications
                     String_Copy(&CmdLine, S("update-desktop-database ~/.local/share/applications"));
@@ -4747,6 +4768,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
                     //update-icon-caches ~/.local/share/icons/
 
+                    #if PLATFORM_LINUX_GNOME
                     String_Copy(&CmdLine, S("update-icon-caches ~/.local/share/icons"));
                     if (bVerboseLog) LOG("    %S", CmdLine);
 
@@ -4757,6 +4779,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                         LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
                         return 1;
                     }
+                    #endif
 
                     /*
                     String_Empty(&CmdLine);
