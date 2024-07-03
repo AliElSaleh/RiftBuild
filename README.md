@@ -188,21 +188,20 @@ Notice how `%` was not present in the `asan` and `mode` if statement. This is be
 ---
 
 # Icon
-To set an icon for an executable, specify the name of the icon file (without the extension)
+To set an icon for an executable, specify the name of the icon file (with or without the extension)
 ```make
 Icon someicon # or path/to/icon/file
-```
 
-RiftBuild will automatically choose the correct extension based on the operating system
-
-| Windows     | Linux       | MacOS       |
-| ----------- | ----------- | ----------- |
-| `.ico`      | `.png`      | `.png`      |
-
-Alternatively, you can specify the extension (if desired)
-```make
+# or
 Icon someicon.ico # or path/to/icon/file.ico
 ```
+
+If no extension was specified, RiftBuild will automatically choose the correct extension based on the operating system
+
+| Windows     | Linux       | MacOS       | BSD           | 
+| ----------- | ----------- | ----------- | ------------- |
+| `.ico`      | `.png`      | `.png`      | Not supported |
+
 The fact that other build systems are unable to do this is fucking pathetic and embarrassing
 
 ---
