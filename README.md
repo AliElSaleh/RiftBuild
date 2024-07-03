@@ -99,7 +99,7 @@ build.bat
 ./build.sh
 ```
 
-Rift Build compiles with Clang so make sure that is installed before building
+RiftBuild compiles with Clang so make sure that is installed before building
 
 ---
 
