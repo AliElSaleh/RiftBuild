@@ -25,7 +25,7 @@ That's it
 Writing a .build file is simple. It almost has no syntax.
 
 ```make
-Compiler clang # or gcc/cl or you can specify an absolute or relative path to your C compiler
+Compiler clang # or gcc/cl or specify an absolute or relative path to your C compiler
 
 Assembly SomeName
 Extension exe # or dll/lib/a/so/dylib/elf or replace this line with Type app or lib
@@ -37,14 +37,15 @@ BuildDirectory        bin # default value is Build
 IntermediateDirectory int # default value is Intermediate
 
 # fill in/replace the following below for your program/project
-CompilerFlags -std=c11 -O3 etc...
-LinkerFlags 
-Includes path/to/include-dir thirdparty/dir anotherdir
+CompilerFlags         -std=c11 -O2 etc.
+LinkerFlags
 
-Libraries somelib opengl32 etc...
-LibraryDirectories path/to/lib/dir another/one
+Includes              path/to/include-dir thirdparty/dir etc.
 
-Defines MAX_STUFF=5 SOME_DEFINE
+Libraries             somelib opengl32 etc.
+LibraryDirectories    path/to/lib/dir another/dir etc.
+
+Defines               MAX_STUFF=5 SOME_DEFINE etc.
 ```
 
 ---
