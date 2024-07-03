@@ -271,3 +271,17 @@ Icon app.ico
 ```
 
 ---
+
+#### Premake5
+
+![image](https://github.com/AliElSaleh/RiftBuild/assets/19608222/fcb9f39e-f360-4392-b331-c703e4fac1d6)
+
+[Link](https://stackoverflow.com/questions/54508521/adding-a-c-executable-icon-to-premake5-build-script)
+
+ooo yummy syntax celery 😋 look at me! i'm so smart! 🤓
+
+again, it's crazy how no-one can get this right...
+```make
+Icon app.ico
+```
+and riftbuild automatically picks up and compiles `.rc` files as they're just source files too...
