@@ -209,7 +209,7 @@ If no extension was specified, RiftBuild will automatically choose the correct e
 - Windows (64-bit only)
 - Linux (Debian and Arch-based only)
 - MacOS
-- FreeBSD/OpenBSD (TODO)
+- FreeBSD/OpenBSD/NetBSD (TODO)
 
 # Dependencies
 - No dependencies (other than a working C/C++ compiler)
