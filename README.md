@@ -190,9 +190,6 @@ Notice how `%` was not present in the `asan` and `mode` if statement. This is be
 # Icon
 To set an icon for an executable, specify the name of the icon file (with or without the extension)
 ```make
-Icon someicon # or path/to/icon/file
-
-# or
 Icon someicon.ico # or path/to/icon/file.ico
 ```
 The fact that other build systems are unable to do this is fucking pathetic and embarrassing
