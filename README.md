@@ -278,7 +278,9 @@ Icon app.ico
 
 [Link](https://mesonbuild.com/Windows-module.html#compile_resources)
 
-all this bullshit just to say you wanna compile an rc file 🤦
+meson doesnt have a way to specify icons, so instead they give you this pile of shit
+
+all this bullshit just to say you wanna compile an rc file... 🤦
 
 with riftbuild, you don't need to say anything, they're treated as regular source files
 
@@ -302,6 +304,8 @@ again, it's crazy how no-one can get this right...
 Icon app.ico
 ```
 and riftbuild automatically picks up and compiles `.rc` files as they're just source files too...
+
+and depending on the compiler, it'll use the correct rc compiler. rc.exe for msvc, llvm-rc for clang and windres for gcc
 
 ---
 
