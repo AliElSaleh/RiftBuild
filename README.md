@@ -272,6 +272,23 @@ Icon app.ico
 
 ---
 
+#### Meson
+
+![image](https://github.com/AliElSaleh/RiftBuild/assets/19608222/cbbd76e0-e4f4-41be-b990-764fd1693064)
+
+[Link](https://mesonbuild.com/Windows-module.html#compile_resources)
+
+all this bullshit just to say you wanna compile an rc file 🤦
+
+with riftbuild, you don't need to say anything, they're treated as regular source files
+
+if you need to exclude certain rc files, just do this
+```make
+ExcludedSourceFiles something.rc anotherone.rc
+```
+
+---
+
 #### Premake5
 
 ![image](https://github.com/AliElSaleh/RiftBuild/assets/19608222/fcb9f39e-f360-4392-b331-c703e4fac1d6)
@@ -285,3 +302,21 @@ again, it's crazy how no-one can get this right...
 Icon app.ico
 ```
 and riftbuild automatically picks up and compiles `.rc` files as they're just source files too...
+
+---
+
+#### Meson
+
+![image](https://github.com/AliElSaleh/RiftBuild/assets/19608222/86b2260c-f023-4565-a624-7e8280b3548d)
+
+[Link](https://mesonbuild.com/Creating-OSX-packages.html#creating-an-app-bundle)
+
+meson does not support app bundling for mac os for some reason
+
+we do, and it's not as hard as they claim it to be, they're just lazy.
+
+with RiftBuild, all you need to do is specify this in your .build file
+```make
+Bundle
+```
+That's literally it
