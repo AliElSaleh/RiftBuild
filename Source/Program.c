@@ -2431,8 +2431,10 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
     const bool bNoRebuildOnDependencyChange = String_ToBool(GetVariableValue(ExpandedVariablesDB, S("NoRebuildOnDependencyChange")));
 
-    const bool bBundleApp           = DoesBuildVarExist(VariablesDB, S("Bundle"));
-    const bool bBundleAppIsTerminal = DoesBuildVarExist(VariablesDB, S("Bundle.IsTerminal"));
+    #if PLATFORM_APPLE
+    const bool bBundleApp                   = DoesBuildVarExist(VariablesDB, S("Bundle"));
+    const bool bBundleAppIsTerminal         = DoesBuildVarExist(VariablesDB, S("Bundle.IsTerminal"));
+    #endif
 
     bShouldWaitPerCompileProcess = bSingleThread;
 
