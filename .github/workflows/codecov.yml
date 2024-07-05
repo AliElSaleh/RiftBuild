@@ -1,0 +1,14 @@
+name: Codecov
+on: [push]
+jobs:
+  run-clang:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Build with coverage
+        run: ./build.sh coverage
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_ORG_TOKEN }}
