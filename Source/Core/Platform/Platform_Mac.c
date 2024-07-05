@@ -599,6 +599,12 @@ void Platform_ExitCriticalSection(PlatformCriticalSection CriticalSection)
 {
 }
 
+bool Platform_AnyKeyPressed(void)
+{
+    UNIMPLEMENTED;
+    return false;
+}
+
 bool Platform_CreateMutex(const String Name, PlatformMutex* OutMutex)
 {
     if ((NEVER(Name.Length == 0)) || (NEVER(OutMutex == NULL)))

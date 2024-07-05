@@ -8,7 +8,6 @@
 
 #include "Uuid.h"
 #include "Filesystem.h"
-#include "Math/Math.h"
 #include "String/BaseString.h"
 #include "String/StringUtils.h"
 #include "Structures/Array.h"
@@ -1058,6 +1057,13 @@ u64 Filesystem_GetCurrentFilePosition(const FileHandle Handle)
     return SetFilePointer(Handle.Data, 0, NULL, FILE_CURRENT);
 }
 
+FileHandle Filesystem_GetStdInputHandle(void)
+{
+    FileHandle Handle = {0};
+    Handle.Data = GetStdHandle(STD_INPUT_HANDLE);
+    return Handle;
+}
+
 u64 Filesystem_GetLastWriteTime(const String FilePath)
 {
     if (!Filesystem_DoesFileExist(FilePath))
@@ -1191,7 +1197,6 @@ bool Filesystem_ReadPipe(PlatformPipe Handle, u64 DataSize, void* OutData, u64* 
     return Result;
 }
 
-// todo: no pointer as param
 bool Filesystem_Read(const FileHandle Handle, u64 DataSize, void* OutData, u64* OutBytesRead)
 {
     if (NEVER(!IsValidFileHandle(Handle)))
@@ -2122,6 +2127,38 @@ void Platform_EnterCriticalSection(PlatformCriticalSection CriticalSection)
 void Platform_ExitCriticalSection(PlatformCriticalSection CriticalSection)
 {
     LeaveCriticalSection(CriticalSection);
+}
+
+// implement our own kbhit since we're not linking against the standard library
+internal bool kbhit(void)
+{
+    i32 i = 7; // start from 0x07. the first 6 are mouse keys
+
+    // Run through all key scancodes from 7 to 255
+    do
+    {
+        i32 State = GetAsyncKeyState(i);
+        if (State & 0x01)
+        {
+            // a key has been pressed
+            return true;
+        }
+
+        i++; 
+
+        if (i >= 255)
+        {
+            i = 7;
+        }
+    }
+    while (1);
+
+    return false;
+}
+
+bool Platform_AnyKeyPressed(void)
+{
+    return kbhit();
 }
 
 u32 Platform_GetExitCodeForProcess(PlatformHandle Handle)

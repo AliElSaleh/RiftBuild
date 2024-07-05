@@ -7,7 +7,6 @@
 
 #include "Uuid.h"
 #include "Filesystem.h"
-#include "Math/Math.h"
 #include "String/BaseString.h"
 #include "String/StringUtils.h"
 #include "Structures/Array.h"
@@ -526,6 +525,12 @@ void Platform_EnterCriticalSection(PlatformCriticalSection CriticalSection)
 
 void Platform_ExitCriticalSection(PlatformCriticalSection CriticalSection)
 {
+}
+
+bool Platform_AnyKeyPressed(void)
+{
+    UNIMPLEMENTED;
+    return false;
 }
 
 bool Platform_CreateMutex(const String Name, PlatformMutex* OutMutex)

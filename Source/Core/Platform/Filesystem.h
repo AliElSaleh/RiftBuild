@@ -53,6 +53,8 @@ RIFT_API bool Filesystem_SeekToBeginning(const FileHandle Handle);
 RIFT_API bool Filesystem_SeekToEnd(const FileHandle Handle);
 RIFT_API u64  Filesystem_GetCurrentFilePosition(const FileHandle Handle);
 
+RIFT_API FileHandle Filesystem_GetStdInputHandle(void);
+
 RIFT_API u64  Filesystem_GetLastWriteTime(const String FilePath);
 RIFT_API u64  Filesystem_GetLastAccessTime(const String FilePath);
 RIFT_API u64  Filesystem_GetCreationTime(const String FilePath);
