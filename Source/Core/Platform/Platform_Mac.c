@@ -8,7 +8,6 @@
 #include "String/StringUtils.h"
 #include "Uuid.h"
 #include "Platform/Filesystem.h"
-#include "Math/Math.h"
 #include "Log.h"
 
 #undef internal
@@ -1734,7 +1733,8 @@ bool Filesystem_DeleteFiles(const String FilePath, const String Wildcard, bool b
     StringLocal(Cmd, MAX_PATH_LENGTH);
     String_Append(&Cmd, S("rm -f "));
     if (bRecursive)
-        String_Append(&Cmd, S("-r \""));
+        String_Append(&Cmd, S("-r "));
+    String_Append(&Cmd, S("\""));
     String_Append(&Cmd, FilePath);
     String_AppendPathSeparator_Checked(&Cmd);
     String_AppendChar(&Cmd, '"');
@@ -1746,20 +1746,43 @@ bool Filesystem_DeleteFiles(const String FilePath, const String Wildcard, bool b
 
 bool Filesystem_DeleteDirectory(const String DirectoryPath)
 {
-    UNIMPLEMENTED;
-    return false;
+    StringLocal(Cmd, MAX_PATH_LENGTH);
+    String_Append(&Cmd, S("rm -r \""));
+    String_Append(&Cmd, DirectoryPath);
+    String_AppendPathSeparator_Checked(&Cmd);
+    String_Append(&Cmd, S("\" 2> /dev/null"));
+    i32 Result = system(Cmd.Data);
+    return Result == 0;
 }
 
 bool Filesystem_Copy(const String Source, const String Destination)
 {
-    UNIMPLEMENTED;
-    return false;
+    StringLocal(Cmd, MAX_PATH_LENGTH);
+    String_Append(&Cmd, S("cp \""));
+    String_Append(&Cmd, Source);
+    String_AppendChar(&Cmd, '"');
+    String_AppendSpace(&Cmd);
+    String_AppendChar(&Cmd, '"');
+    String_Append(&Cmd, Destination);
+    String_AppendChar(&Cmd, '"');
+    String_Append(&Cmd, S(" 2> /dev/null"));
+    i32 Result = system(Cmd.Data);
+    return Result == 0;
 }
 
 bool Filesystem_Move(const String Source, const String Destination, bool bRename)
 {
-    UNIMPLEMENTED;
-    return false;
+    StringLocal(Cmd, MAX_PATH_LENGTH);
+    String_Append(&Cmd, S("mv \""));
+    String_Append(&Cmd, Source);
+    String_AppendChar(&Cmd, '"');
+    String_AppendSpace(&Cmd);
+    String_AppendChar(&Cmd, '"');
+    String_Append(&Cmd, Destination);
+    String_AppendChar(&Cmd, '"');
+    String_Append(&Cmd, S(" 2> /dev/null"));
+    i32 Result = system(Cmd.Data);
+    return Result == 0;
 }
 
 bool Filesystem_ArePathsCommon(String PathA, String PathB)

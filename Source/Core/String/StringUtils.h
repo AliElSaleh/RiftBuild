@@ -3,7 +3,6 @@
 #include "EngineTypes.h"
 #include "Memory/LinearAllocator.h"
 #include "String/BaseString.h"
-#include "Math/MathTypes.h"
 
 #define StringN_Copy(s, SourceView)\
 do {MemCopy((s).Data, (SourceView).Data, (s).Capacity == 0 ? (SourceView).Length : Min((s).Capacity, (SourceView).Length));\
@@ -72,6 +71,11 @@ RIFT_API StringArray String_CreateArray(LinearAllocator* Arena, const StringArra
 
 RIFT_API bool String_IsEqual(const String StringA, const String StringB, bool bCaseSensitive);
 RIFT_API bool String16_IsEqual(const String16 StringA, const String16 StringB, bool bCaseSensitive);
+
+RIFT_API bool String_IsInteger(const String Str);
+RIFT_API bool String_IsInteger32(const String Str);
+RIFT_API bool String_IsFloat(const String Str);
+RIFT_API bool String_IsNumeric(const String Str);
 
 RIFT_API bool String_Contains(const String Str, const String SubString, bool bCaseSensitive);
 RIFT_API bool String_ContainsDigits(const String Str);

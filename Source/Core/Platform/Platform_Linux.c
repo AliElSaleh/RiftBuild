@@ -976,7 +976,9 @@ bool Filesystem_Copy(const String Source, const String Destination)
     StringLocal(Cmd, MAX_PATH_LENGTH);
     String_Append(&Cmd, S("cp \""));
     String_Append(&Cmd, Source);
+    String_AppendChar(&Cmd, '"');
     String_AppendSpace(&Cmd);
+    String_AppendChar(&Cmd, '"');
     String_Append(&Cmd, Destination);
     String_AppendChar(&Cmd, '"');
     String_Append(&Cmd, S(" 2> /dev/null"));
@@ -989,7 +991,9 @@ bool Filesystem_Move(const String Source, const String Destination, bool bRename
     StringLocal(Cmd, MAX_PATH_LENGTH);
     String_Append(&Cmd, S("mv \""));
     String_Append(&Cmd, Source);
+    String_AppendChar(&Cmd, '"');
     String_AppendSpace(&Cmd);
+    String_AppendChar(&Cmd, '"');
     String_Append(&Cmd, Destination);
     String_AppendChar(&Cmd, '"');
     String_Append(&Cmd, S(" 2> /dev/null"));
@@ -1801,14 +1805,10 @@ bool Filesystem_DeleteFiles(const String FilePath, const String Wildcard, bool b
 bool Filesystem_DeleteDirectory(const String DirectoryPath)
 {
     StringLocal(Cmd, MAX_PATH_LENGTH);
-    String_Append(&Cmd, S("rm "));
-    //if (bRecursive)
-    //    String_Append(&Cmd, S("-r \""));A
+    String_Append(&Cmd, S("rm -r \""));
     String_Append(&Cmd, DirectoryPath);
     String_AppendPathSeparator_Checked(&Cmd);
-    //String_AppendChar(&Cmd, '"');
-    //String_Append(&Cmd, Wildcard);
-    String_Append(&Cmd, S(" 2> /dev/null"));
+    String_Append(&Cmd, S("\" 2> /dev/null"));
     i32 Result = system(Cmd.Data);
     return Result == 0;
 }

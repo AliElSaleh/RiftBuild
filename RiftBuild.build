@@ -1,5 +1,5 @@
 if debug Mode Debug else Mode Dist
-include Source/$(Mode).buildvars
+include Source/Config/$(Mode).buildvars
 
 if cl                   Compiler cl
 
@@ -22,7 +22,7 @@ Includes                $SharedIncludeFlags
 Defines                 $SharedDefines RIFT_STATIC NO_LOG_FILE %^%hood
 Libraries               %_NativeLibs
 
-IncludedSourceFiles     Clock.c Math.c Memory.c Allocators.c StringUtils.c Containers.c Globals.c Log.c EngineUtils.c Program.c CBackend.c MSVCBackend.c Exporter.c Parse.c
+IncludedSourceFiles     Clock.c Memory.c StringUtils.c Globals.c Log.c Program.c Backend.c Exporter.c Parse.c
 
 if cl                   IncludedSourceFiles memcmp.asm memset.asm
 
@@ -41,52 +41,53 @@ if cl  if windows       LinkerFlags /ENTRY:ProgramStart /SUBSYSTEM:CONSOLE /STAC
 
 if linux                Libraries UUIDS ; LibraryDirectories Source/Libraries/Linux
 
-# this is ugly. the env var could get deleted by accident... but it _seems_ to be the most reliable
 if linux {
-    if @XDG_CURRENT_DESKTOP contains GNOME Defines __gnome__
-    if @XDG_CURRENT_DESKTOP contains KDE   Defines __kde__
-    #if find(gnome-shell) Defines __gnome__
+    if @XDG_CURRENT_DESKTOP contains GNOME    Defines __gnome__
+    if @XDG_CURRENT_DESKTOP contains KDE      Defines __kde__
+    if @XDG_CURRENT_DESKTOP contains Cinnamon Defines __cinnamon__
 }
 
+if mac {
+    #Bundle
+    Bundle.IsTerminal
+    #Bundle.InfoPlist                  Source/Resources/Info.plist
+    #Bundle.VersionPlist               Source/Resources/version.plist
+    #Bundle.PkgInfo                    Source/Resources/PkgInfo
+    #Bundle.Plugins                    
+    #Bundle.Frameworks                 
+    #Bundle.Libraries                  
+    #Bundle.CodeResources              
 
-##
-icon_png Source/Resources/riftbuild.png
-# app bundle creation
-if apple {
-    #PostBuild.Log
-    #PostBuild.Delete       Build/$(Assembly).app/
-    PostBuild.NewDirectory Build/$(Assembly).app/Contents/MacOS
-    PostBuild.NewDirectory Build/$(Assembly).app/Contents/Resources
-    PostBuild.NewDirectory Build/$(Assembly).app/Contents/Frameworks
+    Info.plist {
+        CFBundleDevelopmentRegion     English
+        CFBundleDisplayName           $TitleName
+        CFBundleExecutable            $Assembly
+        CFBundleGetInfoString         $Description
+        CFBundleIconFile              $Assembly
+        CFBundleIdentifier            com.AliElSaleh.$Assembly
+        CFBundleInfoDictionaryVersion 6.0
+        CFBundleName                  $Assembly
+        CFBundlePackageType           APPL
+        CFBundleShortVersionString    $Version
+        CFBundleSignature             $Assembly
+        CFBundleVersion               Version $Version
 
-    #PostBuild.Delete       Build/$(Assembly).iconset
-    PostBuild.NewDirectory Build/$(Assembly).iconset
+        #CFIntTest                     74289
+        #CFSomeBullshitArray           ( en ar fr gr de ch ru nk )
+    }
 
-    PostBuild.Cmd          sips -z 16 16 $icon_png --out Build/$(Assembly).iconset/icon_16x16.png
-    PostBuild.Cmd          sips -z 32 32 $icon_png --out Build/$(Assembly).iconset/icon_32x32.png
-    PostBuild.Cmd          sips -z 64 64 $icon_png --out Build/$(Assembly).iconset/icon_64x64.png
-    PostBuild.Cmd          sips -z 128 128 $icon_png --out Build/$(Assembly).iconset/icon_128x128.png
-    PostBuild.Cmd          sips -z 256 256 $icon_png --out Build/$(Assembly).iconset/icon_256x256.png
-    PostBuild.Cmd          sips -z 512 512 $icon_png --out Build/$(Assembly).iconset/icon_512x512.png
-    PostBuild.Cmd          iconutil -c icns -o Build/$(Assembly).icns Build/$(Assembly).iconset
+    Version.plist {
+        BuildVersion                  1
+        CFBundleShortVersionString    0.9.6
+        CFBundleVersion               0.9.6
+        ProjectName                   RiftBuild
+    }
 
-    PostBuild.Cmd          cp Build/Info.plist              Build/$(Assembly).app/Contents
-    PostBuild.Cmd          cp Build/PkgInfo                 Build/$(Assembly).app/Contents
-    PostBuild.Cmd          cp Build/$(Assembly).icns        Build/$(Assembly).app/Contents/Resources
-    PostBuild.Cmd          printf "#!/bin/sh\nopen -a Terminal %(_WorkingDirectory)/Build/riftbuild.app/Contents/MacOS/riftbuild-bin --args /Users/ali/Source" > Build/riftbuild.app/Contents/MacOS/riftbuild
-    PostBuild.Cmd          chmod 755 Build/riftbuild.app/Contents/MacOS/riftbuild
-    PostBuild.Cmd          cp $(BuildDirectory)/$(Assembly) Build/$(Assembly).app/Contents/MacOS/$(Assembly)-bin
+    PkgInfo {
+        APPLriftbuild
+    }
+
+    CodeResources {
+
+    }
 }
-##
-
-#PreBuild.Copy          Libraries/glew-2.1.0/lib/Release/x64/glew32s.lib Build/Libs
-#PreBuild.NewDirectory  gen/dahbwiod/dawjiod
-#PreBuild.NewDir        hello/test\dw//dw/oho\../\\
-#PreBuild.NewFile       unknown/dir/yay.txt
-#PreBuild.Move!         unknown/dir/yay.txt test/hello/../hey
-#PreBuild.Move!         test/yay.txt blo/blah
-#PreBuild.Move!         unknown new
-#PreBuild.Rename        unknown/dir/yay.txt unknown/dir/nay.txt
-#PreBuild.Delete        unknown
-
-#PostBuild.Cmd           gio set Build/Dist/riftbuild metadata::custom-icon file:///home/ali/Source/RiftBuild/Source/Resources/riftbuild.png

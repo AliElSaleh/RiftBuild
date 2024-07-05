@@ -2413,6 +2413,12 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     const String PostBuildSetting           = GetVariableValue(ExpandedVariablesDB, S("RunPostBuildOnChange"));
     const String MaxCompilerErrors          = GetVariableValue(ExpandedVariablesDB, S("MaxCompilerErrors"));
 
+    #if PLATFORM_APPLE
+    const String CustomInfoPlist            = GetVariableValue(ExpandedVariablesDB, S("Bundle.InfoPlist"));
+    const String CustomVersionPlist         = GetVariableValue(ExpandedVariablesDB, S("Bundle.VersionPlist"));
+    const String CustomPkgInfo              = GetVariableValue(ExpandedVariablesDB, S("Bundle.PkgInfo"));
+    #endif
+
     const String TitleName                  = GetVariableValue(ExpandedVariablesDB, S("TitleName"));
     const String Description                = GetVariableValue(ExpandedVariablesDB, S("Description"));
 
@@ -2424,6 +2430,9 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     String Version                          = GetVariableValue(ExpandedVariablesDB, S("Version"));
 
     const bool bNoRebuildOnDependencyChange = String_ToBool(GetVariableValue(ExpandedVariablesDB, S("NoRebuildOnDependencyChange")));
+
+    const bool bBundleApp           = DoesBuildVarExist(VariablesDB, S("Bundle"));
+    const bool bBundleAppIsTerminal = DoesBuildVarExist(VariablesDB, S("Bundle.IsTerminal"));
 
     bShouldWaitPerCompileProcess = bSingleThread;
 
@@ -3822,6 +3831,27 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             String_Append(&AssemblyWildcard, WildcardS);
             Filesystem_DeleteFiles(BuildDirectoryPath, AssemblyWildcard, true);
 
+            #if PLATFORM_APPLE
+            if (bBundleApp && bIsAssemblyExe)
+            {
+                StringLocal(AppBundleName, 256);
+                String_Append(&AppBundleName, TitleName);
+                String_Append(&AppBundleName, S(".app"));
+                StringLocal(AppBundlePath, MAX_PATH_LENGTH);
+                String_BuildPath(&AppBundlePath, WorkingPath, BuildDirectory, AppBundleName)
+                LOG("Cleaning %S", AppBundlePath);
+                Filesystem_DeleteDirectory(AppBundlePath);
+
+                String_Empty(&AppBundleName);
+                String_Append(&AppBundleName, AssemblyName);
+                String_Append(&AppBundleName, S(".app"));
+                String_Empty(&AppBundlePath);
+                String_BuildPath(&AppBundlePath, WorkingPath, BuildDirectory, AppBundleName)
+                LOG("Cleaning %S", AppBundlePath);
+                Filesystem_DeleteDirectory(AppBundlePath);
+            }
+            #endif
+
             bCleanedSomething = true;
         }
 
@@ -3996,6 +4026,22 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
     Clock IconClock = {0};
     Clock ResourceCompileClock = {0};
+    Clock BundleCompileClock = {0};
+
+    u32 MaxLogicalCores = Platform_GetNumLogicalProcessors();
+    u8 MaxCompilersAtOnce = (u8)MaxLogicalCores; // bound by max logical processors on the user's machine
+    //LOG_INFO("Max logical cores: %u", MaxLogicalCores);
+    if (String_IsValid(MaxConcurrentCompilations))
+    {
+        u8 Num = 0;
+        String_ToU8(MaxConcurrentCompilations, &Num);
+        MaxCompilersAtOnce = Min(Num, (u8)MaxLogicalCores);
+    }
+
+    if (bSingleThread)
+    {
+        MaxCompilersAtOnce = 1;
+    }
 
     // log "Building (Assembly)" ui text
     if (Generator == Generator_None)
@@ -4008,12 +4054,12 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             #ifndef HOOD
             if (bIsAssemblyExe || !bHasSpace)
             {
-                LOG("Building %S [%S]\n", AssemblyNameWithExt, S(CPU_ARCHITECTURE_STRING));
+                LOG("Building %S [%S] (with %u %S)\n", AssemblyNameWithExt, S(CPU_ARCHITECTURE_STRING), MaxCompilersAtOnce, MaxCompilersAtOnce == 1 ? S("processor") : S("processors"));
             }
             else
             {
                 String NextExt = StrShiftF(Extension_Og, WhitespaceIndex+1);
-                LOG("Building %S and %S%S [%S]\n", AssemblyNameWithExt, AssemblyName, NextExt, S(CPU_ARCHITECTURE_STRING));
+                LOG("Building %S and %S%S [%S] (with %u %S)\n", AssemblyNameWithExt, AssemblyName, NextExt, S(CPU_ARCHITECTURE_STRING), MaxCompilersAtOnce, MaxCompilersAtOnce == 1 ? S("processor") : S("processors"));
             }
             #else
             if (bIsAssemblyExe || !bHasSpace)
@@ -4073,7 +4119,22 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
                 if (!d.bSuccess)
                 {
-                    LOG_WARNING("Failed to find icon file \"%S\" in \"%S\". Skipping icon build...", Icon, SearchPath);
+                    LOG_WARNING("Failed to find icon file \"%S\" in \"%S\". Skipping icon build...\n", Icon, SearchPath);
+                    String_Empty(&IconFilePath);
+                }
+            }
+
+            if (IconFilePath.Length > 0)
+            {
+                #if PLATFORM_WINDOWS
+                const String IconExt = S(".ico");
+                #else
+                const String IconExt = S(".png");
+                #endif
+
+                if (!String_EndsWith(IconFilePath, IconExt, false))
+                {
+                    LOG_WARNING("Icon file \"%S\" is not a %S file. Skipping icon build...\n", IconFilePath, IconExt);
                     String_Empty(&IconFilePath);
                 }
             }
@@ -4084,7 +4145,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         String RCProgram = S("llvm-rc");
         bool bHasRcProgram = Platform_FindProgram(RCProgram);
 
-        if (Icon.Length > 0)
+        if (IconFilePath.Length > 0)
         {
             if (bHasRcProgram)
             {
@@ -4271,16 +4332,6 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         #endif
     }
 
-    u32 MaxLogicalCores = Platform_GetNumLogicalProcessors();
-    u8 MaxCompilersAtOnce = (u8)MaxLogicalCores; // bound by max logical processors on the user's machine
-    //LOG_INFO("Max logical cores: %u", MaxLogicalCores);
-    if (String_IsValid(MaxConcurrentCompilations))
-    {
-        u8 Num = 0;
-        String_ToU8(MaxConcurrentCompilations, &Num);
-        MaxCompilersAtOnce = Min(Num, (u8)MaxLogicalCores);
-    }
-
     if (!String_IsEqual(BuildDirectory, S("."), false))
     {
         StringLocal(FullBuildDirectory, MAX_PATH_LENGTH);
@@ -4449,73 +4500,421 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         return 1;
     }
 
-    // build icon for mach-o executables
-    // todo: if we're doing a bundled build, skip this
     #if PLATFORM_APPLE
-    if (IconFilePath.Length > 0)
+    // compile the .app bundle (if desired)
+    if (bBundleApp && bIsAssemblyExe)
     {
-        Clock_Start(&IconClock);
-
-        LOG("\nCompiling icon \"%S\"", IconFilePath);
-
-        StringLocal(CmdLine, 4096);
+        Clock_Start(&BundleCompileClock);
 
         StringLocal(AssemblyPath, MAX_PATH_LENGTH);
         String_BuildPath(&AssemblyPath, WorkingPath, BuildDirectory, AssemblyNameWithExt);
 
-        u32 LastSlashIndex = 0;
-        String_IndexOfLastPathSlash(IconFilePath, &LastSlashIndex);
+        StringLocal(AppBundleName, 256);
+        String_Append(&AppBundleName, TitleName.Length == 0 ? AssemblyName : TitleName);
+        String_Append(&AppBundleName, S(".app"));
 
-        // Step 1 ------------------
-        StringLocal(RsrcFilePath, MAX_PATH_LENGTH);
-        StringLocal(RsrcFileName, 256);
-        String_Append(&RsrcFileName, StrShiftF(IconFilePath, LastSlashIndex == 0 ? 0 : LastSlashIndex+1));
-        String_Append(&RsrcFileName, S("-icns.rsrc"));
-        String_BuildPath(&RsrcFilePath, WorkingPath, IntermediateDirectory, RsrcFileName);
+        LOG("\nBundling %S", AppBundleName);
 
-        String_BuildSeparator(&CmdLine, ' ', S("derez -only icns"), IconFilePath, S(">"), RsrcFilePath);
+        StringLocal(AppBundlePath, MAX_PATH_LENGTH);
+        String_BuildPath(&AppBundlePath, WorkingPath, BuildDirectory, AppBundleName);
 
-        if (bVerboseLog) LOG("    %S", CmdLine);
+        StringLocal(BuildPath, MAX_PATH_LENGTH);
+        String_BuildPath(&BuildPath, WorkingPath, BuildDirectory);
 
-        PlatformHandle h = Platform_RunCommand(CmdLine, WorkingPath);
-        u32 ExitCode = Platform_WaitForProcessAndGetExitCode(h);
-        if (ExitCode != 0)
+        // todo: delete old .app directory if we happen to change the assembly name between builds
+
+        if (Filesystem_DoesDirectoryExist(AppBundlePath))
+            Filesystem_DeleteDirectory(AppBundlePath);
+
+        bSuccess = Filesystem_OpenDirectory(AppBundlePath);
+        if (!bSuccess) goto BundleDirectoryError;
+
+        StringLocal(TempPath, MAX_PATH_LENGTH);
+        String_BuildPath(&TempPath, AppBundlePath, S("Contents"));
+        bSuccess = Filesystem_OpenDirectory(TempPath);
+        if (!bSuccess) goto BundleDirectoryError;
+        String_Empty(&TempPath);
+
+        String_BuildPath(&TempPath, AppBundlePath, S("Contents/MacOS"));
+        bSuccess = Filesystem_OpenDirectory(TempPath);
+        if (!bSuccess) goto BundleDirectoryError;
+        String_Empty(&TempPath);
+
+        String_BuildPath(&TempPath, AppBundlePath, S("Contents/Resources"));
+        bSuccess = Filesystem_OpenDirectory(TempPath);
+        if (!bSuccess) goto BundleDirectoryError;
+        String_Empty(&TempPath);
+
+        String_BuildPath(&TempPath, AppBundlePath, S("Contents/Frameworks"));
+        bSuccess = Filesystem_OpenDirectory(TempPath);
+        String_Empty(&TempPath);
+
+        BundleDirectoryError:
+        if (!bSuccess)
         {
-            LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
+            LOG_ERROR("Failed to create app bundle directory. Aborting build...");
             return 1;
         }
 
-        String_Empty(&CmdLine);
-
-        // Step 2 ------------------
-        String_BuildSeparator(&CmdLine, ' ', S("rez -append"), RsrcFilePath, S("-o"), AssemblyPath);
-
-        if (bVerboseLog) LOG("    %S", CmdLine);
-
-        h = Platform_RunCommand(CmdLine, WorkingPath);
-        ExitCode = Platform_WaitForProcessAndGetExitCode(h);
-        if (ExitCode != 0)
+        if (IconFilePath.Length > 0)
         {
-            LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
+            // create the .iconset directory and compile the icon into different sizes
+            StringLocal(IconsetName, 256);
+            String_Append(&IconsetName, AssemblyName);
+            String_Append(&IconsetName, S(".iconset"));
+            StringLocal(IconsetPath, MAX_PATH_LENGTH);
+            String_BuildPath(&IconsetPath, WorkingPath, IntermediateDirectory, IconsetName);
+
+            if (Filesystem_DoesDirectoryExist(IconsetPath))
+                Filesystem_DeleteDirectory(IconsetPath);
+
+            bSuccess = Filesystem_OpenDirectory(IconsetPath);
+            if (!bSuccess)
+            {
+                LOG_ERROR("Failed to create iconset directory. Aborting build...");
+                return 1;
+            }
+
+            PlatformHandle Handles[6] = {0};
+            u16 Size = 16;
+            for (u8 i = 0; i < 6; i++)
+            {
+                StringLocal(CmdLine, 2048);
+                String_Format(&CmdLine, S("sips -z %u %u \"%S\" --out \"%S/icon_%ux%u.png\" > /dev/null"), CmdLine.Capacity, Size, Size, IconFilePath, IconsetPath, Size, Size);
+                if (bVerboseLog) LOG("    %S", CmdLine);
+
+                Size *= 2;
+
+                Handles[i] = Platform_RunCommand(CmdLine, WorkingPath);
+            }
+
+            u32 ExitCode = Platform_WaitForMultipleHandles(Handles, SArray_Capacity(Handles), -1, true);
+            if (ExitCode != 0)
+            {
+                LOG_ERROR("Failed to build iconset for \"%S\". Aborting build...", IconFilePath);
+                return 1;
+            }
+
+            StringLocal(IcnsName, 256);
+            String_Append(&IcnsName, AssemblyName);
+            String_Append(&IcnsName, S(".icns"));
+
+            StringLocal(IcnsPath, MAX_PATH_LENGTH);
+            String_BuildPath(&IcnsPath, WorkingPath, IntermediateDirectory, IcnsName);
+
+            StringLocal(CmdLine, 2048);
+            String_Format(&CmdLine, S("iconutil -c icns -o \"%S\" \"%S\""), CmdLine.Capacity, IcnsPath, IconsetPath);
+            if (bVerboseLog) LOG("    %S", CmdLine);
+            PlatformHandle H = Platform_RunCommand(CmdLine, WorkingPath);
+            ExitCode = Platform_WaitForProcessAndGetExitCode(H);
+            if (ExitCode != 0)
+            {
+                LOG_ERROR("Failed to build \"%S\". Aborting build...", IcnsPath);
+                return 1;
+            }
+
+            String_BuildPath(&TempPath, AppBundlePath, S("Contents/Resources"), IcnsName);
+            bSuccess = Filesystem_Copy(IcnsPath, TempPath);
+            if (!bSuccess) goto CopyError;
+            String_Empty(&TempPath);
+        }
+
+        // copy Info.plist, version.plist and PkgInfo files into Contents directory
+        StringLocal(ResourcePath, MAX_PATH_LENGTH);
+
+        if (CustomInfoPlist.Length > 0)
+        {
+            if (Filesystem_IsPathRelative(CustomInfoPlist))
+            {
+                String_BuildPath(&ResourcePath, WorkingPath, CustomInfoPlist);
+            }
+            else
+            {
+                String_Copy(&ResourcePath, CustomInfoPlist);
+            }
+
+            if (!String_EndsWith(ResourcePath, S(".plist"), false))
+            {
+                LOG_ERROR("%S: Bundle.InfoPlist file must end with \".plist\". Aborting build...", BuildFileName);
+                return 1;
+            }
+
+            // todo: if no explicit path given, search for it
+        }
+        else
+        {
+            String_BuildPath(&ResourcePath, WorkingPath, IntermediateDirectory, S("Info.plist"));
+
+            // generate Info.plist
+            if (bVerboseLog) LOG("    Generating %S", ResourcePath);
+
+            FileHandle f = {0};
+            if (!Filesystem_Open(ResourcePath, FileMode_Write, &f))
+            {
+                return 1;
+            }
+
+            Filesystem_WriteLine(f, S("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"), NULL);
+            Filesystem_WriteLine(f, S("<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"), NULL);
+            Filesystem_WriteLine(f, S("<plist version=\"1.0\">\n"), NULL);
+            Filesystem_WriteLine(f, S("<dict>\n"), NULL);
+
+            // todo: handle Info.plist!
+
+            for each (v, ExpandedVariablesDB)
+            {
+                if (String_StartsWith(v.Name, S("Info.plist::"), false))
+                {
+                    const String Key = StrShiftF(v.Name, 12);
+
+                    Filesystem_WriteLineFormatted(f, S("    <key>%S</key>\n"), NULL, Key);
+                    
+                    // determine if it's a string, array or an integer
+                    if (String_StartsWith(v.Value, S("("), false) &&
+                        String_EndsWith(v.Value, S(")"), false))
+                    {
+                        Filesystem_WriteLine(f, S("    <array>\n"), NULL);
+
+                        {
+                            LinearAllocator Scratch = *Arena;
+                            StringArray Values = String_ParseIntoArray(&Scratch, StrSlice(v.Value.Data+1, v.Value.Length-2), ' ', 0, 128);
+                            for each_str (e, Values)
+                            {
+                                String Slice = String_EatSpaces(String_EatSpacesFromEnd(*e));
+                                if (Slice.Length > 0)
+                                {
+                                    if (String_IsInteger32(Slice))
+                                    {
+                                        Filesystem_WriteLineFormatted(f, S("        <integer>%S</integer>\n"), NULL, Slice);
+                                    }
+                                    else
+                                    {
+                                        Filesystem_WriteLineFormatted(f, S("        <string>%S</string>\n"), NULL, Slice);
+                                    }
+                                }
+                            }
+                        }
+
+                        Filesystem_WriteLine(f, S("    </array>\n"), NULL);
+                    }
+                    else if (String_IsInteger32(v.Value))
+                    {
+                        Filesystem_WriteLineFormatted(f, S("    <integer>%S</integer>\n"), NULL, v.Value);
+                    }
+                    else
+                    {
+                        Filesystem_WriteLineFormatted(f, S("    <string>%S</string>\n"), NULL, v.Value);
+                    }
+                }
+            }
+
+            Filesystem_WriteLine(f, S("</dict>\n"), NULL);
+            Filesystem_WriteLine(f, S("</plist>\n"), NULL);
+
+            Filesystem_Close(&f);
+        }
+
+        String_BuildPath(&TempPath, AppBundlePath, S("Contents/Info.plist"));
+        bSuccess = Filesystem_Copy(ResourcePath, TempPath);
+        if (!bSuccess) goto CopyError;
+        String_Empty(&TempPath);
+        String_Empty(&ResourcePath);
+
+/*
+        if (CustomVersionPlist.Length > 0)
+        {
+            String_BuildPath(&ResourcePath, WorkingPath, CustomVersionPlist);
+
+            if (!String_EndsWith(ResourcePath, S(".plist"), false))
+            {
+                LOG_ERROR("Bundle.InfoPlist file must end with \".plist\". Aborting build...");
+                return 1;
+            }
+
+            // todo: if no explicity path given, search for it
+        }
+        else
+        {
+            String_BuildPath(&ResourcePath, WorkingPath, IntermediateDirectory, S("version.plist"));
+
+            // generate version.plist
+
+            if (bVerboseLog) LOG("    Generating %S", ResourcePath);
+        }
+
+        String_BuildPath(&TempPath, AppBundlePath, S("Contents/version.plist"));
+        bSuccess = Filesystem_Copy(ResourcePath, TempPath);
+        if (!bSuccess) goto CopyError;
+        String_Empty(&TempPath);
+        String_Empty(&ResourcePath);
+*/
+
+        if (CustomPkgInfo.Length > 0)
+        {
+            String_BuildPath(&ResourcePath, WorkingPath, CustomPkgInfo);
+
+            if (!String_EndsWith(ResourcePath, S("PkgInfo"), true))
+            {
+                LOG_ERROR("Bundle.PkgInfo file must be named \"PkgInfo\" (case sensitive). Aborting build...");
+                return 1;
+            }
+
+            // todo: if no explicity path given, search for it
+        }
+        else
+        {
+            String_BuildPath(&ResourcePath, WorkingPath, IntermediateDirectory, S("PkgInfo"));
+
+            // generate PkgInfo
+
+            if (bVerboseLog) LOG("    Generating %S", ResourcePath);
+
+            FileHandle f = {0};
+            if (!Filesystem_Open(ResourcePath, FileMode_Write, &f))
+            {
+                return 1;
+            }
+
+            Filesystem_WriteLineFormatted(f, S("APPL%S"), NULL, AssemblyName);
+            Filesystem_Close(&f);
+        }
+
+        String_BuildPath(&TempPath, AppBundlePath, S("Contents/PkgInfo"));
+        bSuccess = Filesystem_Copy(ResourcePath, TempPath);
+        if (!bSuccess) goto CopyError;
+        String_Empty(&TempPath);
+        String_Empty(&ResourcePath);
+
+        // copy the executable into the MacOS directory
+        // do something special if this is a terminal only app
+        if (bBundleAppIsTerminal)
+        {
+            StringLocal(NewAssemblyName, 256);
+            String_Append(&NewAssemblyName, AssemblyName);
+            String_Append(&NewAssemblyName, S("-bin"));
+            String_Append(&NewAssemblyName, Extension);
+
+            // Step 1 ----------------
+            String_BuildPath(&TempPath, AppBundlePath, S("Contents/MacOS"), AssemblyName);
+
+            if (bVerboseLog) LOG("    Generating terminal script %S", TempPath);
+
+            FileHandle f = {0};
+            if (!Filesystem_Open(TempPath, FileMode_Write, &f))
+            {
+                LOG_ERROR("Failed to create terminal script \"%S\". Aborting build...", TempPath);
+                return 1;
+            }
+
+            StringLocal(RealBinaryPath, 1024);
+            String_BuildPath(&RealBinaryPath, AppBundlePath, S("Contents/MacOS"), NewAssemblyName);
+
+            Filesystem_WriteLine(f, S("#!/bin/sh\n\n"), NULL);
+            //Filesystem_WriteLineFormatted(f, S("open -a Terminal \"%S\"\n"), NULL, RealBinaryPath);
+            Filesystem_WriteLineFormatted(f, S("cd \"${0%%/*}\"\nopen %S"), NULL, NewAssemblyName);
+            Filesystem_Close(&f);
+
+            // Step 2 ----------------
+            StringLocal(CmdLine, 2048);
+            String_Format(&CmdLine, S("chmod +x \"%S\""), CmdLine.Capacity, TempPath);
+            if (bVerboseLog) LOG("    %S", CmdLine);
+            Platform_RunCommand(CmdLine, WorkingPath);
+            String_Empty(&TempPath);
+
+            // Step 3 ----------------
+            String_BuildPath(&TempPath, AppBundlePath, S("Contents/MacOS"), NewAssemblyName);
+            if (bVerboseLog) LOG("    Copying binary executable %S", TempPath);
+            bSuccess = Filesystem_Copy(AssemblyPath, TempPath);
+            if (!bSuccess) goto CopyError;
+            String_Empty(&TempPath);
+        }
+        else
+        {
+            String_BuildPath(&TempPath, AppBundlePath, S("Contents/MacOS"), AssemblyNameWithExt);
+            if (bVerboseLog) LOG("    Copying binary executable %S", TempPath);
+            bSuccess = Filesystem_Copy(AssemblyPath, TempPath);
+            if (!bSuccess) goto CopyError;
+            String_Empty(&TempPath);
+        }
+
+        CopyError:
+        if (!bSuccess)
+        {
+            LOG_ERROR("Failed to copy \"%S\" into the app bundle. Aborting build...", TempPath);
             return 1;
         }
 
-        String_Empty(&CmdLine);
+        Clock_Tick(&BundleCompileClock);
+    }
 
-        // Step 3 ------------------
-        String_BuildSeparator(&CmdLine, ' ', S("SetFile -a C"), AssemblyPath);
-
-        if (bVerboseLog) LOG("    %S", CmdLine);
-
-        h = Platform_RunCommand(CmdLine, WorkingPath);
-        ExitCode = Platform_WaitForProcessAndGetExitCode(h);
-        if (ExitCode != 0)
+    // build icon for mach-o executables
+    if (IconFilePath.Length > 0)
+    {
+        // embed exe icon into the actual executable
         {
-            LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
-            return 1;
-        }
+            Clock_Start(&IconClock);
 
-        Clock_Tick(&IconClock);
+            LOG("\nCompiling icon \"%S\"", IconFilePath);
+
+            StringLocal(CmdLine, 4096);
+
+            StringLocal(AssemblyPath, MAX_PATH_LENGTH);
+            String_BuildPath(&AssemblyPath, WorkingPath, BuildDirectory, AssemblyNameWithExt);
+
+            u32 LastSlashIndex = 0;
+            String_IndexOfLastPathSlash(IconFilePath, &LastSlashIndex);
+
+            // Step 1 ------------------
+            StringLocal(RsrcFilePath, MAX_PATH_LENGTH);
+            StringLocal(RsrcFileName, 256);
+            String_Append(&RsrcFileName, StrShiftF(IconFilePath, LastSlashIndex == 0 ? 0 : LastSlashIndex+1));
+            String_Append(&RsrcFileName, S("-icns.rsrc"));
+            String_BuildPath(&RsrcFilePath, WorkingPath, IntermediateDirectory, RsrcFileName);
+
+            String_BuildSeparator(&CmdLine, ' ', S("derez -only icns"), IconFilePath, S(">"), RsrcFilePath);
+
+            if (bVerboseLog) LOG("    %S", CmdLine);
+
+            PlatformHandle h = Platform_RunCommand(CmdLine, WorkingPath);
+            u32 ExitCode = Platform_WaitForProcessAndGetExitCode(h);
+            if (ExitCode != 0)
+            {
+                LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
+                return 1;
+            }
+
+            String_Empty(&CmdLine);
+
+            // Step 2 ------------------
+            String_BuildSeparator(&CmdLine, ' ', S("rez -append"), RsrcFilePath, S("-o"), AssemblyPath);
+
+            if (bVerboseLog) LOG("    %S", CmdLine);
+
+            h = Platform_RunCommand(CmdLine, WorkingPath);
+            ExitCode = Platform_WaitForProcessAndGetExitCode(h);
+            if (ExitCode != 0)
+            {
+                LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
+                return 1;
+            }
+
+            String_Empty(&CmdLine);
+
+            // Step 3 ------------------
+            String_BuildSeparator(&CmdLine, ' ', S("SetFile -a C"), AssemblyPath);
+
+            if (bVerboseLog) LOG("    %S", CmdLine);
+
+            h = Platform_RunCommand(CmdLine, WorkingPath);
+            ExitCode = Platform_WaitForProcessAndGetExitCode(h);
+            if (ExitCode != 0)
+            {
+                LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
+                return 1;
+            }
+
+            Clock_Tick(&IconClock);
+        }
     }
     #endif
 
@@ -4912,6 +5311,12 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         LOG("Resource    time: %S", TimeString);
     }
 
+    if (BundleCompileClock.StartTime > 0)
+    {
+        Clock_GetElapsedTime_ToString(&BundleCompileClock, true, &TimeString);
+        LOG("Bundle      time: %S", TimeString);
+    }
+
     if (bFoundBuildFile)
     {
         Clock_GetElapsedTime_ToString(&BuildFileParseClock, true, &TimeString);
@@ -5256,7 +5661,8 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
 
     String_EatPathSeparatorsInlineFromEnd(&WorkingDirectory);
 
-    const bool bSingleThreadMode       = StringArray_Contains(Arguments, S("-singlethread"), false);
+    const bool bSingleThreadMode       = StringArray_Contains(Arguments, S("-singlethread"), false) ||
+                                         StringArray_Contains(Arguments, S("-s"), false);
     const bool bGenCompileCommandsJSON = StringArray_Contains(Arguments, S("export:compile_commands"), false) ||
                                          StringArray_Contains(Arguments, S("export:cc"), false);
     //const bool bGenVisualStudio        = StringArray_Contains(Arguments, S("export:visual_studio"), false);
@@ -5697,9 +6103,13 @@ u32 RunApplication(const StringArray Arguments)
     AddInternalVariable(S("_Platform"), S("Windows"));
     AddInternalVariable(S("Windows"), S(""));
     AddInternalVariable(S("Win32"), S(""));
+    #if PLATFORM_64_BIT
+    AddInternalVariable(S("Win64"), S(""));
+    #endif
     #elif PLATFORM_MAC
     AddInternalVariable(S("_Platform"), S("Apple MacOS Unix"));
     AddInternalVariable(S("Apple"), S(""));
+    AddInternalVariable(S("Macintosh"), S(""));
     AddInternalVariable(S("Mac"), S(""));
     AddInternalVariable(S("MacOS"), S(""));
     AddInternalVariable(S("Unix"), S(""));
@@ -5707,6 +6117,36 @@ u32 RunApplication(const StringArray Arguments)
     AddInternalVariable(S("_Platform"), S("Linux Unix"));
     AddInternalVariable(S("Linux"), S(""));
     AddInternalVariable(S("Unix"), S(""));
+
+    // TODO: add more linux distros (look in /etc/os-release for distro name)
+    /*
+    AddInternalVariable(S("_Distribution"), S(""));
+    AddInternalVariable(S("_Distro"), S(""));
+    AddInternalVariable(S("Arch"), S(""));
+    AddInternalVariable(S("Ubuntu"), S(""));
+    AddInternalVariable(S("Mint"), S(""));
+    AddInternalVariable(S("Debian"), S(""));
+    */
+
+    // dynamically add one from /etc/os-release or /usr/lib/os-release
+    //AddInternalVariable(, S(""));
+
+    #if PLATFORM_LINUX_GNOME
+    AddInternalVariable(S("GNOME"), S(""));
+    AddInternalVariable(S("_DesktopEnvironment"), S("GNOME"));
+    AddInternalVariable(S("_DesktopEnv"), S("GNOME"));
+    AddInternalVariable(S("_DE"), S("GNOME"));
+    #elif PLATFORM_LINUX_KDE
+    AddInternalVariable(S("KDE"), S(""));
+    AddInternalVariable(S("_DesktopEnvironment"), S("KDE"));
+    AddInternalVariable(S("_DesktopEnv"), S("KDE"));
+    AddInternalVariable(S("_DE"), S("KDE"));
+    #elif PLATFORM_LINUX_CINNAMON
+    AddInternalVariable(S("Cinnamon"), S(""));
+    AddInternalVariable(S("_DesktopEnvironment"), S("Cinnamon"));
+    AddInternalVariable(S("_DesktopEnv"), S("Cinnamon"));
+    AddInternalVariable(S("_DE"), S("Cinnamon"));
+    #endif
     #elif PLATFORM_BSD
     AddInternalVariable(S("_Platform"), S("BSD " PLATFORM_STRING));
     AddInternalVariable(S("BSD"), S(""));

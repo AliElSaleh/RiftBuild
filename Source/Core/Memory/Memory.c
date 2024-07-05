@@ -8,13 +8,7 @@
 #include "Log.h"
 #include "String/StringUtils.h"
 
-#include "Math/Math.h"
-
-#include "memory/libmemory.c"
-
-#ifdef META_GENERATED
-#include "Memory.generated.c"
-#endif
+#include "libmemory.c"
 
 #define MAX_MEM_INFO_BUFFER_LENGTH 2048
 
@@ -548,4 +542,626 @@ u64 GetAligned(u64 Operand, u64 Granularity)
 MemoryRange GetAlignedRange(u64 Offset, u64 Size, u64 Granularity)
 {
     return (MemoryRange){GetAligned(Offset, Granularity), GetAligned(Size, Granularity)};
+}
+
+
+
+
+//////////////////////////////////
+
+
+// Allocators
+
+
+//////////////////////////////////
+
+
+
+void LinearAllocator_Create(u64 TotalSize, void* Memory, LinearAllocator* OutAllocator)
+{
+    ASSERT(TotalSize > 0);
+    ASSERT(OutAllocator != NULL);
+    
+    OutAllocator->TotalSize = TotalSize;
+    OutAllocator->Allocated = 0;
+    OutAllocator->bOwnsMemory = !IsValid(Memory);
+    OutAllocator->bAlignMemory = true;
+
+    if (Memory)
+    {
+        OutAllocator->Memory = Memory;
+    }
+    else
+    {
+        OutAllocator->Memory = MemAlloc(TotalSize, MemoryTag_LinearAllocator);
+    }
+}
+
+void LinearAllocator_Destroy(LinearAllocator* Allocator)
+{
+    if (Allocator->bOwnsMemory && IsValid(Allocator->Memory))
+    {
+        MemFree(Allocator->Memory, MemoryTag_LinearAllocator);
+    }
+
+    Allocator->Memory = nullptr;
+    Allocator->TotalSize = 0;
+    Allocator->Allocated = 0;
+    Allocator->bOwnsMemory = false;
+}
+
+void* LinearAllocator_Allocate(LinearAllocator* Allocator, u64 Size)
+{
+    ASSERT(Size > 0);
+    ASSERT(Allocator->Allocated < Allocator->TotalSize);
+    ASSERT(Allocator->Allocated + Size <= Allocator->TotalSize);
+    
+    void* Block = ((u8*)Allocator->Memory) + Allocator->Allocated;
+
+    const u64 Alignment = 3;
+
+    if (Allocator->bAlignMemory)
+    {
+        Allocator->Allocated += ((Size + Alignment) & ~Alignment); // @Enhancement: Make more robust if the memory given was unaligned to begin with
+    }
+    else
+    {
+        Allocator->Allocated += Size;
+    }
+    
+    return Block;
+}
+
+void* LinearAllocator_AllocateAll(LinearAllocator* Allocator)
+{
+    Allocator->Allocated = Allocator->TotalSize;
+    return Allocator->Memory;
+}
+
+void LinearAllocator_FreeAll(LinearAllocator* Allocator, bool bZeroMemory)
+{
+    if (Allocator->Allocated > 0)
+    {
+        Allocator->Allocated = 0;
+        
+        if (bZeroMemory)
+            MemZero(Allocator->Memory, Allocator->TotalSize);
+    }
+}
+
+void* LinearAllocator_MemoryHead(LinearAllocator* Allocator)
+{
+    return ((u8*)Allocator->Memory) + Allocator->Allocated;
+}
+
+LinearAllocator_Scratch LinearAllocator_GetScratch(LinearAllocator* Allocator)
+{
+    return (LinearAllocator_Scratch)
+    {
+        .Allocator = Allocator,
+        .StartPosition = Allocator->Allocated
+    };
+}
+
+void LinearAllocator_GetScratchInline(LinearAllocator* Allocator, LinearAllocator_Scratch* OutScratch)
+{
+    *OutScratch = LinearAllocator_GetScratch(Allocator);
+}
+
+void LinearAllocator_ReleaseScratch(LinearAllocator_Scratch* Scratch)
+{
+    u64 NumBytesUsed = Scratch->Allocator->Allocated - Scratch->StartPosition;
+    if (NumBytesUsed > 0 && NumBytesUsed <= Scratch->Allocator->TotalSize)
+    {
+        Scratch->Allocator->Allocated = Scratch->StartPosition;
+        MemZero(LinearAllocator_MemoryHead(Scratch->Allocator), NumBytesUsed);
+    }
+}
+
+
+// ===================================================
+
+
+#include "FreeListAllocator.h"
+
+#define DEFAULT_FREE_LIST_ALLOCATOR_ALIGNMENT 64
+
+internal FreeListAllocator_Node* Internal_FindFirstFit(FreeListAllocator* Allocator, u64 Size, u64* OutPadding, FreeListAllocator_Node** OutPrevNode)
+{
+    ASSERT(Allocator->Head != NULL);
+    
+    FreeListAllocator_Node* Node = Allocator->Head;
+    FreeListAllocator_Node* PrevNode = NULL;
+    
+    u64 Padding = 0;
+    
+    while (Node != NULL)
+    {
+        ASSERT(PrevNode != Node);
+        
+        Padding = MemoryUtils_CalculatePaddingWithHeader((u64)Node, DEFAULT_FREE_LIST_ALLOCATOR_ALIGNMENT, sizeof(FreeListAllocator_Header));
+        
+        u64 RequiredSize = Size + Padding;
+        
+        // does it fit?
+        if (Node->BlockSize >= RequiredSize)
+        {
+            break;
+        }
+        
+        PrevNode = Node;
+        Node = Node->Next;
+    }
+    
+    if (OutPadding)
+        *OutPadding = Padding;
+    
+    if (PrevNode)
+        *OutPrevNode = PrevNode;
+    
+    return Node;
+}
+
+internal void Internal_FreeListAllocator_NodeRemove(FreeListAllocator_Node** HeadPtr, FreeListAllocator_Node* PrevNode, FreeListAllocator_Node* DelNode)
+{
+    if (!IsValid(PrevNode))
+    {
+        *HeadPtr = DelNode->Next;
+    }
+    else
+    {
+        PrevNode->Next = DelNode->Next;
+    }
+}
+
+internal void Internal_FreeListAllocator_Coalesce(FreeListAllocator* Allocator, FreeListAllocator_Node* PrevNode, FreeListAllocator_Node* FreeNode)
+{
+    if (FreeNode->Next)
+    {
+        if ((void*)((u8*)FreeNode + FreeNode->BlockSize) == FreeNode->Next)
+        {
+            FreeNode->BlockSize += FreeNode->Next->BlockSize;
+            Internal_FreeListAllocator_NodeRemove(&Allocator->Head, FreeNode, FreeNode->Next);
+        }
+    }
+    
+    if (PrevNode)
+    {
+        if (PrevNode->Next != NULL)
+        {
+            if ((void*)((u8*)PrevNode + PrevNode->BlockSize) == FreeNode)
+            {
+                PrevNode->BlockSize += FreeNode->Next->BlockSize;
+                Internal_FreeListAllocator_NodeRemove(&Allocator->Head, PrevNode, FreeNode);
+            }
+        }
+    }
+}
+
+void FreeListAllocator_Create(FreeListAllocator* OutAllocator, u64 TotalSize, void* Memory)
+{
+    OutAllocator->Memory = Memory;
+    OutAllocator->TotalSize = TotalSize;
+
+    FreeListAllocator_FreeAll(OutAllocator);
+}
+
+void FreeListAllocator_Destroy(FreeListAllocator* Allocator)
+{
+    MemZero(Allocator->Memory, Allocator->TotalSize);
+    
+    Allocator->Memory = NULL;
+    Allocator->TotalSize = 0;
+    Allocator->Allocated = 0;
+    Allocator->Head = NULL;
+}
+
+void FreeListAllocator_FreeAll(FreeListAllocator* Allocator)
+{
+    Allocator->Allocated = 0;
+    
+    FreeListAllocator_Node* FirstNode = (FreeListAllocator_Node*)Allocator->Memory;
+    
+    FirstNode->BlockSize = Allocator->TotalSize;
+    FirstNode->Next = NULL;
+    
+    Allocator->Head = FirstNode;
+}
+
+u64 FreeListAllocator_Offset(FreeListAllocator* Allocator, void* Memory)
+{
+    // Ensure that the memory passed in within this allocator's memory address range
+    // If this assertion fails, there is a problem with the memory passed in,
+    // as it falls outside the range of this allocator
+    ASSERT((u8*)Memory >= (u8*)Allocator->Memory);
+    ASSERT((u8*)Memory < (((u8*)Allocator->Memory) + Allocator->TotalSize));
+    
+    return (u64)((u8*)Memory - (u8*)Allocator->Memory);
+}
+
+void* FreeListAllocator_MemoryFromOffset(FreeListAllocator* Allocator, u64 Offset)
+{
+    ASSERT(Offset > sizeof(FreeListAllocator_Header));
+    ASSERT(Offset < Allocator->TotalSize);
+    
+    return (void*)((u8*)Allocator->Memory + Offset);
+}
+
+void* FreeListAllocator_Allocate(FreeListAllocator* Allocator, u64 Size, u64* OutBytesAllocated)
+{
+    if (OutBytesAllocated)
+        *OutBytesAllocated = 0;
+    
+    // Allocation size must be at least the size of a node for the free list to work properly
+    if (Size < sizeof(FreeListAllocator_Node))
+    {
+        Size = sizeof(FreeListAllocator_Node);
+    }
+    
+    u64 Padding = 0;
+    FreeListAllocator_Node* PrevNode = NULL;
+    FreeListAllocator_Node* Node = Internal_FindFirstFit(Allocator, Size, &Padding, &PrevNode);
+    
+    // todo: uncomment, after testing, think we still need this assert anyway
+    //ASSERT_MSG(LIKELY(Node != NULL), "Out of memory");
+    if (UNLIKELY(Node == NULL))
+    {
+        LOG_ERROR("Out of memory! Further allocations will now point to the memory dump!");
+        return MemoryDump(); // point to the memory dump to prevent NULL crashes
+    }
+    
+    //u64 AlignmentPadding = 0;
+    u64 AlignmentPadding = Padding - sizeof(FreeListAllocator_Header);
+    u64 RequiredSpace = Size + Padding;
+    u64 Remaining = Node->BlockSize - RequiredSpace;
+    
+    if (Remaining > 0)
+    {
+        FreeListAllocator_Node* NewFreeNode = (FreeListAllocator_Node*)((u8*)Node + RequiredSpace);
+        NewFreeNode->BlockSize = Remaining;
+
+        if (!IsValid(Node->Next))
+        {
+            Node->Next = NewFreeNode;
+            NewFreeNode->Next = NULL;
+        }
+        else
+        {
+            NewFreeNode->Next = Node->Next;
+            Node->Next = NewFreeNode;
+        }
+    }
+
+    if (!IsValid(PrevNode))	
+    {
+        Allocator->Head = Node->Next;
+    }
+    else
+    {
+        PrevNode->Next = Node->Next;
+    }
+    
+    //Internal_FreeListAllocator_NodeRemove(&Allocator->Head, PrevNode, Node);
+
+    FreeListAllocator_Header* Header = (FreeListAllocator_Header*)((u8*)Node + AlignmentPadding);
+    Header->BlockSize = RequiredSpace;
+    Header->AlignmentPadding = AlignmentPadding;
+    
+    Allocator->Allocated += RequiredSpace;
+    
+    if (OutBytesAllocated)
+        *OutBytesAllocated = RequiredSpace;
+    
+    return (void*)((u8*)Header + sizeof(FreeListAllocator_Header));
+}
+
+void FreeListAllocator_Free(FreeListAllocator* Allocator, void* Memory, u64* OutBytesFreed)
+{
+    if (OutBytesFreed)
+        *OutBytesFreed = 0;
+    
+    if (!IsValid(Memory))
+        return;
+
+    FreeListAllocator_Header* Header = (FreeListAllocator_Header*)((u8*)Memory - sizeof(FreeListAllocator_Header));
+
+    // Ensure that the memory passed in within this allocator's memory address range
+    // If this assertion fails, there is a problem with the memory passed in,
+    // as it falls outside the range of this allocator
+    ASSERT((u8*)Header >= (u8*)Allocator->Memory);
+    ASSERT((u8*)Header < (((u8*)Allocator->Memory) + Allocator->TotalSize));
+
+    // zero the memory
+    u64 Padding = MemoryUtils_CalculatePaddingWithHeader((u64)Header, DEFAULT_FREE_LIST_ALLOCATOR_ALIGNMENT, sizeof(FreeListAllocator_Header));
+    u64 BlockSizeNoPadding = Header->BlockSize - Padding - Header->AlignmentPadding;
+    MemZero(Memory, BlockSizeNoPadding);
+
+    // Detect if the memory passed in was already freed
+    {
+        FreeListAllocator_Node* Node = Allocator->Head;
+
+        const FreeListAllocator_Node* FoundNode = NULL;
+        while (Node != NULL)
+        {
+            if (Node == (FreeListAllocator_Node*)Header)
+            {
+                FoundNode = Node;
+                break;
+            }
+            
+            Node = Node->Next;
+        }
+
+        //ASSERT_MSG(!FoundNode, "Double free");
+        if (FoundNode)
+        {
+            return;
+        }
+    }
+    
+    u64 BlockSize = Header->BlockSize;
+    
+    if (OutBytesFreed)
+        *OutBytesFreed = BlockSize;
+    
+    FreeListAllocator_Node* FreeNode = (FreeListAllocator_Node*)Header;
+    FreeNode->BlockSize = Header->BlockSize + Header->AlignmentPadding;
+    FreeNode->Next = NULL;
+    
+    FreeListAllocator_Node* Node = Allocator->Head;
+    FreeListAllocator_Node* PrevNode = NULL;
+    
+    while (Node != NULL)
+    {
+        if (FreeNode < Node)
+        {
+            if (!PrevNode)
+            {
+                if (Allocator->Head)
+                {
+                    FreeNode->Next = Allocator->Head;
+                }
+                else
+                {
+                    Allocator->Head = FreeNode;
+                }
+            }
+            else
+            {
+                if (!IsValid(PrevNode->Next))
+                {
+                    PrevNode->Next = FreeNode;
+                    FreeNode->Next = NULL;
+                }
+                else
+                {
+                    FreeNode->Next = PrevNode->Next;
+                    PrevNode->Next = FreeNode;
+                }
+            }
+            
+            break;
+        }
+        
+        PrevNode = Node;
+        Node = Node->Next;
+    }
+    
+    Allocator->Allocated -= BlockSize;
+
+    Internal_FreeListAllocator_Coalesce(Allocator, PrevNode, FreeNode);
+}
+
+
+/////////////////////////////////////
+
+// Dynamic Array
+
+/////////////////////////////////////
+
+
+#include "Structures/Array.h"
+
+void* _ArrayCreate(u64 Num, u64 Stride)
+{
+    u64 HeaderSize = ArrayField_Count * sizeof(u64);
+    u64 ArraySize = Num * Stride;
+    
+    u64* NewArray = (u64*)MemAlloc(HeaderSize + ArraySize, MemoryTag_DynamicArray);
+    
+    NewArray[ArrayField_Capacity] = Num;
+    NewArray[ArrayField_Num] = 0;
+    NewArray[ArrayField_Stride] = Stride;
+    NewArray[ArrayField_OwnsMemory] = 1;
+    
+    return (void*)(NewArray + ArrayField_Count);
+}
+
+u64 _ArrayCalculateMemRequirement(u64 Num, u64 Stride)
+{
+    u64 HeaderSize = ArrayField_Count * sizeof(u64);
+    u64 Alignment = 3;
+    u64 ArraySize = Num * ((Stride + Alignment) & ~Alignment);
+    
+    return HeaderSize + ArraySize;
+}
+
+void* _ArrayCreateStatic(void* Memory, u64 Num, u64 Stride)
+{
+    u64* NewArray = (u64*)Memory;
+
+    NewArray[ArrayField_Capacity] = Num;
+    NewArray[ArrayField_Num] = 0;
+    NewArray[ArrayField_Stride] = Stride;
+    NewArray[ArrayField_OwnsMemory] = 0;
+
+    return (void*)(NewArray + ArrayField_Count);
+}
+
+void _ArrayDestroy(void* Array)
+{
+    u64* Header = (u64*)Array - ArrayField_Count;
+    
+    if (Header[ArrayField_OwnsMemory] == 1)
+    {
+        MemFree(Header, MemoryTag_DynamicArray);
+    }
+}
+
+internal void* _ArrayResize(void* Array)
+{
+    const u64* Header = (u64*)Array - ArrayField_Count;
+
+    if (Header[ArrayField_OwnsMemory] == 1)
+    {
+        u64 Num = Array_Num(Array);
+        u64 Stride = Array_Stride(Array);
+        
+        void* NewArray = _ArrayCreate(Array_Capacity(Array) * ARRAY_RESIZE_FACTOR, Stride);
+
+        MemCopy(NewArray, Array, Num * Stride);
+
+        _ArrayFieldSet(Array, ArrayField_Num, Num);
+        _ArrayDestroy(Array);
+        
+        return NewArray;
+    }
+
+    return Array;
+}
+
+void* _ArrayAdd(void* Array, const void* ValuePtr)
+{
+    u64 Num = Array_Num(Array);
+    u64 Stride = Array_Stride(Array);
+
+    // Resize if needed
+    if (Num >= Array_Capacity(Array))
+    {
+        Array = _ArrayResize(Array);
+
+        // this array is static, thus it cannot be resized, exit out and don't mutate anything
+        const u64* Header = (u64*)Array - ArrayField_Count;
+        if (Header[ArrayField_OwnsMemory] != 1)
+        {
+            #if DEVELOPER
+            LOG_WARNING("Fixed size TArray is full, cannot resize or add more elements because it does not own the memory.");
+            #endif
+
+            return Array;
+        }
+    }
+    
+    u64 Addr = (u64)Array;
+    Addr += (Num * Stride); // go to end of array
+
+    MemCopy((void*)Addr, ValuePtr, Stride);
+
+    _ArrayFieldSet(Array, ArrayField_Num, Num+1);
+    
+    return Array;
+}
+
+void* _ArrayInsertAt(void* Array, const void* ValuePtr, u64 Index)
+{
+    u64 Num = Array_Num(Array);
+    u64 Stride = Array_Stride(Array);
+
+    if (Index >= Num)
+    {
+        LOG_WARNING("Index outside the bounds of the array. Num: %llu | Index: %llu", Num, Index);
+        return Array;
+    }
+
+    // Resize if needed
+    if (Num >= Array_Capacity(Array))
+    {
+        Array = _ArrayResize(Array);
+
+        // this array is static, thus it cannot be resized, exit out and don't mutate anything
+        const u64* Header = (u64*)Array - ArrayField_Count;
+        if (Header[ArrayField_OwnsMemory] != 1)
+        {
+            #if DEVELOPER
+            LOG_WARNING("Fixed size TArray is full, cannot resize or add more elements because it does not own the memory.");
+            #endif
+
+            return Array;
+        }
+    }
+
+    u64 Addr = (u64)Array;
+
+    // If not last element, snip out the entry and copy the rest outward
+    if (Index != Num-1)
+    {
+        MemCopy((void*)(Addr + ((Index + 1) * Stride)),
+                (void*)(Addr + (Index * Stride)),
+                Stride * (Num - Index));
+    }
+
+    MemCopy((void*)(Addr + (Index * Stride)), ValuePtr, Stride);
+
+    _ArrayFieldSet(Array, ArrayField_Num, Num+1);
+    return Array;
+}
+
+void _ArrayRemoveLast(void* Array, void* ValuePtr)
+{
+    u64 Num = Array_Num(Array);
+    u64 Stride = Array_Stride(Array);
+
+    u64 Addr = (u64)Array;
+    Addr += ((Num-1) * Stride); // go to 2nd last element
+
+    MemCopy(ValuePtr, (void*)Addr, Stride);
+
+    _ArrayFieldSet(Array, ArrayField_Num, Num-1);
+}
+
+void* _ArrayRemoveAt(void* Array, void* ValuePtr, u64 Index)
+{
+    u64 Num = Array_Num(Array);
+    u64 Stride = Array_Stride(Array);
+
+    if (Index >= Num)
+    {
+        LOG_WARNING("Index outside the bounds of the array. Num: %llu | Index: %llu", Num, Index);
+        return Array;
+    }
+
+    u64 Addr = (u64)Array;
+
+    if (ValuePtr)
+    {
+        MemCopy(ValuePtr, (void*)(Addr + (Index * Stride)), Stride);
+    }
+
+    // If not last element, snip out the entry and copy the rest inward
+    if (Index != Num-1)
+    {
+        MemCopy((void*)(Addr + (Index * Stride)),
+                (void*)(Addr + ((Index + 1) * Stride)),
+                Stride * (Num - Index));		
+    }
+
+    _ArrayFieldSet(Array, ArrayField_Num, Num-1);
+    return Array;
+}
+
+u64 _ArrayFieldGet(void* Array, u64 Field)
+{
+    const u64* Header = (u64*)Array - ArrayField_Count;
+    return Header[Field];
+}
+
+void _ArrayFieldSet(void* Array, u64 Field, u64 Value)
+{
+    u64* Header = (u64*)Array - ArrayField_Count;
+    Header[Field] = Value;
+}
+
+bool _ArrayIsValidIndex(void* Array, u64 Index)
+{
+    return Index < _ArrayFieldGet(Array, ArrayField_Capacity);
 }

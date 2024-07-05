@@ -41,6 +41,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
     bool bInMultiLineComment = false;
     bool bInMultiLineErrorMessage = false;
 
+    StringLocal(NamespaceKey, 64);
     StringLocal(SwitchValue, 64);
     StringLocal(GotoValue, 64);
     StringLocal(ErrorMessage_Name, 256);
@@ -213,6 +214,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
         {
             bInsideIf = false;
             bIfFailed = false;
+            String_Empty(&NamespaceKey); // todo: this will obviously break for nested { }, so we need an indexing system, maybe just rewrite the parser.... oh god
             continue;
         }
 
@@ -969,6 +971,22 @@ bool ParseBuildFile(LinearAllocator* Arena,
 
         if (!bVarNameIsKeyword)
         {
+            if (String_EndsWith(VarValue, S("{"), false))
+            {
+                String_Copy(&NamespaceKey, VarName);
+                continue;
+            }
+
+            StringLocal(NewVarName, 64);
+            if (NamespaceKey.Length > 0)
+            {
+                String_Append(&NewVarName, NamespaceKey);
+                String_Append(&NewVarName, S("::"));
+                String_Append(&NewVarName, VarName);
+
+                VarName = NewVarName;
+            }
+
             bool bWantsOverride = false;
 
             if (bHasOverwrite)

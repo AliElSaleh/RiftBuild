@@ -4,10 +4,8 @@
 
 #include "Globals.h"
 #include "Log.h"
-#include "Math/Math.h"
 #include "Memory/LinearAllocator.h"
 #include "Memory/Memory.h"
-#include "EngineUtils.h"
 #include "String/BaseString.h"
 
 #define STB_SPRINTF_IMPLEMENTATION
@@ -222,6 +220,65 @@ bool String_IsEqual(const String StringA, const String StringB, bool bCaseSensit
     }
 
     return true;
+}
+
+bool String_IsInteger32(const String Str)
+{
+    if (Str.Length > 10) return false; // not a valid 32-bit integer
+    if (Str.Length == 0) return false;
+
+    for (u32 i = 0; i < Str.Length; i++)
+    {
+        if (!IsDigit(Str.Data[i]))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool String_IsInteger(const String Str)
+{
+    if (Str.Length == 0) return false;
+
+    for (u32 i = 0; i < Str.Length; i++)
+    {
+        if (!IsDigit(Str.Data[i]))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool String_IsFloat(const String Str)
+{
+    if (Str.Length == 0) return false;
+
+    bool bHasDot = false;
+    for (u32 i = 0; i < Str.Length; i++)
+    {
+        if (Str.Data[i] == '.')
+        {
+            if (bHasDot) // already have a dot, means it's not a valid float
+                return false;
+
+            bHasDot = true;
+        }
+        else if (!IsDigit(Str.Data[i]))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool String_IsNumeric(const String Str)
+{
+    return String_IsInteger(Str) || String_IsFloat(Str);
 }
 
 bool String_Contains(const String Str, const String SubString, bool bCaseSensitive)
@@ -479,6 +536,7 @@ void StringInternal_BuildPath(String* Dest, const StringArray Array)
             String_AppendPathSeparator(Dest);
     }
 
+    String_EatPathSeparatorsInlineFromEnd(Dest);
     String_ConvertSlashToPlatformSlash(Dest);
 }
 
@@ -1485,7 +1543,13 @@ bool String_ToF32(const String Str, f32* OutFloat)
             if (bDecimalFound)
             {
                 DecimalPlaces++;
-                Num = Num + (f32)Digit / Pow(10.0f, (f32)DecimalPlaces);
+                f32 PowResult = 10.0f;
+                for (u8 i = 1; i < (u8)DecimalPlaces; i++)
+                {
+                    PowResult *= 10.0f;
+                }
+
+                Num = Num + (f32)Digit / PowResult; //Pow(10.0f, (f32)DecimalPlaces);
             }
             else
             {
@@ -1558,7 +1622,14 @@ bool String_ToF64(const String Str, f64* OutFloat)
             if (bDecimalFound)
             {
                 DecimalPlaces++;
-                Num = Num + (f64)Digit / Powd(10.0, (f64)DecimalPlaces);
+
+                f64 PowResult = 10.0;
+                for (u8 i = 1; i < (u8)DecimalPlaces; i++)
+                {
+                    PowResult *= 10.0;
+                }
+
+                Num = Num + (f64)Digit / PowResult; //Powd(10.0, (f64)DecimalPlaces);
             }
             else
             {
