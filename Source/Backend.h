@@ -55,6 +55,15 @@ ENUM(EGenerator)
     Generator_CompileCommandsJSON,
     Generator_VisualStudioSolution,
     Generator_XCodeProject,
+    Generator_Plist,
+    Generator_PkgInfo,
+    Generator_Sh,
+    Generator_Bat,
+    Generator_Unity,
+    Generator_DotDesktop,
+    Generator_Mime,
+    Generator_GNOMEMime,
+    Generator_KDEMime,
 };
 
 ENUM(EBuildMode)
@@ -88,6 +97,11 @@ STRUCT(BuildParams)
 
     String IconResFilePath;
     String VersionResFilePath;
+
+    String TitleName;
+    String CompanyName;
+    String Description;
+    String Version;
 
     StringList WhitelistFiles, WhitelistDirectories;
     StringList BlacklistFiles, BlacklistDirectories;
@@ -188,5 +202,9 @@ bool ExportCompileCommands(const BuildParams* Params,
                            const String DefineFlags, const String UnDefineFlags,
                            const bool bIsLastBuild);
 
+
+bool ExportInfoPlist(LinearAllocator Arena, const BuildParams* Params, const String Path, TArray(FileVariable) ExpandedVariablesDB, bool bRawMode);
+bool ExportVersionPlist(LinearAllocator Arena, const BuildParams* Params, const String Path, TArray(FileVariable) ExpandedVariablesDB, bool bRawMode);
+bool ExportPkgInfo(const BuildParams* Params, const String Path);
 
 bool SourceFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData);

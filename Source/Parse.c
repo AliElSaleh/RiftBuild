@@ -9,6 +9,16 @@
 #include "Uuid.h"
 #include "Log.h"
 
+/*
+##
+# something like this would be nice
+    if /usr/bin/gnome-terminal
+    if /usr/bin/konsole
+
+    if Source/Resources/Info.plist Defsiofnef j
+##
+*/
+
 bool ParseBuildFile(LinearAllocator* Arena,
                     const FileHandle H,
                     const String BuildFilePath,
@@ -416,6 +426,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
             }
 
             String* LastValue = &VariablesDB[Array_Num(VariablesDB)-1].Value;
+            bool bLastIsSpecial = VariablesDB[Array_Num(VariablesDB)-1].bHasSpecial;
 
             if (Trimmed.Data[0] == ']')
             {
@@ -426,7 +437,15 @@ bool ParseBuildFile(LinearAllocator* Arena,
 
             VarValue = Trimmed;
             String_Append(LastValue, String_EatSpacesFromEnd(VarValue));
-            String_AppendSpace(LastValue);
+
+            if (bLastIsSpecial)
+            {
+                String_AppendNewline(LastValue);
+            }
+            else
+            {
+                String_AppendSpace(LastValue);
+            }
 
             continue;
         }

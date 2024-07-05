@@ -113,6 +113,264 @@ bool ExportCompileCommands(const BuildParams* Params,
     return false;
 }
 
+internal void Internal_PlistWrite(LinearAllocator Scratch, const FileHandle f, const String Key, const String Value)
+{
+    Filesystem_WriteLineFormatted(f, S("    <key>%S</key>\n"), NULL, Key);
+    
+    // determine if it's a string, array or an integer
+    if (String_StartsWith(Value, S("("), false) &&
+        String_EndsWith(Value, S(")"), false))
+    {
+        Filesystem_WriteLine(f, S("    <array>\n"), NULL);
+
+        {
+            StringArray Values = String_ParseIntoArray(&Scratch, StrSlice(Value.Data+1, Value.Length-2), ' ', 0, 128);
+            for each_str (e, Values)
+            {
+                String Slice = String_EatSpaces(String_EatSpacesFromEnd(*e));
+                if (Slice.Length > 0)
+                {
+                    if (String_IsInteger32(Slice))
+                    {
+                        Filesystem_WriteLineFormatted(f, S("        <integer>%S</integer>\n"), NULL, Slice);
+                    }
+                    else
+                    {
+                        Filesystem_WriteLineFormatted(f, S("        <string>%S</string>\n"), NULL, Slice);
+                    }
+                }
+            }
+        }
+
+        Filesystem_WriteLine(f, S("    </array>\n"), NULL);
+    }
+    else if (String_IsInteger32(Value))
+    {
+        Filesystem_WriteLineFormatted(f, S("    <integer>%S</integer>\n"), NULL, Value);
+    }
+    else
+    {
+        Filesystem_WriteLineFormatted(f, S("    <string>%S</string>\n"), NULL, Value);
+    }
+}
+
+bool ExportInfoPlist(LinearAllocator Arena, const BuildParams* Params, const String Path, TArray(FileVariable) ExpandedVariablesDB, bool bRawMode)
+{
+    if (NEVER(Params == NULL)) return false;
+    if (NEVER(ExpandedVariablesDB == NULL)) return false;
+
+    FileHandle f = {0};
+    if (!Filesystem_Open(Path, FileMode_Write, &f))
+    {
+        return false;
+    }
+
+    Filesystem_WriteLine(f, S("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"), NULL);
+    Filesystem_WriteLine(f, S("<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"), NULL);
+    Filesystem_WriteLine(f, S("<plist version=\"1.0\">\n"), NULL);
+    Filesystem_WriteLine(f, S("<dict>\n"), NULL);
+
+    if (bRawMode)
+    {
+        const String RawValue = GetVariableValue(ExpandedVariablesDB, S("Info.plist"));
+
+        if (RawValue.Length > 0)
+        {
+            Filesystem_WriteLine(f, RawValue, NULL);
+            Filesystem_WriteLine(f, S("\n"), NULL);
+        }
+    }
+    else
+    {
+        StringLocal(CompanyNameNoSpaces, 128);
+        // todo: make function
+        for (u32 i = 0; i < Params->CompanyName.Length; i++)
+        {
+            if (!IsWhitespace(Params->CompanyName.Data[i]))
+            {
+                CompanyNameNoSpaces.Data[i] = Params->CompanyName.Data[i];
+                CompanyNameNoSpaces.Length++;
+            }
+        }
+
+        if (CompanyNameNoSpaces.Length == 0)
+        {
+            CompanyNameNoSpaces = S("Unknown");
+        }
+
+        const String DisplayName = Params->TitleName.Length == 0 ? Params->Assembly : Params->TitleName;
+        const String Version = Params->Version.Length == 0 ? S("1.0.0") : Params->Version;
+
+        StringLocal(BundleIdentifer, 128);
+        String_Append(&BundleIdentifer, S("com."));
+        String_Append(&BundleIdentifer, CompanyNameNoSpaces);
+        String_AppendChar(&BundleIdentifer, '.');
+        String_Append(&BundleIdentifer, Params->Assembly);
+
+        StringLocal(VersionLong, 128);
+        String_Append(&VersionLong, S("Version "));
+        String_Append(&VersionLong, Version);
+
+        STRUCT(BundleTableEntry)
+        {
+            String Key;
+            String Value;
+            bool bGiven;
+        };
+
+        BundleTableEntry BundleTable[12] = 
+        {
+            { .Key = S("CFBundleDevelopmentRegion"),     .Value = S("English"),        .bGiven = false },
+            { .Key = S("CFBundleDisplayName"),           .Value = DisplayName,         .bGiven = false },
+            { .Key = S("CFBundleExecutable"),            .Value = Params->Assembly,    .bGiven = false },
+            { .Key = S("CFBundleGetInfoString"),         .Value = Params->Description, .bGiven = false },
+            { .Key = S("CFBundleIconFile"),              .Value = Params->Assembly,    .bGiven = false },
+            { .Key = S("CFBundleIdentifier"),            .Value = BundleIdentifer,     .bGiven = false },
+            { .Key = S("CFBundleInfoDictionaryVersion"), .Value = S("6.0"),            .bGiven = false },
+            { .Key = S("CFBundleName"),                  .Value = Params->Assembly,    .bGiven = false },
+            { .Key = S("CFBundlePackageType"),           .Value = S("APPL"),           .bGiven = false },
+            { .Key = S("CFBundleShortVersionString"),    .Value = Version,             .bGiven = false },
+            { .Key = S("CFBundleSignature"),             .Value = Params->Assembly,    .bGiven = false },
+            { .Key = S("CFBundleVersion"),               .Value = VersionLong,         .bGiven = false }
+        };
+
+        for each (v, ExpandedVariablesDB)
+        {
+            if (String_StartsWith(v.Name, S("Info.plist::"), false))
+            {
+                const String Key = StrShiftF(v.Name, 12);
+
+                // mark the key as "given" in the table
+                for (u8 i = 0; i < SArray_Capacity(BundleTable); i++)
+                {
+                    if (String_IsEqual(BundleTable[i].Key, Key, false))
+                    {
+                        BundleTable[i].bGiven = true;
+                        break;
+                    }
+                }
+
+                Internal_PlistWrite(Arena, f, Key, v.Value);
+            }
+        }
+
+        for (u8 i = 0; i < SArray_Capacity(BundleTable); i++)
+        {
+            if (!BundleTable[i].bGiven)
+            {
+                Internal_PlistWrite(Arena, f, BundleTable[i].Key, BundleTable[i].Value);
+            }
+        }
+    }
+
+
+    Filesystem_WriteLine(f, S("</dict>\n"), NULL);
+    Filesystem_WriteLine(f, S("</plist>\n"), NULL);
+
+    Filesystem_Close(&f);
+
+    return true;
+}
+
+bool ExportVersionPlist(LinearAllocator Arena, const BuildParams* Params, const String Path, TArray(FileVariable) ExpandedVariablesDB, bool bRawMode)
+{
+    if (NEVER(Params == NULL)) return false;
+    if (NEVER(ExpandedVariablesDB == NULL)) return false;
+
+    FileHandle f = {0};
+    if (!Filesystem_Open(Path, FileMode_Write, &f))
+    {
+        return false;
+    }
+
+    Filesystem_WriteLine(f, S("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"), NULL);
+    Filesystem_WriteLine(f, S("<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"), NULL);
+    Filesystem_WriteLine(f, S("<plist version=\"1.0\">\n"), NULL);
+    Filesystem_WriteLine(f, S("<dict>\n"), NULL);
+
+    if (bRawMode)
+    {
+        const String RawValue = GetVariableValue(ExpandedVariablesDB, S("Version.plist"));
+
+        if (RawValue.Length > 0)
+        {
+            Filesystem_WriteLine(f, RawValue, NULL);
+            Filesystem_WriteLine(f, S("\n"), NULL);
+        }
+    }
+    else
+    {
+        STRUCT(BundleTableEntry)
+        {
+            String Key;
+            String Value;
+            bool bGiven;
+        };
+
+        const String DisplayName = Params->TitleName.Length == 0 ? Params->Assembly : Params->TitleName;
+        const String Version = Params->Version.Length == 0 ? S("1.0.0") : Params->Version;
+
+        BundleTableEntry BundleTable[4] = 
+        {
+            { .Key = S("BuildVersion"),                  .Value = S("1"),      .bGiven = false },
+            { .Key = S("CFBundleShortVersionString"),    .Value = Version,     .bGiven = false },
+            { .Key = S("CFBundleVersion"),               .Value = Version,     .bGiven = false },
+            { .Key = S("ProjectName"),                   .Value = DisplayName, .bGiven = false }
+        };
+
+        for each (v, ExpandedVariablesDB)
+        {
+            if (String_StartsWith(v.Name, S("Version.plist::"), false))
+            {
+                const String Key = StrShiftF(v.Name, 15);
+
+                // mark the key as "given" in the table
+                for (u8 i = 0; i < SArray_Capacity(BundleTable); i++)
+                {
+                    if (String_IsEqual(BundleTable[i].Key, Key, false))
+                    {
+                        BundleTable[i].bGiven = true;
+                        break;
+                    }
+                }
+
+                Internal_PlistWrite(Arena, f, Key, v.Value);
+            }
+        }
+
+        for (u8 i = 0; i < SArray_Capacity(BundleTable); i++)
+        {
+            if (!BundleTable[i].bGiven)
+            {
+                Internal_PlistWrite(Arena, f, BundleTable[i].Key, BundleTable[i].Value);
+            }
+        }
+    }
+
+    Filesystem_WriteLine(f, S("</dict>\n"), NULL);
+    Filesystem_WriteLine(f, S("</plist>\n"), NULL);
+
+    Filesystem_Close(&f);
+
+    return true;
+}
+
+bool ExportPkgInfo(const BuildParams* Params, const String Path)
+{
+    if (NEVER(Params == NULL)) return false;
+
+    FileHandle f = {0};
+    if (!Filesystem_Open(Path, FileMode_Write, &f))
+    {
+        return false;
+    }
+
+    Filesystem_WriteLineFormatted(f, S("APPL%S"), NULL, Params->Assembly);
+    Filesystem_Close(&f);
+
+    return true;
+}
+
 // -----------------------------------------------------------
 // Visual Studio Solution Generator
 

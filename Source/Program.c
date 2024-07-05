@@ -2421,9 +2421,9 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
     const String TitleName                  = GetVariableValue(ExpandedVariablesDB, S("TitleName"));
     const String Description                = GetVariableValue(ExpandedVariablesDB, S("Description"));
+    const String CompanyName                = GetVariableValue(ExpandedVariablesDB, S("CompanyName"));
 
     #if PLATFORM_WINDOWS
-    const String CompanyName                = GetVariableValue(ExpandedVariablesDB, S("CompanyName"));
     const String Copyright                  = GetVariableValue(ExpandedVariablesDB, S("Copyright"));
     #endif
 
@@ -4384,6 +4384,10 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     p.VersionResFilePath            = VersionResFilePath;
     p.bIsAssemblyExe                = bIsAssemblyExe;
     p.bVerbose                      = bVerboseLog;
+    p.TitleName                     = TitleName;
+    p.CompanyName                   = CompanyName;
+    p.Description                   = Description;
+    p.Version                       = Version;
     p.NumSources                    = CountData.NumSources;
     p.NumHeaders                    = CountData.NumHeaders;
     p.NumRcSources                  = CountData.NumRcSources;
@@ -4417,6 +4421,95 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             String_BuildPath(&CompileCommandsPath, WorkingPath, S("compile_commands.json"));
             LOG_SUCCESS("\n\"%S\"", CompileCommandsPath);
         }
+
+        if (bQuietBuild) Logging_Disable();
+
+        return 0;
+    }
+    else if (Generator == Generator_Plist)
+    {
+        if (bQuietBuild) Logging_Enable();
+
+        LOG("Generating Info.plist ...");
+
+        StringLocal(ExportPath, MAX_PATH_LENGTH);
+        String_BuildPath(&ExportPath, WorkingPath, IntermediateDirectory, S("__Exports"));
+
+        if (!Filesystem_OpenDirectory(ExportPath))
+        {
+            return 1;
+        }
+
+        StringLocal(PlistPath, MAX_PATH_LENGTH);
+        String_BuildPath(&PlistPath, ExportPath, S("Info.plist"));
+
+        Clock c;
+        Clock_Start(&c);
+
+        if (!ExportInfoPlist(*Arena, &p, PlistPath, ExpandedVariablesDB, DoesBuildVarExist(ExpandedVariablesDB, S("Info.plist"))))
+        {
+            LOG_ERROR("Failed to export \"%S\". Aborting build...", PlistPath);
+            return 1;
+        }
+
+        LOG_SUCCESS("\n\"%S\"", PlistPath);
+
+        LOG("\nGenerating Version.plist ...");
+
+        String_Empty(&PlistPath);
+        String_BuildPath(&PlistPath, ExportPath, S("Version.plist"));
+
+        if (!ExportVersionPlist(*Arena, &p, PlistPath, ExpandedVariablesDB, DoesBuildVarExist(ExpandedVariablesDB, S("Version.plist"))))
+        {
+            LOG_ERROR("Failed to export \"%S\". Aborting build...", PlistPath);
+            return 1;
+        }
+
+        Clock_Tick(&c);
+
+        LOG_SUCCESS("\n\"%S\"", PlistPath);
+
+        StringLocal(ExportTimeString, 32);
+        Clock_GetElapsedTime_ToString(&c, true, &ExportTimeString);
+        LOG("\nExport time: %S", ExportTimeString);
+
+        if (bQuietBuild) Logging_Disable();
+
+        return 0;
+    }
+    else if (Generator == Generator_PkgInfo)
+    {
+        if (bQuietBuild) Logging_Enable();
+
+        LOG("Generating PkgInfo ...");
+
+        StringLocal(ExportPath, MAX_PATH_LENGTH);
+        String_BuildPath(&ExportPath, WorkingPath, IntermediateDirectory, S("__Exports"));
+
+        if (!Filesystem_OpenDirectory(ExportPath))
+        {
+            return 1;
+        }
+
+        StringLocal(PkgInfoPath, MAX_PATH_LENGTH);
+        String_BuildPath(&PkgInfoPath, ExportPath, S("PkgInfo"));
+
+        Clock c;
+        Clock_Start(&c);
+
+        if (!ExportPkgInfo(&p, PkgInfoPath))
+        {
+            LOG_ERROR("Failed to export \"%S\". Aborting build...", PkgInfoPath);
+            return 1;
+        }
+
+        Clock_Tick(&c);
+
+        StringLocal(ExportTimeString, 32);
+        Clock_GetElapsedTime_ToString(&c, true, &ExportTimeString);
+        LOG("\nExport time: %S", ExportTimeString);
+
+        LOG_SUCCESS("\n\"%S\"", PkgInfoPath);
 
         if (bQuietBuild) Logging_Disable();
 
@@ -4637,7 +4730,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
             if (!String_EndsWith(ResourcePath, S(".plist"), false))
             {
-                LOG_ERROR("%S: Bundle.InfoPlist file must end with \".plist\". Aborting build...", BuildFileName);
+                LOG_ERROR("%S: Bundle.InfoPlist: file must end with \".plist\". Aborting build...", BuildFileName);
                 return 1;
             }
 
@@ -4650,70 +4743,10 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             // generate Info.plist
             if (bVerboseLog) LOG("    Generating %S", ResourcePath);
 
-            FileHandle f = {0};
-            if (!Filesystem_Open(ResourcePath, FileMode_Write, &f))
+            if (!ExportInfoPlist(*Arena, &p, ResourcePath, ExpandedVariablesDB, DoesBuildVarExist(ExpandedVariablesDB, S("Info.plist"))))
             {
                 return 1;
             }
-
-            Filesystem_WriteLine(f, S("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"), NULL);
-            Filesystem_WriteLine(f, S("<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"), NULL);
-            Filesystem_WriteLine(f, S("<plist version=\"1.0\">\n"), NULL);
-            Filesystem_WriteLine(f, S("<dict>\n"), NULL);
-
-            // todo: handle Info.plist!
-
-            for each (v, ExpandedVariablesDB)
-            {
-                if (String_StartsWith(v.Name, S("Info.plist::"), false))
-                {
-                    const String Key = StrShiftF(v.Name, 12);
-
-                    Filesystem_WriteLineFormatted(f, S("    <key>%S</key>\n"), NULL, Key);
-                    
-                    // determine if it's a string, array or an integer
-                    if (String_StartsWith(v.Value, S("("), false) &&
-                        String_EndsWith(v.Value, S(")"), false))
-                    {
-                        Filesystem_WriteLine(f, S("    <array>\n"), NULL);
-
-                        {
-                            LinearAllocator Scratch = *Arena;
-                            StringArray Values = String_ParseIntoArray(&Scratch, StrSlice(v.Value.Data+1, v.Value.Length-2), ' ', 0, 128);
-                            for each_str (e, Values)
-                            {
-                                String Slice = String_EatSpaces(String_EatSpacesFromEnd(*e));
-                                if (Slice.Length > 0)
-                                {
-                                    if (String_IsInteger32(Slice))
-                                    {
-                                        Filesystem_WriteLineFormatted(f, S("        <integer>%S</integer>\n"), NULL, Slice);
-                                    }
-                                    else
-                                    {
-                                        Filesystem_WriteLineFormatted(f, S("        <string>%S</string>\n"), NULL, Slice);
-                                    }
-                                }
-                            }
-                        }
-
-                        Filesystem_WriteLine(f, S("    </array>\n"), NULL);
-                    }
-                    else if (String_IsInteger32(v.Value))
-                    {
-                        Filesystem_WriteLineFormatted(f, S("    <integer>%S</integer>\n"), NULL, v.Value);
-                    }
-                    else
-                    {
-                        Filesystem_WriteLineFormatted(f, S("    <string>%S</string>\n"), NULL, v.Value);
-                    }
-                }
-            }
-
-            Filesystem_WriteLine(f, S("</dict>\n"), NULL);
-            Filesystem_WriteLine(f, S("</plist>\n"), NULL);
-
-            Filesystem_Close(&f);
         }
 
         String_BuildPath(&TempPath, AppBundlePath, S("Contents/Info.plist"));
@@ -4722,14 +4755,13 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         String_Empty(&TempPath);
         String_Empty(&ResourcePath);
 
-/*
         if (CustomVersionPlist.Length > 0)
         {
             String_BuildPath(&ResourcePath, WorkingPath, CustomVersionPlist);
 
             if (!String_EndsWith(ResourcePath, S(".plist"), false))
             {
-                LOG_ERROR("Bundle.InfoPlist file must end with \".plist\". Aborting build...");
+                LOG_ERROR("%S: Bundle.VersionPlist: file must end with \".plist\". Aborting build...", BuildFileName);
                 return 1;
             }
 
@@ -4737,19 +4769,23 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         }
         else
         {
-            String_BuildPath(&ResourcePath, WorkingPath, IntermediateDirectory, S("version.plist"));
+            String_BuildPath(&ResourcePath, WorkingPath, IntermediateDirectory, S("Version.plist"));
 
             // generate version.plist
 
             if (bVerboseLog) LOG("    Generating %S", ResourcePath);
+
+            if (!ExportVersionPlist(*Arena, &p, ResourcePath, ExpandedVariablesDB, DoesBuildVarExist(ExpandedVariablesDB, S("Version.plist"))))
+            {
+                return 1;
+            }
         }
 
-        String_BuildPath(&TempPath, AppBundlePath, S("Contents/version.plist"));
+        String_BuildPath(&TempPath, AppBundlePath, S("Contents/Version.plist"));
         bSuccess = Filesystem_Copy(ResourcePath, TempPath);
         if (!bSuccess) goto CopyError;
         String_Empty(&TempPath);
         String_Empty(&ResourcePath);
-*/
 
         if (CustomPkgInfo.Length > 0)
         {
@@ -4757,7 +4793,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
             if (!String_EndsWith(ResourcePath, S("PkgInfo"), true))
             {
-                LOG_ERROR("Bundle.PkgInfo file must be named \"PkgInfo\" (case sensitive). Aborting build...");
+                LOG_ERROR("%S: Bundle.PkgInfo: file must be named \"PkgInfo\" (case sensitive). Aborting build...", BuildFileName);
                 return 1;
             }
 
@@ -4771,14 +4807,10 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
             if (bVerboseLog) LOG("    Generating %S", ResourcePath);
 
-            FileHandle f = {0};
-            if (!Filesystem_Open(ResourcePath, FileMode_Write, &f))
+            if (!ExportPkgInfo(&p, ResourcePath))
             {
                 return 1;
             }
-
-            Filesystem_WriteLineFormatted(f, S("APPL%S"), NULL, AssemblyName);
-            Filesystem_Close(&f);
         }
 
         String_BuildPath(&TempPath, AppBundlePath, S("Contents/PkgInfo"));
@@ -4786,6 +4818,14 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         if (!bSuccess) goto CopyError;
         String_Empty(&TempPath);
         String_Empty(&ResourcePath);
+
+        // todo: support
+        /*
+            #Bundle.Plugins                    
+            #Bundle.Frameworks                 
+            #Bundle.Libraries                  
+            #Bundle.CodeResources              
+        */
 
         // copy the executable into the MacOS directory
         // do something special if this is a terminal only app
@@ -5667,12 +5707,18 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
                                          StringArray_Contains(Arguments, S("-s"), false);
     const bool bGenCompileCommandsJSON = StringArray_Contains(Arguments, S("export:compile_commands"), false) ||
                                          StringArray_Contains(Arguments, S("export:cc"), false);
+    const bool bGenPlist               = StringArray_Contains(Arguments, S("export:plist"), false);
+    const bool bGenPkgInfo             = StringArray_Contains(Arguments, S("export:pkginfo"), false);
     //const bool bGenVisualStudio        = StringArray_Contains(Arguments, S("export:visual_studio"), false);
     //const bool bGenXCode               = StringArray_Contains(Arguments, S("export:xcode"), false);
 
     EGenerator Generator = Generator_None;
+
     // todo: support multple gen at a time??
     if (bGenCompileCommandsJSON) Generator = Generator_CompileCommandsJSON;
+    if (bGenPlist)               Generator = Generator_Plist;
+    if (bGenPkgInfo)             Generator = Generator_PkgInfo;
+
     //if (bGenVisualStudio)        Generator = Generator_VisualStudioSolution;
     //if (bGenXCode)               Generator = Generator_XCodeProject;
 
@@ -6173,11 +6219,14 @@ u32 RunApplication(const StringArray Arguments)
     #endif
 
     AddInternalVariable(S("_Arch"), S(CPU_ARCHITECTURE_STRING));
+    AddInternalVariable(S(CPU_ARCHITECTURE_STRING), S(""));
     
     #if PLATFORM_64_BIT
     AddInternalVariable(S("_Bit"), S("64"));
+    AddInternalVariable(S("64-bit"), S(""));
     #else
     AddInternalVariable(S("_Bit"), S("32"));
+    AddInternalVariable(S("32-bit"), S(""));
     #endif
 
     bool CpuArchs[32] = {0};

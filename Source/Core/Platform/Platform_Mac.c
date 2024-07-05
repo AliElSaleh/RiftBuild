@@ -1730,6 +1730,8 @@ void Filesystem_IterateDirectory_Ex(const String BasePath, DirectoryIterator Cal
     Internal_IterateDirectory(BasePath, S(""), Callback, bRecursive, UserData);
 }
 
+// todo: remove system() calls
+
 bool Filesystem_DeleteFiles(const String FilePath, const String Wildcard, bool bRecursive)
 {
     // TODO: do not use the shell for this

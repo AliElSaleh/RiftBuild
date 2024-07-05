@@ -4,7 +4,6 @@ include Source/Config/$(Mode).buildvars
 if cl                   Compiler cl
 
 Assembly                RiftBuild
-#Icon                    /usr/share/icons/hicolor/32x32/apps/firefox.png
 Icon                    riftbuild
 
 TitleName               Rift Build %^%debug
@@ -28,10 +27,10 @@ if cl                   IncludedSourceFiles memcmp.asm memset.asm
 
 if windows              IncludedSourceFiles Platform_Windows.c
 if linux                IncludedSourceFiles Platform_Linux.c
-if macos                IncludedSourceFiles Platform_Mac.c
+if mac                  IncludedSourceFiles Platform_Mac.c
 if bsd                  IncludedSourceFiles Platform_BSD.c
 
-if apple                CompilerFlags -mmacosx-version-min=10.5
+if mac                  CompilerFlags -mmacosx-version-min=10.5
 
 if !cl                  CompilerFlags -mno-stack-arg-probe -mstack-probe-size=999999999
 if cl                   CompilerFlags /GS- /Gs999999999
@@ -45,49 +44,4 @@ if linux {
     if @XDG_CURRENT_DESKTOP contains GNOME    Defines __gnome__
     if @XDG_CURRENT_DESKTOP contains KDE      Defines __kde__
     if @XDG_CURRENT_DESKTOP contains Cinnamon Defines __cinnamon__
-}
-
-if mac {
-    #Bundle
-    Bundle.IsTerminal
-    #Bundle.InfoPlist                  Source/Resources/Info.plist
-    #Bundle.VersionPlist               Source/Resources/version.plist
-    #Bundle.PkgInfo                    Source/Resources/PkgInfo
-    #Bundle.Plugins                    
-    #Bundle.Frameworks                 
-    #Bundle.Libraries                  
-    #Bundle.CodeResources              
-
-    Info.plist {
-        CFBundleDevelopmentRegion     English
-        CFBundleDisplayName           $TitleName
-        CFBundleExecutable            $Assembly
-        CFBundleGetInfoString         $Description
-        CFBundleIconFile              $Assembly
-        CFBundleIdentifier            com.AliElSaleh.$Assembly
-        CFBundleInfoDictionaryVersion 6.0
-        CFBundleName                  $Assembly
-        CFBundlePackageType           APPL
-        CFBundleShortVersionString    $Version
-        CFBundleSignature             $Assembly
-        CFBundleVersion               Version $Version
-
-        #CFIntTest                     74289
-        #CFSomeBullshitArray           ( en ar fr gr de ch ru nk )
-    }
-
-    Version.plist {
-        BuildVersion                  1
-        CFBundleShortVersionString    0.9.6
-        CFBundleVersion               0.9.6
-        ProjectName                   RiftBuild
-    }
-
-    PkgInfo {
-        APPLriftbuild
-    }
-
-    CodeResources {
-
-    }
 }
