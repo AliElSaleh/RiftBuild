@@ -25,7 +25,7 @@ That's it
 Writing a .build file is simple. It almost has no syntax.
 
 ```make
-Compiler clang # or gcc/cl or you can specify an absolute or relative path to your C compiler
+Compiler clang # or gcc/cl or specify an absolute or relative path to your C compiler
 
 Assembly SomeName
 Extension exe # or dll/lib/a/so/dylib/elf or replace this line with Type app or lib
@@ -37,14 +37,14 @@ BuildDirectory        bin # default value is Build
 IntermediateDirectory int # default value is Intermediate
 
 # fill in/replace the following below for your program/project
-CompilerFlags -std=c11 -O3 etc...
-LinkerFlags 
-Includes path/to/include-dir thirdparty/dir anotherdir
+CompilerFlags         -std=c11 -O2 etc.
+LinkerFlags           -fsomeflag etc.
 
-Libraries somelib opengl32 etc...
-LibraryDirectories path/to/lib/dir another/one
-
-Defines MAX_STUFF=5 SOME_DEFINE
+# notice how you don't need to prefix with -D, -L or -I!
+Defines               MAX_STUFF=5 SOME_DEFINE etc.
+Includes              path/to/include-dir thirdparty/dir etc.
+Libraries             somelib opengl32 etc.
+LibraryDirectories    path/to/lib/dir another/dir etc.
 ```
 
 ---
@@ -89,8 +89,7 @@ RiftBuild can of course build itself with just a single call like this
 riftbuild
 ```
 
-However, if you'd like to compile from source without `riftbuild`, then there are OS specific build scripts that you can use.
-From the project root directory, run them like so
+Alternatively, you can run an OS specific build script
 ### Windows
 ```
 build.bat
@@ -99,6 +98,7 @@ build.bat
 ```
 ./build.sh
 ```
+
 RiftBuild compiles with Clang so make sure that is installed before building
 
 ---
@@ -188,24 +188,20 @@ Notice how `%` was not present in the `asan` and `mode` if statement. This is be
 ---
 
 # Icon
-To set an icon for an executable, specify the name of the icon file (without the extension)
-```make
-Icon someicon # or path/to/icon/file
-```
-
-RiftBuild will automatically choose the correct extension based on the operating system, .ico files will be searched first, then .png and .jpg
-
-`Windows: .ico files are only searched`
-
-`Linux:   .ico/.png/.jpg files are searched`
-
-`MacOS:   .png/.jpg files are searched`
-
-Alternatively, you can specify the extension (if desired)
+To set an icon for an executable, specify the name of the icon file (with or without the extension)
 ```make
 Icon someicon.ico # or path/to/icon/file.ico
 ```
 The fact that other build systems are unable to do this is fucking pathetic and embarrassing
+
+
+
+If no extension was specified, RiftBuild will automatically choose the correct extension based on the operating system
+
+| Windows     | Linux       | Mac         | BSD           | 
+| ----------- | ----------- | ----------- | ------------- |
+| `.ico`      | `.png`      | `.png`      | Not supported |
+
 
 ---
 
@@ -213,7 +209,7 @@ The fact that other build systems are unable to do this is fucking pathetic and 
 - Windows (64-bit only)
 - Linux (Debian and Arch-based only)
 - MacOS
-- FreeBSD/OpenBSD (TODO)
+- FreeBSD/OpenBSD/NetBSD (TODO)
 
 # Dependencies
 - No dependencies (other than a working C/C++ compiler)
@@ -259,3 +255,72 @@ Rift Build can handle them just fine...
 
 Trying to gather all .c files in a makefile is horrendous 🤮
 
+---
+
+#### CMake
+
+![image](https://github.com/AliElSaleh/RiftBuild/assets/19608222/04b059ce-3747-4d4f-af22-e37d8b110568)
+
+[Link](https://hansonry.wordpress.com/2010/12/15/windows-application-icon-using-mingw-and-cmake/)
+
+ahhh yes, very intuitive indeed!
+
+riftbuild however, only requires one step...
+```make
+Icon app.ico
+```
+
+---
+
+#### Meson
+
+![image](https://github.com/AliElSaleh/RiftBuild/assets/19608222/cbbd76e0-e4f4-41be-b990-764fd1693064)
+
+[Link](https://mesonbuild.com/Windows-module.html#compile_resources)
+
+meson doesnt have a way to specify icons, so instead they give you this pile of shit
+
+all this bullshit just to say you wanna compile an rc file... 🤦
+
+with riftbuild, you don't need to say anything, they're treated as regular source files
+
+if you need to exclude certain rc files, just do this
+```make
+ExcludedSourceFiles something.rc anotherone.rc
+```
+
+---
+
+#### Premake5
+
+![image](https://github.com/AliElSaleh/RiftBuild/assets/19608222/fcb9f39e-f360-4392-b331-c703e4fac1d6)
+
+[Link](https://stackoverflow.com/questions/54508521/adding-a-c-executable-icon-to-premake5-build-script)
+
+ooo yummy syntax celery 😋 look at me! i'm so smart! 🤓
+
+again, it's crazy how no-one can get this right...
+```make
+Icon app.ico
+```
+and riftbuild automatically picks up and compiles `.rc` files as they're just source files too...
+
+and depending on the compiler, it'll use the correct rc compiler. rc.exe for msvc, llvm-rc for clang and windres for gcc
+
+---
+
+#### Meson
+
+![image](https://github.com/AliElSaleh/RiftBuild/assets/19608222/86b2260c-f023-4565-a624-7e8280b3548d)
+
+[Link](https://mesonbuild.com/Creating-OSX-packages.html#creating-an-app-bundle)
+
+meson does not support app bundling for mac os for some reason
+
+we do, and it's not as hard as they claim it to be, they're just lazy.
+
+with RiftBuild, all you need to do is specify this in your .build file
+```make
+Bundle
+```
+That's literally it
