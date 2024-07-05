@@ -217,7 +217,7 @@ If no extension was specified, RiftBuild will automatically choose the correct e
 ---
 
 # Why did I make this?
-It feels like with build systems, [there is no paradise for you to escape to](https://i.redd.it/m23pfqcnone71.jpg). I want to change that. 
+It feels like with build systems, [there is no paradise that you can escape to](https://i.redd.it/m23pfqcnone71.jpg). I want to change that. 
 
 I hate CMake with every fiber of my being.
 
