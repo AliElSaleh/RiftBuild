@@ -217,6 +217,8 @@ If no extension was specified, RiftBuild will automatically choose the correct e
 ---
 
 # Why did I make this?
+It feels like with build systems, [there is no paradise for you to escape to](https://i.redd.it/m23pfqcnone71.jpg). I want to change that. 
+
 I hate CMake with every fiber of my being.
 
 I was trying to build my game engine using CMake (previously used a .bat file) and ended up spending several hours trying to figure out how to use it correctly by googling and watching youtube tutorials and became depressed with how complicated it was and didn't want to proceed any further.
