@@ -6233,12 +6233,17 @@ u32 RunApplication(const StringArray Arguments)
 
     u32 ExitCode = RiftBuild(&ProgramArena, Arguments);
 
+    #if !PLATFORM_MAC
     if (Platform_GetConsoleProcessCount() == 1)
     {
-        LOG_INLINE_WARNING("\nLaunched outside an existing terminal, pausing until user exit. Ctrl-C to exit...");
-        // TODO: any key to exit, to preserve exit code status
-        Platform_Sleep(99999999.0f);
+        LOG_INLINE_WARNING("\nLaunched outside an existing terminal, pausing until user exit. Press any key to exit...");
+
+        while (!Platform_AnyKeyPressed())
+        {
+            break;
+        }
     }
+    #endif
 
     #if !PLATFORM_WINDOWS
     LOG_LINE_BREAK();

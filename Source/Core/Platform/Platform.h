@@ -85,6 +85,8 @@ RIFT_API void Platform_DeleteCriticalSection(PlatformCriticalSection CriticalSec
 RIFT_API void Platform_EnterCriticalSection(PlatformCriticalSection CriticalSection);
 RIFT_API void Platform_ExitCriticalSection(PlatformCriticalSection CriticalSection);
 
+RIFT_API bool Platform_AnyKeyPressed(void);
+
 RIFT_API bool Platform_CreateMutex(const String Name, PlatformMutex* OutMutex);
 RIFT_API bool Platform_ReleaseMutex(PlatformMutex* Mutex);
 

@@ -1841,3 +1841,5 @@ BOOL WINAPI GetConsoleScreenBufferInfo(
 );
 
 DWORD GetTimeZoneInformation(LPTIME_ZONE_INFORMATION lpTimeZoneInformation);
+
+SHORT GetAsyncKeyState(int vKey); 
