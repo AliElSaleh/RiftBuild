@@ -188,7 +188,7 @@ bool ExportInfoPlist(LinearAllocator Arena, const BuildParams* Params, const Str
         {
             if (!IsWhitespace(Params->CompanyName.Data[i]))
             {
-                CompanyNameNoSpaces.Data[i] = Params->CompanyName.Data[i];
+                CompanyNameNoSpaces.Data[CompanyNameNoSpaces.Length] = Params->CompanyName.Data[i];
                 CompanyNameNoSpaces.Length++;
             }
         }
