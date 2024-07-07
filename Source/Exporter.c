@@ -381,6 +381,7 @@ bool ExportVersionRC(const BuildParams* Params, const String Path)
     StringLocal(VersionCommas, 128);
 
     u8 NumParts = 0;
+    StringLocal(VersionDigit, 6);
     for (u8 i = 0; i < Params->Version.Length; i++)
     {
         if (Params->Version.Data[i] == '.' ||
@@ -391,16 +392,29 @@ bool ExportVersionRC(const BuildParams* Params, const String Path)
             if (NumParts == 3)
                 break;
 
-            // if previous character was a comma, meaning we didnt find any digits, add '0'
-            if (VersionCommas.Length == 0 || 
-                VersionCommas.Data[VersionCommas.Length-1] == ',')
+            u64 VersionNumber = 0;
+            if (String_ToU64(VersionDigit, &VersionNumber))
             {
-                VersionCommas.Data[VersionCommas.Length] = '0';
-                VersionCommas.Length++;
+                if (VersionNumber > UINT16_MAX)
+                {
+                    String_Append(&VersionCommas, S("65535"));
+                }
+                else
+                {
+                    String_Append(&VersionCommas, VersionDigit);
+                }
             }
 
-            VersionCommas.Data[VersionCommas.Length] = ',';
-            VersionCommas.Length++;
+            String_Empty(&VersionDigit);
+
+            // if previous character was a comma, meaning we didnt find any digits, add '0'
+            if (VersionCommas.Length == 0 || 
+                String_IsLast(VersionCommas, ','))
+            {
+                String_AppendChar(&VersionCommas, '0');
+            }
+
+            String_AppendChar(&VersionCommas, ',');
 
             NumParts++;
         }
@@ -409,8 +423,38 @@ bool ExportVersionRC(const BuildParams* Params, const String Path)
             if (!IsDigit(Params->Version.Data[i]))
                 continue;
 
-            VersionCommas.Data[VersionCommas.Length] = Params->Version.Data[i];
-            VersionCommas.Length++;
+            String_AppendChar(&VersionDigit, Params->Version.Data[i]);
+        }
+    }
+
+    if (VersionDigit.Length > 0)
+    {
+        u64 VersionNumber = 0;
+        if (String_ToU64(VersionDigit, &VersionNumber))
+        {
+            if (VersionNumber > UINT16_MAX)
+            {
+                String_Append(&VersionCommas, S("65535"));
+            }
+            else
+            {
+                String_Append(&VersionCommas, VersionDigit);
+            }
+        }
+
+        String_Empty(&VersionDigit);
+    }
+
+    // remove trailing commas
+    String_EatCharInlineFromEnd(&VersionCommas, ',');
+
+    // we must have at 4 parts otherwise llvm-rc will complain
+    u32 NumCommas = String_CountChar(VersionCommas, ',');
+    if (NumCommas < 3)
+    {
+        for (u8 i = 0; i < 3-NumCommas; i++)
+        {
+            String_Append(&VersionCommas, S(",0"));
         }
     }
 
