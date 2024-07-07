@@ -57,6 +57,7 @@ ENUM(EGenerator)
     Generator_XCodeProject,
     Generator_Plist,
     Generator_PkgInfo,
+    Generator_RC,
     Generator_Sh,
     Generator_Bat,
     Generator_Unity,
@@ -99,8 +100,10 @@ STRUCT(BuildParams)
     String VersionResFilePath;
 
     String TitleName;
+    String InternalName;
     String CompanyName;
     String Description;
+    String Copyright;
     String Version;
 
     StringList WhitelistFiles, WhitelistDirectories;
@@ -144,6 +147,8 @@ STRUCT(LinkData)
     String* CmdLine;
 };
 
+// Compiler/Building functions --------------------
+
 bool MSVC_Compile(const BuildParams* Params, u32* OutNumCompiled);
 bool MSVC_Link(const BuildParams* Params);
 bool C_Compile(const BuildParams* Params, u32* OutNumCompiled);
@@ -154,7 +159,7 @@ bool IsHeader(const String Extension);
 bool C_IsSource(const String Extension);
 bool C_IsHeader(const String Extension);
 
-// Utils
+// Util functions --------------------
 
 bool ExtensionHas(LinearAllocator Scratch, const String ExtensionString, const String Ext);
 
@@ -179,6 +184,8 @@ bool LogCustomErrorMessage(TArray(FileVariable) VariablesDB, const String Contex
 void LogPathEnvVarTutorialSteps(void);
 void LogRegularEnvVarTutorialSteps(void);
 
+// Parsing functions --------------------
+
 bool ParseBuildFile(LinearAllocator* Arena,
                     const FileHandle H,
                     const String BuildFilePath,
@@ -197,6 +204,9 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
                          String* Dest, const String Key, const String Value, const String Root, const String WorkingDirectory,
                          bool bLowerStrings, bool bIsAssemblyExe);
 
+
+// Export functions --------------------
+
 bool ExportCompileCommands(const BuildParams* Params,
                            const String CompileFlags, const String IncludeFlags,
                            const String DefineFlags, const String UnDefineFlags,
@@ -206,5 +216,6 @@ bool ExportCompileCommands(const BuildParams* Params,
 bool ExportInfoPlist(LinearAllocator Arena, const BuildParams* Params, const String Path, TArray(FileVariable) ExpandedVariablesDB, bool bRawMode);
 bool ExportVersionPlist(LinearAllocator Arena, const BuildParams* Params, const String Path, TArray(FileVariable) ExpandedVariablesDB, bool bRawMode);
 bool ExportPkgInfo(const BuildParams* Params, const String Path);
+bool ExportVersionRC(const BuildParams* Params, const String Path);
 
 bool SourceFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData);

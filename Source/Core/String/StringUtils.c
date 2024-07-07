@@ -1495,6 +1495,144 @@ u32 String_CountPathSeparators(const String Str)
     return Count;
 }
 
+bool String_StripString(const String Str, const String Substring, String* OutStr)
+{
+    if (!String_IsValid(Str)) return false;
+    if (NEVER(OutStr == NULL)) return false;
+
+    const u32 MaxLength = Min(OutStr->Capacity, Str.Length);
+
+    for (u32 i = 0; i < MaxLength;)
+    {
+        if (String_IsEqual(StrSlice(Str.Data + i, Substring.Length), Substring, false))
+        {
+            i += Substring.Length;
+        }
+        {
+            OutStr->Data[OutStr->Length] = Str.Data[i];
+            OutStr->Length++;
+
+            i++;
+        }
+    }
+
+    return true;
+}
+
+bool String_StripChar(const String Str, char C, String* OutStr)
+{
+    if (!String_IsValid(Str)) return false;
+    if (NEVER(OutStr == NULL)) return false;
+
+    const u32 MaxLength = Min(OutStr->Capacity, Str.Length);
+
+    for (u32 i = 0; i < MaxLength; i++)
+    {
+        if (Str.Data[i] == C)
+        {
+            OutStr->Data[OutStr->Length] = Str.Data[i];
+            OutStr->Length++;
+        }
+    }
+
+    return true;
+}
+
+bool String_StripWhitespace(const String Str, String* OutStr)
+{
+    if (!String_IsValid(Str)) return false;
+    if (NEVER(OutStr == NULL)) return false;
+
+    const u32 MaxLength = Min(OutStr->Capacity, Str.Length);
+
+    for (u32 i = 0; i < MaxLength; i++)
+    {
+        if (!IsWhitespace(Str.Data[i]))
+        {
+            OutStr->Data[OutStr->Length] = Str.Data[i];
+            OutStr->Length++;
+        }
+    }
+
+    return true;
+}
+
+bool String_StripNewline(const String Str, String* OutStr)
+{
+    if (!String_IsValid(Str)) return false;
+    if (NEVER(OutStr == NULL)) return false;
+
+    const u32 MaxLength = Min(OutStr->Capacity, Str.Length);
+
+    for (u32 i = 0; i < MaxLength; i++)
+    {
+        if (!IsNewline(Str.Data[i]))
+        {
+            OutStr->Data[OutStr->Length] = Str.Data[i];
+            OutStr->Length++;
+        }
+    }
+
+    return true;
+}
+
+bool String_StripDigit(const String Str, String* OutStr)
+{
+    if (!String_IsValid(Str)) return false;
+    if (NEVER(OutStr == NULL)) return false;
+
+    const u32 MaxLength = Min(OutStr->Capacity, Str.Length);
+
+    for (u32 i = 0; i < MaxLength; i++)
+    {
+        if (!IsDigit(Str.Data[i]))
+        {
+            OutStr->Data[OutStr->Length] = Str.Data[i];
+            OutStr->Length++;
+        }
+    }
+
+    return true;
+}
+
+bool String_StripSymbol(const String Str, String* OutStr)
+{
+    if (!String_IsValid(Str)) return false;
+    if (NEVER(OutStr == NULL)) return false;
+
+    const u32 MaxLength = Min(OutStr->Capacity, Str.Length);
+
+    for (u32 i = 0; i < MaxLength; i++)
+    {
+        if (!IsSymbol(Str.Data[i]))
+        {
+            OutStr->Data[OutStr->Length] = Str.Data[i];
+            OutStr->Length++;
+        }
+    }
+
+    return true;
+}
+
+bool String_StripAlphabet(const String Str, String* OutStr)
+{
+    if (!String_IsValid(Str)) return false;
+    if (NEVER(OutStr == NULL)) return false;
+
+    const u32 MaxLength = Min(OutStr->Capacity, Str.Length);
+
+    for (u32 i = 0; i < MaxLength; i++)
+    {
+        if (!IsAlphabet(Str.Data[i]))
+        {
+            OutStr->Data[OutStr->Length] = Str.Data[i];
+            OutStr->Length++;
+        }
+    }
+
+    return true;
+}
+
 bool String_ToF32(const String Str, f32* OutFloat)
 {
     if (!String_IsValid(Str))

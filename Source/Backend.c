@@ -108,7 +108,7 @@ internal bool ResourceFileDirectoryIterator(const String FullPath, const String 
                 String_Append(&CmdLine, FullPath);
                 String_AppendChar(&CmdLine, '"');
 
-                LOG("Compiling resource file \"%S\"", RelativePath);
+                LOG("Compiling resource \"%S\"", RelativePath);
                 
                 if (Data->Params->bVerbose)
                     LOG("    %S", CmdLine);
@@ -832,7 +832,7 @@ internal bool ResourceFileDirectoryIterator_MSVC(const String FullPath, const St
                 String_Append(&CmdLine, FullPath);
                 String_AppendChar(&CmdLine, '"');
 
-                LOG("Compiling resource file \"%S\"", RelativePath);
+                LOG("Compiling resource \"%S\"", RelativePath);
                 
                 if (Data->Params->bVerbose)
                     LOG("    %S", CmdLine);

@@ -2420,6 +2420,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     #endif
 
     const String TitleName                  = GetVariableValue(ExpandedVariablesDB, S("TitleName"));
+    const String InternalName               = GetVariableValue(ExpandedVariablesDB, S("InternalName"));
     const String Description                = GetVariableValue(ExpandedVariablesDB, S("Description"));
     const String CompanyName                = GetVariableValue(ExpandedVariablesDB, S("CompanyName"));
 
@@ -2475,25 +2476,6 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         #endif
 
         Version = S("1.0.0");
-    }
-
-    StringLocal(VersionCommas, 64);
-    String_Copy(&VersionCommas, Version);
-    String_ReplaceCharInline(&VersionCommas, '.', ',');
-    String_ReplaceCharInline(&VersionCommas, '-', ',');
-    // .rc files can only have 4 version numbers. sigh...
-    u8 CommaCount = 0;
-    for (u8 i = 0; i < VersionCommas.Length; i++)
-    {
-        if (VersionCommas.Data[i] == ',')
-        {
-            CommaCount++;
-            if (CommaCount == 4)
-            {
-                VersionCommas.Length = i;
-                break;
-            }
-        }
     }
 
     StringLocal(CompilerPath, MAX_PATH_LENGTH);
@@ -4045,6 +4027,64 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         MaxCompilersAtOnce = 1;
     }
 
+    if (!String_IsEqual(BuildDirectory, S("."), false))
+    {
+        StringLocal(FullBuildDirectory, MAX_PATH_LENGTH);
+        String_BuildPath(&FullBuildDirectory, WorkingPath, BuildDirectory);
+        if (!Filesystem_DoesDirectoryExist(FullBuildDirectory))
+        {
+            Filesystem_OpenDirectory(FullBuildDirectory);
+        }
+    }
+
+    StringLocal(IntSrcDir, MAX_PATH_LENGTH);
+    String_BuildPath(&IntSrcDir, IntermediateBaseDirectory, SourceDirectory);
+    if (!Filesystem_DoesDirectoryExist(IntermediateBaseDirectory))
+    {
+        Filesystem_OpenDirectory(IntermediateBaseDirectory);
+    }
+
+    BuildParams p = {0};
+    p.Arena                         = Arena;
+    p.CompilerProgram               = bExplicitProgramPath ? CompilerPath : CompilerProgram;
+    p.CompilerPath                  = CompilerPath;
+    p.Assembly                      = AssemblyName;
+    p.AssemblyWithExt               = AssemblyNameWithExt;
+    p.Extension                     = Extension;
+    p.Extension_Og                  = Extension_Og;
+    p.WhitelistFiles                = WhitelistArray;
+    p.WhitelistDirectories          = WhitelistDirArray;
+    p.BlacklistFiles                = BlacklistArray;
+    p.BlacklistDirectories          = BlacklistDirArray;
+    p.Processes                     = &Processes;
+    p.RootDirectory                 = WorkingPath;
+    p.SourceDirectory               = SourceDirectory;
+    p.BuildDirectory                = BuildDirectory;
+    p.IntermediateDirectory         = RelativeIntermediateDirectory;
+    p.IntermediateBaseDirectory     = IntermediateBaseDirectory;
+    p.MaxCompilersAtOnce            = MaxCompilersAtOnce;
+    p.MaxErrors                     = MaxErrorsAllowed;
+    p.bShouldWaitPerCompileProcess  = bShouldWaitPerCompileProcess;
+    p.CompilerFlags                 = ExpandedCompilerFlags;
+    p.LinkerFlags                   = ExpandedLinkerFlags;
+    p.IncludeFlags                  = ExpandedIncludeFlags;
+    p.DefineFlags                   = ExpandedDefineFlags;
+    p.UnDefineFlags                 = ExpandedUnDefineFlags;
+    p.LinkerDefineFlags             = ExpandedLinkerDefineFlags;
+    p.Libraries                     = ExpandedLibraries;
+    p.LibraryDirectories            = ExpandedLibraryDirectories;
+    p.bIsAssemblyExe                = bIsAssemblyExe;
+    p.bVerbose                      = bVerboseLog;
+    p.TitleName                     = TitleName;
+    p.InternalName                  = InternalName;
+    p.CompanyName                   = CompanyName;
+    p.Description                   = Description;
+    p.Copyright                     = Copyright;
+    p.Version                       = Version;
+    p.NumSources                    = CountData.NumSources;
+    p.NumHeaders                    = CountData.NumHeaders;
+    p.NumRcSources                  = CountData.NumRcSources;
+
     // log "Building (Assembly)" ui text
     if (Generator == Generator_None)
     {
@@ -4199,10 +4239,9 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 String_Append(&CmdLine, RcFilePath);
                 String_AppendChar(&CmdLine, '"');
 
-                LOG("Compiling icon -> \"%S\"", IconFilePath);
+                LOG("Compiling icon \"%S\"", IconFilePath);
 
-                if (bVerboseLog)
-                    LOG("    %S\n", CmdLine);
+                if (bVerboseLog) LOG("    %S\n", CmdLine);
 
                 PlatformHandle h = Platform_RunCommand(CmdLine, WorkingPath);
                 u32 ExitCode = Platform_WaitForProcessAndGetExitCode(h);
@@ -4233,6 +4272,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             {
                 Clock_Start(&ResourceCompileClock);
 
+                // TODO: when building both a static/shared lib, we do not generate the correct FILETYPE. fix it boy
+
                 StringLocal(VersionRCPath, MAX_PATH_LENGTH);
                 const String VersionRCName = S("_version.rc");
                 const String VersionResName = S("_version.res");
@@ -4240,69 +4281,19 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 String_Append(&VersionRCPath, BuildFileName);
                 String_Append(&VersionRCPath, VersionRCName);
 
-                FileHandle VersionRCFile = {0};
-                Filesystem_Open(VersionRCPath, FileMode_Write, &VersionRCFile);
-
-                StringLocal(AssemblyWithExt, 256);
-                String_Append(&AssemblyWithExt, AssemblyName);
-                //String_Append(&AssemblyWithExt, S("."));
-                String_Append(&AssemblyWithExt, Extension);
-
                 String_Append(&VersionResFilePath, S("\""));
                 String_Append(&VersionResFilePath, IntermediateBaseDirectory);
                 String_Append(&VersionResFilePath, BuildFileName);
                 String_Append(&VersionResFilePath, VersionResName);
                 String_Append(&VersionResFilePath, S("\""));
 
-                String FileType = S("UNKNOWN");
+                // todo: allow custom version rc file?
 
-                if (String_IsEqual(Extension, S(".exe"), false))
-                    FileType = S("APP");
-                else if (String_IsEqual(Extension, S(".dll"), false))
-                    FileType = S("DLL");
-                else if (String_IsEqual(Extension, S(".lib"), false))
-                    FileType = S("STATIC_LIB");
-
-                // TODO: when building both a static/shared lib, we do not generate the correct FILETYPE. fix it boy
-
-                StringLocal(FileData, 2048);
-                String_Format(&FileData, S("#include <winresrc.h>\n\n"
-                                           
-                                           "VS_VERSION_INFO  VERSIONINFO\n"
-                                           "FILEVERSION      %S     // this can only have 4 parts\n"
-                                           "PRODUCTVERSION   %S     // same here\n"
-                                           "FILEFLAGS        VS_FF_PRERELEASE\n"
-                                           "FILEOS           VOS__WINDOWS32\n"
-                                           "FILETYPE         VFT_%S\n" // VFT_APP or VF_DLL or VFT_STATIC_LIB
-                                           "FILESUBTYPE      VFT2_UNKNOWN\n\n"
-
-                                           "BEGIN\n"
-                                           "    BLOCK \"StringFileInfo\"\n"
-                                           "    BEGIN\n"
-                                           "        BLOCK \"040904E4\"\n"
-                                           "        BEGIN\n"
-                                           "            VALUE \"CompanyName\",      \"%S\"\n"
-                                           "            VALUE \"FileDescription\",  \"%S\"\n"
-                                           "            VALUE \"FileVersion\",      \"%S\"\n"
-                                           "            VALUE \"LegalCopyright\",   \"%S\"\n"
-                                           "            VALUE \"OriginalFilename\", \"%S\"\n"
-                                           "            VALUE \"ProductName\",      \"%S\"\n"
-                                           "            VALUE \"ProductVersion\",   \"%S\"\n"
-                                           "        END\n"
-                                           "    END\n\n"
-
-                                           "    BLOCK \"VarFileInfo\"\n"
-                                           "    BEGIN\n"
-                                           "        VALUE \"Translation\", 0x409, 1252\n"
-                                           "    END\n"
-                                           "END\n"
-                                           ),
-                                           FileData.Capacity,
-                                           VersionCommas, VersionCommas, FileType, CompanyName, 
-                                           Description, Version, Copyright, AssemblyWithExt, TitleName, Version);
-
-                Filesystem_Write(VersionRCFile, FileData.Length, FileData.Data, NULL);
-                Filesystem_Close(&VersionRCFile);
+                // generate version rc file
+                if (!ExportVersionRC(&p, VersionRCPath))
+                {
+                    return 1;
+                }
 
                 StringLocal(CmdLine, 1024);
                 String_Append(&CmdLine, RCProgram);
@@ -4310,14 +4301,17 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 String_Append(&CmdLine, VersionRCPath);
                 String_AppendChar(&CmdLine, '"');
 
-                LOG("Compiling resource -> \"%S\"\n", VersionRCPath);
-                if (bVerboseLog)
-                    LOG("    %S\n", CmdLine);
+                LOG("Compiling resource \"%S\"", VersionRCPath);
+
+                if (bVerboseLog) LOG("    %S\n", CmdLine);
+
+                LOG_LINE_BREAK();
+
                 PlatformHandle h = Platform_RunCommand(CmdLine, WorkingPath);
                 u32 ExitCode = Platform_WaitForProcessAndGetExitCode(h);
                 if (ExitCode != 0)
                 {
-                    LOG_WARNING("Failed to build resource file \"%S\" for %S%S. Skipping...", VersionRCPath, AssemblyName, Extension);
+                    LOG_WARNING("Failed to build resource file \"%S\" for %S%S. Skipping...\n", VersionRCPath, AssemblyName, Extension);
                     String_Empty(&VersionResFilePath);
                 }
 
@@ -4334,63 +4328,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         #endif
     }
 
-    if (!String_IsEqual(BuildDirectory, S("."), false))
-    {
-        StringLocal(FullBuildDirectory, MAX_PATH_LENGTH);
-        String_BuildPath(&FullBuildDirectory, WorkingPath, BuildDirectory);
-        if (!Filesystem_DoesDirectoryExist(FullBuildDirectory))
-        {
-            Filesystem_OpenDirectory(FullBuildDirectory);
-        }
-    }
-
-    StringLocal(IntSrcDir, MAX_PATH_LENGTH);
-    String_BuildPath(&IntSrcDir, IntermediateBaseDirectory, SourceDirectory);
-    if (!Filesystem_DoesDirectoryExist(IntermediateBaseDirectory))
-    {
-        Filesystem_OpenDirectory(IntermediateBaseDirectory);
-    }
-
-    BuildParams p = {0};
-    p.Arena                         = Arena;
-    p.CompilerProgram               = bExplicitProgramPath ? CompilerPath : CompilerProgram;
-    p.CompilerPath                  = CompilerPath;
-    p.Assembly                      = AssemblyName;
-    p.AssemblyWithExt               = AssemblyNameWithExt;
-    p.Extension                     = Extension;
-    p.Extension_Og                  = Extension_Og;
-    p.WhitelistFiles                = WhitelistArray;
-    p.WhitelistDirectories          = WhitelistDirArray;
-    p.BlacklistFiles                = BlacklistArray;
-    p.BlacklistDirectories          = BlacklistDirArray;
-    p.Processes                     = &Processes;
-    p.RootDirectory                 = WorkingPath;
-    p.SourceDirectory               = SourceDirectory;
-    p.BuildDirectory                = BuildDirectory;
-    p.IntermediateDirectory         = RelativeIntermediateDirectory;
-    p.IntermediateBaseDirectory     = IntermediateBaseDirectory;
-    p.MaxCompilersAtOnce            = MaxCompilersAtOnce;
-    p.MaxErrors                     = MaxErrorsAllowed;
-    p.bShouldWaitPerCompileProcess  = bShouldWaitPerCompileProcess;
-    p.CompilerFlags                 = ExpandedCompilerFlags;
-    p.LinkerFlags                   = ExpandedLinkerFlags;
-    p.IncludeFlags                  = ExpandedIncludeFlags;
-    p.DefineFlags                   = ExpandedDefineFlags;
-    p.UnDefineFlags                 = ExpandedUnDefineFlags;
-    p.LinkerDefineFlags             = ExpandedLinkerDefineFlags;
-    p.Libraries                     = ExpandedLibraries;
-    p.LibraryDirectories            = ExpandedLibraryDirectories;
-    p.IconResFilePath               = IconResFilePath;
-    p.VersionResFilePath            = VersionResFilePath;
-    p.bIsAssemblyExe                = bIsAssemblyExe;
-    p.bVerbose                      = bVerboseLog;
-    p.TitleName                     = TitleName;
-    p.CompanyName                   = CompanyName;
-    p.Description                   = Description;
-    p.Version                       = Version;
-    p.NumSources                    = CountData.NumSources;
-    p.NumHeaders                    = CountData.NumHeaders;
-    p.NumRcSources                  = CountData.NumRcSources;
+    p.IconResFilePath    = IconResFilePath;
+    p.VersionResFilePath = VersionResFilePath;
 
     if (Generator == Generator_CompileCommandsJSON)
     {
@@ -4510,6 +4449,44 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         LOG("\nExport time: %S", ExportTimeString);
 
         LOG_SUCCESS("\n\"%S\"", PkgInfoPath);
+
+        if (bQuietBuild) Logging_Disable();
+
+        return 0;
+    }
+    else if (Generator == Generator_RC)
+    {
+        if (bQuietBuild) Logging_Enable();
+
+        LOG("Generating resource file ...");
+
+        StringLocal(ExportPath, MAX_PATH_LENGTH);
+        String_BuildPath(&ExportPath, WorkingPath, IntermediateDirectory, S("__Exports"));
+
+        if (!Filesystem_OpenDirectory(ExportPath))
+        {
+            return 1;
+        }
+
+        StringLocal(RCPath, MAX_PATH_LENGTH);
+        String_BuildPath(&RCPath, ExportPath, S("resource.rc"));
+
+        Clock c;
+        Clock_Start(&c);
+
+        if (!ExportVersionRC(&p, RCPath))
+        {
+            LOG_ERROR("Failed to export \"%S\". Aborting build...", RCPath);
+            return 1;
+        }
+
+        Clock_Tick(&c);
+
+        StringLocal(ExportTimeString, 32);
+        Clock_GetElapsedTime_ToString(&c, true, &ExportTimeString);
+        LOG("\nExport time: %S", ExportTimeString);
+
+        LOG_SUCCESS("\n\"%S\"", RCPath);
 
         if (bQuietBuild) Logging_Disable();
 
@@ -5709,6 +5686,7 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
                                          StringArray_Contains(Arguments, S("export:cc"), false);
     const bool bGenPlist               = StringArray_Contains(Arguments, S("export:plist"), false);
     const bool bGenPkgInfo             = StringArray_Contains(Arguments, S("export:pkginfo"), false);
+    const bool bGenVersionRc           = StringArray_Contains(Arguments, S("export:rc"), false);
     //const bool bGenVisualStudio        = StringArray_Contains(Arguments, S("export:visual_studio"), false);
     //const bool bGenXCode               = StringArray_Contains(Arguments, S("export:xcode"), false);
 
@@ -5718,6 +5696,7 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
     if (bGenCompileCommandsJSON) Generator = Generator_CompileCommandsJSON;
     if (bGenPlist)               Generator = Generator_Plist;
     if (bGenPkgInfo)             Generator = Generator_PkgInfo;
+    if (bGenVersionRc)           Generator = Generator_RC;
 
     //if (bGenVisualStudio)        Generator = Generator_VisualStudioSolution;
     //if (bGenXCode)               Generator = Generator_XCodeProject;

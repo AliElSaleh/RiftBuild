@@ -181,6 +181,13 @@ RIFT_API u32 String_CountChar(const String Str, char C);
 RIFT_API u32 String_CountSpaces(const String Str);
 RIFT_API u32 String_CountPathSeparators(const String Str);
 
+RIFT_API bool String_StripString(const String Str, const String Substring, String* OutStr);
+RIFT_API bool String_StripChar(const String Str, char C, String* OutStr);
+RIFT_API bool String_StripWhitespace(const String Str, String* OutStr);
+RIFT_API bool String_StripNewline(const String Str, String* OutStr);
+RIFT_API bool String_StripDigit(const String Str, String* OutStr);
+RIFT_API bool String_StripSymbol(const String Str, String* OutStr);
+RIFT_API bool String_StripAlphabet(const String Str, String* OutStr);
 
 RIFT_API String* StringArray_Iterate_Next(StringArray* InArray);
 RIFT_API String* StringArray_Iterate_Begin(StringArray* InArray);

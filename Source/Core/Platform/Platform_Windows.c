@@ -2135,7 +2135,7 @@ internal bool kbhit(void)
     i32 i = 7; // start from 0x07. the first 6 are mouse keys
 
     // Run through all key scancodes from 7 to 255
-    do
+    while (1)
     {
         i32 State = GetAsyncKeyState(i);
         if (State & 0x01)
@@ -2151,7 +2151,6 @@ internal bool kbhit(void)
             i = 7;
         }
     }
-    while (1);
 
     return false;
 }

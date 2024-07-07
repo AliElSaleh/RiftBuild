@@ -183,15 +183,7 @@ bool ExportInfoPlist(LinearAllocator Arena, const BuildParams* Params, const Str
     else
     {
         StringLocal(CompanyNameNoSpaces, 128);
-        // todo: make function
-        for (u32 i = 0; i < Params->CompanyName.Length; i++)
-        {
-            if (!IsWhitespace(Params->CompanyName.Data[i]))
-            {
-                CompanyNameNoSpaces.Data[CompanyNameNoSpaces.Length] = Params->CompanyName.Data[i];
-                CompanyNameNoSpaces.Length++;
-            }
-        }
+        String_StripWhitespace(Params->CompanyName, &CompanyNameNoSpaces);
 
         if (CompanyNameNoSpaces.Length == 0)
         {
@@ -367,6 +359,169 @@ bool ExportPkgInfo(const BuildParams* Params, const String Path)
 
     Filesystem_WriteLineFormatted(f, S("APPL%S"), NULL, Params->Assembly);
     Filesystem_Close(&f);
+
+    return true;
+}
+
+bool ExportVersionRC(const BuildParams* Params, const String Path)
+{
+    if (NEVER(Params == NULL)) return false;
+
+    FileHandle VersionRCFile = {0};
+    if (!Filesystem_Open(Path, FileMode_Write, &VersionRCFile))
+    {
+        return false;
+    }
+
+    StringLocal(AssemblyWithExt, 256);
+    String_Append(&AssemblyWithExt, Params->Assembly);
+    String_Append(&AssemblyWithExt, Params->Extension);
+
+    // .rc files can only have 4 version numbers. sigh...
+    StringLocal(VersionCommas, 128);
+
+    u8 NumParts = 0;
+    for (u8 i = 0; i < Params->Version.Length; i++)
+    {
+        if (Params->Version.Data[i] == '.' ||
+            Params->Version.Data[i] == '-' ||
+            Params->Version.Data[i] == '_' ||
+            Params->Version.Data[i] == ',')
+        {
+            if (NumParts == 3)
+                break;
+
+            // if previous character was a comma, meaning we didnt find any digits, add '0'
+            if (VersionCommas.Length == 0 || 
+                VersionCommas.Data[VersionCommas.Length-1] == ',')
+            {
+                VersionCommas.Data[VersionCommas.Length] = '0';
+                VersionCommas.Length++;
+            }
+
+            VersionCommas.Data[VersionCommas.Length] = ',';
+            VersionCommas.Length++;
+
+            NumParts++;
+        }
+        else
+        {
+            if (!IsDigit(Params->Version.Data[i]))
+                continue;
+
+            VersionCommas.Data[VersionCommas.Length] = Params->Version.Data[i];
+            VersionCommas.Length++;
+        }
+    }
+
+    // remove trailing commas
+    String_EatCharInlineFromEnd(&VersionCommas, ',');
+
+    STRUCT(FileFlagsEntry)
+    {
+        u32 HexValue;
+        String Name;
+    };
+
+    const FileFlagsEntry FileFlags[] = 
+    {
+        { .HexValue = 0x1,  .Name = S("VS_FF_DEBUG") },
+        { .HexValue = 0x2,  .Name = S("VS_FF_PRERELEASE") },
+        { .HexValue = 0x4,  .Name = S("VS_FF_PATCHED") },
+        { .HexValue = 0x8,  .Name = S("VS_FF_PRIVATEBUILD") },
+        { .HexValue = 0x10, .Name = S("VS_FF_INFOINFERRED") },
+        { .HexValue = 0x20, .Name = S("VS_FF_SPECIALBUILD") }
+    };
+
+    const FileFlagsEntry FileOSFlags[] = 
+    {
+        { .HexValue = 0x00, .Name = S("VOS__BASE") },
+        { .HexValue = 0x01, .Name = S("VOS__WINDOWS16") },
+        { .HexValue = 0x02, .Name = S("VOS__PM16") },
+        { .HexValue = 0x03, .Name = S("VOS__PM32") },
+        { .HexValue = 0x04, .Name = S("VOS__WINDOWS32") }
+    };
+
+    const FileFlagsEntry FileTypeFlags[] = 
+    {
+        { .HexValue = 0x00, .Name = S("VFT_UNKNOWN") },
+        { .HexValue = 0x01, .Name = S("VFT_APP") },
+        { .HexValue = 0x02, .Name = S("VFT_DLL") },
+        { .HexValue = 0x03, .Name = S("VFT_DRV") },
+        { .HexValue = 0x04, .Name = S("VFT_FONT") },
+        { .HexValue = 0x05, .Name = S("VFT_VXD") },
+        { .HexValue = 0x07, .Name = S("VFT_STATIC_LIB") }
+    };
+
+    FileFlagsEntry FileType = FileTypeFlags[0];
+
+    // todo: use params->type, so this can export on non-windows platforms
+    if (String_IsEqual(Params->Extension, S(".exe"), false) || 
+        String_IsEqual(Params->Extension, S(".com"), false))
+    {
+        FileType = FileTypeFlags[1];
+    }
+    else if (String_IsEqual(Params->Extension, S(".dll"), false))
+    {
+        FileType = FileTypeFlags[2];
+    }
+    else if (String_IsEqual(Params->Extension, S(".lib"), false))
+    {
+        FileType = FileTypeFlags[6];
+    }
+
+    // is major version at 0? if so, it's a pre-release build
+    u32 FirstDot = 0;
+    String_IndexOfChar(Params->Version, '.', &FirstDot);
+    u64 MajorVersionNumber = 0;
+    String_ToU64(FirstDot == 0 ? Params->Version : StrSlice(Params->Version.Data, FirstDot), &MajorVersionNumber);
+
+    const FileFlagsEntry FileFlag = MajorVersionNumber == 0 ? FileFlags[1] : FileFlags[4];
+    const FileFlagsEntry FileOS   = FileOSFlags[4];
+
+    StringLocal(FileData, 2048);
+    String_Format(&FileData, S("1 VERSIONINFO\n"
+                                "FILEVERSION      %S  // this can only have 4 parts\n"
+                                "PRODUCTVERSION   %S  // same here\n\n"
+
+                                "FILEFLAGS        %X  // %S\n"
+                                "FILEOS           %X  // %S\n"
+                                "FILETYPE         %X  // %S\n"
+                                "FILESUBTYPE      0  // VFT2_UNKNOWN\n\n"
+
+                                "BEGIN\n"
+                                "    BLOCK \"StringFileInfo\"\n"
+                                "    BEGIN\n"
+                                "        BLOCK \"040904E4\"\n"
+                                "        BEGIN\n"
+                                "            VALUE \"CompanyName\",      \"%S\"\n"
+                                "            VALUE \"FileDescription\",  \"%S\"\n"
+                                "            VALUE \"FileVersion\",      \"%S\"\n"
+                                "            VALUE \"LegalCopyright\",   \"%S\"\n"
+                                "            VALUE \"OriginalFilename\", \"%S\"\n"
+                                "            VALUE \"InternalName\",     \"%S\"\n"
+                                "            VALUE \"ProductName\",      \"%S\"\n"
+                                "            VALUE \"ProductVersion\",   \"%S\"\n"
+                                "        END\n"
+                                "    END\n\n"
+
+                                "    BLOCK \"VarFileInfo\"\n"
+                                "    BEGIN\n"
+                                "        VALUE \"Translation\", 0x409, 1252\n"
+                                "    END\n"
+                                "END\n"
+                                ),
+                                FileData.Capacity,
+                                VersionCommas, VersionCommas,
+                                FileFlag.HexValue, FileFlag.Name,
+                                FileOS.HexValue, FileOS.Name,
+                                FileType.HexValue, FileType.Name,
+                                Params->CompanyName, 
+                                Params->Description, Params->Version, Params->Copyright,
+                                AssemblyWithExt, Params->InternalName, Params->TitleName, Params->Version);
+
+    Filesystem_Write(VersionRCFile, FileData.Length, FileData.Data, NULL);
+    Filesystem_Close(&VersionRCFile);
 
     return true;
 }
