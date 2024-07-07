@@ -2423,10 +2423,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     const String InternalName               = GetVariableValue(ExpandedVariablesDB, S("InternalName"));
     const String Description                = GetVariableValue(ExpandedVariablesDB, S("Description"));
     const String CompanyName                = GetVariableValue(ExpandedVariablesDB, S("CompanyName"));
-
-    #if PLATFORM_WINDOWS
     const String Copyright                  = GetVariableValue(ExpandedVariablesDB, S("Copyright"));
-    #endif
 
     String Version                          = GetVariableValue(ExpandedVariablesDB, S("Version"));
 
