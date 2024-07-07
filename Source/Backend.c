@@ -402,7 +402,7 @@ bool C_DoCompile(CompileData* Data, const String FullPath, const String Relative
         const u32 ExitCode = Platform_WaitForProcessAndGetExitCode(Handle);
         if (ExitCode != 0)
         {
-            LOG_ERROR("[DoCompile] Compiler errors detected. See above errors to fix. Exit code for process: %u. Aborting build...", ExitCode);
+            LOG_ERROR("Compiler errors detected. See above errors to fix. Exit code for process: %u. Aborting build...", ExitCode);
             return false;
         }
 

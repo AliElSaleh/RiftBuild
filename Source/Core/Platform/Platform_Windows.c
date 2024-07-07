@@ -1659,20 +1659,14 @@ bool Filesystem_SanitizePathAndWrap(String* Dest, const String Path)
 
 internal bool Internal_IterateDirectory(const String RootPath, const String DirectoryPath, DirectoryIterator Callback, bool bRecursive, void* UserData)
 {
-    WIN32_FIND_DATA ffd = {0};
-    TCHAR Temp[MAX_PATH] = {0};
-
-    HANDLE Find = INVALID_HANDLE_VALUE;
-
     const String RealDirectoryPath = DirectoryPath.Length == 0 ? S(".") : DirectoryPath;
 
-    HRESULT Result = StringCchCopy(Temp, MAX_PATH, RealDirectoryPath.Data);
-    if (Result != S_OK) goto Error;
-    
-    Result = StringCchCat(Temp, MAX_PATH, "\\*");
-    if (Result != S_OK) goto Error;
+    StringLocal(Temp, MAX_PATH);
+    String_Copy(&Temp, RealDirectoryPath);
+    String_Append(&Temp, S("\\*"));
 
-    Find = FindFirstFile(Temp, &ffd);
+    WIN32_FIND_DATA ffd = {0};
+    HANDLE Find = FindFirstFile(Temp.Data, &ffd);
 
     if (Find != INVALID_HANDLE_VALUE)
     {
@@ -1680,7 +1674,7 @@ internal bool Internal_IterateDirectory(const String RootPath, const String Dire
 
         do
         {
-            String FileName = CStr(ffd.cFileName);
+            String FileName = CStrEx(ffd.cFileName, 259);
 
             if (String_IsEqual(FileName, S("."), false) ||
                 String_IsEqual(FileName, S(".."), false))
@@ -1688,34 +1682,13 @@ internal bool Internal_IterateDirectory(const String RootPath, const String Dire
                 continue;
             }
 
-            TCHAR FilePath[MAX_PATH] = {0};
-            Result = StringCchCopy(FilePath, MAX_PATH, RealDirectoryPath.Data);
-            if (Result != S_OK) goto Error;
+            StringLocal(FilePath, MAX_PATH);
+            String_BuildPath(&FilePath, RealDirectoryPath, FileName);
 
-            u32 Len = RealDirectoryPath.Length;
-            if (Len > 0)
-            {
-                char LastChar = FilePath[Len-1];
-                if (LastChar != '/' && LastChar != '\\')
-                {
-                    Result = StringCchCat(FilePath, MAX_PATH, "\\");
-                    if (Result != S_OK) goto Error;
-                    Len++;
-                }
-            }
-
-            Result = StringCchCat(FilePath, MAX_PATH, ffd.cFileName);
-            if (Result != S_OK) goto Error;
-
-            Len += FileName.Length;
-
-            String FullPath;
-            FullPath.Data = FilePath;
-            FullPath.Length = Len;
-            FullPath.Capacity = Len;
+            String FullPath = FilePath;
             String_EatPathSeparatorsInline(&FullPath);
 
-            String RelativePath = CStr(&FilePath[RootPath.Length]);
+            String RelativePath = StrShiftF(FilePath, RootPath.Length);
             String_EatPathSeparatorsInline(&RelativePath);
 
             if (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
@@ -1751,15 +1724,6 @@ internal bool Internal_IterateDirectory(const String RootPath, const String Dire
 
         FindClose(Find);
         return bSuccess;
-    }
-
-Error:
-    StringLocal(Msg, 512);
-    String_Format(&Msg, S("Failed to iterate directory: %S"), Msg.Capacity, RealDirectoryPath);
-    LogLastError(Msg);
-    if (Find != INVALID_HANDLE_VALUE)
-    {
-        FindClose(Find);
     }
 
     return false;

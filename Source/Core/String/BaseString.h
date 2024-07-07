@@ -45,10 +45,11 @@ RIFT_API bool StringList_IsValid(const StringList Str);
 #define StringLocal(Name, n) 	            char  MACRO_VAR(CONCAT(Buffer_, Name))[n] = {0}; String   Name = {.Data = MACRO_VAR(CONCAT(Buffer_, Name)), .Length = 0, .Capacity = (n)-1 }
 #define String16Local(Name, n) 	            wchar MACRO_VAR(CONCAT(Buffer_, Name))[n] = {0}; String16 Name = {.Data = MACRO_VAR(CONCAT(Buffer_, Name)), .Length = 0, .Capacity = (n)-1 }
 
-#define CStr(s)                             (String)         {.Length = String_GetLength(s),   .Data = (char* )(s), .Capacity = 0}
-#define CStrView(s)                         (const String)   {.Length = String_GetLength(s),   .Data = (char* )(s), .Capacity = 0}
-#define CStr16(s)                           (String16)       {.Length = String16_GetLength(s), .Data = (wchar*)(s), .Capacity = 0}
-#define CStr16View(s)                       (const String16) {.Length = String16_GetLength(s), .Data = (wchar*)(s), .Capacity = 0}
+#define CStr(s)                             (String)         {.Length = String_GetLength(s),       .Data = (char* )(s), .Capacity = 0}
+#define CStrEx(s, n)                        (String)         {.Length = String_GetLength_Ex(s, n), .Data = (char* )(s), .Capacity = 0}
+#define CStrView(s)                         (const String)   {.Length = String_GetLength(s),       .Data = (char* )(s), .Capacity = 0}
+#define CStr16(s)                           (String16)       {.Length = String16_GetLength(s),     .Data = (wchar*)(s), .Capacity = 0}
+#define CStr16View(s)                       (const String16) {.Length = String16_GetLength(s),     .Data = (wchar*)(s), .Capacity = 0}
 
 #define S(s)                                (const String)   {.Length = sizeof((s))-1, .Data = (char* )((s)), .Capacity = sizeof((s))-1}
 #define SC(s)                                                {.Length = sizeof((s))-1, .Data = (char* )((s)), .Capacity = sizeof((s))-1}
