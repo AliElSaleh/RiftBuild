@@ -154,13 +154,13 @@ Assembly %_FileName # an internal variable that will expand to whatever the .bui
 Sometimes you need to access a value inside the build file from what was given on the command line. Command line arguments can be a singular phrase or a `Key=Value` option.
 ```make
 # on the cmd line
-> riftbuild someapp.build thisisacmdarg
+> riftbuild someapp.build somearg
 > riftbuild someapp.build somekey=somevalue
 
 # inside the .build file
-CompilerFlags %somekey # this will expand to somevalue     (or nothing if not mentioned on the cmd line)
-Hello %thisisacmdvar   # this will expand to 1             (or 0 if not mentioned on the cmd line)
-Hello %%thisisacmdvar  # this will expand to thisisacmdvar (or nothing if not mentioned on the cmd line)
+CompilerFlags %somekey # this will expand to somevalue (or nothing if not mentioned on the cmd line)
+Hello %somearg         # this will expand to 1         (or 0 if not mentioned on the cmd line)
+Hello %%somearg        # this will expand to somearg   (or nothing if not mentioned on the cmd line)
 ```
 
 Command line arguments can come in handy when you want to do some basic control flow. Like enabling address sanitizer for example.
