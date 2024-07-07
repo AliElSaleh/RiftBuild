@@ -84,17 +84,11 @@ They work on Windows, Mac OS and Linux (where appropriate).
 ---
 
 # Building RiftBuild
-RiftBuild can of course build itself with just a single call like this
-```
-riftbuild
-```
-
-Alternatively, you can run an OS specific build script
 ### Windows
 ```
 build.bat
 ```
-### Unix (Linux / Mac OS / BSD)
+### Linux / Mac OS / BSD
 ```
 ./build.sh
 ```
