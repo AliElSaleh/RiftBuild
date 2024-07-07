@@ -213,9 +213,9 @@ It feels like with build systems, [there is no paradise that you can escape to](
 
 I hate CMake with every fiber of my being.
 
-I was trying to build my game engine using CMake (previously used a .bat file) and ended up spending several hours trying to figure out how to use it correctly by googling and watching youtube tutorials and became depressed with how complicated it was and didn't want to proceed any further.
+I was trying to build my game engine using CMake (because that's what professionals should be doing right, i had previously used a .bat script). I ended up spending a few hours trying to figure out how to program in it correctly by googling and watching youtube tutorials. I eventually became depressed with how complicated it was and didn't want to proceed any further.
 
-I also tried alternative build systems like Meson, Ninja, Bazel, Premake, etc., and they were all too complicated and bloated for what should be a straightforward thing, so I spent a day developing my own build system. With Rift Build you don't even need to write a .build file if your program is dead simple.
+And yes, I've also tried alternative build systems like Meson, Ninja, Bazel, Premake, etc., and guess what, they were all shit, they were all too complicated and bloated for what should be (in my view) a straightforward process, so I spent one weekend developing the first iteration of my own build system. A perk of this system, is that you don't even need to write **_any_** .build script if your program is dead simple. This allows you to be productive much quicker so you spend **_zero_** time thinking about how you should build something.
 
 Writing a build file **should** be so much simpler than whatever the fuck CMake has concocted, and I firmly believe that you shouldn't have to learn **another** language (or a DSL) to build your program. A simple declarative build file is understood by everyone, thus there is no need to learn any complicated syntax to successfully write one. You get to skip the `cmake .`, `make`, `make install` dance bullshit and go straight to the compiler with just one command, `riftbuild`.
 
