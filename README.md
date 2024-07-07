@@ -8,12 +8,12 @@ A simpler build tool for C/C++, because fuck CMake
 
 
 ### Usage
-A simple build call will look like this (in a directory with or without a .build file).
+A build call will look like this (in a directory with or without a .build file)
 ```bash
 riftbuild
 ```
 
-To build with a specific build file. (specifying the .build extension is optional)
+To build with a specific build file (specifying the .build extension is optional)
 ```bash
 riftbuild someapp.build
 ```
