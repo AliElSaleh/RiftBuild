@@ -1971,7 +1971,6 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
     bool bIsAssemblyExe = false;
     bool bShouldWaitPerCompileProcess = false;
-    bool bNoCompilerProgramExplicityGiven = false;
 
     #if PLATFORM_WINDOWS
     bool bFallbackVersion = false;
@@ -2097,11 +2096,6 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             Expanded.Name = AssemblyKey;
             Expanded.Value = String_Create(Arena, ExpandedVar);
             Array_Add(ExpandedVariablesDB, Expanded);
-        }
-
-        if (!DoesBuildVarExist(VariablesDB, S("Compiler")))
-        {
-            bNoCompilerProgramExplicityGiven = true;
         }
 
         String VersionKey = S("Version");
@@ -2307,7 +2301,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     }
     else
     {
-        bNoCompilerProgramExplicityGiven = true;
+        //bNoCompilerProgramExplicityGiven = true;
 
         #if PLATFORM_WINDOWS
         bFallbackVersion = true;
@@ -2438,6 +2432,12 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         String_ToU8(MaxCompilerErrors, &MaxErrorsAllowed);
     }
 
+    bool bNoCompilerProgramExplicityGiven = false;
+    if (CompilerProgram.Length == 0)
+    {
+        bNoCompilerProgramExplicityGiven = true;
+    }
+
     String_ConvertSlashToPlatformSlash(&CompilerProgram);
     String_ConvertSlashToPlatformSlash(&LibraryDirectories);
     String_ConvertSlashToPlatformSlash(&IncludeFlags);
@@ -2491,11 +2491,13 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         {
             const String CompilerPrograms[] =
             {
+                S("clang"),
                 S("gcc"),
                 S("x86_64-w64-mingw32-gcc"),
                 S("g++"),
                 S("clang++"),
                 S("cl"),
+                S("clang-cl"),
             };
 
             for (u8 i = 0; i < SArray_Capacity(CompilerPrograms); i++)
@@ -2503,6 +2505,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 const bool bFound = Platform_FindProgram_Ex(CompilerPrograms[i], &CompilerPath);
                 if (bFound)
                 {
+                    CompilerProgram = CompilerPrograms[i];
                     bCompilerProgramFound = true;
                     break;
                 }
@@ -2549,7 +2552,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             }
             else
             {
-                LOG_ERROR("Compiler program \"%S\" does not exist. Make sure that it is installed and added to the path environment. Alternatively, you can specify the full path to the compiler executable instead. Aborting build...\n", CompilerProgram);
+                LOG_ERROR("Compiler program \"%S\" does not exist. Make sure that it is installed and added to the path environment.\n"
+                          "        Alternatively, you can specify the full path to the compiler executable instead. Aborting build...\n", CompilerProgram);
 
                 LogPathEnvVarTutorialSteps();
             }
