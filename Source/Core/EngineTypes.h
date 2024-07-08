@@ -294,14 +294,13 @@ typedef void VoidFunc(void);
     #define COMPILER_GCC 1
 #elif defined(_MSC_VER)
     #define COMPILER_MSVC 1
+
+    #if _MSC_VER < 1938
+        #error "Unsupported MSVC cl version. Download version 19.38 or later."
+    #endif
+
 #else
     #error Unknown compiler
-#endif
-
-#if PLATFORM_WINDOWS
-    #define DEBUG_BREAK __debugbreak
-#else
-    #define DEBUG_BREAK __builtin_trap
 #endif
 
 // VS Code is retarded
@@ -330,28 +329,27 @@ typedef void VoidFunc(void);
     #define RIFT_API
 #endif // RIFT_STATIC
 
-#ifdef PLATFORM_WINDOWS
-    #define FORCEINLINE    __forceinline inline
-    #define FORCENOINLINE  __declspec(noinline)
-    #define read_only      __declspec(allocate(".roglob"))
-#else
-    #define FORCEINLINE    __attribute__((always_inline)) inline
-    #define FORCENOINLINE
-    #define read_only 
-#endif
-
         
 #if COMPILER_CLANG || COMPILER_GCC
 
-    #if COMPILER_CLANG
-        #define PRAGMA_DISABLE_WARNINGS   _Pragma("clang diagnostic push")
-        #define PRAGMA_ENABLE_WARNINGS    _Pragma("clang diagnostic pop")
-    #elif COMPILER_GCC
-        #define PRAGMA_DISABLE_WARNINGS   _Pragma("GCC diagnostic push")
-        #define PRAGMA_ENABLE_WARNINGS    _Pragma("GCC diagnostic pop")
-    #endif
-
     #define PRAGMA_DISABLE_WARNING(x) _Pragma(x)
+
+    #if COMPILER_CLANG
+        #define PRAGMA_DISABLE_WARNINGS _Pragma("clang diagnostic push")
+        #define PRAGMA_ENABLE_WARNINGS  _Pragma("clang diagnostic pop")
+
+        #define PRAGMA_DISABLE_MISSING_PROTOTYPES_WARNING \
+                PRAGMA_DISABLE_WARNINGS \
+                PRAGMA_DISABLE_WARNING("clang diagnostic ignored \"-Wmissing-prototypes\"")
+
+    #elif COMPILER_GCC
+        #define PRAGMA_DISABLE_WARNINGS _Pragma("GCC diagnostic push")
+        #define PRAGMA_ENABLE_WARNINGS  _Pragma("GCC diagnostic pop")
+
+        #define PRAGMA_DISABLE_MISSING_PROTOTYPES_WARNING \
+                PRAGMA_DISABLE_WARNINGS \
+                PRAGMA_DISABLE_WARNING("GCC diagnostic ignored \"-Wmissing-prototypes\"")
+    #endif
 
     #define DEPRECATED       __attribute__((__deprecated__))
     #define UNUSED           __attribute__((unused))
@@ -366,6 +364,16 @@ typedef void VoidFunc(void);
     #define UNLIKELY(Expression) __builtin_expect(!!(Expression), 0)
     #define LIKELY(Expression)   __builtin_expect(!!(Expression), 1)
 
+    #define FORCEINLINE    __attribute__((always_inline)) inline
+    #define FORCENOINLINE
+    #define read_only 
+
+    #if PLATFORM_WINDOWS && COMPILER_CLANG
+        #define DEBUG_BREAK __debugbreak
+    #else
+        #define DEBUG_BREAK __builtin_trap
+    #endif
+
 #elif COMPILER_MSVC
     #define PRAGMA_DISABLE_WARNINGS   __pragma(warning(push))
     #define PRAGMA_ENABLE_WARNINGS    __pragma(warning(pop))
@@ -376,7 +384,7 @@ typedef void VoidFunc(void);
         PRAGMA_DISABLE_WARNING(4995) /* 'function': name was marked as #pragma deprecated */ \
         PRAGMA_DISABLE_WARNING(4996) /* The compiler encountered a deprecated declaration. */
 
-    #define PRAGMA_ENABLE_DEPRECATION_WARNINGS PRAGMA_ENABLE_WARNINGS
+    #define PRAGMA_DISABLE_MISSING_PROTOTYPES_WARNING PRAGMA_DISABLE_WARNINGS
 
     #define DEPRECATED       __declspec(deprecated)
     #define UNUSED           
@@ -390,6 +398,12 @@ typedef void VoidFunc(void);
 
     #define UNLIKELY(Expression) Expression
     #define LIKELY(Expression)   Expression
+
+    #define FORCEINLINE    __forceinline 
+    #define FORCENOINLINE  __declspec(noinline)
+    #define read_only      __declspec(allocate(".roglob"))
+
+    #define DEBUG_BREAK __debugbreak
 #endif
 
 #ifdef __cplusplus

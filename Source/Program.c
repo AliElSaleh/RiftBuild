@@ -4333,7 +4333,6 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         Clock c;
         Clock_Start(&c);
 
-        // TODO: only for non-msvc
         if (!ExportCompileCommands(&p, ExpandedCompilerFlags, ExpandedIncludeFlags, ExpandedDefineFlags, ExpandedUnDefineFlags, bLast))
         {
             return 1;

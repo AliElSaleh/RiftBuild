@@ -305,7 +305,12 @@ bool MemEqual(const void* Block1, const void* Block2, u64 Size)
 #if PLATFORM_WINDOWS
 bool Platform_MemEqual(const void* Block1, const void* Block2, u64 Size)
 {
+    #if COMPILER_GCC
+    UNIMPLEMENTED; // todo: memcmp implementation for gcc
+    return false;
+    #else
     return memcmp((void*)Block1, (void*)Block2, Size) == 0;
+    #endif
 }
 #endif
 

@@ -922,13 +922,7 @@ static char** GEnv = NULL;
 static String GProgramName = { 0 };
 static char GEmptyBuffer[16] = {0};
 
-#if COMPILER_CLANG
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wmissing-prototypes"
-#elif COMPILER_GCC
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmissing-prototypes"
-#endif
+PRAGMA_DISABLE_MISSING_PROTOTYPES_WARNING
 
 void pre_main(int argc, char* argv[], char* env[])
 {
@@ -954,11 +948,7 @@ void pre_main(int argc, char* argv[], char* env[])
     GProgramName.Capacity = GProgramName.Length;
 }
 
-#if COMPILER_CLANG
-#pragma clang diagnostic pop
-#elif COMPILER_GCC
-#pragma GCC diagnostic pop
-#endif
+PRAGMA_ENABLE_WARNINGS
 
 StringArray Platform_GetCommandLineArgs(void)
 {

@@ -26,10 +26,7 @@
 
 #include <gs_support.c>
 
-#if COMPILER_CLANG
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wmissing-prototypes"
-#endif
+PRAGMA_DISABLE_MISSING_PROTOTYPES_WARNING
 
 u64 __security_cookie = 0;
 u64 __security_cookie_complement = 0;
@@ -39,9 +36,7 @@ void __fastcall __security_check_cookie(u64 cookie)
         __debugbreak();
 }
 
-#if COMPILER_CLANG
-#pragma clang diagnostic pop
-#endif
+PRAGMA_ENABLE_WARNINGS
 
 typedef enum WinConsoleForegroundColors
 {
@@ -478,7 +473,7 @@ bool Platform_GetAccountName(String* OutName)
 
 bool Platform_GetUserName(String* OutName)
 {
-    const u32 id = 0x0028; // USERPROFILE  CSIDL_PROFILE
+    const i32 id = 0x0028; // USERPROFILE  CSIDL_PROFILE
 
     char Path[MAX_PATH];
     if (SUCCEEDED(SHGetFolderPath(NULL, id, NULL, 0, Path)))
@@ -503,7 +498,7 @@ bool Platform_GetUserName(String* OutName)
 
 bool Platform_GetUserDirectory(String* OutDirectory)
 {
-    const u32 id = 0x0028; // USERPROFILE  CSIDL_PROFILE
+    const i32 id = 0x0028; // USERPROFILE  CSIDL_PROFILE
 
     char Path[MAX_PATH];
     if (SUCCEEDED(SHGetFolderPath(NULL, id, NULL, 0, Path)))
@@ -604,7 +599,7 @@ bool Platform_CaptureStackTrace(LinearAllocator* Arena, TArray(StackTraceData)* 
         StackTraceData d;
         d.Name = String_Create(Arena, StrSlice(Symbol->Name, Symbol->NameLen));
         d.Address = Symbol->Address;
-        d.Index = NumFramesCaptured - i - 1;
+        d.Index = (u16)(NumFramesCaptured - i - 1);
 
         Array_Add(StackTraceCache, d);
     }
@@ -620,9 +615,7 @@ u32 Platform_GetNumLogicalProcessors(void)
 {
     SYSTEM_INFO info = {0};
     GetSystemInfo(&info);
-
     return info.dwNumberOfProcessors;
-    //return GetCurrentProcessorNumber();
 }
 
 static StringN(64) GThreadNameBuffer = {0};
@@ -2231,18 +2224,13 @@ bool Platform_GetTerminalDimensions(u32* OutRows, u32* OutColumns)
     return true;
 }
 
-#if COMPILER_CLANG
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wmissing-prototypes"
-#endif
+PRAGMA_DISABLE_MISSING_PROTOTYPES_WARNING
 
 FORCENOINLINE BOOL __cdecl _DllMainCRTStartup(HANDLE hDllHandle, DWORD dwReason, LPVOID lpreserved)
 {
     return true;
 }
 
-#if COMPILER_CLANG
-#pragma clang diagnostic pop
-#endif
+PRAGMA_ENABLE_WARNINGS
 
 #endif // PLATFORM_WINDOWS

@@ -152,10 +152,7 @@ static UINT_PTR __get_entropy(void)
 *
 *******************************************************************************/
 
-#if COMPILER_CLANG
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wmissing-prototypes"
-#endif
+PRAGMA_DISABLE_MISSING_PROTOTYPES_WARNING
 
 void __cdecl __security_init_cookie(void)
 {
@@ -207,6 +204,4 @@ void __cdecl __security_init_cookie(void)
 
 }
 
-#if COMPILER_CLANG
-#pragma clang diagnostic pop
-#endif
+PRAGMA_ENABLE_WARNINGS

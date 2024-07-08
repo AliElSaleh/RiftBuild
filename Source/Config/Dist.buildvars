@@ -40,7 +40,7 @@ WarningErrorFlags
 
 SecurityFlags
 
-SharedCompilerFlags  /std:clatest
+SharedCompilerFlags  /std:clatest /O2
 SharedLinkerFlags    
 SharedDefines        NO_ASSERT NO_PROFILING _NO_CRT_STDIO_INLINE NDEBUG
 SharedIncludeFlags   Source/Core Source/Libraries/Vendor

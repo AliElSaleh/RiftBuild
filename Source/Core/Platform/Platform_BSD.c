@@ -848,8 +848,8 @@ static char** GEnv = NULL;
 static String GProgramName = { 0 };
 static char GEmptyBuffer[16] = {0};
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wmissing-prototypes"
+PRAGMA_DISABLE_MISSING_PROTOTYPES_WARNING
+
 void pre_main(int argc, char* argv[], char* env[])
 {
     GArgC = argc;
@@ -873,7 +873,8 @@ void pre_main(int argc, char* argv[], char* env[])
     GProgramName.Length = String_GetLength_Ex(argv[0], UINT16_MAX);
     GProgramName.Capacity = GProgramName.Length;
 }
-#pragma clang diagnostic pop
+
+PRAGMA_ENABLE_WARNINGS
 
 StringArray Platform_GetCommandLineArgs(void)
 {

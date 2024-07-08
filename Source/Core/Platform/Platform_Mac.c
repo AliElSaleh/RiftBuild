@@ -110,8 +110,7 @@ NO_RETURN void Platform_Abort(u32 ExitCode)
 }
 
 // TODO: BUILD_LIB define
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wmissing-prototypes"
+PRAGMA_DISABLE_MISSING_PROTOTYPES_WARNING
 static String GArgV[128] = {0};
 static i32 GArgC = 0;
 static char** GEnv = NULL;
@@ -142,7 +141,7 @@ void pre_main(int argc, char* argv[], char* env[])
     GProgramName.Length = String_GetLength_Ex(argv[0], UINT16_MAX);
     GProgramName.Capacity = GProgramName.Length;
 }
-#pragma clang diagnostic pop
+PRAGMA_ENABLE_WARNINGS
 
 StringArray Platform_GetCommandLineArgs(void)
 {
