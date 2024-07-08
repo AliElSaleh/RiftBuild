@@ -1575,7 +1575,7 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
                 return false;
             }
 
-            StdOutData.Length = Clamp((u32)BytesRead, 0, StdOutData.Capacity);
+            StdOutData.Length = Min((u32)BytesRead, StdOutData.Capacity);
             String_EatNewLinesInlineFromEnd(&StdOutData);
 
             String DestEnd = StrShiftF(*Dest, Dest->Length);

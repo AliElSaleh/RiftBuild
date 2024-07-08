@@ -678,15 +678,83 @@ u64 Platform_GetMainThreadID(void)
     return (u64)getpid();
 }
 
+/*
+internal bool is_process_attached_to_terminal(pid_t pid)
+{
+    StringLocal(Path, MAX_PATH_LENGTH);
+    String_Format(&Path, S("/proc/%d/fd/0"), Path.Capacity, pid);
+
+    StringLocal(LinkPath, MAX_PATH_LENGTH);
+
+    ssize_t Result = readlink(Path.Data, LinkPath.Data, LinkPath.Capacity);
+    if (Result == -1)
+    {
+        //LOG_ERROR("readlink failed");
+        return false;
+    }
+
+    LinkPath.Length = (u32)Result;
+
+    LOG("%S", LinkPath);
+
+    if (String_IsEqual(LinkPath, S("/dev/tty1"), false))
+    {
+        return true;
+    }
+
+    return false;
+}
+
+internal void list_processes_attached_to_terminal(void)
+{
+    DIR* dp = opendir("/proc");
+    if (dp == NULL)
+    {
+        LOG_ERROR("Failed to open /proc");
+        return;
+    }
+
+    struct dirent* entry = NULL;
+
+    while ((entry = readdir(dp)))
+    {
+        if (entry->d_type == DT_DIR)
+        {
+            //pid_t pid = atoi(entry->d_name);
+
+            pid_t pid = 0;
+            const String Name = CStr(entry->d_name);
+            String_ToI32(Name, &pid);
+            LOG("%S", Name);
+            if (pid > 0)
+            {
+                if (is_process_attached_to_terminal(pid))
+                {
+                    LOG("Process %d|%S is attached to a terminal", pid, Name);
+                }
+            }
+        }
+    }
+
+    closedir(dp);
+}
+*/
+
 u32 Platform_GetConsoleProcessCount(void)
 {
+    //list_processes_attached_to_terminal();
     // TODO
     return 0;
 }
 
 void Platform_GetWorkingDirectory(String* OutPath)
 {
-    getcwd(OutPath->Data, MAX_PATH_LENGTH);
+    char* Result = getcwd(OutPath->Data, MAX_PATH_LENGTH);
+    if (Result == NULL)
+    {
+        return;
+    }
+
     OutPath->Length = String_GetLength_Ex(OutPath->Data, MAX_PATH_LENGTH);
 }
 
@@ -854,8 +922,14 @@ static char** GEnv = NULL;
 static String GProgramName = { 0 };
 static char GEmptyBuffer[16] = {0};
 
+#if COMPILER_CLANG
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wmissing-prototypes"
+#elif COMPILER_GCC
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-prototypes"
+#endif
+
 void pre_main(int argc, char* argv[], char* env[])
 {
     GArgC = argc;
@@ -879,7 +953,12 @@ void pre_main(int argc, char* argv[], char* env[])
     GProgramName.Length = String_GetLength_Ex(argv[0], UINT16_MAX);
     GProgramName.Capacity = GProgramName.Length;
 }
+
+#if COMPILER_CLANG
 #pragma clang diagnostic pop
+#elif COMPILER_GCC
+#pragma GCC diagnostic pop
+#endif
 
 StringArray Platform_GetCommandLineArgs(void)
 {

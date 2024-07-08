@@ -134,7 +134,7 @@ String String_Join(LinearAllocator* Arena, const StringArray Array)
     for (u32 i = 0; i < Array.Num; i++)
     {
         const String* Str = &Array.List[i];
-        u64 Len = Str->Length;
+        u32 Len = Str->Length;
         if (LIKELY(Len > 0))
         {
             MemCopy(&JoinedStr.Data[NumCopied], Str->Data, Len);
@@ -1097,15 +1097,15 @@ String String_SubString_Range(String Str, u32 Start, u32 End)
     return Str;
 }
 
-void CString_ToLower(char* String)
+void CString_ToLower(char* Str)
 {
-    char* p = String;
+    char* p = Str;
     for (; *p; ++p) *p = ToLower(*p);
 }
 
-void CString_ToUpper(char* String)
+void CString_ToUpper(char* Str)
 {
-    char* p = String;
+    char* p = Str;
     for (; *p; ++p) *p = ToUpper(*p);
 }
 
@@ -1947,7 +1947,7 @@ bool String_ToU32(const String Str, u32* OutInt)
                 return false;
             }
 
-            Num = (u32)(Num * 10 + (u32)Digit);
+            Num = (u32)(Num * (u32)(10 + (u32)Digit));
         }
         else
         {
@@ -2065,7 +2065,7 @@ bool String_ToI8(const String Str, i8* OutInt)
                 return false;
             }
 
-            Num = Num * 10 + Digit;
+            Num = (i8)Num * (i8)(10 + Digit);
         }
         else
         {
@@ -2126,7 +2126,7 @@ bool String_ToI16(const String Str, i16* OutInt)
                 return false;
             }
 
-            Num = Num * 10 + Digit;
+            Num = (i16)Num * (i16)(10 + Digit);
         }
         else
         {

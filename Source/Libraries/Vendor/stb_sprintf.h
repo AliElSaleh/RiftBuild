@@ -217,13 +217,24 @@ STBSP__PUBLICDEC void STB_SPRINTF_DECORATE(set_separators)(char comma, char peri
 
 #ifdef STB_SPRINTF_IMPLEMENTATION
 
-#if __clang__
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wcast-qual"
-#pragma clang diagnostic ignored "-Wextra-semi-stmt"
-#pragma clang diagnostic ignored "-Wconditional-uninitialized"
-#pragma clang diagnostic ignored "-Wimplicit-fallthrough"
-#pragma clang diagnostic ignored "-Wsign-conversion"
+// disable compiler warning spam, dont really care about them
+#if COMPILER_CLANG || COMPILER_GCC
+PRAGMA_DISABLE_WARNINGS
+
+#if COMPILER_CLANG
+   #pragma clang diagnostic ignored "-Wcast-qual"
+   #pragma clang diagnostic ignored "-Wextra-semi-stmt"
+   #pragma clang diagnostic ignored "-Wconditional-uninitialized"
+   #pragma clang diagnostic ignored "-Wimplicit-fallthrough"
+   #pragma clang diagnostic ignored "-Wsign-conversion"
+#elif COMPILER_GCC
+   #pragma GCC diagnostic ignored "-Wcast-qual"
+   #pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
+   #pragma GCC diagnostic ignored "-Wsign-conversion"
+   #pragma GCC diagnostic ignored "-Wsign-compare"
+   #pragma GCC diagnostic ignored "-Wconversion"
+#endif
+
 #endif
 
 #define stbsp__uint32 unsigned int
@@ -1090,10 +1101,10 @@ STBSP__PUBLICDEF int STB_SPRINTF_DECORATE(vsprintfcb)(STBSP_SPRINTFCB *callback,
       case 'd': // integer
          // get the integer and abs it
          if (fl & STBSP__INTMAX) {
-            stbsp__int64 i64 = va_arg(va, stbsp__int64);
-            n64 = (stbsp__uint64)i64;
-            if ((f[0] != 'u') && (i64 < 0)) {
-               n64 = (stbsp__uint64)-i64;
+            stbsp__int64 i = va_arg(va, stbsp__int64);
+            n64 = (stbsp__uint64)i;
+            if ((f[0] != 'u') && (i < 0)) {
+               n64 = (stbsp__uint64)-i;
                fl |= STBSP__NEGATIVE;
             }
          } else {
@@ -1893,8 +1904,8 @@ static stbsp__int32 stbsp__real_to_str(char const **start, stbsp__uint32 *len, c
 #undef stbsp__int64
 #undef STBSP__UNALIGNED
 
-#if __clang__
-#pragma clang diagnostic pop
+#if COMPILER_CLANG || COMPILER_GCC
+PRAGMA_ENABLE_WARNINGS
 #endif
 
 #endif // STB_SPRINTF_IMPLEMENTATION

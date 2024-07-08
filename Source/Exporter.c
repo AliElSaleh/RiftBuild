@@ -40,7 +40,7 @@ internal void WriteFlags(LinearAllocator Scratch, const FileHandle File, const S
 
 internal bool GenCommandObject(CompileData* Data, const String FullPath, const String RelativePath)
 {
-    const ExportData* ExportData = Data->AdditionalData;
+    const ExportData* Export = Data->AdditionalData;
     const BuildParams* Params = Data->Params;
 
     String AdditionalPlatformFlags = String_Null();
@@ -66,20 +66,20 @@ internal bool GenCommandObject(CompileData* Data, const String FullPath, const S
     String_BuildPath(&RelativePathCopy, Params->SourceDirectory, RelativePath);
     String_BackSlashToForwardSlash(&RelativePathCopy);
 
-    Filesystem_WriteLine         (ExportData->File, S("    {\n"), NULL);
-    Filesystem_WriteLineFormatted(ExportData->File, S("        \"directory\": \"%S\",\n"), NULL, RootDirectory);
-    Filesystem_WriteLineFormatted(ExportData->File, S("        \"file\": \"%S\",\n"), NULL, RelativePathCopy);
-    Filesystem_WriteLine         (ExportData->File, S("        \"arguments\": [\n"), NULL);
-    Filesystem_WriteLineFormatted(ExportData->File, S("            \"-c\""), NULL);
+    Filesystem_WriteLine         (Export->File, S("    {\n"), NULL);
+    Filesystem_WriteLineFormatted(Export->File, S("        \"directory\": \"%S\",\n"), NULL, RootDirectory);
+    Filesystem_WriteLineFormatted(Export->File, S("        \"file\": \"%S\",\n"), NULL, RelativePathCopy);
+    Filesystem_WriteLine         (Export->File, S("        \"arguments\": [\n"), NULL);
+    Filesystem_WriteLineFormatted(Export->File, S("            \"-c\""), NULL);
     
-    WriteFlags(*Params->Arena, ExportData->File, Params->CompilerFlags, false);
-    WriteFlags(*Params->Arena, ExportData->File, AdditionalPlatformFlags, false);
-    WriteFlags(*Params->Arena, ExportData->File, Params->IncludeFlags, true);
-    WriteFlags(*Params->Arena, ExportData->File, Params->DefineFlags, false);
-    WriteFlags(*Params->Arena, ExportData->File, Params->UnDefineFlags, false);
+    WriteFlags(*Params->Arena, Export->File, Params->CompilerFlags, false);
+    WriteFlags(*Params->Arena, Export->File, AdditionalPlatformFlags, false);
+    WriteFlags(*Params->Arena, Export->File, Params->IncludeFlags, true);
+    WriteFlags(*Params->Arena, Export->File, Params->DefineFlags, false);
+    WriteFlags(*Params->Arena, Export->File, Params->UnDefineFlags, false);
     
-    Filesystem_WriteLine         (ExportData->File, S("\n        ]\n"), NULL);
-    Filesystem_WriteLineFormatted(ExportData->File, S("    }%S"), NULL, Data->Index != Params->NumSources-1 || !ExportData->bIsLastBuild ? S(",\n") : S("\n"));
+    Filesystem_WriteLine         (Export->File, S("\n        ]\n"), NULL);
+    Filesystem_WriteLineFormatted(Export->File, S("    }%S"), NULL, Data->Index != Params->NumSources-1 || !Export->bIsLastBuild ? S(",\n") : S("\n"));
 
     Data->Index++;
     

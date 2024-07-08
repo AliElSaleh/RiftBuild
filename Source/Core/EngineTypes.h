@@ -140,33 +140,10 @@ typedef void VoidFunc(void);
 #define internal static
 #define thread_local _Thread_local
 
+#define FUNCTION_NAME __func__
+
 #define CONSOLE_FLOAT(Var, ...)
 #define CONSOLE_CMD(Name, ...) void CONCAT(CMD__, Name)(StringArray Arguments)
-
-#if defined(__clang__) || defined(__gcc__)
-    #define STATIC_ASSERT _Static_assert
-    #define typeof        __typeof__
-
-    //#define STATIC_ASSERT(e) typedef char __C_ASSERT__[(e)?1:-1]
-#else
-    #define STATIC_ASSERT static_assert
-    #define typeof  typeof
-#endif
-
-// Ensure all types are of the correct size
-STATIC_ASSERT(sizeof(bool)  == 1, "Expected size of bool to be 1 byte.");
-STATIC_ASSERT(sizeof(char)  == 1, "Expected size of char to be 1 byte.");
-STATIC_ASSERT(sizeof(u8)    == 1, "Expected size of u8 to be 1 byte.");
-STATIC_ASSERT(sizeof(u16)   == 2, "Expected size of u16 to be 2 bytes.");
-STATIC_ASSERT(sizeof(u32)   == 4, "Expected size of u32 to be 4 bytes.");
-STATIC_ASSERT(sizeof(u64)   == 8, "Expected size of u64 to be 8 bytes.");
-STATIC_ASSERT(sizeof(i8)    == 1, "Expected size of i8 to be 1 byte.");
-STATIC_ASSERT(sizeof(i16)   == 2, "Expected size of i16 to be 2 bytes.");
-STATIC_ASSERT(sizeof(i32)   == 4, "Expected size of i32 to be 4 bytes.");
-STATIC_ASSERT(sizeof(i64)   == 8, "Expected size of i64 to be 8 bytes.");
-STATIC_ASSERT(sizeof(f32)   == 4, "Expected size of f32 to be 4 bytes.");
-STATIC_ASSERT(sizeof(f64)   == 8, "Expected size of f64 to be 8 bytes.");
-STATIC_ASSERT(sizeof(void*) == 8, "Expected size of a pointer to be 8 bytes.");
 
 // Platform detection
 // Rift Engine only supports the following:
@@ -354,18 +331,26 @@ STATIC_ASSERT(sizeof(void*) == 8, "Expected size of a pointer to be 8 bytes.");
 #endif // RIFT_STATIC
 
 #ifdef PLATFORM_WINDOWS
-    #define FORCEINLINE    __forceinline
+    #define FORCEINLINE    __forceinline inline
     #define FORCENOINLINE  __declspec(noinline)
     #define read_only      __declspec(allocate(".roglob"))
 #else
-    #define FORCEINLINE    __attribute__((always_inline))
+    #define FORCEINLINE    __attribute__((always_inline)) inline
     #define FORCENOINLINE
     #define read_only 
 #endif
 
+        
 #if COMPILER_CLANG || COMPILER_GCC
-    #define PRAGMA_DISABLE_WARNINGS   _Pragma("clang diagnostic push")
-    #define PRAGMA_ENABLE_WARNINGS    _Pragma("clang diagnostic pop")
+
+    #if COMPILER_CLANG
+        #define PRAGMA_DISABLE_WARNINGS   _Pragma("clang diagnostic push")
+        #define PRAGMA_ENABLE_WARNINGS    _Pragma("clang diagnostic pop")
+    #elif COMPILER_GCC
+        #define PRAGMA_DISABLE_WARNINGS   _Pragma("GCC diagnostic push")
+        #define PRAGMA_ENABLE_WARNINGS    _Pragma("GCC diagnostic pop")
+    #endif
+
     #define PRAGMA_DISABLE_WARNING(x) _Pragma(x)
 
     #define DEPRECATED       __attribute__((__deprecated__))
@@ -434,12 +419,15 @@ global void* nullptr_z; // points to the engine memory dump
     #if COMPILER_CLANG
     PRAGMA_DISABLE_WARNINGS
     PRAGMA_DISABLE_WARNING("clang diagnostic ignored \"-Wunused-function\"")
+    #elif COMPILER_GCC
+    PRAGMA_DISABLE_WARNINGS
+    PRAGMA_DISABLE_WARNING("GCC diagnostic ignored \"-Wunused-function\"")
     #endif
-    
+
     FORCEINLINE internal bool __always__(bool bCondition) { if (!bCondition) { DEBUG_BREAK(); } return bCondition; }
     FORCEINLINE internal bool __never__(bool bCondition)  { if (bCondition)  { DEBUG_BREAK(); } return bCondition; }
 
-    #if COMPILER_CLANG
+    #if COMPILER_CLANG || COMPILER_GCC
     PRAGMA_ENABLE_WARNINGS
     #endif
 
@@ -459,3 +447,28 @@ typedef i32 PlatformHandle;
 typedef i32 PlatformPipe[2];
 typedef void* PlatformCriticalSection;
 #endif
+
+#if COMPILER_CLANG || COMPILER_GCC
+    #define STATIC_ASSERT _Static_assert
+    #define typeof        __typeof__
+
+    //#define STATIC_ASSERT(e) typedef char __C_ASSERT__[(e)?1:-1]
+#else
+    #define STATIC_ASSERT static_assert
+    #define typeof  typeof
+#endif
+
+// Ensure all types are of the correct size
+STATIC_ASSERT(sizeof(bool)  == 1, "Expected size of bool to be 1 byte.");
+STATIC_ASSERT(sizeof(char)  == 1, "Expected size of char to be 1 byte.");
+STATIC_ASSERT(sizeof(u8)    == 1, "Expected size of u8 to be 1 byte.");
+STATIC_ASSERT(sizeof(u16)   == 2, "Expected size of u16 to be 2 bytes.");
+STATIC_ASSERT(sizeof(u32)   == 4, "Expected size of u32 to be 4 bytes.");
+STATIC_ASSERT(sizeof(u64)   == 8, "Expected size of u64 to be 8 bytes.");
+STATIC_ASSERT(sizeof(i8)    == 1, "Expected size of i8 to be 1 byte.");
+STATIC_ASSERT(sizeof(i16)   == 2, "Expected size of i16 to be 2 bytes.");
+STATIC_ASSERT(sizeof(i32)   == 4, "Expected size of i32 to be 4 bytes.");
+STATIC_ASSERT(sizeof(i64)   == 8, "Expected size of i64 to be 8 bytes.");
+STATIC_ASSERT(sizeof(f32)   == 4, "Expected size of f32 to be 4 bytes.");
+STATIC_ASSERT(sizeof(f64)   == 8, "Expected size of f64 to be 8 bytes.");
+STATIC_ASSERT(sizeof(void*) == 8, "Expected size of a pointer to be 8 bytes.");

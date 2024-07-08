@@ -1,7 +1,8 @@
 if debug Mode Debug else Mode Dist
 include Source/Config/$(Mode).buildvars
 
-if cl                   Compiler cl
+Compiler                %%cl
+Compiler                %%gcc
 
 Assembly                RiftBuild
 Icon                    riftbuild
@@ -32,7 +33,7 @@ if bsd                  IncludedSourceFiles Platform_BSD.c
 
 if mac                  CompilerFlags -mmacosx-version-min=10.5
 
-if !cl                  CompilerFlags -mno-stack-arg-probe -mstack-probe-size=999999999
+if !cl if !gcc          CompilerFlags -mno-stack-arg-probe -mstack-probe-size=999999999
 if cl                   CompilerFlags /GS- /Gs999999999
 
 if !cl if windows       LinkerFlags -nostdlib -Wl,-entry:ProgramStart,-subsystem:console -Xlinker /stack:0x400000,0x400000

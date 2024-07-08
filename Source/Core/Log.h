@@ -116,7 +116,7 @@ typedef struct String String; // forward declare
 #define LOG_BOOL(Bool)                                 LOG(#Bool   ": %S", ((Bool) ? S("true") : S("false")))
 #define LOG_STRING(String)                             LOG(#String ": %S", String)
 
-#define UNIMPLEMENTED                                  Platform_ConsoleWrite(__FUNCTION__, 4, true); Platform_ConsoleWrite(" not implemented!\n", 4, true); _Crash_
+#define UNIMPLEMENTED                                  Platform_ConsoleWrite(FUNCTION_NAME, 4, true); Platform_ConsoleWrite(" not implemented!\n", 4, true); _Crash_
 
 RIFT_API bool Logging_Initialize(void* Memory, bool bOpenFile);
 RIFT_API void Logging_Shutdown(void);

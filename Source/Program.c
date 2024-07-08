@@ -29,16 +29,6 @@ STRUCT(BuildFileDirectoryIteratorData)
     StringArray Arguments;
 };
 
-STRUCT(Context)
-{
-    String WorkingDirectory;
-    String BuildFilePath;
-    String BuildFileName;
-    StringArray Arguments;
-    LinearAllocator Arena;
-    FileHandle BuildFileHandle;
-};
-
 internal bool IsBuildFile(const String FilePath)
 {
     return String_EndsWith(FilePath, S(".build"), false);
