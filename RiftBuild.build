@@ -1,8 +1,7 @@
 if debug Mode Debug else Mode Dist
 include Source/Config/$(Mode).buildvars
 
-Compiler                %%cl
-Compiler                %%gcc
+Compiler                %%cl %%gcc %%clang
 
 Assembly                RiftBuild
 Icon                    riftbuild
@@ -36,8 +35,11 @@ if mac                  CompilerFlags -mmacosx-version-min=10.5
 if !cl if !gcc          CompilerFlags -mno-stack-arg-probe -mstack-probe-size=999999999
 if cl                   CompilerFlags /GS- /Gs999999999
 
-if !cl if windows       LinkerFlags -nostdlib -Wl,-entry:ProgramStart,-subsystem:console -Xlinker /stack:0x400000,0x400000
-if cl  if windows       LinkerFlags /ENTRY:ProgramStart /SUBSYSTEM:CONSOLE /STACK:0x400000,0x400000
+if windows {
+    if !cl if !gcc      LinkerFlags -nostdlib -Wl,-entry:ProgramStart,-subsystem:console -Xlinker /stack:0x400000,0x400000
+    if gcc              LinkerFlags -nostdlib -Wl,--entry,ProgramStart,--subsystem,console,--stack,0x400000
+    if cl               LinkerFlags /ENTRY:ProgramStart /SUBSYSTEM:CONSOLE /STACK:0x400000,0x400000
+}
 
 if linux                Libraries UUIDS ; LibraryDirectories Source/Libraries/Linux
 

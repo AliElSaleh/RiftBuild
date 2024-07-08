@@ -200,10 +200,10 @@ void Logging_Shutdown(void)
     GLoggingSystemState = nullptr;
 }
 
-u64 Logging_GetMemoryRequirement(void)
+usize Logging_GetMemoryRequirement(void)
 {
-    u64 LogFileNameSize = sizeof(String) + 256;
-    u64 LogFormatStringArena = MAX_LOG_MSG_LENGTH*2;
+    usize LogFileNameSize = sizeof(String) + 256;
+    usize LogFormatStringArena = MAX_LOG_MSG_LENGTH*2;
     
     return sizeof(LoggingSystemState) + LogFileNameSize + LogFormatStringArena + Platform_GetCriticalSectionMemoryRequirement();
 }

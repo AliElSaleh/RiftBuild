@@ -112,8 +112,8 @@ static UINT_PTR __get_entropy(void)
 #if defined (_WIN64)
     cookie ^= (((UINT_PTR)(perfctr.LowPart) << 32) ^ (UINT_PTR)perfctr.QuadPart);
 #else  /* defined (_WIN64) */
-    cookie ^= perfctr.LowPart;
-    cookie ^= perfctr.HighPart;
+    cookie ^= (UINT_PTR)perfctr.LowPart;
+    cookie ^= (UINT_PTR)perfctr.HighPart;
 #endif  /* defined (_WIN64) */
 
     /*

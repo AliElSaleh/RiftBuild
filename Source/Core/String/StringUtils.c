@@ -157,11 +157,11 @@ void String_ConcatArray(String* Dest, const StringArray Array, u32 MaxSize)
 
     Dest->Length = MaxLength;
 
-    u64 NumCopied = 0;
+    u32 NumCopied = 0;
     for (u32 i = 0; i < Array.Num; i++)
     {
         const String* Str = &Array.List[i];
-        u64 Len = Str->Length;
+        u32 Len = Str->Length;
 
         if (Dest->Length + Len > MaxSize)
             return;
@@ -1127,23 +1127,23 @@ void CString_ToNarrow(const wchar* FromString, char* ToString)
     }
 }
 
-u64 CString_Copy(char* Dest, const char* Source)
+u32 CString_Copy(char* Dest, const char* Source)
 {
-    u64 Len = String_GetLength(Source)+1;
+    u32 Len = String_GetLength(Source)+1;
     MemCopy(Dest, Source, Len);
     return Len;
 }
 
-u64 CString_CopyN(char* Dest, const char* Source, u64 Length)
+u32 CString_CopyN(char* Dest, const char* Source, u32 Length)
 {
-    u64 SourceLen = String_GetLength(Source)+1;
+    u32 SourceLen = String_GetLength(Source)+1;
     MemCopy(Dest, Source, SourceLen < Length ? SourceLen : Length);
     return SourceLen;
 }
 
-u64 CString_ScanUntil(const char* Str, char Char)
+u32 CString_ScanUntil(const char* Str, char Char)
 {
-    u64 NewLength = 0;
+    u32 NewLength = 0;
     while (Str[NewLength] != 0)
     {
         if (Str[NewLength] == Char)
@@ -1228,12 +1228,12 @@ i32 CString_FormatV(char* Dest, const char* Format, u32 Capacity, void* VAList)
 }
 
 
-void CString_ToBytes(const char* Data, u64 Length, u8* OutBytes)
+void CString_ToBytes(const char* Data, u32 Length, u8* OutBytes)
 {
     MemCopy(OutBytes, Data, Length);
 }
 
-void CString_FromBytes(const u8* Data, u64 Length, char* OutCharacters)
+void CString_FromBytes(const u8* Data, u32 Length, char* OutCharacters)
 {
     MemCopy(OutCharacters, Data, Length);
 }

@@ -4,8 +4,8 @@
 
 STRUCT(LinearAllocator)
 {
-    u64 TotalSize;
-    u64 Allocated;
+    usize TotalSize;
+    usize Allocated;
     bool bOwnsMemory;
     bool bAlignMemory;
     
@@ -15,15 +15,15 @@ STRUCT(LinearAllocator)
 STRUCT(LinearAllocator_Scratch)
 {
     LinearAllocator* Allocator;
-    u64 StartPosition;
+    usize StartPosition;
 };
 
 #define SCRATCH(Allocator, Name) LinearAllocator_Scratch Name = {0}; DEFER(LinearAllocator_GetScratchInline(Allocator, &(Name)), LinearAllocator_ReleaseScratch(&(Name)))
 
-RIFT_API void LinearAllocator_Create(u64 TotalSize, void* Memory, LinearAllocator* OutAllocator);
+RIFT_API void LinearAllocator_Create(usize TotalSize, void* Memory, LinearAllocator* OutAllocator);
 RIFT_API void LinearAllocator_Destroy(LinearAllocator* Allocator);
 
-RIFT_API void* LinearAllocator_Allocate(LinearAllocator* Allocator, u64 Size);
+RIFT_API void* LinearAllocator_Allocate(LinearAllocator* Allocator, usize Size);
 RIFT_API void* LinearAllocator_AllocateAll(LinearAllocator* Allocator);
 RIFT_API void LinearAllocator_FreeAll(LinearAllocator* Allocator, bool bZeroMemory);
 

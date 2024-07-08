@@ -19,7 +19,7 @@ STRUCT(SystemTime)
 STRUCT(StackTraceData)
 {
     String Name;
-    u64 Address;
+    usize Address;
     u16 Index;
 };
 
@@ -31,7 +31,7 @@ STRUCT(PlatformMutex)
 
 bool Platform_Startup(void* State, const String ApplicationName, i32 X, i32 Y, u32 Width, u32 Height);
 void Platform_Shutdown(void);
-u64 Platform_GetMemoryRequirement(void);
+usize Platform_GetMemoryRequirement(void);
 
 bool Platform_PushMessages(void);
 
@@ -48,15 +48,15 @@ RIFT_API void Platform_Abort(u32 ExitCode);
 //RIFT_API wchar** Platform_GetCommandLineArgs(i32* NumArgs);
 RIFT_API StringArray Platform_GetCommandLineArgs(void);
 
-RIFT_API void* Platform_MemAlloc(u64 Size);
-RIFT_API void* Platform_MemAllocZero(u64 Size);
-RIFT_API void* Platform_MemReAlloc(const void* Block, u64 Size);
+RIFT_API void* Platform_MemAlloc(usize Size);
+RIFT_API void* Platform_MemAllocZero(usize Size);
+RIFT_API void* Platform_MemReAlloc(const void* Block, usize Size);
 RIFT_API void  Platform_MemFree(const void* Block);
-RIFT_API void* Platform_MemZero(void* Block, u64 Size);
-RIFT_API void* Platform_MemCopy(void* restrict Dest, const void* restrict Source, u64 Size);
-RIFT_API void* Platform_MemMove(void* restrict Dest, const void* restrict Source, u64 Size);
-RIFT_API void* Platform_MemSet(void* Dest, i32 Value, u64 Size);
-RIFT_API bool Platform_MemEqual(const void* Block1, const void* Block2, u64 Size);
+RIFT_API void* Platform_MemZero(void* Block, usize Size);
+RIFT_API void* Platform_MemCopy(void* restrict Dest, const void* restrict Source, usize Size);
+RIFT_API void* Platform_MemMove(void* restrict Dest, const void* restrict Source, usize Size);
+RIFT_API void* Platform_MemSet(void* Dest, i32 Value, usize Size);
+RIFT_API bool Platform_MemEqual(const void* Block1, const void* Block2, usize Size);
 
 RIFT_API void Platform_ConsoleWrite(const char* Message, u8 Color, bool bIsError);
 RIFT_API void Platform_ConsoleWrite_CustomLength(const char* Message, u64 Length, u8 Color, bool bIsError);
@@ -79,7 +79,7 @@ RIFT_API u32 Platform_WaitForMultipleHandles(PlatformHandle* Handles, u32 NumHan
 RIFT_API void Platform_CloseHandle(PlatformHandle Handle);
 RIFT_API bool Platform_IsValidHandle(const PlatformHandle Handle);
 
-RIFT_API u64 Platform_GetCriticalSectionMemoryRequirement(void);
+RIFT_API usize Platform_GetCriticalSectionMemoryRequirement(void);
 RIFT_API void Platform_InitializeCriticalSection(PlatformCriticalSection OutCriticalSection);
 RIFT_API void Platform_DeleteCriticalSection(PlatformCriticalSection CriticalSection);
 RIFT_API void Platform_EnterCriticalSection(PlatformCriticalSection CriticalSection);

@@ -16,7 +16,7 @@ STRUCT(EngineGlobals)
 	StringList NullStringList;
 };
 
-RIFT_API void InitializeGlobals(void* Memory, u64 Size);
+RIFT_API void InitializeGlobals(void* Memory, usize Size);
 
 void Globals_AssertNullString(void);
 void Globals_AssertNullStringArray(void);

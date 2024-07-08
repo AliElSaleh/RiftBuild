@@ -28,12 +28,14 @@
 
 PRAGMA_DISABLE_MISSING_PROTOTYPES_WARNING
 
-u64 __security_cookie = 0;
-u64 __security_cookie_complement = 0;
-void __fastcall __security_check_cookie(u64 cookie)
+uptr __security_cookie = 0;
+uptr __security_cookie_complement = 0;
+void __fastcall __security_check_cookie(usize cookie)
 {
     if (cookie != __security_cookie)
-        __debugbreak();
+    {
+        DEBUG_BREAK();
+    }
 }
 
 PRAGMA_ENABLE_WARNINGS
@@ -208,7 +210,7 @@ void Platform_Shutdown(void)
 {
 }
 
-u64 Platform_GetMemoryRequirement(void)
+usize Platform_GetMemoryRequirement(void)
 {
     return 4;
 }
@@ -251,19 +253,19 @@ void* Platform_GetWindowHandle(void)
     return NULL;
 }
 
-void* Platform_MemAlloc(u64 Size)
+void* Platform_MemAlloc(usize Size)
 {
     DWORD dwFlags = HEAP_CREATE_ALIGN_16;
     return HeapAlloc(GetProcessHeap(), dwFlags, Size);
 }
 
-void* Platform_MemAllocZero(u64 Size)
+void* Platform_MemAllocZero(usize Size)
 {
     DWORD dwFlags = HEAP_ZERO_MEMORY | HEAP_CREATE_ALIGN_16;
     return HeapAlloc(GetProcessHeap(), dwFlags, Size);
 }
 
-void* Platform_MemReAlloc(const void* Block, u64 Size)
+void* Platform_MemReAlloc(const void* Block, usize Size)
 {
     if (!Block)
         return Platform_MemAlloc(Size);
@@ -277,25 +279,25 @@ void Platform_MemFree(const void* Block)
     HeapFree(GetProcessHeap(), 0, (void*)Block);
 }
 
-void* Platform_MemZero(void* Block, u64 Size)
+void* Platform_MemZero(void* Block, usize Size)
 {
     RtlZeroMemory(Block, Size);
     return Block;
 }
 
-void* Platform_MemCopy(void* restrict Dest, const void* restrict Source, u64 Size)
+void* Platform_MemCopy(void* restrict Dest, const void* restrict Source, usize Size)
 {
     RtlCopyMemory(Dest, Source, Size);
     return Dest;
 }
 
-void* Platform_MemMove(void* restrict Dest, const void* restrict Source, u64 Size)
+void* Platform_MemMove(void* restrict Dest, const void* restrict Source, usize Size)
 {
     RtlMoveMemory(Dest, Source, Size);
     return Dest;
 }
 
-void* Platform_MemSet(void* Dest, i32 Value, u64 Size)
+void* Platform_MemSet(void* Dest, i32 Value, usize Size)
 {
     RtlFillMemory(Dest, Size, (BYTE)Value);
     return Dest;
@@ -587,18 +589,18 @@ bool Platform_CaptureStackTrace(LinearAllocator* Arena, TArray(StackTraceData)* 
     Symbol->MaxNameLen = 255;
     Symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
 
-    u64 ArrayMemoryAmount = _ArrayCalculateMemRequirement(NumFramesCaptured, sizeof(StackTraceData));
+    usize ArrayMemoryAmount = _ArrayCalculateMemRequirement(NumFramesCaptured, sizeof(StackTraceData));
     u8* ArrayMemory = LinearAllocator_Allocate(Arena, ArrayMemoryAmount);
 
     TArray(StackTraceData) StackTraceCache = Array_CreateStatic(StackTraceData, NumFramesCaptured, ArrayMemory);
 
     for (u16 i = 1; i < NumFramesCaptured; i++)
     {
-        SymFromAddr(ProcessHandle, (u64)(((u64*)StackAddresses)[i]), 0, Symbol);
+        SymFromAddr(ProcessHandle, (usize)(((usize*)StackAddresses)[i]), 0, Symbol);
 
         StackTraceData d;
         d.Name = String_Create(Arena, StrSlice(Symbol->Name, Symbol->NameLen));
-        d.Address = Symbol->Address;
+        d.Address = (usize)Symbol->Address;
         d.Index = (u16)(NumFramesCaptured - i - 1);
 
         Array_Add(StackTraceCache, d);
@@ -640,7 +642,7 @@ bool Platform_GetThreadName(void* ThreadHandle, String* OutName)
     wchar_t* str = &a[0];
 
     HANDLE* Handle = (HANDLE*)ThreadHandle;
-    if ((u64)Handle == 0xfffffffffffffffe)
+    if ((usize)Handle == USIZE_MAX)
     {
         StringN_Copy(GThreadNameBuffer, S(""));
 
@@ -790,12 +792,6 @@ bool Filesystem_Open(const String FilePath, u32 Mode, FileHandle* OutHandle)
     {
         OutHandle->Data = File;
         OutHandle->Data2 = NULL;
-
-        //LARGE_INTEGER FileSize;
-        //GetFileSizeEx(File, &FileSize);
-        //OutHandle->Size = (u64)FileSize.QuadPart;
-
-        //StringN_Copy(OutHandle->Path, FilePath);
     }
 
     return true;
@@ -825,7 +821,7 @@ bool Filesystem_DeleteFile(String FilePath)
     return Result != 0;
 }
 
-bool Filesystem_Open_MemoryMapped(const String FilePath, u32 Mode, FileHandle* OutHandle, u8** OutData, u64* OutSize)
+bool Filesystem_Open_MemoryMapped(const String FilePath, u32 Mode, FileHandle* OutHandle, u8** OutData, usize* OutSize)
 {
     if (OutSize)
         *OutSize = 0;
@@ -899,7 +895,7 @@ bool Filesystem_Open_MemoryMapped(const String FilePath, u32 Mode, FileHandle* O
         }
 
         if (OutSize)
-            *OutSize = (u64)FileSize.QuadPart;
+            *OutSize = (usize)FileSize.QuadPart;
 
         if (OutData)
             *OutData = MapViewOfFile(fm, OpenStyle, 0, 0, (SIZE_T)FileSize.QuadPart);
@@ -984,14 +980,6 @@ bool Filesystem_OpenDirectory_Ex(const String FilePath, FileHandle* OutHandle)
     if (OutHandle)
     {
         OutHandle->Data = File;
-
-        /*
-        LARGE_INTEGER FileSize;
-        GetFileSizeEx(File, &FileSize);
-        OutHandle->Size = (u64)FileSize.QuadPart;
-
-        StringN_Copy(OutHandle->Path, FilePath);
-        */
     }
 
     return true;
@@ -2061,7 +2049,7 @@ bool Platform_IsValidHandle(const PlatformHandle Handle)
     return Handle != NULL && Handle != INVALID_HANDLE_VALUE && Handle != nullptr;
 }
 
-u64 Platform_GetCriticalSectionMemoryRequirement(void)
+usize Platform_GetCriticalSectionMemoryRequirement(void)
 {
     return sizeof(CRITICAL_SECTION);
 }
@@ -2231,6 +2219,22 @@ FORCENOINLINE BOOL __cdecl _DllMainCRTStartup(HANDLE hDllHandle, DWORD dwReason,
     return true;
 }
 
+#if COMPILER_GCC
+void __stack_chk_fail(void)
+{
+}
+
+void __stack_chk_guard(void)
+{
+}
+
+void ___chkstk_ms(void)
+{
+}
+#endif
+
 PRAGMA_ENABLE_WARNINGS
+
+
 
 #endif // PLATFORM_WINDOWS

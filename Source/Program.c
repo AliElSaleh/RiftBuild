@@ -2,8 +2,8 @@
 
 #include "EntryPoint.h"
 
-u64 GEngineMemoryAmount  = Kibibytes(650);
-u64 GEngineScratchAmount = 0;
+usize GEngineMemoryAmount  = Kibibytes(650);
+usize GEngineScratchAmount = 0;
 
 #include "Platform/Filesystem.h"
 #include "String/StringUtils.h"
@@ -2470,14 +2470,25 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     bool bExplicitProgramPath = false;
     if (String_IndexOfFirstPathSlash(CompilerProgram, NULL))
     {
-        if (Filesystem_DoesFileExist(CompilerProgram))
+        StringLocal(CompilerPathCopy, MAX_PATH_LENGTH);
+        String_Copy(&CompilerPathCopy, CompilerProgram);
+
+        #if PLATFORM_WINDOWS
+        if (!String_EndsWith(CompilerProgram, S(".exe"), false))
+        {
+            String_Copy(&CompilerPathCopy, CompilerProgram);
+            String_Append(&CompilerPathCopy, S(".exe"));
+        }
+        #endif
+
+        if (Filesystem_DoesFileExist(CompilerPathCopy))
         {
             bExplicitProgramPath = true;
-            String_Copy(&CompilerPath, CompilerProgram);
+            String_Copy(&CompilerPath, CompilerPathCopy);
         }
         else
         {
-            LOG_ERROR("Compiler program \"%S\" does not exist", CompilerProgram);
+            LOG_ERROR("Compiler program \"%S\" does not exist", CompilerPathCopy);
             return 1;
         }
     }
@@ -3900,13 +3911,32 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
         LOG_LINE_BREAK();
     }
-    
+
+    // find the appropriate rc program
+    #if PLATFORM_WINDOWS
+    String RCProgram = S("windres");
+    String RCProgramFlags = S("");
+    if (String_IsEqual(CompilerProgram, S("cl"), false))
+    {
+        RCProgram = S("rc");
+        RCProgramFlags = S(" /nologo");
+    }
+    else if (String_IsEqual(CompilerProgram, S("clang"), false) ||
+            String_IsEqual(CompilerProgram, S("clang-cl"), false))
+    {
+        RCProgram = S("llvm-rc");
+    }
+
+    StringLocal(RCProgramPath, MAX_PATH_LENGTH);
+    bool bHasRcProgram = Platform_FindProgram_Ex(RCProgram, &RCProgramPath);
+    #endif
+
     if (bFoundBuildFile)
     {
         String Mode = GetCmdOptionValue(CmdOptionsDB, S("mode"));
 
         if (!String_IsValid(Mode))
-            LOG("Build Configuration: (default)");
+            LOG("Build Configuration:");
         else
             LOG("Build Configuration: (%S)", Mode);
 
@@ -3925,7 +3955,16 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
         if (Type.Length > 0) LOG("    Type:                %S", Type);
         LOG("    Version:             %S", Version);
-        LOG("    Compiler:            %S -> \"%S\"", CompilerProgram, CompilerPath);
+        
+        if (bExplicitProgramPath)
+            LOG("    Compiler:            %S", CompilerPath);
+        else
+            LOG("    Compiler:            %S -> \"%S\"", CompilerProgram, CompilerPath);
+
+        #if PLATFORM_WINDOWS
+        if (bHasRcProgram && (Icon.Length > 0 || CountData.NumRcSources > 0))
+            LOG("    Resource Compiler:   %S -> \"%S\"", RCProgram, RCProgramPath);
+        #endif
 
         bool bLogged = false;
         if (CompilerFlags.Length > 0)      { LogBuildVariable(*Arena, VariablesDB, S("CompilerFlags"),      S("    Compiler Flags:      "), !bNoWordWrapLogging); bLogged = true; }
@@ -4039,6 +4078,12 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     p.Arena                         = Arena;
     p.CompilerProgram               = bExplicitProgramPath ? CompilerPath : CompilerProgram;
     p.CompilerPath                  = CompilerPath;
+    #if PLATFORM_WINDOWS
+    p.RCProgram                     = RCProgram;
+    p.RCProgramPath                 = RCProgramPath;
+    p.RCProgramFlags                = RCProgramFlags;
+    p.bHasRCProgram                 = bHasRcProgram;
+    #endif
     p.Assembly                      = AssemblyName;
     p.AssemblyWithExt               = AssemblyNameWithExt;
     p.Extension                     = Extension;
@@ -4076,6 +4121,73 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     p.NumHeaders                    = CountData.NumHeaders;
     p.NumRcSources                  = CountData.NumRcSources;
 
+
+    // find the icon path (if specified)
+    if (Icon.Length > 0)
+    {
+        u32 LastSlashIndex = 0;
+        if (String_IndexOfLastPathSlash(Icon, &LastSlashIndex))
+        {
+            //IconName = StrShiftF(Icon, LastSlashIndex+1);
+        }
+
+        bool bHasExtension = false;
+        u32 LastDot = 0;
+        if (String_IndexOfLastChar(Icon, '.', &LastDot))
+        {
+            bool bHasPathSeparator = String_IndexOfFirstPathSlash(StrShiftF(Icon, LastDot), NULL);
+            if (!bHasPathSeparator)
+            {
+                bHasExtension = true;
+            }
+        }
+
+        if (bHasExtension && LastSlashIndex) // is this an exact file path? if so, no need to search
+        {
+            String_Copy(&IconFilePath, Icon);
+        }
+        else
+        {
+            struct Data
+            {
+                TArray(FileVariable) ExpandedVarsArray;
+                String* IconFilePath;
+                bool bSuccess;
+            };
+
+            struct Data d = {ExpandedVariablesDB, &IconFilePath, false};
+
+            String SearchPath = WorkingPath;
+            if (LastSlashIndex && !Filesystem_IsPathRelative(Icon))
+            {
+                SearchPath = StrSlice(Icon.Data, LastSlashIndex+1);
+            }
+
+            Filesystem_IterateDirectory_Ex(SearchPath, IconFileDirectoryIterator, true, &d);
+
+            if (!d.bSuccess)
+            {
+                LOG_WARNING("Failed to find icon file \"%S\" in \"%S\". Skipping icon build...\n", Icon, SearchPath);
+                String_Empty(&IconFilePath);
+            }
+        }
+
+        if (IconFilePath.Length > 0)
+        {
+            #if PLATFORM_WINDOWS
+            const String IconExt = S(".ico");
+            #else
+            const String IconExt = S(".png");
+            #endif
+
+            if (!String_EndsWith(IconFilePath, IconExt, false))
+            {
+                LOG_WARNING("Icon file \"%S\" is not a %S file. Skipping icon build...\n", IconFilePath, IconExt);
+                String_Empty(&IconFilePath);
+            }
+        }
+    }
+
     // log "Building (Assembly)" ui text
     if (Generator == Generator_None)
     {
@@ -4107,77 +4219,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             #endif
         }
 
-        // find the icon path (if specified)
-        if (Icon.Length > 0)
-        {
-            u32 LastSlashIndex = 0;
-            if (String_IndexOfLastPathSlash(Icon, &LastSlashIndex))
-            {
-                //IconName = StrShiftF(Icon, LastSlashIndex+1);
-            }
-
-            bool bHasExtension = false;
-            u32 LastDot = 0;
-            if (String_IndexOfLastChar(Icon, '.', &LastDot))
-            {
-                bool bHasPathSeparator = String_IndexOfFirstPathSlash(StrShiftF(Icon, LastDot), NULL);
-                if (!bHasPathSeparator)
-                {
-                    bHasExtension = true;
-                }
-            }
-
-            if (bHasExtension && LastSlashIndex) // is this an exact file path? if so, no need to search
-            {
-                String_Copy(&IconFilePath, Icon);
-            }
-            else
-            {
-                struct Data
-                {
-                    TArray(FileVariable) ExpandedVarsArray;
-                    String* IconFilePath;
-                    bool bSuccess;
-                };
-
-                struct Data d = {ExpandedVariablesDB, &IconFilePath, false};
-
-                String SearchPath = WorkingPath;
-                if (LastSlashIndex && !Filesystem_IsPathRelative(Icon))
-                {
-                    SearchPath = StrSlice(Icon.Data, LastSlashIndex+1);
-                }
-
-                Filesystem_IterateDirectory_Ex(SearchPath, IconFileDirectoryIterator, true, &d);
-
-                if (!d.bSuccess)
-                {
-                    LOG_WARNING("Failed to find icon file \"%S\" in \"%S\". Skipping icon build...\n", Icon, SearchPath);
-                    String_Empty(&IconFilePath);
-                }
-            }
-
-            if (IconFilePath.Length > 0)
-            {
-                #if PLATFORM_WINDOWS
-                const String IconExt = S(".ico");
-                #else
-                const String IconExt = S(".png");
-                #endif
-
-                if (!String_EndsWith(IconFilePath, IconExt, false))
-                {
-                    LOG_WARNING("Icon file \"%S\" is not a %S file. Skipping icon build...\n", IconFilePath, IconExt);
-                    String_Empty(&IconFilePath);
-                }
-            }
-        }
-
         // compile executable icon just before we link (if specified)
         #if PLATFORM_WINDOWS
-        String RCProgram = S("llvm-rc");
-        bool bHasRcProgram = Platform_FindProgram(RCProgram);
-
         if (IconFilePath.Length > 0)
         {
             if (bHasRcProgram)
@@ -4187,69 +4230,38 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 u32 LastSlashIndex = 0;
                 String_IndexOfLastPathSlash(IconFilePath, &LastSlashIndex);
 
-                StringLocal(RcFilePath, MAX_PATH_LENGTH);
                 String BasePath = StrSlice(IconFilePath.Data, LastSlashIndex);
-                String RcFile = S("icon.rc");
-                String ResFile = S("icon.res");
-                
+
+                StringLocal(RcFilePath, MAX_PATH_LENGTH);
                 if (Filesystem_IsPathRelative(IconFilePath))
                 {
-                    String_BuildPath(&RcFilePath, WorkingPath, BasePath, RcFile);
+                    String_BuildPath(&RcFilePath, WorkingPath, BasePath, S("icon.rc"));
                 }
                 else
                 {
-                    String_BuildPath(&RcFilePath, BasePath, RcFile);
+                    String_BuildPath(&RcFilePath, BasePath, S("icon.rc"));
                 }
 
-                FileHandle f = {0};
-                if (!Filesystem_Open(RcFilePath, FileMode_Write, &f))
+                if (ExportIconRC(&p, RcFilePath, IconFilePath))
                 {
-                    return 1;
+                    if (!RC_Compile(&p, RcFilePath, &IconResFilePath))
+                    {
+                        LOG_WARNING("Failed to build icon \"%S\" for %S%S. Skipping icon build...", IconFilePath, AssemblyName, Extension);
+                        String_Empty(&IconResFilePath);
+                    }
                 }
-
-                StringLocal(IconString, 256);
-                String_Format(&IconString, S("id ICON \"%S\""), 256, StrShiftF(IconFilePath, LastSlashIndex == 0 ? 0 : LastSlashIndex+1));
-                if (!Filesystem_Write(f, IconString.Length, IconString.Data, NULL))
-                {
-                    LOG_ERROR("Failed to write icon data to \"%S\"", RcFilePath);
-                    Filesystem_Close(&f);
-                    return 1;
-                }
-
-                Filesystem_Close(&f);
-
-                StringLocal(ResPath, MAX_PATH_LENGTH);
-                String_BuildPath(&ResPath, BasePath, ResFile);
-                String_Append(&IconResFilePath, S("\""));
-                String_Append(&IconResFilePath, ResPath);
-                String_Append(&IconResFilePath, S("\""));
-
-                StringLocal(CmdLine, 1024);
-                String_Append(&CmdLine, RCProgram);
-                String_Append(&CmdLine, S(" \""));
-                String_Append(&CmdLine, RcFilePath);
-                String_AppendChar(&CmdLine, '"');
-
-                LOG("Compiling icon \"%S\"", IconFilePath);
-
-                if (bVerboseLog) LOG("    %S\n", CmdLine);
-
-                PlatformHandle h = Platform_RunCommand(CmdLine, WorkingPath);
-                u32 ExitCode = Platform_WaitForProcessAndGetExitCode(h);
-                if (ExitCode != 0)
+                else
                 {
                     LOG_WARNING("Failed to build icon \"%S\" for %S%S. Skipping icon build...", IconFilePath, AssemblyName, Extension);
-                    String_Empty(&IconResFilePath);
                 }
 
                 Clock_Tick(&IconClock);
             }
             else
             {
-                LOG_WARNING(
-                    "Unable to build icon. \"llvm-rc\" tool does not exist."
-                    " Download the LLVM toolchain and add a new environment path that points to \"llvm-rc\"."
-                    " Skipping icon build...");
+                LOG_WARNING("Unable to build icon. \"%S\" tool does not exist."
+                " Download \"%S\" and add a new environment path that points to it."
+                " Skipping icon build...", RCProgram, RCProgram);
             }
         }
 
@@ -4266,54 +4278,33 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 // TODO: when building both a static/shared lib, we do not generate the correct FILETYPE. fix it boy
 
                 StringLocal(VersionRCPath, MAX_PATH_LENGTH);
-                const String VersionRCName = S("_version.rc");
-                const String VersionResName = S("_version.res");
                 String_Append(&VersionRCPath, IntermediateBaseDirectory);
                 String_Append(&VersionRCPath, BuildFileName);
-                String_Append(&VersionRCPath, VersionRCName);
-
-                String_Append(&VersionResFilePath, S("\""));
-                String_Append(&VersionResFilePath, IntermediateBaseDirectory);
-                String_Append(&VersionResFilePath, BuildFileName);
-                String_Append(&VersionResFilePath, VersionResName);
-                String_Append(&VersionResFilePath, S("\""));
+                String_Append(&VersionRCPath, S("_version.rc"));
 
                 // todo: allow custom version rc file?
 
                 // generate version rc file
-                if (!ExportVersionRC(&p, VersionRCPath))
+                if (ExportVersionRC(&p, VersionRCPath))
                 {
-                    return 1;
+                    if (!RC_Compile(&p, VersionRCPath, &VersionResFilePath))
+                    {
+                        LOG_WARNING("Failed to build resource file \"%S\" for %S%S. Skipping...\n", VersionRCPath, AssemblyName, Extension);
+                        String_Empty(&VersionResFilePath);
+                    }
                 }
-
-                StringLocal(CmdLine, 1024);
-                String_Append(&CmdLine, RCProgram);
-                String_Append(&CmdLine, S(" \""));
-                String_Append(&CmdLine, VersionRCPath);
-                String_AppendChar(&CmdLine, '"');
-
-                LOG("Compiling resource \"%S\"", VersionRCPath);
-
-                if (bVerboseLog) LOG("    %S\n", CmdLine);
-
-                LOG_LINE_BREAK();
-
-                PlatformHandle h = Platform_RunCommand(CmdLine, WorkingPath);
-                u32 ExitCode = Platform_WaitForProcessAndGetExitCode(h);
-                if (ExitCode != 0)
+                else
                 {
                     LOG_WARNING("Failed to build resource file \"%S\" for %S%S. Skipping...\n", VersionRCPath, AssemblyName, Extension);
-                    String_Empty(&VersionResFilePath);
                 }
 
                 Clock_Tick(&ResourceCompileClock);
             }
             else
             {
-                LOG_WARNING(
-                    "Unable to build version resource. \"llvm-rc\" tool does not exist."
-                    " Download the LLVM toolchain and add a new environment path that points to \"llvm-rc\"."
-                    " Skipping resource build...");
+                LOG_WARNING("Unable to build version resource file. \"%S\" tool does not exist."
+                " Download \"%S\" and add a new environment path that points to it."
+                " Skipping resource build...", RCProgram, RCProgram);
             }
         }
         #endif
@@ -4321,6 +4312,11 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
     p.IconResFilePath    = IconResFilePath;
     p.VersionResFilePath = VersionResFilePath;
+
+    if (IconResFilePath.Length > 0 || VersionResFilePath.Length > 0)
+    {
+        LOG_LINE_BREAK();
+    }
 
     if (Generator == Generator_CompileCommandsJSON)
     {
@@ -4444,7 +4440,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
         return 0;
     }
-    else if (Generator == Generator_RC)
+    else if (Generator == Generator_VersionRC ||
+            Generator == Generator_IconRC)
     {
         if (bQuietBuild) Logging_Enable();
 
@@ -4458,13 +4455,22 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             return 1;
         }
 
-        StringLocal(RCPath, MAX_PATH_LENGTH);
-        String_BuildPath(&RCPath, ExportPath, S("resource.rc"));
-
         Clock c;
         Clock_Start(&c);
 
-        if (!ExportVersionRC(&p, RCPath))
+        StringLocal(RCPath, MAX_PATH_LENGTH);
+
+        if (Generator == Generator_VersionRC)
+        {
+            String_BuildPath(&RCPath, ExportPath, S("version.rc"));
+        }
+        else
+        {
+            String_BuildPath(&RCPath, ExportPath, S("icon.rc"));
+        }
+
+        if ((Generator == Generator_VersionRC && !ExportVersionRC(&p, RCPath)) ||
+            (Generator == Generator_IconRC && !ExportIconRC(&p, RCPath, IconFilePath)))
         {
             LOG_ERROR("Failed to export \"%S\". Aborting build...", RCPath);
             return 1;
@@ -5676,7 +5682,10 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
                                          StringArray_Contains(Arguments, S("export:cc"), false);
     const bool bGenPlist               = StringArray_Contains(Arguments, S("export:plist"), false);
     const bool bGenPkgInfo             = StringArray_Contains(Arguments, S("export:pkginfo"), false);
-    const bool bGenVersionRc           = StringArray_Contains(Arguments, S("export:rc"), false);
+    const bool bGenVersionRc           = StringArray_Contains(Arguments, S("export:versionrc"), false) ||
+                                         StringArray_Contains(Arguments, S("export:version.rc"), false);
+    const bool bGenIconRc              = StringArray_Contains(Arguments, S("export:iconrc"), false) ||
+                                         StringArray_Contains(Arguments, S("export:icon.rc"), false);
     //const bool bGenVisualStudio        = StringArray_Contains(Arguments, S("export:visual_studio"), false);
     //const bool bGenXCode               = StringArray_Contains(Arguments, S("export:xcode"), false);
 
@@ -5686,7 +5695,8 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
     if (bGenCompileCommandsJSON) Generator = Generator_CompileCommandsJSON;
     if (bGenPlist)               Generator = Generator_Plist;
     if (bGenPkgInfo)             Generator = Generator_PkgInfo;
-    if (bGenVersionRc)           Generator = Generator_RC;
+    if (bGenVersionRc)           Generator = Generator_VersionRC;
+    if (bGenIconRc)              Generator = Generator_IconRC;
 
     //if (bGenVisualStudio)        Generator = Generator_VisualStudioSolution;
     //if (bGenXCode)               Generator = Generator_XCodeProject;
@@ -5719,7 +5729,7 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
 
         if (Data.bFoundBuildFile)
         {
-            u64 Allocated = Arena->Allocated;
+            usize Allocated = Arena->Allocated;
 
             FileHandle f = FileHandle_Null();
             if (Filesystem_Open(BuildFilePath, FileMode_Read, &f))
@@ -6112,7 +6122,7 @@ u32 RunApplication(const StringArray Arguments)
     LinearAllocator ProgramArena = {0};
     LinearAllocator_Create(Kilobytes(512), NULL, &ProgramArena);
 
-    const u64 MemAmount_InternalOptions = _ArrayCalculateMemRequirement(32, sizeof(InternalVariable)); // 1024 bytes
+    const usize MemAmount_InternalOptions = _ArrayCalculateMemRequirement(32, sizeof(InternalVariable)); // 1024 bytes
     InternalVariablesDB  = Array_CreateStatic(InternalVariable, 32, LinearAllocator_Allocate(&ProgramArena, MemAmount_InternalOptions));
 
     // store internal options. like platform, native os .lib's, etc..

@@ -363,6 +363,30 @@ bool ExportPkgInfo(const BuildParams* Params, const String Path)
     return true;
 }
 
+bool ExportIconRC(const BuildParams* Params, const String Path, const String IconFilePath)
+{
+    if (NEVER(Params == NULL)) return false;
+
+    FileHandle f = {0};
+    if (!Filesystem_Open(Path, FileMode_Write, &f))
+    {
+        return false;
+    }
+
+    u32 LastSlashIndex = 0;
+    String_IndexOfLastPathSlash(IconFilePath, &LastSlashIndex);
+
+    if (!Filesystem_WriteLineFormatted(f, S("id ICON \"%S\""), NULL, StrShiftF(IconFilePath, LastSlashIndex == 0 ? 0 : LastSlashIndex+1)))
+    {
+        Filesystem_Close(&f);
+        return false;
+    }
+
+    Filesystem_Close(&f);
+
+    return true;
+}
+
 bool ExportVersionRC(const BuildParams* Params, const String Path)
 {
     if (NEVER(Params == NULL)) return false;
@@ -528,6 +552,13 @@ bool ExportVersionRC(const BuildParams* Params, const String Path)
                                 "FILEVERSION      %S  // this can only have 4 parts\n"
                                 "PRODUCTVERSION   %S  // same here\n\n"
 
+                                /*
+                                "#ifdef _DEBUG\n"
+                                "FILEFLAGS        %X  // %S\n"
+                                "#else\n"
+                                "FILEFLAGS        %X  // %S\n"
+                                "#endif\n"
+                                */
                                 "FILEFLAGS        %X  // %S\n"
                                 "FILEOS           %X  // %S\n"
                                 "FILETYPE         %X  // %S\n"

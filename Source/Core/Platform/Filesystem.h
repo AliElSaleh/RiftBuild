@@ -41,7 +41,7 @@ typedef bool (*DirectoryIterator)(const String FullPath, const String RelativePa
 RIFT_API bool Filesystem_Open(const String FilePath, u32 Mode, FileHandle* OutHandle);
 RIFT_API bool Filesystem_NewFile(const String FilePath);
 RIFT_API bool Filesystem_DeleteFile(String FilePath);
-RIFT_API bool Filesystem_Open_MemoryMapped(const String FilePath, u32 Mode, FileHandle* OutHandle, u8** OutData, u64* OutSize);
+RIFT_API bool Filesystem_Open_MemoryMapped(const String FilePath, u32 Mode, FileHandle* OutHandle, u8** OutData, usize* OutSize);
 RIFT_API bool Filesystem_OpenDirectory(const String FilePath);
 RIFT_API bool Filesystem_OpenDirectory_Ex(const String FilePath, FileHandle* OutHandle);
 RIFT_API bool Filesystem_Close(FileHandle* Handle);

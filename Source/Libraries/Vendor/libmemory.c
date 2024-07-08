@@ -2,15 +2,23 @@
 // Execute this source with a shell to build libmemory.a.
 // This is free and unencumbered software released into the public domain.
 
-#if __clang__
+#if !COMPILER_MSVC
 
 #if PLATFORM_WINDOWS
 typedef u64  size_t;
 typedef u64* uintptr_t;
 
-#pragma clang diagnostic push
+PRAGMA_DISABLE_WARNINGS
+
+#if COMPILER_CLANG
 #pragma clang diagnostic ignored "-Wincompatible-library-redeclaration"
 #pragma clang diagnostic ignored "-Wsign-conversion"
+#pragma clang diagnostic ignored "-Wmissing-prototypes"
+#elif COMPILER_GCC
+#pragma GCC diagnostic ignored "-Wbuiltin-declaration-mismatch"
+#pragma GCC diagnostic ignored "-Wsign-conversion"
+#pragma GCC diagnostic ignored "-Wmissing-prototypes"
+#endif
 
 RIFT_API void* memset(void *dst, int c, size_t len)
 {
@@ -60,6 +68,23 @@ RIFT_API void* memmove(void* dst, void* src, size_t len)
 
 RIFT_API int memcmp(void* s1, void* s2, size_t len)
 {
+    #if PLATFORM_32_BIT
+    const unsigned char* p1 = (const unsigned char*)s1;
+    const unsigned char* p2 = (const unsigned char*)s2;
+
+    for (size_t i = 0; i < len; i++)
+    {
+        if (p1[i] < p2[i])
+        {
+            return -1;
+        }
+        else if (p1[i] > p2[i]) 
+        {
+            return 1;
+        }
+    }
+    return 0;
+    #else
     // CCa "after"  == CF=0 && ZF=0
     // CCb "before" == CF=1
     int a, b;
@@ -71,9 +96,10 @@ RIFT_API int memcmp(void* s1, void* s2, size_t len)
         : "ax", "memory"
     );
     return b - a;
+    #endif
 }
 
-#pragma clang diagnostic pop
+PRAGMA_ENABLE_WARNINGS
 
 #endif
 #endif

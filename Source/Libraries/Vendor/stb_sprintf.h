@@ -223,7 +223,6 @@ PRAGMA_DISABLE_WARNINGS
 
 #if COMPILER_CLANG
    #pragma clang diagnostic ignored "-Wcast-qual"
-   #pragma clang diagnostic ignored "-Wextra-semi-stmt"
    #pragma clang diagnostic ignored "-Wconditional-uninitialized"
    #pragma clang diagnostic ignored "-Wimplicit-fallthrough"
    #pragma clang diagnostic ignored "-Wsign-conversion"

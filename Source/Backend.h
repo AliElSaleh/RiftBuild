@@ -57,7 +57,8 @@ ENUM(EGenerator)
     Generator_XCodeProject,
     Generator_Plist,
     Generator_PkgInfo,
-    Generator_RC,
+    Generator_IconRC,
+    Generator_VersionRC,
     Generator_Sh,
     Generator_Bat,
     Generator_Unity,
@@ -87,6 +88,9 @@ STRUCT(BuildParams)
     String Extension_Og;
     String CompilerProgram;
     String CompilerPath;
+    String RCProgram;
+    String RCProgramPath;
+    String RCProgramFlags;
     String CompilerFlags;
     String LinkerFlags;
     String IncludeFlags;
@@ -124,6 +128,7 @@ STRUCT(BuildParams)
     u8 MaxCompilersAtOnce;
     u8 MaxErrors;
 
+    bool bHasRCProgram;
     bool bShouldWaitPerCompileProcess;
     bool bIsAssemblyExe;
     bool bVerbose;
@@ -153,6 +158,10 @@ bool MSVC_Compile(const BuildParams* Params, u32* OutNumCompiled);
 bool MSVC_Link(const BuildParams* Params);
 bool C_Compile(const BuildParams* Params, u32* OutNumCompiled);
 bool C_Link(const BuildParams* Params);
+
+#if PLATFORM_WINDOWS
+bool RC_Compile(const BuildParams* Params, const String FullRCPath, String* OutRestPath);
+#endif
 
 bool IsSource(const String Extension);
 bool IsHeader(const String Extension);
@@ -217,5 +226,6 @@ bool ExportInfoPlist(LinearAllocator Arena, const BuildParams* Params, const Str
 bool ExportVersionPlist(LinearAllocator Arena, const BuildParams* Params, const String Path, TArray(FileVariable) ExpandedVariablesDB, bool bRawMode);
 bool ExportPkgInfo(const BuildParams* Params, const String Path);
 bool ExportVersionRC(const BuildParams* Params, const String Path);
+bool ExportIconRC(const BuildParams* Params, const String Path, const String IconFilePath);
 
 bool SourceFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData);

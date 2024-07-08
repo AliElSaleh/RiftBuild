@@ -30,11 +30,11 @@ MemZero((s).Data, (s).Length);\
 // C String Helpers
 // ----------------------------------
 
-RIFT_API u64 CString_Copy(char* Dest, const char* Source);
-RIFT_API u64 CString_CopyN(char* Dest, const char* Source, u64 Length);
+RIFT_API u32 CString_Copy(char* Dest, const char* Source);
+RIFT_API u32 CString_CopyN(char* Dest, const char* Source, u32 Length);
 
-RIFT_API void CString_ToBytes(const char* Data, u64 Length, u8* OutBytes);
-RIFT_API void CString_FromBytes(const u8* Data, u64 Length, char* OutCharacters);
+RIFT_API void CString_ToBytes(const char* Data, u32 Length, u8* OutBytes);
+RIFT_API void CString_FromBytes(const u8* Data, u32 Length, char* OutCharacters);
 
 RIFT_API bool CString_IsEqual(const char* StringA, const char* StringB, bool bCaseSensitive);
 
@@ -52,7 +52,7 @@ RIFT_API void CString_ToUpper(char* String);
 RIFT_API void CString_ToWide(const char* FromString, wchar* ToString);
 RIFT_API void CString_ToNarrow(const wchar* FromString, char* ToString);
 
-RIFT_API u64 CString_ScanUntil(const char* Str, char Char);
+RIFT_API u32 CString_ScanUntil(const char* Str, char Char);
 
 RIFT_API void CString_SubString(char* Dest, const char* Source, u32 Start, u32 Length);
 

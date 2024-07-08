@@ -59,7 +59,6 @@ bool SourceFileDirectoryIterator(const String FullPath, const String RelativePat
             {
                 // compile this file
                 if (!Data->Callback(Data, FullPath, RelativePath))
-                //if (!C_DoCompile(Data, FullPath, RelativePath))
                 {
                     Data->bSuccess = false;
                     return false;
@@ -100,39 +99,73 @@ internal bool ResourceFileDirectoryIterator(const String FullPath, const String 
             if (String_EndsWith(RelativePath, S("icon.rc"), false))
                 return true;
 
-            if (FilterSourceFile(Data->Params->RootDirectory, Data->Params->SourceDirectory, FullPath, RelativePath, Data->Params->WhitelistFiles, Data->Params->BlacklistFiles, Data->Params->WhitelistDirectories, Data->Params->BlacklistDirectories))
+            if (FilterSourceFile(Data->Params->RootDirectory, Data->Params->SourceDirectory,
+                                FullPath, RelativePath,
+                                Data->Params->WhitelistFiles, Data->Params->BlacklistFiles,
+                                Data->Params->WhitelistDirectories, Data->Params->BlacklistDirectories))
             {
-                StringLocal(CmdLine, 1024);
-                String_Append(&CmdLine, S("llvm-rc"));
-                String_Append(&CmdLine, S(" \""));
-                String_Append(&CmdLine, FullPath);
-                String_AppendChar(&CmdLine, '"');
-
-                LOG("Compiling resource \"%S\"", RelativePath);
-                
-                if (Data->Params->bVerbose)
-                    LOG("    %S", CmdLine);
-
-                /*
-                if (Data->NumRcSources > 1 && Data->Index < Data->NumRcSources-1)
-                {
-                    LOG_LINE_BREAK();
-                }
-                */
-
-                PlatformHandle h = Platform_RunCommand(CmdLine, Data->Params->RootDirectory);
-                u32 ExitCode = Platform_WaitForProcessAndGetExitCode(h);
-                if (ExitCode != 0)
+                bool bSuccess = RC_Compile(Data->Params, FullPath, NULL);
+                if (!bSuccess)
                 {
                     Data->bSuccess = false;
                     LOG("Failed to build resource file \"%S\" for %S. Aborting build...", RelativePath, Data->Params->AssemblyWithExt);
                     return false;
                 }
             }
-
         }
 
         Data->Index++;
+    }
+
+    return true;
+}
+
+bool RC_Compile(const BuildParams* Params, const String FullRCPath, String* OutResPath)
+{
+    StringLocal(CmdLine, 1024);
+    String_Append(&CmdLine, Params->RCProgram);
+    String_Append(&CmdLine, Params->RCProgramFlags);
+
+    const bool bWindres = String_IsEqual(Params->RCProgram, S("windres"), false);
+
+    u32 LastDot = 0;
+    String_IndexOfLastChar(FullRCPath, '.', &LastDot);
+
+    StringLocal(ResPath, MAX_PATH_LENGTH);
+    String_Append(&ResPath, S("\""));
+    String_Append(&ResPath, StrSlice(FullRCPath.Data, LastDot));
+    String_Append(&ResPath, S(".res"));
+    String_Append(&ResPath, S("\""));
+
+    if (OutResPath)
+    {
+        String_Copy(OutResPath, ResPath);
+    }
+
+    if (bWindres)
+    {
+        String_Append(&CmdLine, S(" -O coff"));
+        String_Append(&CmdLine, S(" -o "));
+        String_Append(&CmdLine, ResPath);
+
+        String_Append(&CmdLine, S(" -i"));
+    }
+
+    // todo: resource defines
+
+    String_Append(&CmdLine, S(" \""));
+    String_Append(&CmdLine, FullRCPath);
+    String_AppendChar(&CmdLine, '"');
+
+    LOG("Compiling resource %S", FullRCPath);
+    
+    if (Params->bVerbose) LOG("    %S", CmdLine);
+
+    PlatformHandle h = Platform_RunCommand(CmdLine, Params->RootDirectory);
+    u32 ExitCode = Platform_WaitForProcessAndGetExitCode(h);
+    if (ExitCode != 0)
+    {
+        return false;
     }
 
     return true;
@@ -259,7 +292,7 @@ bool C_Compile(const BuildParams* Params, u32* NumCompiled)
 
     // compile resource files
     #if PLATFORM_WINDOWS
-    if (Platform_FindProgram(S("llvm-rc")))
+    if (Params->bHasRCProgram)
     {
         CompileData RcUserData = { NULL, Params, NumCompiled, 0, true, NULL };
         Filesystem_IterateDirectory_Ex(SourceDir, ResourceFileDirectoryIterator, true, &RcUserData);
@@ -322,6 +355,8 @@ bool C_DoCompile(CompileData* Data, const String FullPath, const String Relative
     String_AppendChar(&FullSourcePath, '"');
 
     StringLocal(ErrorLimit, 32);
+    // todo: i could dynamically test whether this is supported by the compiler??
+    /*
     if (Params->MaxErrors > 0)
     {
         if (String_IsEqual(Params->CompilerProgram, S("gcc"), false) ||
@@ -338,6 +373,7 @@ bool C_DoCompile(CompileData* Data, const String FullPath, const String Relative
             String_Format(&ErrorLimit, S("-ferror-limit=%i"), 32, Params->MaxErrors);
         }
     }
+    */
 
     String AdditionalPlatformFlags = String_Null();
 
@@ -798,69 +834,6 @@ internal bool AsmSourceFileDirectoryIterator(const String FullPath, const String
     return true;
 }
 
-internal bool ResourceFileDirectoryIterator_MSVC(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
-{
-    if (FileSize > 0)
-    {
-        if (String_StartsWith(FileName, S("__"), false))
-        {
-            return true;
-        }
-
-        CompileData* Data = (CompileData*)UserData;
-
-        // ignore the intermediate and build directories
-        if (String_IndexOfFirstPathSlash(RelativePath, NULL))
-        {
-            if (String_StartsWith(RelativePath, Data->Params->IntermediateDirectory, false) ||
-                String_StartsWith(RelativePath, Data->Params->BuildDirectory, false))
-            {
-                return true;
-            }
-        }
-
-        if (String_EndsWith(FileName, S(".rc"), false))
-        {
-            if (String_EndsWith(RelativePath, S("icon.rc"), false))
-                return true;
-
-            if (FilterSourceFile(Data->Params->RootDirectory, Data->Params->SourceDirectory, FullPath, RelativePath, Data->Params->WhitelistFiles, Data->Params->BlacklistFiles, Data->Params->WhitelistDirectories, Data->Params->BlacklistDirectories))
-            {
-                StringLocal(CmdLine, 1024);
-                String_Append(&CmdLine, S("llvm-rc"));
-                String_Append(&CmdLine, S(" \""));
-                String_Append(&CmdLine, FullPath);
-                String_AppendChar(&CmdLine, '"');
-
-                LOG("Compiling resource \"%S\"", RelativePath);
-                
-                if (Data->Params->bVerbose)
-                    LOG("    %S", CmdLine);
-
-                /*
-                if (Data->NumRcSources > 1 && Data->Index < Data->NumRcSources-1)
-                {
-                    LOG_LINE_BREAK();
-                }
-                */
-
-                PlatformHandle h = Platform_RunCommand(CmdLine, Data->Params->RootDirectory);
-                u32 ExitCode = Platform_WaitForProcessAndGetExitCode(h);
-                if (ExitCode != 0)
-                {
-                    Data->bSuccess = false;
-                    LOG("Failed to build resource file \"%S\" for %S. Aborting build...", RelativePath, Data->Params->AssemblyWithExt);
-                    return false;
-                }
-            }
-        }
-
-        Data->Index++;
-    }
-
-    return true;
-}
-
 internal bool Link_SourceFileDirectoryIterator_MSVC(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
     if (FileSize > 0)
@@ -996,10 +969,10 @@ bool MSVC_Compile(const BuildParams* Params, u32* NumCompiled)
     }
 
     // compile resource files
-    if (Platform_FindProgram(S("llvm-rc"))) // TODO: use rc.exe instead
+    if (Params->bHasRCProgram)
     {
         CompileData RcUserData = { NULL, Params, NumCompiled, 0, true, NULL };
-        Filesystem_IterateDirectory_Ex(SourceDir, ResourceFileDirectoryIterator_MSVC, true, &RcUserData);
+        Filesystem_IterateDirectory_Ex(SourceDir, ResourceFileDirectoryIterator, true, &RcUserData);
         if (!RcUserData.bSuccess)
         {
             return false;

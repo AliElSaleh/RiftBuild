@@ -16,7 +16,6 @@ typedef signed long long     i64;
 typedef float                f32;
 typedef double               f64;
 
-typedef u64*                 rawptr;
 typedef u16                  wchar;
 
 typedef void VoidFunc(void);
@@ -94,13 +93,13 @@ typedef void VoidFunc(void);
 #define OFF(x) ((x)%BITS_PER_LONG)
 #define BIT(x) (1UL<<OFF(x))
 
-#define Kilobytes(x) ((x)*(u64)1000)
-#define Megabytes(x) (Kilobytes(x)*(u64)1000)
-#define Gigabytes(x) (Megabytes(x)*(u64)1000)
+#define Kilobytes(x) ((x)*(usize)1000)
+#define Megabytes(x) (Kilobytes(x)*(usize)1000)
+#define Gigabytes(x) (Megabytes(x)*(usize)1000)
 
-#define Kibibytes(x) ((x)*(u64)1024)
-#define Mebibytes(x) (Kibibytes(x)*(u64)1024)
-#define Gibibytes(x) (Mebibytes(x)*(u64)1024)
+#define Kibibytes(x) ((x)*(usize)1024)
+#define Mebibytes(x) (Kibibytes(x)*(usize)1024)
+#define Gibibytes(x) (Mebibytes(x)*(usize)1024)
 
 #define SArray_Capacity(Array) sizeof((Array)) / sizeof((Array)[0])
 
@@ -157,10 +156,6 @@ typedef void VoidFunc(void);
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(_WIN64)
     #define PLATFORM_WINDOWS 1
     #define PLATFORM_STRING "Windows"
-
-    #ifndef _WIN64
-    #error "Rift Engine only supports 64-bit platforms"
-    #endif
 #elif defined(__ANDROID__)
     #define PLATFORM_ANDROID 1
     #define PLATFORM_STRING "Android"
@@ -368,11 +363,7 @@ typedef void VoidFunc(void);
     #define FORCENOINLINE
     #define read_only 
 
-    #if PLATFORM_WINDOWS && COMPILER_CLANG
-        #define DEBUG_BREAK __debugbreak
-    #else
-        #define DEBUG_BREAK __builtin_trap
-    #endif
+    #define DEBUG_BREAK __builtin_trap
 
 #elif COMPILER_MSVC
     #define PRAGMA_DISABLE_WARNINGS   __pragma(warning(push))
@@ -485,4 +476,21 @@ STATIC_ASSERT(sizeof(i32)   == 4, "Expected size of i32 to be 4 bytes.");
 STATIC_ASSERT(sizeof(i64)   == 8, "Expected size of i64 to be 8 bytes.");
 STATIC_ASSERT(sizeof(f32)   == 4, "Expected size of f32 to be 4 bytes.");
 STATIC_ASSERT(sizeof(f64)   == 8, "Expected size of f64 to be 8 bytes.");
+
+#if PLATFORM_64_BIT
 STATIC_ASSERT(sizeof(void*) == 8, "Expected size of a pointer to be 8 bytes.");
+#else
+STATIC_ASSERT(sizeof(void*) == 4, "Expected size of a pointer to be 4 bytes.");
+#endif
+
+#if PLATFORM_64_BIT
+typedef u64 uptr;
+typedef u64 usize;
+
+#define USIZE_MAX UINT64_MAX
+#else
+typedef u32 uptr;
+typedef u32 usize;
+
+#define USIZE_MAX UINT32_MAX
+#endif

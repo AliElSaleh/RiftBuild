@@ -8,10 +8,10 @@
 
 /*
  * Memory layout of the array structure
- * u64 Capacity;
- * u64 Num;
- * u64 Stride;
- * u64 OwnsMemory;
+ * usize Capacity;
+ * usize Num;
+ * usize Stride;
+ * usize OwnsMemory;
  * void* Data;
  */
 
@@ -62,11 +62,11 @@ for (u32 i = 0; i < NumElements; ++i)
 //#define Array_Remove(Array, Value) _ArrayRemove(Array, Value)
 #define Array_Remove(Array, Value)\
 do {\
-    u64 _Num_ = Array_Num(Array);\
+    usize _Num_ = Array_Num(Array);\
 \
     if (_Num_ > 0)\
     {\
-        for (u64 _i_ = 0; _i_ < _Num_; _i_++)\
+        for (usize _i_ = 0; _i_ < _Num_; _i_++)\
         {\
             if (Array[_i_] == Value)\
             {\
@@ -103,25 +103,25 @@ do {\
     }\
 } while (0)
 
-RIFT_API void*    _ArrayCreate(u64 Num, u64 Stride);
-RIFT_API u64      _ArrayCalculateMemRequirement(u64 Num, u64 Stride);
-RIFT_API void*    _ArrayCreateStatic(void* Memory, u64 Num, u64 Stride);
+RIFT_API void*    _ArrayCreate(usize Num, usize Stride);
+RIFT_API usize      _ArrayCalculateMemRequirement(usize Num, usize Stride);
+RIFT_API void*    _ArrayCreateStatic(void* Memory, usize Num, usize Stride);
 RIFT_API void     _ArrayDestroy(void* Array);
 
 //RIFT_API void*    _ArrayResize(void* Array);
 
 RIFT_API void*    _ArrayAdd(void* Array, const void* ValuePtr);
-RIFT_API void*    _ArrayInsertAt(void* Array, const void* ValuePtr, u64 Index);
+RIFT_API void*    _ArrayInsertAt(void* Array, const void* ValuePtr, usize Index);
 
 RIFT_API void     _ArrayRemoveLast(void* Array, void* ValuePtr);
-RIFT_API void*    _ArrayRemoveAt(void* Array, void* ValuePtr, u64 Index);
+RIFT_API void*    _ArrayRemoveAt(void* Array, void* ValuePtr, usize Index);
 
-RIFT_API u64      _ArrayFieldGet(void* Array, u64 Field);
-RIFT_API void     _ArrayFieldSet(void* Array, u64 Field, u64 Value);
+RIFT_API usize      _ArrayFieldGet(void* Array, usize Field);
+RIFT_API void     _ArrayFieldSet(void* Array, usize Field, usize Value);
 
-RIFT_API bool     _ArrayIsValidIndex(void* Array, u64 Index);
+RIFT_API bool     _ArrayIsValidIndex(void* Array, usize Index);
 
-RIFT_API void*    _Array_MemAlloc(u64 Size);
+RIFT_API void*    _Array_MemAlloc(usize Size);
 RIFT_API void     _Array_MemFree(void* Memory);
 
 RIFT_API void*    Array_Null(void);

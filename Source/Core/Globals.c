@@ -14,13 +14,13 @@ internal LinearAllocator GlobalsAllocator = {0};
 internal EngineGlobals GGlobals = {0};
 internal EngineGlobals GGlobals_InternalCopy = {0};
 
-void InitializeGlobals(void* Memory, u64 Size)
+void InitializeGlobals(void* Memory, usize Size)
 {
     LinearAllocator_Create(Size, Memory, &GlobalsAllocator);
 
     // Array
     {
-        u64* Array = (u64*)LinearAllocator_Allocate(&GlobalsAllocator, 64);
+        usize* Array = (usize*)LinearAllocator_Allocate(&GlobalsAllocator, 64);
         Array[0] = 1;
         Array[2] = 8;
         GGlobals.NullArray = &Array[4];

@@ -6,8 +6,8 @@
 #include "Clock/Clock.h"
 #include "Log.h"
 
-global u64 GEngineMemoryAmount;
-global u64 GEngineScratchAmount;
+global usize GEngineMemoryAmount;
+global usize GEngineScratchAmount;
 
 PRAGMA_DISABLE_MISSING_PROTOTYPES_WARNING
 
@@ -40,8 +40,8 @@ void ProgramStart(void)
     #endif
 
     // Note: one giant dynamic allocation. then let the engine dish the memory out
-    const u64 MemoryAmount = GEngineMemoryAmount;
-    const u64 ScratchAmount = GEngineScratchAmount;
+    const usize MemoryAmount = GEngineMemoryAmount;
+    const usize ScratchAmount = GEngineScratchAmount;
 
     if (MemoryAmount == 0)
     {
@@ -58,12 +58,12 @@ void ProgramStart(void)
     // for example, clock frequency, critical sections, etc.
     Platform_PreInitialize();
 
-    u64 MemoryDumpAmount = Kibibytes(8);
+    usize MemoryDumpAmount = Kibibytes(8);
     
     #ifdef RIFT_DEBUG_MEMORY
-    u64 MemoryDebugAmount = GEngineDebugMemoryAmount;
+    usize MemoryDebugAmount = GEngineDebugMemoryAmount;
     #else
-    u64 MemoryDebugAmount = 0;
+    usize MemoryDebugAmount = 0;
     #endif
 
     void* EngineMemory = Platform_MemAlloc(MemoryAmount + MemoryDebugAmount + ScratchAmount + MemoryDumpAmount);

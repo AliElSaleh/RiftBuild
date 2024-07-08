@@ -120,7 +120,7 @@ typedef struct String String; // forward declare
 
 RIFT_API bool Logging_Initialize(void* Memory, bool bOpenFile);
 RIFT_API void Logging_Shutdown(void);
-RIFT_API u64  Logging_GetMemoryRequirement(void);
+RIFT_API usize  Logging_GetMemoryRequirement(void);
 
 RIFT_API void Logging_Enable(void);
 RIFT_API void Logging_Disable(void);

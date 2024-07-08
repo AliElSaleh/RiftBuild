@@ -52,9 +52,9 @@ void* MemoryDump(void)
 }
 
 #ifdef RIFT_DEBUG_MEMORY
-bool Memory_Initialize(void* Memory, u64 MemSize, void* DebugMemory, u64 DebugMemSize, void* Dump, void* ScratchMemory, u64 ScratchSize)
+bool Memory_Initialize(void* Memory, usize MemSize, void* DebugMemory, usize DebugMemSize, void* Dump, void* ScratchMemory, usize ScratchSize)
 #else
-bool Memory_Initialize(void* Memory, u64 MemSize, void* Dump, void* ScratchMemory, u64 ScratchSize)
+bool Memory_Initialize(void* Memory, usize MemSize, void* Dump, void* ScratchMemory, usize ScratchSize)
 #endif
 {
     GEngineMemory = Memory;
@@ -177,7 +177,7 @@ void Memory_Shutdown(void)
 }
 
 #ifdef RIFT_DEBUG_MEMORY
-void* MemAlloc_Debug(u64 Size)
+void* MemAlloc_Debug(usize Size)
 {
     ASSERT(Size != 0);
     
@@ -202,7 +202,7 @@ void MemFree_Debug(void* Block)
 }
 #endif
 
-void* MemAlloc(u64 Size, EMemoryTag Tag)
+void* MemAlloc(usize Size, EMemoryTag Tag)
 {
     ASSERT(Size != 0);
 
@@ -215,7 +215,7 @@ void* MemAlloc(u64 Size, EMemoryTag Tag)
     }
     #endif
 
-    u64 BytesAllocated;
+    usize BytesAllocated;
     void* Memory = FreeListAllocator_Allocate(&GEngineAllocator, Size, &BytesAllocated);
 
     /*
@@ -261,7 +261,7 @@ void MemFree(void* Block, EMemoryTag Tag)
     }
     #endif
 
-    u64 BytesFreed;
+    usize BytesFreed;
     FreeListAllocator_Free(&GEngineAllocator, Block, &BytesFreed);
 
     #ifdef _DEBUG
@@ -277,40 +277,35 @@ void MemFree(void* Block, EMemoryTag Tag)
     Platform_ExitCriticalSection(GCriticalSection);
 }
 
-void* MemSet(void* Destination, i32 Value, u64 Size)
+void* MemSet(void* Destination, i32 Value, usize Size)
 {
     return Platform_MemSet(Destination, Value, Size);
 }
 
-void* MemZero(void* Block, u64 Size)
+void* MemZero(void* Block, usize Size)
 {
     return Platform_MemZero(Block, Size);
 }
 
-void* MemCopy(void* restrict Destination, const void* restrict Source, u64 Size)
+void* MemCopy(void* restrict Destination, const void* restrict Source, usize Size)
 {
     return Platform_MemCopy(Destination, Source, Size);
 }
 
-void* MemMove(void* restrict Destination, const void* restrict Source, u64 Size)
+void* MemMove(void* restrict Destination, const void* restrict Source, usize Size)
 {
     return Platform_MemMove(Destination, Source, Size);
 }
 
-bool MemEqual(const void* Block1, const void* Block2, u64 Size)
+bool MemEqual(const void* Block1, const void* Block2, usize Size)
 {
     return Platform_MemEqual(Block1, Block2, Size);
 }
 
 #if PLATFORM_WINDOWS
-bool Platform_MemEqual(const void* Block1, const void* Block2, u64 Size)
+bool Platform_MemEqual(const void* Block1, const void* Block2, usize Size)
 {
-    #if COMPILER_GCC
-    UNIMPLEMENTED; // todo: memcmp implementation for gcc
-    return false;
-    #else
     return memcmp((void*)Block1, (void*)Block2, Size) == 0;
-    #endif
 }
 #endif
 
@@ -324,7 +319,7 @@ char* Memory_GetUsageInfo(struct MemoryStats* Stats)
     
     char Buffer[MAX_MEM_INFO_BUFFER_LENGTH] = "System Memory Use (Tagged):\n";
     
-    u64 Offset = String_GetLength(Buffer);
+    usize Offset = String_GetLength(Buffer);
 
     for (u8 i = 0; i < (u8)MemoryTag_Count; ++i)
     {
@@ -411,7 +406,7 @@ char* Memory_GetUsageInfo(struct MemoryStats* Stats)
         TotalAmount = (float)GEngineAllocator.TotalSize;
     }
 
-    u64 MemRemaining = Memory_GetEngineMemoryRemaining();
+    usize MemRemaining = Memory_GetEngineMemoryRemaining();
     char RemainingUnitTotal[4] = "XiB";
     float RemainingAmount;
     if (MemRemaining >= Gigabytes(1))
@@ -458,7 +453,7 @@ void Memory_ReleaseScratch(LinearAllocator_Scratch* Scratch)
     LinearAllocator_ReleaseScratch(Scratch);
 }
 
-u64 Memory_GetEngineMemoryRemaining(void)
+usize Memory_GetEngineMemoryRemaining(void)
 {
     return GEngineAllocator.TotalSize - GEngineAllocator.Allocated;
 }
@@ -485,15 +480,15 @@ const char* MemoryTagToString(EMemoryTag Tag)
     #endif
 }
 
-u64 MemoryUtils_CalculatePaddingWithHeader(u64 Ptr, u64 Alignment, u64 HeaderSize)
+usize MemoryUtils_CalculatePaddingWithHeader(usize Ptr, usize Alignment, usize HeaderSize)
 {
     ASSERT(LIKELY(Alignment != 0) && ((Alignment & (Alignment-1)) == 0));
 
-    u64 p = Ptr;
-    u64 a = Alignment;
-    u64 Modulo = p & (a-1);
-    u64 NeededSpace = HeaderSize;
-    u64 Padding = 0;
+    usize p = Ptr;
+    usize a = Alignment;
+    usize Modulo = p & (a-1);
+    usize NeededSpace = HeaderSize;
+    usize Padding = 0;
     
     if (Modulo != 0)
     {
@@ -539,12 +534,12 @@ bool IsValidSlow(const void* Memory)
     return true;
 }
 
-u64 GetAligned(u64 Operand, u64 Granularity)
+usize GetAligned(usize Operand, usize Granularity)
 {
     return ((Operand + (Granularity-1)) & ~(Granularity-1));
 }
 
-MemoryRange GetAlignedRange(u64 Offset, u64 Size, u64 Granularity)
+MemoryRange GetAlignedRange(usize Offset, usize Size, usize Granularity)
 {
     return (MemoryRange){GetAligned(Offset, Granularity), GetAligned(Size, Granularity)};
 }
@@ -562,7 +557,7 @@ MemoryRange GetAlignedRange(u64 Offset, u64 Size, u64 Granularity)
 
 
 
-void LinearAllocator_Create(u64 TotalSize, void* Memory, LinearAllocator* OutAllocator)
+void LinearAllocator_Create(usize TotalSize, void* Memory, LinearAllocator* OutAllocator)
 {
     ASSERT(TotalSize > 0);
     ASSERT(OutAllocator != NULL);
@@ -595,7 +590,7 @@ void LinearAllocator_Destroy(LinearAllocator* Allocator)
     Allocator->bOwnsMemory = false;
 }
 
-void* LinearAllocator_Allocate(LinearAllocator* Allocator, u64 Size)
+void* LinearAllocator_Allocate(LinearAllocator* Allocator, usize Size)
 {
     ASSERT(Size > 0);
     ASSERT(Allocator->Allocated < Allocator->TotalSize);
@@ -603,7 +598,7 @@ void* LinearAllocator_Allocate(LinearAllocator* Allocator, u64 Size)
     
     void* Block = ((u8*)Allocator->Memory) + Allocator->Allocated;
 
-    const u64 Alignment = 3;
+    const usize Alignment = 3;
 
     if (Allocator->bAlignMemory)
     {
@@ -655,7 +650,7 @@ void LinearAllocator_GetScratchInline(LinearAllocator* Allocator, LinearAllocato
 
 void LinearAllocator_ReleaseScratch(LinearAllocator_Scratch* Scratch)
 {
-    u64 NumBytesUsed = Scratch->Allocator->Allocated - Scratch->StartPosition;
+    usize NumBytesUsed = Scratch->Allocator->Allocated - Scratch->StartPosition;
     if (NumBytesUsed > 0 && NumBytesUsed <= Scratch->Allocator->TotalSize)
     {
         Scratch->Allocator->Allocated = Scratch->StartPosition;
@@ -671,22 +666,22 @@ void LinearAllocator_ReleaseScratch(LinearAllocator_Scratch* Scratch)
 
 #define DEFAULT_FREE_LIST_ALLOCATOR_ALIGNMENT 64
 
-internal FreeListAllocator_Node* Internal_FindFirstFit(FreeListAllocator* Allocator, u64 Size, u64* OutPadding, FreeListAllocator_Node** OutPrevNode)
+internal FreeListAllocator_Node* Internal_FindFirstFit(FreeListAllocator* Allocator, usize Size, usize* OutPadding, FreeListAllocator_Node** OutPrevNode)
 {
     ASSERT(Allocator->Head != NULL);
     
     FreeListAllocator_Node* Node = Allocator->Head;
     FreeListAllocator_Node* PrevNode = NULL;
     
-    u64 Padding = 0;
+    usize Padding = 0;
     
     while (Node != NULL)
     {
         ASSERT(PrevNode != Node);
         
-        Padding = MemoryUtils_CalculatePaddingWithHeader((u64)Node, DEFAULT_FREE_LIST_ALLOCATOR_ALIGNMENT, sizeof(FreeListAllocator_Header));
+        Padding = MemoryUtils_CalculatePaddingWithHeader((usize)Node, DEFAULT_FREE_LIST_ALLOCATOR_ALIGNMENT, sizeof(FreeListAllocator_Header));
         
-        u64 RequiredSize = Size + Padding;
+        usize RequiredSize = Size + Padding;
         
         // does it fit?
         if (Node->BlockSize >= RequiredSize)
@@ -743,7 +738,7 @@ internal void Internal_FreeListAllocator_Coalesce(FreeListAllocator* Allocator, 
     }
 }
 
-void FreeListAllocator_Create(FreeListAllocator* OutAllocator, u64 TotalSize, void* Memory)
+void FreeListAllocator_Create(FreeListAllocator* OutAllocator, usize TotalSize, void* Memory)
 {
     OutAllocator->Memory = Memory;
     OutAllocator->TotalSize = TotalSize;
@@ -773,7 +768,7 @@ void FreeListAllocator_FreeAll(FreeListAllocator* Allocator)
     Allocator->Head = FirstNode;
 }
 
-u64 FreeListAllocator_Offset(FreeListAllocator* Allocator, void* Memory)
+usize FreeListAllocator_Offset(FreeListAllocator* Allocator, void* Memory)
 {
     // Ensure that the memory passed in within this allocator's memory address range
     // If this assertion fails, there is a problem with the memory passed in,
@@ -781,10 +776,10 @@ u64 FreeListAllocator_Offset(FreeListAllocator* Allocator, void* Memory)
     ASSERT((u8*)Memory >= (u8*)Allocator->Memory);
     ASSERT((u8*)Memory < (((u8*)Allocator->Memory) + Allocator->TotalSize));
     
-    return (u64)((u8*)Memory - (u8*)Allocator->Memory);
+    return (usize)((u8*)Memory - (u8*)Allocator->Memory);
 }
 
-void* FreeListAllocator_MemoryFromOffset(FreeListAllocator* Allocator, u64 Offset)
+void* FreeListAllocator_MemoryFromOffset(FreeListAllocator* Allocator, usize Offset)
 {
     ASSERT(Offset > sizeof(FreeListAllocator_Header));
     ASSERT(Offset < Allocator->TotalSize);
@@ -792,7 +787,7 @@ void* FreeListAllocator_MemoryFromOffset(FreeListAllocator* Allocator, u64 Offse
     return (void*)((u8*)Allocator->Memory + Offset);
 }
 
-void* FreeListAllocator_Allocate(FreeListAllocator* Allocator, u64 Size, u64* OutBytesAllocated)
+void* FreeListAllocator_Allocate(FreeListAllocator* Allocator, usize Size, usize* OutBytesAllocated)
 {
     if (OutBytesAllocated)
         *OutBytesAllocated = 0;
@@ -803,7 +798,7 @@ void* FreeListAllocator_Allocate(FreeListAllocator* Allocator, u64 Size, u64* Ou
         Size = sizeof(FreeListAllocator_Node);
     }
     
-    u64 Padding = 0;
+    usize Padding = 0;
     FreeListAllocator_Node* PrevNode = NULL;
     FreeListAllocator_Node* Node = Internal_FindFirstFit(Allocator, Size, &Padding, &PrevNode);
     
@@ -815,10 +810,10 @@ void* FreeListAllocator_Allocate(FreeListAllocator* Allocator, u64 Size, u64* Ou
         return MemoryDump(); // point to the memory dump to prevent NULL crashes
     }
     
-    //u64 AlignmentPadding = 0;
-    u64 AlignmentPadding = Padding - sizeof(FreeListAllocator_Header);
-    u64 RequiredSpace = Size + Padding;
-    u64 Remaining = Node->BlockSize - RequiredSpace;
+    //usize AlignmentPadding = 0;
+    usize AlignmentPadding = Padding - sizeof(FreeListAllocator_Header);
+    usize RequiredSpace = Size + Padding;
+    usize Remaining = Node->BlockSize - RequiredSpace;
     
     if (Remaining > 0)
     {
@@ -860,7 +855,7 @@ void* FreeListAllocator_Allocate(FreeListAllocator* Allocator, u64 Size, u64* Ou
     return (void*)((u8*)Header + sizeof(FreeListAllocator_Header));
 }
 
-void FreeListAllocator_Free(FreeListAllocator* Allocator, void* Memory, u64* OutBytesFreed)
+void FreeListAllocator_Free(FreeListAllocator* Allocator, void* Memory, usize* OutBytesFreed)
 {
     if (OutBytesFreed)
         *OutBytesFreed = 0;
@@ -877,8 +872,8 @@ void FreeListAllocator_Free(FreeListAllocator* Allocator, void* Memory, u64* Out
     ASSERT((u8*)Header < (((u8*)Allocator->Memory) + Allocator->TotalSize));
 
     // zero the memory
-    u64 Padding = MemoryUtils_CalculatePaddingWithHeader((u64)Header, DEFAULT_FREE_LIST_ALLOCATOR_ALIGNMENT, sizeof(FreeListAllocator_Header));
-    u64 BlockSizeNoPadding = Header->BlockSize - Padding - Header->AlignmentPadding;
+    usize Padding = MemoryUtils_CalculatePaddingWithHeader((usize)Header, DEFAULT_FREE_LIST_ALLOCATOR_ALIGNMENT, sizeof(FreeListAllocator_Header));
+    usize BlockSizeNoPadding = Header->BlockSize - Padding - Header->AlignmentPadding;
     MemZero(Memory, BlockSizeNoPadding);
 
     // Detect if the memory passed in was already freed
@@ -904,7 +899,7 @@ void FreeListAllocator_Free(FreeListAllocator* Allocator, void* Memory, u64* Out
         }
     }
     
-    u64 BlockSize = Header->BlockSize;
+    usize BlockSize = Header->BlockSize;
     
     if (OutBytesFreed)
         *OutBytesFreed = BlockSize;
@@ -967,12 +962,12 @@ void FreeListAllocator_Free(FreeListAllocator* Allocator, void* Memory, u64* Out
 
 #include "Structures/Array.h"
 
-void* _ArrayCreate(u64 Num, u64 Stride)
+void* _ArrayCreate(usize Num, usize Stride)
 {
-    u64 HeaderSize = ArrayField_Count * sizeof(u64);
-    u64 ArraySize = Num * Stride;
+    usize HeaderSize = ArrayField_Count * sizeof(usize);
+    usize ArraySize = Num * Stride;
     
-    u64* NewArray = (u64*)MemAlloc(HeaderSize + ArraySize, MemoryTag_DynamicArray);
+    usize* NewArray = (usize*)MemAlloc(HeaderSize + ArraySize, MemoryTag_DynamicArray);
     
     NewArray[ArrayField_Capacity] = Num;
     NewArray[ArrayField_Num] = 0;
@@ -982,18 +977,18 @@ void* _ArrayCreate(u64 Num, u64 Stride)
     return (void*)(NewArray + ArrayField_Count);
 }
 
-u64 _ArrayCalculateMemRequirement(u64 Num, u64 Stride)
+usize _ArrayCalculateMemRequirement(usize Num, usize Stride)
 {
-    u64 HeaderSize = ArrayField_Count * sizeof(u64);
-    u64 Alignment = 3;
-    u64 ArraySize = Num * ((Stride + Alignment) & ~Alignment);
+    usize HeaderSize = ArrayField_Count * sizeof(usize);
+    usize Alignment = 3;
+    usize ArraySize = Num * ((Stride + Alignment) & ~Alignment);
     
     return HeaderSize + ArraySize;
 }
 
-void* _ArrayCreateStatic(void* Memory, u64 Num, u64 Stride)
+void* _ArrayCreateStatic(void* Memory, usize Num, usize Stride)
 {
-    u64* NewArray = (u64*)Memory;
+    usize* NewArray = (usize*)Memory;
 
     NewArray[ArrayField_Capacity] = Num;
     NewArray[ArrayField_Num] = 0;
@@ -1005,7 +1000,7 @@ void* _ArrayCreateStatic(void* Memory, u64 Num, u64 Stride)
 
 void _ArrayDestroy(void* Array)
 {
-    u64* Header = (u64*)Array - ArrayField_Count;
+    usize* Header = (usize*)Array - ArrayField_Count;
     
     if (Header[ArrayField_OwnsMemory] == 1)
     {
@@ -1015,12 +1010,12 @@ void _ArrayDestroy(void* Array)
 
 internal void* _ArrayResize(void* Array)
 {
-    const u64* Header = (u64*)Array - ArrayField_Count;
+    const usize* Header = (usize*)Array - ArrayField_Count;
 
     if (Header[ArrayField_OwnsMemory] == 1)
     {
-        u64 Num = Array_Num(Array);
-        u64 Stride = Array_Stride(Array);
+        usize Num = Array_Num(Array);
+        usize Stride = Array_Stride(Array);
         
         void* NewArray = _ArrayCreate(Array_Capacity(Array) * ARRAY_RESIZE_FACTOR, Stride);
 
@@ -1037,8 +1032,8 @@ internal void* _ArrayResize(void* Array)
 
 void* _ArrayAdd(void* Array, const void* ValuePtr)
 {
-    u64 Num = Array_Num(Array);
-    u64 Stride = Array_Stride(Array);
+    usize Num = Array_Num(Array);
+    usize Stride = Array_Stride(Array);
 
     // Resize if needed
     if (Num >= Array_Capacity(Array))
@@ -1046,7 +1041,7 @@ void* _ArrayAdd(void* Array, const void* ValuePtr)
         Array = _ArrayResize(Array);
 
         // this array is static, thus it cannot be resized, exit out and don't mutate anything
-        const u64* Header = (u64*)Array - ArrayField_Count;
+        const usize* Header = (usize*)Array - ArrayField_Count;
         if (Header[ArrayField_OwnsMemory] != 1)
         {
             #if DEVELOPER
@@ -1057,7 +1052,7 @@ void* _ArrayAdd(void* Array, const void* ValuePtr)
         }
     }
     
-    u64 Addr = (u64)Array;
+    usize Addr = (usize)Array;
     Addr += (Num * Stride); // go to end of array
 
     MemCopy((void*)Addr, ValuePtr, Stride);
@@ -1067,10 +1062,10 @@ void* _ArrayAdd(void* Array, const void* ValuePtr)
     return Array;
 }
 
-void* _ArrayInsertAt(void* Array, const void* ValuePtr, u64 Index)
+void* _ArrayInsertAt(void* Array, const void* ValuePtr, usize Index)
 {
-    u64 Num = Array_Num(Array);
-    u64 Stride = Array_Stride(Array);
+    usize Num = Array_Num(Array);
+    usize Stride = Array_Stride(Array);
 
     if (Index >= Num)
     {
@@ -1084,7 +1079,7 @@ void* _ArrayInsertAt(void* Array, const void* ValuePtr, u64 Index)
         Array = _ArrayResize(Array);
 
         // this array is static, thus it cannot be resized, exit out and don't mutate anything
-        const u64* Header = (u64*)Array - ArrayField_Count;
+        const usize* Header = (usize*)Array - ArrayField_Count;
         if (Header[ArrayField_OwnsMemory] != 1)
         {
             #if DEVELOPER
@@ -1095,7 +1090,7 @@ void* _ArrayInsertAt(void* Array, const void* ValuePtr, u64 Index)
         }
     }
 
-    u64 Addr = (u64)Array;
+    usize Addr = (usize)Array;
 
     // If not last element, snip out the entry and copy the rest outward
     if (Index != Num-1)
@@ -1113,10 +1108,10 @@ void* _ArrayInsertAt(void* Array, const void* ValuePtr, u64 Index)
 
 void _ArrayRemoveLast(void* Array, void* ValuePtr)
 {
-    u64 Num = Array_Num(Array);
-    u64 Stride = Array_Stride(Array);
+    usize Num = Array_Num(Array);
+    usize Stride = Array_Stride(Array);
 
-    u64 Addr = (u64)Array;
+    usize Addr = (usize)Array;
     Addr += ((Num-1) * Stride); // go to 2nd last element
 
     MemCopy(ValuePtr, (void*)Addr, Stride);
@@ -1124,10 +1119,10 @@ void _ArrayRemoveLast(void* Array, void* ValuePtr)
     _ArrayFieldSet(Array, ArrayField_Num, Num-1);
 }
 
-void* _ArrayRemoveAt(void* Array, void* ValuePtr, u64 Index)
+void* _ArrayRemoveAt(void* Array, void* ValuePtr, usize Index)
 {
-    u64 Num = Array_Num(Array);
-    u64 Stride = Array_Stride(Array);
+    usize Num = Array_Num(Array);
+    usize Stride = Array_Stride(Array);
 
     if (Index >= Num)
     {
@@ -1135,7 +1130,7 @@ void* _ArrayRemoveAt(void* Array, void* ValuePtr, u64 Index)
         return Array;
     }
 
-    u64 Addr = (u64)Array;
+    usize Addr = (usize)Array;
 
     if (ValuePtr)
     {
@@ -1154,19 +1149,19 @@ void* _ArrayRemoveAt(void* Array, void* ValuePtr, u64 Index)
     return Array;
 }
 
-u64 _ArrayFieldGet(void* Array, u64 Field)
+usize _ArrayFieldGet(void* Array, usize Field)
 {
-    const u64* Header = (u64*)Array - ArrayField_Count;
+    const usize* Header = (usize*)Array - ArrayField_Count;
     return Header[Field];
 }
 
-void _ArrayFieldSet(void* Array, u64 Field, u64 Value)
+void _ArrayFieldSet(void* Array, usize Field, usize Value)
 {
-    u64* Header = (u64*)Array - ArrayField_Count;
+    usize* Header = (usize*)Array - ArrayField_Count;
     Header[Field] = Value;
 }
 
-bool _ArrayIsValidIndex(void* Array, u64 Index)
+bool _ArrayIsValidIndex(void* Array, usize Index)
 {
     return Index < _ArrayFieldGet(Array, ArrayField_Capacity);
 }
