@@ -190,17 +190,17 @@ The fact that other build systems are unable to do this is fucking pathetic and 
 
 If no extension was specified, RiftBuild will automatically choose the correct extension based on the operating system
 
-| Windows     | Linux       | Mac         | BSD           | 
-| ----------- | ----------- | ----------- | ------------- |
-| `.ico`      | `.png`      | `.png`      | Not supported |
+| Windows     | Linux       | Mac         | BSD        | 
+| ----------- | ----------- | ----------- | ---------- |
+| `.ico`      | `.png`      | `.png`      | `.png`     |
 
 
 ---
 
 # Supported Platforms
-- Windows (64-bit only)
-- Linux (Debian and Arch-based only)
-- MacOS
+- Windows (XP and above)
+- Linux (Debian, Fedora, Red Hat and Arch based only)
+- MacOS (10.5 and above)
 - FreeBSD/OpenBSD/NetBSD (TODO)
 
 # Dependencies
