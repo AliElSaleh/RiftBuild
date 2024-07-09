@@ -198,9 +198,12 @@ If no extension was specified, RiftBuild will automatically choose the correct e
 ---
 
 # Supported Platforms
-- Windows (XP and above)
-- Linux (Debian, Fedora, Red Hat and Arch based only)
-- MacOS (10.5 and above)
+- Windows
+  - XP and above
+- Linux
+  - Debian, Fedora, Red Hat and Arch based only
+- MacOS
+  - 10.5 and above
 - FreeBSD/OpenBSD/NetBSD (TODO)
 
 # Dependencies
