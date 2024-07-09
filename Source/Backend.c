@@ -685,7 +685,7 @@ bool C_Link(const BuildParams* Params)
     return true;
 }
 
-bool C_IsSource(const String Extension)
+bool IsSource(const String Extension)
 {
     return  String_IsEqual(Extension, S(".c"), false) ||
             String_IsEqual(Extension, S(".cc"), false) ||
@@ -703,7 +703,7 @@ bool C_IsSource(const String Extension)
             #endif
 }
 
-bool C_IsHeader(const String Extension)
+bool IsHeader(const String Extension)
 {
     return  String_IsEqual(Extension, S(".h"), false) ||
             String_IsEqual(Extension, S(".hh"), false) ||

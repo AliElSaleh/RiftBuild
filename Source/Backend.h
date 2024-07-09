@@ -165,8 +165,7 @@ bool RC_Compile(const BuildParams* Params, const String FullRCPath, String* OutR
 
 bool IsSource(const String Extension);
 bool IsHeader(const String Extension);
-bool C_IsSource(const String Extension);
-bool C_IsHeader(const String Extension);
+
 
 // Util functions --------------------
 

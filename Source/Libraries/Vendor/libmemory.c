@@ -5,8 +5,6 @@
 #if !COMPILER_MSVC
 
 #if PLATFORM_WINDOWS
-typedef u64  size_t;
-typedef u64* uintptr_t;
 
 PRAGMA_DISABLE_WARNINGS
 
@@ -20,7 +18,7 @@ PRAGMA_DISABLE_WARNINGS
 #pragma GCC diagnostic ignored "-Wmissing-prototypes"
 #endif
 
-RIFT_API void* memset(void *dst, int c, size_t len)
+RIFT_API void* memset(void *dst, int c, usize len)
 {
     void* r = dst;
     __asm__ volatile (
@@ -32,7 +30,7 @@ RIFT_API void* memset(void *dst, int c, size_t len)
     return r;
 }
 
-RIFT_API void* memcpy(void* restrict dst, void* restrict src, size_t len)
+RIFT_API void* memcpy(void* restrict dst, void* restrict src, usize len)
 {
     void* r = dst;
     __asm__ volatile (
@@ -44,14 +42,14 @@ RIFT_API void* memcpy(void* restrict dst, void* restrict src, size_t len)
     return r;
 }
 
-RIFT_API void* memmove(void* dst, void* src, size_t len)
+RIFT_API void* memmove(void* dst, void* src, usize len)
 {
-    // Use uintptr_t to bypass pointer semantics:
+    // Use uptr to bypass pointer semantics:
     // (1) comparing unrelated pointers
     // (2) pointer arithmetic on null (i.e. gracefully handle null dst/src)
     // (3) pointer overflow ("one-before-the-beginning" in reversed copy)
-    uintptr_t d = (uintptr_t)dst;
-    uintptr_t s = (uintptr_t)src;
+    uptr d = (uptr)dst;
+    uptr s = (uptr)src;
     if (d > s) {
         d += len - 1;
         s += len - 1;
@@ -66,13 +64,13 @@ RIFT_API void* memmove(void* dst, void* src, size_t len)
     return dst;
 }
 
-RIFT_API int memcmp(void* s1, void* s2, size_t len)
+RIFT_API int memcmp(void* s1, void* s2, usize len)
 {
-    #if PLATFORM_32_BIT
+    //#if PLATFORM_32_BIT
     const unsigned char* p1 = (const unsigned char*)s1;
     const unsigned char* p2 = (const unsigned char*)s2;
 
-    for (size_t i = 0; i < len; i++)
+    for (usize i = 0; i < len; i++)
     {
         if (p1[i] < p2[i])
         {
@@ -84,6 +82,7 @@ RIFT_API int memcmp(void* s1, void* s2, size_t len)
         }
     }
     return 0;
+    /*
     #else
     // CCa "after"  == CF=0 && ZF=0
     // CCb "before" == CF=1
@@ -97,6 +96,7 @@ RIFT_API int memcmp(void* s1, void* s2, size_t len)
     );
     return b - a;
     #endif
+    */
 }
 
 PRAGMA_ENABLE_WARNINGS

@@ -32,7 +32,7 @@ if bsd                  IncludedSourceFiles Platform_BSD.c
 
 if mac                  CompilerFlags -mmacosx-version-min=10.5
 
-if !cl if !gcc          CompilerFlags -mno-stack-arg-probe -mstack-probe-size=999999999
+if !cl if !gcc          CompilerFlags -mstack-probe-size=999999999
 if cl                   CompilerFlags /GS- /Gs999999999
 
 if windows {

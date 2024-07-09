@@ -9,7 +9,6 @@ typedef unsigned long long size_t;
 typedef unsigned int       size_t;
 #endif
 
-typedef unsigned long DWORD;
 typedef long HRESULT;
 
 // macros
@@ -95,6 +94,7 @@ typedef unsigned short      WORD;
 typedef float               FLOAT;
 typedef short               SHORT;
 typedef long                LONG;
+typedef char                CHAR;
 typedef FLOAT               *PFLOAT;
 typedef BOOL near           *PBOOL;
 typedef BOOL far            *LPBOOL;
@@ -142,12 +142,8 @@ typedef int                 INT;
 typedef unsigned int        UINT;
 typedef unsigned int        *PUINT;
 
-typedef char CHAR;
-typedef short SHORT;
-typedef long LONG;
-
-typedef ULONG_PTR SIZE_T, *PSIZE_T;
-typedef LONG_PTR SSIZE_T, *PSSIZE_T;
+typedef ULONG_PTR *PSIZE_T;
+typedef LONG_PTR *PSSIZE_T;
 
 typedef long RPC_STATUS;
 
@@ -960,8 +956,6 @@ typedef struct tagMSG {
 #ifndef NULL
 #define NULL 0
 #endif
-
-typedef unsigned short wchar_t;
 
 // shell32 APIs that are also exported from shfolder
 #ifndef SHFOLDERAPI

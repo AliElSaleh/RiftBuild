@@ -2219,22 +2219,17 @@ FORCENOINLINE BOOL __cdecl _DllMainCRTStartup(HANDLE hDllHandle, DWORD dwReason,
     return true;
 }
 
-#if COMPILER_GCC
+void* __stack_chk_guard = (void*)((usize)0xdeadbeef);
+
 void __stack_chk_fail(void)
 {
-}
-
-void __stack_chk_guard(void)
-{
+    ExitProcess(1);
 }
 
 void ___chkstk_ms(void)
 {
 }
-#endif
 
 PRAGMA_ENABLE_WARNINGS
-
-
 
 #endif // PLATFORM_WINDOWS

@@ -372,35 +372,6 @@ internal bool IconFileDirectoryIterator(const String FullPath, const String Rela
     return true;
 }
 
-#if PLATFORM_WINDOWS || PLATFORM_APPLE
-/*
-internal bool ResourceFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory)
-{
-    if (FileSize > 0)
-    {
-        if (String_IsEqual(FileName, GetExpandedVariableValue(S("Resource")), false))
-        {
-            String_Copy(&GResourceFilePath, RelativePath);
-            return false;
-        }
-    }
-
-    return true;
-}
-*/
-#endif
-
-// TODO: get rid of these
-bool IsSource(const String Ext)
-{
-    return C_IsSource(Ext);
-}
-
-bool IsHeader(const String Ext)
-{
-    return C_IsHeader(Ext);
-}
-
 internal bool SourceFileCounterDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
     if (FileSize > 0)
@@ -2328,7 +2299,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 if (VarToList.Length == 0)
                 {
                     LOG_ERROR("Failed to list build variable. No variable name was given after ':'");
-                    LOG("\nUsage:");
+                    LOG_INLINE_WARNING("\nUsage\n");
                     LOG("     list:all");
                     LOG("     list:varname");
                     LOG("     list:varname,othername,anotherone");

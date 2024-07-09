@@ -8,7 +8,7 @@ WarningFlags         -Wall -Wextra -Wshadow -Wconversion -Wmissing-prototypes -W
 WarningFlagsDisabled -Wno-unused-parameter -Wno-gnu-zero-variadic-macro-arguments -Wno-variadic-macros -Wno-missing-field-initializers -Wno-missing-braces
 WarningErrorFlags    -Werror=vla -Werror=implicit-function-declaration -Werror=pointer-arith -Werror=shadow -Werror=uninitialized -Werror=array-bounds -Werror=implicit -Werror=incompatible-pointer-types -Werror=int-conversion -Werror=unused-function 
 
-# newer flags
+# newer flags (not supported in clang 5.0)
 # -Wmisleading-indentation
 # -Werror=alloca
 # -Werror=float-conversion
@@ -18,22 +18,23 @@ if !gcc              WarningFlags -Wpedantic
 if !gcc              WarningFlagsDisabled -Wno-empty-translation-unit
 if !gcc              WarningErrorFlags -Werror=shorten-64-to-32
 
-SecurityFlags        -fno-delete-null-pointer-checks -fno-strict-overflow -fno-strict-aliasing -fstack-protector-strong
-if linux             SecurityFlags -fstack-clash-protection
+SecurityFlags        -fno-strict-overflow -fno-strict-aliasing
+
+# newer security flags (not supported in clang 5.0)
+# -fno-delete-null-pointer-checks
+# -fstack-protector-strong
+# if x64 SecurityFlags -mshstk
 
 SharedCompilerFlags  -std=c99 -Os -fno-exceptions -fno-math-errno $SecurityFlags $WarningFlags $WarningFlagsDisabled $WarningErrorFlags
 SharedLinkerFlags    
 SharedDefines        NO_ASSERT NO_PROFILING _NO_CRT_STDIO_INLINE _FORTIFY_SOURCE=3
 SharedIncludeFlags   Source/Core Source/Libraries/Vendor
 
+if x64               SharedCompilerFlags -msse2
 if !gcc              SharedCompilerFlags -fdeclspec -fdiagnostics-absolute-paths
-
 if linux             SharedIncludeFlags Source/Libraries/Linux
 if linux             SharedLinkerFlags -Wl,-z,nodlopen -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now
-
-if _arch == x64      CompilerFlags -msse2
-if _arch == x64      SecurityFlags -mshstk
-
+if linux             SecurityFlags -fstack-clash-protection
 if warn_leaks        SharedDefines WARN_MEMLEAKS
 
 _stop
