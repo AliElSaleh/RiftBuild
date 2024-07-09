@@ -32,10 +32,10 @@ SharedIncludeFlags   Source/Core Source/Libraries/Vendor
 
 if x64               SharedCompilerFlags -msse2
 if !gcc              SharedCompilerFlags -fdeclspec -fdiagnostics-absolute-paths
-if linux             SharedIncludeFlags Source/Libraries/Linux
-if linux             SharedLinkerFlags -Wl,-z,nodlopen -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now
-if linux             SecurityFlags -fstack-clash-protection
-if warn_leaks        SharedDefines WARN_MEMLEAKS
+if linux             SharedIncludeFlags  Source/Libraries/Linux
+if linux             SharedLinkerFlags   -Wl,-z,nodlopen -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now
+if linux             SecurityFlags       -fstack-clash-protection
+if warn_leaks        SharedDefines       WARN_MEMLEAKS
 
 _stop
 
