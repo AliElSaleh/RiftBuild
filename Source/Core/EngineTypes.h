@@ -453,13 +453,13 @@ typedef i32 PlatformPipe[2];
 typedef void* PlatformCriticalSection;
 #endif
 
-#if COMPILER_CLANG || COMPILER_GCC
-    #define STATIC_ASSERT _Static_assert
-    #define typeof        __typeof__
+#define STATIC_ASSERT(e, ...) typedef char __C_ASSERT__[(e)?1:-1]
 
-    //#define STATIC_ASSERT(e) typedef char __C_ASSERT__[(e)?1:-1]
+#if COMPILER_CLANG || COMPILER_GCC
+    //#define STATIC_ASSERT _Static_assert
+    #define typeof        __typeof__
 #else
-    #define STATIC_ASSERT static_assert
+    //#define STATIC_ASSERT static_assert
     #define typeof  typeof
 #endif
 

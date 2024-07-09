@@ -216,10 +216,8 @@ typedef PNZCH PNZTCH, PUNZTCH;
 typedef PCNZCH PCNZTCH, PCUNZTCH;
 
 typedef union _LARGE_INTEGER {
-  struct {
-    DWORD LowPart;
-    LONG  HighPart;
-  };
+  DWORD LowPart;
+  LONG  HighPart;
   LONGLONG QuadPart;
 } LARGE_INTEGER, *PLARGE_INTEGER;
 

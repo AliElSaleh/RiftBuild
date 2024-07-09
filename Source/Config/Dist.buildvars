@@ -21,7 +21,7 @@ if !gcc              WarningErrorFlags -Werror=shorten-64-to-32
 SecurityFlags        -fno-delete-null-pointer-checks -fno-strict-overflow -fno-strict-aliasing -fstack-protector-strong
 if linux             SecurityFlags -fstack-clash-protection
 
-SharedCompilerFlags  -std=c11 -Os -fno-exceptions -fno-math-errno $SecurityFlags $WarningFlags $WarningFlagsDisabled $WarningErrorFlags
+SharedCompilerFlags  -std=c99 -Os -fno-exceptions -fno-math-errno $SecurityFlags $WarningFlags $WarningFlagsDisabled $WarningErrorFlags
 SharedLinkerFlags    
 SharedDefines        NO_ASSERT NO_PROFILING _NO_CRT_STDIO_INLINE _FORTIFY_SOURCE=3
 SharedIncludeFlags   Source/Core Source/Libraries/Vendor
