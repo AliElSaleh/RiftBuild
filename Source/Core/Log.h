@@ -69,7 +69,7 @@
 
 #define UNIMPLEMENTED 
 #else
-typedef struct String String; // forward declare
+struct String; // forward declare
 
 #define MAX_LOG_MSG_LENGTH 32768
 
@@ -140,7 +140,7 @@ RIFT_API void Logging_PrintStackTrace(void);
 RIFT_API void Logging_Flush(void);
 #endif
 
-RIFT_API void LogMessage(u8 LogType, const String LogCat, const String Text, ...);
-RIFT_API void LogDirectMessage(u8 LogType, const String Text, ...);
+RIFT_API void LogMessage(u8 LogType, const struct String LogCat, const struct String Text, ...);
+RIFT_API void LogDirectMessage(u8 LogType, const struct String Text, ...);
 RIFT_API void LogLineBreak(void);
 #endif // NO_LOG

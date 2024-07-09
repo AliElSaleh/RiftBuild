@@ -453,7 +453,7 @@ typedef i32 PlatformPipe[2];
 typedef void* PlatformCriticalSection;
 #endif
 
-#define STATIC_ASSERT(e, ...) typedef char __C_ASSERT__[(e)?1:-1]
+#define STATIC_ASSERT(e, ...) typedef char MACRO_VAR(__C_ASSERT__)[(e) ? 1 : -1]
 
 #if COMPILER_CLANG || COMPILER_GCC
     //#define STATIC_ASSERT _Static_assert
