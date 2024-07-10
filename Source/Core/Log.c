@@ -72,10 +72,10 @@ internal bool Internal_TryOpenLogFile(void)
     String_Format(&TimeStampBuffer, S("%hu-%.2hu-%.2hu-%.2hu.%.2hu.%.2hu"), 128, TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
     
     StringLocal(LogFileName, 512);
-    String_Format(&LogFileName, S("RiftEngine-%S.log"), 512, TimeStampBuffer);
+    String_Format(&LogFileName, S("RiftBuild-%S.log"), 512, TimeStampBuffer);
 
     LinearAllocator_Scratch Temp = LinearAllocator_GetScratch(&GLoggingMemoryAllocator);
-    String FullPath = String_Join(Temp.Allocator, StrArray(S("../Logs/"), LogFileName));
+    String FullPath = String_Join(Temp.Allocator, StrArray(S("Logs/"), LogFileName));
     String_Copy(&GLoggingSystemState->LogFileName, FullPath);
     LinearAllocator_ReleaseScratch(&Temp);
     
@@ -171,8 +171,6 @@ bool Logging_Initialize(void* Memory, bool bOpenFile)
     GLoggingSystemState->bCrashOnFatal = true;
     GLoggingSystemState->bAlive = true;
     GLoggingSystemState->bLogToFile = bOpenFile;
-
-    Internal_TryOpenLogFile();
 
     GLoggingSystemState->CriticalSection = LinearAllocator_Allocate(&GLoggingMemoryAllocator, Platform_GetCriticalSectionMemoryRequirement());
     Platform_InitializeCriticalSection(GLoggingSystemState->CriticalSection);

@@ -42,19 +42,8 @@ STRUCT(MemoryRange)
     usize Size;
 };
 
-//#define TEMP_SCRATCH(Name) LinearAllocator_Scratch CONCAT(Scratch_, Name) = Memory_GetScratch(); for (i32 MACRO_VAR(_i_) = 0; !MACRO_VAR(_i_); MACRO_VAR(_i_)+=1, Memory_ReleaseScratch(&CONCAT(Scratch_, Name)))
-
-#ifdef RIFT_DEBUG_MEMORY
-RIFT_API bool Memory_Initialize(void* Memory, usize MemSize, void* DebugMemory, usize DebugMemSize, void* Dump, void* ScratchMemory, usize ScratchSize);
-#else
 RIFT_API bool Memory_Initialize(void* Memory, usize MemSize, void* Dump, void* ScratchMemory, usize ScratchSize);
-#endif
 RIFT_API void Memory_Shutdown(void);
-
-#ifdef RIFT_DEBUG_MEMORY
-RIFT_API void* MemAlloc_Debug(usize Size);
-RIFT_API void  MemFree_Debug(void* Block);
-#endif
 
 RIFT_API void* MemAlloc(usize Size, EMemoryTag Tag);// RETURN_NON_NULL;
 RIFT_API void  MemFree(void* Block, EMemoryTag Tag);

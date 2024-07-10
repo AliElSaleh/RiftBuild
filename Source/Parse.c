@@ -538,7 +538,8 @@ bool ParseBuildFile(LinearAllocator* Arena,
 
             if (FormattedMsg.Length > 0)
             {
-                Array_Add(Messages, String_Create(Arena, FormattedMsg));
+                String New = String_Create(Arena, FormattedMsg);
+                Array_Add(Messages, New);
             }
 
             continue;

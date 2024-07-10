@@ -46,8 +46,8 @@ RIFT_API void CString_Fill(char* Str, u32 Length, char N);
 
 RIFT_API char* CString_Empty(char* Str);
 
-RIFT_API void CString_ToLower(char* String);
-RIFT_API void CString_ToUpper(char* String);
+RIFT_API void CString_ToLower(char* Str);
+RIFT_API void CString_ToUpper(char* Str);
 
 RIFT_API void CString_ToWide(const char* FromString, wchar* ToString);
 RIFT_API void CString_ToNarrow(const wchar* FromString, char* ToString);
@@ -65,7 +65,6 @@ RIFT_API String String_Duplicate(LinearAllocator* Arena, const String Source);
 RIFT_API String String_Reserve(LinearAllocator* Arena, u32 Capacity);
 RIFT_API String String_Join(LinearAllocator* Arena, const StringArray Array);
 RIFT_API void   String_ConcatArray(String* Dest, const StringArray Array, u32 MaxSize);
-RIFT_API String String_SubString_Range(String Str, u32 Start, u32 End);
 
 RIFT_API StringArray String_CreateArray(LinearAllocator* Arena, const StringArray Array);
 
@@ -101,7 +100,9 @@ RIFT_API void String_Fill(String* Str, char C);
 do\
 {\
     String __SArgs__78596[] = {__VA_ARGS__};\
-    StringArray __TempArray__78596 = {.List = __SArgs__78596, .Num = SArray_Capacity(__SArgs__78596)};\
+    StringArray __TempArray__78596; \
+    __TempArray__78596.List = __SArgs__78596;\
+    __TempArray__78596.Num = SArray_Capacity(__SArgs__78596);\
     StringInternal_Concat(Dest, __TempArray__78596);\
 } while (0);
 
@@ -109,7 +110,9 @@ do\
 do\
 {\
     String __SArgs__78596[] = {__VA_ARGS__};\
-    StringArray __TempArray__78596 = {.List = __SArgs__78596, .Num = SArray_Capacity(__SArgs__78596)};\
+    StringArray __TempArray__78596; \
+    __TempArray__78596.List = __SArgs__78596;\
+    __TempArray__78596.Num = SArray_Capacity(__SArgs__78596);\
     StringInternal_BuildSeparator(Dest, Char, __TempArray__78596);\
 } while (0);
 
@@ -117,7 +120,9 @@ do\
 do\
 {\
     String __SArgs__78596[] = {__VA_ARGS__};\
-    StringArray __TempArray__78596 = {.List = __SArgs__78596, .Num = SArray_Capacity(__SArgs__78596)};\
+    StringArray __TempArray__78596; \
+    __TempArray__78596.List = __SArgs__78596;\
+    __TempArray__78596.Num = SArray_Capacity(__SArgs__78596);\
     StringInternal_BuildPath(Dest, __TempArray__78596);\
 } while (0);
 

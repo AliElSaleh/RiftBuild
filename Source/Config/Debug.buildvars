@@ -6,7 +6,7 @@ if cl goto msvc
 
 WarningFlags         -Wall -Wextra -Wshadow -Wconversion -Wmissing-prototypes -Warray-bounds -Wunused -Wuninitialized
 WarningFlagsDisabled -Wno-unused-variable -Wno-unused-parameter -Wno-gnu-zero-variadic-macro-arguments -Wno-variadic-macros -Wno-missing-field-initializers -Wno-missing-braces
-WarningErrorFlags    -Werror=vla -Werror=implicit-function-declaration -Werror=pointer-arith -Werror=shadow -Werror=uninitialized -Werror=array-bounds -Werror=implicit -Werror=incompatible-pointer-types -Werror=int-conversion -Werror=compare-distinct-pointer-types
+WarningErrorFlags    -Werror=vla -Werror=implicit-function-declaration -Werror=pointer-arith -Werror=shadow -Werror=uninitialized -Werror=array-bounds -Werror=implicit -Werror=incompatible-pointer-types -Werror=int-conversion
 #-Werror=return-type
 
 # newer flags (not supported in clang 5.0)
@@ -15,9 +15,9 @@ WarningErrorFlags    -Werror=vla -Werror=implicit-function-declaration -Werror=p
 # -Werror=float-conversion
 # -Winfinite-recursion
 
-if !gcc              WarningFlags -Wpedantic
+if !gcc              WarningFlags         -Wpedantic
 if !gcc              WarningFlagsDisabled -Wno-empty-translation-unit
-if !gcc              WarningErrorFlags -Werror=shorten-64-to-32
+if !gcc              WarningErrorFlags    -Werror=shorten-64-to-32 -Werror=compare-distinct-pointer-types
 
 SecurityFlags        -fno-strict-overflow -fno-strict-aliasing
 
@@ -48,7 +48,7 @@ WarningErrorFlags
 
 SecurityFlags
 
-SharedCompilerFlags  /std:clatest /Od
+SharedCompilerFlags  /Od /TC
 SharedLinkerFlags    
 SharedDefines        DEVELOPER NO_PROFILING _GLIBCXX_ASSERTIONS _GLIBCXX_DEBUG _GLIBCXX_DEBUG_PEDANTIC _NO_CRT_STDIO_INLINE _DEBUG
 SharedIncludeFlags   Source/Core Source/Libraries/Vendor

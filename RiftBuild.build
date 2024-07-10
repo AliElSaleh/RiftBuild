@@ -18,7 +18,7 @@ BuildDirectory          Build/$(Mode)/%%Hood
 CompilerFlags           $SharedCompilerFlags
 LinkerFlags             $SharedLinkerFlags
 Includes                $SharedIncludeFlags
-Defines                 $SharedDefines RIFT_STATIC NO_LOG_FILE %^%hood
+Defines                 $SharedDefines RIFT_STATIC %^%hood
 Libraries               %_NativeLibs
 
 IncludedSourceFiles     Clock.c Memory.c StringUtils.c Globals.c Log.c Program.c Backend.c Exporter.c Parse.c
@@ -33,12 +33,16 @@ if bsd                  IncludedSourceFiles Platform_BSD.c
 if mac                  CompilerFlags -mmacosx-version-min=10.5
 
 if !cl if !gcc          CompilerFlags -mstack-probe-size=999999999
+if gcc                  CompilerFlags -mno-stack-arg-probe
 if cl                   CompilerFlags /GS- /Gs999999999
 
+if !cl if disassemble   CompilerFlags -S
+
 if windows {
-    if !cl if !gcc      LinkerFlags -nostdlib -Wl,-entry:ProgramStart,-subsystem:console -Xlinker /stack:0x400000,0x400000
-    if gcc              LinkerFlags -nostdlib -Wl,--entry,ProgramStart,--subsystem,console,--stack,0x400000
-    if cl               LinkerFlags /ENTRY:ProgramStart /SUBSYSTEM:CONSOLE /STACK:0x400000,0x400000
+    if !cl              CompilerFlags -nostdlib -fno-builtin -ffreestanding
+    if !cl if !gcc      LinkerFlags   -nostdlib -Wl,-entry:ProgramStart,-subsystem:console -Xlinker /stack:0x400000,0x400000
+    if gcc              LinkerFlags   -nostdlib -Wl,--entry,ProgramStart,--subsystem,console,--stack,0x400000
+    if cl               LinkerFlags   /ENTRY:ProgramStart /SUBSYSTEM:CONSOLE /STACK:0x400000,0x400000
 }
 
 if linux                Libraries UUIDS ; LibraryDirectories Source/Libraries/Linux

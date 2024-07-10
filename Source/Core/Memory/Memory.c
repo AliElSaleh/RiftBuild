@@ -1148,20 +1148,3 @@ void* _ArrayRemoveAt(void* Array, void* ValuePtr, usize Index)
     _ArrayFieldSet(Array, ArrayField_Num, Num-1);
     return Array;
 }
-
-usize _ArrayFieldGet(void* Array, usize Field)
-{
-    const usize* Header = (usize*)Array - ArrayField_Count;
-    return Header[Field];
-}
-
-void _ArrayFieldSet(void* Array, usize Field, usize Value)
-{
-    usize* Header = (usize*)Array - ArrayField_Count;
-    Header[Field] = Value;
-}
-
-bool _ArrayIsValidIndex(void* Array, usize Index)
-{
-    return Index < _ArrayFieldGet(Array, ArrayField_Capacity);
-}

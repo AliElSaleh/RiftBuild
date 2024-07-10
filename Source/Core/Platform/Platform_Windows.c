@@ -698,7 +698,7 @@ void UUID_ToString(Uuid ID, String* OutString)
 
     RPC_CSTR str = {0};
     UuidToString((uuid_t*)&ID, &str);
-    String_Copy(OutString, StrSlice(str, GUID_LENGTH-1));
+    String_Copy(OutString, StrSlice((char*)str, GUID_LENGTH-1));
     RpcStringFree(&str);
 }
 

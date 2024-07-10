@@ -225,8 +225,6 @@ internal bool Link_SourceFileDirectoryIterator(const String FullPath, const Stri
                     StringLocal(ObjectPath, MAX_PATH_LENGTH);
                     const String Dir = StrSlice(FullPath.Data, LastSlash);
                     String_BuildPath(&ObjectPath, Dir, FilePath);
-
-                    String_Concat(Data->CmdLine, S("\""), ObjectPath, S("\" "));
                 }
                 else
                 #endif

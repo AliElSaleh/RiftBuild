@@ -42,7 +42,7 @@ RIFT_API bool StringList_IsValid(const StringList Str);
 
 #define StringN(n)  		                struct { char Data[n]; u32 Length; u32 Capacity; }
 
-#define StringLocal(Name, n) 	            char  MACRO_VAR(CONCAT(Buffer_, Name))[n] = {0}; String   Name = {.Data = MACRO_VAR(CONCAT(Buffer_, Name)), .Length = 0, .Capacity = (n)-1 }
+#define StringLocal(Name, n) 	            char  MACRO_VAR(CONCAT(Buffer_, Name))[n] = {0}; String   Name; Name.Data = MACRO_VAR(CONCAT(Buffer_, Name)); Name.Length = 0; Name.Capacity = (n)-1
 #define String16Local(Name, n) 	            wchar MACRO_VAR(CONCAT(Buffer_, Name))[n] = {0}; String16 Name = {.Data = MACRO_VAR(CONCAT(Buffer_, Name)), .Length = 0, .Capacity = (n)-1 }
 
 #define CStr(s)                             (String)         {.Length = String_GetLength(s),       .Data = (char* )(s), .Capacity = 0}
@@ -57,13 +57,35 @@ RIFT_API bool StringList_IsValid(const StringList Str);
 
 #define StrMake(s)                          (String){.Length = (s).Length, .Data = (s).Data, .Capacity = (s).Capacity}
 #define StrView(s)                          (const String){.Length = (s).Length, .Data = (char*)(s).Data, .Capacity = (s).Capacity}
-#define StrSlice(s, Len)                    (String){.Length = Len, .Data = (char*)(s), .Capacity = Len}
-#define StrShiftF(s, Offset)                (String){.Length = (s).Length-((Offset) < (s).Length ? (Offset) : (s).Length), .Data = (s).Data+((Offset) < (s).Length ? (Offset) : (s).Length), .Capacity = (s).Capacity-((Offset) < (s).Capacity ? (Offset) : (s).Capacity)}
-#define StrShiftB(s, Offset)                (String){.Length = (s).Length-(Offset), .Data = (s).Data-(Offset), .Capacity = (s).Capacity}
-
 #define Str16Slice(s, Len)                  (String16){.Length = Len, .Data = (wchar*)(s), .Capacity = Len}
 
 #define StrArray(...)                       (StringArray){.List = ((String[]){__VA_ARGS__}), .Num = SArray_Capacity(((String[]){__VA_ARGS__}))}
 
 #define StrFormat                           "%.*s"
 #define StrArg(s)                           (i32)(s).Length, (s).Data
+
+
+// inline implementations
+
+FORCEINLINE static String StrSlice(char* Data, u32 Len)
+{
+    String Result;
+    Result.Data     = Data;
+    Result.Length   = Len;
+    Result.Capacity = Len;
+
+    return Result;
+}
+
+FORCEINLINE static String StrShiftF(String s, u32 Offset)
+{
+    const u32 MinLength   = Min(Offset, s.Length);
+    const u32 MinCapacity = Min(Offset, s.Capacity);
+
+    String Result;
+    Result.Data           = s.Data     + MinLength;
+    Result.Length         = s.Length   - MinLength;
+    Result.Capacity       = s.Capacity - MinCapacity;
+
+    return Result;
+}

@@ -1081,22 +1081,6 @@ String String_ScanUntil(const String* Str, char Char)
     return (String){ .Data = Str->Data, .Length = NewLength, .Capacity = Str->Capacity };
 }
 
-String String_SubString_Range(String Str, u32 Start, u32 End)
-{
-    Start = ClampMax(Start, Str.Length);
-    End = ClampMax(End, Str.Length);
-    
-    if (Start > End)
-    {
-        SWAP(Start, End);
-    }
-    
-    Str.Length = End - Start;
-    Str.Data += Start;
-    
-    return Str;
-}
-
 void CString_ToLower(char* Str)
 {
     char* p = Str;

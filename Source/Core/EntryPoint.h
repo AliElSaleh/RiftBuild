@@ -60,13 +60,7 @@ void ProgramStart(void)
 
     usize MemoryDumpAmount = Kibibytes(8);
     
-    #ifdef RIFT_DEBUG_MEMORY
-    usize MemoryDebugAmount = GEngineDebugMemoryAmount;
-    #else
-    usize MemoryDebugAmount = 0;
-    #endif
-
-    void* EngineMemory = Platform_MemAlloc(MemoryAmount + MemoryDebugAmount + ScratchAmount + MemoryDumpAmount);
+    void* EngineMemory = Platform_MemAlloc(MemoryAmount + ScratchAmount + MemoryDumpAmount);
     
     if (!EngineMemory)
     {
@@ -79,13 +73,9 @@ void ProgramStart(void)
         #endif
     }
     
-    #ifdef RIFT_DEBUG_MEMORY
-    void* DebugMemory = ((u8*)EngineMemory) + MemoryAmount;
-    #endif
-    
-    void* EngineScratch = ((u8*)EngineMemory) + MemoryAmount + MemoryDebugAmount;
+    void* EngineScratch = ((u8*)EngineMemory) + MemoryAmount;
 
-    void* EngineMemoryDump = ((u8*)EngineMemory) + MemoryAmount + MemoryDebugAmount + ScratchAmount;
+    void* EngineMemoryDump = ((u8*)EngineMemory) + MemoryAmount + ScratchAmount;
     
     #ifndef RIFT_STATIC
     nullptr_z = EngineMemoryDump;
@@ -96,15 +86,11 @@ void ProgramStart(void)
     StringArray Arguments = Platform_GetCommandLineArgs();
 
     // "Use" the memory so the OS assigns it all to us
-    Platform_MemZero(EngineMemory, MemoryAmount + MemoryDebugAmount + MemoryDumpAmount + ScratchAmount);
+    Platform_MemZero(EngineMemory, MemoryAmount + MemoryDumpAmount + ScratchAmount);
     
     // Initialize core engine subsystems
     // Memory subsystem
-    #ifdef RIFT_DEBUG_MEMORY
-    if (!Memory_Initialize(EngineMemory, MemoryAmount, DebugMemory, MemoryDebugAmount, EngineMemoryDump, EngineScratch, GEngineScratchAmount))
-    #else
     if (!Memory_Initialize(EngineMemory, MemoryAmount, EngineMemoryDump, EngineScratch, GEngineScratchAmount))
-    #endif
     {
         Platform_ConsoleWrite("Failed to initialize memory subsystem. Required for engine to run. Aborting...\n", 4, true);
 

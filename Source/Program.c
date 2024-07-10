@@ -6032,6 +6032,7 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
 
 u32 RunApplication(const StringArray Arguments)
 {
+    Logging_ToggleLogFile(false);
     Logging_ToggleLogTimeStamp(false);
     Logging_ToggleLogCategory(false);
 
@@ -6075,6 +6076,9 @@ u32 RunApplication(const StringArray Arguments)
         Logging_Disable();
         Logging_ToggleEnableOnError(true);
     }
+
+    const bool bOutputToLog = StringArray_Contains(Arguments, S("-l"), false);
+    Logging_ToggleLogFile(bOutputToLog);
 
     #ifndef HOOD
         #ifdef DEVELOPER
