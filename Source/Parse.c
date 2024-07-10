@@ -249,7 +249,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
 
                 if (!String_IsValid(CmdValue))
                 {
-                    for each (o, VariablesDB) // intentional that we're not using expanded DB, this should only be used for simple things anyway
+                    for each (FileVariable, o, VariablesDB) // intentional that we're not using expanded DB, this should only be used for simple things anyway
                     {
                         bool bMatch = String_IsEqual(o.Name, SwitchValue, false);
                         if (bMatch)
@@ -305,7 +305,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
 
                     if (!String_IsValid(CmdValue))
                     {
-                        for each (o, VariablesDB) // intentional that we're not using expanded DB, this should only be used for simple things anyway
+                        for each (FileVariable, o, VariablesDB) // intentional that we're not using expanded DB, this should only be used for simple things anyway
                         {
                             bool bMatch = String_IsEqual(o.Name, SwitchValue, false);
                             if (bMatch)
@@ -588,7 +588,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
             // override VarValue for single line if's, for multiline if's, loop back to the top and process each line until '}' is found
             if (!bConditionMet)
             {
-                for each (o, CmdOptionsDB)
+                for each (CmdOption, o, CmdOptionsDB)
                 {
                     bool bMatch = String_IsEqual(o.Name, Condition, false);
                     if (bMatch)
@@ -606,7 +606,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
 
             if (!bConditionMet)
             {
-                for each (v, InternalVariablesDB)
+                for each (InternalVariable, v, InternalVariablesDB)
                 {
                     if (String_IsEqual(v.Name, Condition, false))
                     {
@@ -619,7 +619,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
 
             if (!bConditionMet)
             {
-                for each (o, VariablesDB) // intentional that we're not using expanded DB, this should only be used for simple things anyway
+                for each (FileVariable, o, VariablesDB) // intentional that we're not using expanded DB, this should only be used for simple things anyway
                 {
                     bool bMatch = String_IsEqual(o.Name, Condition, false);
                     if (bMatch)
@@ -1050,7 +1050,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
             {
                 // check if we already added this value for this build variable
                 bool bDuplicateValueFound = false;
-                for each (Var, VariablesDB)
+                for each (FileVariable, Var, VariablesDB)
                 {
                     if (String_IsEqual(Var.Name, VarName, false))
                     {
@@ -1324,7 +1324,7 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
 
             bool bFoundCmd = false;
             bool bEqualsToSomething = false;
-            for each (o, CmdOptionsDB)
+            for each (CmdOption, o, CmdOptionsDB)
             {
                 if (String_IsEqual(o.Name, Slice, false))
                 {
@@ -1335,7 +1335,7 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
                 }
             }
 
-            for each (v, InternalVariablesDB)
+            for each (InternalVariable, v, InternalVariablesDB)
             {
                 if (String_IsEqual(v.Name, Slice, false))
                 {
@@ -1349,7 +1349,7 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
             // run through the cmd var assert list
             // TODO: something better
             {
-                for each (Var, VariablesDB)
+                for each (FileVariable, Var, VariablesDB)
                 {
                     if (String_IsEqual(Var.Name, S("AssertCmdVarExists"), false))
                     {
@@ -1360,7 +1360,7 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
                             const String Trimmed = String_EatSpaces(*S);
 
                             bool bFound = false;
-                            for each (o, CmdOptionsDB)
+                            for each (CmdOption, o, CmdOptionsDB)
                             {
                                 if (String_IsEqual(o.Name, Trimmed, false))
                                 {
@@ -1485,7 +1485,7 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
             }
 
             u16 NumEntries = 0;
-            for each (Var, VariablesDB)
+            for each (FileVariable, Var, VariablesDB)
             {
                 if (String_IsEqual(Var.Name, Slice, false))
                 {

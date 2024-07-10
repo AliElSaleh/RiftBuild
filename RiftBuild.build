@@ -8,7 +8,7 @@ Icon                    riftbuild
 
 TitleName               Rift Build %^%debug
 Description             A simpler build tool for C/C++, because fuck cmake
-Version!                0.9.6-alpha
+Version!                0.9.7-alpha
 CompanyName             Ali El Saleh
 Copyright!              Copyright (c) 2024 Ali El Saleh
 

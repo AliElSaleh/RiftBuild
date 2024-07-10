@@ -125,8 +125,12 @@ typedef void VoidFunc(void);
 #define TICK_RATE_60  0.01666666666666666666666666666667
 #define TICK_RATE_120 0.00833333333333333333333333333333
 
-#define each(Element, Array)          (typeof((Array)[0])* CONCAT(Element, _) = &(Array)[0], Element = *CONCAT(Element, _); CONCAT(Element, _) <= &(Array)[Array_Num((Array))-1]; CONCAT(Element, _)++, Element = *CONCAT(Element, _))
-#define each_i(Index, Element, Array) (typeof((Array)[0])* CONCAT(Element, _) = &(Array)[0], Element = *CONCAT(Element, _); CONCAT(Element, _) <= &(Array)[Array_Num((Array))-1]; CONCAT(Element, _)++, Element = *CONCAT(Element, _), ++(Index))
+// if only microsoft supported this like clang and gcc :((
+//#define each(Element, Array)          (typeof((Array)[0])* CONCAT(Element, _) = &(Array)[0], Element = *CONCAT(Element, _); CONCAT(Element, _) <= &(Array)[Array_Num((Array))-1]; CONCAT(Element, _)++, Element = *CONCAT(Element, _))
+//#define each_i(Index, Element, Array) (typeof((Array)[0])* CONCAT(Element, _) = &(Array)[0], Element = *CONCAT(Element, _); CONCAT(Element, _) <= &(Array)[Array_Num((Array))-1]; CONCAT(Element, _)++, Element = *CONCAT(Element, _), ++(Index))
+
+#define each(Type, Element, Array)          (Type* CONCAT(Element, _) = &(Array)[0], Element = *CONCAT(Element, _); CONCAT(Element, _) <= &(Array)[Array_Num((Array))-1]; CONCAT(Element, _)++, Element = *CONCAT(Element, _))
+#define each_i(Index, Type, Element, Array) (Type* CONCAT(Element, _) = &(Array)[0], Element = *CONCAT(Element, _); CONCAT(Element, _) <= &(Array)[Array_Num((Array))-1]; CONCAT(Element, _)++, Element = *CONCAT(Element, _), ++(Index))
 
 #define For(Array) for each (It, Array)
 #define ForEach(It, Array) for each (It, Array)

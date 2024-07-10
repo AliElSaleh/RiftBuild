@@ -416,7 +416,7 @@ void Logging_PrintStackTrace(void)
     Logging_ToggleLogCategory(false);
     LOG("%S", S("=============== STACK TRACE ==============="));
     u32 i = 0;
-    for each_i (i, f, Frames)
+    for each_i (i, StackTraceData, f, Frames)
     {
         if (i > 0)
             LOG("[%hi] 0x%x | %S", f.Index, f.Address, f.Name);

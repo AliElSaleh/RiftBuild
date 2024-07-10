@@ -41,7 +41,7 @@ internal bool IsBuildBatchFile(const String FilePath)
 
 bool DoesCmdVarExist(TArray(CmdOption) CmdOptionsDB, const String Name)
 {
-    for each (o, CmdOptionsDB)
+    for each (CmdOption, o, CmdOptionsDB)
     {
         if (String_IsEqual(o.Name, Name, false))
         {
@@ -54,7 +54,7 @@ bool DoesCmdVarExist(TArray(CmdOption) CmdOptionsDB, const String Name)
 
 String GetCmdOptionValue(TArray(CmdOption) CmdOptionsDB, const String Name)
 {
-    for each (o, CmdOptionsDB)
+    for each (CmdOption, o, CmdOptionsDB)
     {
         if (String_IsEqual(o.Name, Name, false))
         {
@@ -67,7 +67,7 @@ String GetCmdOptionValue(TArray(CmdOption) CmdOptionsDB, const String Name)
 
 bool DoesBuildVarExist(TArray(FileVariable) VariablesDB, const String Name)
 {
-    for each (Var, VariablesDB)
+    for each (FileVariable, Var, VariablesDB)
     {
         if (String_IsEqual(Var.Name, Name, false))
         {
@@ -82,7 +82,7 @@ StringList GetVariableValueList(LinearAllocator* Arena, TArray(FileVariable) Var
 {
     StringList list = StringList_Null();
 
-    for each (Var, VariablesDB)
+    for each (FileVariable, Var, VariablesDB)
     {
         if (String_IsEqual(Var.Name, Name, false))
         {
@@ -115,7 +115,7 @@ StringList GetVariableValueList(LinearAllocator* Arena, TArray(FileVariable) Var
 
 String GetVariableValue(TArray(FileVariable) Variables, const String Name)
 {
-    for each (Var, Variables)
+    for each (FileVariable, Var, Variables)
     {
         if (String_IsEqual(Var.Name, Name, false))
         {
@@ -128,7 +128,7 @@ String GetVariableValue(TArray(FileVariable) Variables, const String Name)
 
 String* GetVariableValue_Ref(TArray(FileVariable) Variables, const String Name)
 {
-    for each (Var, Variables)
+    for each (FileVariable, Var, Variables)
     {
         if (String_IsEqual(Var.Name, Name, false))
         {
@@ -261,7 +261,7 @@ bool ExtensionHas(LinearAllocator Scratch, const String ExtensionString, const S
 
 internal bool VariableHasSpecial(TArray(FileVariable) VariablesDB, const String Name)
 {
-    for each (Var, VariablesDB)
+    for each (FileVariable, Var, VariablesDB)
     {
         if (String_IsEqual(Var.Name, Name, false))
         {
@@ -281,7 +281,7 @@ bool LogCustomErrorMessage(TArray(FileVariable) VariablesDB, const String Contex
     String_Format(&Format, S("%S%S%S."), 256, Context, Context.Length > 0 ? S(".") : S(""), Key);
 
     bool bLogged = false;
-    for each (Var, VariablesDB)
+    for each (FileVariable, Var, VariablesDB)
     {
         if (String_StartsWith(Var.Name, Format, false) &&
             String_EndsWith(Var.Name, S(".errormessage"), false))
@@ -840,7 +840,7 @@ internal void ListVariables(LinearAllocator Arena, const String Name, TArray(Fil
         S("Icon")
     };
 
-    for each (v, ExpandedVariablesDB)
+    for each (FileVariable, v, ExpandedVariablesDB)
     {
         if (Name.Length == 0 || String_IsEqual(v.Name, Name, false))
         {
@@ -1346,13 +1346,13 @@ internal void AddInternalVariable(const String Name, const String Value)
 internal void CheckForBuildVariableOverrides(TArray(FileVariable) VariablesDB, TArray(FileVariable) ExpandedVariablesDB, TArray(CmdOption) CmdOptionsDB)
 {
     // check if the user wants to override a build variable
-    for each (o, CmdOptionsDB)
+    for each (CmdOption, o, CmdOptionsDB)
     {
         if (String_StartsWith(o.Name, S("override:"), false))
         {
             String VarToOverride = StrShiftF(o.Name, 9);
 
-            for each (Var, VariablesDB)
+            for each (FileVariable, Var, VariablesDB)
             {
                 if (String_IsEqual(Var.Name, VarToOverride, false))
                 {
@@ -1363,7 +1363,7 @@ internal void CheckForBuildVariableOverrides(TArray(FileVariable) VariablesDB, T
             }
 
             // also update the expanded version
-            for each (Var, ExpandedVariablesDB)
+            for each (FileVariable, Var, ExpandedVariablesDB)
             {
                 if (String_IsEqual(Var.Name, VarToOverride, false))
                 {
@@ -1471,16 +1471,16 @@ internal void PrintUsage(void)
     // TODO: log the preset options as well
 
     LOG_INLINE_WARNING("Options\n");
-    LOG("    -h, --help, -u, --usage, /?, -?, ? : Display this help message");
-    LOG("    -v                                 : Enable verbose logging");
-    LOG("    -q                                 : Quiet mode. Disables logging but outputs necessary information, like errors");
-    LOG("    -t                                 : Display a tutorial on how to set environment variables");
-    LOG("    clean                              : Delete all intermediate and binary files");
-    LOG("    rebuild                            : Clean all and build");
-    LOG("    list                               : List all the build files in the current directory");
-    LOG("    override                           : Override a build variable");
-    LOG("    export                             : Generate a compile_commands.json, visual studio or xcode project");
-    LOG("    preset                             : Build with a preset of command line arguments");
+    LOG("    -h, --help, /?, -?, ? : Display this help message");
+    LOG("    -v                    : Enable verbose logging");
+    LOG("    -q                    : Quiet mode. Disables logging but outputs necessary information, like errors");
+    LOG("    -t                    : Display a tutorial on how to set environment variables");
+    LOG("    clean                 : Delete all intermediate and binary files");
+    LOG("    rebuild               : Clean all and build");
+    LOG("    list                  : List all the build files in the current directory");
+    LOG("    override              : Override a build variable");
+    LOG("    export                : Generate a compile_commands.json, visual studio or xcode project");
+    LOG("    preset                : Build with a preset of command line arguments");
 }
 
 // TODO: have a relook at this filter code
@@ -1962,7 +1962,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         CheckForBuildVariableOverrides(VariablesDB, ExpandedVariablesDB, CmdOptionsDB);
 
         // first expand Type and Extension. so on linux we can tell if its an assembly exe and not a library
-        for each (v, VariablesDB)
+        for each (FileVariable, v, VariablesDB)
         {
             if (String_IsEqual(v.Name, S("Extension"), false) ||
                 String_IsEqual(v.Name, S("Type"), false))
@@ -2192,7 +2192,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         }
 
         // expand all build variables
-        for each (v, VariablesDB)
+        for each (FileVariable, v, VariablesDB)
         {
             // already expanded
             if (String_IsEqual(v.Name, S("Extension"), false) ||
@@ -2330,7 +2330,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 }
 
                 // todo: put in function? clean up code routine?
-                for each (File, IncludeFiles)
+                for each (FileHandle, File, IncludeFiles)
                     Filesystem_Close(&File);
 
                 return 0;
@@ -2868,7 +2868,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
     // run build depenencies
     bool bRanAnyDependencies = false;
-    for each (Var, ExpandedVariablesDB)
+    for each (FileVariable, Var, ExpandedVariablesDB)
     {
         if (String_IsEqual(Var.Name, S("Depends"), false))
         {
@@ -3074,7 +3074,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     u16 NumPreBuildCmds = 0;
     u16 NumPostBuildCmds = 0;
 
-    for each (Var, ExpandedVariablesDB)
+    for each (FileVariable, Var, ExpandedVariablesDB)
     {
         if (String_StartsWith(Var.Name, S("PreBuild"), false))
         {
@@ -3091,7 +3091,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         #endif
 
         // run pre build commands (if specified)
-        for each (Var, ExpandedVariablesDB)
+        for each (FileVariable, Var, ExpandedVariablesDB)
         {
             if (String_StartsWith(Var.Name, S("PreBuild"), false))
             {
@@ -3628,7 +3628,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
         if (AssemblyFileTime > 0)
         {
-            for each (Include, IncludeFiles)
+            for each (FileHandle, Include, IncludeFiles)
             {
                 u64 IncludeFileTime = Filesystem_GetLastWriteTimeH(Include);
 
@@ -3653,7 +3653,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         }
     }
 
-    for each (File, IncludeFiles)
+    for each (FileHandle, File, IncludeFiles)
         Filesystem_Close(&File);
 
     // force a rebuild if either the build directory or the intermediate directory is missing
@@ -3859,7 +3859,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             Filesystem_Write(f, RiftCmdLine.Length, RiftCmdLine.Data, NULL);
             Filesystem_WriteLine(f, S("\n"), NULL);
 
-            for each (v, ExpandedVariablesDB)
+            for each (FileVariable, v, ExpandedVariablesDB)
             {
                 StringLocal(Line, 4096);
                 String_Append(&Line, v.Name);
@@ -3875,7 +3875,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
     if (Array_Num(Messages) > 0)
     {
-        for each (m, Messages)
+        for each (String, m, Messages)
         {
             LOG("%S", m);
         }
@@ -5361,7 +5361,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 PostBuild:
     if (bQuietBuild) Logging_Enable();
 
-    for each (Var, ExpandedVariablesDB)
+    for each (FileVariable, Var, ExpandedVariablesDB)
     {
         if (String_StartsWith(Var.Name, S("PostBuild"), false))
         {
@@ -5381,7 +5381,7 @@ PostBuild:
         LOG("cool mang, gonna run some post build cmds...");
         #endif
 
-        for each (Var, ExpandedVariablesDB)
+        for each (FileVariable, Var, ExpandedVariablesDB)
         {
             if (String_StartsWith(Var.Name, S("PostBuild"), false))
             {
@@ -5407,7 +5407,7 @@ End:
     // run the assembly (if an executable)
     if (bIsAssemblyExe)// && NumCompiled > 0 && DoesBuildVarExist(VariablesDB, S("RunAssembly")))
     {
-        for each (v, ExpandedVariablesDB)
+        for each (FileVariable, v, ExpandedVariablesDB)
         {
             if (!String_IsEqual(v.Name, S("RunAssembly"), false))
                 continue;
@@ -6039,8 +6039,6 @@ u32 RunApplication(const StringArray Arguments)
 
     if (StringArray_Contains(Arguments, S("-h"), false) ||
         StringArray_Contains(Arguments, S("--help"), false) ||
-        StringArray_Contains(Arguments, S("-u"), false) ||
-        StringArray_Contains(Arguments, S("--usage"), false) ||
         StringArray_Contains(Arguments, S("?"), false) ||
         StringArray_Contains(Arguments, S("-?"), false) ||
         StringArray_Contains(Arguments, S("/?"), false))
@@ -6097,6 +6095,8 @@ u32 RunApplication(const StringArray Arguments)
     InternalVariablesDB  = Array_CreateStatic(InternalVariable, 32, LinearAllocator_Allocate(&ProgramArena, MemAmount_InternalOptions));
 
     // store internal options. like platform, native os .lib's, etc..
+    AddInternalVariable(S(PLATFORM_STRING), S(""));
+
     #if PLATFORM_WINDOWS
     AddInternalVariable(S("_Platform"), S("Windows"));
     AddInternalVariable(S("Windows"), S(""));
@@ -6145,6 +6145,7 @@ u32 RunApplication(const StringArray Arguments)
     AddInternalVariable(S("_DesktopEnv"), S("Cinnamon"));
     AddInternalVariable(S("_DE"), S("Cinnamon"));
     #endif
+    
     #elif PLATFORM_BSD
     AddInternalVariable(S("_Platform"), S("BSD " PLATFORM_STRING));
     AddInternalVariable(S("BSD"), S(""));

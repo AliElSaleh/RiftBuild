@@ -274,7 +274,7 @@ bool C_Compile(const BuildParams* Params, u32* NumCompiled)
         return true;
     }
 
-    for each (Process, *Params->Processes)
+    for each (PlatformHandle, Process, *Params->Processes)
     {
         const u32 ExitCode = Platform_WaitForProcessAndGetExitCode(Process);
         if (ExitCode != 0)
@@ -953,7 +953,7 @@ bool MSVC_Compile(const BuildParams* Params, u32* NumCompiled)
         return true;
     }
 
-    for each (Process, *Params->Processes)
+    for each (PlatformHandle, Process, *Params->Processes)
     {
         const u32 ExitCode = Platform_WaitForProcessAndGetExitCode(Process);
         if (ExitCode != 0)

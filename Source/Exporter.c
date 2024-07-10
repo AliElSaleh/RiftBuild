@@ -226,7 +226,7 @@ bool ExportInfoPlist(LinearAllocator Arena, const BuildParams* Params, const Str
             { .Key = S("CFBundleVersion"),               .Value = VersionLong,         .bGiven = false }
         };
 
-        for each (v, ExpandedVariablesDB)
+        for each (FileVariable, v, ExpandedVariablesDB)
         {
             if (String_StartsWith(v.Name, S("Info.plist::"), false))
             {
@@ -310,7 +310,7 @@ bool ExportVersionPlist(LinearAllocator Arena, const BuildParams* Params, const 
             { .Key = S("ProjectName"),                   .Value = DisplayName, .bGiven = false }
         };
 
-        for each (v, ExpandedVariablesDB)
+        for each (FileVariable, v, ExpandedVariablesDB)
         {
             if (String_StartsWith(v.Name, S("Version.plist::"), false))
             {
