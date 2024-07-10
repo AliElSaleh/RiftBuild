@@ -115,7 +115,7 @@ internal void Internal_WriteToLogFile(char* Text, u32 Length)
         if (!Filesystem_WriteLine(GLoggingSystemState->LogFileHandle, StrSlice(Text, Length), &Written))
         {
             StringLocal(FormattedMessage, 256);
-            u64 Len = (u64)String_Format(&FormattedMessage, S("Failed to write to %S"), 256, GLoggingSystemState->LogFileName);
+            u32 Len = (u32)String_Format(&FormattedMessage, S("Failed to write to %S"), 256, GLoggingSystemState->LogFileName);
             Platform_ConsoleWrite_CustomLength(FormattedMessage.Data, Len, LOG_TYPE_ERROR, true);
         }
     }

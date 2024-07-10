@@ -67,10 +67,10 @@ RIFT_API bool StringList_IsValid(const StringList Str);
 
 // inline implementations
 
-FORCEINLINE static String StrSlice(char* Data, u32 Len)
+FORCEINLINE static String StrSlice(const char* Data, u32 Len)
 {
     String Result;
-    Result.Data     = Data;
+    Result.Data     = (char*)Data;
     Result.Length   = Len;
     Result.Capacity = Len;
 
