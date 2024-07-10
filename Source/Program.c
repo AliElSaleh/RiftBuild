@@ -4947,7 +4947,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                         "[Desktop Entry]\n"
                         "Name=%S\n"
                         "TryExec=%S\n"
-                        "Exec=%S\n"
+                        //"Exec=%S\n"
+			"Exec=sh -c 'cd $(realpath -q \"$0\"/ || dirname \"$0\") && %S' %%U\n"
                         "Icon=%S\n"
                         "Terminal=true\n"
                         "Type=Application\n"
@@ -4988,6 +4989,10 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 #endif
                 */
             }
+
+	    // TODO: update or generate mimeapps.list config... i wanna cry
+	    // first copy the mimeapps.list if it exist, if this fails, stop and skip this procedure
+	    // reconstruct the mimeapps.list contents and add our new ones in the appropriate sections
 
             // try to natively override the default icon for the actual executable
             // currently only supporting GNOME and KDE desktop environments
@@ -5156,6 +5161,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
                     //update-icon-caches ~/.local/share/icons/
 
+		    /*
                     #if PLATFORM_LINUX_GNOME
                     String_Copy(&CmdLine, S("update-icon-caches ~/.local/share/icons"));
                     if (bVerboseLog) LOG("    %S", CmdLine);
@@ -5168,6 +5174,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                         return 1;
                     }
                     #endif
+		    */
 
                     /*
                     String_Empty(&CmdLine);
@@ -6252,6 +6259,7 @@ u32 RunApplication(const StringArray Arguments)
     #if !PLATFORM_WINDOWS
     LOG_LINE_BREAK();
     #endif
+    Platform_Sleep(100000);
 
     return ExitCode;
 }
