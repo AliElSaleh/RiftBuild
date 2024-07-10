@@ -6259,7 +6259,6 @@ u32 RunApplication(const StringArray Arguments)
     #if !PLATFORM_WINDOWS
     LOG_LINE_BREAK();
     #endif
-    Platform_Sleep(100000);
 
     return ExitCode;
 }

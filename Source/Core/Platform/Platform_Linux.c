@@ -204,6 +204,11 @@ void Platform_ConsoleWrite(const char* Message, u8 Color, bool bIsError)
     Platform_ConsoleWrite_CustomLength(Message, String_GetLength(Message), 0, false);
 }
 
+#if COMPILER_GCC
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-result"
+#endif
+
 void Platform_ConsoleWrite_CustomLength(const char* Message, u32 Length, u8 Color, bool bIsError)
 {
     static String colors[] = {S("0;37"), S("0;32"), S("1;33"), S("1;31"), S("0;41"), S("0;37")};
@@ -224,6 +229,10 @@ void Platform_ConsoleWrite_CustomLength(const char* Message, u32 Length, u8 Colo
 
     fflush(stdout);
 }
+
+#if COMPILER_GCC
+#pragma GCC diagnostic pop
+#endif
 
 PlatformHandle Platform_CreateThread(const String Name, u32* OutThreadID, u32 (*ThreadEntryPoint)(void* ThreadParameter), void* UserData)
 {
