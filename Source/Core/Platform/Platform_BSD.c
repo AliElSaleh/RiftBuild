@@ -40,7 +40,11 @@
 #include <uuid.h>
 #include <sys/mman.h>
 #include <sys/ioctl.h>
+#if PLATFORM_FREE_BSD
 #include <sys/user.h>
+#else
+#include <sys/vnode.h>
+#endif
 #include <spawn.h>
 #include <termios.h>
 #include <semaphore.h>
@@ -201,23 +205,25 @@ void Platform_ConsoleWrite(const char* Message, u8 Color, bool bIsError)
     Platform_ConsoleWrite_CustomLength(Message, String_GetLength(Message), 0, false);
 }
 
-void Platform_ConsoleWrite_CustomLength(const char* Message, u64 Length, u8 Color, bool bIsError)
+void Platform_ConsoleWrite_CustomLength(const char* Message, u32 Length, u8 Color, bool bIsError)
 {
-    static const char* colors[] = {"0;37", "0;32", "1;33", "1;31", "0;41", "0;37"};
+    static String colors[] = {S("0;37"), S("0;32"), S("1;33"), S("1;31"), S("0;41"), S("0;37")};
 
     bool bIgnoreNewLine = Color == 4 && Message[Length-1] == '\n';
-    if (UNLIKELY(bIgnoreNewLine))
-        Length--;
+    if (UNLIKELY(bIgnoreNewLine)) Length--;
 
-    fprintf(UNLIKELY(bIsError) ? stderr : stdout, "\033[%.*sm%.*s\033[0m", 4, LIKELY(Color < 6) ? colors[Color] : "0:37", (i32)Length, Message);
-    //printf("\033[%.*sm%.*s\033[0m", 4, LIKELY(Color < 6) ? colors[Color] : "0:37", (i32)Length, Message);
+    StringLocal(Temp, 16384);
+    String_Append(&Temp, S("\033["));
+    String_Append(&Temp, LIKELY(Color < 6) ? colors[Color] : S("0:37"));
+    String_Append(&Temp, S("m"));
+    String_Append(&Temp, StrSlice(Message, Length));
+    String_Append(&Temp, S("\033[0m"));
 
-    if (UNLIKELY(bIgnoreNewLine))
-        printf("\n");
+    (void)write(STDOUT_FILENO, Temp.Data, Temp.Length);
+
+    if (UNLIKELY(bIgnoreNewLine)) (void)write(STDOUT_FILENO, "\n", 1);
 
     fflush(stdout);
-
-    //fwrite(Message, 1, Length, bIsError ? stderr : stdout); // this shit prints nothing in some cases wtf??!?
 }
 
 PlatformHandle Platform_CreateThread(const String Name, u32* OutThreadID, u32 (*ThreadEntryPoint)(void* ThreadParameter), void* UserData)
@@ -785,10 +791,11 @@ bool Filesystem_GetFilePath(const FileHandle Handle, String* OutPath)
 
     const i32 fd = fileno((FILE*)Handle.Data);
 
+#if PLATFORM_FREE_BSD
     struct kinfo_file kinfo = {0};
     kinfo.kf_structsize = sizeof(struct kinfo_file);
 
-    if (fcntl(fileno((FILE*)Handle.Data), F_KINFO, &kinfo) == -1)
+    if (fcntl(fd, F_KINFO, &kinfo) == -1)
     {
 	StringLocal(Prefix, 512);
 	String_Format(&Prefix, S("Failed to retrieve file path for given handle: %i"), 512, fd);
@@ -797,6 +804,21 @@ bool Filesystem_GetFilePath(const FileHandle Handle, String* OutPath)
     }
 
     String_Copy(OutPath, CStr(kinfo.kf_path));
+#elif PLATFORM_NET_BSD
+    char Path[PATH_MAX] = {0};
+    if (fcntl(fd, F_GETPATH, Path) == -1)
+    {
+        StringLocal(Prefix, MAX_PATH_LENGTH);
+        String_Format(&Prefix, S("Failed to retrieve file path for file handle"), Prefix.Capacity);
+        LogLastError(Prefix);
+        return false;
+    }
+
+    String_Copy(OutPath, CStrEx(Path, MAX_PATH_LENGTH));
+
+    return true;
+
+#endif
 
     return true;
 }

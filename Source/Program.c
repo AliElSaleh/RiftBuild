@@ -1859,6 +1859,12 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     StringLocal(BuildFilePathFull, MAX_PATH_LENGTH);
     Filesystem_GetFilePath(BuildFileHandle, &BuildFilePathFull);
 
+    if (IsValidFileHandle(BuildFileHandle) && BuildFilePathFull.Length == 0)
+    {
+	LOG_FATAL("Operating system error: failed to retrieve file path from handle. Aborting...");
+	return 1;
+    }
+
     String BuildFileName;
     StringLocal(BuildFilePath, MAX_PATH_LENGTH);
     {
