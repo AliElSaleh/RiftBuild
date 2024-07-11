@@ -200,8 +200,8 @@ bool String_IsEqual(const String StringA, const String StringB, bool bCaseSensit
 
     for (u32 i = 0; i < Length; i++)
     {
-        char A = StringA.Data[i];
-        char B = StringB.Data[i];
+        i32 A = (i32)StringA.Data[i];
+        i32 B = (i32)StringB.Data[i];
         
         if ((A >= 'A' && A <= 'Z'))
         {
@@ -366,8 +366,8 @@ bool String16_IsEqual(const String16 StringA, const String16 StringB, bool bCase
 
     for (u64 i = 0; i < Length; i++)
     {
-        wchar A = StringA.Data[i];
-        wchar B = StringB.Data[i];
+        i32 A = (i32)StringA.Data[i];
+        i32 B = (i32)StringB.Data[i];
         
         if ((A >= L'A' && A <= L'Z'))
         {
@@ -754,8 +754,8 @@ bool String_CollapseMatching(String* Dest, const String A, const String B, bool 
             break;
         }
 
-        char C1 = A.Data[i];
-        char C2 = B.Data[i];
+        i32 C1 = (i32)A.Data[i];
+        i32 C2 = (i32)B.Data[i];
     
         if (!bCaseSensitive)
         {
@@ -1250,8 +1250,8 @@ bool CString_IsEqual(const char* StringA, const char* StringB, bool bCaseSensiti
 
     for (u64 i = 0; i < Length; i++)
     {
-        char A = StringA[i];
-        char B = StringB[i];
+        i32 A = (i32)StringA[i];
+        i32 B = (i32)StringB[i];
 
         if ((A >= 'A' && A <= 'Z'))
         {
@@ -1654,9 +1654,9 @@ bool String_ToF32(const String Str, f32* OutFloat)
     {
         if (IsDigit(c))
         {
-            i8 Digit = c - (i8)'0';
+            i32 Digit = c - '0';
 
-            if ((FLT_MAX - Digit) / 10 < Num)
+            if ((FLT_MAX - (f32)Digit) / 10 < Num)
             {
                 *OutFloat = 0;
                 return false;
@@ -1733,7 +1733,7 @@ bool String_ToF64(const String Str, f64* OutFloat)
     {
         if (IsDigit(c))
         {
-            i8 Digit = c - '0';
+            i32 Digit = c - '0';
 
             if ((DBL_MAX - (f64)Digit) / 10.0 < Num)
             {
@@ -1809,9 +1809,9 @@ bool String_ToU8(const String Str, u8* OutInt)
     {
         if (IsDigit(c))
         {
-            i8 Digit = c - '0';
+            i32 Digit = c - '0';
 
-            if ((UINT8_MAX - Digit) / 10 < Num)
+            if ((UINT8_MAX - (u8)Digit) / 10 < Num)
             {
                 *OutInt = 0;
                 return false;
@@ -1866,9 +1866,9 @@ bool String_ToU16(const String Str, u16* OutInt)
     {
         if (IsDigit(c))
         {
-            i8 Digit = c - '0';
+            i32 Digit = c - '0';
 
-            if ((UINT16_MAX - Digit) / 10 < Num)
+            if ((UINT16_MAX - (u16)Digit) / 10 < Num)
             {
                 *OutInt = 0;
                 return false;
@@ -1923,7 +1923,7 @@ bool String_ToU32(const String Str, u32* OutInt)
     {
         if (IsDigit(c))
         {
-            i8 Digit = c - '0';
+            i32 Digit = c - '0';
 
             if ((UINT32_MAX - (u32)Digit) / 10 < Num)
             {
@@ -1980,7 +1980,7 @@ bool String_ToU64(const String Str, u64* OutInt)
     {
         if (IsDigit(c))
         {
-            i8 Digit = c - '0';
+            i32 Digit = c - '0';
 
             if ((UINT64_MAX - (u64)Digit) / 10 < Num)
             {
@@ -2041,19 +2041,19 @@ bool String_ToI8(const String Str, i8* OutInt)
     {
         if (IsDigit(c))
         {
-            i8 Digit = c - '0';
+            i32 Digit = c - '0';
 
-            if ((INT8_MAX - Digit) / 10 < Num)
+            if ((INT8_MAX - (i8)Digit) / 10 < Num)
             {
                 *OutInt = 0;
                 return false;
             }
 
-            Num = (i8)Num * (i8)(10 + Digit);
+            Num = (i8)(Num * (10 + Digit));
         }
         else
         {
-            *OutInt = Num * Sign;
+            *OutInt = (i8)(Num * Sign);
             return true;
         }
 
@@ -2061,7 +2061,7 @@ bool String_ToI8(const String Str, i8* OutInt)
         c = Str.Data[Index];
     }
 
-    *OutInt = Num * Sign;
+    *OutInt = (i8)(Num * Sign);
     return true;
 }
 
@@ -2102,19 +2102,19 @@ bool String_ToI16(const String Str, i16* OutInt)
     {
         if (IsDigit(c))
         {
-            i16 Digit = c - '0';
+            i32 Digit = c - '0';
 
-            if ((INT16_MAX - Digit) / 10 < Num)
+            if ((INT16_MAX - (i16)Digit) / 10 < Num)
             {
                 *OutInt = 0;
                 return false;
             }
 
-            Num = (i16)Num * (i16)(10 + Digit);
+            Num = (i16)(Num * (10 + Digit));
         }
         else
         {
-            *OutInt = Num * Sign;
+            *OutInt = (i16)(Num * Sign);
             return true;
         }
 
@@ -2122,7 +2122,7 @@ bool String_ToI16(const String Str, i16* OutInt)
         c = Str.Data[Index];
     }
 
-    *OutInt = Num * Sign;
+    *OutInt = (i16)(Num * Sign);
     return true;
 }
 
@@ -2590,12 +2590,12 @@ bool IsSymbol(char Char)
 
 char ToUpper(char Char)
 {
-	return Char >= 'a' && Char <= 'z' ? Char - 32 : Char;
+	return Char >= 'a' && Char <= 'z' ? (char)(Char - 32) : Char;
 }
 
 char ToLower(char Char)
 {
-	return Char >= 'A' && Char <= 'Z' ? Char + 32 : Char;
+	return Char >= 'A' && Char <= 'Z' ? (char)(Char + 32) : Char;
 }
 
 char ToForwardSlash(char Char)

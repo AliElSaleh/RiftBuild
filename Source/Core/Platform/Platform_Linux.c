@@ -13,9 +13,17 @@
 
 #define _XOPEN_SOURCE 700
 
-#include <signal.h>
-#include <stdio.h>
+PRAGMA_DISABLE_WARNINGS
 
+#if COMPILER_GCC
+#pragma GCC diagnostic ignored "-Wcpp"
+#endif
+
+#include <signal.h>
+
+PRAGMA_ENABLE_WARNINGS
+
+#include <stdio.h>
 
 #define _LARGEFILE64_SOURCE
 #define _FILE_OFFSET_BITS 64
@@ -617,8 +625,8 @@ SystemTime Platform_GetSystemLocalTime(void)
     struct tm* lt = localtime(&mytime);
 
     SystemTime t;
-    t.Year = (u16)lt->tm_year + 1900;
-    t.Month = (u16)lt->tm_mon + 1;
+    t.Year = (u16)(lt->tm_year + 1900);
+    t.Month = (u16)(lt->tm_mon + 1);
     t.DayOfWeek = 0;
     t.Day = (u16)lt->tm_mday;
     t.Hour = (u16)lt->tm_hour;
