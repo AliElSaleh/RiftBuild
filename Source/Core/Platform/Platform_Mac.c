@@ -203,7 +203,7 @@ void Platform_ConsoleWrite(const char* Message, u8 Color, bool bIsError)
     Platform_ConsoleWrite_CustomLength(Message, String_GetLength(Message), 0, false);
 }
 
-void Platform_ConsoleWrite_CustomLength(const char* Message, u64 Length, u8 Color, bool bIsError)
+void Platform_ConsoleWrite_CustomLength(const char* Message, u32 Length, u8 Color, bool bIsError)
 {
     static String colors[] = {S("0;37"), S("0;32"), S("1;33"), S("1;31"), S("0;41"), S("0;37")};
 
