@@ -1579,7 +1579,7 @@ bool Filesystem_GetFilePath(const FileHandle Handle, String* OutPath)
         return false;
     }
 
-    String_Copy(OutPath, CStrEx(Path, MAC_PATH_LENGTH));
+    String_Copy(OutPath, CStrEx(Path, MAX_PATH_LENGTH));
     return true;
 }
 
