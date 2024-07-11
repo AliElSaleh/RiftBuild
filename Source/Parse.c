@@ -1545,7 +1545,7 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
             if (bWantsToLower) String_ToLower(&DestEnd);
             if (bWantsToUpper) String_ToUpper(&DestEnd);
         }
-        else if (C == '!') // run custom shell commands and append the output of the command to Dest
+        else if (C == '!' && Slice.Length > 0) // run custom shell commands and append the output of the command to Dest
         {
             StringLocal(CmdLine, 8192);
 

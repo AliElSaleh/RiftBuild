@@ -7,7 +7,7 @@ unamestr=$(uname)
 if [ "$unamestr" = 'Linux' ]; then
    Platform='Linux'
    LinuxIncludeFlags="-ISource/Libraries/Linux"
-   LinuxLinkerFlags="-LSource/Libraries/Linux -lUUIDS"
+   LinuxLinkerFlags="-LSource/Libraries/Linux -lUUIDS -lpthread"
 
    if [ -f /usr/bin/gnome-terminal ]; then
       LinuxDEDefines="-DPLATFORM_LINUX_GNOME"

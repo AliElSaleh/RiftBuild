@@ -19,7 +19,7 @@ CompilerFlags           $SharedCompilerFlags
 LinkerFlags             $SharedLinkerFlags
 Includes                $SharedIncludeFlags
 Defines                 $SharedDefines RIFT_STATIC %^%hood
-Libraries               %_NativeLibs
+Libraries               %_NativeLibs pthread
 
 IncludedSourceFiles     Clock.c Memory.c StringUtils.c Globals.c Log.c Program.c Backend.c Exporter.c Parse.c
 
