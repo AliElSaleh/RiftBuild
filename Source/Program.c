@@ -1900,13 +1900,37 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     StringLocal(TimeStamp, 64);
     String_Format(&TimeStamp, S("%hu-%.2hu-%.2hu %.2hu:%.2hu:%.2hu [%S]"), TimeStamp.Capacity, TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second, TimeZone);
 
+    {
     StringLocal(TimeStampVar, 64);
     String_Format(&TimeStampVar, S("%hu.%.2hu.%.2hu.%.2hu.%.2hu.%.2hu"), TimeStamp.Capacity, TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
-    AddCmdOption(&CmdOptionsDB, S("_Timestamp"), TimeStampVar);
+    String a = String_Create(Arena, TimeStampVar);
+    AddCmdOption(&CmdOptionsDB, S("_Timestamp"), a);
 
     // add another for time zone information
     String_Format(&TimeStampVar, S("%hu.%.2hu.%.2hu.%.2hu.%.2hu.%.2hu.%S"), TimeStamp.Capacity, TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second, TimeZone);
-    AddCmdOption(&CmdOptionsDB, S("_Timestamp_z"), TimeStampVar);
+    a = String_Create(Arena, TimeStampVar);
+
+    AddCmdOption(&CmdOptionsDB, S("_Timestamp_z"), a);
+    String_Format(&TimeStampVar, S("%hu%.2hu%.2hu%.2hu%.2hu%.2hu"), TimeStamp.Capacity, TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
+    a = String_Create(Arena, TimeStampVar);
+    AddCmdOption(&CmdOptionsDB, S("_TimestampNoSep"), a);
+
+    String_Format(&TimeStampVar, S("%hu.%.2hu.%.2hu"), TimeStamp.Capacity, TimeNow.Year, TimeNow.Month, TimeNow.Day);
+    a = String_Create(Arena, TimeStampVar);
+    AddCmdOption(&CmdOptionsDB, S("_Date"), a);
+
+    String_Format(&TimeStampVar, S("%hu%.2hu%.2hu"), TimeStamp.Capacity, TimeNow.Year, TimeNow.Month, TimeNow.Day);
+    a = String_Create(Arena, TimeStampVar);
+    AddCmdOption(&CmdOptionsDB, S("_DateNoSep"), a);
+
+    String_Format(&TimeStampVar, S("%.2hu.%.2hu.%.2hu"), TimeStamp.Capacity, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
+    a = String_Create(Arena, TimeStampVar);
+    AddCmdOption(&CmdOptionsDB, S("_Time"), a);
+
+    String_Format(&TimeStampVar, S("%.2hu%.2hu%.2hu"), TimeStamp.Capacity, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
+    a = String_Create(Arena, TimeStampVar);
+    AddCmdOption(&CmdOptionsDB, S("_TimeNoSep"), a);
+    }
 
     StringLocal(RiftBuildArgs, 4096);
 
