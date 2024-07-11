@@ -4958,7 +4958,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 StringLocal(LocalAppsDirectory, MAX_PATH_LENGTH);
                 String_BuildPath(&LocalAppsDirectory, UserDirectory, S(".local/share/applications"));
                 if (!Filesystem_OpenDirectory(LocalAppsDirectory))
-		    return 1;
+                    return 1;
 
                 String_BuildPath(&DotDesktopFilePath, UserDirectory, S(".local/share/applications/"), DesktopFileName);
             }
@@ -4970,11 +4970,11 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             FileHandle f = {0};
             if (Filesystem_Open(DotDesktopFilePath, FileMode_Write, &f))
             {
-		StringLocal(ExecCmd, 4096);
-		#if PLATFORM_BSD
-		String_Format(&ExecCmd, S("sh -c 'cd $(realpath -q \"$0\"/ || dirname \"$1\") && %S' %%U"), ExecCmd.Capacity, AssemblyPath);
+                StringLocal(ExecCmd, 4096);
+                #if PLATFORM_BSD
+                String_Format(&ExecCmd, S("sh -c 'cd $(realpath -q \"$0\"/ || dirname \"$1\") && %S' %%U"), ExecCmd.Capacity, AssemblyPath);
                 #else
-		String_Format(&ExecCmd, S("sh -c 'cd $(realpath -q \"$0\"/ || dirname \"$0\") && %S' %%U"), ExecCmd.Capacity, AssemblyPath);
+                String_Format(&ExecCmd, S("sh -c 'cd $(realpath -q \"$0\"/ || dirname \"$0\") && %S' %%U"), ExecCmd.Capacity, AssemblyPath);
                 #endif
 
                 StringLocal(FileData, 4096);
@@ -4983,10 +4983,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                         "[Desktop Entry]\n"
                         "Name=%S\n"
                         "TryExec=%S\n"
-                        //"Exec=%S\n"
-			"Exec=%S\n"
-			//"Exec=sh -c 'cd $(realpath -q \"$0\"/ || dirname \"$0\") && %S' %%U\n"
-                        //"Exex=sh -c 'cd $(realpath -q \"$0\"/ || dirname \"$1\")\n"
+                        "Exec=%S\n"
                         "Icon=%S\n"
                         "Terminal=true\n"
                         "Type=Application\n"
@@ -5004,9 +5001,9 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 Filesystem_Close(&f);
             }
 
-	    // TODO: update or generate mimeapps.list config... i wanna cry
-	    // first copy the mimeapps.list if it exist, if this fails, stop and skip this procedure
-	    // reconstruct the mimeapps.list contents and add our new ones in the appropriate sections
+            // TODO: update or generate mimeapps.list config... i wanna cry
+            // first copy the mimeapps.list if it exist, if this fails, stop and skip this procedure
+            // reconstruct the mimeapps.list contents and add our new ones in the appropriate sections
 
             // try to natively override the default icon for the actual executable
             // currently only supporting GNOME and KDE desktop environments
@@ -5024,7 +5021,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                     StringLocal(MimeDirectory, MAX_PATH_LENGTH);
                     String_BuildPath(&MimeDirectory, UserDirectory, S(".local/share/mime/packages"));
                     if (!Filesystem_OpenDirectory(MimeDirectory))
-			return 1;
+                        return 1;
 
                     String_BuildPath(&XmlFilePath, UserDirectory, S(".local/share/mime/packages"), XmlFileName);
                 }
@@ -5033,7 +5030,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                     String_BuildPath(&XmlFilePath, WorkingPath, IntermediateDirectory, XmlFileName);
                 }
 
-		// todo: remove defines, use runtime check for gnome/xfce4
+                // todo: remove defines, use runtime check for gnome/xfce4
                 #if PLATFORM_LINUX_GNOME || PLATFORM_BSD
                 u32 LastSlash = 0, LastDot = 0;
                 String_IndexOfLastPathSlash(IconFilePath, &LastSlash);
@@ -5058,7 +5055,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                         "  </mime-info>\n"),
                         4096,
                         AssemblyName, Description, TitleName.Length == 0 ? AssemblyName : TitleName,
-                        AssemblyName, IconName);
+                        AssemblyName, IconName
                         #elif PLATFORM_LINUX_KDE
                         S("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
                         "  <mime-info xmlns='http://www.freedesktop.org/standards/shared-mime-info'>\n"
@@ -5071,20 +5068,9 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                         "  </mime-info>\n"),
                         4096,
                         AssemblyName, Description, TitleName.Length == 0 ? AssemblyName : TitleName,
-                        AssemblyName, IconFilePath);
+                        AssemblyName, IconFilePath
                         #endif
-
-                        /*
-                        S("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-                            "<mime-info xmlns=\"http://www.freedesktop.org/standards/shared-mime-info\">\n"
-                            "    <mime-type type=\"application/%S\">\n"
-                            "       <icon name=\"%S\"/>\n"
-                            "       <glob pattern=\"%S\"/>\n"
-                            "   </mime-type>\n"
-                            "</mime-info>\n"),
-                            4096, 
-                            AssemblyName, IconFilePath, AssemblyName);
-                        */
+                    );
 
                     if (bVerboseLog) LOG("    Writing %S ...", XmlFilePath);
 
@@ -5097,7 +5083,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                     PlatformHandle H = {0};
                     u32 ExitCode = 0;
 
-		    // todo: remove defines, use runtime check for gnome/xfce4
+		            // todo: remove defines, use runtime check for gnome/xfce4
                     #if PLATFORM_LINUX_GNOME || PLATFORM_BSD
                     String_Append(&CmdLine, S("xdg-mime install --mode user "));
                     String_Append(&CmdLine, XmlFilePath);
