@@ -207,7 +207,7 @@ If no extension was specified, RiftBuild will automatically choose the correct e
 - FreeBSD/OpenBSD/NetBSD (TODO)
 
 # Dependencies
-- No dependencies (other than a working C/C++ compiler)
+- No dependencies
 
 ---
 
