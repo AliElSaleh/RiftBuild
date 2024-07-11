@@ -5007,6 +5007,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
             // try to natively override the default icon for the actual executable
             // currently only supporting GNOME and KDE desktop environments
+            // todo: get rid of those
+            #if PLATFORM_LINUX_GNOME || PLATFORM_LINUX_KDE || PLATFORM_BSD
             {
                 StringLocal(CmdLine, 4096);
 
@@ -5177,6 +5179,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                     */
                 }
             }
+            #endif
         }
 
         Clock_Tick(&IconClock);
