@@ -5002,30 +5002,6 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
                 Filesystem_Write(f, FileData.Length, FileData.Data, NULL);
                 Filesystem_Close(&f);
-
-                /*
-                StringLocal(DotDesktopDestPath, MAX_PATH_LENGTH);
-                String_BuildPath(&DotDesktopDestPath, S("~/.local/share/applications/"), DesktopFileName);
-                Filesystem_Copy(DotDesktopFilePath, DotDesktopDestPath);
-                */
-
-                /*
-                #if PLATFORM_LINUX_GNOME || PLATFORM_LINUX_KDE
-                const String Cmd = S("update-desktop-database ~/.local/share/applications");
-                if (bVerboseLog) LOG("    %S", Cmd);
-                PlatformHandle H = Platform_RunCommand(Cmd, WorkingPath);
-                u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
-                if (ExitCode != 0)
-                {
-                    LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
-                    return 1;
-                }
-
-                //update-desktop-database ~/.local/share/applications
-                //update-desktop-database /usr/share/applications
-                //xdg-desktop-menu forceupdate
-                #endif
-                */
             }
 
 	    // TODO: update or generate mimeapps.list config... i wanna cry
@@ -5035,25 +5011,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             // try to natively override the default icon for the actual executable
             // currently only supporting GNOME and KDE desktop environments
             {
-                #if PLATFORM_LINUX_GNOME || PLATFORM_LINUX_KDE
                 StringLocal(CmdLine, 4096);
-
-                /*
-                String_Append(&CmdLine, S("gio set "));
-                String_Append(&CmdLine, AssemblyPath);
-                String_Append(&CmdLine, S(" metadata::custom-icon file://"));
-                String_Append(&CmdLine, IconFilePath);
-
-                if (bVerboseLog) LOG("    %S", CmdLine);
-
-                PlatformHandle h = Platform_RunCommand(CmdLine, WorkingPath);
-                u32 ExitCode = Platform_WaitForProcessAndGetExitCode(h);
-                if (ExitCode != 0)
-                {
-                    LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
-                    return 1;
-                }
-                */
 
                 StringLocal(XmlFilePath, MAX_PATH_LENGTH);
                 StringLocal(XmlFileName, 512);
@@ -5075,7 +5033,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                     String_BuildPath(&XmlFilePath, WorkingPath, IntermediateDirectory, XmlFileName);
                 }
 
-                #if PLATFORM_LINUX_GNOME
+		// todo: remove defines, use runtime check for gnome/xfce4
+                #if PLATFORM_LINUX_GNOME || PLATFORM_BSD
                 u32 LastSlash = 0, LastDot = 0;
                 String_IndexOfLastPathSlash(IconFilePath, &LastSlash);
                 String_IndexOfLastChar(StrShiftF(IconFilePath, LastSlash+1), '.', &LastDot);
@@ -5087,7 +5046,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 {
                     StringLocal(FileData, 4096);
                     String_Format(&FileData,
-                        #if PLATFORM_LINUX_GNOME
+                        #if PLATFORM_LINUX_GNOME || PLATFORM_BSD
                         S("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
                         "  <mime-info xmlns='http://www.freedesktop.org/standards/shared-mime-info'>\n"
                         "    <mime-type type=\"application/%S\">\n"
@@ -5138,7 +5097,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                     PlatformHandle H = {0};
                     u32 ExitCode = 0;
 
-                    #if PLATFORM_LINUX_GNOME
+		    // todo: remove defines, use runtime check for gnome/xfce4
+                    #if PLATFORM_LINUX_GNOME || PLATFORM_BSD
                     String_Append(&CmdLine, S("xdg-mime install --mode user "));
                     String_Append(&CmdLine, XmlFilePath);
                     if (bVerboseLog) LOG("    %S", CmdLine);
@@ -5230,7 +5190,6 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                     }
                     */
                 }
-                #endif
             }
         }
 
