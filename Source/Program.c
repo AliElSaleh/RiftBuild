@@ -3937,20 +3937,16 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             LOG("    Resource Compiler:   %S -> \"%S\"", RCProgram, RCProgramPath);
         #endif
 
-        bool bLogged = false;
-        if (CompilerFlags.Length > 0)      { LogBuildVariable(*Arena, VariablesDB, S("CompilerFlags"),      S("    Compiler Flags:      "), !bNoWordWrapLogging); bLogged = true; }
-        if (IncludeFlags.Length > 0)       { LogBuildVariable(*Arena, VariablesDB, S("Includes"),           S("    Includes:            "), !bNoWordWrapLogging); bLogged = true; }
-        if (LinkerFlags.Length > 0)        { LogBuildVariable(*Arena, VariablesDB, S("LinkerFlags"),        S("    Linker Flags:        "), !bNoWordWrapLogging); bLogged = true; }
-        if (Libraries.Length > 0)          { LogBuildVariable(*Arena, VariablesDB, S("Libraries"),          S("    Libraries:           "), !bNoWordWrapLogging); bLogged = true; }
-        if (LibraryDirectories.Length > 0) { LogBuildVariable(*Arena, VariablesDB, S("LibraryDirectories"), S("    Library Directories: "), !bNoWordWrapLogging); bLogged = true; }
-        if (Defines.Length > 0)            { LogBuildVariable(*Arena, VariablesDB, S("Defines"),            S("    Defines:             "), !bNoWordWrapLogging); bLogged = true; }
-        if (UnDefines.Length > 0)          { LogBuildVariable(*Arena, VariablesDB, S("UnDefines"),          S("    UnDefines:           "), !bNoWordWrapLogging); bLogged = true; }
-        if (LinkerDefines.Length > 0)      { LogBuildVariable(*Arena, VariablesDB, S("LinkerDefines"),      S("    Linker Defines:      "), !bNoWordWrapLogging); bLogged = true; }
+        if (CompilerFlags.Length > 0)      { LogBuildVariable(*Arena, VariablesDB, S("CompilerFlags"),      S("    Compiler Flags:      "), !bNoWordWrapLogging); }
+        if (IncludeFlags.Length > 0)       { LogBuildVariable(*Arena, VariablesDB, S("Includes"),           S("    Includes:            "), !bNoWordWrapLogging); }
+        if (LinkerFlags.Length > 0)        { LogBuildVariable(*Arena, VariablesDB, S("LinkerFlags"),        S("    Linker Flags:        "), !bNoWordWrapLogging); }
+        if (Libraries.Length > 0)          { LogBuildVariable(*Arena, VariablesDB, S("Libraries"),          S("    Libraries:           "), !bNoWordWrapLogging); }
+        if (LibraryDirectories.Length > 0) { LogBuildVariable(*Arena, VariablesDB, S("LibraryDirectories"), S("    Library Directories: "), !bNoWordWrapLogging); }
+        if (Defines.Length > 0)            { LogBuildVariable(*Arena, VariablesDB, S("Defines"),            S("    Defines:             "), !bNoWordWrapLogging); }
+        if (UnDefines.Length > 0)          { LogBuildVariable(*Arena, VariablesDB, S("UnDefines"),          S("    UnDefines:           "), !bNoWordWrapLogging); }
+        if (LinkerDefines.Length > 0)      { LogBuildVariable(*Arena, VariablesDB, S("LinkerDefines"),      S("    Linker Defines:      "), !bNoWordWrapLogging); }
 
-        if (bLogged)
-        {
-            LOG_LINE_BREAK();
-        }
+        LOG_LINE_BREAK();
     }
 
     const String ExpandedCompilerFlags = GetVariableValue(ExpandedVariablesDB, S("CompilerFlags"));
@@ -4034,7 +4030,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         String_BuildPath(&FullBuildDirectory, WorkingPath, BuildDirectory);
         if (!Filesystem_DoesDirectoryExist(FullBuildDirectory))
         {
-            Filesystem_OpenDirectory(FullBuildDirectory);
+            if (!Filesystem_OpenDirectory(FullBuildDirectory))
+		return 1;
         }
     }
 
@@ -4042,7 +4039,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     String_BuildPath(&IntSrcDir, IntermediateBaseDirectory, SourceDirectory);
     if (!Filesystem_DoesDirectoryExist(IntermediateBaseDirectory))
     {
-        Filesystem_OpenDirectory(IntermediateBaseDirectory);
+        if (!Filesystem_OpenDirectory(IntermediateBaseDirectory))
+            return 1;
     }
 
     BuildParams p = {0};
@@ -4929,7 +4927,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             {
                 StringLocal(LocalAppsDirectory, MAX_PATH_LENGTH);
                 String_BuildPath(&LocalAppsDirectory, UserDirectory, S(".local/share/applications"));
-                Filesystem_OpenDirectory(LocalAppsDirectory);
+                if (!Filesystem_OpenDirectory(LocalAppsDirectory))
+		    return 1;
 
                 String_BuildPath(&DotDesktopFilePath, UserDirectory, S(".local/share/applications/"), DesktopFileName);
             }
@@ -5027,7 +5026,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 {
                     StringLocal(MimeDirectory, MAX_PATH_LENGTH);
                     String_BuildPath(&MimeDirectory, UserDirectory, S(".local/share/mime/packages"));
-                    Filesystem_OpenDirectory(MimeDirectory);
+                    if (!Filesystem_OpenDirectory(MimeDirectory))
+			return 1;
 
                     String_BuildPath(&XmlFilePath, UserDirectory, S(".local/share/mime/packages"), XmlFileName);
                 }
@@ -5220,7 +5220,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         {
             StringLocal(MimeDirectory, MAX_PATH_LENGTH);
             String_BuildPath(&MimeDirectory, UserDirectory, S(".local/share/mime/packages"));
-            Filesystem_OpenDirectory(MimeDirectory);
+            if (!Filesystem_OpenDirectory(MimeDirectory))
+		return 1;
 
             String_BuildPath(&XmlFilePath, UserDirectory, S(".local/share/mime/packages"), XmlFileName);
 
@@ -5228,7 +5229,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
             StringLocal(LocalAppsDirectory, MAX_PATH_LENGTH);
             String_BuildPath(&LocalAppsDirectory, UserDirectory, S(".local/share/applications"));
-            Filesystem_OpenDirectory(LocalAppsDirectory);
+            if (!Filesystem_OpenDirectory(LocalAppsDirectory))
+		return 1;
 
             String_BuildPath(&DotDesktopFilePath, UserDirectory, S(".local/share/applications/"), DesktopFileName);
         }
