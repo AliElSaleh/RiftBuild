@@ -19,7 +19,7 @@ CompilerFlags           $SharedCompilerFlags
 LinkerFlags             $SharedLinkerFlags
 Includes                $SharedIncludeFlags
 Defines                 $SharedDefines RIFT_STATIC %^%hood
-Libraries               %_NativeLibs pthread
+Libraries               %_NativeLibs
 
 IncludedSourceFiles     Clock.c Memory.c StringUtils.c Globals.c Log.c Program.c Backend.c Exporter.c Parse.c
 
@@ -45,7 +45,7 @@ if windows {
     if cl               LinkerFlags   /ENTRY:ProgramStart /SUBSYSTEM:CONSOLE /STACK:0x400000,0x400000
 }
 
-if linux                Libraries UUIDS ; LibraryDirectories Source/Libraries/Linux
+if linux                Libraries UUIDS pthread ; LibraryDirectories Source/Libraries/Linux
 
 if linux {
     if @XDG_CURRENT_DESKTOP contains GNOME    Defines __gnome__

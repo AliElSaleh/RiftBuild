@@ -205,17 +205,21 @@ void Platform_ConsoleWrite(const char* Message, u8 Color, bool bIsError)
 
 void Platform_ConsoleWrite_CustomLength(const char* Message, u64 Length, u8 Color, bool bIsError)
 {
-    static const char* colors[] = {"0;37", "0;32", "1;33", "1;31", "0;41", "0;37"};
+    static String colors[] = {S("0;37"), S("0;32"), S("1;33"), S("1;31"), S("0;41"), S("0;37")};
 
     bool bIgnoreNewLine = Color == 4 && Message[Length-1] == '\n';
-    if (UNLIKELY(bIgnoreNewLine))
-        Length--;
+    if (UNLIKELY(bIgnoreNewLine)) Length--;
 
-    fprintf(UNLIKELY(bIsError) ? stderr : stdout, "\033[%.*sm%.*s\033[0m", 4, LIKELY(Color < 6) ? colors[Color] : "0:37", (i32)Length, Message);
-    //printf("\033[%.*sm%.*s\033[0m", 4, LIKELY(Color < 6) ? colors[Color] : "0:37", (i32)Length, Message);
+    StringLocal(Temp, 16384);
+    String_Append(&Temp, S("\033["));
+    String_Append(&Temp, LIKELY(Color < 6) ? colors[Color] : S("0:37"));
+    String_Append(&Temp, S("m"));
+    String_Append(&Temp, StrSlice(Message, Length));
+    String_Append(&Temp, S("\033[0m"));
 
-    if (UNLIKELY(bIgnoreNewLine))
-        printf("\n");
+    (void)write(STDOUT_FILENO, Temp.Data, Temp.Length);
+
+    if (UNLIKELY(bIgnoreNewLine)) (void)write(STDOUT_FILENO, "\n", 1);
 
     fflush(stdout);
 }
@@ -1869,7 +1873,7 @@ bool Platform_GetTerminalDimensions(u32* OutRows, u32* OutColumns)
     struct winsize w;
     if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == -1)
     {
-        LogLastError(S("Failed to get terminal dimensions"));
+        //LogLastError(S("Failed to get terminal dimensions"));
         return false;
     }
 

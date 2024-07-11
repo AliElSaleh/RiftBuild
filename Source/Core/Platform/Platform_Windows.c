@@ -325,7 +325,7 @@ void Platform_ConsoleWrite(const char* Message, u8 Color, bool bIsError)
     Platform_ConsoleWrite_CustomLength(Message, String_GetLength(Message), Color, bIsError);
 }
 
-void Platform_ConsoleWrite_CustomLength(const char* Message, u64 Length, u8 Color, bool bIsError)
+void Platform_ConsoleWrite_CustomLength(const char* Message, u32 Length, u8 Color, bool bIsError)
 {
     //PROFILE_SCOPE("Platform_ConsoleWrite") // @todo: make it thread local
     {
@@ -2202,7 +2202,7 @@ bool Platform_GetTerminalDimensions(u32* OutRows, u32* OutColumns)
 
     if (GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi) == 0)
     {
-        LogLastError(S("Failed to get console screen buffer info"));
+        //LogLastError(S("Failed to get console screen buffer info"));
         return false;
     }
 

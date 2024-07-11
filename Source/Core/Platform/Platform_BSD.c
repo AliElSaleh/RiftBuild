@@ -1871,7 +1871,7 @@ bool Platform_GetTerminalDimensions(u32* OutRows, u32* OutColumns)
     struct winsize w;
     if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == -1)
     {
-        LogLastError(S("Failed to get terminal dimensions"));
+        //LogLastError(S("Failed to get terminal dimensions"));
         return false;
     }
 
