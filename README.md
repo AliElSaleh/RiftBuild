@@ -204,7 +204,7 @@ If no extension was specified, RiftBuild will automatically choose the correct e
   - All Debian, Red Hat, Fedora and Arch based systems
 - MacOS
   - 10.5 and above
-- FreeBSD/OpenBSD/NetBSD (TODO)
+- FreeBSD/OpenBSD/NetBSD
 
 # Dependencies
 - No dependencies
