@@ -4973,10 +4973,10 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             if (Filesystem_Open(DotDesktopFilePath, FileMode_Write, &f))
             {
                 StringLocal(ExecCmd, 4096);
-                #if PLATFORM_BSD
-                String_Format(&ExecCmd, S("sh -c 'cd $(realpath -q \"$0\"/ || dirname \"$1\") && %S --from-desktop' %%U"), ExecCmd.Capacity, AssemblyPath);
+                #if PLATFORM_NET_BSD
+                String_Format(&ExecCmd, S("sh -c 'cd \"$(realpath -q \"$0\"/ || dirname \"$1\")\" && %S --from-desktop' %%U"), ExecCmd.Capacity, AssemblyPath);
                 #else
-                String_Format(&ExecCmd, S("sh -c 'cd $(realpath -q \"$0\"/ || dirname \"$0\") && %S --from-desktop' %%U"), ExecCmd.Capacity, AssemblyPath);
+                String_Format(&ExecCmd, S("sh -c 'cd \"$(realpath -q \"$0\"/ || dirname \"$0\")\" && %S --from-desktop' %%U"), ExecCmd.Capacity, AssemblyPath);
                 #endif
 
                 StringLocal(FileData, 4096);
@@ -5010,7 +5010,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             // try to natively override the default icon for the actual executable
             // currently only supporting GNOME and KDE desktop environments
             // todo: get rid of those
-            #if PLATFORM_LINUX_GNOME || PLATFORM_LINUX_KDE
+            #if PLATFORM_LINUX_GNOME || PLATFORM_LINUX_KDE || PLATFORM_BSD
             {
                 StringLocal(CmdLine, 4096);
 
@@ -5047,7 +5047,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 {
                     StringLocal(FileData, 4096);
                     String_Format(&FileData,
-                        #if PLATFORM_LINUX_GNOME || PLATFORM_BSD
+                        #if PLATFORM_LINUX_GNOME
                         S("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
                         "  <mime-info xmlns='http://www.freedesktop.org/standards/shared-mime-info'>\n"
                         "    <mime-type type=\"application/%S\">\n"
@@ -5060,7 +5060,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                         4096,
                         AssemblyName, Description, TitleName.Length == 0 ? AssemblyName : TitleName,
                         AssemblyName, IconName
-                        #elif PLATFORM_LINUX_KDE
+                        #elif PLATFORM_LINUX_KDE || PLATFORM_BSD
                         S("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
                         "  <mime-info xmlns='http://www.freedesktop.org/standards/shared-mime-info'>\n"
                         "    <mime-type type=\"application/%S\">\n"
@@ -6245,6 +6245,7 @@ u32 RunApplication(const StringArray Arguments)
         Platform_BeginNonBlockingMode();
         while (1)
         {
+            Platform_Sleep(10);
             if (Platform_AnyKeyPressed())
             {
                 break;
