@@ -2105,6 +2105,14 @@ bool Platform_AnyKeyPressed(void)
     return kbhit();
 }
 
+void Platform_BeginNonBlockingMode(void)
+{
+}
+
+void Platform_EndNonBlockingMode(void)
+{
+}
+
 u32 Platform_GetExitCodeForProcess(PlatformHandle Handle)
 {
     if (NEVER(!Platform_IsValidHandle(Handle))) return 0;
