@@ -2503,10 +2503,10 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         {
             const String CompilerPrograms[] =
             {
-                S("cc"),
                 S("clang"),
                 S("gcc"),
                 S("egcc"),
+                S("cc"),
                 S("x86_64-w64-mingw32-gcc"),
                 S("g++"),
                 S("clang++"),
