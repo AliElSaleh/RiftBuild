@@ -4972,9 +4972,9 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             {
                 StringLocal(ExecCmd, 4096);
                 #if PLATFORM_BSD
-                String_Format(&ExecCmd, S("sh -c 'cd $(realpath -q \"$0\"/ || dirname \"$1\") && %S' %%U"), ExecCmd.Capacity, AssemblyPath);
+                String_Format(&ExecCmd, S("sh -c 'cd $(realpath -q \"$0\"/ || dirname \"$1\") && %S --from-desktop' %%U"), ExecCmd.Capacity, AssemblyPath);
                 #else
-                String_Format(&ExecCmd, S("sh -c 'cd $(realpath -q \"$0\"/ || dirname \"$0\") && %S' %%U"), ExecCmd.Capacity, AssemblyPath);
+                String_Format(&ExecCmd, S("sh -c 'cd $(realpath -q \"$0\"/ || dirname \"$0\") && %S --from-desktop' %%U"), ExecCmd.Capacity, AssemblyPath);
                 #endif
 
                 StringLocal(FileData, 4096);
@@ -6076,6 +6076,8 @@ u32 RunApplication(const StringArray Arguments)
     const bool bOutputToLog = StringArray_Contains(Arguments, S("-l"), false);
     Logging_ToggleLogFile(bOutputToLog);
 
+    const bool bLaunchedFromDesktop = StringArray_Contains(Arguments, S("--from-desktop"), false);
+
     #ifndef HOOD
         #ifdef DEVELOPER
         LOG("\nRift Build System v%S (%S %S) [DEBUG]\n", S(RIFTBUILD_VERSION_STRING), S(PLATFORM_STRING), S(CPU_ARCHITECTURE_STRING));
@@ -6234,14 +6236,19 @@ u32 RunApplication(const StringArray Arguments)
     u32 ExitCode = RiftBuild(&ProgramArena, Arguments);
 
     #if !PLATFORM_MAC
-    if (Platform_GetConsoleProcessCount() == 1)
+    if (Platform_GetConsoleProcessCount() == 1 || bLaunchedFromDesktop)
     {
-        LOG_INLINE_WARNING("\nLaunched outside an existing terminal, pausing until user exit. Press any key to exit...");
+        LOG_INLINE_WARNING("\nLaunched outside an existing terminal, pausing until user exit. Press any key to exit... ");
 
-        while (!Platform_AnyKeyPressed())
+        Platform_BeginNonBlockingMode();
+        while (1)
         {
-            break;
+            if (Platform_AnyKeyPressed())
+            {
+                break;
+            }
         }
+        Platform_EndNonBlockingMode();
     }
     #endif
 

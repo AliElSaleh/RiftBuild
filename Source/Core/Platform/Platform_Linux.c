@@ -546,9 +546,67 @@ void Platform_ExitCriticalSection(PlatformCriticalSection CriticalSection)
 {
 }
 
+// GOAT'ed repo: https://github.com/zrafa/onscreenkeyboard/blob/master/key.c
+//               https://web.archive.org/web/20180401093525/http://cc.byexamples.com/2007/04/08/non-blocking-user-input-in-loop-without-ncurses/
+
+#define NB_DISABLE 1
+#define NB_ENABLE  0
+
+internal void nonblock(int state)
+{
+    struct termios ttystate = {0};
+
+    //get the terminal state
+    tcgetattr(STDIN_FILENO, &ttystate);
+
+    if (state == NB_ENABLE)
+    {
+        //turn off canonical mode
+        ttystate.c_lflag &= ~(u32)ICANON;
+        //minimum of number input read.
+        ttystate.c_cc[VMIN] = 1;
+    }
+    else if (state == NB_DISABLE)
+    {
+        //turn on canonical mode
+        ttystate.c_lflag |= ICANON;
+    }
+
+    //set the terminal attributes.
+    tcsetattr(STDIN_FILENO, TCSANOW, &ttystate);
+}
+
+internal i32 kbhit(void)
+{
+    struct timeval tv;
+    fd_set fds;
+    tv.tv_sec = 0;
+    tv.tv_usec = 0;
+    FD_ZERO(&fds);
+    FD_SET(STDIN_FILENO, &fds); //STDIN_FILENO is 0
+    select(STDIN_FILENO+1, &fds, NULL, NULL, &tv);
+    return FD_ISSET(STDIN_FILENO, &fds);
+}
+
+void Platform_BeginNonBlockingMode(void)
+{
+    nonblock(NB_ENABLE);
+}
+
+void Platform_EndNonBlockingMode(void)
+{
+    nonblock(NB_DISABLE);
+}
+
 bool Platform_AnyKeyPressed(void)
 {
-    UNIMPLEMENTED;
+    i32 Result = kbhit();
+    if (Result)
+    {
+        i32 c = fgetc(stdin);
+        return c != 0;
+    }
+
     return false;
 }
 
