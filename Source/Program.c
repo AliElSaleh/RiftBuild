@@ -1861,8 +1861,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
     if (IsValidFileHandle(BuildFileHandle) && BuildFilePathFull.Length == 0)
     {
-	LOG_FATAL("Operating system error: failed to retrieve file path from handle. Aborting...");
-	return 1;
+        LOG_FATAL("Operating system error: failed to retrieve file path from handle. Aborting...");
+        return 1;
     }
 
     String BuildFileName;
@@ -1986,7 +1986,6 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         if (!ParseBuildFile(Arena, BuildFileHandle, BuildFilePath, WorkingPath, VariablesDB, ExpandedVariablesDB,
                             CmdOptionsDB, Messages, IncludeFiles, NULL, false, NULL, false))
         {
-	    LOG_ERROR("Parse Failed");
             return 1;
         }
 
@@ -4064,7 +4063,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         if (!Filesystem_DoesDirectoryExist(FullBuildDirectory))
         {
             if (!Filesystem_OpenDirectory(FullBuildDirectory))
-		return 1;
+                return 1;
         }
     }
 
@@ -5088,7 +5087,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                     PlatformHandle H = {0};
                     u32 ExitCode = 0;
 
-		            // todo: remove defines, use runtime check for gnome/xfce4
+                    // todo: remove defines, use runtime check for gnome/xfce4
                     #if PLATFORM_LINUX_GNOME
                     String_Append(&CmdLine, S("xdg-mime install --mode user "));
                     String_Append(&CmdLine, XmlFilePath);
@@ -5151,7 +5150,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
                     //update-icon-caches ~/.local/share/icons/
 
-		    /*
+            /*
                     #if PLATFORM_LINUX_GNOME
                     String_Copy(&CmdLine, S("update-icon-caches ~/.local/share/icons"));
                     if (bVerboseLog) LOG("    %S", CmdLine);
@@ -5164,7 +5163,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                         return 1;
                     }
                     #endif
-		    */
+            */
 
                     /*
                     String_Empty(&CmdLine);
@@ -5211,7 +5210,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             StringLocal(MimeDirectory, MAX_PATH_LENGTH);
             String_BuildPath(&MimeDirectory, UserDirectory, S(".local/share/mime/packages"));
             if (!Filesystem_OpenDirectory(MimeDirectory))
-		return 1;
+                return 1;
 
             String_BuildPath(&XmlFilePath, UserDirectory, S(".local/share/mime/packages"), XmlFileName);
 
@@ -5220,7 +5219,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             StringLocal(LocalAppsDirectory, MAX_PATH_LENGTH);
             String_BuildPath(&LocalAppsDirectory, UserDirectory, S(".local/share/applications"));
             if (!Filesystem_OpenDirectory(LocalAppsDirectory))
-		return 1;
+                return 1;
 
             String_BuildPath(&DotDesktopFilePath, UserDirectory, S(".local/share/applications/"), DesktopFileName);
         }

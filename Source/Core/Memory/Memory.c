@@ -1134,14 +1134,14 @@ void* _ArrayRemoveAt(void* Array, void* ValuePtr, usize Index)
 
     if (ValuePtr)
     {
-	MemCopy(ValuePtr, (void*)(Addr + (Index * Stride)), Stride);
+        MemCopy(ValuePtr, (void*)(Addr + (Index * Stride)), Stride);
     }
 
     // If not last element, snip out the entry and copy the rest inward
     if (Index != Num-1)
     {
-	volatile void* Dest = (void*)(Addr + (Index * Stride));
-	volatile void* Src  = (void*)(Addr + ((Index + 1) * Stride));
+        volatile void* Dest = (void*)(Addr + (Index * Stride));
+        volatile void* Src  = (void*)(Addr + ((Index + 1) * Stride));
 
         MemMove((void*)Dest, (void*)Src, Stride * (Num - Index));		
     }

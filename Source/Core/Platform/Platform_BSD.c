@@ -804,8 +804,8 @@ bool Filesystem_GetFilePath(const FileHandle Handle, String* OutPath)
 
     if (fcntl(fd, F_KINFO, &kinfo) == -1)
     {
-	StringLocal(Prefix, 512);
-	String_Format(&Prefix, S("Failed to retrieve file path for given handle: %i"), 512, fd);
+        StringLocal(Prefix, 512);
+        String_Format(&Prefix, S("Failed to retrieve file path for given handle: %i"), 512, fd);
         LogLastError(Prefix);
         return false;
     }
@@ -828,6 +828,8 @@ bool Filesystem_GetFilePath(const FileHandle Handle, String* OutPath)
     return true;
 
 // OpenBSD does not support retrieving the path data from a handle :(
+// https://marc.info/?l=openbsd-tech&m=164250539119078&w=2
+// https://www.mail-archive.com/misc@openbsd.org/msg188221.html
 #elif PLATFORM_OPEN_BSD
     String_Copy(OutPath, StrView(Handle.Path));
     return true;

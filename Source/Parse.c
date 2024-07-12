@@ -194,10 +194,10 @@ bool ParseBuildFile(LinearAllocator* Arena,
 
                             bIfFailed = false;
                             bInsideElse = false;
-	
-			    // do a indirect copy otherwise it will crash on OpenBSD due to overlapping memory
-			    StringLocal(LineCopy, 512);
-			    String_Copy(&LineCopy, StrShiftF(ElseOg, Space+1));
+    
+                            // do a indirect copy otherwise it will crash on OpenBSD due to overlapping memory
+                            StringLocal(LineCopy, 512);
+                            String_Copy(&LineCopy, StrShiftF(ElseOg, Space+1));
 
                             String_Copy(&Line, LineCopy);
                             goto LoopStart;
@@ -894,8 +894,8 @@ bool ParseBuildFile(LinearAllocator* Arena,
             String RestOfTheLine = StrShiftF(VarValue, Index);
             String_EatSpacesInlineFromEnd(&RestOfTheLine);
 
-	    StringLocal(LineCopy, 512);
-	    String_Copy(&LineCopy, RestOfTheLine);
+            StringLocal(LineCopy, 512);
+            String_Copy(&LineCopy, RestOfTheLine);
 
             // else statement detection
             u32 LengthCap = 0;
@@ -931,19 +931,19 @@ bool ParseBuildFile(LinearAllocator* Arena,
                         }
 
                         if (bHasElse)
-			{
-			    // the following crashes on OpenBSD memcpy, due to the pointers being overlapped
+                        {
+                            // the following crashes on OpenBSD memcpy, due to the pointers being overlapped
                             //String_Copy(&Line, String_EatSpaces(StrSlice(RestOfTheLine.Data, LengthCap)));
 
                             String_Copy(&Line, String_EatSpaces(StrSlice(LineCopy.Data, LengthCap)));
-			}
+                        }
                         else
-			{
-			    // the following crashes on OpenBSD memcpy, due to the pointers being overlapped
+                        {
+                            // the following crashes on OpenBSD memcpy, due to the pointers being overlapped
                             //String_Copy(&Line, RestOfTheLine);
 
                             String_Copy(&Line, LineCopy);
-			}
+                        }
 
                         goto LoopStart;
                     }
