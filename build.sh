@@ -21,7 +21,7 @@ elif [ "$unamestr" = 'OpenBSD' ]; then
    Platform='BSD'
    BSDLinkerFlags="-lpthread"
 
-   # the compiler (and specifically on OpenBSD) for some reason trips up and replaces memmove with memcpy when using -O1 or higher optimizations causing a SIGABRT crash in memcpy because of overlapping pointers whenever i remove something from my dynamic array. Obviously the fix is to use memmove, but it straight up yeets it out of existance when you turn on optimizations. **Every** other OS doesnt seem to have this problem with my code except this shitty one, (it was a pain to install as well compared to NetBSD and FreeBSD), spent about two hours tryin to fix it... i just wanna punch the screen...
+   # the compiler (and specifically on OpenBSD) for some reason trips up and replaces memmove with memcpy when using -O1 or higher optimizations causing a SIGABRT crash in memcpy because of overlapping memory whenever i remove something from my dynamic array. Obviously the fix is to use memmove, but it straight up yeets it out of existance when you turn on optimizations. **Every** other OS doesnt seem to have this problem with my code except this shitty one, (it was a pain to install as well compared to NetBSD and FreeBSD), spent about two hours tryin to fix it... i just wanna punch the screen...
    MiscFlags='-fno-builtin-memcpy' # prevents clang/gcc from replacing memmove with memcpy
 elif [ "$unamestr" = 'NetBSD' ]; then
    Platform='BSD'
