@@ -277,11 +277,6 @@ typedef void VoidFunc(void);
     #define COMPILER_GCC 1
 #elif defined(_MSC_VER)
     #define COMPILER_MSVC 1
-
-    #if _MSC_VER < 1938
-        #error "Unsupported MSVC cl version. Download version 19.38 or later."
-    #endif
-
 #else
     #error Unknown compiler
 #endif
