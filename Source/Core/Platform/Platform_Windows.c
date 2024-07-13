@@ -2234,8 +2234,14 @@ void __stack_chk_fail(void)
     ExitProcess(1);
 }
 
+void __chkstk(void)
+{
+    return;
+}
+
 void ___chkstk_ms(void)
 {
+    return;
 }
 
 PRAGMA_ENABLE_WARNINGS

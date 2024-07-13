@@ -70,11 +70,6 @@ typedef void VoidFunc(void);
 #define __NARG_I_(...) __ARG_N(__VA_ARGS__)
 #define __NARG__(...)  __NARG_I_(__VA_ARGS__,__RSEQ_N())
 
-// general definition for any function name
-#define _VFUNC_(name, n) name##n
-#define _VFUNC(name, n)  _VFUNC_(name, n)
-#define vfn(func, ...)   _VFUNC(func, __NARG__(__VA_ARGS__))(__VA_ARGS__)
-
 #define BITS_PER_LONG (8*sizeof(long))
 #define OFF(x) ((x)%BITS_PER_LONG)
 #define BIT(x) (1UL<<OFF(x))
@@ -130,9 +125,6 @@ typedef void VoidFunc(void);
 #define thread_local _Thread_local
 
 #define FUNCTION_NAME __func__
-
-#define CONSOLE_FLOAT(Var, ...)
-#define CONSOLE_CMD(Name, ...) void CONCAT(CMD__, Name)(StringArray Arguments)
 
 // Platform detection
 // Rift Build only supports the following:
@@ -434,7 +426,7 @@ typedef i32 PlatformPipe[2];
 typedef void* PlatformCriticalSection;
 #endif
 
-#define STATIC_ASSERT(e, ...) typedef char MACRO_VAR(__C_ASSERT__)[(e) ? 1 : -1]
+#define STATIC_ASSERT(e, Msg) typedef char MACRO_VAR(__C_ASSERT__)[(e) ? 1 : -1]
 
 // drop support for typeof because of MSVC :(
 /*

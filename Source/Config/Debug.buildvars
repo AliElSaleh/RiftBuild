@@ -9,11 +9,13 @@ WarningFlagsDisabled -Wno-unused-variable -Wno-unused-parameter -Wno-gnu-zero-va
 WarningErrorFlags    -Werror=vla -Werror=implicit-function-declaration -Werror=pointer-arith -Werror=shadow -Werror=uninitialized -Werror=array-bounds -Werror=implicit -Werror=incompatible-pointer-types -Werror=int-conversion
 #-Werror=return-type
 
-# newer flags (not supported in clang 5.0)
+# newer flags (not supported in clang 3.4)
 # -Wmisleading-indentation
 # -Werror=alloca
 # -Werror=float-conversion
 # -Winfinite-recursion
+# -fdeclspec -fdiagnostics-absolute-paths
+# -gcodeview
 
 if !gcc              WarningFlags         -Wpedantic
 if !gcc              WarningFlagsDisabled -Wno-empty-translation-unit
@@ -21,7 +23,7 @@ if !gcc              WarningErrorFlags    -Werror=shorten-64-to-32 -Werror=compa
 
 SecurityFlags        -fno-strict-overflow -fno-strict-aliasing
 
-# newer security flags (not supported in clang 5.0)
+# newer security flags (not supported in clang 3.4)
 # -fno-delete-null-pointer-checks 
 # -fstack-protector-strong
 # if x64 SecurityFlags -mshstk
@@ -32,7 +34,6 @@ SharedDefines        DEVELOPER NO_PROFILING _GLIBCXX_ASSERTIONS _GLIBCXX_DEBUG _
 SharedIncludeFlags   Source/Core Source/Libraries/Vendor
 
 if x64               SharedCompilerFlags -msse2
-if !gcc              SharedCompilerFlags -fdeclspec -fdiagnostics-absolute-paths -gcodeview 
 if linux             SharedLinkerFlags   -Wl,-z,nodlopen -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now
 if linux             SharedIncludeFlags  Source/Libraries/Linux
 if linux             SecurityFlags       -fstack-clash-protection

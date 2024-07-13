@@ -6163,7 +6163,7 @@ u32 RunApplication(const StringArray Arguments)
 
     String Win32Libs = S("kernel32 user32 opengl32 shell32 gdi32 comdlg32 comctl32 ws2_32 winmm netapi32 ole32 advapi32 "
                          "wldap32 crypt32 rpcrt4 shlwapi dbghelp bcrypt version imm32 cfgmgr32 setupapi oleaut32 "
-                         "uuid odbc32 odbccp32 delayimp pathcch");
+                         "uuid odbc32 odbccp32 delayimp");
 
     String LinuxLibs = S("m");
 
