@@ -530,6 +530,14 @@ void Platform_ExitCriticalSection(PlatformCriticalSection CriticalSection)
 {
 }
 
+void Platform_BeginNonBlockingMode(void)
+{
+}
+
+void Platform_EndNonBlockingMode(void)
+{
+}
+
 bool Platform_AnyKeyPressed(void)
 {
     UNIMPLEMENTED;
@@ -789,9 +797,8 @@ bool Filesystem_GetFilePath(const FileHandle Handle, String* OutPath)
         return false;
     }
 
-    const i32 fd = fileno((FILE*)Handle.Data);
-
 #if PLATFORM_FREE_BSD
+    const i32 fd = fileno((FILE*)Handle.Data);
     struct kinfo_file kinfo = {0};
     kinfo.kf_structsize = sizeof(struct kinfo_file);
 
@@ -804,7 +811,10 @@ bool Filesystem_GetFilePath(const FileHandle Handle, String* OutPath)
     }
 
     String_Copy(OutPath, CStr(kinfo.kf_path));
+    return true;
+
 #elif PLATFORM_NET_BSD
+    const i32 fd = fileno((FILE*)Handle.Data);
     char Path[PATH_MAX] = {0};
     if (fcntl(fd, F_GETPATH, Path) == -1)
     {
@@ -815,12 +825,15 @@ bool Filesystem_GetFilePath(const FileHandle Handle, String* OutPath)
     }
 
     String_Copy(OutPath, CStrEx(Path, MAX_PATH_LENGTH));
-
     return true;
 
+// OpenBSD does not support retrieving the path data from a handle :(
+#elif PLATFORM_OPEN_BSD
+    String_Copy(OutPath, StrView(Handle.Path));
+    return true;
 #endif
 
-    return true;
+    return false;
 }
 
 bool Filesystem_IsPathRelative(const String Path)
@@ -985,6 +998,10 @@ bool Filesystem_Open(const String FilePath, u32 Mode, FileHandle* OutHandle)
 
     OutHandle->Data = File;
     OutHandle->Data2 = NULL;
+
+#if PLATFORM_OPEN_BSD
+    StringN_Copy(OutHandle->Path, FilePath);
+#endif
 
     return true;
 }

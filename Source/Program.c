@@ -1986,6 +1986,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         if (!ParseBuildFile(Arena, BuildFileHandle, BuildFilePath, WorkingPath, VariablesDB, ExpandedVariablesDB,
                             CmdOptionsDB, Messages, IncludeFiles, NULL, false, NULL, false))
         {
+	    LOG_ERROR("Parse Failed");
             return 1;
         }
 
@@ -5008,7 +5009,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             // try to natively override the default icon for the actual executable
             // currently only supporting GNOME and KDE desktop environments
             // todo: get rid of those
-            #if PLATFORM_LINUX_GNOME || PLATFORM_LINUX_KDE || PLATFORM_BSD
+            #if PLATFORM_LINUX_GNOME || PLATFORM_LINUX_KDE
             {
                 StringLocal(CmdLine, 4096);
 
@@ -5033,7 +5034,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 }
 
                 // todo: remove defines, use runtime check for gnome/xfce4
-                #if PLATFORM_LINUX_GNOME || PLATFORM_BSD
+                #if PLATFORM_LINUX_GNOME
                 u32 LastSlash = 0, LastDot = 0;
                 String_IndexOfLastPathSlash(IconFilePath, &LastSlash);
                 String_IndexOfLastChar(StrShiftF(IconFilePath, LastSlash+1), '.', &LastDot);
@@ -5086,7 +5087,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                     u32 ExitCode = 0;
 
 		            // todo: remove defines, use runtime check for gnome/xfce4
-                    #if PLATFORM_LINUX_GNOME || PLATFORM_BSD
+                    #if PLATFORM_LINUX_GNOME
                     String_Append(&CmdLine, S("xdg-mime install --mode user "));
                     String_Append(&CmdLine, XmlFilePath);
                     if (bVerboseLog) LOG("    %S", CmdLine);

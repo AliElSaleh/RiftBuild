@@ -194,7 +194,12 @@ bool ParseBuildFile(LinearAllocator* Arena,
 
                             bIfFailed = false;
                             bInsideElse = false;
-                            String_Copy(&Line, StrShiftF(ElseOg, Space+1));
+	
+			    // do a indirect copy otherwise it will crash on OpenBSD due to overlapping memory
+			    StringLocal(LineCopy, 512);
+			    String_Copy(&LineCopy, StrShiftF(ElseOg, Space+1));
+
+                            String_Copy(&Line, LineCopy);
                             goto LoopStart;
                         }
                     }
@@ -457,7 +462,6 @@ bool ParseBuildFile(LinearAllocator* Arena,
             bEndSwitchOnNextCase = false;
             bFindEndSwitch = false;
             bSkipUntilNextCase = false;
-
             String_Copy(&SwitchValue, VarValue);
         }
 
@@ -890,12 +894,15 @@ bool ParseBuildFile(LinearAllocator* Arena,
             String RestOfTheLine = StrShiftF(VarValue, Index);
             String_EatSpacesInlineFromEnd(&RestOfTheLine);
 
+	    StringLocal(LineCopy, 512);
+	    String_Copy(&LineCopy, RestOfTheLine);
+
             // else statement detection
             u32 LengthCap = 0;
             bool bHasElse = false;
             {
                 LinearAllocator Scratch = *Arena;
-                StringArray Strings = String_ParseIntoArray(&Scratch, RestOfTheLine, ' ', 0, 128);
+                StringArray Strings = String_ParseIntoArray(&Scratch, LineCopy, ' ', 0, 128);
                 for each_str (S, Strings)
                 {
                     if (String_IsEqual(*S, S("else"), false))
@@ -916,7 +923,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
 
                 if (Index > 0)
                 {
-                    if (RestOfTheLine.Length > 0)
+                    if (LineCopy.Length > 0)
                     {
                         if (bIsMultiLineIf)
                         {
@@ -924,9 +931,19 @@ bool ParseBuildFile(LinearAllocator* Arena,
                         }
 
                         if (bHasElse)
-                            String_Copy(&Line, String_EatSpaces(StrSlice(RestOfTheLine.Data, LengthCap)));
+			{
+			    // the following crashes on OpenBSD memcpy, due to the pointers being overlapped
+                            //String_Copy(&Line, String_EatSpaces(StrSlice(RestOfTheLine.Data, LengthCap)));
+
+                            String_Copy(&Line, String_EatSpaces(StrSlice(LineCopy.Data, LengthCap)));
+			}
                         else
-                            String_Copy(&Line, String_EatSpaces(RestOfTheLine));
+			{
+			    // the following crashes on OpenBSD memcpy, due to the pointers being overlapped
+                            //String_Copy(&Line, RestOfTheLine);
+
+                            String_Copy(&Line, LineCopy);
+			}
 
                         goto LoopStart;
                     }
@@ -954,11 +971,11 @@ bool ParseBuildFile(LinearAllocator* Arena,
                     bIfFailed = true;
                 }
 
-                if (RestOfTheLine.Length > 0)
+                if (LineCopy.Length > 0)
                 {
                     if (bHasElse)
                     {
-                        String_Copy(&Line, String_EatSpaces(StrShiftF(RestOfTheLine, LengthCap+5))); // else is 4 chars + 1 white space
+                        String_Copy(&Line, String_EatSpaces(StrShiftF(LineCopy, LengthCap+5))); // else is 4 chars + 1 white space
                         goto LoopStart;
                     }
                 }

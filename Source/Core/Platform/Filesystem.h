@@ -21,6 +21,9 @@ STRUCT(FileHandle)
 {
 	void* Data;
 	void* Data2;
+#if PLATFORM_OPEN_BSD
+	StringN(MAX_PATH_LENGTH) Path;
+#endif
 };
 
 ENUM(EFileMode)

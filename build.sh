@@ -17,6 +17,12 @@ if [ "$unamestr" = 'Linux' ]; then
 
 elif [ "$unamestr" = 'Darwin' ]; then
    Platform='Mac'
+elif [ "$unamestr" = 'OpenBSD' ]; then
+   Platform='BSD'
+   BSDLinkerFlags="-lpthread"
+
+   # the compiler (and specifically on this OS) for some reason trips up and replaces memmove with memcpy when using -O1 or higher optimizations causing a SIGABRT crash in memcpy because of overlapping pointers whenever i remove something from my dynamic array. Obviously the fix is to use memmove, but it straight up yeets it out of existance when you turn on optimizations. **Every** other OS doesnt seem to have this problem with my code except this shitty one, (it was a pain to install as well compared to NetBSD and FreeBSD), i just wanna punch the screen...
+   MiscFlags='-fno-builtin-memcpy' # prevents clang/gcc from replacing memmove with memcpy
 elif [ "$unamestr" = 'NetBSD' ]; then
    Platform='BSD'
    BSDLinkerFlags="-lpthread"
@@ -25,7 +31,11 @@ elif [ "$unamestr" = 'FreeBSD' ]; then
    BSDLinkerFlags="-lpthread"
 fi
 
-CompilerFlags="-std=c99 -Os -fdeclspec -fno-exceptions -fno-math-errno -fdiagnostics-absolute-paths -fno-strict-overflow -fno-strict-aliasing -Wall -Wextra -Wshadow -Wconversion -Wpedantic -Wmissing-prototypes -Warray-bounds -Wno-empty-translation-unit -Wno-gnu-zero-variadic-macro-arguments -Wno-unused-parameter -Wunused-function -Werror=vla -Werror=implicit-function-declaration -Werror=pointer-arith -Werror=shadow -Werror=uninitialized -Werror=array-bounds -Werror=implicit -Werror=incompatible-pointer-types -Werror=int-conversion -Werror=shorten-64-to-32 -Werror=compare-distinct-pointer-types -mstack-probe-size=999999999 -ferror-limit=1 -fPIE -DNO_ASSERT -DNO_PROFILING -D_NO_CRT_STDIO_INLINE -DRIFT_STATIC -DRIFTBUILD_VERSION_STRING=\"0.9.7-alpha\" -DRIFTBUILD_MAJOR_VERSION=0 -DRIFTBUILD_MINOR_VERSION=9 -DRIFTBUILD_PATCH_VERSION=7 -ISource/Core -ISource/Libraries/Vendor ${LinuxIncludeFlags}"
+# clang only flags, for reference
+# -fdeclspec -fdiagnostics-absolute-paths -ferror-limit=1 -Wno-empty-translation-unit -Werror=shorten-64-to-32
+# -Werror=compare-distinct-pointer-types -Wpedantic 
+
+CompilerFlags="-std=c99 -Os ${MiscFlags} -fno-omit-frame-pointer -fno-exceptions -fno-math-errno -fno-strict-overflow -fno-strict-aliasing -Wall -Wextra -Wshadow -Wconversion -Wmissing-prototypes -Warray-bounds -Wno-variadic-macros -Wno-missing-field-initializers -Wno-missing-braces -Wno-gnu-zero-variadic-macro-arguments -Wno-unused-parameter -Wunused-function -Werror=vla -Werror=implicit-function-declaration -Werror=pointer-arith -Werror=shadow -Werror=uninitialized -Werror=array-bounds -Werror=implicit -Werror=incompatible-pointer-types -Werror=int-conversion -fPIE -DNO_ASSERT -DNO_PROFILING -D_NO_CRT_STDIO_INLINE -DRIFT_STATIC -DRIFTBUILD_VERSION_STRING=\"0.9.7-alpha\" -DRIFTBUILD_MAJOR_VERSION=0 -DRIFTBUILD_MINOR_VERSION=9 -DRIFTBUILD_PATCH_VERSION=7 -ISource/Core -ISource/Libraries/Vendor ${LinuxIncludeFlags}"
 
 printf "Compiling sources (${Platform})\n"
 
