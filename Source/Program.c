@@ -1793,6 +1793,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         if (String_IsEqual(Parameters.List[i], S("rebuild"), false) ||
             String_IsEqual(Parameters.List[i], S("clean"), false) ||
             String_IsEqual(Parameters.List[i], S("-v"), false) ||
+            String_IsEqual(Parameters.List[i], S("-q"), false) ||
+            String_IsEqual(Parameters.List[i], S("-s"), false) ||
             String_IsEqual(Parameters.List[i], S("--from-desktop"), false))
             continue;
 
@@ -6241,7 +6243,7 @@ u32 RunApplication(const StringArray Arguments)
     #if !PLATFORM_MAC
     if (Platform_GetConsoleProcessCount() == 1 || bLaunchedFromDesktop)
     {
-        LOG_INLINE_WARNING("\nLaunched outside an existing terminal, pausing until user exit. Press any key to exit... ");
+        LOG_INLINE_WARNING("\nLaunched outside an existing terminal, pausing until user exit.\nPress any key to exit... ");
 
         Platform_BeginNonBlockingMode();
         while (1)
