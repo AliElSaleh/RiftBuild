@@ -186,20 +186,17 @@ Icon someicon.ico # or path/to/icon/file.ico
 ```
 The fact that other build systems are unable to do this is fucking pathetic and embarrassing
 
-
-
 If no extension was specified, RiftBuild will automatically choose the correct extension based on the operating system
 
 | Windows     | Linux       | Mac         | BSD        | 
 | ----------- | ----------- | ----------- | ---------- |
 | `.ico`      | `.png`      | `.png`      | `.png`     |
 
-
 ---
 
 # Supported Platforms
 - Windows
-  - XP and above
+  - 7 and above
 - Linux
   - All Debian, Red Hat, Fedora and Arch based systems
 - MacOS
