@@ -1792,7 +1792,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         // todo: something better, ignore certain parameters
         if (String_IsEqual(Parameters.List[i], S("rebuild"), false) ||
             String_IsEqual(Parameters.List[i], S("clean"), false) ||
-            String_IsEqual(Parameters.List[i], S("-v"), false))
+            String_IsEqual(Parameters.List[i], S("-v"), false) ||
+            String_IsEqual(Parameters.List[i], S("--from-desktop"), false))
             continue;
 
         String_Append     (&RiftCmdLine, Parameters.List[i]);
