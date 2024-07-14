@@ -93,6 +93,9 @@ build.bat
 ./build.sh
 ```
 
+<sub><sup>if only every open source project were like this...</sup></sub>
+
+
 ---
 
 # Advanced Stuff (Work In Progress!)
