@@ -384,6 +384,7 @@ internal bool SourceFileCounterDirectoryIterator(const String FullPath, const St
         struct SourceCountData
         {
             u32 NumSources;
+            u32 NumAsmSources;
             u32 NumHeaders;
             u32 NumRcSources;
             String* FirstSourceFileName;
@@ -425,6 +426,11 @@ internal bool SourceFileCounterDirectoryIterator(const String FullPath, const St
                 if (Data->FirstSourceFileName->Length == 0)
                 {
                     String_Copy(Data->FirstSourceFileName, FileName);
+                }
+
+                if (String_IsEqual(Extension, S(".asm"), false))
+                {
+                    Data->NumAsmSources++;
                 }
 
                 if (!Data->bHasCppFiles)
@@ -2398,8 +2404,10 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     String Extension                        = GetVariableValue(ExpandedVariablesDB, S("Extension"));
     String Type                             = GetVariableValue(ExpandedVariablesDB, S("Type"));
     String CompilerProgram                  = GetVariableValue(ExpandedVariablesDB, S("Compiler"));
+    String AsmProgram                       = GetVariableValue(ExpandedVariablesDB, S("Assembler"));
     String CompilerFlagPrefixSymbol         = S("-");
     const String CompilerFlags              = GetVariableValue(ExpandedVariablesDB, S("CompilerFlags"));
+    const String AssemblerFlags             = GetVariableValue(ExpandedVariablesDB, S("AssemblerFlags"));
     String IncludeFlags                     = GetVariableValue(ExpandedVariablesDB, S("Includes"));
     const String Libraries                  = GetVariableValue(ExpandedVariablesDB, S("Libraries"));
     String LibraryDirectories               = GetVariableValue(ExpandedVariablesDB, S("LibraryDirectories"));
@@ -2465,6 +2473,12 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         bNoCompilerProgramExplicityGiven = true;
     }
 
+    bool bNoAsmCompilerProgramExplicityGiven = false;
+    if (AsmProgram.Length == 0)
+    {
+        bNoAsmCompilerProgramExplicityGiven = true;
+    }
+
     String_ConvertSlashToPlatformSlash(&CompilerProgram);
     String_ConvertSlashToPlatformSlash(&LibraryDirectories);
     String_ConvertSlashToPlatformSlash(&IncludeFlags);
@@ -2516,6 +2530,117 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         else
         {
             LOG_ERROR("Compiler program \"%S\" does not exist", CompilerPathCopy);
+            return 1;
+        }
+    }
+
+    StringLocal(AsmCompilerPath, MAX_PATH_LENGTH);
+
+    bool bExplicitAsmPath = false;
+    if (String_IndexOfFirstPathSlash(AsmProgram, NULL))
+    {
+        StringLocal(CompilerPathCopy, MAX_PATH_LENGTH);
+        String_Copy(&CompilerPathCopy, AsmProgram);
+
+        #if PLATFORM_WINDOWS
+        if (!String_EndsWith(AsmProgram, S(".exe"), false))
+        {
+            String_Copy(&CompilerPathCopy, AsmProgram);
+            String_Append(&CompilerPathCopy, S(".exe"));
+        }
+        #endif
+
+        if (Filesystem_DoesFileExist(CompilerPathCopy))
+        {
+            bExplicitAsmPath = true;
+            String_Copy(&AsmCompilerPath, CompilerPathCopy);
+        }
+        else
+        {
+            LOG_ERROR("Assembler program \"%S\" does not exist", CompilerPathCopy);
+            return 1;
+        }
+    }
+
+    // does the asm program exist on the user's machine
+    if (!bExplicitAsmPath)
+    {
+        bool bCompilerProgramFound = Platform_FindProgram_Ex(AsmProgram, &AsmCompilerPath);
+
+        if (!bCompilerProgramFound && bNoAsmCompilerProgramExplicityGiven)
+        {
+            const String AsmPrograms[] =
+            {
+                S("nasm"),
+                S("yasm"),
+                S("ml"),
+                S("ml64")
+            };
+
+            for (u8 i = 0; i < SArray_Capacity(AsmPrograms); i++)
+            {
+                const bool bFound = Platform_FindProgram_Ex(AsmPrograms[i], &AsmCompilerPath);
+                if (bFound)
+                {
+                    AsmProgram = AsmPrograms[i];
+                    bCompilerProgramFound = true;
+                    break;
+                }
+            }
+        }
+
+        if (!bCompilerProgramFound)
+        {
+            if (bNoAsmCompilerProgramExplicityGiven)
+            {
+                // todo: prettier log messaging
+                #if PLATFORM_WINDOWS
+                LOG_ERROR(
+                    "You don't seem to have an assember installed on your machine."
+                    " Install either \"nasm\", \"yasm\" or \"ml (MSVC)\" and add to the path environment"
+                    " before using RiftBuild, as we require a working assembler program to function properly. Aborting build...\n");
+                #else
+                LOG_ERROR(
+                    "You don't seem to have an assmebler installed on your machine."
+                    " Install either \"nasm\" or \"yasm\" and add to the PATH environment"
+                    " before using RiftBuild, as we require a working assembler program to function properly. Aborting build...\n");
+
+                #endif
+
+                LogPathEnvVarTutorialSteps();
+                    
+                return 1;
+            }
+
+            #ifndef HOOD
+            if (String_IsEqual(AsmProgram, S("ml"), false) ||
+                String_IsEqual(AsmProgram, S("ml64"), false))
+            {
+                #if PLATFORM_WINDOWS
+                LOG_ERROR("Assembler program \"%S\" does not exist. Aborting build...", AsmProgram);
+                
+                LOG("\n    Make sure that you have the Visual Studio build tools installed and "
+                    "\n    that you run riftbuild from a different terminal application named"
+                    "\n    \"x64 (or x86) Native Tools Command Prompt for VS\".");
+
+                LOG("\n    This can be found through Windows Search.");
+                #else
+                LOG_ERROR("Assembler program \"%S\" does not exist on non-Windows platforms. Use a different assembler. Aborting build...", AsmProgram);
+                #endif
+            }
+            else
+            {
+                LOG_ERROR("Assembler program \"%S\" does not exist. Make sure that it is installed and added to the path environment.\n"
+                          "        Alternatively, you can specify the full path to the assembler executable instead. Aborting build...\n", AsmProgram);
+
+                LogPathEnvVarTutorialSteps();
+            }
+            #else
+            LOG_ERROR(
+                "yo dat assembler program \"%S\" don exist cuh."
+                " need to be installed and set in da path ma nigga", AsmProgram);
+            #endif
+
             return 1;
         }
     }
@@ -3453,6 +3578,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     struct SourceCountData
     {
         u32 NumSources;
+        u32 NumAsmSources;
         u32 NumHeaders;
         u32 NumRcSources;
         String* FirstSourceFileName;
@@ -3466,7 +3592,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     };
 
     StringLocal(FirstSourceFileName, 256);
-    struct SourceCountData CountData = { 0, 0, 0, &FirstSourceFileName, WorkingPath, SourceDirectory, WhitelistArray, BlacklistArray, WhitelistDirArray, BlacklistDirArray, false };
+    struct SourceCountData CountData = { 0, 0, 0, 0, &FirstSourceFileName, WorkingPath, SourceDirectory, WhitelistArray, BlacklistArray, WhitelistDirArray, BlacklistDirArray, false };
 
     Filesystem_IterateDirectory_Ex(SourceDir, SourceFileCounterDirectoryIterator, true, &CountData);
 
@@ -3963,41 +4089,51 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
         if (bIsAssemblyExe || !bHasSpace)
         {
-            LOG("    Assembly:            %S", AssemblyNameWithExt);
+            LOG("    Assembly:             %S", AssemblyNameWithExt);
         }
         else
         {
             String NextExt = StrShiftF(Extension_Og, WhitespaceIndex+1);
-            LOG("    Assembly:            %S and %S%S", AssemblyNameWithExt, AssemblyName, NextExt);
+            LOG("    Assembly:             %S and %S%S", AssemblyNameWithExt, AssemblyName, NextExt);
         }
 
         if (Type.Length > 0) LOG("    Type:                %S", Type);
-        LOG("    Version:             %S", Version);
+        LOG("    Version:              %S", Version);
         
         if (bExplicitProgramPath)
-            LOG("    Compiler:            %S", CompilerPath);
+            LOG("    Compiler:             %S", CompilerPath);
         else
-            LOG("    Compiler:            %S -> \"%S\"", CompilerProgram, CompilerPath);
+            LOG("    Compiler:             %S -> \"%S\"", CompilerProgram, CompilerPath);
+
+        if (CountData.NumAsmSources > 0)
+        {
+            if (bExplicitAsmPath)
+                LOG("    Assembler:            %S", AsmCompilerPath);
+            else
+                LOG("    Assembler:            %S -> \"%S\"", AsmProgram, AsmCompilerPath);
+        }
 
         #if PLATFORM_WINDOWS
         if (bHasRcProgram && (Icon.Length > 0 || CountData.NumRcSources > 0))
-            LOG("    Resource Compiler:   %S -> \"%S\"", RCProgram, RCProgramPath);
+            LOG("    Resource Compiler:    %S -> \"%S\"", RCProgram, RCProgramPath);
         #endif
 
-        if (CompilerFlags.Length > 0)      { LogBuildVariable(*Arena, VariablesDB, S("CompilerFlags"),      S("    Compiler Flags:      "), !bNoWordWrapLogging); }
-        if (IncludeFlags.Length > 0)       { LogBuildVariable(*Arena, VariablesDB, S("Includes"),           S("    Includes:            "), !bNoWordWrapLogging); }
-        if (LinkerFlags.Length > 0)        { LogBuildVariable(*Arena, VariablesDB, S("LinkerFlags"),        S("    Linker Flags:        "), !bNoWordWrapLogging); }
-        if (Libraries.Length > 0)          { LogBuildVariable(*Arena, VariablesDB, S("Libraries"),          S("    Libraries:           "), !bNoWordWrapLogging); }
-        if (LibraryDirectories.Length > 0) { LogBuildVariable(*Arena, VariablesDB, S("LibraryDirectories"), S("    Library Directories: "), !bNoWordWrapLogging); }
-        if (Defines.Length > 0)            { LogBuildVariable(*Arena, VariablesDB, S("Defines"),            S("    Defines:             "), !bNoWordWrapLogging); }
-        if (UnDefines.Length > 0)          { LogBuildVariable(*Arena, VariablesDB, S("UnDefines"),          S("    UnDefines:           "), !bNoWordWrapLogging); }
-        if (LinkerDefines.Length > 0)      { LogBuildVariable(*Arena, VariablesDB, S("LinkerDefines"),      S("    Linker Defines:      "), !bNoWordWrapLogging); }
+        if (CompilerFlags.Length > 0)      { LogBuildVariable(*Arena, VariablesDB, S("CompilerFlags"),      S("    Compiler Flags:       "), !bNoWordWrapLogging); }
+        if (AssemblerFlags.Length > 0)     { LogBuildVariable(*Arena, VariablesDB, S("AssemblerFlags"),     S("    Assembler Flags:      "), !bNoWordWrapLogging); }
+        if (IncludeFlags.Length > 0)       { LogBuildVariable(*Arena, VariablesDB, S("Includes"),           S("    Includes:             "), !bNoWordWrapLogging); }
+        if (LinkerFlags.Length > 0)        { LogBuildVariable(*Arena, VariablesDB, S("LinkerFlags"),        S("    Linker Flags:         "), !bNoWordWrapLogging); }
+        if (Libraries.Length > 0)          { LogBuildVariable(*Arena, VariablesDB, S("Libraries"),          S("    Libraries:            "), !bNoWordWrapLogging); }
+        if (LibraryDirectories.Length > 0) { LogBuildVariable(*Arena, VariablesDB, S("LibraryDirectories"), S("    Library Directories:  "), !bNoWordWrapLogging); }
+        if (Defines.Length > 0)            { LogBuildVariable(*Arena, VariablesDB, S("Defines"),            S("    Defines:              "), !bNoWordWrapLogging); }
+        if (UnDefines.Length > 0)          { LogBuildVariable(*Arena, VariablesDB, S("UnDefines"),          S("    UnDefines:            "), !bNoWordWrapLogging); }
+        if (LinkerDefines.Length > 0)      { LogBuildVariable(*Arena, VariablesDB, S("LinkerDefines"),      S("    Linker Defines:       "), !bNoWordWrapLogging); }
 
         LOG_LINE_BREAK();
     }
 
-    const String ExpandedCompilerFlags = GetVariableValue(ExpandedVariablesDB, S("CompilerFlags"));
-    const String ExpandedLinkerFlags   = GetVariableValue(ExpandedVariablesDB, S("LinkerFlags"));
+    const String ExpandedCompilerFlags  = GetVariableValue(ExpandedVariablesDB, S("CompilerFlags"));
+    const String ExpandedAssemblerFlags = GetVariableValue(ExpandedVariablesDB, S("AssemblerFlags"));
+    const String ExpandedLinkerFlags    = GetVariableValue(ExpandedVariablesDB, S("LinkerFlags"));
 
     StringLocal(ExpandedIncludeFlags, 4096);
     StringLocal(ExpandedLibraries, 1024);
@@ -4089,14 +4225,15 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     FlagPrefix.Data[1] = 'U';
     PrefixVariables(&ExpandedUnDefineFlags, UnDefines, FlagPrefix);
 
-    LogNameValuePair(*Arena, S("Expanded Compiler Flags: "), ExpandedCompilerFlags,      !bNoWordWrapLogging);
-    LogNameValuePair(*Arena, S("Expanded Include  Flags: "), ExpandedIncludeFlags,       !bNoWordWrapLogging);
-    LogNameValuePair(*Arena, S("Expanded Linker   Flags: "), ExpandedLinkerFlags,        !bNoWordWrapLogging);
-    LogNameValuePair(*Arena, S("Expanded Library  Flags: "), ExpandedLibraries,          !bNoWordWrapLogging);
-    LogNameValuePair(*Arena, S("Expanded Library  Paths: "), ExpandedLibraryDirectories, !bNoWordWrapLogging);
-    LogNameValuePair(*Arena, S("Expanded Define   Flags: "), ExpandedDefineFlags,        !bNoWordWrapLogging);
-    LogNameValuePair(*Arena, S("Expanded UnDefine Flags: "), ExpandedUnDefineFlags,      !bNoWordWrapLogging);
-    LogNameValuePair(*Arena, S("Expanded Linker Defines: "), ExpandedLinkerDefineFlags,  !bNoWordWrapLogging);
+    LogNameValuePair(*Arena, S("Expanded Compiler  Flags: "), ExpandedCompilerFlags,      !bNoWordWrapLogging);
+    LogNameValuePair(*Arena, S("Expanded Assembler Flags: "), ExpandedAssemblerFlags,     !bNoWordWrapLogging);
+    LogNameValuePair(*Arena, S("Expanded Include   Flags: "), ExpandedIncludeFlags,       !bNoWordWrapLogging);
+    LogNameValuePair(*Arena, S("Expanded Linker    Flags: "), ExpandedLinkerFlags,        !bNoWordWrapLogging);
+    LogNameValuePair(*Arena, S("Expanded Library   Flags: "), ExpandedLibraries,          !bNoWordWrapLogging);
+    LogNameValuePair(*Arena, S("Expanded Library   Paths: "), ExpandedLibraryDirectories, !bNoWordWrapLogging);
+    LogNameValuePair(*Arena, S("Expanded Define    Flags: "), ExpandedDefineFlags,        !bNoWordWrapLogging);
+    LogNameValuePair(*Arena, S("Expanded UnDefine  Flags: "), ExpandedUnDefineFlags,      !bNoWordWrapLogging);
+    LogNameValuePair(*Arena, S("Expanded Linker  Defines: "), ExpandedLinkerDefineFlags,  !bNoWordWrapLogging);
 
     Clock IconClock = {0};
     Clock ResourceCompileClock = {0};
@@ -4145,6 +4282,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     p.Arena                         = Arena;
     p.CompilerProgram               = bExplicitProgramPath ? CompilerPath : CompilerProgram;
     p.CompilerPath                  = CompilerPath;
+    p.AsmProgram                    = AsmProgram;
+    p.AsmPath                       = AsmCompilerPath;
     #if PLATFORM_WINDOWS
     p.RCProgram                     = RCProgram;
     p.RCProgramPath                 = RCProgramPath;
@@ -4169,6 +4308,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     p.MaxErrors                     = MaxErrorsAllowed;
     p.bShouldWaitPerCompileProcess  = bShouldWaitPerCompileProcess;
     p.CompilerFlags                 = ExpandedCompilerFlags;
+    p.AssemblerFlags                = ExpandedAssemblerFlags;
     p.LinkerFlags                   = ExpandedLinkerFlags;
     p.IncludeFlags                  = ExpandedIncludeFlags;
     p.DefineFlags                   = ExpandedDefineFlags;

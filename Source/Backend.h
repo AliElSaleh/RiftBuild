@@ -88,10 +88,13 @@ STRUCT(BuildParams)
     String Extension_Og;
     String CompilerProgram;
     String CompilerPath;
+    String AsmProgram;
+    String AsmPath;
     String RCProgram;
     String RCProgramPath;
     String RCProgramFlags;
     String CompilerFlags;
+    String AssemblerFlags;
     String LinkerFlags;
     String IncludeFlags;
     String DefineFlags;

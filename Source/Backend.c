@@ -10,6 +10,73 @@
 
 bool C_DoCompile(CompileData* Data, const String FullPath, const String RelativePath);
 
+internal bool AsmSourceFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
+{
+    if (FileSize > 0)
+    {
+        if (String_StartsWith(FileName, S("__"), false))
+        {
+            return true;
+        }
+
+        CompileData* Data = UserData;
+        const BuildParams* Params = Data->Params;
+
+        if (String_EndsWith(RelativePath, S(".asm"), false) &&
+            FilterSourceFile(Data->Params->RootDirectory, Data->Params->SourceDirectory, FullPath, RelativePath, Data->Params->WhitelistFiles, Data->Params->BlacklistFiles, Data->Params->WhitelistDirectories, Data->Params->BlacklistDirectories))
+        {
+            // ignore the intermediate and build directories
+            if (String_IndexOfFirstPathSlash(RelativePath, NULL))
+            {
+                if (String_StartsWith(RelativePath, Data->Params->IntermediateDirectory, false) ||
+                    String_StartsWith(RelativePath, Data->Params->BuildDirectory, false))
+                {
+                    return true;
+                }
+            }
+
+            u32 LastDot = 0;
+            String_IndexOfLastChar(FileName, '.', &LastDot);
+
+            StringLocal(FilePath, MAX_PATH_LENGTH);
+            String_Append(&FilePath, StrSlice(FileName.Data, LastDot));
+            String_Append(&FilePath, S(".o"));
+
+            StringLocal(ObjectFilePath, MAX_PATH_LENGTH);
+            String_BuildPath(&ObjectFilePath, Params->IntermediateDirectory, FilePath);
+
+            u64 ObjectFileWriteTime = Filesystem_GetLastWriteTime(ObjectFilePath);
+            u64 SourceFileWriteTime = Filesystem_GetLastWriteTime(FullPath);
+
+            if (SourceFileWriteTime >= ObjectFileWriteTime)
+            {
+                StringLocal(CmdLine, Kibibytes(4));
+                String_Append(&CmdLine, Params->AsmProgram);
+                String_AppendSpace(&CmdLine);
+
+                StringLocal(SourcePath, MAX_PATH_LENGTH);
+                String_BuildPath(&SourcePath, Params->SourceDirectory, RelativePath);
+
+                // todo: assmembler defines and includes
+                String_BuildSeparator(&CmdLine, ' ', Params->AssemblerFlags, SourcePath);
+
+                if (Params->bVerbose) LOG("    CMD: %S", CmdLine);
+
+                // todo: parallelize this
+                PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory);
+                const u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
+                if (ExitCode != 0)
+                {
+                    Data->bSuccess = false;
+                    return false;
+                }
+            }
+        }
+    }
+
+    return true;
+}
+
 bool SourceFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
     if (FileSize > 0)
@@ -250,11 +317,24 @@ bool C_Compile(const BuildParams* Params, u32* NumCompiled)
     StringLocal(SourceDir, MAX_PATH_LENGTH);
     String_BuildPath(&SourceDir, Params->RootDirectory, Params->SourceDirectory);
 
-    CompileData UserData = { C_DoCompile, Params, NumCompiled, 0, true, NULL };
-    Filesystem_IterateDirectory_Ex(SourceDir, SourceFileDirectoryIterator, true, &UserData);
-    if (!UserData.bSuccess)
+    // compile all .asm files first
     {
-        return false;
+        CompileData UserData = { NULL, Params, NumCompiled, 0, true, NULL };
+        Filesystem_IterateDirectory_Ex(SourceDir, AsmSourceFileDirectoryIterator, true, &UserData);
+        if (!UserData.bSuccess)
+        {
+            return false;
+        }
+    }
+
+    // compile all .c/c++ files
+    {
+        CompileData UserData = { C_DoCompile, Params, NumCompiled, 0, true, NULL };
+        Filesystem_IterateDirectory_Ex(SourceDir, SourceFileDirectoryIterator, true, &UserData);
+        if (!UserData.bSuccess)
+        {
+            return false;
+        }
     }
 
     if (*NumCompiled == 0)
@@ -756,7 +836,7 @@ bool IsHeader(const String Extension)
 
 bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String RelativePath);
 
-internal bool AsmSourceFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
+internal bool AsmSourceFileDirectoryIterator_MSVC(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
     if (FileSize > 0)
     {
@@ -797,8 +877,12 @@ internal bool AsmSourceFileDirectoryIterator(const String FullPath, const String
             if (SourceFileWriteTime >= ObjectFileWriteTime)
             {
                 StringLocal(CmdLine, Kibibytes(4));
-                // todo: if targeting 32 bit, use ml
+
+                #if PLATFORM_64_BIT
                 String_Append(&CmdLine, S("ml64 /nologo /c /Fo\""));
+                #else
+                String_Append(&CmdLine, S("ml /nologo /c /Fo\""));
+                #endif
 
                 StringLocal(ObjectPath, MAX_PATH_LENGTH);
                 String_BuildPath(&ObjectPath, Params->IntermediateDirectory);
@@ -809,13 +893,12 @@ internal bool AsmSourceFileDirectoryIterator(const String FullPath, const String
 
                 StringLocal(SourcePath, MAX_PATH_LENGTH);
                 String_BuildPath(&SourcePath, Params->SourceDirectory, RelativePath);
-                String_Append(&CmdLine, SourcePath);
+                String_BuildSeparator(&CmdLine, ' ', Params->AssemblerFlags, SourcePath);
                 String_AppendSpace(&CmdLine);
 
                 String_Append(&CmdLine, Params->IncludeFlags);
 
-                if (Params->bVerbose)
-                    LOG("CMD: %S", CmdLine);
+                if (Params->bVerbose) LOG("    CMD: %S", CmdLine);
 
                 // todo: parallelize this
                 PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory);
@@ -923,7 +1006,7 @@ bool MSVC_Compile(const BuildParams* Params, u32* NumCompiled)
     // compile all .asm files first
     {
         CompileData UserData = { NULL, Params, NumCompiled, 0, true, NULL };
-        Filesystem_IterateDirectory_Ex(SourceDir, AsmSourceFileDirectoryIterator, true, &UserData);
+        Filesystem_IterateDirectory_Ex(SourceDir, AsmSourceFileDirectoryIterator_MSVC, true, &UserData);
         if (!UserData.bSuccess)
         {
             return false;
