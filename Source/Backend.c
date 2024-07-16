@@ -564,7 +564,7 @@ bool C_Link(const BuildParams* Params)
     {
         StringLocal(CmdLine, UINT16_MAX);
         #if PLATFORM_WINDOWS
-        String_Append(&CmdLine, S("llvm-ar r \""));
+        String_Append(&CmdLine, S("llvm-ar r \"")); // TODO: GCC version
         #else
         String_Append(&CmdLine, S("ar rcs \""));
         #endif

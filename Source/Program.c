@@ -642,6 +642,29 @@ internal bool BuildFileDirectoryIterator(const String FullPath, const String Rel
     return true;
 }
 
+internal bool IncludeDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
+{
+    if (NEVER(UserData == NULL)) return false;
+
+    if (bIsDirectory)
+    {
+        STRUCT(IncludeIterData)
+        {
+            String BaseDirectory;
+            String* IncludeFlags;
+        };
+
+        IncludeIterData* Data = UserData;
+
+        String_Append(Data->IncludeFlags, Data->BaseDirectory);
+        String_AppendPathSeparator(Data->IncludeFlags);
+        String_Append(Data->IncludeFlags, RelativePath);
+        String_AppendSpace(Data->IncludeFlags);
+    }
+
+    return true;
+}
+
 internal bool EnforceCopyright(CompileData* Data, const String FullPath, const String RelativePath)
 {
     struct { bool bSuccess; String Content; } * AuxData = Data->AdditionalData;
@@ -2877,18 +2900,6 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         }
     }
 
-    /*
-    if (bIsAssemblyExe)
-    {
-        // TODO: why the fuck is this allocating memory
-        if (Platform_IsProgramRunning(AssemblyName))
-        {
-            LOG_ERROR("Assembly \"%S\" is currently running. Close all instances of \"%S.exe\" to continue with the build process. Aborting build...", AssemblyName, AssemblyName);
-            return 1;
-        }
-    }
-    */
-
     // force rebuild if we say so in the build file
     if (!bIsRebuild)
     {
@@ -3999,7 +4010,55 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     String_Append(&FlagPrefix, CompilerFlagPrefixSymbol);
     String_Append(&FlagPrefix, S("I"));
 
-    PrefixVariables(&ExpandedIncludeFlags, IncludeFlags, FlagPrefix);
+    // expand include flags with * and ** wildcards
+    {
+        StringLocal(WildcardIncludeFlags, 4096);
+        StringLocal(NonWildcardIncludeFlags, 4096);
+
+        LinearAllocator Scratch = *Arena;
+        StringList IncludeList = String_SplitIntoList(&Scratch, IncludeFlags, ' ', true);
+        for each_str_list (IncludeList)
+        {
+            StringLocal(SearchDir, MAX_PATH_LENGTH);
+
+            bool bWildcard = false;
+            bool bRecursive = false;
+            if (String_EndsWith(It.String, S("**"), false))
+            {
+                String_Copy(&SearchDir, StrSlice(It.String.Data, It.String.Length-2));
+                String_EatPathSeparatorsInlineFromEnd(&SearchDir);
+                bRecursive = true;
+                bWildcard = true;
+            }
+            else if (String_EndsWith(It.String, S("*"), false))
+            {
+                String_Copy(&SearchDir, StrSlice(It.String.Data, It.String.Length-1));
+                String_EatPathSeparatorsInlineFromEnd(&SearchDir);
+                bWildcard = true;
+            }
+
+            if (bWildcard)
+            {
+                STRUCT(IncludeIterData)
+                {
+                    String BaseDirectory;
+                    String* IncludeFlags;
+                };
+                
+                IncludeIterData Data = { SearchDir, &WildcardIncludeFlags };
+
+                Filesystem_IterateDirectory_Ex(SearchDir, IncludeDirectoryIterator, bRecursive, &Data);
+            }
+            else
+            {
+                String_Append(&NonWildcardIncludeFlags, It.String);
+                String_AppendSpace(&NonWildcardIncludeFlags);
+            }
+        }
+
+        PrefixVariables(&ExpandedIncludeFlags, WildcardIncludeFlags, FlagPrefix);
+        PrefixVariables(&ExpandedIncludeFlags, NonWildcardIncludeFlags, FlagPrefix);
+    }
 
     FlagPrefix.Data[1] = 'l';
     if (String_IsEqual(CompilerProgram, S("cl"), false) ||
@@ -4039,8 +4098,6 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     LogNameValuePair(*Arena, S("Expanded UnDefine Flags: "), ExpandedUnDefineFlags,      !bNoWordWrapLogging);
     LogNameValuePair(*Arena, S("Expanded Linker Defines: "), ExpandedLinkerDefineFlags,  !bNoWordWrapLogging);
 
-    //String IconName = Icon;
-
     Clock IconClock = {0};
     Clock ResourceCompileClock = {0};
     Clock BundleCompileClock = {0};
@@ -4048,11 +4105,16 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     u32 MaxLogicalCores = Platform_GetNumLogicalProcessors();
     u8 MaxCompilersAtOnce = (u8)MaxLogicalCores; // bound by max logical processors on the user's machine
     //LOG_INFO("Max logical cores: %u", MaxLogicalCores);
+
+    // clamp to the min amount of source files vs cores
+    u32 MinResult = Min(CountData.NumSources, (u32)MaxCompilersAtOnce);
+    MaxCompilersAtOnce = (u8)Min(MinResult, (u32)UINT8_MAX);
+
     if (String_IsValid(MaxConcurrentCompilations))
     {
         u8 Num = 0;
         String_ToU8(MaxConcurrentCompilations, &Num);
-        MaxCompilersAtOnce = Min(Num, (u8)MaxLogicalCores);
+        MaxCompilersAtOnce = Min(Num, (u8)MaxLogicalCores);   
     }
 
     if (bSingleThread)
@@ -4204,12 +4266,12 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             #ifndef HOOD
             if (bIsAssemblyExe || !bHasSpace)
             {
-                LOG("Building %S [%S] (with %u %S)\n", AssemblyNameWithExt, S(CPU_ARCHITECTURE_STRING), MaxCompilersAtOnce, MaxCompilersAtOnce == 1 ? S("processor") : S("processors"));
+                LOG("Building %S [%S] (%u %S) (with %u %S max)\n", AssemblyNameWithExt, S(CPU_ARCHITECTURE_STRING), CountData.NumSources, CountData.NumSources == 1 ? S("source file") : S("source files"), MaxCompilersAtOnce, MaxCompilersAtOnce == 1 ? S("core") : S("cores"));
             }
             else
             {
                 String NextExt = StrShiftF(Extension_Og, WhitespaceIndex+1);
-                LOG("Building %S and %S%S [%S] (with %u %S)\n", AssemblyNameWithExt, AssemblyName, NextExt, S(CPU_ARCHITECTURE_STRING), MaxCompilersAtOnce, MaxCompilersAtOnce == 1 ? S("processor") : S("processors"));
+                LOG("Building %S and %S%S [%S] (%u %S) (with %u %S max)\n", AssemblyNameWithExt, AssemblyName, NextExt, S(CPU_ARCHITECTURE_STRING), CountData.NumSources, CountData.NumSources == 1 ? S("source file") : S("source files"), MaxCompilersAtOnce, MaxCompilersAtOnce == 1 ? S("core") : S("cores"));
             }
             #else
             if (bIsAssemblyExe || !bHasSpace)

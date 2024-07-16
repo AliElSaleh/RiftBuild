@@ -1965,45 +1965,6 @@ void Platform_CloseHandle(PlatformHandle Handle)
     CloseHandle(Handle);
 }
 
-bool Platform_IsProgramRunning(const String ProgramName)
-{
-    DWORD Processes[4096] = {0};
-    DWORD BytesRead = 0;
-    EnumProcesses(Processes, sizeof Processes, &BytesRead);
-    DWORD Count = BytesRead / sizeof(DWORD);
-
-    DWORD ProcessId = GetCurrentProcessId();
-
-    for (u16 i = 0; i < Count; i++)
-    {
-        TCHAR szProcessName[MAX_PATH] = "<unknown>";
-
-        HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, Processes[i]);
-
-        if (hProcess != NULL)
-        {
-            GetModuleFileNameEx(hProcess, NULL, szProcessName, MAX_PATH);
-        }
-
-        CloseHandle(hProcess);
-
-        const String ProcessName = CStr(szProcessName);
-
-        StringLocal(ProgramNameCopy, 512);
-        String_Copy(&ProgramNameCopy, ProgramName);
-
-        if (!String_EndsWith(ProgramName, S(".exe"), false))
-            String_Append(&ProgramNameCopy, S(".exe"));
-
-        if (String_EndsWith(ProcessName, ProgramNameCopy, false) && Processes[i] != ProcessId)
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
-
 bool Platform_GetTerminalDimensions(u32* OutRows, u32* OutColumns)
 {
     CONSOLE_SCREEN_BUFFER_INFO csbi;
