@@ -3928,7 +3928,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         RCProgramFlags = S(" /nologo");
     }
     else if (String_IsEqual(CompilerProgram, S("clang"), false) ||
-            String_IsEqual(CompilerProgram, S("clang-cl"), false))
+            String_IsEqual(CompilerProgram, S("clang++"), false ||
+            String_IsEqual(CompilerProgram, S("clang-cl"), false)))
     {
         RCProgram = S("llvm-rc");
     }

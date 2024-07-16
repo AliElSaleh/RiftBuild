@@ -12,26 +12,16 @@
         #define ASSERT(Expression) do { if (Expression) {} else { DEBUG_BREAK(); _Crash_; } } while (0)
         #define ENSURE(Expression) do { if (Expression) {} else { DEBUG_BREAK(); } } while (0)
     #else
-        #ifdef FAST_LOG
-        #define ASSERT(Expression) do { if (Expression) {} else { Logging_Flush(); DEBUG_BREAK(); _Crash_; } } while (0)
-        #define ENSURE(Expression) do { if (Expression) {} else { Logging_Flush(); DEBUG_BREAK(); } } while (0)
-        #else
         #define ASSERT(Expression) do { if (Expression) {} else { DEBUG_BREAK(); _Crash_; } } while (0)
         #define ENSURE(Expression) do { if (Expression) {} else { DEBUG_BREAK(); } } while (0)
-        #endif
     #endif
 
     #ifdef NO_LOG
         #define ASSERT_MSG(Expression, Text, ...) do { if (Expression) {} else { DEBUG_BREAK(); _Crash_; } } while (0)
         #define ENSURE_MSG(Expression, Text, ...) do { if (Expression) {} else { DEBUG_BREAK(); } } while (0)
     #else
-        #ifdef FAST_LOG
-        #define ASSERT_MSG(Expression, Text, ...) do { if (Expression) {} else { LOG_DEBUG_T(LOG_TYPE_FATAL, "Assert Failed: '" STRINGIZE(Expression) "'" ". " Text, ##__VA_ARGS__); Logging_Flush(); DEBUG_BREAK();  _Crash_; } } while (0)
-        #define ENSURE_MSG(Expression, Text, ...) do { if (Expression) {} else { LOG_DEBUG_T(LOG_TYPE_FATAL, "Assert Failed: '" STRINGIZE(Expression) "'" ". " Text, ##__VA_ARGS__); Logging_Flush(); DEBUG_BREAK(); } } while (0)
-        #else
         #define ASSERT_MSG(Expression, Text, ...) do { if (Expression) {} else { LOG_DEBUG_T(LOG_TYPE_FATAL, "Assert Failed: '" STRINGIZE(Expression) "'" "\n" Text, ##__VA_ARGS__); DEBUG_BREAK();  _Crash_; } } while (0)
         #define ENSURE_MSG(Expression, Text, ...) do { if (Expression) {} else { LOG_DEBUG_T(LOG_TYPE_FATAL, "Assert Failed: '" STRINGIZE(Expression) "'" "\n" Text, ##__VA_ARGS__); DEBUG_BREAK(); } } while (0)
-        #endif
     #endif
 #endif // NO_ASSERT
 
@@ -85,12 +75,7 @@ struct String; // forward declare
 #define LOG_CAT_SUCCESS(LogCategory, Text, ...)        LogMessage(LOG_TYPE_SUCCESS, S(LogCategory), S(Text), ##__VA_ARGS__)
 #define LOG_CAT_WARNING(LogCategory, Text, ...)        LogMessage(LOG_TYPE_WARNING, S(LogCategory), S(Text), ##__VA_ARGS__)
 #define LOG_CAT_ERROR(LogCategory, Text, ...)          LogMessage(LOG_TYPE_ERROR,   S(LogCategory), S(Text), ##__VA_ARGS__)
-
-#ifdef FAST_LOG
-#define LOG_CAT_FATAL(LogCategory, Text, ...)          LogMessage(LOG_TYPE_FATAL,   S(LogCategory), S(Text), ##__VA_ARGS__); Logging_Flush(); _Crash_
-#else
 #define LOG_CAT_FATAL(LogCategory, Text, ...)          LogMessage(LOG_TYPE_FATAL,   S(LogCategory), S(Text), ##__VA_ARGS__); _Crash_
-#endif
 
 #define LOG(Text, ...)                                 LogMessage(LOG_TYPE_NONE,    S(__FILE_NAME__), S(Text), ##__VA_ARGS__)
 #define LOG_INFO(Text, ...)                            LogMessage(LOG_TYPE_INFO,    S(__FILE_NAME__), S(Text), ##__VA_ARGS__)
@@ -133,12 +118,6 @@ RIFT_API void Logging_ToggleEnableOnError(bool bEnable);
 
 RIFT_API void Logging_SetCrashOnFatal(bool bShouldCrash);
 RIFT_API bool Logging_ShouldCrashOnFatal(void);
-
-RIFT_API void Logging_PrintStackTrace(void);
-
-#ifdef FAST_LOG
-RIFT_API void Logging_Flush(void);
-#endif
 
 RIFT_API void LogMessage(u8 LogType, const struct String LogCat, const struct String Text, ...);
 RIFT_API void LogDirectMessage(u8 LogType, const struct String Text, ...);

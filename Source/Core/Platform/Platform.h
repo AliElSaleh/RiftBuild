@@ -16,36 +16,17 @@ STRUCT(SystemTime)
 	u16 Millisecond;
 };
 
-STRUCT(StackTraceData)
-{
-    String Name;
-    usize Address;
-    u16 Index;
-};
-
 STRUCT(PlatformMutex)
 {
     void* Handle;
     String Name;
 };
 
-bool Platform_Startup(void* State, const String ApplicationName, i32 X, i32 Y, u32 Width, u32 Height);
-void Platform_Shutdown(void);
-usize Platform_GetMemoryRequirement(void);
-
-bool Platform_PushMessages(void);
-
-void Platform_ShowWindow(void);
-void Platform_HideWindow(void);
-
 RIFT_API void Platform_PreInitialize(void);
 RIFT_API f64 Platform_GetClockFrequency(void);
 
-RIFT_API void* Platform_GetWindowHandle(void);
-
 RIFT_API void Platform_Abort(u32 ExitCode);
 
-//RIFT_API wchar** Platform_GetCommandLineArgs(i32* NumArgs);
 RIFT_API StringArray Platform_GetCommandLineArgs(void);
 
 RIFT_API void* Platform_MemAlloc(usize Size);
@@ -64,7 +45,6 @@ RIFT_API void Platform_ConsoleWrite_CustomLength(const char* Message, u32 Length
 RIFT_API void Platform_BeginNonBlockingMode(void);
 RIFT_API void Platform_EndNonBlockingMode(void);
 
-RIFT_API PlatformHandle Platform_CreateThread(const String Name, u32* OutThreadID, u32 (*ThreadEntryPoint)(void* ThreadParameter), void* UserData);
 RIFT_API PlatformHandle Platform_RunCommand(const String CmdLine, const String WorkingDirectory);
 RIFT_API PlatformHandle Platform_RunCommand_Ex(const String CmdLine, const String WorkingDirectory, PlatformPipe* StdOutPipe);
 
@@ -101,10 +81,6 @@ RIFT_API bool Platform_GetTimeZone(String* OutTimeZone);
 
 RIFT_API void Platform_Sleep(f64 ms);
 
-RIFT_API void Platform_ShowCursor(bool bShow);
-
-RIFT_API void Platform_GetMousePosition(f32* X, f32* Y);
-
 RIFT_API u64 Platform_GetCurrentThreadID(void);
 RIFT_API u64 Platform_GetMainThreadID(void);
 
@@ -112,8 +88,6 @@ RIFT_API void Platform_GetWorkingDirectory(String* OutPath);
 
 RIFT_API bool Platform_GetEnvironmentVariableValue(String Name, String* OutVariable);
 RIFT_API bool Platform_DoesEnvironmentVariableExist(String Name);
-
-RIFT_API bool Platform_CaptureStackTrace(LinearAllocator* Arena, TArray(StackTraceData)* OutInfo);
 
 RIFT_API u32 Platform_GetNumLogicalProcessors(void);
 
@@ -123,7 +97,6 @@ RIFT_API bool Platform_GetUserDirectory(String* OutDirectory);
 
 RIFT_API bool Platform_GetCurrentProcessName(String* OutName);
 RIFT_API u64  Platform_GetCurrentProcessID(void);
-RIFT_API bool Platform_GetThreadName(void* ThreadHandle, String* OutName);
 
 RIFT_API void* Platform_GetDeviceContext(void);
 

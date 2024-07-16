@@ -192,29 +192,6 @@ u32 Platform_GetConsoleProcessCount(void)
     return Count;
 }
 
-void* Platform_GetDeviceContext(void)
-{
-    return NULL;
-}
-
-bool Platform_Startup(void* State, const String ApplicationName, i32 X, i32 Y, u32 Width, u32 Height)
-{
-    return true;
-}
-
-void Platform_ShowWindow(void)
-{
-}
-
-void Platform_Shutdown(void)
-{
-}
-
-usize Platform_GetMemoryRequirement(void)
-{
-    return 4;
-}
-
 void Platform_Abort(u32 ExitCode)
 {
     ExitProcess(ExitCode);
@@ -234,23 +211,6 @@ f64 Platform_GetClockFrequency(void)
     QueryPerformanceFrequency(&Frequency);
     const f64 ClockFrequency = 1.0/(f64)Frequency.QuadPart;
     return ClockFrequency;
-}
-
-bool Platform_PushMessages(void)
-{
-    MSG Message;
-    while (PeekMessage(&Message, NULL, 0, 0, PM_REMOVE))
-    {
-        TranslateMessage(&Message);
-        DispatchMessage(&Message);
-    }
-
-    return true;
-}
-
-void* Platform_GetWindowHandle(void)
-{
-    return NULL;
 }
 
 void* Platform_MemAlloc(usize Size)
@@ -303,23 +263,6 @@ void* Platform_MemSet(void* Dest, i32 Value, usize Size)
     return Dest;
 }
 
-/*
-internal COORD GetConsoleCursorPosition(HANDLE hConsoleOutput)
-{
-    CONSOLE_SCREEN_BUFFER_INFO cbsi;
-    if (GetConsoleScreenBufferInfo(hConsoleOutput, &cbsi))
-    {
-        return cbsi.dwCursorPosition;
-    }
-    else
-    {
-        // The function failed. Call GetLastError() for details.
-        COORD invalid = { 0, 0 };
-        return invalid;
-    }
-}
-*/
-
 void Platform_ConsoleWrite(const char* Message, u8 Color, bool bIsError)
 {
     Platform_ConsoleWrite_CustomLength(Message, String_GetLength(Message), Color, bIsError);
@@ -327,26 +270,26 @@ void Platform_ConsoleWrite(const char* Message, u8 Color, bool bIsError)
 
 void Platform_ConsoleWrite_CustomLength(const char* Message, u32 Length, u8 Color, bool bIsError)
 {
-    //PROFILE_SCOPE("Platform_ConsoleWrite") // @todo: make it thread local
-    {
-        DWORD OutputHandle = STD_ERROR_HANDLE;// bIsError ? STD_ERROR_HANDLE : STD_OUTPUT_HANDLE;
-        HANDLE ConsoleHandle = GetStdHandle(OutputHandle);
+    DWORD OutputHandle = STD_ERROR_HANDLE;// bIsError ? STD_ERROR_HANDLE : STD_OUTPUT_HANDLE;
+    HANDLE ConsoleHandle = GetStdHandle(OutputHandle);
 
-        SetConsoleTextAttribute(ConsoleHandle, GConsoleColorLevels[Color]);
+    SetConsoleTextAttribute(ConsoleHandle, GConsoleColorLevels[Color]);
 
-        bool bIgnoreNewLine = Color == 4 && Message[Length-1] == '\n';
-        if (UNLIKELY(bIgnoreNewLine))
-            Length--;
+    bool bIgnoreNewLine = Color == 4 && Message[Length-1] == '\n';
+    if (UNLIKELY(bIgnoreNewLine))
+        Length--;
 
-        OutputDebugString(Message);
-        WriteConsole(ConsoleHandle, Message, (DWORD)Length, NULL, 0);
+    #if _DEBUG
+    OutputDebugString(Message);
+    #endif
 
-        // Reset back to white
-        SetConsoleTextAttribute(ConsoleHandle, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
+    WriteConsole(ConsoleHandle, Message, (DWORD)Length, NULL, 0);
 
-        if (UNLIKELY(bIgnoreNewLine))
-            WriteConsole(ConsoleHandle, "\n", 1, NULL, 0);
-    }
+    // Reset back to white
+    SetConsoleTextAttribute(ConsoleHandle, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
+
+    if (UNLIKELY(bIgnoreNewLine))
+        WriteConsole(ConsoleHandle, "\n", 1, NULL, 0);
 }
 
 f64 Platform_GetAbsoluteTime(void)
@@ -416,36 +359,6 @@ void Platform_Sleep(f64 ms)
                 break;
         }
     }
-}
-
-void Platform_ShowCursor(bool bShow)
-{
-    static bool bShown = true;
-    if (bShown)
-    {
-        if (!bShow)
-        {
-            SetCursor(NULL);
-            bShown = false;
-        }
-    }
-    else
-    {
-        if (bShow)
-        {
-            SetCursor(LoadCursor(NULL, IDC_ARROW));
-            bShown = true;
-        }
-    }
-}
-
-void Platform_GetMousePosition(f32* X, f32* Y)
-{
-    POINT p;
-    GetCursorPos(&p);
-
-    *X = (f32)p.x;
-    *Y = (f32)p.y;
 }
 
 u64 Platform_GetCurrentThreadID(void)
@@ -575,108 +488,11 @@ bool Platform_DoesEnvironmentVariableExist(String Name)
     return Len != 0;
 }
 
-bool Platform_CaptureStackTrace(LinearAllocator* Arena, TArray(StackTraceData)* OutInfo)
-{
-    HANDLE ProcessHandle = GetCurrentProcess();
-    SymInitialize(ProcessHandle, NULL, true);
-
-    LinearAllocator_Scratch Temp = Memory_GetScratch();
-
-    void* StackAddresses = LinearAllocator_Allocate(Temp.Allocator, sizeof(void*) * 1024);
-    const u16 NumFramesCaptured = CaptureStackBackTrace(0, 1024, StackAddresses, NULL);
-
-    SYMBOL_INFO* Symbol = LinearAllocator_Allocate(Temp.Allocator, sizeof(SYMBOL_INFO) + 256 * sizeof(char));
-    Symbol->MaxNameLen = 255;
-    Symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
-
-    usize ArrayMemoryAmount = _ArrayCalculateMemRequirement(NumFramesCaptured, sizeof(StackTraceData));
-    u8* ArrayMemory = LinearAllocator_Allocate(Arena, ArrayMemoryAmount);
-
-    TArray(StackTraceData) StackTraceCache = Array_CreateStatic(StackTraceData, NumFramesCaptured, ArrayMemory);
-
-    for (u16 i = 1; i < NumFramesCaptured; i++)
-    {
-        SymFromAddr(ProcessHandle, (usize)(((usize*)StackAddresses)[i]), 0, Symbol);
-
-        StackTraceData d;
-        d.Name = String_Create(Arena, StrSlice(Symbol->Name, Symbol->NameLen));
-        d.Address = (usize)Symbol->Address;
-        d.Index = (u16)(NumFramesCaptured - i - 1);
-
-        Array_Add(StackTraceCache, d);
-    }
-
-    *OutInfo = StackTraceCache;
-
-    Memory_ReleaseScratch(&Temp);
-
-    return true;
-}
-
 u32 Platform_GetNumLogicalProcessors(void)
 {
     SYSTEM_INFO info = {0};
     GetSystemInfo(&info);
     return info.dwNumberOfProcessors;
-}
-
-static StringN(64) GThreadNameBuffer = {0};
-
-bool Platform_GetThreadName(void* ThreadHandle, String* OutName)
-{
-    if (!ThreadHandle)
-    {
-        StringN_Copy(GThreadNameBuffer, S("Main Thread"));
-
-        String s;
-        s.Data = GThreadNameBuffer.Data;
-        s.Length = GThreadNameBuffer.Length;
-        s.Capacity = GThreadNameBuffer.Capacity;
-
-        *OutName = s;
-
-        return false;
-    }
-
-    wchar_t a[64] = {0};
-    wchar_t* str = &a[0];
-
-    HANDLE* Handle = (HANDLE*)ThreadHandle;
-    if ((usize)Handle == USIZE_MAX)
-    {
-        StringN_Copy(GThreadNameBuffer, S(""));
-
-        String s;
-        s.Data = GThreadNameBuffer.Data;
-        s.Length = GThreadNameBuffer.Length;
-        s.Capacity = GThreadNameBuffer.Capacity;
-
-        *OutName = s;
-
-        return false;
-    }
-
-    HRESULT Result = GetThreadDescription(Handle, &str);
-
-    if (HRESULT_CODE(Result) == S_OK)
-    {
-        String ConversionBuffer = {.Data = GThreadNameBuffer.Data, .Length = 0};
-
-        String_ToNarrow(CStr16View(str), &ConversionBuffer);
-
-        GThreadNameBuffer.Length = ConversionBuffer.Length;
-
-        String s;
-        s.Data = GThreadNameBuffer.Data;
-        s.Length = GThreadNameBuffer.Length;
-        s.Capacity = GThreadNameBuffer.Capacity;
-
-        *OutName = s;
-
-        return GThreadNameBuffer.Length > 0;
-    }
-
-    return false;
 }
 
 Uuid UUID_Generate(void)
@@ -1910,22 +1726,6 @@ bool Filesystem_ArePathsCommon(String PathA, String PathB)
     CommonPath.Length = (u32)Len;
 
     return String_IsEqual(CommonPath, PathA, false);
-}
-
-PlatformHandle Platform_CreateThread(const String Name, u32* OutThreadID, u32 (*ThreadEntryPoint)(void* ThreadParameter), void* UserData)
-{
-    HANDLE ThreadHandle = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ThreadEntryPoint, UserData, CREATE_SUSPENDED, (LPDWORD)OutThreadID);
-    SetThreadPriority(ThreadHandle, THREAD_PRIORITY_ABOVE_NORMAL);
-
-    wchar_t ThreadName[MAX_PATH] = {0};
-    String16 ThreadNameBetter;
-    ThreadNameBetter.Data = ThreadName;
-    String_ToWide(Name, &ThreadNameBetter);
-
-    SetThreadDescription(ThreadHandle, ThreadName);
-    ResumeThread(ThreadHandle);
-
-    return ThreadHandle;
 }
 
 PlatformHandle Platform_RunCommand(const String CmdLine, const String WorkingDirectory)

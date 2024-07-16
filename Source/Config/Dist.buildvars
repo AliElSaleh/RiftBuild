@@ -28,7 +28,7 @@ SecurityFlags        -fno-strict-overflow -fno-strict-aliasing
 
 SharedCompilerFlags  -std=c99 -Os -fno-builtin-memcpy -fno-omit-frame-pointer -fno-exceptions -fno-math-errno $SecurityFlags $WarningFlags $WarningFlagsDisabled $WarningErrorFlags
 SharedLinkerFlags    
-SharedDefines        NO_ASSERT NO_PROFILING _NO_CRT_STDIO_INLINE _FORTIFY_SOURCE=3
+SharedDefines        NO_ASSERT NO_PROFILING _NO_CRT_STDIO_INLINE _FORTIFY_SOURCE=3 NDEBUG
 SharedIncludeFlags   Source/Core Source/Libraries/Vendor
 
 if x64               SharedCompilerFlags -msse2

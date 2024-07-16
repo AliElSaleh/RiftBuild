@@ -12,13 +12,6 @@
 
 #include <stdarg.h>
 
-// TODO: option for single threaded logging
-// TODO: right now the logging thread does nothing when fast log is disabled this is a no no
-
-#ifdef FAST_LOG
-#define MAX_SINK_BUFFER_SIZE Megabytes(1) // maximum amount of data that can be logged at once
-#endif
-
 STRUCT(LoggingSystemState)
 {
     FileHandle LogFileHandle;
@@ -27,11 +20,6 @@ STRUCT(LoggingSystemState)
     String LogFileName;
 
     char Buffer[MAX_LOG_MSG_LENGTH];
-
-    #ifdef FAST_LOG
-    char SinkBuffer[MAX_SINK_BUFFER_SIZE];
-    u32 SinkHead;
-    #endif
 
     bool bDisabled;
     bool bCrashOnFatal;
@@ -93,69 +81,29 @@ internal bool Internal_TryOpenLogFile(void)
 
 internal void Internal_WriteToLogFile(char* Text, u32 Length)
 {
-    //PROFILE_FUNCTION()
+    if (!GLoggingSystemState->bLogToFile)
     {
-        if (!GLoggingSystemState->bLogToFile)
-        {
-            return;
-        }
-
-        if (!Internal_TryOpenLogFile())
-        {
-            return;
-        }
-
-        if (UNLIKELY(Length == 0))
-        {
-            return;
-        }
-
-        u64 Written = 0;
-
-        if (!Filesystem_WriteLine(GLoggingSystemState->LogFileHandle, StrSlice(Text, Length), &Written))
-        {
-            StringLocal(FormattedMessage, 256);
-            u32 Len = (u32)String_Format(&FormattedMessage, S("Failed to write to %S"), 256, GLoggingSystemState->LogFileName);
-            Platform_ConsoleWrite_CustomLength(FormattedMessage.Data, Len, LOG_TYPE_ERROR, true);
-        }
-    }
-}
-
-#ifdef FAST_LOG
-internal void Internal_LogFlush(void)
-{
-    GLoggingSystemState->SinkBuffer[Min(GLoggingSystemState->SinkHead, MAX_SINK_BUFFER_SIZE)] = 0;
-    Platform_ConsoleWrite_CustomLength(GLoggingSystemState->SinkBuffer, GLoggingSystemState->SinkHead, LOG_TYPE_INFO, false);
-    Internal_WriteToLogFile(GLoggingSystemState->SinkBuffer, GLoggingSystemState->SinkHead);
-    GLoggingSystemState->SinkHead = 0;
-    GLoggingSystemState->bReady = false;
-}
-#endif
-
-internal u32 Internal_Main_LoggingThread(UNUSED void* lpParameter)
-{
-#ifdef FAST_LOG
-    while (GLoggingSystemState->bAlive)
-    {
-        if (GLoggingSystemState->bReady && UNLIKELY(GLoggingSystemState->SinkHead > 0))
-        {
-            PROFILE_SCOPE("Log Flush", GLoggingSystemState->ThreadHandle)
-            {
-                Internal_LogFlush();
-            }
-        }
+        return;
     }
 
-    if (GLoggingSystemState->SinkHead > 0)
+    if (!Internal_TryOpenLogFile())
     {
-        PROFILE_SCOPE("Log Flush", &GLoggingSystemState->ThreadHandle)
-        {
-            Internal_LogFlush();
-        }
+        return;
     }
-#endif
-    
-    return 0;
+
+    if (UNLIKELY(Length == 0))
+    {
+        return;
+    }
+
+    u64 Written = 0;
+
+    if (!Filesystem_WriteLine(GLoggingSystemState->LogFileHandle, StrSlice(Text, Length), &Written))
+    {
+        StringLocal(FormattedMessage, 256);
+        u32 Len = (u32)String_Format(&FormattedMessage, S("Failed to write to %S"), 256, GLoggingSystemState->LogFileName);
+        Platform_ConsoleWrite_CustomLength(FormattedMessage.Data, Len, LOG_TYPE_ERROR, true);
+    }
 }
 
 bool Logging_Initialize(void* Memory, bool bOpenFile)
@@ -175,8 +123,6 @@ bool Logging_Initialize(void* Memory, bool bOpenFile)
     GLoggingSystemState->CriticalSection = LinearAllocator_Allocate(&GLoggingMemoryAllocator, Platform_GetCriticalSectionMemoryRequirement());
     Platform_InitializeCriticalSection(GLoggingSystemState->CriticalSection);
 
-    GLoggingSystemState->ThreadHandle = Platform_CreateThread(S("Logging Thread"), NULL, Internal_Main_LoggingThread, GLoggingSystemState);
-    
     return true;
 }
 
@@ -257,15 +203,6 @@ void LogMessage(u8 LogType, const String LogCat, const String Text, ...)
     if (UNLIKELY(GLoggingSystemState->bDisabled) && !(GLoggingSystemState->bEnableOnError && bIsErrorMessage))
         return;
 
-    Platform_EnterCriticalSection(GLoggingSystemState->CriticalSection);
-
-#ifdef FAST_LOG
-    if (UNLIKELY(GLoggingSystemState->SinkHead >= MAX_SINK_BUFFER_SIZE))
-    {
-        Internal_LogFlush();
-    }
-#endif
-
     SystemTime TimeNow = Platform_GetSystemLocalTime();
 
     StringLocal(TimeStamp, 64);
@@ -307,18 +244,11 @@ void LogMessage(u8 LogType, const String LogCat, const String Text, ...)
 
     String FinalMsg = String_Join(Temp.Allocator, StrArray(TrimmedNewLines, LogPrefix, TrimmedFmt));
 
-#ifdef FAST_LOG
-    Platform_MemCopy(&GLoggingSystemState->SinkBuffer[GLoggingSystemState->SinkHead], FinalMsg.Data, FinalMsg.Length);
-    GLoggingSystemState->SinkHead += FinalMsg.Length;
-#else
     Platform_ConsoleWrite_CustomLength(FinalMsg.Data, FinalMsg.Length, LogType, LogType > LOG_TYPE_WARNING);
 
     Internal_WriteToLogFile(FinalMsg.Data, FinalMsg.Length);
-#endif
 
     LinearAllocator_ReleaseScratch(&Temp);
-
-    Platform_ExitCriticalSection(GLoggingSystemState->CriticalSection);
 }
 
 void LogDirectMessage(u8 LogType, const String Text, ...)
@@ -327,24 +257,6 @@ void LogDirectMessage(u8 LogType, const String Text, ...)
     if (UNLIKELY(GLoggingSystemState->bDisabled) && !(GLoggingSystemState->bEnableOnError && bIsErrorMessage))
         return;
 
-    Platform_EnterCriticalSection(GLoggingSystemState->CriticalSection);
-
-    #ifdef FAST_LOG
-    if (GLoggingSystemState->SinkHead >= MAX_SINK_BUFFER_SIZE)
-    {
-        Internal_LogFlush();
-    }
-    #endif
-
-#ifdef FAST_LOG
-    va_list Args;
-    va_start(Args, Text);
-    String Buffer = {.Data = &GLoggingSystemState->SinkBuffer[GLoggingSystemState->SinkHead], .Length = 0 };
-    u32 Len = (u32)String_FormatV(&Buffer, Text, MAX_LOG_MSG_LENGTH, Args);
-    va_end(Args);
-
-    GLoggingSystemState->SinkHead += Len;
-#else
     va_list Args;
     va_start(Args, Text);
     String Buffer = {.Data = GLoggingSystemState->Buffer, .Length = 0 };
@@ -355,9 +267,6 @@ void LogDirectMessage(u8 LogType, const String Text, ...)
     Platform_ConsoleWrite_CustomLength(GLoggingSystemState->Buffer, Len, LogType, LogType > LOG_TYPE_WARNING);
 
     Internal_WriteToLogFile(GLoggingSystemState->Buffer, Len);
-#endif
-
-    Platform_ExitCriticalSection(GLoggingSystemState->CriticalSection);
 }
 
 void LogLineBreak(void)
@@ -365,63 +274,8 @@ void LogLineBreak(void)
     if (UNLIKELY(GLoggingSystemState->bDisabled))
         return;
 
-    Platform_EnterCriticalSection(GLoggingSystemState->CriticalSection);
-
-    #ifdef FAST_LOG
-    if (GLoggingSystemState->SinkHead >= MAX_SINK_BUFFER_SIZE)
-    {
-        Internal_LogFlush();
-    }
-    #endif
-
-#ifdef FAST_LOG
-    GLoggingSystemState->SinkBuffer[GLoggingSystemState->SinkHead] = '\n';
-    GLoggingSystemState->SinkHead += 1;
-#else
     Platform_ConsoleWrite_CustomLength("\n", 1, LOG_TYPE_INFO, false);
     Internal_WriteToLogFile("\n", 1);
-#endif
-
-    Platform_ExitCriticalSection(GLoggingSystemState->CriticalSection);
-}
-
-#ifdef FAST_LOG
-void Logging_Flush(void)
-{
-    if (!GLoggingSystemState->bReady && UNLIKELY(GLoggingSystemState->SinkHead > 0))
-        GLoggingSystemState->bReady = true;
-
-    return;
-    
-    /*
-    // Only allowed on main thread!
-    ASSERT(LIKELY(Platform_GetCurrentThreadID() == Platform_GetMainThreadID()))
-
-    if (UNLIKELY(GLoggingSystemState->SinkHead > 0))
-    {
-        Internal_LogFlush();
-    }
-    */
-}
-#endif
-
-
-void Logging_PrintStackTrace(void)
-{
-    TArray(StackTraceData) Frames;
-    Platform_CaptureStackTrace(&GLoggingMemoryAllocator, &Frames); // todo: maybe a separate allocator?
-    Logging_ToggleLogTimeStamp(false);
-    Logging_ToggleLogCategory(false);
-    LOG("%S", S("=============== STACK TRACE ==============="));
-    u32 i = 0;
-    for each_i (i, StackTraceData, f, Frames)
-    {
-        if (i > 0)
-            LOG("[%hi] 0x%x | %S", f.Index, f.Address, f.Name);
-        //LOG("-------------------------------------------");
-    }
-    Logging_ToggleLogTimeStamp(true);
-    Logging_ToggleLogCategory(true);
 }
 
 #endif

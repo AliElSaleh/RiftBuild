@@ -232,7 +232,7 @@ PlatformHandle Platform_CreateThread(const String Name, u32* OutThreadID, u32 (*
 PlatformHandle Platform_RunCommand(const String CmdLine, const String WorkingDirectory)
 {
     String Command;
-    StringLocal(Copy, MAX_PATH_LENGTH*2);
+    StringLocal(Copy, Kibibytes(32));
     if (WorkingDirectory.Length > 0)
     {
         String_Append(&Copy, S("cd \""));
