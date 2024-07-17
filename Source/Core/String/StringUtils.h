@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _STRINGUTILS_H_
+#define _STRINGUTILS_H_
 
 #include "EngineTypes.h"
 #include "Memory/Allocators.h"
@@ -204,3 +205,5 @@ RIFT_API void EatParenthesis(char** Str);
 RIFT_API void EatParenthesis_Backwards(char** Str);
 RIFT_API void EatSymbols(char** Str);
 RIFT_API void EatSymbols_Backwards(char** Str);
+
+#endif // _STRINGUTILS_H_
