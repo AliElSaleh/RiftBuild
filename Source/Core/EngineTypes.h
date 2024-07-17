@@ -207,6 +207,9 @@ typedef void VoidFunc(void);
     #else
         #error This UNIX operating system is not supported
     #endif
+#elif defined(__HAIKU__)
+    #define PLATFORM_HAIKU 1
+    #define PLATFORM_STRING "Haiku"
 #else
     #define PLATFORM_STRING "Unknown"
     #error Unknown platform
