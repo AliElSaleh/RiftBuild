@@ -1211,7 +1211,7 @@ bool MSVC_Link(const BuildParams* Params)
             String_Append(&CmdLine, S(" /dll"));
         String_Append(&CmdLine, S(" /nologo "));
 
-        String_BuildSeparator(&CmdLine, ' ', Params->LinkerDefineFlags, Params->LinkerFlags, Params->IconResFilePath, Params->VersionResFilePath, Params->Libraries, Params->LibraryDirectories)//, AllObjFiles);
+        String_BuildSeparator(&CmdLine, ' ', Params->LinkerDefineFlags, Params->LinkerFlags, Params->IconResFilePath, Params->VersionResFilePath, Params->Libraries, Params->LibraryDirectories); //, AllObjFiles);
         String_AppendSpace(&CmdLine);
 
         LinkData Data = { Params, &CmdLine };

@@ -21,9 +21,14 @@ typedef u16                  wchar;
 typedef void VoidFunc(void);
 
 #ifndef __cplusplus
-#define bool  _Bool
-#define true  1
-#define false 0
+    #if (__STDC_VERSION__ >= 199901L)
+        #define bool  _Bool
+    #else
+        #define bool  u8
+    #endif
+
+    #define true  1
+    #define false 0
 #endif
 
 #ifndef NULL

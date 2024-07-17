@@ -4,29 +4,6 @@
 #include "Memory/LinearAllocator.h"
 #include "String/BaseString.h"
 
-#define StringN_Copy(s, SourceView)\
-do {MemCopy((s).Data, (SourceView).Data, (s).Capacity == 0 ? (SourceView).Length : Min((s).Capacity, (SourceView).Length));\
-(s).Data[(SourceView).Length] = 0;\
-(s).Length = (SourceView).Length;} while (0)
-
-#define StringN_CopyN(s, SourceView, N) \
-do {MemCopy((s).Data, (SourceView).Data, (s).Capacity == 0 ? Min((SourceView).Length, (N)) : Min((s).Capacity, Min((SourceView).Length, (N))));\
-(s).Data[(SourceView).Length] = 0;\
-(s).Length = (SourceView).Length;} while (0)
-
-#define StringN_Append(s, SourceView)\
-do {if ((s).Length + (SourceView).Length > (s).Capacity || (s).Capacity == 0) break;\
-u32 NumToCopy = (s).Capacity == 0 ? (SourceView).Length : Min((s).Capacity, (SourceView).Length);\
-MemCopy(&(s).Data[(s).Length], (SourceView).Data, NumToCopy);\
-(s).Length += (SourceView).Length;\
-(s).Data[(s).Length] = 0;} while (0)
-
-#define StringN_Empty(s)\
-MemZero((s).Data, (s).Length);\
-(s).Length = 0
-
-#define StringN_IsValid(s) ((s).Data != NULL && (s).Length > 0)
-
 // C String Helpers
 // ----------------------------------
 
@@ -96,35 +73,9 @@ RIFT_API void String_AppendPathSeparator_Checked(String* Dest);
 RIFT_API void String_Zero(String* Str);
 RIFT_API void String_Fill(String* Str, char C);
 
-#define String_Concat(Dest, ...)\
-do\
-{\
-    String __SArgs__78596[] = {__VA_ARGS__};\
-    StringArray __TempArray__78596; \
-    __TempArray__78596.List = __SArgs__78596;\
-    __TempArray__78596.Num = SArray_Capacity(__SArgs__78596);\
-    StringInternal_Concat(Dest, __TempArray__78596);\
-} while (0);
-
-#define String_BuildSeparator(Dest, Char, ...)\
-do\
-{\
-    String __SArgs__78596[] = {__VA_ARGS__};\
-    StringArray __TempArray__78596; \
-    __TempArray__78596.List = __SArgs__78596;\
-    __TempArray__78596.Num = SArray_Capacity(__SArgs__78596);\
-    StringInternal_BuildSeparator(Dest, Char, __TempArray__78596);\
-} while (0);
-
-#define String_BuildPath(Dest, ...)\
-do\
-{\
-    String __SArgs__78596[] = {__VA_ARGS__};\
-    StringArray __TempArray__78596; \
-    __TempArray__78596.List = __SArgs__78596;\
-    __TempArray__78596.Num = SArray_Capacity(__SArgs__78596);\
-    StringInternal_BuildPath(Dest, __TempArray__78596);\
-} while (0);
+#define String_Concat(Dest, ...)               do { String __SArgs__[] = {__VA_ARGS__}; StringArray __TempArray__; __TempArray__.List = __SArgs__; __TempArray__.Num = SArray_Capacity(__SArgs__); StringInternal_Concat(Dest, __TempArray__); } while (0)
+#define String_BuildSeparator(Dest, Char, ...) do { String __SArgs__[] = {__VA_ARGS__}; StringArray __TempArray__; __TempArray__.List = __SArgs__; __TempArray__.Num = SArray_Capacity(__SArgs__); StringInternal_BuildSeparator(Dest, Char, __TempArray__); } while (0)
+#define String_BuildPath(Dest, ...)            do { String __SArgs__[] = {__VA_ARGS__}; StringArray __TempArray__; __TempArray__.List = __SArgs__; __TempArray__.Num = SArray_Capacity(__SArgs__); StringInternal_BuildPath(Dest, __TempArray__); } while (0)
 
 RIFT_API void StringInternal_Concat(String* Dest, const StringArray Array);
 RIFT_API void StringInternal_BuildSeparator(String* Dest, char Separator, const StringArray Array);

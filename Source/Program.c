@@ -1912,14 +1912,20 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         AddCmdOption(&CmdOptionsDB, S("_FileName"), StrSlice(NameCopy.Data, LastDot));
         AddCmdOption(&CmdOptionsDB, S("_FileNameExt"), NameCopy);
 
-        const String PathFull = String_Create(Arena, StrSlice(BuildFilePathFull.Data, LastSlash));
+        const String PathNoExt = StrSlice(BuildFilePathFull.Data, LastSlash);
+        const String PathFull = String_Create(Arena, PathNoExt);
         AddCmdOption(&CmdOptionsDB, S("_FileDirectoryFull"), PathFull);
 
-        const String PathRelative = StrShiftF(StrSlice(BuildFilePathFull.Data, LastSlash), WorkingPath.Length+1);
+        const String PathRelative = StrShiftF(PathNoExt, WorkingPath.Length+1);
 
         String_BuildPath(&BuildFilePath, PathRelative, BuildFileName);
 
         AddCmdOption(&CmdOptionsDB, S("_FileDirectory"), String_Create(Arena, PathRelative));
+        
+        u32 SecondLastSlash = 0;
+        String_IndexOfLastPathSlash(PathNoExt, &SecondLastSlash);
+
+        AddCmdOption(&CmdOptionsDB, S("_DirectoryName"), String_Create(Arena, StrShiftF(PathNoExt, SecondLastSlash+1)));
 
         AddCmdOption(&CmdOptionsDB, S("_WorkingDirectory"), WorkingPath);
     }
@@ -4097,7 +4103,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             LOG("    Assembly:             %S and %S%S", AssemblyNameWithExt, AssemblyName, NextExt);
         }
 
-        if (Type.Length > 0) LOG("    Type:                %S", Type);
+        if (Type.Length > 0) LOG("    Type:                 %S", Type);
         LOG("    Version:              %S", Version);
         
         if (bExplicitProgramPath)
@@ -6366,7 +6372,7 @@ u32 RunApplication(const StringArray Arguments)
 
     String Win32Libs = S("kernel32 user32 opengl32 shell32 gdi32 comdlg32 comctl32 ws2_32 winmm netapi32 ole32 advapi32 "
                          "wldap32 crypt32 rpcrt4 shlwapi dbghelp bcrypt version imm32 cfgmgr32 setupapi oleaut32 "
-                         "uuid odbc32 odbccp32 delayimp");
+                         "uuid odbc32 odbccp32 delayimp userenv");
 
     String LinuxLibs = S("m");
 

@@ -1052,7 +1052,8 @@ bool Filesystem_Open(const String FilePath, u32 Mode, FileHandle* OutHandle)
     OutHandle->Data2 = NULL;
 
 #if PLATFORM_OPEN_BSD
-    StringN_Copy(OutHandle->Path, FilePath);
+    String* PathPtr = (String*)OutHandle->Path;
+    String_Copy(PathPtr, FilePath);
 #endif
 
     return true;
