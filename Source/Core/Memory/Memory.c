@@ -4,7 +4,8 @@
 #include "MemoryUtils.h"
 
 #include "Platform/Platform.h"
-#include "Memory/FreeListAllocator.h"
+#include "Allocators.h"
+#include "Globals.h"
 #include "Log.h"
 #include "String/StringUtils.h"
 
@@ -661,8 +662,6 @@ void LinearAllocator_ReleaseScratch(LinearAllocator_Scratch* Scratch)
 
 // ===================================================
 
-
-#include "FreeListAllocator.h"
 
 #define DEFAULT_FREE_LIST_ALLOCATOR_ALIGNMENT 64
 

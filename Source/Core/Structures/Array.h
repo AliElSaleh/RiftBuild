@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _ARRAY_H_
+#define _ARRAY_H_
 
 #include "Globals.h"
 #include "Memory/Memory.h"
@@ -39,41 +40,12 @@ enum
 
 #define Array_Add(Array, Value) (Array) = _ArrayAdd((Array), &Value)
 
-#define Array_AddRaw(Array, Value)\
-do {\
-	typeof((Value)) CONCAT(Temp, __LINE__) = (Value);\
-	(Array) = _ArrayAdd((Array), &CONCAT(Temp, __LINE__));\
-} while (0)
+#define Array_AddRaw(Array, Value)          do { typeof((Value)) CONCAT(Temp, __LINE__) = (Value); (Array) = _ArrayAdd((Array), &CONCAT(Temp, __LINE__)); } while (0)
+#define Array_InsertAt(Array, Value, Index) do { typeof((Value)) CONCAT(Temp, __LINE__) = (Value); (Array) = _ArrayInsertAt(Array, &CONCAT(Temp, __LINE__), Index); } while (0)
 
-#define Array_InsertAt(Array, Value, Index)\
-do {\
-	typeof(Value) CONCAT(Temp, __LINE__) = Value;\
-	(Array) = _ArrayInsertAt(Array, &CONCAT(Temp, __LINE__), Index);\
-} while (0)
+#define Array_For(Array) u32 NumElements = Array_Num(Array); for (u32 i = 0; i < NumElements; ++i)
 
-
-#define Array_For(Array) \
-u32 NumElements = Array_Num(Array); \
-for (u32 i = 0; i < NumElements; ++i)
-
-#define Array_Remove(Array, Value)\
-do {\
-    usize _Num_ = Array_Num(Array);\
-\
-    if (_Num_ > 0)\
-    {\
-        for (usize _i_ = 0; _i_ < _Num_; _i_++)\
-        {\
-            if (Array[_i_] == Value)\
-            {\
-                _ArrayRemoveAt(Array, NULL, _i_);\
-                break;\
-            }\
-        }\
-        \
-        _ArrayFieldSet(Array, ArrayField_Num, _Num_-1);\
-    }\
-} while (0)
+#define Array_Remove(Array, Value) do { usize _Num_ = Array_Num(Array); if (_Num_ > 0) { for (usize _i_ = 0; _i_ < _Num_; _i_++) { if (Array[_i_] == Value) { _ArrayRemoveAt(Array, NULL, _i_); break; } } _ArrayFieldSet(Array, ArrayField_Num, _Num_-1); } } while (0)
 
 #define Array_RemoveLast(Array, Value)     _ArrayRemoveLast(Array, Value)
 #define Array_RemoveAt(Array, Value, Index) _ArrayRemoveAt(Array, Value, Index)
@@ -90,14 +62,7 @@ do {\
 #define Array_Last(Array) (Array)[Array_Num((Array)) == 0 ? 1 : Array_Num((Array)) - 1]
 
 #define SArray_Num(Array) CONCAT(Array, _Count)
-#define SArray_Add(Array, Value)\
-do {\
-    if (CONCAT(Array, _Count) < SArray_Capacity(Array))\
-    {\
-        Array[CONCAT(Array, _Count)] = Value;\
-        CONCAT(Array, _Count)++;\
-    }\
-} while (0)
+#define SArray_Add(Array, Value) do { if (CONCAT(Array, _Count) < SArray_Capacity(Array)) { Array[CONCAT(Array, _Count)] = Value; CONCAT(Array, _Count)++; }} while (0)
 
 RIFT_API void*    _ArrayCreate(usize Num, usize Stride);
 RIFT_API usize    _ArrayCalculateMemRequirement(usize Num, usize Stride);
@@ -114,3 +79,5 @@ RIFT_API void*    _Array_MemAlloc(usize Size);
 RIFT_API void     _Array_MemFree(void* Memory);
 
 RIFT_API void*    Array_Null(void);
+
+#endif // _ARRAY_H_

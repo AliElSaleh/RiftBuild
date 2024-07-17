@@ -1,8 +1,10 @@
-#pragma once
+#ifndef _BACKEND_H_
+#define _BACKEND_H_
 
 #include "EngineTypes.h"
 #include "String/BaseString.h"
-#include "Memory/LinearAllocator.h"
+#include "Memory/Allocators.h"
+#include "Platform/Filesystem.h"
 
 STRUCT(FileVariable)
 {
@@ -231,3 +233,5 @@ bool ExportVersionRC(const BuildParams* Params, const String Path);
 bool ExportIconRC(const BuildParams* Params, const String Path, const String IconFilePath);
 
 bool SourceFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData);
+
+#endif // _BASE_STRING_H_

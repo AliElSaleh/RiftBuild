@@ -1,8 +1,9 @@
-#pragma once
+#ifndef _PLATFORM_H_
+#define _PLATFORM_H_
 
 #include "EngineTypes.h"
 #include "String/BaseString.h"
-#include "Memory/LinearAllocator.h"
+#include "Memory/Allocators.h"
 
 STRUCT(SystemTime)
 {
@@ -104,3 +105,4 @@ RIFT_API bool Platform_IsProgramRunning(const String ProgramName);
 
 RIFT_API bool Platform_GetTerminalDimensions(u32* OutRows, u32* OutColumns);
 
+#endif // _PLATFORM_H_

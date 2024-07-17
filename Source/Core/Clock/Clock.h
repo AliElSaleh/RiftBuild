@@ -1,6 +1,7 @@
-#pragma once
+#ifndef _CLOCK_H_
+#define _CLOCK_H_
 
-#include "../EngineTypes.h"
+#include "EngineTypes.h"
 #include "String/BaseString.h"
 
 #ifdef _DEBUG
@@ -35,3 +36,5 @@ RIFT_API void Clock_GetElapsedTime_ToStringEx(const Clock* C, bool bAutoConvertT
 RIFT_API f64 Time_AutoConvert(f64 Seconds);
 RIFT_API void Time_ToString(f64 Seconds, bool bAutoConvertTimeUnit, String* OutString);
 RIFT_API void Time_ToStringEx(f64 Seconds, bool bAutoConvertTimeUnit, String* OutString, const String Format);
+
+#endif // _CLOCK_H_

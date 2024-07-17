@@ -1,7 +1,7 @@
-#pragma once
+#ifndef _MEMORY_H_
+#define _MEMORY_H_
 
-#include "Globals.h"
-#include "LinearAllocator.h"
+#include "Allocators.h"
 
 ENUM(EMemoryTag)
 {
@@ -65,3 +65,5 @@ RIFT_API const char* MemoryTagToString(EMemoryTag Tag);
 
 RIFT_API bool IsValid(const void* Memory);
 RIFT_API bool IsValidSlow(const void* Memory);
+
+#endif // _MEMORY_H_

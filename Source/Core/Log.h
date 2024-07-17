@@ -1,4 +1,5 @@
-﻿#pragma once
+﻿#ifndef _LOG_H_
+#define _LOG_H_
 
 #include "EngineTypes.h"
 
@@ -123,3 +124,5 @@ RIFT_API void LogMessage(u8 LogType, const struct String LogCat, const struct St
 RIFT_API void LogDirectMessage(u8 LogType, const struct String Text, ...);
 RIFT_API void LogLineBreak(void);
 #endif // NO_LOG
+
+#endif // _LOG_H_

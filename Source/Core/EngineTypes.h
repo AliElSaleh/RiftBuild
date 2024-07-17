@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _ENGINE_TYPES_H_
+#define _ENGINE_TYPES_H_
 
 // Unsigned integer types
 typedef unsigned char        u8;
@@ -16,7 +17,7 @@ typedef signed long long     i64;
 typedef float                f32;
 typedef double               f64;
 
-typedef u16                  wchar;
+typedef unsigned short       wchar;
 
 typedef void VoidFunc(void);
 
@@ -478,3 +479,5 @@ typedef u32 usize;
 
 #define USIZE_MAX UINT32_MAX
 #endif
+
+#endif // _ENGINE_TYPES_H_

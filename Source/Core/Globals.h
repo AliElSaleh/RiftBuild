@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _GLOBALS_H_
+#define _GLOBALS_H_
 
 #include "EngineTypes.h"
 #include "String/BaseString.h"
@@ -28,4 +29,4 @@ RIFT_API StringList StringList_Null(void);
 
 RIFT_API EngineGlobals Globals_Get(void);
 
-
+#endif // _GLOBALS_H_

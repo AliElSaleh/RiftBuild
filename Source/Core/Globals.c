@@ -1,7 +1,7 @@
 // Copyright (c) 2024 Ali El Saleh 
 
 #include "Globals.h"
-#include "Memory/LinearAllocator.h"
+#include "Memory/Allocators.h"
 #include "String/StringUtils.h"
 #include "Structures/Array.h"
 #include "Platform/Filesystem.h"

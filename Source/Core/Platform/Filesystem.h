@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _FILESYSTEM_H_
+#define _FILESYSTEM_H_
 
 #include "EngineTypes.h"
 #include "String/BaseString.h"
@@ -111,3 +112,5 @@ RIFT_API bool Filesystem_ArePathsCommon(String PathA, String PathB);
 RIFT_API bool IsValidFileHandle(const FileHandle Handle);
 
 RIFT_API FileHandle FileHandle_Null(void);
+
+#endif // _FILESYSTEM_H_

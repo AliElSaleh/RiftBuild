@@ -1,8 +1,9 @@
-#pragma once
+#ifndef _ENTRY_POINT_H_
+#define _ENTRY_POINT_H_
 
 #include "Platform/Platform.h"
 #include "Memory/Memory.h"
-#include "Memory/LinearAllocator.h"
+#include "Memory/Allocators.h"
 #include "Clock/Clock.h"
 #include "Log.h"
 
@@ -137,3 +138,5 @@ Shutdown_Lvl0:
 }
 
 PRAGMA_ENABLE_WARNINGS
+
+#endif // _ENTRY_POINT_H_

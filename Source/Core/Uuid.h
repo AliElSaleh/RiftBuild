@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _UUID_H_
+#define _UUID_H_
 
 #include "EngineTypes.h"
 #include "String/BaseString.h"
@@ -19,3 +20,5 @@ RIFT_API bool UUID_IsEqual(Uuid First, Uuid Second);
 
 RIFT_API void UUID_ToString(Uuid ID, String* OutString);
 RIFT_API Uuid UUID_FromString(const String IDString);
+
+#endif // _UUID_H_

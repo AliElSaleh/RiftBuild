@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _BASE_STRING_H_
+#define _BASE_STRING_H_
 
 #include "EngineTypes.h"
 
@@ -89,3 +90,5 @@ FORCEINLINE static String StrShiftF(String s, u32 Offset)
 
     return Result;
 }
+
+#endif // _BASE_STRING_H_

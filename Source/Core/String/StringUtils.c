@@ -2,11 +2,9 @@
 
 #include "StringUtils.h"
 
+#include "Memory/Memory.h"
 #include "Globals.h"
 #include "Log.h"
-#include "Memory/LinearAllocator.h"
-#include "Memory/Memory.h"
-#include "String/BaseString.h"
 
 #define STB_SPRINTF_IMPLEMENTATION
 #include "stb_sprintf.h"
