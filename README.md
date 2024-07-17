@@ -201,10 +201,11 @@ If no extension was specified, RiftBuild will automatically choose the correct e
 - Windows
   - 7 and above
 - Linux
-  - All Debian, Red Hat, Fedora and Arch based systems
+  - All Debian, Red Hat, Fedora, SUSE and Arch based systems
 - MacOS
-  - 10.5 and above
-- FreeBSD/OpenBSD/NetBSD
+  - 10.10 (Yosemite) and above
+- BSD
+  - FreeBSD, OpenBSD and NetBSD
 
 # Dependencies
 - No dependencies
