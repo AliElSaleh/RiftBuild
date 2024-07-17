@@ -250,21 +250,6 @@ typedef void VoidFunc(void);
         #define PLATFORM_32_BIT 1
     #endif
 
-#elif defined(__MIPSEL__) || defined(__mips_isa_rev)
-    #define __CPU_MIPS 1
-    #define __CACHE_LINE_SIZE 64
-    #define CPU_ARCHITECTURE_STRING "mips"
-    // todo: 64 bit
-    #define CPU_ARCHITECTURE_STRING_EX "mips|mipsel|mips64|mips64el"
-    #define PLATFORM_32_BIT 1
-
-#elif defined(__loongarch__)
-    #define __CPU_LOONGARCH 1
-    #define __CACHE_LINE_SIZE 64
-    #define PLATFORM_32_BIT 1
-    #define CPU_ARCHITECTURE_STRING "loongarch"
-    #define CPU_ARCHITECTURE_STRING_EX "loongarch"
-
 #else
     #error Unknown CPU Type
 #endif
