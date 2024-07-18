@@ -3973,7 +3973,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 String_Append(&AppBundleName, TitleName);
                 String_Append(&AppBundleName, S(".app"));
                 StringLocal(AppBundlePath, MAX_PATH_LENGTH);
-                String_BuildPath(&AppBundlePath, WorkingPath, BuildDirectory, AppBundleName)
+                String_BuildPath(&AppBundlePath, WorkingPath, BuildDirectory, AppBundleName);
                 LOG("Cleaning %S", AppBundlePath);
                 Filesystem_DeleteDirectory(AppBundlePath);
 
@@ -3981,7 +3981,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 String_Append(&AppBundleName, AssemblyName);
                 String_Append(&AppBundleName, S(".app"));
                 String_Empty(&AppBundlePath);
-                String_BuildPath(&AppBundlePath, WorkingPath, BuildDirectory, AppBundleName)
+                String_BuildPath(&AppBundlePath, WorkingPath, BuildDirectory, AppBundleName);
                 LOG("Cleaning %S", AppBundlePath);
                 Filesystem_DeleteDirectory(AppBundlePath);
             }
@@ -6290,8 +6290,6 @@ u32 RunApplication(const StringArray Arguments)
     const bool bOutputToLog = StringArray_Contains(Arguments, S("-l"), false);
     Logging_ToggleLogFile(bOutputToLog);
 
-    const bool bLaunchedFromDesktop = StringArray_Contains(Arguments, S("--from-desktop"), false);
-
     #ifndef HOOD
         #ifdef DEVELOPER
         LOG("\nRift Build System v%S (%S %S) [DEBUG]\n", S(RIFTBUILD_VERSION_STRING), S(PLATFORM_STRING), S(CPU_ARCHITECTURE_STRING));
@@ -6450,6 +6448,7 @@ u32 RunApplication(const StringArray Arguments)
     u32 ExitCode = RiftBuild(&ProgramArena, Arguments);
 
     #if !PLATFORM_MAC
+    const bool bLaunchedFromDesktop = StringArray_Contains(Arguments, S("--from-desktop"), false);
     if (Platform_GetConsoleProcessCount() == 1 || bLaunchedFromDesktop)
     {
         LOG_INLINE_WARNING("\nLaunched outside an existing terminal, pausing until user exit.\nPress any key to exit... ");

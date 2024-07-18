@@ -6,6 +6,7 @@
 
 #include "Memory/Memory.h"
 #include "String/StringUtils.h"
+#include "Globals.h"
 #include "Uuid.h"
 #include "Platform/Filesystem.h"
 #include "Log.h"
@@ -46,37 +47,8 @@ static void LogLastError(const String Prefix)
     LOG_ERROR("%S\n        errno %i\n        Reason: %S\n", Prefix, errno, Message);
 }
 
-bool Platform_Startup(void* State, const String ApplicationName, i32 X, i32 Y, u32 Width, u32 Height)
-{
-    return true;
-}
-
-void Platform_Shutdown(void)
-{
-}
-
-u64 Platform_GetMemoryRequirement(void)
-{
-    return 0;
-}
-
-bool Platform_PushMessages(void)
-{
-    return false;
-}
-
-void Platform_ShowWindow(void)
-{
-}
-
-void Platform_HideWindow(void)
-{
-}
-
 static void Internal_SignalHandler(int signal)
 {
-    Platform_Shutdown();
-
     exit(1);
 }
 
@@ -97,11 +69,6 @@ void Platform_PreInitialize(void)
 f64 Platform_GetClockFrequency(void)
 {
     return 0;
-}
-
-void* Platform_GetWindowHandle(void)
-{
-    return NULL;
 }
 
 NO_RETURN void Platform_Abort(u32 ExitCode)
@@ -222,11 +189,6 @@ void Platform_ConsoleWrite_CustomLength(const char* Message, u32 Length, u8 Colo
     if (UNLIKELY(bIgnoreNewLine)) (void)write(STDOUT_FILENO, "\n", 1);
 
     fflush(stdout);
-}
-
-PlatformHandle Platform_CreateThread(const String Name, u32* OutThreadID, u32 (*ThreadEntryPoint)(void* ThreadParameter), void* UserData)
-{
-    return 0;
 }
 
 PlatformHandle Platform_RunCommand(const String CmdLine, const String WorkingDirectory)
@@ -742,16 +704,6 @@ bool Platform_TerminateProcess(PlatformHandle Handle, u32 ExitCode)
     return kill(Handle, SIGKILL) == 0;
 }
 
-void Platform_ShowCursor(bool bShow)
-{
-    //UNIMPLEMENTED;
-}
-
-void Platform_GetMousePosition(f32* X, f32* Y)
-{
-    UNIMPLEMENTED;
-}
-
 u64 Platform_GetCurrentThreadID(void)
 {
     return 0;
@@ -797,16 +749,8 @@ bool Platform_DoesEnvironmentVariableExist(String Name)
     return true;
 }
 
-bool Platform_CaptureStackTrace(LinearAllocator* Arena, TArray(StackTraceData)* OutInfo)
-{
-    UNIMPLEMENTED;
-    return false;
-}
-
 u32 Platform_GetNumLogicalProcessors(void)
 {
-    //return [[NSProcessInfo processInfo] processorCount];
-
     u32 NumProcessors = (u32)sysconf(_SC_NPROCESSORS_ONLN);
     return NumProcessors;
 }
@@ -868,25 +812,11 @@ u32 Platform_GetConsoleProcessCount(void)
     return 0;
 }
 
-bool Platform_GetThreadName(void* ThreadHandle, String* OutName)
-{
-    UNIMPLEMENTED;
-    return false;
-}
-
-void* Platform_GetDeviceContext(void)
-{
-    UNIMPLEMENTED;
-    return nullptr;
-}
-
 bool Platform_IsProgramRunning(const String ProgramName)
 {
-    LOG_WARNING("Platform_IsProgramRunning() is not implemented on this platform");
     /// TODO
     return false;
 }
-
 
 bool Filesystem_Open(const String FilePath, u32 Mode, FileHandle* OutHandle)
 {
