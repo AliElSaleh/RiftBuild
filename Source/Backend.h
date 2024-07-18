@@ -37,6 +37,16 @@ STRUCT(CmdOption)
     bool bEqualsToSomething;
 };
 
+ENUM(EAssemblyType)
+{
+    AssemblyType_None,
+    AssemblyType_Executable,
+    AssemblyType_Library,
+    AssemblyType_StaticLibrary,
+    AssemblyType_DynamicLibrary,
+    AssemblyType_PCH,
+};
+
 ENUM(EComparisonType)
 {
     Cmp_None,
@@ -117,6 +127,8 @@ STRUCT(BuildParams)
 
     StringList WhitelistFiles, WhitelistDirectories;
     StringList BlacklistFiles, BlacklistDirectories;
+
+    EAssemblyType Type;
 
     LinearAllocator* Arena;
 

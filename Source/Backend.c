@@ -456,13 +456,12 @@ bool C_DoCompile(CompileData* Data, const String FullPath, const String Relative
     String AdditionalPlatformFlags = String_Null();
 
     #if !PLATFORM_WINDOWS
-    if (String_IsEqual(Params->Extension, S(".so"), false) ||
-        String_IsEqual(Params->Extension, S(".dylib"), false) ||
-        String_IsEqual(Params->Extension, S(".a"), false))
+    if (Params->Type == AssemblyType_Library ||
+        Params->Type == AssemblyType_DynamicLibrary)
     {
         AdditionalPlatformFlags = S("-fPIC -fvisibility=default");
     }
-    else if (Params->bIsAssemblyExe)
+    else if (Params->Type == AssemblyType_Executable)
     {
         AdditionalPlatformFlags = S("-fPIE");
     }
@@ -536,12 +535,7 @@ bool C_Link(const BuildParams* Params)
     StringLocal(SourceDir, MAX_PATH_LENGTH);
     String_BuildPath(&SourceDir, Params->RootDirectory, Params->SourceDirectory);
 
-    // todo: make better
-    #if PLATFORM_WINDOWS
-    if (!String_IsEqual(Params->Extension, S(".lib"), false))
-    #else
-    if (!String_IsEqual(Params->Extension, S(".a"), false))
-    #endif
+    if (Params->Type != AssemblyType_StaticLibrary)
     {
         StringLocal(CmdLine, UINT16_MAX);
         String_Append(&CmdLine, Params->CompilerProgram);
@@ -557,18 +551,11 @@ bool C_Link(const BuildParams* Params)
         String_AppendPathSeparator(&BuildPath);
 
         String SharedFlag = String_Null();
-        if (Params->Extension.Length > 0)
+
+        if (Params->Type == AssemblyType_Library ||
+            Params->Type == AssemblyType_DynamicLibrary)
         {
-            // todo: make better
-            #if PLATFORM_WINDOWS
-            if (String_IsEqual(Params->Extension, S(".dll"), false))
-            #else
-            if (String_IsEqual(Params->Extension, S(".so"), false) ||
-                String_IsEqual(Params->Extension, S(".dylib"), false))
-            #endif
-            {
-                SharedFlag = S("-shared");
-            }
+            SharedFlag = S("-shared");
         }
 
         String RunPathLinkFlag = String_Null();
@@ -576,7 +563,6 @@ bool C_Link(const BuildParams* Params)
         #if !PLATFORM_WINDOWS
         if (Params->bIsAssemblyExe)
         {
-            //RunPathLinkFlag = S("-Wl,-rpath '-Wl,$ORIGIN'");
             RunPathLinkFlag = S("-Wl,-rpath,'$ORIGIN'");
         }
         #endif
@@ -625,26 +611,22 @@ bool C_Link(const BuildParams* Params)
         }
     }
 
-    // todo: make better
-    #if PLATFORM_WINDOWS
-    bool bExtensionHasLib = ExtensionHas(*Params->Arena, Params->Extension_Og, S("lib"));
-    #else
-    bool bExtensionHasLib = ExtensionHas(*Params->Arena, Params->Extension_Og, S("a"));
-    #endif
-
     // compile a static library if we're trying to make a shared one as well (for convenience sake)
-    if (bExtensionHasLib ||
-        // todo: make better
-        #if PLATFORM_WINDOWS
-        String_IsEqual(Params->Extension, S(".lib"), false)
-        #else
-        String_IsEqual(Params->Extension, S(".a"), false)
-        #endif
-        )
+    if (Params->Type == AssemblyType_Library ||
+        Params->Type == AssemblyType_StaticLibrary)
     {
         StringLocal(CmdLine, UINT16_MAX);
+
         #if PLATFORM_WINDOWS
-        String_Append(&CmdLine, S("llvm-ar r \"")); // TODO: GCC version
+        if (String_IsEqual(Params->CompilerProgram, S("clang"), false) ||
+            String_IsEqual(Params->CompilerProgram, S("clang++"), false))
+        {
+            String_Append(&CmdLine, S("llvm-ar r \""));
+        }
+        else
+        {
+            String_Append(&CmdLine, S("gcc-ar r \""));
+        }
         #else
         String_Append(&CmdLine, S("ar rcs \""));
         #endif
@@ -658,25 +640,14 @@ bool C_Link(const BuildParams* Params)
         StringLocal(LibFile, MAX_PATH_LENGTH);
         String_Append(&LibFile, Params->Assembly);
 
-        // todo: make better
+        if (Params->Type == AssemblyType_Library)
+            String_Append(&LibFile, S("S"));
+
         #if PLATFORM_WINDOWS
-        if (String_IsEqual(Params->Extension, S(".dll"), false))
-        #elif PLATFORM_APPLE
-        if (String_IsEqual(Params->Extension, S(".dylib"), false))
+        String_Append(&LibFile, S(".lib"));
         #else
-        if (String_IsEqual(Params->Extension, S(".so"), false))
+        String_Append(&LibFile, S(".a"));
         #endif
-            #if PLATFORM_WINDOWS
-            String_Append(&LibFile, S("S.lib"));
-            #else
-            String_Append(&LibFile, S("S.a"));
-            #endif
-        else
-            #if PLATFORM_WINDOWS
-            String_Append(&LibFile, S(".lib"));
-            #else
-            String_Append(&LibFile, S(".a"));
-            #endif
 
         String_Append(&CmdLine, LibFile);
         String_Append(&CmdLine, S("\" "));
@@ -727,7 +698,8 @@ bool C_Link(const BuildParams* Params)
     #if PLATFORM_WINDOWS
     if (Platform_FindProgram(S("dumpbin")))
     {
-        if (String_IsEqual(Params->Extension, S(".dll"), false))
+        if (Params->Type == AssemblyType_Library ||
+            Params->Type == AssemblyType_DynamicLibrary)
         {
             StringLocal(CmdLine, 8192);
             String_Append(&CmdLine, S("dumpbin /EXPORTS /NOLOGO /OUT:\""));
@@ -1188,7 +1160,7 @@ bool MSVC_Link(const BuildParams* Params)
 {
     if (NEVER(Params == NULL)) return false;
 
-    if (String_IsEqual(Params->Extension, S(".pch"), false))
+    if (Params->Type == AssemblyType_PCH)
     {
         return true;
     }
@@ -1202,9 +1174,11 @@ bool MSVC_Link(const BuildParams* Params)
 
     StringLocal(CmdLine, UINT16_MAX);
 
-    bool bIsDLL = String_IsEqual(Params->Extension, S(".dll"), false);
-    if (String_IsEqual(Params->Extension, S(".exe"), false) ||
-        bIsDLL)
+    bool bIsExe = Params->Type == AssemblyType_Executable;
+    bool bIsDLL = Params->Type == AssemblyType_Library || Params->Type == AssemblyType_DynamicLibrary;
+    bool bIsLib = Params->Type == AssemblyType_Library || Params->Type == AssemblyType_StaticLibrary;
+
+    if (bIsExe || bIsDLL)
     {
         String_Append(&CmdLine, S("link"));
         if (bIsDLL)
@@ -1220,7 +1194,8 @@ bool MSVC_Link(const BuildParams* Params)
         String_EatSpacesInlineFromEnd(&CmdLine);
         String_Concat(&CmdLine, S(" /OUT:\""), BuildPath, Params->AssemblyWithExt, S("\"")); // make this first then the flags?
     }
-    else if (String_IsEqual(Params->Extension, S(".lib"), false))
+    
+    if (bIsLib)
     {
         String_Append(&CmdLine, S("lib /nologo /OUT:\""));
 

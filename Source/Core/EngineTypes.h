@@ -136,7 +136,7 @@ typedef void VoidFunc(void);
 // Rift Build only supports the following:
 // - Windows (XP and above)
 // - Linux (Debian, Fedora, Red Hat and Arch based only)
-// - MacOS (10.5 and above)
+// - MacOS (10.10 and above)
 // - BSD (FreeBSD, NetBSD, OpenBSD)
 
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(_WIN64)

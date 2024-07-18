@@ -1225,7 +1225,8 @@ internal void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const Fi
         Expanded.Value = S("");
         Expanded.bHasSpecial = false;
 
-        if (String_IsEqual(Type, S("lib"), false))
+        if (String_IsEqual(Type, S("lib"), false) ||
+            String_IsEqual(Type, S("library"), false))
         {
             #if PLATFORM_WINDOWS
                 Extension = S(".dll .lib");
@@ -1237,7 +1238,8 @@ internal void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const Fi
 
             Expanded.Value = Extension;
         }
-        else if (String_IsEqual(Type, S("static_lib"), false))
+        else if (String_IsEqual(Type, S("static_lib"), false) ||
+                 String_IsEqual(Type, S("static_library"), false))
         {
             #if PLATFORM_WINDOWS
                 Extension = S(".lib");
@@ -1249,7 +1251,10 @@ internal void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const Fi
 
             Expanded.Value = Extension;
         }
-        else if (String_IsEqual(Type, S("dynamic_lib"), false))
+        else if (String_IsEqual(Type, S("shared_lib"), false) ||
+                 String_IsEqual(Type, S("shared_library"), false) ||
+                 String_IsEqual(Type, S("dynamic_lib"), false) ||
+                 String_IsEqual(Type, S("dynamic_library"), false))
         {
             #if PLATFORM_WINDOWS
                 Extension = S(".dll");
@@ -1262,7 +1267,9 @@ internal void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const Fi
             Expanded.Value = Extension;
         }
         else if (String_IsEqual(Type, S("app"), false) ||
-                String_IsEqual(Type, S("exe"), false))
+                 String_IsEqual(Type, S("application"), false) ||
+                 String_IsEqual(Type, S("exe"), false) ||
+                 String_IsEqual(Type, S("executable"), false))
         {
             #if PLATFORM_WINDOWS
                 Extension = S(".exe");
@@ -2008,7 +2015,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     LOG("Timestamp: %S\n", TimeStamp);
     #endif
 
-    bool bIsAssemblyExe = false;
+    EAssemblyType AssemblyType = AssemblyType_None;
+    //bool bIsAssemblyExe = false;
     bool bShouldWaitPerCompileProcess = false;
 
     #if PLATFORM_WINDOWS
@@ -2042,7 +2050,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                     StringList List = GetVariableValueList(&Scratch, VariablesDB, v.Name);
                     for each_str_list (List)
                     {
-                        if (!ExpandBuildVariable(Scratch, VariablesDB, CmdOptionsDB, &ExpandedVar, v.Name, It.String, v.Name, WorkingPath, false, bIsAssemblyExe))
+                        if (!ExpandBuildVariable(Scratch, VariablesDB, CmdOptionsDB, &ExpandedVar, v.Name, It.String, v.Name, WorkingPath, false, false))
                         {
                             return 1;
                         }
@@ -2100,7 +2108,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         const String Ext  = GetVariableValue(ExpandedVariablesDB, S("Extension"));
         const String Type = GetVariableValue(ExpandedVariablesDB, S("Type"));
 
-        bIsAssemblyExe = Type.Length == 0 && Ext.Length == 0;
+        bool bIsAssemblyExe = Type.Length == 0 && Ext.Length == 0;
         if (bIsAssemblyExe)
         {
             FileVariable Var;
@@ -2111,12 +2119,24 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
         if (!bIsAssemblyExe)
         {
-            bIsAssemblyExe = String_IsEqual(Type, S("app"), false);
+            bIsAssemblyExe = String_IsEqual(Type, S("app"), false) ||
+                             String_IsEqual(Type, S("application"), false) ||
+                             String_IsEqual(Type, S("exe"), false) ||
+                             String_IsEqual(Type, S("executable"), false);
         }
 
         if (!bIsAssemblyExe && Type.Length == 0)
         {
-            bIsAssemblyExe = Ext.Length == 0 || String_IsEqual(Ext, S(".out"), false) || String_IsEqual(Ext, S(".exe"), false);
+            bIsAssemblyExe = Ext.Length == 0 || 
+                             String_IsEqual(Ext, S(".elf"), false) ||
+                             String_IsEqual(Ext, S(".out"), false) ||
+                             String_IsEqual(Ext, S(".exe"), false) ||
+                             String_IsEqual(Ext, S(".com"), false);
+        }
+
+        if (bIsAssemblyExe)
+        {
+            AssemblyType = AssemblyType_Executable;
         }
 
         String AssemblyKey = S("Assembly");
@@ -2501,6 +2521,86 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         String_IndexOfFirstWhitespace(Extension, &Index);
         if (Index > 0)
             Extension.Length = Index;
+    }
+
+    bool bIsAssemblyExe = Type.Length == 0 && Extension.Length == 0;
+
+    if (!bIsAssemblyExe)
+    {
+        bIsAssemblyExe = String_IsEqual(Type, S("app"), false) ||
+                         String_IsEqual(Type, S("application"), false) ||
+                         String_IsEqual(Type, S("exe"), false) || 
+                         String_IsEqual(Type, S("executable"), false);
+    }
+
+    if (!bIsAssemblyExe && Type.Length == 0)
+    {
+        bIsAssemblyExe = Extension.Length == 0 || 
+                         String_IsEqual(Extension, S(".elf"), false) ||
+                         String_IsEqual(Extension, S(".out"), false) ||
+                         String_IsEqual(Extension, S(".exe"), false) ||
+                         String_IsEqual(Extension, S(".com"), false);
+    }
+
+    if (bIsAssemblyExe)
+    {
+        AssemblyType = AssemblyType_Executable;
+    }
+    else
+    {
+        if (String_IsEqual(Type, S("lib"), false) ||
+            String_IsEqual(Type, S("library"), false))
+        {
+            AssemblyType = AssemblyType_Library;
+        }
+        else if (String_IsEqual(Type, S("static_lib"), false) || 
+                 String_IsEqual(Type, S("static_library"), false))
+        {
+            AssemblyType = AssemblyType_StaticLibrary;
+        }
+        else if (String_IsEqual(Type, S("dynamic_lib"), false) || 
+                 String_IsEqual(Type, S("dynamic_library"), false) ||
+                 String_IsEqual(Type, S("shared_lib"), false) || 
+                 String_IsEqual(Type, S("shared_library"), false))
+        {
+            AssemblyType = AssemblyType_DynamicLibrary;
+        }
+
+        if (AssemblyType == AssemblyType_None)
+        {
+            LinearAllocator Scratch = *Arena;
+            StringArray Array = String_ParseIntoArray(&Scratch, Extension_Og, ' ', 0, 128);
+            bool bHasDynamicLib = false;
+            bool bHasStaticLib = false;
+            for each_str (e, Array)
+            {
+                if (!bHasDynamicLib)
+                {
+                    bHasDynamicLib = String_IsEqual(*e, S(".dll"), false) ||
+                                     String_IsEqual(*e, S(".so"), false) ||
+                                     String_IsEqual(*e, S(".dylib"), false);
+                }
+
+                if (!bHasStaticLib)
+                {
+                    bHasStaticLib = String_IsEqual(*e, S(".lib"), false) ||
+                                    String_IsEqual(*e, S(".a"), false);
+                }
+            }
+
+            if (bHasDynamicLib && bHasStaticLib)
+            {
+                AssemblyType = AssemblyType_Library;
+            }
+            else if (bHasDynamicLib)
+            {
+                AssemblyType = AssemblyType_DynamicLibrary;
+            }
+            else if (bHasStaticLib)
+            {
+                AssemblyType = AssemblyType_StaticLibrary;
+            }
+        }
     }
 
     if (!String_IsValid(Version))
@@ -4103,7 +4203,21 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             LOG("    Assembly:             %S and %S%S", AssemblyNameWithExt, AssemblyName, NextExt);
         }
 
-        if (Type.Length > 0) LOG("    Type:                 %S", Type);
+        const String AssemblyTypeStringTable[] =
+        {
+            S("None"),
+            S("Executable"),
+            S("Library"),
+            S("Static Library"),
+            S("Shared Library"),
+            S("PCH"),
+        };
+
+        StringLocal(ExtInfo, 32);
+        String_Format(&ExtInfo, S(" (%S)"), 32, Extension_Og);
+
+        LOG("    Type:                 %S%S", AssemblyTypeStringTable[AssemblyType], Extension_Og.Length == 0 ? S("") : ExtInfo);
+
         LOG("    Version:              %S", Version);
         
         if (bExplicitProgramPath)
@@ -4300,6 +4414,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     p.AssemblyWithExt               = AssemblyNameWithExt;
     p.Extension                     = Extension;
     p.Extension_Og                  = Extension_Og;
+    p.Type                          = AssemblyType;
     p.WhitelistFiles                = WhitelistArray;
     p.WhitelistDirectories          = WhitelistDirArray;
     p.BlacklistFiles                = BlacklistArray;
