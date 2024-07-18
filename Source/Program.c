@@ -2588,6 +2588,11 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         {
             AssemblyType = AssemblyType_DynamicLibrary;
         }
+        else if (String_IsEqual(Type, S("pch"), false) || 
+                 String_IsEqual(Type, S("pre_compiled_header"), false))
+        {
+            AssemblyType = AssemblyType_PCH;
+        }
 
         if (AssemblyType == AssemblyType_None)
         {
@@ -2595,6 +2600,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             StringArray Array = String_ParseIntoArray(&Scratch, Extension_Og, ' ', 0, 128);
             bool bHasDynamicLib = false;
             bool bHasStaticLib = false;
+            bool bHasPCH = false;
             for each_str (e, Array)
             {
                 if (!bHasDynamicLib)
@@ -2609,6 +2615,11 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                     bHasStaticLib = String_IsEqual(*e, S(".lib"), false) ||
                                     String_IsEqual(*e, S(".a"), false);
                 }
+
+                if (!bHasPCH)
+                {
+                    bHasPCH = String_IsEqual(*e, S(".pch"), false);
+                }
             }
 
             if (bHasDynamicLib && bHasStaticLib)
@@ -2622,6 +2633,10 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             else if (bHasStaticLib)
             {
                 AssemblyType = AssemblyType_StaticLibrary;
+            }
+            else if (bHasPCH)
+            {
+                AssemblyType = AssemblyType_PCH;
             }
         }
     }
