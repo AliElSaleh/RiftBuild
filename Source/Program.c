@@ -1433,7 +1433,8 @@ void LogPathEnvVarTutorialSteps(void)
     LOG("    1. Open the terminal");
     LOG("    2. Type in sudo nano /etc/paths");
     LOG("    3. Enter your password");
-    LOG("    4. Go to the bottom of the list and add the path to the executable. For example: /Users/Bob/MyCompiler/bin");
+    LOG("    4. Go to the bottom of the list and add the path to the executable\n"
+        "       For example: /Users/Bob/MyCompiler/bin");
     LOG("    5. Press Ctrl + X to exit");
     LOG("    6. Press Y to save changes");
     LOG("    7. Press Enter to confirm");
@@ -1441,7 +1442,8 @@ void LogPathEnvVarTutorialSteps(void)
     #else
     LOG("    1. Open the terminal");
     LOG("    2. Type in nano ~/.bashrc");
-    LOG("    3. Go to the bottom of the file and add the path to the executable. For example: export PATH=${PATH}:/Users/Bob/MyCompiler/bin");
+    LOG("    3. Go to the bottom of the file and add the path to the executable\n"
+        "       For example: export PATH=${PATH}:/Users/Bob/MyCompiler/bin");
     LOG("    4. Press Ctrl + X to exit");
     LOG("    5. Press Y to save changes");
     LOG("    6. Press Enter to confirm");
@@ -1470,7 +1472,8 @@ void LogRegularEnvVarTutorialSteps(void)
     LOG("    1. Open a terminal");
     LOG("    2. Type in sudo nano ~/.zshrc");
     LOG("    3. Enter your password");
-    LOG("    4. Go to the bottom of the file and add the variable like so -> export MY_COOL_VARIABLE=Some_useful_value");
+    LOG("    4. Go to the bottom of the file and add the variable\n"
+        "       For example: export MY_COOL_VARIABLE=Some_useful_value");
     LOG("    5. Press Ctrl + X to exit");
     LOG("    6. Press Y to save changes");
     LOG("    7. Press Enter to confirm");
@@ -1478,7 +1481,8 @@ void LogRegularEnvVarTutorialSteps(void)
     #else
     LOG("    1. Open a terminal");
     LOG("    2. Type in nano ~/.bashrc");
-    LOG("    3. Go to the bottom of the file and add the variable like so -> export MY_COOL_VARIABLE=Some_useful_value");
+    LOG("    3. Go to the bottom of the file and add the variable\n"
+        "       For example: export MY_COOL_VARIABLE=Some_useful_value");
     LOG("    4. Press Ctrl + X to exit");
     LOG("    5. Press Y to save changes");
     LOG("    6. Press Enter to confirm");
@@ -1486,37 +1490,56 @@ void LogRegularEnvVarTutorialSteps(void)
     #endif
 }
 
-internal void PrintUsage(void)
+internal bool BuildFilesIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
-    LOG_LINE_BREAK();
+    if (FileSize > 0)
+    {
+        if (IsBuildFile(RelativePath) || IsBuildBatchFile(RelativePath))
+        {
+            LOG("   %S", RelativePath);
+            /*
+            LOG("       Usage:       ");
+            LOG("       Description: ");
+            LOG("       Options:       ");
+            LOG("       Presets:     ");
+            LOG_LINE_BREAK();
+            */
+        }
+    }
 
+    return true;
+}
+
+internal void PrintUsage(const String WorkingDirectory)
+{
     LOG_INLINE_WARNING("Usage\n");
-    LOG("    riftbuild");
-    LOG("    riftbuild [options]");
-    LOG("    riftbuild [.build file] [options]");
+    LOG("   riftbuild");
+    LOG("   riftbuild [options]");
+    LOG("   riftbuild [.build file] [options]");
 
     LOG_LINE_BREAK();
 
-    //LOG_INLINE_WARNING("Build Files\n");
-    // scan build files in the current directory and log them here
+    LOG_INLINE_WARNING("Build Files\n");
+    Filesystem_IterateDirectory(WorkingDirectory, BuildFilesIterator, true);
 
-    //LOG_LINE_BREAK();
+    LOG_LINE_BREAK();
 
     // TODO: custom usage message from each build file
     // TODO: custom descrption message for each build file
     // TODO: log the preset options as well
+    // TODO: log command options
 
     LOG_INLINE_WARNING("Options\n");
-    LOG("    -h, --help, /?, -?, ? : Display this help message");
-    LOG("    -v                    : Enable verbose logging");
-    LOG("    -q                    : Quiet mode. Disables logging but outputs necessary information, like errors");
-    LOG("    -t                    : Display a tutorial on how to set environment variables");
-    LOG("    clean                 : Delete all intermediate and binary files");
-    LOG("    rebuild               : Clean all and build");
-    LOG("    list                  : List all the build files in the current directory");
-    LOG("    override              : Override a build variable");
-    LOG("    export                : Generate a compile_commands.json, visual studio or xcode project");
-    LOG("    preset                : Build with a preset of command line arguments");
+    LOG("   -h, --help, /?, -?, ? : Display this help message");
+    LOG("   -v                    : Enable verbose logging");
+    LOG("   -q                    : Quiet mode. Disables logging but outputs necessary information, like errors");
+    LOG("   -t                    : Display a tutorial on how to set environment variables");
+    LOG("   clean                 : Delete all intermediate and binary files");
+    LOG("   rebuild               : Clean all and build");
+    LOG("   list                  : List all the build files in the current directory");
+    LOG("   override              : Override a build variable");
+    LOG("   export                : Generate a compile_commands.json, visual studio or xcode project");
+    LOG("   preset                : Build with a preset of command line arguments");
 }
 
 // TODO: have a relook at this filter code
@@ -2640,117 +2663,6 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         }
     }
 
-    StringLocal(AsmCompilerPath, MAX_PATH_LENGTH);
-
-    bool bExplicitAsmPath = false;
-    if (String_IndexOfFirstPathSlash(AsmProgram, NULL))
-    {
-        StringLocal(CompilerPathCopy, MAX_PATH_LENGTH);
-        String_Copy(&CompilerPathCopy, AsmProgram);
-
-        #if PLATFORM_WINDOWS
-        if (!String_EndsWith(AsmProgram, S(".exe"), false))
-        {
-            String_Copy(&CompilerPathCopy, AsmProgram);
-            String_Append(&CompilerPathCopy, S(".exe"));
-        }
-        #endif
-
-        if (Filesystem_DoesFileExist(CompilerPathCopy))
-        {
-            bExplicitAsmPath = true;
-            String_Copy(&AsmCompilerPath, CompilerPathCopy);
-        }
-        else
-        {
-            LOG_ERROR("Assembler program \"%S\" does not exist", CompilerPathCopy);
-            return 1;
-        }
-    }
-
-    // does the asm program exist on the user's machine
-    if (!bExplicitAsmPath)
-    {
-        bool bCompilerProgramFound = Platform_FindProgram_Ex(AsmProgram, &AsmCompilerPath);
-
-        if (!bCompilerProgramFound && bNoAsmCompilerProgramExplicityGiven)
-        {
-            const String AsmPrograms[] =
-            {
-                S("nasm"),
-                S("yasm"),
-                S("ml"),
-                S("ml64")
-            };
-
-            for (u8 i = 0; i < SArray_Capacity(AsmPrograms); i++)
-            {
-                const bool bFound = Platform_FindProgram_Ex(AsmPrograms[i], &AsmCompilerPath);
-                if (bFound)
-                {
-                    AsmProgram = AsmPrograms[i];
-                    bCompilerProgramFound = true;
-                    break;
-                }
-            }
-        }
-
-        if (!bCompilerProgramFound)
-        {
-            if (bNoAsmCompilerProgramExplicityGiven)
-            {
-                // todo: prettier log messaging
-                #if PLATFORM_WINDOWS
-                LOG_ERROR(
-                    "You don't seem to have an assember installed on your machine."
-                    " Install either \"nasm\", \"yasm\" or \"ml (MSVC)\" and add to the path environment"
-                    " before using RiftBuild, as we require a working assembler program to function properly. Aborting build...\n");
-                #else
-                LOG_ERROR(
-                    "You don't seem to have an assmebler installed on your machine."
-                    " Install either \"nasm\" or \"yasm\" and add to the PATH environment"
-                    " before using RiftBuild, as we require a working assembler program to function properly. Aborting build...\n");
-
-                #endif
-
-                LogPathEnvVarTutorialSteps();
-                    
-                return 1;
-            }
-
-            #ifndef HOOD
-            if (String_IsEqual(AsmProgram, S("ml"), false) ||
-                String_IsEqual(AsmProgram, S("ml64"), false))
-            {
-                #if PLATFORM_WINDOWS
-                LOG_ERROR("Assembler program \"%S\" does not exist. Aborting build...", AsmProgram);
-                
-                LOG("\n    Make sure that you have the Visual Studio build tools installed and "
-                    "\n    that you run riftbuild from a different terminal application named"
-                    "\n    \"x64 (or x86) Native Tools Command Prompt for VS\".");
-
-                LOG("\n    This can be found through Windows Search.");
-                #else
-                LOG_ERROR("Assembler program \"%S\" does not exist on non-Windows platforms. Use a different assembler. Aborting build...", AsmProgram);
-                #endif
-            }
-            else
-            {
-                LOG_ERROR("Assembler program \"%S\" does not exist. Make sure that it is installed and added to the path environment.\n"
-                          "        Alternatively, you can specify the full path to the assembler executable instead. Aborting build...\n", AsmProgram);
-
-                LogPathEnvVarTutorialSteps();
-            }
-            #else
-            LOG_ERROR(
-                "yo dat assembler program \"%S\" don exist cuh."
-                " need to be installed and set in da path ma nigga", AsmProgram);
-            #endif
-
-            return 1;
-        }
-    }
-
     // does the compiler program exist on the user's machine
     if (!bExplicitProgramPath)
     {
@@ -2892,7 +2804,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             if (!bFound)
             {
                 #ifndef HOOD
-                LOG_ERROR("Build assertion failure. Program \"%S\" does not exist. Make sure that \"%S\" is installed and that its directory has been set in the path environment variable. Aborting build...\n", Trimmed, Trimmed);
+                LOG_INLINE_ERROR("[ASSERTION FAILURE] Program \"%S\" does not exist. Make sure that \"%S\" is installed and that its directory has been set in the path environment variable. Aborting build...\n\n", Trimmed, Trimmed);
                 #else
                 LOG_ERROR("yo dis program \"%S\" don exist cuh. need to be installed and set in da path ma nigga", Trimmed);
                 #endif
@@ -2918,7 +2830,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             if (!bFound)
             {
                 #ifndef HOOD
-                LOG_ERROR("Build assertion failure. Environment variable \"%S\" does not exist. Aborting build...\n", Trimmed);
+                LOG_INLINE_ERROR("[ASSERTION FAILURE] Environment variable \"%S\" does not exist. Aborting build...\n\n", Trimmed);
                 #else
                 LOG_ERROR("yo da environment var \"%S\" don exist cuh. need to be setup n' shit ma nigga\n", Trimmed);
                 #endif
@@ -2943,7 +2855,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             if (!bFound)
             {
                 #ifndef HOOD
-                LOG_ERROR("Build assertion failure. Build variable \"%S\" does not exist. Aborting build...", Trimmed);
+                LOG_INLINE_ERROR("[ASSERTION FAILURE] Build variable \"%S\" does not exist. Aborting build...\n", Trimmed);
                 #else
                 LOG_ERROR("yo da build var \"%S\" don exist cuh. dat shit not there nigga", Trimmed);
                 #endif
@@ -3014,7 +2926,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             if (!bAnyPlatformMatch)
             {
                 #ifndef HOOD
-                LOG_ERROR("Build assertion failure. %S can only be used on %S. You are on %S. Aborting build...", BuildFileName, PlatformsLogString, S(PLATFORM_STRING));
+                LOG_INLINE_ERROR("[ASSERTION FAILURE] %S can only be used on %S. You are on %S. Aborting build...\n", BuildFileName, PlatformsLogString, S(PLATFORM_STRING));
                 #else
                 LOG_ERROR("yo u cant build on dis platform nigga\n");
                 #endif
@@ -3076,7 +2988,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             if (!bAnyArchMatch)
             {
                 #ifndef HOOD
-                LOG_ERROR("Build assertion failure. %S can only be used on %S architectures. You are on %S. Aborting build...", BuildFileName, ArchitecturesLogString, S(CPU_ARCHITECTURE_STRING));
+                LOG_INLINE_ERROR("[ASSERTION FAILURE] %S can only be used on %S architectures. You are on %S. Aborting build...\n", BuildFileName, ArchitecturesLogString, S(CPU_ARCHITECTURE_STRING));
                 #else
                 LOG_ERROR("yo u cant build on dis platform nigga\n");
                 #endif
@@ -3121,7 +3033,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             if (AssertPath.Length > 0 && !String_IsEqual(WorkingPath, AssertPath, false))
             {
                 #ifndef HOOD
-                LOG_ERROR("Build assertion failure. %S requires that riftbuild must be ran from this directory -> \"%S\" but we are in \"%S\". Aborting build...", BuildFileName, AssertPath, WorkingPath);
+                LOG_INLINE_ERROR("[ASSERTION FAILURE] %S requires that riftbuild must be ran from this directory -> \"%S\" but we are in \"%S\". Aborting build...\n", BuildFileName, AssertPath, WorkingPath);
                 #else
                 LOG_ERROR("yo we cant run from this dir cuh \"%S\" you gotta run from \"%S\"", WorkingPath, AssertPath);
                 #endif
@@ -3472,16 +3384,16 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 #ifndef HOOD
                 if (bExactFile)
                 {
-                    LOG_ERROR("Build assertion failure. Library \"%S\" does not exist. Aborting build...\n", TrimmedCopy);
+                    LOG_INLINE_ERROR("[ASSERTION FAILURE] Library \"%S\" does not exist. Aborting build...\n\n", TrimmedCopy);
                 }
                 else
                 {
                     #if PLATFORM_WINDOWS
-                    LOG_ERROR("Build assertion failure. Library \"%S.lib\" does not exist. Aborting build...\n", TrimmedCopy);
+                    LOG_INLINE_ERROR("[ASSERTION FAILURE] Library \"%S.lib\" does not exist. Aborting build...\n\n", TrimmedCopy);
                     #elif PLATFORM_APPLE
-                    LOG_ERROR("Build assertion failure. Library \"%S(.dylib/.a)\" does not exist. Aborting build...\n", TrimmedCopy);
+                    LOG_INLINE_ERROR("[ASSERTION FAILURE] Library \"%S(.dylib/.a)\" does not exist. Aborting build...\n\n", TrimmedCopy);
                     #else
-                    LOG_ERROR("Build assertion failure. Library \"%S(.so/.a)\" does not exist. Aborting build...\n", TrimmedCopy);
+                    LOG_INLINE_ERROR("[ASSERTION FAILURE] Library \"%S(.so/.a)\" does not exist. Aborting build...\n\n", TrimmedCopy);
                     #endif
                 }
                 #else
@@ -3756,6 +3668,117 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             }
 
             AssemblyName = TrimmedFileName;
+        }
+    }
+
+    StringLocal(AsmCompilerPath, MAX_PATH_LENGTH);
+
+    bool bExplicitAsmPath = false;
+    if (String_IndexOfFirstPathSlash(AsmProgram, NULL))
+    {
+        StringLocal(CompilerPathCopy, MAX_PATH_LENGTH);
+        String_Copy(&CompilerPathCopy, AsmProgram);
+
+        #if PLATFORM_WINDOWS
+        if (!String_EndsWith(AsmProgram, S(".exe"), false))
+        {
+            String_Copy(&CompilerPathCopy, AsmProgram);
+            String_Append(&CompilerPathCopy, S(".exe"));
+        }
+        #endif
+
+        if (Filesystem_DoesFileExist(CompilerPathCopy))
+        {
+            bExplicitAsmPath = true;
+            String_Copy(&AsmCompilerPath, CompilerPathCopy);
+        }
+        else
+        {
+            LOG_ERROR("Assembler program \"%S\" does not exist", CompilerPathCopy);
+            return 1;
+        }
+    }
+
+    // does the asm program exist on the user's machine
+    if (!bExplicitAsmPath && CountData.NumAsmSources > 0)
+    {
+        bool bCompilerProgramFound = Platform_FindProgram_Ex(AsmProgram, &AsmCompilerPath);
+
+        if (!bCompilerProgramFound && bNoAsmCompilerProgramExplicityGiven)
+        {
+            const String AsmPrograms[] =
+            {
+                S("nasm"),
+                S("yasm"),
+                S("ml"),
+                S("ml64")
+            };
+
+            for (u8 i = 0; i < SArray_Capacity(AsmPrograms); i++)
+            {
+                const bool bFound = Platform_FindProgram_Ex(AsmPrograms[i], &AsmCompilerPath);
+                if (bFound)
+                {
+                    AsmProgram = AsmPrograms[i];
+                    bCompilerProgramFound = true;
+                    break;
+                }
+            }
+        }
+
+        if (!bCompilerProgramFound)
+        {
+            if (bNoAsmCompilerProgramExplicityGiven)
+            {
+                // todo: prettier log messaging
+                #if PLATFORM_WINDOWS
+                LOG_ERROR(
+                    "You don't seem to have an assember installed on your machine."
+                    " Install either \"nasm\", \"yasm\" or \"ml (MSVC)\" and add to the path environment"
+                    " before using RiftBuild, as we require a working assembler program to function properly. Aborting build...\n");
+                #else
+                LOG_ERROR(
+                    "You don't seem to have an assmebler installed on your machine."
+                    " Install either \"nasm\" or \"yasm\" and add to the PATH environment"
+                    " before using RiftBuild, as we require a working assembler program to function properly. Aborting build...\n");
+
+                #endif
+
+                LogPathEnvVarTutorialSteps();
+                    
+                return 1;
+            }
+
+            #ifndef HOOD
+            if (String_IsEqual(AsmProgram, S("ml"), false) ||
+                String_IsEqual(AsmProgram, S("ml64"), false))
+            {
+                #if PLATFORM_WINDOWS
+                LOG_ERROR("Assembler program \"%S\" does not exist. Aborting build...", AsmProgram);
+                
+                LOG("\n    Make sure that you have the Visual Studio build tools installed and "
+                    "\n    that you run riftbuild from a different terminal application named"
+                    "\n    \"x64 (or x86) Native Tools Command Prompt for VS\".");
+
+                LOG("\n    This can be found through Windows Search.");
+                #else
+                LOG_ERROR("Assembler program \"%S\" does not exist on non-Windows platforms. Use a different assembler. Aborting build...", AsmProgram);
+                #endif
+            }
+            else
+            {
+                LOG_ERROR("Assembler program \"%S\" does not exist. Make sure that it is installed and added to the path environment.\n"
+                          "        Alternatively, you can specify the full path to the assembler executable instead. Aborting build...\n", AsmProgram);
+
+                LogPathEnvVarTutorialSteps();
+            }
+            #else
+            LOG_ERROR(
+                "yo dat assembler program \"%S\" don exist cuh."
+                " need to be installed and set in da path ma nigga", AsmProgram);
+            #endif
+
+            return 1;
         }
     }
 
@@ -4073,7 +4096,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 String_Append(&AppBundleName, TitleName);
                 String_Append(&AppBundleName, S(".app"));
                 StringLocal(AppBundlePath, MAX_PATH_LENGTH);
-                String_BuildPath(&AppBundlePath, WorkingPath, BuildDirectory, AppBundleName)
+                String_BuildPath(&AppBundlePath, WorkingPath, BuildDirectory, AppBundleName);
                 LOG("Cleaning %S", AppBundlePath);
                 Filesystem_DeleteDirectory(AppBundlePath);
 
@@ -4081,7 +4104,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 String_Append(&AppBundleName, AssemblyName);
                 String_Append(&AppBundleName, S(".app"));
                 String_Empty(&AppBundlePath);
-                String_BuildPath(&AppBundlePath, WorkingPath, BuildDirectory, AppBundleName)
+                String_BuildPath(&AppBundlePath, WorkingPath, BuildDirectory, AppBundleName);
                 LOG("Cleaning %S", AppBundlePath);
                 Filesystem_DeleteDirectory(AppBundlePath);
             }
@@ -5972,6 +5995,36 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
 
     String_EatPathSeparatorsInlineFromEnd(&WorkingDirectory);
 
+    // TODO: if "help" was given just log the .build files' custom help message
+
+    if (StringArray_Contains(Arguments, S("-h"), false) ||
+        StringArray_Contains(Arguments, S("--help"), false) ||
+        StringArray_Contains(Arguments, S("?"), false) ||
+        StringArray_Contains(Arguments, S("-?"), false) ||
+        StringArray_Contains(Arguments, S("/?"), false))
+    {
+        PrintUsage(WorkingDirectory);
+
+        #if !PLATFORM_WINDOWS
+        LOG_LINE_BREAK();
+        #endif
+
+        return 0;
+    }
+
+    if (StringArray_Contains(Arguments, S("-t"), false))
+    {
+        LogPathEnvVarTutorialSteps();
+        LOG_LINE_BREAK();
+        LogRegularEnvVarTutorialSteps();
+
+        #if !PLATFORM_WINDOWS
+        LOG_LINE_BREAK();
+        #endif
+
+        return 0;
+    }
+
     const bool bSingleThreadMode       = StringArray_Contains(Arguments, S("-singlethread"), false) ||
                                          StringArray_Contains(Arguments, S("-s"), false);
     const bool bGenCompileCommandsJSON = StringArray_Contains(Arguments, S("export:compile_commands"), false) ||
@@ -6361,37 +6414,6 @@ u32 RunApplication(const StringArray Arguments)
     Logging_ToggleLogTimeStamp(false);
     Logging_ToggleLogCategory(false);
 
-    // TODO: if "help" was given just log the .build files' custom help message
-
-    if (StringArray_Contains(Arguments, S("-h"), false) ||
-        StringArray_Contains(Arguments, S("--help"), false) ||
-        StringArray_Contains(Arguments, S("?"), false) ||
-        StringArray_Contains(Arguments, S("-?"), false) ||
-        StringArray_Contains(Arguments, S("/?"), false))
-    {
-        PrintUsage();
-
-        #if !PLATFORM_WINDOWS
-        LOG_LINE_BREAK();
-        #endif
-
-        return 0;
-    }
-
-    if (StringArray_Contains(Arguments, S("-t"), false))
-    {
-        LOG_LINE_BREAK();
-        LogPathEnvVarTutorialSteps();
-        LOG_LINE_BREAK();
-        LogRegularEnvVarTutorialSteps();
-
-        #if !PLATFORM_WINDOWS
-        LOG_LINE_BREAK();
-        #endif
-
-        return 0;
-    }
-
     // todo: clean, rebuild, verbose
     bNoWordWrapLogging = StringArray_Contains(Arguments, S("-nowordwrap"), false);
     bQuietBuild        = StringArray_Contains(Arguments, S("-q"), false);
@@ -6404,8 +6426,6 @@ u32 RunApplication(const StringArray Arguments)
 
     const bool bOutputToLog = StringArray_Contains(Arguments, S("-l"), false);
     Logging_ToggleLogFile(bOutputToLog);
-
-    const bool bLaunchedFromDesktop = StringArray_Contains(Arguments, S("--from-desktop"), false);
 
     #ifndef HOOD
         #ifdef DEVELOPER
@@ -6565,6 +6585,7 @@ u32 RunApplication(const StringArray Arguments)
     u32 ExitCode = RiftBuild(&ProgramArena, Arguments);
 
     #if !PLATFORM_MAC
+    const bool bLaunchedFromDesktop = StringArray_Contains(Arguments, S("--from-desktop"), false);
     if (Platform_GetConsoleProcessCount() == 1 || bLaunchedFromDesktop)
     {
         LOG_INLINE_WARNING("\nLaunched outside an existing terminal, pausing until user exit.\nPress any key to exit... ");

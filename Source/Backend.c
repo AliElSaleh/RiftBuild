@@ -742,7 +742,9 @@ bool IsSource(const String Extension)
             String_IsEqual(Extension, S(".cxx"), false) ||
             String_IsEqual(Extension, S(".c++"), false) ||
             String_IsEqual(Extension, S(".cpp"), false) ||
-            String_IsEqual(Extension, S(".asm"), false)
+            String_IsEqual(Extension, S(".asm"), false) ||
+            String_IsEqual(Extension, S(".s"), false) ||
+            String_IsEqual(Extension, S(".S"), false)
             #if PLATFORM_WINDOWS
             || String_IsEqual(Extension, S(".rc"), false);
             #elif PLATFORM_APPLE
