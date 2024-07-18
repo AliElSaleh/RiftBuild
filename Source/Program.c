@@ -1493,6 +1493,7 @@ internal bool BuildFilesIterator(const String FullPath, const String RelativePat
             /*
             LOG("       Usage:       ");
             LOG("       Description: ");
+            LOG("       Options:       ");
             LOG("       Presets:     ");
             LOG_LINE_BREAK();
             */
@@ -1519,6 +1520,7 @@ internal void PrintUsage(const String WorkingDirectory)
     // TODO: custom usage message from each build file
     // TODO: custom descrption message for each build file
     // TODO: log the preset options as well
+    // TODO: log command options
 
     LOG_INLINE_WARNING("Options\n");
     LOG("   -h, --help, /?, -?, ? : Display this help message");
