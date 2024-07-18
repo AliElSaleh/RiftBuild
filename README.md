@@ -99,7 +99,7 @@ build.bat
 ---
 
 # Advanced Stuff (Work In Progress!)
-The above .build file example is the simplest way to write one for a basic project. In fact, if your program is too simple, you don't even need to write a build file.
+The above .build file example is the simplest way to write one for a basic project. In fact, for "hello world" type programs, you don't even need to write a build file.
 
 However, complex projects require some quality-of-life features, like referencing variables, the PATH, command line args, control flow, includes, dependencies, pre/post build commands, icons, windows .rc files, platform-specific options and excluding specific files and directories.
 
