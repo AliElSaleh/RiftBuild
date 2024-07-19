@@ -5808,6 +5808,8 @@ End:
                 }
             }
 
+            String_EatSpacesInlineFromEnd(&ProgramArgs);
+
             StringLocal(CmdLine, 8192);
 
             #if PLATFORM_WINDOWS

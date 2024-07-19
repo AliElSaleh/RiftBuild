@@ -67,37 +67,8 @@ internal void LogLastError(const String Prefix)
     LOG_ERROR("%S\n        errno %i\n        Reason: %S\n", Prefix, errno, Message);
 }
 
-bool Platform_Startup(void* State, const String ApplicationName, i32 X, i32 Y, u32 Width, u32 Height)
-{
-    return true;
-}
-
-void Platform_Shutdown(void)
-{
-}
-
-u64 Platform_GetMemoryRequirement(void)
-{
-    return 4;
-}
-
-bool Platform_PushMessages(void)
-{
-    return true;
-}
-
-void Platform_ShowWindow(void)
-{
-}
-
-void Platform_HideWindow(void)
-{
-}
-
 internal void Internal_SignalHandler(int signal)
 {
-    Platform_Shutdown();
-
     exit(1);
 }
 
@@ -118,11 +89,6 @@ void Platform_PreInitialize(void)
 f64 Platform_GetClockFrequency(void)
 {
     return 0;
-}
-
-void* Platform_GetWindowHandle(void)
-{
-    return NULL;
 }
 
 NO_RETURN void Platform_Abort(u32 ExitCode)
@@ -212,8 +178,9 @@ void Platform_ConsoleWrite(const char* Message, u8 Color, bool bIsError)
     Platform_ConsoleWrite_CustomLength(Message, String_GetLength(Message), 0, false);
 }
 
+PRAGMA_DISABLE_WARNINGS
+
 #if COMPILER_GCC
-#pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-result"
 #endif
 
@@ -238,18 +205,11 @@ void Platform_ConsoleWrite_CustomLength(const char* Message, u32 Length, u8 Colo
     fflush(stdout);
 }
 
-#if COMPILER_GCC
-#pragma GCC diagnostic pop
-#endif
+extern char** environ;
 
-PlatformHandle Platform_CreateThread(const String Name, u32* OutThreadID, u32 (*ThreadEntryPoint)(void* ThreadParameter), void* UserData)
-{
-    //UNIMPLEMENTED;
-    //pthread_create();
-    return -1;
-}
+PRAGMA_ENABLE_WARNINGS
 
-PlatformHandle Platform_RunCommand(const String CmdLine, const String WorkingDirectory)
+PlatformHandle Platform_RunCommand(const String CmdLine, const String WorkingDirectory, const String EnvBlock)
 {
     String Command;
     StringLocal(Copy, Kibibytes(32));
@@ -280,7 +240,35 @@ PlatformHandle Platform_RunCommand(const String CmdLine, const String WorkingDir
     }
     else
     {
-        execvp("/bin/sh", (char*[]){"sh", "-c", Command.Data, NULL});
+        StringLocal(EnvArgs, 4096);
+        char* envp[256] = { NULL };
+
+        if (EnvBlock.Length > 0)
+        {
+            u32 EnvCount = 0;
+            while (environ[EnvCount] != NULL)
+            {
+                String_Append(&EnvArgs, CStrEx(environ[EnvCount], 4096));
+                String_AppendChar(&EnvArgs, '\0');
+                EnvCount++;
+            }
+
+            String_Append(&EnvArgs, EnvBlock);
+
+            u32 i = 0;
+            u32 Offset = 0;
+            for (u32 j = 0; j < EnvArgs.Length; j++)
+            {
+                if (EnvArgs.Data[j] == '\0')
+                {
+                    envp[i] = &EnvArgs.Data[Offset];
+                    Offset = j+1;
+                    i++;
+                }
+            }
+        }
+
+        execve("/bin/sh", (char*[]){"sh", "-c", Command.Data, NULL}, EnvArgs.Length == 0 ? environ : envp);
 
         exit(0);
     }
@@ -734,16 +722,6 @@ bool Platform_TerminateProcess(PlatformHandle Handle, u32 ExitCode)
     return kill(Handle, SIGKILL) == 0;
 }
 
-void Platform_ShowCursor(bool bShow)
-{
-    UNIMPLEMENTED;
-}
-
-void Platform_GetMousePosition(f32* X, f32* Y)
-{
-    UNIMPLEMENTED;
-}
-
 u64 Platform_GetCurrentThreadID(void)
 {
     u32 x = (u32)syscall(__NR_gettid);
@@ -856,12 +834,6 @@ bool Platform_DoesEnvironmentVariableExist(String Name)
     }
 
     return true;
-}
-
-bool Platform_CaptureStackTrace(LinearAllocator* Arena, TArray(StackTraceData)* OutInfo)
-{
-    UNIMPLEMENTED;
-    return false;
 }
 
 u32 Platform_GetNumLogicalProcessors(void)
@@ -981,11 +953,6 @@ u64  Platform_GetCurrentProcessID(void)
     return (u64)getpid();
 }
 
-bool Platform_GetThreadName(void* ThreadHandle, String* OutName)
-{
-    //UNIMPLEMENTED;
-    return false;
-}
 
 bool Platform_IsProgramRunning(const String ProgramName)
 {
@@ -1033,11 +1000,6 @@ StringArray Platform_GetCommandLineArgs(void)
     Args.List = GArgV;
     Args.Num = (u32)(GArgC-1 <= 0 ? 0 : (GArgC-1 < 128 ? GArgC-1 : 128));
     return Args;
-}
-
-void* Platform_GetDeviceContext(void)
-{
-    return NULL;
 }
 
 bool Filesystem_Open(const String FilePath, u32 Mode, FileHandle* OutHandle)
