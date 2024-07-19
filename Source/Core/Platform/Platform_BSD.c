@@ -59,37 +59,8 @@ internal void LogLastError(const String Prefix)
     LOG_ERROR("%S\n        errno %i\n        Reason: %S\n", Prefix, errno, Message);
 }
 
-bool Platform_Startup(void* State, const String ApplicationName, i32 X, i32 Y, u32 Width, u32 Height)
-{
-    return true;
-}
-
-void Platform_Shutdown(void)
-{
-}
-
-u64 Platform_GetMemoryRequirement(void)
-{
-    return 4;
-}
-
-bool Platform_PushMessages(void)
-{
-    return true;
-}
-
-void Platform_ShowWindow(void)
-{
-}
-
-void Platform_HideWindow(void)
-{
-}
-
 internal void Internal_SignalHandler(int signal)
 {
-    Platform_Shutdown();
-
     exit(1);
 }
 
@@ -110,11 +81,6 @@ void Platform_PreInitialize(void)
 f64 Platform_GetClockFrequency(void)
 {
     return 0;
-}
-
-void* Platform_GetWindowHandle(void)
-{
-    return NULL;
 }
 
 NO_RETURN void Platform_Abort(u32 ExitCode)
@@ -226,12 +192,7 @@ void Platform_ConsoleWrite_CustomLength(const char* Message, u32 Length, u8 Colo
     fflush(stdout);
 }
 
-PlatformHandle Platform_CreateThread(const String Name, u32* OutThreadID, u32 (*ThreadEntryPoint)(void* ThreadParameter), void* UserData)
-{
-    //UNIMPLEMENTED;
-    //pthread_create();
-    return -1;
-}
+extern char** environ;
 
 PlatformHandle Platform_RunCommand(const String CmdLine, const String WorkingDirectory, const String EnvBlock)
 {
@@ -752,16 +713,6 @@ void Platform_Sleep(f64 ms)
 bool Platform_TerminateProcess(PlatformHandle Handle, u32 ExitCode)
 {
     return kill(Handle, SIGKILL) == 0;
-}
-
-void Platform_ShowCursor(bool bShow)
-{
-    UNIMPLEMENTED;
-}
-
-void Platform_GetMousePosition(f32* X, f32* Y)
-{
-    UNIMPLEMENTED;
 }
 
 u64 Platform_GetCurrentThreadID(void)

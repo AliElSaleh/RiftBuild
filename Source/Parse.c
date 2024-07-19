@@ -38,11 +38,6 @@ bool ParseBuildFile(LinearAllocator* Arena,
 
     StringLocal(Line, 512);
 
-    bool bIsSwitch = false;
-    bool bCaseMatch = false;
-    bool bFindEndSwitch = false;
-    bool bEndSwitchOnNextCase = false;
-    bool bSkipUntilNextCase = false;
     bool bInsideIf = false;
     bool bIfFailed = false;
     bool bInsideElse = false;
@@ -52,7 +47,6 @@ bool ParseBuildFile(LinearAllocator* Arena,
     bool bInMultiLineErrorMessage = false;
 
     StringLocal(NamespaceKey, 64);
-    StringLocal(SwitchValue, 64);
     StringLocal(GotoValue, 64);
     StringLocal(ErrorMessage_Name, 256);
     StringLocal(ErrorMessage, 4096);
@@ -233,123 +227,6 @@ bool ParseBuildFile(LinearAllocator* Arena,
             continue;
         }
 
-        if (bIsSwitch)
-        {
-            if (String_IsEqual(Trimmed, S("endswitch"), false))
-            {
-                bIsSwitch = false;
-                bFindEndSwitch = false;
-                String_Empty(&SwitchValue);
-                continue;
-            }
-
-            if (bSkipUntilNextCase)
-            {
-                bool bFoundNextCase = false;
-
-                LinearAllocator Scratch = *Arena;
-                StringArray Cases = String_ParseIntoArray(&Scratch, Trimmed, ' ', 0, 128);
-
-                String CmdValue = GetCmdOptionValue(CmdOptionsDB, SwitchValue);
-
-                if (!String_IsValid(CmdValue))
-                {
-                    for each (FileVariable, o, VariablesDB) // intentional that we're not using expanded DB, this should only be used for simple things anyway
-                    {
-                        bool bMatch = String_IsEqual(o.Name, SwitchValue, false);
-                        if (bMatch)
-                        {
-                            CmdValue = o.Value;
-                            break;
-                        }
-                    }
-                }
-
-                for each_str (m, Cases)
-                {
-                    if (!String_IsValid(*m))
-                        continue;
-
-                    if (String_IsEqual(*m, CmdValue, false) ||
-                        (String_IsEqual(*m, S("Default"), false) && !String_IsValid(CmdValue)))
-                    {
-                        bSkipUntilNextCase = false;
-                        bFoundNextCase = true;
-                        break;
-                    }
-                }
-
-                if (!bFoundNextCase)
-                {
-                    continue;
-                }
-            }
-        }
-
-        if (bIsSwitch && (!bCaseMatch || bEndSwitchOnNextCase) && !bFindEndSwitch)
-        {
-            bool bSawCaseKeyword = false;
-            bool bFoundCase = false;
-
-            {
-                LinearAllocator Scratch = *Arena;
-                StringArray Modes = String_ParseIntoArray(&Scratch, Trimmed, ' ', 0, 128);
-
-                for each_str (m, Modes)
-                {
-                    if (!String_IsValid(*m))
-                        continue;
-
-                    if (String_IsEqual(*m, S("case"), false))
-                    {
-                        bSawCaseKeyword = true;
-                        continue;
-                    }
-
-                    String CmdValue = GetCmdOptionValue(CmdOptionsDB, SwitchValue);
-
-                    if (!String_IsValid(CmdValue))
-                    {
-                        for each (FileVariable, o, VariablesDB) // intentional that we're not using expanded DB, this should only be used for simple things anyway
-                        {
-                            bool bMatch = String_IsEqual(o.Name, SwitchValue, false);
-                            if (bMatch)
-                            {
-                                CmdValue = o.Value;
-                                break;
-                            }
-                        }
-                    }
-
-                    if (String_IsEqual(*m, CmdValue, false) ||
-                        (String_IsEqual(*m, S("Default"), false) && !String_IsValid(CmdValue)))
-                    {
-                        bFoundCase = true;
-                        bCaseMatch = true;
-                        break;
-                    }
-                }
-            }
-
-            if (bEndSwitchOnNextCase)
-            {
-                if (bSawCaseKeyword)
-                {
-                    bFindEndSwitch = true;
-                    bSkipUntilNextCase = false;
-                }
-            }
-            else
-            {
-                if (!bFoundCase)
-                {
-                    bSkipUntilNextCase = true;
-                }
-
-                continue;
-            }
-        }
-
         // @parse name/value
         u32 SpaceIndex = 0;
         bool bFoundSpace = String_IndexOfFirstWhitespace(Trimmed, &SpaceIndex);
@@ -453,33 +330,6 @@ bool ParseBuildFile(LinearAllocator* Arena,
             }
 
             continue;
-        }
-
-        if (String_IsEqual(VarName, S("switch"), false) && bFoundSpace) // make sure this isnt a lone 'switch'
-        {
-            bIsSwitch = true;
-            bCaseMatch = false;
-            bEndSwitchOnNextCase = false;
-            bFindEndSwitch = false;
-            bSkipUntilNextCase = false;
-            String_Copy(&SwitchValue, VarValue);
-        }
-
-        if (bIsSwitch)
-        {
-            if (bFindEndSwitch)
-            {
-                continue;
-            }
-
-            if (bCaseMatch)
-            {
-                bEndSwitchOnNextCase = true;
-            }
-            else
-            {
-                continue;
-            }
         }
 
         if (String_IsEqual(VarName, S("goto"), false))

@@ -1734,6 +1734,7 @@ PlatformHandle Platform_RunCommand(const String CmdLine, const String WorkingDir
     STARTUPINFO StartupInfo = {0};
     StartupInfo.cb = sizeof(StartupInfo);
 
+    // todo: verify parent env gets included
     char* Dir = WorkingDirectory.Length > 0 ? WorkingDirectory.Data : NULL;
     if (!CreateProcess(NULL, CmdLine.Data, NULL, NULL, TRUE, 0, EnvBlock.Length == 0 ? NULL : EnvBlock.Data, Dir, &StartupInfo, &ProcessInfo))
     {
