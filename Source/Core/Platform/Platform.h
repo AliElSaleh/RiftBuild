@@ -46,7 +46,7 @@ RIFT_API void Platform_ConsoleWrite_CustomLength(const char* Message, u32 Length
 RIFT_API void Platform_BeginNonBlockingMode(void);
 RIFT_API void Platform_EndNonBlockingMode(void);
 
-RIFT_API PlatformHandle Platform_RunCommand(const String CmdLine, const String WorkingDirectory);
+RIFT_API PlatformHandle Platform_RunCommand(const String CmdLine, const String WorkingDirectory, const String EnvBlock);
 RIFT_API PlatformHandle Platform_RunCommand_Ex(const String CmdLine, const String WorkingDirectory, PlatformPipe* StdOutPipe);
 
 RIFT_API bool Platform_TerminateProcess(PlatformHandle Handle, u32 ExitCode);

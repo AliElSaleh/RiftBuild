@@ -935,7 +935,7 @@ internal bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const Stri
 
         bool bIgnoreErrors = bHasSpecial;
 
-        PlatformHandle Handle = Platform_RunCommand(CmdLine, WorkingDirectory);
+        PlatformHandle Handle = Platform_RunCommand(CmdLine, WorkingDirectory, String_Null());
         if (!Platform_IsValidHandle(Handle) && !bIgnoreErrors)
         {
             *ExitCode = 1;
@@ -5019,7 +5019,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
                 Size *= 2;
 
-                Handles[i] = Platform_RunCommand(CmdLine, WorkingPath);
+                Handles[i] = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
             }
 
             u32 ExitCode = Platform_WaitForMultipleHandles(Handles, SArray_Capacity(Handles), -1, true);
@@ -5039,7 +5039,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             StringLocal(CmdLine, 2048);
             String_Format(&CmdLine, S("iconutil -c icns -o \"%S\" \"%S\""), CmdLine.Capacity, IcnsPath, IconsetPath);
             if (bVerboseLog) LOG("    %S", CmdLine);
-            PlatformHandle H = Platform_RunCommand(CmdLine, WorkingPath);
+            PlatformHandle H = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
             ExitCode = Platform_WaitForProcessAndGetExitCode(H);
             if (ExitCode != 0)
             {
@@ -5199,7 +5199,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             StringLocal(CmdLine, 2048);
             String_Format(&CmdLine, S("chmod +x \"%S\""), CmdLine.Capacity, TempPath);
             if (bVerboseLog) LOG("    %S", CmdLine);
-            Platform_RunCommand(CmdLine, WorkingPath);
+            Platform_RunCommand(CmdLine, WorkingPath, String_Null());
             String_Empty(&TempPath);
 
             // Step 3 ----------------
@@ -5256,7 +5256,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
             if (bVerboseLog) LOG("    %S", CmdLine);
 
-            PlatformHandle h = Platform_RunCommand(CmdLine, WorkingPath);
+            PlatformHandle h = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
             u32 ExitCode = Platform_WaitForProcessAndGetExitCode(h);
             if (ExitCode != 0)
             {
@@ -5271,7 +5271,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
             if (bVerboseLog) LOG("    %S", CmdLine);
 
-            h = Platform_RunCommand(CmdLine, WorkingPath);
+            h = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
             ExitCode = Platform_WaitForProcessAndGetExitCode(h);
             if (ExitCode != 0)
             {
@@ -5286,7 +5286,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
             if (bVerboseLog) LOG("    %S", CmdLine);
 
-            h = Platform_RunCommand(CmdLine, WorkingPath);
+            h = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
             ExitCode = Platform_WaitForProcessAndGetExitCode(h);
             if (ExitCode != 0)
             {
@@ -5458,7 +5458,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                     String_Append(&CmdLine, XmlFilePath);
                     if (bVerboseLog) LOG("    %S", CmdLine);
 
-                    H = Platform_RunCommand(CmdLine, WorkingPath);
+                    H = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
                     ExitCode = Platform_WaitForProcessAndGetExitCode(H);
                     if (ExitCode != 0)
                     {
@@ -5475,7 +5475,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                     String_Append(&CmdLine, AssemblyName);
                     if (bVerboseLog) LOG("    %S", CmdLine);
 
-                    H = Platform_RunCommand(CmdLine, WorkingPath);
+                    H = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
                     ExitCode = Platform_WaitForProcessAndGetExitCode(H);
                     if (ExitCode != 0)
                     {
@@ -5490,7 +5490,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                     String_Copy(&CmdLine, S("update-desktop-database ~/.local/share/applications"));
                     if (bVerboseLog) LOG("    %S", CmdLine);
 
-                    H = Platform_RunCommand(CmdLine, WorkingPath);
+                    H = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
                     ExitCode = Platform_WaitForProcessAndGetExitCode(H);
                     if (ExitCode != 0)
                     {
@@ -5503,7 +5503,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                     String_Copy(&CmdLine, S("update-mime-database ~/.local/share/mime"));
                     if (bVerboseLog) LOG("    %S", CmdLine);
 
-                    H = Platform_RunCommand(CmdLine, WorkingPath);
+                    H = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
                     ExitCode = Platform_WaitForProcessAndGetExitCode(H);
                     if (ExitCode != 0)
                     {
@@ -5619,7 +5619,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 String_Copy(&CmdLine, S("update-desktop-database ~/.local/share/applications"));
                 if (bVerboseLog) LOG("    %S", CmdLine);
 
-                PlatformHandle H = Platform_RunCommand(CmdLine, WorkingPath);
+                PlatformHandle H = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
                 (void)Platform_WaitForProcessAndGetExitCode(H);
 
                 String_Empty(&CmdLine);
@@ -5627,7 +5627,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 String_Copy(&CmdLine, S("update-mime-database ~/.local/share/mime"));
                 if (bVerboseLog) LOG("    %S", CmdLine);
 
-                H = Platform_RunCommand(CmdLine, WorkingPath);
+                H = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
                 (void)Platform_WaitForProcessAndGetExitCode(H);
             }
         }
@@ -5768,7 +5768,7 @@ PostBuild:
 
 End:
     // run the assembly (if an executable)
-    if (bIsAssemblyExe)// && NumCompiled > 0 && DoesBuildVarExist(VariablesDB, S("RunAssembly")))
+    if (bIsAssemblyExe)
     {
         for each (FileVariable, v, ExpandedVariablesDB)
         {
@@ -5784,8 +5784,29 @@ End:
             u32 PipeIndex = 0;
             bool bFound = String_IndexOfChar(v.Value, '|', &PipeIndex);
 
-            const String Args = bFound ? StrSlice(v.Value.Data, PipeIndex) : v.Value;
+            const String Args       = bFound ? StrSlice(v.Value.Data, PipeIndex) : v.Value;
             const String CustomPath = bFound ? String_EatSpaces(StrShiftF(v.Value, PipeIndex+1)) : String_Null();
+
+            StringLocal(ProgramArgs, 4096);
+            StringLocal(EnvArgs, 4096);
+
+            LinearAllocator Scratch = *Arena;
+            StringList List = String_SplitIntoList(&Scratch, Args, ' ', true);
+            for each_str_list (List)
+            {
+                if (String_StartsWith(It.String, S("env:"), false))
+                {
+                    String_Append(&EnvArgs, StrShiftF(It.String, 4));
+                    String_EatSpacesInlineFromEnd(&EnvArgs);
+                    String_AppendChar(&EnvArgs, '\0');
+                }
+                else
+                {
+                    String_Append(&ProgramArgs, It.String);
+                    String_EatSpacesInlineFromEnd(&ProgramArgs);
+                    String_AppendChar(&ProgramArgs, ' ');
+                }
+            }
 
             StringLocal(CmdLine, 8192);
 
@@ -5827,7 +5848,7 @@ End:
             String_AppendChar(&CmdLine, '"');
 
             String_AppendSpace(&CmdLine);
-            String_Append(&CmdLine, Args);
+            String_Append(&CmdLine, ProgramArgs);
 
             String_EatSpacesInlineFromEnd(&CmdLine);
 
@@ -5842,16 +5863,21 @@ End:
                 LOG("Launching %S ...", AssemblyNameWithExt);
                 LOG(" -> Working Directory: %S", ExecutableWorkingPath);
 
-                if (Args.Length > 0)
+                if (ProgramArgs.Length > 0)
                 {
-                    LOG(" -> Parameters: %S", Args);
+                    LOG(" -> Parameters: %S", ProgramArgs);
+                }
+
+                if (EnvArgs.Length > 0)
+                {
+                    LOG(" -> Environment: %S", EnvArgs);
                 }
 
                 LOG_LINE_BREAK();
 
                 //LOG("CMD: %S", CmdLine);
 
-                Platform_WaitForHandle(Platform_RunCommand(CmdLine, ExecutableWorkingPath), -1);
+                Platform_WaitForHandle(Platform_RunCommand(CmdLine, ExecutableWorkingPath, EnvArgs), -1);
             }
         }
     }

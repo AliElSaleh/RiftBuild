@@ -1728,14 +1728,14 @@ bool Filesystem_ArePathsCommon(String PathA, String PathB)
     return String_IsEqual(CommonPath, PathA, false);
 }
 
-PlatformHandle Platform_RunCommand(const String CmdLine, const String WorkingDirectory)
+PlatformHandle Platform_RunCommand(const String CmdLine, const String WorkingDirectory, const String EnvBlock)
 {
-    STARTUPINFO StartupInfo = {0};
     PROCESS_INFORMATION ProcessInfo = {0};
+    STARTUPINFO StartupInfo = {0};
     StartupInfo.cb = sizeof(StartupInfo);
 
     char* Dir = WorkingDirectory.Length > 0 ? WorkingDirectory.Data : NULL;
-    if (!CreateProcess(NULL, CmdLine.Data, NULL, NULL, TRUE, 0, NULL, Dir, &StartupInfo, &ProcessInfo))
+    if (!CreateProcess(NULL, CmdLine.Data, NULL, NULL, TRUE, 0, EnvBlock.Length == 0 ? NULL : EnvBlock.Data, Dir, &StartupInfo, &ProcessInfo))
     {
         StringLocal(Prefix, Kibibytes(8));
         String_Format(&Prefix, S("Failed to run command: \"%S\""), Prefix.Capacity, CmdLine);
@@ -1751,7 +1751,6 @@ PlatformHandle Platform_RunCommand(const String CmdLine, const String WorkingDir
 
 PlatformHandle Platform_RunCommand_Ex(const String CmdLine, const String WorkingDirectory, PlatformPipe* StdOutPipe)
 {
-    STARTUPINFO StartupInfo = {0};
     PROCESS_INFORMATION ProcessInfo = {0};
     SECURITY_ATTRIBUTES saAttr = {0}; 
     saAttr.nLength = sizeof(SECURITY_ATTRIBUTES); 
@@ -1776,6 +1775,7 @@ PlatformHandle Platform_RunCommand_Ex(const String CmdLine, const String Working
     (*StdOutPipe)[0] = r;
     (*StdOutPipe)[1] = w;
 
+    STARTUPINFO StartupInfo = {0};
     StartupInfo.cb = sizeof(STARTUPINFO);
     StartupInfo.hStdError = w;
     StartupInfo.hStdOutput = w;

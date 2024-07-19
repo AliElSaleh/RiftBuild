@@ -1379,7 +1379,7 @@ BOOL SetThreadPriority(HANDLE hThread, int nPriority);
 HRESULT SetThreadDescription(HANDLE hThread, PCWSTR lpThreadDescription);
 DWORD ResumeThread(HANDLE hThread);
 
-BOOL CreateProcess(
+BOOL CreateProcessA(
     LPCSTR                lpApplicationName,
     LPSTR                 lpCommandLine,
     LPSECURITY_ATTRIBUTES lpProcessAttributes,
@@ -1404,6 +1404,8 @@ BOOL CreateProcessW(
     LPSTARTUPINFOA        lpStartupInfo,
     LPPROCESS_INFORMATION lpProcessInformation
 );
+
+BOOL CreateEnvironmentBlock(LPVOID *lpEnvironment, HANDLE hToken, BOOL bInherit);
 
 BOOL SetPriorityClass(HANDLE hProcess, DWORD dwPriorityClass);
 

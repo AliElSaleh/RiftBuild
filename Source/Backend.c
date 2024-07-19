@@ -63,7 +63,7 @@ internal bool AsmSourceFileDirectoryIterator(const String FullPath, const String
                 if (Params->bVerbose) LOG("    CMD: %S", CmdLine);
 
                 // todo: parallelize this
-                PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory);
+                PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
                 const u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
                 if (ExitCode != 0)
                 {
@@ -228,7 +228,7 @@ bool RC_Compile(const BuildParams* Params, const String FullRCPath, String* OutR
     
     if (Params->bVerbose) LOG("    %S", CmdLine);
 
-    PlatformHandle h = Platform_RunCommand(CmdLine, Params->RootDirectory);
+    PlatformHandle h = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
     u32 ExitCode = Platform_WaitForProcessAndGetExitCode(h);
     if (ExitCode != 0)
     {
@@ -506,7 +506,7 @@ bool C_DoCompile(CompileData* Data, const String FullPath, const String Relative
     //Clock CompileTime;
     //Clock_Start(&CompileTime);
 
-    PlatformHandle Handle = Platform_RunCommand(CmdLine, Params->RootDirectory);
+    PlatformHandle Handle = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
     Array_Add(Processes, Handle);
     (*Data->NumCompiled)++;
 
@@ -596,7 +596,7 @@ bool C_Link(const BuildParams* Params)
             }
         }
 
-        PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory);
+        PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
 
         const u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
         if (ExitCode != 0)
@@ -655,7 +655,7 @@ bool C_Link(const BuildParams* Params)
         LinkData Data = { Params, &CmdLine };
         Filesystem_IterateDirectory_Ex(SourceDir, Link_SourceFileDirectoryIterator, true, &Data);
 
-        String_BuildSeparator(&CmdLine, ' ', Params->VersionResFilePath);//, Params->bVerbose ? S("-v") : String_Null());
+        String_BuildSeparator(&CmdLine, ' ', Params->VersionResFilePath);
         String_EatSpacesInlineFromEnd(&CmdLine);
 
         if (bQuietBuild) Logging_Enable();
@@ -680,7 +680,7 @@ bool C_Link(const BuildParams* Params)
             }
         }
 
-        PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory);
+        PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
 
         u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
         if (ExitCode != 0)
@@ -717,7 +717,7 @@ bool C_Link(const BuildParams* Params)
             String_Append(&CmdLine, Params->Assembly);
             String_Append(&CmdLine, S(".dll\""));
 
-            PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory);
+            PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
             u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
             if (ExitCode != 0)
             {
@@ -875,7 +875,7 @@ internal bool AsmSourceFileDirectoryIterator_MSVC(const String FullPath, const S
                 if (Params->bVerbose) LOG("    CMD: %S", CmdLine);
 
                 // todo: parallelize this
-                PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory);
+                PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
                 const u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
                 if (ExitCode != 0)
                 {
@@ -1141,7 +1141,7 @@ bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String Relat
         LOG("    %S\n", CmdLine);
     }
 
-    PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory);
+    PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
     Array_Add(Processes, H);
     (*Data->NumCompiled)++;
 
@@ -1231,7 +1231,7 @@ bool MSVC_Link(const BuildParams* Params)
         }
     }
 
-    PlatformHandle Handle = Platform_RunCommand(CmdLine, Params->RootDirectory);
+    PlatformHandle Handle = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
     u32 ExitCode = Platform_WaitForProcessAndGetExitCode(Handle);
     if (ExitCode != 0)
     {
@@ -1258,7 +1258,7 @@ bool MSVC_Link(const BuildParams* Params)
         String_Append(&CmdLine, Params->Assembly);
         String_Append(&CmdLine, S(".dll\""));
 
-        PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory);
+        PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
         ExitCode = Platform_WaitForProcessAndGetExitCode(H);
 
         if (ExitCode != 0)
