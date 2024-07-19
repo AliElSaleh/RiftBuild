@@ -2,9 +2,7 @@
 
 set -e
 
-Compiler=$(command -v clang)
-
-if [ -z "$Compiler" ]; then
+if [ -z "$(command -v clang)" ]; then
     printf "\"clang\" not found - download the latest release at: https://releases.llvm.org/download.html\n"
     exit 1
 fi
