@@ -191,6 +191,8 @@ void Platform_ConsoleWrite_CustomLength(const char* Message, u32 Length, u8 Colo
     fflush(stdout);
 }
 
+extern char** environ;
+
 PlatformHandle Platform_RunCommand(const String CmdLine, const String WorkingDirectory, const String EnvBlock)
 {
     String Command;
