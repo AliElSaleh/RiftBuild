@@ -233,7 +233,7 @@ PlatformHandle Platform_CreateThread(const String Name, u32* OutThreadID, u32 (*
     return -1;
 }
 
-PlatformHandle Platform_RunCommand(const String CmdLine, const String WorkingDirectory)
+PlatformHandle Platform_RunCommand(const String CmdLine, const String WorkingDirectory, const String EnvBlock)
 {
     String Command;
     StringLocal(Copy, Kibibytes(32));
@@ -264,7 +264,35 @@ PlatformHandle Platform_RunCommand(const String CmdLine, const String WorkingDir
     }
     else
     {
-        execvp("/bin/sh", (char*[]){"sh", "-c", Command.Data, NULL});
+        StringLocal(EnvArgs, 4096);
+        char* envp[256] = { NULL };
+
+        if (EnvBlock.Length > 0)
+        {
+            u32 EnvCount = 0;
+            while (environ[EnvCount] != NULL)
+            {
+                String_Append(&EnvArgs, CStrEx(environ[EnvCount], 4096));
+                String_AppendChar(&EnvArgs, '\0');
+                EnvCount++;
+            }
+
+            String_Append(&EnvArgs, EnvBlock);
+
+            u32 i = 0;
+            u32 Offset = 0;
+            for (u32 j = 0; j < EnvArgs.Length; j++)
+            {
+                if (EnvArgs.Data[j] == '\0')
+                {
+                    envp[i] = &EnvArgs.Data[Offset];
+                    Offset = j+1;
+                    i++;
+                }
+            }
+        }
+
+        execve("/bin/sh", (char*[]){"sh", "-c", Command.Data, NULL}, EnvArgs.Length == 0 ? environ : envp);
 
         exit(0);
     }
