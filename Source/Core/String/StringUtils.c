@@ -1435,6 +1435,88 @@ bool String_IndexOfLastWhitespace(const String Str, u32* OutIndex)
     return false;
 }
 
+// transforms paths with " in them to paths without them
+// for exmaple: "C:\Program Files"\MyApp -> "C:\Program Files\MyApp"
+
+bool String_SanitizeQuotes(String* Dest, const String Source)
+{
+    bool bHasQuote = false;
+    for (u32 i = 0; i < Source.Length; i++)
+    {
+        const char c = Source.Data[i];
+        if (c == '"' && bHasQuote)
+        {
+            // ignore all subsequent quotes
+            continue;
+        }
+
+        String_AppendChar(Dest, c);
+
+        if (c == '"')
+        {
+            bHasQuote = true;
+        }
+    }
+
+    if (bHasQuote)
+    {
+        String_AppendChar(Dest, '"');
+    }
+
+    return Dest->Length > 0;
+}
+
+bool String_SanitizePath(String* Dest, const String Source)
+{
+    bool bAnyChange = false;
+    for (u32 i = 0; i < Source.Length; i++)
+    {
+        if (Source.Data[i] == '"')
+            continue;
+        
+        bAnyChange = true;
+
+        #if PLATFORM_WINDOWS
+        char C = Source.Data[i] == '/' ? '\\' : Source.Data[i]; 
+        #else
+        char C = Source.Data[i] == '\\' ? '/' : Source.Data[i]; 
+        #endif
+
+        String_AppendChar(Dest, C);
+    }
+
+    return bAnyChange;
+}
+
+bool String_SanitizePathAndWrap(String* Dest, const String Source)
+{
+    if (Source.Length == 0)
+        return false;
+
+    String_AppendChar(Dest, '"');
+
+    bool bAnyChange = false;
+    for (u32 i = 0; i < Source.Length; i++)
+    {
+        if (Source.Data[i] == '"')
+            continue;
+
+        bAnyChange = true;
+
+        #if PLATFORM_WINDOWS
+        char C = Source.Data[i] == '/' ? '\\' : Source.Data[i]; 
+        #else
+        char C = Source.Data[i] == '\\' ? '/' : Source.Data[i]; 
+        #endif
+
+        String_AppendChar(Dest, C);
+    }
+
+    String_AppendChar(Dest, '"');
+
+    return bAnyChange;
+}
+
 u32 String_CountChar(const String Str, char C)
 {
     u32 Count = 0;

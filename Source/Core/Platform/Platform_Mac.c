@@ -1763,34 +1763,6 @@ bool Filesystem_ArePathsCommon(String PathA, String PathB)
     return bPrefixMatch;
 }
 
-bool Filesystem_SanitizeQuotes(String* Dest, const String Path)
-{
-    bool bHasQuote = false;
-    for (u32 i = 0; i < Path.Length; i++)
-    {
-        char c = Path.Data[i];
-        if (c == '"' && bHasQuote)
-        {
-            // ignore all subsequent quotes
-            continue;
-        }
-
-        String_AppendChar(Dest, c);
-
-        if (c == '"')
-        {
-            bHasQuote = true;
-        }
-    }
-
-    if (bHasQuote)
-    {
-        String_AppendChar(Dest, '"');
-    }
-
-    return Dest->Length > 0;
-}
-
 Uuid UUID_Generate(void)
 {
     uuid_t id;

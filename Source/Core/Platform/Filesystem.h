@@ -94,9 +94,6 @@ RIFT_API bool Filesystem_IsOlder(const String PathA, const String PathB);
 RIFT_API bool Filesystem_IsPathRelative(const String Path);
 
 RIFT_API bool Filesystem_ConvertRelativeToAbsolutePath(String* OutFullPath);
-RIFT_API bool Filesystem_SanitizePath(String* Dest, const String Path);
-RIFT_API bool Filesystem_SanitizePathAndWrap(String* Dest, const String Path);
-RIFT_API bool Filesystem_SanitizeQuotes(String* Dest, const String Path);
 
 RIFT_API void Filesystem_IterateDirectory(const String BasePath, DirectoryIterator Callback, bool bRecursive);
 RIFT_API void Filesystem_IterateDirectory_Ex(const String BasePath, DirectoryIterator Callback, bool bRecursive, void* UserData);

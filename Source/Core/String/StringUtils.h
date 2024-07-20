@@ -131,6 +131,10 @@ RIFT_API bool String_IndexOfLastPathSlash(const String Str, u32* OutIndex);
 RIFT_API bool String_IndexOfFirstWhitespace(const String Str, u32* OutIndex);
 RIFT_API bool String_IndexOfLastWhitespace(const String Str, u32* OutIndex);
 
+RIFT_API bool String_SanitizePath(String* Dest, const String Source);
+RIFT_API bool String_SanitizePathAndWrap(String* Dest, const String Source);
+RIFT_API bool String_SanitizeQuotes(String* Dest, const String Source);
+
 RIFT_API bool String_IsFirst(const String Str, char C);
 RIFT_API bool String_IsLast(const String Str, char C);
 

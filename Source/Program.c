@@ -648,24 +648,24 @@ internal bool BuildFileDirectoryIterator(const String FullPath, const String Rel
     return true;
 }
 
-internal bool IncludeDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
+internal bool PathFlagDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
     if (NEVER(UserData == NULL)) return false;
 
     if (bIsDirectory)
     {
-        STRUCT(IncludeIterData)
+        STRUCT(PathIterData)
         {
             String BaseDirectory;
-            String* IncludeFlags;
+            String* Flags;
         };
 
-        IncludeIterData* Data = UserData;
+        PathIterData* Data = UserData;
 
-        String_Append(Data->IncludeFlags, Data->BaseDirectory);
-        String_AppendPathSeparator(Data->IncludeFlags);
-        String_Append(Data->IncludeFlags, RelativePath);
-        String_AppendSpace(Data->IncludeFlags);
+        String_Append(Data->Flags, Data->BaseDirectory);
+        String_AppendPathSeparator(Data->Flags);
+        String_Append(Data->Flags, RelativePath);
+        String_AppendSpace(Data->Flags);
     }
 
     return true;
@@ -1787,6 +1787,59 @@ bool FilterSourceFile(const String WorkingDirectory, const String SourceDirector
     }
     
     return false;
+}
+
+internal void ExpandPathFlags(LinearAllocator Scratch, String* Dest, const String Flags, const String FlagPrefix)
+{
+    // expand include flags with * and ** wildcards
+    StringLocal(WildcardFlags, 4096);
+    StringLocal(NonWildcardFlags, 4096);
+
+    StringList List = String_SplitIntoList(&Scratch, Flags, ' ', true);
+    for each_str_list (List)
+    {
+        StringLocal(SearchDir, MAX_PATH_LENGTH);
+
+        bool bWildcard = false;
+        bool bRecursive = false;
+        if (String_EndsWith(It.String, S("**"), false))
+        {
+            String_Copy(&SearchDir, StrSlice(It.String.Data, It.String.Length-2));
+            String_EatPathSeparatorsInlineFromEnd(&SearchDir);
+            bRecursive = true;
+            bWildcard = true;
+        }
+        else if (String_EndsWith(It.String, S("*"), false))
+        {
+            String_Copy(&SearchDir, StrSlice(It.String.Data, It.String.Length-1));
+            String_EatPathSeparatorsInlineFromEnd(&SearchDir);
+            bWildcard = true;
+        }
+
+        if (bWildcard)
+        {
+            STRUCT(PathIterData)
+            {
+                String BaseDirectory;
+                String* Flags;
+            };
+            
+            PathIterData Data = { SearchDir, &WildcardFlags };
+
+            Filesystem_IterateDirectory_Ex(SearchDir, PathFlagDirectoryIterator, bRecursive, &Data);
+        }
+        else
+        {
+            StringLocal(ItCopy, MAX_PATH_LENGTH);
+            String_SanitizeQuotes(&ItCopy, It.String);
+
+            String_Append(&NonWildcardFlags, ItCopy);
+            String_AppendSpace(&NonWildcardFlags);
+        }
+    }
+
+    PrefixVariables(Dest, WildcardFlags, FlagPrefix);
+    PrefixVariables(Dest, NonWildcardFlags, FlagPrefix);
 }
 
 internal u32 BuildTarget(LinearAllocator* Arena,
@@ -3507,7 +3560,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             StringLocal(DirPath, MAX_PATH_LENGTH);
 
             StringLocal(DirCopy, MAX_PATH_LENGTH);
-            Filesystem_SanitizeQuotes(&DirCopy, It.String);
+            String_SanitizeQuotes(&DirCopy, It.String);
 
             if (Filesystem_IsPathRelative(DirCopy))
             {
@@ -4295,7 +4348,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
     StringLocal(ExpandedIncludeFlags, 4096);
     StringLocal(ExpandedLibraries, 1024);
-    StringLocal(ExpandedLibraryDirectories, 1024);
+    StringLocal(ExpandedLibraryDirectories, 4096);
     StringLocal(ExpandedDefineFlags, 1024);
     StringLocal(ExpandedUnDefineFlags, 1024);
     StringLocal(ExpandedLinkerDefineFlags, 1024);
@@ -4304,55 +4357,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     String_Append(&FlagPrefix, CompilerFlagPrefixSymbol);
     String_Append(&FlagPrefix, S("I"));
 
-    // expand include flags with * and ** wildcards
-    {
-        StringLocal(WildcardIncludeFlags, 4096);
-        StringLocal(NonWildcardIncludeFlags, 4096);
-
-        LinearAllocator Scratch = *Arena;
-        StringList IncludeList = String_SplitIntoList(&Scratch, IncludeFlags, ' ', true);
-        for each_str_list (IncludeList)
-        {
-            StringLocal(SearchDir, MAX_PATH_LENGTH);
-
-            bool bWildcard = false;
-            bool bRecursive = false;
-            if (String_EndsWith(It.String, S("**"), false))
-            {
-                String_Copy(&SearchDir, StrSlice(It.String.Data, It.String.Length-2));
-                String_EatPathSeparatorsInlineFromEnd(&SearchDir);
-                bRecursive = true;
-                bWildcard = true;
-            }
-            else if (String_EndsWith(It.String, S("*"), false))
-            {
-                String_Copy(&SearchDir, StrSlice(It.String.Data, It.String.Length-1));
-                String_EatPathSeparatorsInlineFromEnd(&SearchDir);
-                bWildcard = true;
-            }
-
-            if (bWildcard)
-            {
-                STRUCT(IncludeIterData)
-                {
-                    String BaseDirectory;
-                    String* IncludeFlags;
-                };
-                
-                IncludeIterData Data = { SearchDir, &WildcardIncludeFlags };
-
-                Filesystem_IterateDirectory_Ex(SearchDir, IncludeDirectoryIterator, bRecursive, &Data);
-            }
-            else
-            {
-                String_Append(&NonWildcardIncludeFlags, It.String);
-                String_AppendSpace(&NonWildcardIncludeFlags);
-            }
-        }
-
-        PrefixVariables(&ExpandedIncludeFlags, WildcardIncludeFlags, FlagPrefix);
-        PrefixVariables(&ExpandedIncludeFlags, NonWildcardIncludeFlags, FlagPrefix);
-    }
+    ExpandPathFlags(*Arena, &ExpandedIncludeFlags, IncludeFlags, FlagPrefix);
 
     FlagPrefix.Data[1] = 'l';
     if (String_IsEqual(CompilerProgram, S("cl"), false) ||
@@ -4369,11 +4374,11 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     if (String_IsEqual(CompilerProgram, S("cl"), false) ||
         String_IsEqual(CompilerProgram, S("msvc"), false)) // todo: something better
     {
-        PrefixVariables(&ExpandedLibraryDirectories, LibraryDirectories, S("/LIBPATH:"));
+        ExpandPathFlags(*Arena, &ExpandedLibraryDirectories, LibraryDirectories, S("/LIBPATH:"));
     }
     else
     {
-        PrefixVariables(&ExpandedLibraryDirectories, LibraryDirectories, FlagPrefix);
+        ExpandPathFlags(*Arena, &ExpandedLibraryDirectories, LibraryDirectories, FlagPrefix);
     }
 
     FlagPrefix.Data[1] = 'D';

@@ -1,4 +1,3 @@
-// Copyright (c) 2024 Ali El Saleh
 
 #include "Platform.h"
 
@@ -912,34 +911,6 @@ bool Filesystem_GetFilePath(const FileHandle Handle, String* OutPath)
 bool Filesystem_IsPathRelative(const String Path)
 {
     return Path.Data[0] != '/';
-}
-
-bool Filesystem_SanitizeQuotes(String* Dest, const String Path)
-{
-    bool bHasQuote = false;
-    for (u32 i = 0; i < Path.Length; i++)
-    {
-        char c = Path.Data[i];
-        if (c == '"' && bHasQuote)
-        {
-            // ignore all subsequent quotes
-            continue;
-        }
-
-        String_AppendChar(Dest, c);
-
-        if (c == '"')
-        {
-            bHasQuote = true;
-        }
-    }
-
-    if (bHasQuote)
-    {
-        String_AppendChar(Dest, '"');
-    }
-
-    return Dest->Length > 0;
 }
 
 bool Platform_GetCurrentProcessName(String* OutName)

@@ -47,6 +47,13 @@ ENUM(EAssemblyType)
     AssemblyType_PCH,
 };
 
+ENUM(ECompiler)
+{
+    Compiler_Clang,
+    Compiler_GCC,
+    Compiler_MSVC
+};
+
 ENUM(EComparisonType)
 {
     Cmp_None,
