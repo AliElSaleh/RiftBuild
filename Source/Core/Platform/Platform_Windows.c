@@ -1359,9 +1359,6 @@ bool Filesystem_IsPathRelative(const String Path)
     bool bRelative = !bDriveSymbol;
 
     return bRelative;
-    
-    // would this work? i'll test later
-    //return PathIsRelative(Path.Data);
 }
 
 bool Filesystem_ConvertRelativeToAbsolutePath(String* OutFullPath)

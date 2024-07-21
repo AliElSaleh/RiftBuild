@@ -15,7 +15,6 @@
 STRUCT(LoggingSystemState)
 {
     FileHandle LogFileHandle;
-    PlatformHandle ThreadHandle;
 
     String LogFileName;
 
@@ -130,12 +129,6 @@ void Logging_Shutdown(void)
 {
     GLoggingSystemState->bAlive = false;
     GLoggingSystemState->bReady = false;
-    Platform_WaitForHandle(GLoggingSystemState->ThreadHandle, -1);
-    #if PLATFORM_WINDOWS
-    GLoggingSystemState->ThreadHandle = NULL;
-    #else
-    GLoggingSystemState->ThreadHandle = -1;
-    #endif
 
     Platform_DeleteCriticalSection(GLoggingSystemState->CriticalSection);
     

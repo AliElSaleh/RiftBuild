@@ -1281,6 +1281,13 @@ internal void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const Fi
 
             Expanded.Value = Extension;
         }
+        else if (String_IsEqual(Type, S("pch"), false) ||
+                 String_IsEqual(Type, S("pre_compiled_header"), false))
+        {
+            Extension = S(".pch");
+
+            Expanded.Value = Extension;
+        }
 
         Array_Add(VariablesDB, Expanded);
         Array_Add(ExpandedVariablesDB, Expanded);
@@ -2531,7 +2538,6 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     const String MaxConcurrentCompilations  = GetVariableValue(ExpandedVariablesDB, S("MaxConcurrentCompilations"));
     //const String OutsideSourceDirectories   = GetExpandedVariableValue(ExpandedVariablesDB, S("ExternalSourceDirectories"));
     String Icon                             = GetVariableValue(ExpandedVariablesDB, S("Icon"));
-    const String PostBuildSetting           = GetVariableValue(ExpandedVariablesDB, S("RunPostBuildOnChange"));
     const String MaxCompilerErrors          = GetVariableValue(ExpandedVariablesDB, S("MaxCompilerErrors"));
 
     #if PLATFORM_APPLE
@@ -2549,6 +2555,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     String Version                          = GetVariableValue(ExpandedVariablesDB, S("Version"));
 
     const bool bNoRebuildOnDependencyChange = String_ToBool(GetVariableValue(ExpandedVariablesDB, S("NoRebuildOnDependencyChange")));
+    const bool bRunPostBuildWhenWorkWasDone = String_ToBool(GetVariableValue(ExpandedVariablesDB, S("RunPostBuildOnChange")));
 
     #if PLATFORM_APPLE
     const bool bBundleApp                   = DoesBuildVarExist(VariablesDB, S("Bundle"));
@@ -2556,12 +2563,6 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     #endif
 
     bShouldWaitPerCompileProcess = bSingleThread;
-
-    bool bRunPostBuildOnlyWhenWorkWasDone = false;
-    if (String_IsValid(PostBuildSetting))
-    {
-        bRunPostBuildOnlyWhenWorkWasDone = String_ToBool(PostBuildSetting);
-    }
 
     u8 MaxErrorsAllowed = 1; // default to 1 error (for the people's sanity)
     if (String_IsValid(MaxCompilerErrors))
@@ -3744,6 +3745,84 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         }
     }
 
+    // save the directory state
+    {
+        StringLocal(Name, 256);
+        String_Append(&Name, BuildFileName);
+        String_Append(&Name, S(".directory_state"));
+        StringLocal(DirectoryStatePath, MAX_PATH_LENGTH);
+        String_BuildPath(&DirectoryStatePath, WorkingPath, IntermediateDirectory, Name);
+        FileHandle f = FileHandle_Null();
+        
+        if (Filesystem_DoesFileExist(DirectoryStatePath))
+        {
+            if (Filesystem_Open(DirectoryStatePath, FileMode_Read, &f))
+            {
+                struct SourceCountData CountData_File = {0};
+                if (Filesystem_Read(f, sizeof(struct SourceCountData), &CountData_File, NULL))
+                {
+                    bool bAnyChange = CountData_File.NumSources    != CountData.NumSources ||
+                                      CountData_File.NumAsmSources != CountData.NumAsmSources ||
+                                      CountData_File.NumHeaders    != CountData.NumHeaders ||
+                                      CountData_File.NumRcSources  != CountData.NumRcSources;
+
+                    if (bAnyChange)
+                    {
+                        LOG("Directory state has changed. Forcing rebuild...");
+                        if (CountData_File.NumSources > CountData.NumSources)
+                        {
+                            LOG("    %u source file(s) removed", CountData_File.NumSources - CountData.NumSources);
+                        }
+                        else if (CountData.NumSources > 0)
+                        {
+                            LOG("    %u source file(s) added", CountData.NumSources - CountData_File.NumSources);
+                        }
+
+                        if (CountData_File.NumAsmSources > CountData.NumAsmSources)
+                        {
+                            LOG("    %u assembly file(s) removed", CountData_File.NumAsmSources - CountData.NumAsmSources);
+                        }
+                        else if (CountData.NumAsmSources > 0)
+                        {
+                            LOG("    %u assembly file(s) added", CountData.NumAsmSources - CountData_File.NumAsmSources);
+                        }
+
+                        if (CountData_File.NumHeaders > CountData.NumHeaders)
+                        {
+                            LOG("    %u header file(s) removed", CountData_File.NumHeaders - CountData.NumHeaders);
+                        }
+                        else if (CountData.NumHeaders > 0)
+                        {
+                            LOG("    %u header file(s) added", CountData.NumHeaders - CountData_File.NumHeaders);
+                        }
+
+                        if (CountData_File.NumRcSources > CountData.NumRcSources)
+                        {
+                            LOG("    %u resource file(s) removed", CountData_File.NumRcSources - CountData.NumRcSources);
+                        }
+                        else if (CountData.NumRcSources > 0)
+                        {
+                            LOG("    %u resource file(s) added", CountData.NumRcSources - CountData_File.NumRcSources);
+                        }
+
+                        LOG_LINE_BREAK();
+
+                        bIsRebuild = true;
+                    }
+                }
+
+                Filesystem_Close(&f);
+            }
+        }
+
+        if (Filesystem_Open(DirectoryStatePath, FileMode_Write, &f))
+        {
+            Filesystem_Write(f, sizeof(struct SourceCountData), &CountData, NULL);
+            Filesystem_Close(&f);
+        }
+    }
+
+
     StringLocal(AsmCompilerPath, MAX_PATH_LENGTH);
 
     bool bExplicitAsmPath = false;
@@ -4050,7 +4129,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         StringLocal(OutputDebugFile, MAX_PATH_LENGTH);
         StringLocal(GenFileName, 256);
         String_Append(&GenFileName, BuildFileName);
-        String_Append(&GenFileName, S("_generated.txt"));
+        String_Append(&GenFileName, S(".generated"));
         String_ToLower(&GenFileName);
         String_BuildPath(&OutputDebugFile, IntermediateBaseDirectory, GenFileName);
 
@@ -4160,7 +4239,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             S(".pch"),
             S(".log"),
             S(".tmp"),
-            S(".build_generated.txt"),
+            S(".build.generated"),
             S(".build_version.rc"),
             S(".build_version.res")
         };
@@ -4271,7 +4350,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         StringLocal(OutputDebugFile, MAX_PATH_LENGTH);
         StringLocal(GenFileName, 256);
         String_Append(&GenFileName, BuildFileName);
-        String_Append(&GenFileName, S("_generated.txt"));
+        String_Append(&GenFileName, S(".generated"));
         String_ToLower(&GenFileName);
         String_BuildPath(&OutputDebugFile, IntermediateBaseDirectory, GenFileName);
 
@@ -4962,7 +5041,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
     if (NumCompiled == 0)
     {
-        if (bRunPostBuildOnlyWhenWorkWasDone)
+        if (bRunPostBuildWhenWorkWasDone)
         {
             goto End;
         }
