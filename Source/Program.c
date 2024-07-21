@@ -1849,6 +1849,103 @@ internal void ExpandPathFlags(LinearAllocator Scratch, String* Dest, const Strin
     PrefixVariables(Dest, NonWildcardFlags, FlagPrefix);
 }
 
+internal void Internal_RunAssembly(LinearAllocator Scratch, const String WorkingPath, const String BuildDirectory, const String AssemblyNameWithExt, const String ArgString)
+{
+    u32 PipeIndex = 0;
+    bool bFound = String_IndexOfChar(ArgString, '|', &PipeIndex);
+
+    const String Args       = bFound ? StrSlice(ArgString.Data, PipeIndex) : ArgString;
+    const String CustomPath = bFound ? String_EatSpaces(StrShiftF(ArgString, PipeIndex+1)) : String_Null();
+
+    StringLocal(ProgramArgs, 4096);
+    StringLocal(EnvArgs, 4096);
+
+    StringList List = String_SplitIntoList(&Scratch, Args, ' ', true);
+    for each_str_list (List)
+    {
+        if (String_StartsWith(It.String, S("env:"), false))
+        {
+            String_Append(&EnvArgs, StrShiftF(It.String, 4));
+            String_EatSpacesInlineFromEnd(&EnvArgs);
+            String_AppendChar(&EnvArgs, '\0');
+        }
+        else
+        {
+            String_Append(&ProgramArgs, It.String);
+            String_EatSpacesInlineFromEnd(&ProgramArgs);
+            String_AppendChar(&ProgramArgs, ' ');
+        }
+    }
+
+    String_EatSpacesInlineFromEnd(&ProgramArgs);
+
+    StringLocal(CmdLine, 8192);
+
+    #if PLATFORM_WINDOWS
+    String_Append(&CmdLine, S("cmd.exe /c \""));
+    #endif
+
+    StringLocal(ExecutableWorkingPath, MAX_PATH_LENGTH);
+
+    if (CustomPath.Length > 0)
+    {
+        if (Filesystem_IsPathRelative(CustomPath))
+        {
+            String_BuildPath(&ExecutableWorkingPath, WorkingPath, CustomPath);
+            String_EatPathSeparatorsInlineFromEnd(&ExecutableWorkingPath);
+        }
+    }
+    else
+    {
+        String_Copy(&ExecutableWorkingPath, BuildDirectory);
+    }
+
+    Filesystem_ConvertRelativeToAbsolutePath(&ExecutableWorkingPath);
+
+    String_Append(&CmdLine, S("cd \""));
+    String_Append(&CmdLine, ExecutableWorkingPath);
+    String_Append(&CmdLine, S("\" && "));
+
+    StringLocal(ExePath, MAX_PATH_LENGTH);
+    String_Append(&ExePath, BuildDirectory);
+    String_Append(&ExePath, AssemblyNameWithExt);
+
+    String_AppendChar(&CmdLine, '"');
+    String_Append(&CmdLine, ExePath);
+    String_AppendChar(&CmdLine, '"');
+
+    String_AppendSpace(&CmdLine);
+    String_Append(&CmdLine, ProgramArgs);
+
+    String_EatSpacesInlineFromEnd(&CmdLine);
+
+    #if PLATFORM_WINDOWS
+    String_AppendChar(&CmdLine, '"');
+
+    LOG_LINE_BREAK();
+    #endif
+
+    if (Filesystem_DoesFileExist(ExePath))
+    {
+        LOG("Launching %S ...", AssemblyNameWithExt);
+        LOG(" -> Working Directory: %S", ExecutableWorkingPath);
+
+        if (ProgramArgs.Length > 0)
+        {
+            LOG(" -> Parameters: %S", ProgramArgs);
+        }
+
+        if (EnvArgs.Length > 0)
+        {
+            LOG(" -> Environment: %S", EnvArgs);
+        }
+
+        LOG_LINE_BREAK();
+
+        Platform_WaitForHandle(Platform_RunCommand(CmdLine, ExecutableWorkingPath, EnvArgs), -1);
+    }
+}
+
 internal u32 BuildTarget(LinearAllocator* Arena,
                         const FileHandle BuildFileHandle, PlatformMutex* BuildMutex,
                         const String WorkingPath, const StringArray Parameters, const String CameFromBuildFile,
@@ -5910,6 +6007,13 @@ End:
     // run the assembly (if an executable)
     if (bIsAssemblyExe)
     {
+        if (StringArray_Contains(Parameters, S("Run"), false))
+        {
+            // todo: args like runassembly key
+            
+            Internal_RunAssembly(*Arena, WorkingPath, BuildBaseDirectory, AssemblyNameWithExt, String_Null());
+        }
+
         for each (FileVariable, v, ExpandedVariablesDB)
         {
             if (!String_IsEqual(v.Name, S("RunAssembly"), false))
@@ -5921,106 +6025,7 @@ End:
                     continue;
             }
 
-            u32 PipeIndex = 0;
-            bool bFound = String_IndexOfChar(v.Value, '|', &PipeIndex);
-
-            const String Args       = bFound ? StrSlice(v.Value.Data, PipeIndex) : v.Value;
-            const String CustomPath = bFound ? String_EatSpaces(StrShiftF(v.Value, PipeIndex+1)) : String_Null();
-
-            StringLocal(ProgramArgs, 4096);
-            StringLocal(EnvArgs, 4096);
-
-            LinearAllocator Scratch = *Arena;
-            StringList List = String_SplitIntoList(&Scratch, Args, ' ', true);
-            for each_str_list (List)
-            {
-                if (String_StartsWith(It.String, S("env:"), false))
-                {
-                    String_Append(&EnvArgs, StrShiftF(It.String, 4));
-                    String_EatSpacesInlineFromEnd(&EnvArgs);
-                    String_AppendChar(&EnvArgs, '\0');
-                }
-                else
-                {
-                    String_Append(&ProgramArgs, It.String);
-                    String_EatSpacesInlineFromEnd(&ProgramArgs);
-                    String_AppendChar(&ProgramArgs, ' ');
-                }
-            }
-
-            String_EatSpacesInlineFromEnd(&ProgramArgs);
-
-            StringLocal(CmdLine, 8192);
-
-            #if PLATFORM_WINDOWS
-            String_Append(&CmdLine, S("cmd.exe /c \""));
-            #endif
-
-            StringLocal(BuildDir, MAX_PATH_LENGTH);
-            String_BuildPath(&BuildDir, WorkingPath, BuildDirectory);
-            String_AppendPathSeparator_Checked(&BuildDir);
-
-            StringLocal(ExecutableWorkingPath, MAX_PATH_LENGTH);
-
-            if (CustomPath.Length > 0)
-            {
-                if (Filesystem_IsPathRelative(CustomPath))
-                {
-                    String_BuildPath(&ExecutableWorkingPath, WorkingPath, CustomPath);
-                    String_EatPathSeparatorsInlineFromEnd(&ExecutableWorkingPath);
-                }
-            }
-            else
-            {
-                String_Copy(&ExecutableWorkingPath, BuildDir);
-            }
-
-            Filesystem_ConvertRelativeToAbsolutePath(&ExecutableWorkingPath);
-
-            String_Append(&CmdLine, S("cd \""));
-            String_Append(&CmdLine, ExecutableWorkingPath);
-            String_Append(&CmdLine, S("\" && "));
-
-            StringLocal(ExePath, MAX_PATH_LENGTH);
-            String_Append(&ExePath, BuildDir);
-            String_Append(&ExePath, AssemblyNameWithExt);
-
-            String_AppendChar(&CmdLine, '"');
-            String_Append(&CmdLine, ExePath);
-            String_AppendChar(&CmdLine, '"');
-
-            String_AppendSpace(&CmdLine);
-            String_Append(&CmdLine, ProgramArgs);
-
-            String_EatSpacesInlineFromEnd(&CmdLine);
-
-            #if PLATFORM_WINDOWS
-            String_AppendChar(&CmdLine, '"');
-
-            LOG_LINE_BREAK();
-            #endif
-
-            if (Filesystem_DoesFileExist(ExePath))
-            {
-                LOG("Launching %S ...", AssemblyNameWithExt);
-                LOG(" -> Working Directory: %S", ExecutableWorkingPath);
-
-                if (ProgramArgs.Length > 0)
-                {
-                    LOG(" -> Parameters: %S", ProgramArgs);
-                }
-
-                if (EnvArgs.Length > 0)
-                {
-                    LOG(" -> Environment: %S", EnvArgs);
-                }
-
-                LOG_LINE_BREAK();
-
-                //LOG("CMD: %S", CmdLine);
-
-                Platform_WaitForHandle(Platform_RunCommand(CmdLine, ExecutableWorkingPath, EnvArgs), -1);
-            }
+            Internal_RunAssembly(*Arena, WorkingPath, BuildBaseDirectory, AssemblyNameWithExt, v.Value);
         }
     }
 
