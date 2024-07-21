@@ -116,8 +116,11 @@ typedef void VoidFunc(void);
 //#define each(Element, Array)          (typeof((Array)[0])* CONCAT(Element, _) = &(Array)[0], Element = *CONCAT(Element, _); CONCAT(Element, _) <= &(Array)[Array_Num((Array))-1]; CONCAT(Element, _)++, Element = *CONCAT(Element, _))
 //#define each_i(Index, Element, Array) (typeof((Array)[0])* CONCAT(Element, _) = &(Array)[0], Element = *CONCAT(Element, _); CONCAT(Element, _) <= &(Array)[Array_Num((Array))-1]; CONCAT(Element, _)++, Element = *CONCAT(Element, _), ++(Index))
 
-#define each(Type, Element, Array)          (Type* CONCAT(Element, _) = &(Array)[0], Element = *CONCAT(Element, _); CONCAT(Element, _) <= &(Array)[Array_Num((Array))-1]; CONCAT(Element, _)++, Element = *CONCAT(Element, _))
-#define each_i(Index, Type, Element, Array) (Type* CONCAT(Element, _) = &(Array)[0], Element = *CONCAT(Element, _); CONCAT(Element, _) <= &(Array)[Array_Num((Array))-1]; CONCAT(Element, _)++, Element = *CONCAT(Element, _), ++(Index))
+#define each(Type, Element, Array)          (Type* CONCAT(Element, _) = (Type*)&(Array)[0], Element = *CONCAT(Element, _); CONCAT(Element, _) <= &(Array)[Array_Num((Array))-1]; CONCAT(Element, _)++, Element = *CONCAT(Element, _))
+#define each_i(Index, Type, Element, Array) (Type* CONCAT(Element, _) = (Type*)&(Array)[0], Element = *CONCAT(Element, _); CONCAT(Element, _) <= &(Array)[Array_Num((Array))-1]; CONCAT(Element, _)++, Element = *CONCAT(Element, _), ++(Index))
+
+#define each_static(Type, Element, Array)        (Type* CONCAT(Element, _) = (Type*)&(Array)[0], Element = *CONCAT(Element, _); CONCAT(Element, _) <= &(Array)[SArray_Capacity((Array))-1]; CONCAT(Element, _)++, Element = *CONCAT(Element, _))
+#define each_static_i(Index, Type, Element, Array) (Type* CONCAT(Element, _) = (Type*)&(Array)[0], Element = *CONCAT(Element, _); CONCAT(Element, _) <= &(Array)[SArray_Capacity((Array))-1]; CONCAT(Element, _)++, Element = *CONCAT(Element, _), ++(Index))
 
 #define For(Array) for each (It, Array)
 #define ForEach(It, Array) for each (It, Array)

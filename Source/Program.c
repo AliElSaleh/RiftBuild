@@ -3524,18 +3524,23 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     String_ConvertSlashToPlatformSlash(&IntermediateDirectory);
     String_ConvertSlashToPlatformSlash(&BuildDirectory);
 
-    StringLocal(RelativeIntermediateDirectory, MAX_PATH_LENGTH);
-    String_BuildPath(&RelativeIntermediateDirectory, IntermediateDirectory);
+    StringLocal(BuildBaseDirectory, MAX_PATH_LENGTH);
+    String_BuildPath(&BuildBaseDirectory, WorkingPath, BuildDirectory);
+    String_AppendPathSeparator(&BuildBaseDirectory);
+    Filesystem_ConvertRelativeToAbsolutePath(&BuildBaseDirectory);
 
     StringLocal(IntermediateBaseDirectory, MAX_PATH_LENGTH);
-    String_BuildPath(&IntermediateBaseDirectory, WorkingPath, RelativeIntermediateDirectory);
-    String_EatPathSeparatorsInlineFromEnd(&IntermediateBaseDirectory);
+    String_BuildPath(&IntermediateBaseDirectory, WorkingPath, IntermediateDirectory);
     String_AppendPathSeparator(&IntermediateBaseDirectory);
-    String_ConvertSlashToPlatformSlash(&IntermediateBaseDirectory);
-    //GIntermediateBaseDirectory = IntermediateBaseDirectory;
+    Filesystem_ConvertRelativeToAbsolutePath(&IntermediateBaseDirectory);
 
     StringLocal(SourceDir, MAX_PATH_LENGTH);
     String_BuildPath(&SourceDir, WorkingPath, SourceDirectory);
+    String_AppendPathSeparator(&SourceDir);
+    Filesystem_ConvertRelativeToAbsolutePath(&SourceDir);
+
+    bool bBuildDirSameAsSource = String_IsEqual(BuildBaseDirectory, SourceDir, false);
+    bool bIntermediateDirSameAsSource = String_IsEqual(IntermediateBaseDirectory, SourceDir, false);
 
     // assert that the given directories exist before proceeding with the build
     // ignoring build/intermediate since they will be created if they don't exist
@@ -4126,10 +4131,39 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     {
         bool bCleanedSomething = false;
 
-        StringLocal(BuildDirectoryPath, MAX_PATH_LENGTH);
-        String_BuildPath(&BuildDirectoryPath, WorkingPath, BuildDirectory);
-        String_EatPathSeparatorsInlineFromEnd(&BuildDirectoryPath);
-        String_AppendPathSeparator(&BuildDirectoryPath);
+        const String Exts[] =
+        {
+            S(".o"),
+            S(".obj"),
+            S(".lib"),
+            S(".a"),
+            S(".so"),
+            S(".dylib"),
+            S(".dll"),
+            S(".exe"),
+            S(".app"),
+            S(".out"),
+            S(".bin"),
+            S(".elf"),
+            S(".pdb"),
+            S(".ilk"),
+            S(".res"),
+            S(".rc"),
+            S(".manifest"),
+            S(".exp"),
+            S(".def"),
+            S(".map"),
+            S(".suo"),
+            S(".sdf"),
+            S(".idb"),
+            S(".ipch"),
+            S(".pch"),
+            S(".log"),
+            S(".tmp"),
+            S(".build_generated.txt"),
+            S(".build_version.rc"),
+            S(".build_version.res")
+        };
 
         #if PLATFORM_WINDOWS
         String Wildcard = S(".*");
@@ -4140,22 +4174,35 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         #endif
 
         // Delete all [Assembly]*.* files
-        if (Filesystem_DoesDirectoryExist(BuildDirectoryPath))
+        if (Filesystem_DoesDirectoryExist(BuildBaseDirectory))
         {
             #ifndef HOOD
-            LOG("Cleaning %S%S%S", BuildDirectoryPath, AssemblyName, Wildcard);
+            LOG("Cleaning %S%S%S", BuildBaseDirectory, AssemblyName, Wildcard);
             #else
-            LOG("cleaning dis shit %S%S%S", BuildDirectoryPath, AssemblyName, Wildcard);
+            LOG("cleaning dis shit %S%S%S", BuildBaseDirectory, AssemblyName, Wildcard);
             #endif
 
-            StringLocal(AssemblyWildcard, MAX_PATH_LENGTH);
-            String_Append(&AssemblyWildcard, AssemblyName);
-            String_Append(&AssemblyWildcard, Wildcard);
-            Filesystem_DeleteFiles(BuildDirectoryPath, AssemblyWildcard, true);
-            String_Empty(&AssemblyWildcard);
-            String_Append(&AssemblyWildcard, AssemblyName);
-            String_Append(&AssemblyWildcard, WildcardS);
-            Filesystem_DeleteFiles(BuildDirectoryPath, AssemblyWildcard, true);
+            if (bBuildDirSameAsSource)
+            {
+                for each_static (String, e, Exts)
+                {
+                    StringLocal(AssemblyWildcard, MAX_PATH_LENGTH);
+                    String_Append(&AssemblyWildcard, AssemblyName);
+                    String_Append(&AssemblyWildcard, e);
+                    Filesystem_DeleteFiles(BuildBaseDirectory, AssemblyWildcard, true);
+                }
+            }
+            else
+            {
+                StringLocal(AssemblyWildcard, MAX_PATH_LENGTH);
+                String_Append(&AssemblyWildcard, AssemblyName);
+                String_Append(&AssemblyWildcard, Wildcard);
+                Filesystem_DeleteFiles(BuildBaseDirectory, AssemblyWildcard, true);
+                String_Empty(&AssemblyWildcard);
+                String_Append(&AssemblyWildcard, AssemblyName);
+                String_Append(&AssemblyWildcard, WildcardS);
+                Filesystem_DeleteFiles(BuildBaseDirectory, AssemblyWildcard, true);
+            }
 
             #if PLATFORM_APPLE
             if (bBundleApp && bIsAssemblyExe)
@@ -4181,22 +4228,31 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             bCleanedSomething = true;
         }
 
-        StringLocal(IntermediateDirectoryPath, MAX_PATH_LENGTH);
-        String_BuildPath(&IntermediateDirectoryPath, IntermediateBaseDirectory/*, SourceDirectory*/);
-        String_AppendPathSeparator_Checked(&IntermediateDirectoryPath);
-
         // Delete intermediate directory based on given source directory
-        if (Filesystem_DoesDirectoryExist(IntermediateDirectoryPath))
+        if (Filesystem_DoesDirectoryExist(IntermediateBaseDirectory))
         {
             Wildcard = S("*");
 
             #ifndef HOOD
-            LOG("Cleaning %S%S", IntermediateDirectoryPath, Wildcard);
+            LOG("Cleaning %S%S", IntermediateBaseDirectory, Wildcard);
             #else
-            LOG("cleaning dis shit %S%S", IntermediateDirectoryPath, Wildcard);
+            LOG("cleaning dis shit %S%S", IntermediateBaseDirectory, Wildcard);
             #endif
 
-            Filesystem_DeleteFiles(IntermediateDirectoryPath, Wildcard, true);
+            if (bIntermediateDirSameAsSource)
+            {
+                for each_static (String, e, Exts)
+                {
+                    StringLocal(AssemblyWildcard, MAX_PATH_LENGTH);
+                    String_Append(&AssemblyWildcard, S("*"));
+                    String_Append(&AssemblyWildcard, e);
+                    Filesystem_DeleteFiles(IntermediateBaseDirectory, AssemblyWildcard, true);
+                }
+            }
+            else
+            {
+                Filesystem_DeleteFiles(IntermediateBaseDirectory, Wildcard, true);
+            }
 
             bCleanedSomething = true;
         }
@@ -4466,7 +4522,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     p.RootDirectory                 = WorkingPath;
     p.SourceDirectory               = SourceDirectory;
     p.BuildDirectory                = BuildDirectory;
-    p.IntermediateDirectory         = RelativeIntermediateDirectory;
+    p.IntermediateDirectory         = IntermediateDirectory;
     p.IntermediateBaseDirectory     = IntermediateBaseDirectory;
     p.MaxCompilersAtOnce            = MaxCompilersAtOnce;
     p.MaxErrors                     = MaxErrorsAllowed;
