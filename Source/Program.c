@@ -1190,20 +1190,25 @@ internal void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const Fi
 {
     if (!DoesBuildVarExist(VariablesDB, S("Assembly")))
     {
+        StringLocal(Path, MAX_PATH_LENGTH);
+
         String Name = S("Untitled");
 
         if (IsValidFileHandle(BuildFileHandle))
         {
-            StringLocal(Path, MAX_PATH_LENGTH);
             Filesystem_GetFilePath(BuildFileHandle, &Path);
 
             u32 LastSlash = 0;
             String_IndexOfLastPathSlash(Path, &LastSlash);
 
             u32 LastDot = 0;
-            Name = StrShiftF(Path, LastSlash+1);
-            String_IndexOfLastChar(Name, '.', &LastDot);
-            Name = StrSlice(Name.Data, LastDot);
+            String FileName = StrShiftF(Path, LastSlash+1);
+            String_IndexOfLastChar(FileName, '.', &LastDot);
+            FileName = StrSlice(FileName.Data, LastDot);
+	    if (FileName.Length > 0)
+	    {
+		Name = FileName;
+	    }
         }
 
         FileVariable Expanded;
