@@ -3848,6 +3848,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     }
 
     // save the directory state
+    if (!bIsClean)
     {
         StringLocal(Name, 256);
         String_Append(&Name, BuildFileName);
@@ -4314,6 +4315,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
         const String Exts[] =
         {
+            S(""),
             S(".o"),
             S(".obj"),
             S(".lib"),
@@ -4342,6 +4344,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             S(".log"),
             S(".tmp"),
             S(".build.generated"),
+            S(".build.directory_state"),
             S(".build_version.rc"),
             S(".build_version.res")
         };
@@ -4424,10 +4427,14 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             {
                 for each_static (String, e, Exts)
                 {
-                    StringLocal(AssemblyWildcard, MAX_PATH_LENGTH);
-                    String_Append(&AssemblyWildcard, S("*"));
-                    String_Append(&AssemblyWildcard, e);
-                    Filesystem_DeleteFiles(IntermediateBaseDirectory, AssemblyWildcard, true);
+		    if (e.Length > 0)
+		    {
+                        StringLocal(AssemblyWildcard, MAX_PATH_LENGTH);
+                        String_Append(&AssemblyWildcard, S("*"));
+		        String_Append(&AssemblyWildcard, e);
+                        Filesystem_DeleteFiles(IntermediateBaseDirectory, AssemblyWildcard, true);
+                        Filesystem_DeleteFiles(IntermediateBaseDirectory, e, true);
+		    }
                 }
             }
             else
