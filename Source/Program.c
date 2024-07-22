@@ -5144,6 +5144,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         bSuccess = C_Compile(&p, &NumCompiled);
     }
 
+    Platform_WaitForMultipleHandles(Processes, (u32)Array_Num(Processes), -1, true);
+
     Clock_Tick(&CompileClock);
 
     if (!bSuccess)

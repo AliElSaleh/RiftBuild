@@ -721,6 +721,7 @@ typedef struct _CONSOLE_SCREEN_BUFFER_INFO {
 #define DEBUG_ONLY_THIS_PROCESS           0x00000002
 #define CREATE_SUSPENDED                  0x00000004
 #define DETACHED_PROCESS                  0x00000008
+#define CREATE_DEFAULT_ERROR_MODE         0x04000000
 
 #define CREATE_NEW_CONSOLE                0x00000010
 #define NORMAL_PRIORITY_CLASS             0x00000020
