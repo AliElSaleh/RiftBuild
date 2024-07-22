@@ -6781,6 +6781,8 @@ u32 RunApplication(const StringArray Arguments)
     Platform_GetUserDirectory(&UserDirectory);
     String_EatPathSeparatorsInlineFromEnd(&UserDirectory);
     AddInternalVariable(S("_UserDirectory"), UserDirectory);
+    AddInternalVariable(S("_HomeDirectory"), UserDirectory);
+    AddInternalVariable(S("_Home"), UserDirectory);
 
     u32 ExitCode = RiftBuild(&ProgramArena, Arguments);
 
