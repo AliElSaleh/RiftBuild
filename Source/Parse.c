@@ -1510,6 +1510,7 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
                         S("ExcludedSourceFiles"),
                     };
 
+                    bool bKeyIsPathBased = false;
                     for (u8 j = 0; j < SArray_Capacity(KeysToCareAbout); j++)
                     {
                         if (String_IsEqual(Key, KeysToCareAbout[j], false))
@@ -1520,7 +1521,24 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
                             C = '/';
                             #endif
                             
+                            bKeyIsPathBased = true;
+
                             break;
+                        }
+                    }
+
+                    // only check for duplicate path separator for certain keys
+                    if (bKeyIsPathBased)
+                    {
+                        if (C == '/' || C == '\\')
+                        {
+                            if (Dest->Length > 0)
+                            {
+                                char LastChar = Dest->Data[Dest->Length-1];
+                                bool bHasPathSep = LastChar == '/' || LastChar == '\\';
+                                if (bHasPathSep)
+                                    continue;
+                            }
                         }
                     }
                 }

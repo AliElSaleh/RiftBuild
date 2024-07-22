@@ -1482,6 +1482,17 @@ bool String_SanitizePath(String* Dest, const String Source)
         char C = Source.Data[i] == '\\' ? '/' : Source.Data[i]; 
         #endif
 
+        if (C == '/' || C == '\\')
+        {
+            if (Dest->Length > 0)
+            {
+                char LastChar = Dest->Data[Dest->Length-1];
+                bool bHasPathSep = LastChar == '/' || LastChar == '\\';
+                if (bHasPathSep)
+                    continue;
+            }
+        }
+
         String_AppendChar(Dest, C);
     }
 
@@ -1508,6 +1519,17 @@ bool String_SanitizePathAndWrap(String* Dest, const String Source)
         #else
         char C = Source.Data[i] == '\\' ? '/' : Source.Data[i]; 
         #endif
+
+        if (C == '/' || C == '\\')
+        {
+            if (Dest->Length > 0)
+            {
+                char LastChar = Dest->Data[Dest->Length-1];
+                bool bHasPathSep = LastChar == '/' || LastChar == '\\';
+                if (bHasPathSep)
+                    continue;
+            }
+        }
 
         String_AppendChar(Dest, C);
     }

@@ -5929,13 +5929,9 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     Clock_GetElapsedTime_ToString(&BuildRuntime, true, &TimeString);
     LOG("Total build time: %S", TimeString);
 
-    StringLocal(BuildPath, MAX_PATH_LENGTH);
-    String_BuildPath(&BuildPath, WorkingPath, BuildDirectory);
-    String_AppendPathSeparator_Checked(&BuildPath);
-
     StringLocal(OutputPath, MAX_PATH_LENGTH);
     String_AppendChar(&OutputPath, '"');
-    String_Append(&OutputPath, BuildPath);
+    String_Append(&OutputPath, BuildBaseDirectory);
     String_Append(&OutputPath, AssemblyNameWithExt);
     String_AppendChar(&OutputPath, '"');
 
@@ -5958,7 +5954,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
         StringLocal(OutputPath2, MAX_PATH_LENGTH);
         String_AppendChar(&OutputPath2, '"');
-        String_Append    (&OutputPath2, BuildPath);
+        String_Append    (&OutputPath2, BuildBaseDirectory);
         String_Append    (&OutputPath2, AssemblyName);
         String_Append    (&OutputPath2, NextExt);
         String_AppendChar(&OutputPath2, '"');
