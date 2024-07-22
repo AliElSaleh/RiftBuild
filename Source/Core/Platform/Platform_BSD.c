@@ -1756,9 +1756,12 @@ bool Filesystem_ConvertRelativeToAbsolutePath(String* OutFullPath)
     char* Result = realpath(Copy.Data, OutFullPath->Data);
     if (Result == NULL)
     {
+        String_Copy(OutFullPath, Copy);
+        /*
         StringLocal(Format, MAX_PATH_LENGTH);
         String_Format(&Format, S("Failed to convert \"%S\" to an absolute path"), MAX_PATH_LENGTH, Copy);
         LogLastError(Format);
+        */
         return false;
     }
 

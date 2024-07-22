@@ -13,7 +13,9 @@ usize GEngineScratchAmount = 0;
 #include "Backend.h"
 
 #if !COMPILER_MSVC
-#include <cpuid.h>
+    #if (__x86_64__ || __i386__)
+    #include <cpuid.h>
+    #endif
 #endif
 
 TArray(InternalVariable) InternalVariablesDB = NULL;
@@ -1209,10 +1211,10 @@ internal void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const Fi
             String FileName = StrShiftF(Path, LastSlash+1);
             String_IndexOfLastChar(FileName, '.', &LastDot);
             FileName = StrSlice(FileName.Data, LastDot);
-	    if (FileName.Length > 0)
-	    {
-		Name = FileName;
-	    }
+            if (FileName.Length > 0)
+            {
+                Name = FileName;
+            }
         }
 
         FileVariable Expanded;
@@ -4431,14 +4433,14 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             {
                 for each_static (String, e, Exts)
                 {
-		    if (e.Length > 0)
-		    {
+                    if (e.Length > 0)
+                    {
                         StringLocal(AssemblyWildcard, MAX_PATH_LENGTH);
                         String_Append(&AssemblyWildcard, S("*"));
-		        String_Append(&AssemblyWildcard, e);
+                        String_Append(&AssemblyWildcard, e);
                         Filesystem_DeleteFiles(IntermediateBaseDirectory, AssemblyWildcard, true);
                         Filesystem_DeleteFiles(IntermediateBaseDirectory, e, true);
-		    }
+                    }
                 }
             }
             else
@@ -4460,17 +4462,14 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
     if (bFoundBuildFile)
     {
+        StringLocal(Name, 256);
+        String_Append(&Name, BuildFileName);
+        String_Append(&Name, S(".generated"));
         StringLocal(OutputDebugFile, MAX_PATH_LENGTH);
-        StringLocal(GenFileName, 256);
-        String_Append(&GenFileName, BuildFileName);
-        String_Append(&GenFileName, S(".generated"));
-        String_ToLower(&GenFileName);
-        String_BuildPath(&OutputDebugFile, IntermediateBaseDirectory, GenFileName);
+        String_BuildPath(&OutputDebugFile, IntermediateBaseDirectory, Name);
 
-        FileHandle f = {0};
-        bool bSuccess = Filesystem_Open(OutputDebugFile, FileMode_Write, &f);
-
-        if (bSuccess)
+        FileHandle f = FileHandle_Null();
+        if (Filesystem_Open(OutputDebugFile, FileMode_Write, &f))
         {
             // write the cmd line of this program to a file in the intermediate directory for comparison between subsequent runs
             Filesystem_Write(f, RiftCmdLine.Length, RiftCmdLine.Data, NULL);
@@ -6614,11 +6613,13 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
 
 internal void cpuid(int info[4], int infoType)
 {
-#if COMPILER_MSVC
-    __cpuidex(info, infoType, 0);
-#else
-    __cpuid_count(infoType, 0, info[0], info[1], info[2], info[3]);
-#endif
+    #if (__x86_64__ || __i386__)
+        #if COMPILER_MSVC
+        __cpuidex(info, infoType, 0);
+        #else
+        __cpuid_count(infoType, 0, info[0], info[1], info[2], info[3]);
+        #endif
+    #endif
 }
 
 u32 RunApplication(const StringArray Arguments)
@@ -6753,7 +6754,7 @@ u32 RunApplication(const StringArray Arguments)
 
     // store cpu information
     {
-        int info[4];
+        int info[4] = {0};
 
         // Basic CPUID information
         cpuid(info, 0);

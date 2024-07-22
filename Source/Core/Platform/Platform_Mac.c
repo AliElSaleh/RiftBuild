@@ -1612,9 +1612,12 @@ bool Filesystem_ConvertRelativeToAbsolutePath(String* OutFullPath)
     char* Result = realpath(Copy.Data, OutFullPath->Data);
     if (Result == NULL)
     {
+        String_Copy(OutFullPath, Copy);
+        /*
         StringLocal(Format, MAX_PATH_LENGTH);
         String_Format(&Format, S("Failed to convert \"%S\" to an absolute path"), MAX_PATH_LENGTH, Copy);
         LogLastError(Format);
+        */
         return false;
     }
 
@@ -1734,8 +1737,7 @@ bool Filesystem_DeleteFiles(const String FilePath, const String Wildcard, bool b
     StringLocal(Cmd, MAX_PATH_LENGTH);
     String_Append(&Cmd, S("rm -f "));
     if (bRecursive)
-        String_Append(&Cmd, S("-r "));
-    String_Append(&Cmd, S("\""));
+        String_Append(&Cmd, S("-r \""));
     String_Append(&Cmd, FilePath);
     String_AppendPathSeparator_Checked(&Cmd);
     String_AppendChar(&Cmd, '"');
