@@ -763,7 +763,8 @@ bool IsHeader(const String Extension)
             String_IsEqual(Extension, S(".hxx"), false) ||
             String_IsEqual(Extension, S(".h++"), false) ||
             String_IsEqual(Extension, S(".inc"), false) ||
-            String_IsEqual(Extension, S(".inl"), false);
+            String_IsEqual(Extension, S(".inl"), false) ||
+            String_IsEqual(Extension, S(".ipp"), false);
 }
 
 
@@ -1199,6 +1200,7 @@ bool MSVC_Link(const BuildParams* Params)
     
     if (bIsLib)
     {
+        String_Empty(&CmdLine);
         String_Append(&CmdLine, S("lib /nologo /OUT:\""));
 
         String_Append(&CmdLine, BuildPath);

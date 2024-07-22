@@ -12,6 +12,10 @@ usize GEngineScratchAmount = 0;
 
 #include "Backend.h"
 
+#if !COMPILER_MSVC
+#include <cpuid.h>
+#endif
+
 TArray(InternalVariable) InternalVariablesDB = NULL;
 bool bQuietBuild = false;
 bool bNoWordWrapLogging = false;
@@ -2131,35 +2135,35 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     String_Format(&TimeStamp, S("%hu-%.2hu-%.2hu %.2hu:%.2hu:%.2hu [%S]"), TimeStamp.Capacity, TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second, TimeZone);
 
     {
-    StringLocal(TimeStampVar, 64);
-    String_Format(&TimeStampVar, S("%hu.%.2hu.%.2hu.%.2hu.%.2hu.%.2hu"), TimeStamp.Capacity, TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
-    String a = String_Create(Arena, TimeStampVar);
-    AddCmdOption(&CmdOptionsDB, S("_Timestamp"), a);
+        StringLocal(TimeStampVar, 64);
+        String_Format(&TimeStampVar, S("%hu.%.2hu.%.2hu.%.2hu.%.2hu.%.2hu"), TimeStamp.Capacity, TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
+        String a = String_Create(Arena, TimeStampVar);
+        AddCmdOption(&CmdOptionsDB, S("_Timestamp"), a);
 
-    // add another for time zone information
-    String_Format(&TimeStampVar, S("%hu.%.2hu.%.2hu.%.2hu.%.2hu.%.2hu.%S"), TimeStamp.Capacity, TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second, TimeZone);
-    a = String_Create(Arena, TimeStampVar);
+        // add another for time zone information
+        String_Format(&TimeStampVar, S("%hu.%.2hu.%.2hu.%.2hu.%.2hu.%.2hu.%S"), TimeStamp.Capacity, TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second, TimeZone);
+        a = String_Create(Arena, TimeStampVar);
 
-    AddCmdOption(&CmdOptionsDB, S("_Timestamp_z"), a);
-    String_Format(&TimeStampVar, S("%hu%.2hu%.2hu%.2hu%.2hu%.2hu"), TimeStamp.Capacity, TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
-    a = String_Create(Arena, TimeStampVar);
-    AddCmdOption(&CmdOptionsDB, S("_TimestampNoSep"), a);
+        AddCmdOption(&CmdOptionsDB, S("_Timestamp_z"), a);
+        String_Format(&TimeStampVar, S("%hu%.2hu%.2hu%.2hu%.2hu%.2hu"), TimeStamp.Capacity, TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
+        a = String_Create(Arena, TimeStampVar);
+        AddCmdOption(&CmdOptionsDB, S("_TimestampNoSep"), a);
 
-    String_Format(&TimeStampVar, S("%hu.%.2hu.%.2hu"), TimeStamp.Capacity, TimeNow.Year, TimeNow.Month, TimeNow.Day);
-    a = String_Create(Arena, TimeStampVar);
-    AddCmdOption(&CmdOptionsDB, S("_Date"), a);
+        String_Format(&TimeStampVar, S("%hu.%.2hu.%.2hu"), TimeStamp.Capacity, TimeNow.Year, TimeNow.Month, TimeNow.Day);
+        a = String_Create(Arena, TimeStampVar);
+        AddCmdOption(&CmdOptionsDB, S("_Date"), a);
 
-    String_Format(&TimeStampVar, S("%hu%.2hu%.2hu"), TimeStamp.Capacity, TimeNow.Year, TimeNow.Month, TimeNow.Day);
-    a = String_Create(Arena, TimeStampVar);
-    AddCmdOption(&CmdOptionsDB, S("_DateNoSep"), a);
+        String_Format(&TimeStampVar, S("%hu%.2hu%.2hu"), TimeStamp.Capacity, TimeNow.Year, TimeNow.Month, TimeNow.Day);
+        a = String_Create(Arena, TimeStampVar);
+        AddCmdOption(&CmdOptionsDB, S("_DateNoSep"), a);
 
-    String_Format(&TimeStampVar, S("%.2hu.%.2hu.%.2hu"), TimeStamp.Capacity, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
-    a = String_Create(Arena, TimeStampVar);
-    AddCmdOption(&CmdOptionsDB, S("_Time"), a);
+        String_Format(&TimeStampVar, S("%.2hu.%.2hu.%.2hu"), TimeStamp.Capacity, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
+        a = String_Create(Arena, TimeStampVar);
+        AddCmdOption(&CmdOptionsDB, S("_Time"), a);
 
-    String_Format(&TimeStampVar, S("%.2hu%.2hu%.2hu"), TimeStamp.Capacity, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
-    a = String_Create(Arena, TimeStampVar);
-    AddCmdOption(&CmdOptionsDB, S("_TimeNoSep"), a);
+        String_Format(&TimeStampVar, S("%.2hu%.2hu%.2hu"), TimeStamp.Capacity, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
+        a = String_Create(Arena, TimeStampVar);
+        AddCmdOption(&CmdOptionsDB, S("_TimeNoSep"), a);
     }
 
     StringLocal(RiftBuildArgs, 4096);
@@ -6608,6 +6612,15 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
     return ExitCode;
 }
 
+internal void cpuid(int info[4], int infoType)
+{
+#if COMPILER_MSVC
+    __cpuidex(info, infoType, 0);
+#else
+    __cpuid_count(infoType, 0, info[0], info[1], info[2], info[3]);
+#endif
+}
+
 u32 RunApplication(const StringArray Arguments)
 {
     Logging_ToggleLogFile(false);
@@ -6642,8 +6655,8 @@ u32 RunApplication(const StringArray Arguments)
     LinearAllocator ProgramArena = {0};
     LinearAllocator_Create(Kilobytes(512), NULL, &ProgramArena);
 
-    const usize MemAmount_InternalOptions = _ArrayCalculateMemRequirement(32, sizeof(InternalVariable)); // 1024 bytes
-    InternalVariablesDB  = Array_CreateStatic(InternalVariable, 32, LinearAllocator_Allocate(&ProgramArena, MemAmount_InternalOptions));
+    const usize MemAmount_InternalOptions = _ArrayCalculateMemRequirement(64, sizeof(InternalVariable)); // 2048 bytes
+    InternalVariablesDB  = Array_CreateStatic(InternalVariable, 64, LinearAllocator_Allocate(&ProgramArena, MemAmount_InternalOptions));
 
     // store internal options. like platform, native os .lib's, etc..
     AddInternalVariable(S(PLATFORM_STRING), S(""));
@@ -6731,48 +6744,104 @@ u32 RunApplication(const StringArray Arguments)
     AddInternalVariable(S("32-bit"), S(""));
     #endif
 
-    Uuid Uuid = UUID_Generate();
+    Uuid ID = UUID_Generate();
     StringLocal(UuidString, 64);
-    UUID_ToString(Uuid, &UuidString);
+    UUID_ToString(ID, &UuidString);
     AddInternalVariable(S("_UUID"), UuidString);
 
-    bool CpuArchs[32] = {0};
+    StringLocal(CpuVendor, 32);
 
-    #if __SSE4_2__
-    CpuArchs[0] = CpuArchs[1] = CpuArchs[2] = CpuArchs[3] = CpuArchs[4] = CpuArchs[5] = 1;
-    #elif __SSE4_1__
-    CpuArchs[0] = CpuArchs[1] = CpuArchs[2] = CpuArchs[3] = CpuArchs[4] = 1;
-    #elif __SSE3__
-    CpuArchs[0] = CpuArchs[1] = CpuArchs[2] = 1;
-    #elif __SSE2__
-    CpuArchs[0] = CpuArchs[1] = 1;
-    #elif __SSE__
-    CpuArchs[0] = 1;
-    #endif
+    // store cpu information
+    {
+        int info[4];
 
-    #if __AVX512__ || __AVX512CD__ || __AVX512ER__ || __AVX512F__ || __AVX512PF__
-    CpuArchs[6] = CpuArchs[7] = CpuArchs[8] = 1;
-    #elif __AVX2__
-    CpuArchs[6] = CpuArchs[7] = 1;
-    #elif __AVX__
-    CpuArchs[6] = 1;
-    #endif
+        // Basic CPUID information
+        cpuid(info, 0);
+        
+        int MaxSupportedIDs = info[0];
+        //LOG("Max supported CPUID level: %d\n", maxSupportedId);
 
-    #if __FMA__
-    CpuArchs[9] = 1;
-    #endif
+        // Vendor string
+        char vendor[13];
+        ((int*)vendor)[0] = info[1];
+        ((int*)vendor)[1] = info[3];
+        ((int*)vendor)[2] = info[2];
+        vendor[12] = '\0';
 
-    // todo: we need to query the system and automatically add these 
-    if (CpuArchs[0]) AddInternalVariable(S("_SSE"),    S("1"));
-    if (CpuArchs[1]) AddInternalVariable(S("_SSE2"),   S("1"));
-    if (CpuArchs[2]) AddInternalVariable(S("_SSE3"),   S("1"));
-    if (CpuArchs[3]) AddInternalVariable(S("_SSE4"),   S("1"));
-    if (CpuArchs[4]) AddInternalVariable(S("_SSE4.1"), S("1"));
-    if (CpuArchs[5]) AddInternalVariable(S("_SSE4.2"), S("1"));
-    if (CpuArchs[6]) AddInternalVariable(S("_AVX"),    S("1"));
-    if (CpuArchs[7]) AddInternalVariable(S("_AVX2"),   S("1"));
-    if (CpuArchs[8]) AddInternalVariable(S("_AVX512"), S("1"));
-    if (CpuArchs[9]) AddInternalVariable(S("_FMA"),    S("1"));
+        String_Copy(&CpuVendor, CStrEx(vendor, 32));
+        AddInternalVariable(S("_CPUVendor"), CpuVendor);
+        AddInternalVariable(S("_CPU"), CpuVendor);
+        //LOG("CPU Vendor: %s\n", vendor);
+
+        if (String_Contains(CpuVendor, S("Intel"), false))
+        {
+            AddInternalVariable(S("_Intel"), S("1"));
+        }
+        else if (String_Contains(CpuVendor, S("AMD"), false))
+        {
+            AddInternalVariable(S("_AMD"), S("1"));
+        }
+
+        // Check for specific instruction sets
+        cpuid(info, 1);
+        int edx = info[3];
+        int ecx = info[2];
+
+        AddInternalVariable(S("_MMX"),    (edx & (1 << 23)) ? S("1") : S("0"));
+        AddInternalVariable(S("_SSE"),    (edx & (1 << 25)) ? S("1") : S("0"));
+        AddInternalVariable(S("_SSE2"),   (edx & (1 << 26)) ? S("1") : S("0"));
+        AddInternalVariable(S("_SSE3"),   (ecx & (1 << 0))  ? S("1") : S("0"));
+        AddInternalVariable(S("_SSSE3"),  (ecx & (1 << 9))  ? S("1") : S("0"));
+        AddInternalVariable(S("_SSE4"),   (ecx & (1 << 19)) ? S("1") : S("0"));
+        AddInternalVariable(S("_SSE4.1"), (ecx & (1 << 19)) ? S("1") : S("0"));
+        AddInternalVariable(S("_SSE4.2"), (ecx & (1 << 20)) ? S("1") : S("0"));
+        AddInternalVariable(S("_AES"),    (ecx & (1 << 25)) ? S("1") : S("0"));
+        AddInternalVariable(S("_AVX"),    (ecx & (1 << 28)) ? S("1") : S("0"));
+        AddInternalVariable(S("_FMA3"),   (ecx & (1 << 12)) ? S("1") : S("0"));
+
+        // Extended features
+        if (MaxSupportedIDs >= 7)
+        {
+            cpuid(info, 7);
+            const int ebx = info[1];
+            ecx = info[2];
+            edx = info[3];
+
+            AddInternalVariable(S("_AVX2"),        (ebx & (1 << 5))  ? S("1") : S("0"));
+            AddInternalVariable(S("_BMI1"),        (ebx & (1 << 3))  ? S("1") : S("0"));
+            AddInternalVariable(S("_BMI2"),        (ebx & (1 << 8))  ? S("1") : S("0"));
+            AddInternalVariable(S("_ADX"),         (ebx & (1 << 19)) ? S("1") : S("0"));
+            AddInternalVariable(S("_MPX"),         (ebx & (1 << 14)) ? S("1") : S("0"));
+            AddInternalVariable(S("_SHA"),         (ebx & (1 << 29)) ? S("1") : S("0"));
+            AddInternalVariable(S("_RDSEED"),      (ebx & (1 << 18)) ? S("1") : S("0"));
+            AddInternalVariable(S("_PREFETCHWT1"), (ebx & (1 << 0))  ? S("1") : S("0"));
+            AddInternalVariable(S("_RDPID"),       (ebx & (1 << 22)) ? S("1") : S("0"));
+            AddInternalVariable(S("_AVX512F"),     (ebx & (1 << 16)) ? S("1") : S("0"));
+            AddInternalVariable(S("_AVX512DQ"),    (ebx & (1 << 17)) ? S("1") : S("0"));
+            AddInternalVariable(S("_AVX512IFMA"),  (ebx & (1 << 21)) ? S("1") : S("0"));
+            AddInternalVariable(S("_AVX512PF"),    (ebx & (1 << 26)) ? S("1") : S("0"));
+            AddInternalVariable(S("_AVX512ER"),    (ebx & (1 << 27)) ? S("1") : S("0"));
+            AddInternalVariable(S("_AVX512CD"),    (ebx & (1 << 28)) ? S("1") : S("0"));
+            AddInternalVariable(S("_AVX512BW"),    (ebx & (1 << 30)) ? S("1") : S("0"));
+            AddInternalVariable(S("_AVX512VL"),    (ebx & (1 << 31)) ? S("1") : S("0"));
+            AddInternalVariable(S("_AVX512"),      (ebx & (1 << 16)) || (ebx & (1 << 17)) ||
+                                                   (ebx & (1 << 21)) || (ebx & (1 << 26)) ||
+                                                   (ebx & (1 << 27)) || (ebx & (1 << 28)) ||
+                                                   (ebx & (1 << 30)) || (ebx & (1 << 31)) ?
+                                                   S("1") : S("0"));
+
+            AddInternalVariable(S("_AVX512VBMI"),      (ecx & (1 << 1))  ? S("1") : S("0"));
+            AddInternalVariable(S("_AVX512VBMI2"),     (ecx & (1 << 6))  ? S("1") : S("0"));
+            AddInternalVariable(S("_GFNI"),            (ecx & (1 << 8))  ? S("1") : S("0"));
+            AddInternalVariable(S("_VAES"),            (ecx & (1 << 9))  ? S("1") : S("0"));
+            AddInternalVariable(S("_AVX512VPCLMUL"),   (ecx & (1 << 10)) ? S("1") : S("0"));
+            AddInternalVariable(S("_AVX512VNNI"),      (ecx & (1 << 11)) ? S("1") : S("0"));
+            AddInternalVariable(S("_AVX512BITALG"),    (ecx & (1 << 12)) ? S("1") : S("0"));
+            AddInternalVariable(S("_AVX512VPOPCNTDQ"), (ecx & (1 << 14)) ? S("1") : S("0"));
+            AddInternalVariable(S("_AVX5124VNNIW"),    (edx & (1 << 2))  ? S("1") : S("0"));
+            AddInternalVariable(S("_AVX5124FMAPS"),    (edx & (1 << 3))  ? S("1") : S("0"));
+        }
+    }
 
     StringLocal(AccountName, 256);
     Platform_GetAccountName(&AccountName);

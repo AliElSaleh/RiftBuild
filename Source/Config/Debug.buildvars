@@ -49,7 +49,7 @@ WarningErrorFlags
 
 SecurityFlags
 
-SharedCompilerFlags  /Od /TC
-SharedLinkerFlags    
+SharedCompilerFlags  /Od /TC /Zi /FS /Fd"$(BuildDirectory)\$(Assembly).pdb"
+SharedLinkerFlags    /DEBUG
 SharedDefines        DEVELOPER NO_PROFILING _GLIBCXX_ASSERTIONS _GLIBCXX_DEBUG _GLIBCXX_DEBUG_PEDANTIC _NO_CRT_STDIO_INLINE _DEBUG
 SharedIncludeFlags   Source/Core Source/Libraries/Vendor
