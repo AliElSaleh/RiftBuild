@@ -787,11 +787,6 @@ u32 Platform_GetNumLogicalProcessors(void)
 
 bool Platform_GetAccountName(String* OutName)
 {
-    return Platform_GetUserName(OutName);
-}
-
-bool Platform_GetUserName(String* OutName)
-{
     struct passwd pwd = {0};
     struct passwd* result = NULL;
     char Buffer[4096] = {0};
@@ -806,6 +801,36 @@ bool Platform_GetUserName(String* OutName)
     }
 
     String_Copy(OutName, CStr(pwd.pw_name));
+    return true;
+}
+
+bool Platform_GetUserName(String* OutName)
+{
+    struct passwd pwd = {0};
+    struct passwd* result = NULL;
+    char Buffer[4096] = {0};
+
+    getpwuid_r(getuid(), &pwd, Buffer, 4096, &result);
+    if (result == NULL)
+    {
+        StringLocal(Prefix, MAX_PATH_LENGTH);
+        String_Format(&Prefix, S("Failed to get user directory"), Prefix.Capacity);
+        LogLastError(Prefix);
+        return false;
+    }
+
+    const String Directory = CStrEx(pwd.pw_dir, MAX_PATH_LENGTH);
+
+    u32 LastSlash = 0;
+    if (String_IndexOfLastPathSlash(Directory, &LastSlash))
+    {
+	String_Copy(OutName, StrShiftF(Directory, LastSlash+1));
+    }
+    else
+    {
+	String_Copy(OutName, Directory);
+    }
+
     return true;
 }
 
@@ -1582,6 +1607,8 @@ bool Filesystem_ConvertRelativeToAbsolutePath(String* OutFullPath)
     StringLocal(Copy, MAX_PATH_LENGTH);
     String_Copy(&Copy, *OutFullPath);
 
+    bool bLastIsSeparator = OutFullPath->Data[OutFullPath->Length-1] == '/';
+
     char* Result = realpath(Copy.Data, OutFullPath->Data);
     if (Result == NULL)
     {
@@ -1592,6 +1619,9 @@ bool Filesystem_ConvertRelativeToAbsolutePath(String* OutFullPath)
     }
 
     OutFullPath->Length = String_GetLength_Ex(Result, MAX_PATH_LENGTH);
+
+    // realpath() doesnt append a '/' (even if the original string had that)
+    if (bLastIsSeparator) String_AppendPathSeparator_Checked(OutFullPath);
 
     return true;
 }
