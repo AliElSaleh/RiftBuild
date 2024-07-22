@@ -6731,6 +6731,11 @@ u32 RunApplication(const StringArray Arguments)
     AddInternalVariable(S("32-bit"), S(""));
     #endif
 
+    Uuid Uuid = UUID_Generate();
+    StringLocal(UuidString, 64);
+    UUID_ToString(Uuid, &UuidString);
+    AddInternalVariable(S("_UUID"), UuidString);
+
     bool CpuArchs[32] = {0};
 
     #if __SSE4_2__
