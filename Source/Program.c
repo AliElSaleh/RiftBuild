@@ -6772,10 +6772,12 @@ u32 RunApplication(const StringArray Arguments)
     StringLocal(AccountName, 256);
     Platform_GetAccountName(&AccountName);
     AddInternalVariable(S("_Account"), AccountName);
+    AddInternalVariable(S("_AccountName"), AccountName);
 
     StringLocal(UserName, 256);
     Platform_GetUserName(&UserName);
     AddInternalVariable(S("_User"), UserName);
+    AddInternalVariable(S("_UserName"), UserName);
 
     StringLocal(UserDirectory, MAX_PATH_LENGTH);
     Platform_GetUserDirectory(&UserDirectory);
