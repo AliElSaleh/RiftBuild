@@ -3016,7 +3016,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             if (!bAnyCompilerMatch)
             {
                 #ifndef HOOD
-                LOG_INLINE_ERROR("[ASSERTION FAILURE] %S can only be compiled with %S. Compiler found was \"%S\". Aborting build...\n\n", BuildFileName, CompilersLogString, CompilerProgram);
+                LOG_INLINE_ERROR("[ASSERTION FAILURE] %S can only be compiled with %S. First compiler found was \"%S\". Aborting build...\n\n", BuildFileName, CompilersLogString, CompilerProgram);
                 LOG("    This can be fixed by explicity providing the compiler name inside of %S", BuildFileName);
 
                 LOG("    For example:");
@@ -4174,7 +4174,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 if (!bAnyAssemblerMatch)
                 {
                     #ifndef HOOD
-                    LOG_INLINE_ERROR("[ASSERTION FAILURE] %S can only be compiled with %S. Assembler found was \"%S\". Aborting build...\n\n", BuildFileName, AssemblersLogString, AsmProgram);
+                    LOG_INLINE_ERROR("[ASSERTION FAILURE] %S can only be compiled with %S. First assembler found was \"%S\". Aborting build...\n\n", BuildFileName, AssemblersLogString, AsmProgram);
                     LOG("    This can be fixed by explicity providing the Assembler name inside of %S", BuildFileName);
 
                     LOG("    For example:");
