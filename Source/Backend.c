@@ -527,6 +527,13 @@ bool C_DoCompile(CompileData* Data, const String FullPath, const String Relative
 
 bool C_Link(const BuildParams* Params)
 {
+    if (NEVER(Params == NULL)) return false;
+
+    if (Params->Type == AssemblyType_PCH)
+    {
+        return true;
+    }
+
     StringLocal(SourceDir, MAX_PATH_LENGTH);
     String_BuildPath(&SourceDir, Params->RootDirectory, Params->SourceDirectory);
 

@@ -546,6 +546,7 @@ internal bool BuildFileDirectoryIterator_Args(const String FullPath, const Strin
     return true;
 }
 
+/*
 internal bool LibraryDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
     struct _blah_
@@ -594,6 +595,7 @@ internal bool LibraryDirectoryIterator(const String FullPath, const String Relat
 
     return true;
 }
+*/
 
 internal bool MultipleBuildFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
@@ -2632,12 +2634,14 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     const String Defines                    = GetVariableValue(ExpandedVariablesDB, S("Defines"));
     const String UnDefines                  = GetVariableValue(ExpandedVariablesDB, S("UnDefines"));
     const String LinkerDefines              = GetVariableValue(ExpandedVariablesDB, S("LinkerDefines"));
+    const String AssertCompilers            = GetVariableValue(ExpandedVariablesDB, S("AssertCompiler"));
+    const String AssertAssemblers           = GetVariableValue(ExpandedVariablesDB, S("AssertAssembler"));
     const String AssertPlatforms            = GetVariableValue(ExpandedVariablesDB, S("AssertPlatform"));
     const String AssertArchitecture         = GetVariableValue(ExpandedVariablesDB, S("AssertArchitecture"));
     const String AssertPrograms             = GetVariableValue(ExpandedVariablesDB, S("AssertProgramExists"));
     const String AssertEnvVars              = GetVariableValue(ExpandedVariablesDB, S("AssertEnvVarExists"));
     const String AssertBuildVars            = GetVariableValue(ExpandedVariablesDB, S("AssertBuildVarExists"));
-    const String AssertLibs                 = GetVariableValue(ExpandedVariablesDB, S("AssertLibExists"));
+    //const String AssertLibs                 = GetVariableValue(ExpandedVariablesDB, S("AssertLibExists"));
     String AssertWorkingDirectory           = GetVariableValue(ExpandedVariablesDB, S("AssertWorkingDirectory"));
     String IncludedSourceFiles              = GetVariableValue(ExpandedVariablesDB, S("IncludedSourceFiles"));
     String ExcludedSourceFiles              = GetVariableValue(ExpandedVariablesDB, S("ExcludedSourceFiles"));
@@ -2971,6 +2975,74 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         StringArray BuildVarsArray     = String_ParseIntoArray(&Scratch, AssertBuildVars, ' ', 0, 128);
         StringArray PlatformsArray     = String_ParseIntoArray(&Scratch, AssertPlatforms, ' ', 0, 128);
         StringArray ArchitecturesArray = String_ParseIntoArray(&Scratch, AssertArchitecture, ' ', 0, 128);
+        StringArray CompilersArray     = String_ParseIntoArray(&Scratch, AssertCompilers, ' ', 0, 128);
+
+        if (CompilersArray.Num > 0)
+        {
+            bool bAnyCompilerMatch = false;
+            for each_str (S, CompilersArray)
+            {
+                String Trimmed = String_EatSpaces(*S);
+
+                if (String_IsEqual(Trimmed, CompilerProgram, false) ||
+                    String_IsEqual(Trimmed, CompilerPath, false))
+                {
+                    bAnyCompilerMatch = true;
+                    break;
+                }
+            }
+
+            StringLocal(CompilersLogString, 128);
+            {
+                u8 i = 0;
+                for each_str_i (i, a, CompilersArray)
+                {
+                    String_Append(&CompilersLogString, *a);
+                    if (CompilersArray.Num > 1 && i != CompilersArray.Num-1)
+                    {
+                        if (i == CompilersArray.Num-2)
+                        {
+                            String_Append(&CompilersLogString, S(" and "));
+                        }
+                        else
+                        {
+                            String_AppendChar (&CompilersLogString, ',');
+                            String_AppendSpace(&CompilersLogString);
+                        }
+                    }
+                }
+            }
+
+            if (!bAnyCompilerMatch)
+            {
+                #ifndef HOOD
+                LOG_INLINE_ERROR("[ASSERTION FAILURE] %S can only be compiled with %S. Compiler found was \"%S\". Aborting build...\n\n", BuildFileName, CompilersLogString, CompilerProgram);
+                LOG("    This can be fixed by explicity providing the compiler name inside of %S", BuildFileName);
+
+                LOG("    For example:");
+                {
+                    u8 i = 0;
+                    for each_str_i (i, a, CompilersArray)
+                    {
+                        if (i > 0)
+                            LOG("      or Compiler %S", *a);
+                        else
+                            LOG("         Compiler %S", *a);
+                    }
+                }
+
+                #else
+                LOG_ERROR("yo dis compiler program \"%S\" cant be used cuh", CompilerProgram);
+                #endif
+
+                if (LogCustomErrorMessage(ExpandedVariablesDB, S("Compiler"), CompilerProgram, false))
+                {
+                    LOG_LINE_BREAK();
+                }
+
+                return 1;
+            }
+        }
 
         for each_str (S, ProgramsArray)
         {
@@ -3481,6 +3553,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     // assert libraries exist
     if (!bIsClean)
     {
+        /*
         LinearAllocator Scratch = *Arena;
         // TODO: support native libraries. windows kits, msvc lib paths, etc
         StringArray LibsArray = String_ParseIntoArray(&Scratch, AssertLibs, ' ', 0, 128);
@@ -3623,6 +3696,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 return 1;
             }
         }
+        */
     }
 
     String SourceDirectory       = GetVariableValue(ExpandedVariablesDB, S("SourceDirectory"));
@@ -3967,15 +4041,31 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
         if (!bCompilerProgramFound && bNoAsmCompilerProgramExplicityGiven)
         {
-            const String AsmPrograms[] =
+            const String AsmPrograms_Default[] =
             {
                 S("nasm"),
                 S("yasm"),
-                S("ml"),
-                S("ml64")
             };
 
-            for (u8 i = 0; i < SArray_Capacity(AsmPrograms); i++)
+            const String AsmPrograms_MSVC[] =
+            {
+                S("ml64"),
+                S("ml"),
+                S("nasm"),
+                S("yasm"),
+            };
+
+            const String* AsmPrograms = AsmPrograms_Default;
+            u32 Num = SArray_Capacity(AsmPrograms_Default);
+
+            if (String_IsEqual(CompilerProgram, S("cl"), false) ||
+                String_IsEqual(CompilerProgram, S("msvc"), false))
+            {
+                AsmPrograms = AsmPrograms_MSVC;
+                Num = SArray_Capacity(AsmPrograms_MSVC);
+            }
+
+            for (u8 i = 0; i < Num; i++)
             {
                 const bool bFound = Platform_FindProgram_Ex(AsmPrograms[i], &AsmCompilerPath);
                 if (bFound)
@@ -4040,6 +4130,77 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             #endif
 
             return 1;
+        }
+        
+        {
+            LinearAllocator Scratch = *Arena;
+            StringArray AssemblersArray    = String_ParseIntoArray(&Scratch, AssertAssemblers, ' ', 0, 128);
+            if (AssemblersArray.Num > 0)
+            {
+                bool bAnyAssemblerMatch = false;
+                for each_str (S, AssemblersArray)
+                {
+                    String Trimmed = String_EatSpaces(*S);
+
+                    // todo: asm path
+                    if (String_IsEqual(Trimmed, AsmProgram, false))
+                    {
+                        bAnyAssemblerMatch = true;
+                        break;
+                    }
+                }
+
+                StringLocal(AssemblersLogString, 128);
+                {
+                    u8 i = 0;
+                    for each_str_i (i, a, AssemblersArray)
+                    {
+                        String_Append(&AssemblersLogString, *a);
+                        if (AssemblersArray.Num > 1 && i != AssemblersArray.Num-1)
+                        {
+                            if (i == AssemblersArray.Num-2)
+                            {
+                                String_Append(&AssemblersLogString, S(" and "));
+                            }
+                            else
+                            {
+                                String_AppendChar (&AssemblersLogString, ',');
+                                String_AppendSpace(&AssemblersLogString);
+                            }
+                        }
+                    }
+                }
+
+                if (!bAnyAssemblerMatch)
+                {
+                    #ifndef HOOD
+                    LOG_INLINE_ERROR("[ASSERTION FAILURE] %S can only be compiled with %S. Assembler found was \"%S\". Aborting build...\n\n", BuildFileName, AssemblersLogString, AsmProgram);
+                    LOG("    This can be fixed by explicity providing the Assembler name inside of %S", BuildFileName);
+
+                    LOG("    For example:");
+                    {
+                        u8 i = 0;
+                        for each_str_i (i, a, AssemblersArray)
+                        {
+                            if (i > 0)
+                                LOG("      or Assembler %S", *a);
+                            else
+                                LOG("         Assembler %S", *a);
+                        }
+                    }
+
+                    #else
+                    LOG_ERROR("yo dis assembler program \"%S\" cant be used cuh", AssemblerProgram);
+                    #endif
+
+                    if (LogCustomErrorMessage(ExpandedVariablesDB, S("Assembler"), AsmProgram, false))
+                    {
+                        LOG_LINE_BREAK();
+                    }
+
+                    return 1;
+                }
+            }
         }
     }
 
