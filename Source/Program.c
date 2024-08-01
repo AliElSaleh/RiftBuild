@@ -1196,14 +1196,13 @@ internal bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const Stri
 
 internal void Internal_RemoveBuildVariable(TArray(FileVariable) VariablesDB, const String Name)
 {
-Loop:
     u32 i = 0;
     for each_i (i, FileVariable, Var, VariablesDB)
     {
         if (String_IsEqual(Var.Name, Name, false))
         {
             Array_RemoveAt(VariablesDB, NULL, i);
-            goto Loop;
+            break;
         }
     }
 }
