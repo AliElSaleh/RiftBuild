@@ -1177,11 +1177,11 @@ bool MSVC_Link(const BuildParams* Params)
     String_BuildPath(&BuildPath, Params->RootDirectory, Params->BuildDirectory);
     String_AppendPathSeparator(&BuildPath);
 
-    StringLocal(CmdLine, UINT16_MAX);
-
     bool bIsExe = Params->Type == AssemblyType_Executable;
     bool bIsDLL = Params->Type == AssemblyType_Library || Params->Type == AssemblyType_DynamicLibrary;
     bool bIsLib = Params->Type == AssemblyType_Library || Params->Type == AssemblyType_StaticLibrary;
+
+    StringLocal(CmdLine, UINT16_MAX);
 
     if (bIsExe || bIsDLL)
     {
@@ -1198,54 +1198,94 @@ bool MSVC_Link(const BuildParams* Params)
 
         String_EatSpacesInlineFromEnd(&CmdLine);
         String_Concat(&CmdLine, S(" /OUT:\""), BuildPath, Params->AssemblyWithExt, S("\"")); // make this first then the flags?
+
+        if (bQuietBuild) Logging_Enable();
+
+        LOG("\nLinking %S", Params->AssemblyWithExt);
+
+        if (bQuietBuild) Logging_Disable();
+
+        if (Params->bVerbose)
+        {
+            if (bNoWordWrapLogging)
+            {
+                LOG("    %S", CmdLine);
+            }
+            else
+            {
+                LogString_WordWrapped(*Params->Arena, S("    "), CmdLine, false);
+            }
+        }
+
+        PlatformHandle Handle = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
+        u32 ExitCode = Platform_WaitForProcessAndGetExitCode(Handle);
+        if (ExitCode != 0)
+        {
+            #ifndef HOOD
+            LOG_ERROR("Linker errors detected. See above errors to fix. Exit code for process: %u. Aborting build...", ExitCode);
+            #else
+            LOG_ERROR("seen some linker errors homie. fix yo shit up, something aint linkin' right");
+            #endif
+            
+            return false;
+        }
     }
     
     if (bIsLib)
     {
         String_Empty(&CmdLine);
-        String_Append(&CmdLine, S("lib /nologo /OUT:\""));
-
-        String_Append(&CmdLine, BuildPath);
-        String_Append(&CmdLine, Params->Assembly);
-        
-        String_Append(&CmdLine, S(".lib\" "));
+        String_Append(&CmdLine, S("lib /nologo "));
 
         String_BuildSeparator(&CmdLine, ' ', Params->Libraries, Params->LibraryDirectories, Params->VersionResFilePath);
         String_AppendSpace(&CmdLine);
 
         LinkData Data = { Params, &CmdLine };
         Filesystem_IterateDirectory_Ex(SourceDir, Link_SourceFileDirectoryIterator_MSVC, true, &Data);
-    }
 
-    if (bQuietBuild) Logging_Enable();
+        String_Append(&CmdLine, S("/OUT:\""));
+        String_Append(&CmdLine, BuildPath);
 
-    LOG("\nLinking %S%S", Params->Assembly, Params->Extension);
+        StringLocal(LibFile, MAX_PATH_LENGTH);
+        String_Append(&LibFile, Params->Assembly);
 
-    if (bQuietBuild) Logging_Disable();
-
-    if (Params->bVerbose)
-    {
-        if (bNoWordWrapLogging)
-        {
-            LOG("    %S", CmdLine);
-        }
-        else
-        {
-            LogString_WordWrapped(*Params->Arena, S("    "), CmdLine, false);
-        }
-    }
-
-    PlatformHandle Handle = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
-    u32 ExitCode = Platform_WaitForProcessAndGetExitCode(Handle);
-    if (ExitCode != 0)
-    {
-        #ifndef HOOD
-        LOG_ERROR("Compiler errors detected. See above errors to fix. Exit code for process: %u. Aborting build...", ExitCode);
-        #else
-        LOG_ERROR("seen some compiler errors homie. fix yo shit up, something aint linkin' right");
-        #endif
+        if (Params->Type == AssemblyType_Library)
+            String_Append(&LibFile, S("S"));
         
-        return false;
+        String_Append(&LibFile, S(".lib"));
+
+        String_Append(&CmdLine, LibFile);
+        String_AppendChar(&CmdLine, '"');
+
+        if (bQuietBuild) Logging_Enable();
+
+        LOG("\nLinking %S [static]", LibFile);
+
+        if (bQuietBuild) Logging_Disable();
+
+        if (Params->bVerbose)
+        {
+            if (bNoWordWrapLogging)
+            {
+                LOG("    %S", CmdLine);
+            }
+            else
+            {
+                LogString_WordWrapped(*Params->Arena, S("    "), CmdLine, false);
+            }
+        }
+
+        PlatformHandle Handle = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
+        u32 ExitCode = Platform_WaitForProcessAndGetExitCode(Handle);
+        if (ExitCode != 0)
+        {
+            #ifndef HOOD
+            LOG_ERROR("Linker errors detected. See above errors to fix. Exit code for process: %u. Aborting build...", ExitCode);
+            #else
+            LOG_ERROR("seen some linker errors homie. fix yo shit up, something aint linkin' right");
+            #endif
+            
+            return false;
+        }
     }
 
     // generate a .def file if we are building a dll file
@@ -1263,14 +1303,14 @@ bool MSVC_Link(const BuildParams* Params)
         String_Append(&CmdLine, S(".dll\""));
 
         PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
-        ExitCode = Platform_WaitForProcessAndGetExitCode(H);
+        u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
 
         if (ExitCode != 0)
         {
             #ifndef HOOD
             LOG_ERROR("Dumpbin errors detected. See above errors to fix. Aborting build...");
             #else
-            LOG_ERROR("seen some dump bin errors homie. fix yo shit up, something aint right");
+            LOG_ERROR("seen some dumpbin errors homie. fix yo shit up, something aint right");
             #endif
             return false;
         }
@@ -1279,6 +1319,6 @@ bool MSVC_Link(const BuildParams* Params)
     return true;
 }
 #else
-bool MSVC_Compile(const BuildParams* Params, u32* OutNumCompiled) { return false; }
-bool MSVC_Link(const BuildParams* Params) { return false; }
+bool MSVC_Compile(const BuildParams* Params, u32* OutNumCompiled) { return true; }
+bool MSVC_Link(const BuildParams* Params) { return true; }
 #endif // PLATFORM_WINDOWS

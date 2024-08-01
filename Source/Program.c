@@ -1194,6 +1194,26 @@ internal bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const Stri
     return true;
 }
 
+internal void Internal_RemoveBuildVariable(TArray(FileVariable) VariablesDB, const String Name)
+{
+Loop:
+    u32 i = 0;
+    for each_i (i, FileVariable, Var, VariablesDB)
+    {
+        if (String_IsEqual(Var.Name, Name, false))
+        {
+            Array_RemoveAt(VariablesDB, NULL, i);
+            goto Loop;
+        }
+    }
+}
+
+internal void Internal_AddOrUpdateBuildVariable(TArray(FileVariable) VariablesDB, FileVariable Expanded)
+{
+    Internal_RemoveBuildVariable(VariablesDB, Expanded.Name);
+    Array_Add(VariablesDB, Expanded);
+}
+
 internal void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const FileHandle BuildFileHandle, TArray(FileVariable) VariablesDB, TArray(FileVariable) ExpandedVariablesDB)
 {
     if (!DoesBuildVarExist(VariablesDB, S("Assembly")))
@@ -1248,8 +1268,6 @@ internal void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const Fi
             #else
                 Extension = S(".so .a");
             #endif
-
-            Expanded.Value = Extension;
         }
         else if (String_IsEqual(Type, S("static_lib"), false) ||
                  String_IsEqual(Type, S("static_library"), false))
@@ -1261,8 +1279,6 @@ internal void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const Fi
             #else
                 Extension = S(".a");
             #endif
-
-            Expanded.Value = Extension;
         }
         else if (String_IsEqual(Type, S("shared_lib"), false) ||
                  String_IsEqual(Type, S("shared_library"), false) ||
@@ -1276,8 +1292,6 @@ internal void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const Fi
             #else
                 Extension = S(".so");
             #endif
-
-            Expanded.Value = Extension;
         }
         else if (String_IsEqual(Type, S("app"), false) ||
                  String_IsEqual(Type, S("application"), false) ||
@@ -1291,16 +1305,14 @@ internal void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const Fi
             #else
                 Extension = S("");
             #endif
-
-            Expanded.Value = Extension;
         }
         else if (String_IsEqual(Type, S("pch"), false) ||
                  String_IsEqual(Type, S("pre_compiled_header"), false))
         {
             Extension = S(".pch");
-
-            Expanded.Value = Extension;
         }
+
+        Expanded.Value = Extension;
 
         Array_Add(VariablesDB, Expanded);
         Array_Add(ExpandedVariablesDB, Expanded);
@@ -1399,11 +1411,14 @@ internal void AddInternalVariable(const String Name, const String Value)
     Array_Add(InternalVariablesDB, c);
 }
 
-internal void CheckForBuildVariableOverrides(TArray(FileVariable) VariablesDB, TArray(FileVariable) ExpandedVariablesDB, TArray(CmdOption) CmdOptionsDB)
+internal bool CheckForBuildVariableOverrides(TArray(FileVariable) VariablesDB, TArray(FileVariable) ExpandedVariablesDB, TArray(CmdOption) CmdOptionsDB)
 {
+    bool bAnyOverriden = false;
+
     // check if the user wants to override a build variable
     for each (CmdOption, o, CmdOptionsDB)
     {
+        bool bOverriden = false;
         if (String_StartsWith(o.Name, S("override:"), false))
         {
             String VarToOverride = StrShiftF(o.Name, 9);
@@ -1412,8 +1427,10 @@ internal void CheckForBuildVariableOverrides(TArray(FileVariable) VariablesDB, T
             {
                 if (String_IsEqual(Var.Name, VarToOverride, false))
                 {
-                    LOG("Overriding build variable \"%S\" from \"%S\" to \"%S\"", Var.Name, Var.Value, o.Value);
+                    LOG("Overriding existing variable \"%S\" from \"%S\" to \"%S\"", Var.Name, Var.Value, o.Value);
                     Var_->Value = o.Value;
+                    bOverriden = true;
+                    bAnyOverriden = true;
                     break;
                 }
             }
@@ -1424,11 +1441,32 @@ internal void CheckForBuildVariableOverrides(TArray(FileVariable) VariablesDB, T
                 if (String_IsEqual(Var.Name, VarToOverride, false))
                 {
                     Var_->Value = o.Value;
+                    bOverriden = true;
+                    bAnyOverriden = true;
                     break;
                 }
             }
+
+            // add it if not found
+            if (!bOverriden)
+            {
+                LOG("New override: \"%S\" = \"%S\"", VarToOverride, o.Value);
+
+                FileVariable NewOverride;
+                NewOverride.Name = VarToOverride;
+                NewOverride.Value = o.Value;
+                NewOverride.bHasSpecial = false;
+
+                Internal_AddOrUpdateBuildVariable(VariablesDB, NewOverride);
+                Internal_AddOrUpdateBuildVariable(ExpandedVariablesDB, NewOverride);
+
+                bOverriden = true;
+                bAnyOverriden = true;
+            }
         }
     }
+
+    return bAnyOverriden;
 }
 
 void LogPathEnvVarTutorialSteps(void)
@@ -2218,6 +2256,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
     Clock BuildFileParseClock = {0};
 
+    bool bAnyVarsOverriden = false;
+
     if (bFoundBuildFile)
     {
         Clock_Start(&BuildFileParseClock);
@@ -2228,7 +2268,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             return 1;
         }
 
-        CheckForBuildVariableOverrides(VariablesDB, ExpandedVariablesDB, CmdOptionsDB);
+        bAnyVarsOverriden = CheckForBuildVariableOverrides(VariablesDB, ExpandedVariablesDB, CmdOptionsDB);
 
         // first expand Type and Extension. so on linux we can tell if its an assembly exe and not a library
         for each (FileVariable, v, VariablesDB)
@@ -2361,8 +2401,10 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         #endif
 
         // set defaults for a few key build variables
+        bool bAnyOverriden = CheckForBuildVariableOverrides(VariablesDB, ExpandedVariablesDB, CmdOptionsDB);
         Internal_SetDefaultBuildVariables(Arena, BuildFileHandle, VariablesDB, ExpandedVariablesDB);
-        CheckForBuildVariableOverrides(VariablesDB, ExpandedVariablesDB, CmdOptionsDB);
+
+        if (!bAnyVarsOverriden) bAnyVarsOverriden = bAnyOverriden;
 
         // try expand Version (if it exists)
         if (bDoesVersionVarExist)
@@ -2561,8 +2603,15 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
         // set defaults for a few key build variables
         FileHandle f = {0};
+        bool bAnyOverriden = CheckForBuildVariableOverrides(VariablesDB, ExpandedVariablesDB, CmdOptionsDB);
         Internal_SetDefaultBuildVariables(Arena, f, VariablesDB, ExpandedVariablesDB);
-        CheckForBuildVariableOverrides(VariablesDB, ExpandedVariablesDB, CmdOptionsDB);
+
+        if (!bAnyVarsOverriden) bAnyVarsOverriden = bAnyOverriden;
+    }
+
+    if (bAnyVarsOverriden)
+    {
+        LOG_LINE_BREAK();
     }
 
     // build file variable listing feature. list:all or list:varname
@@ -2670,8 +2719,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     const bool bRunPostBuildWhenWorkWasDone = String_ToBool(GetVariableValue(ExpandedVariablesDB, S("RunPostBuildOnChange")));
 
     #if PLATFORM_APPLE
-    const bool bBundleApp                   = DoesBuildVarExist(VariablesDB, S("Bundle"));
-    const bool bBundleAppIsTerminal         = DoesBuildVarExist(VariablesDB, S("Bundle.IsTerminal"));
+    const bool bBundleApp                   = DoesBuildVarExist(ExpandedVariablesDB, S("Bundle"));
+    const bool bBundleAppIsTerminal         = DoesBuildVarExist(ExpandedVariablesDB, S("Bundle.IsTerminal"));
     #endif
 
     bShouldWaitPerCompileProcess = bSingleThread;
@@ -2771,20 +2820,20 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             {
                 if (!bHasDynamicLib)
                 {
-                    bHasDynamicLib = String_IsEqual(*e, S(".dll"), false) ||
-                                     String_IsEqual(*e, S(".so"), false) ||
-                                     String_IsEqual(*e, S(".dylib"), false);
+                    bHasDynamicLib = String_EndsWith(*e, S("dll"), false) ||
+                                     String_EndsWith(*e, S("so"), false) ||
+                                     String_EndsWith(*e, S("dylib"), false);
                 }
 
                 if (!bHasStaticLib)
                 {
-                    bHasStaticLib = String_IsEqual(*e, S(".lib"), false) ||
-                                    String_IsEqual(*e, S(".a"), false);
+                    bHasStaticLib = String_EndsWith(*e, S("lib"), false) ||
+                                    String_EndsWith(*e, S("a"), false);
                 }
 
                 if (!bHasPCH)
                 {
-                    bHasPCH = String_IsEqual(*e, S(".pch"), false);
+                    bHasPCH = String_EndsWith(*e, S("pch"), false);
                 }
             }
 
@@ -2803,6 +2852,10 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             else if (bHasPCH)
             {
                 AssemblyType = AssemblyType_PCH;
+            }
+            else
+            {
+                AssemblyType = AssemblyType_Executable;
             }
         }
     }
@@ -4284,7 +4337,9 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     String_Copy(&AssemblyNameWithExt, AssemblyName);
     if (Extension.Length > 0)
     {
-        //String_AppendChar(&AssemblyNameWithExt, '.');
+        if (Extension.Data[0] != '.')
+            String_AppendChar(&AssemblyNameWithExt, '.');
+
         String_Append(&AssemblyNameWithExt, Extension);
     }
 
@@ -4983,7 +5038,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             else
             {
                 String NextExt = StrShiftF(Extension_Og, WhitespaceIndex+1);
-                LOG("Building %S and %S%S [%S] (%u %S) (with %u %S max)\n", AssemblyNameWithExt, AssemblyName, NextExt, S(CPU_ARCHITECTURE_STRING), CountData.NumSources, CountData.NumSources == 1 ? S("source file") : S("source files"), MaxCompilersAtOnce, MaxCompilersAtOnce == 1 ? S("core") : S("cores"));
+                LOG("Building %S/%S [%S] (%u %S) (with %u %S max)\n", AssemblyNameWithExt, NextExt, S(CPU_ARCHITECTURE_STRING), CountData.NumSources, CountData.NumSources == 1 ? S("source file") : S("source files"), MaxCompilersAtOnce, MaxCompilersAtOnce == 1 ? S("core") : S("cores"));
             }
             #else
             if (bIsAssemblyExe || !bHasSpace)
@@ -6946,6 +7001,9 @@ u32 RunApplication(const StringArray Arguments)
         cpuid(info, 1);
         int edx = info[3];
         int ecx = info[2];
+
+
+        // todo: neon??
 
         AddInternalVariable(S("_MMX"),    (edx & (1 << 23)) ? S("1") : S("0"));
         AddInternalVariable(S("_SSE"),    (edx & (1 << 25)) ? S("1") : S("0"));
