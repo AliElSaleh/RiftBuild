@@ -290,7 +290,7 @@ typedef void VoidFunc(void);
         #endif
     #endif
 #else
-    #define RIFT_API
+    #define RIFT_API extern
 #endif // RIFT_STATIC
 
         
@@ -382,8 +382,10 @@ RIFT_API void* MemoryDump(void);
 
 #ifndef ENGINE_GLOBALS
 #define ENGINE_GLOBALS
-global void* nullptr_z; // points to the engine memory dump
-#define nullptr nullptr_z
+    #ifndef __cplusplus
+    global void* nullptr_z; // points to the engine memory dump
+    #define nullptr nullptr_z
+    #endif
 #endif
 
 #if DEVELOPER

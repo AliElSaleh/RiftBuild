@@ -1,7 +1,8 @@
 if debug Mode Debug else Mode Dist
 include Source/Config/$(Mode).buildvars
 
-Compiler                %%cl %%gcc %%clang
+Compiler                %%clang %%gcc %%cl
+AssertCompiler          clang gcc cl
 
 Assembly                RiftBuild
 Icon                    riftbuild
@@ -29,7 +30,7 @@ if linux                IncludedSourceFiles Platform_Linux.c
 if mac                  IncludedSourceFiles Platform_Mac.c
 if bsd                  IncludedSourceFiles Platform_BSD.c
 
-if mac                  CompilerFlags -mmacosx-version-min=10.5
+if mac                  CompilerFlags -mmacosx-version-min=10.10
 
 if !cl if !gcc          CompilerFlags -mstack-probe-size=999999999
 if gcc                  CompilerFlags -mno-stack-arg-probe
@@ -44,8 +45,8 @@ if windows {
     if cl               LinkerFlags   /ENTRY:ProgramStart /SUBSYSTEM:CONSOLE /STACK:0x400000,0x400000
 }
 
-if windows              Libraries %_NativeLibs
-if linux                Libraries uuidS pthread ; LibraryDirectories Source/Libraries/Linux
+if windows              Libraries %_NativeLibs microsoft_craziness ; LibraryDirectories Source/Libraries/Windows
+if linux                Libraries uuidS pthread                    ; LibraryDirectories Source/Libraries/Linux
 if bsd                  Libraries pthread
 
 if linux {
@@ -53,3 +54,32 @@ if linux {
     if @XDG_CURRENT_DESKTOP contains KDE      Defines __kde__
     if @XDG_CURRENT_DESKTOP contains Cinnamon Defines __cinnamon__
 }
+
+##
+yo   %_cpu
+yo2  %_cpuvendor
+SSE4 %_sse4
+FMA3 %_fma3
+SHA  %_sha
+AES  %_aes
+AVX512  %_avx512
+MPX  %_mpx
+VAES  %_vaes
+GFNI  %_gfni
+
+
+
+if !cl                  CompilerFlags:disassemble,$mode -S
+
+CompilerFlags:windows.clang -nostdlib -fno-builtin -ffreestanding
+LinkerFlags:windows,clang   -nostdlib -Wl,-entry:ProgramStart,-subsystem:console -Xlinker /stack:0x400000,0x400000
+LinkerFlags:windows.gcc     -nostdlib -Wl,--entry,ProgramStart,--subsystem,console,--stack,0x400000
+LinkerFlags:windows.msvc    /ENTRY:ProgramStart /SUBSYSTEM:CONSOLE /STACK:0x400000,0x400000
+
+Libraries:windows       %_nativelibs
+Libraries:linux         uuidS pthread
+Libaries:bsd            pthread
+
+Libaries:bsd:x64|arm64:gcc something
+Libaries:bsd:x64 arm64:gcc something
+Libaries:bsd:x64      :gcc blah

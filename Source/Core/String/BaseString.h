@@ -44,23 +44,23 @@ RIFT_API bool StringList_IsValid(const StringList Str);
 #define StringN(n)  		                struct { char Data[n]; u32 Length; u32 Capacity; }
 
 #define StringLocal(Name, n) 	            char  MACRO_VAR(CONCAT(Buffer_, Name))[n] = {0}; String   Name; Name.Data = MACRO_VAR(CONCAT(Buffer_, Name)); Name.Length = 0; Name.Capacity = (n)-1
-#define String16Local(Name, n) 	            wchar MACRO_VAR(CONCAT(Buffer_, Name))[n] = {0}; String16 Name = {.Data = MACRO_VAR(CONCAT(Buffer_, Name)), .Length = 0, .Capacity = (n)-1 }
+#define String16Local(Name, n) 	            wchar MACRO_VAR(CONCAT(Buffer_, Name))[n] = {0}; String16 Name; Name.Data = MACRO_VAR(CONCAT(Buffer_, Name)), Name.Length = 0, Name.Capacity = (n)-1
 
-#define CStr(s)                             (String)         {.Length = String_GetLength(s),       .Data = (char* )(s), .Capacity = 0}
-#define CStrEx(s, n)                        (String)         {.Length = String_GetLength_Ex(s, n), .Data = (char* )(s), .Capacity = 0}
-#define CStrView(s)                         (const String)   {.Length = String_GetLength(s),       .Data = (char* )(s), .Capacity = 0}
-#define CStr16(s)                           (String16)       {.Length = String16_GetLength(s),     .Data = (wchar*)(s), .Capacity = 0}
-#define CStr16View(s)                       (const String16) {.Length = String16_GetLength(s),     .Data = (wchar*)(s), .Capacity = 0}
+#define CStr(s)                             (String)         {.Data = (char* )(s), .Length = String_GetLength(s),       .Capacity = 0}
+#define CStrEx(s, n)                        (String)         {.Data = (char* )(s), .Length = String_GetLength_Ex(s, n), .Capacity = 0}
+#define CStrView(s)                         (const String)   {.Data = (char* )(s), .Length = String_GetLength(s),       .Capacity = 0}
+#define CStr16(s)                           (String16)       {.Data = (wchar*)(s), .Length = String16_GetLength((wchar*)(s)),     .Capacity = 0}
+#define CStr16View(s)                       (const String16) {.Data = (wchar*)(s), .Length = String16_GetLength(s),     .Capacity = 0}
 
-#define S(s)                                (const String)   {.Length = sizeof((s))-1, .Data = (char* )((s)), .Capacity = sizeof((s))-1}
-#define SC(s)                                                {.Length = sizeof((s))-1, .Data = (char* )((s)), .Capacity = sizeof((s))-1}
-#define S16(s)                              (const String16) {.Length = sizeof((s))-1, .Data = (wchar*)((s)), .Capacity = sizeof((s))-1}
+#define S(s)                                (const String)   {.Data = (char* )((s)), .Length = sizeof((s))-1, .Capacity = sizeof((s))-1}
+#define SC(s)                                                {.Data = (char* )((s)), .Length = sizeof((s))-1, .Capacity = sizeof((s))-1}
+#define S16(s)                              (const String16) {.Data = (wchar*)((s)), .Length = sizeof((s))-1, .Capacity = sizeof((s))-1}
 
-#define StrMake(s)                          (String){.Length = (s).Length, .Data = (s).Data, .Capacity = (s).Capacity}
-#define StrView(s)                          (const String){.Length = (s).Length, .Data = (char*)(s).Data, .Capacity = (s).Capacity}
-#define Str16Slice(s, Len)                  (String16){.Length = Len, .Data = (wchar*)(s), .Capacity = Len}
+#define StrMake(s)                          (String)         {.Data = (s).Data,        .Length = (s).Length, .Capacity = (s).Capacity}
+#define StrView(s)                          (const String)   {.Data = (char*)(s).Data, .Length = (s).Length, .Capacity = (s).Capacity}
+#define Str16Slice(s, Len)                  (String16)       {.Data = (wchar*)(s),     .Length = Len,        .Capacity = Len}
 
-#define StrArray(...)                       (StringArray){.List = ((String[]){__VA_ARGS__}), .Num = SArray_Capacity(((String[]){__VA_ARGS__}))}
+#define StrArray(...)                       (StringArray)    {.List = ((String[]){__VA_ARGS__}), .Num = SArray_Capacity(((String[]){__VA_ARGS__}))}
 
 #define StrFormat                           "%.*s"
 #define StrArg(s)                           (i32)(s).Length, (s).Data

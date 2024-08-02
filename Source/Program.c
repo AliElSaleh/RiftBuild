@@ -18,6 +18,10 @@ usize GEngineScratchAmount = 0;
     #endif
 #endif
 
+#if PLATFORM_WINDOWS
+#include "microsoft_craziness.h"
+#endif
+
 TArray(InternalVariable) InternalVariablesDB = NULL;
 bool bQuietBuild = false;
 bool bNoWordWrapLogging = false;
@@ -2254,6 +2258,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     #endif
 
     Clock BuildFileParseClock = {0};
+    Clock MSVCInitClock = {0};
 
     bool bAnyVarsOverriden = false;
 
@@ -2870,7 +2875,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
     StringLocal(CompilerPath, MAX_PATH_LENGTH);
 
-    bool bExplicitProgramPath = false;
+    bool bExplicitCompilerPath = false;
     if (String_IndexOfFirstPathSlash(CompilerProgram, NULL))
     {
         StringLocal(CompilerPathCopy, MAX_PATH_LENGTH);
@@ -2886,7 +2891,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
         if (Filesystem_DoesFileExist(CompilerPathCopy))
         {
-            bExplicitProgramPath = true;
+            bExplicitCompilerPath = true;
             String_Copy(&CompilerPath, CompilerPathCopy);
         }
         else
@@ -2897,7 +2902,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     }
 
     // does the compiler program exist on the user's machine
-    if (!bExplicitProgramPath)
+    if (!bExplicitCompilerPath)
     {
         bool bCompilerProgramFound = Platform_FindProgram_Ex(CompilerProgram, &CompilerPath);
 
@@ -2955,16 +2960,178 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             if (String_IsEqual(CompilerProgram, S("cl"), false))
             {
                 #if PLATFORM_WINDOWS
-                LOG_ERROR("Compiler program \"%S\" does not exist. Aborting build...", CompilerProgram);
-                
-                LOG("\n    Make sure that you have the Visual Studio build tools installed and "
-                    "\n    that you run riftbuild from a different terminal application named"
-                    "\n    \"x64 (or x86) Native Tools Command Prompt for VS\".");
+                const bool bShowExtraInfo = StringArray_Contains(Parameters, S("--help-msvc-init"), false);
 
-                LOG("\n    This can be found through Windows Search.");
-                #else
-                LOG_ERROR("Compiler program \"cl\" does not exist on non-Windows platforms. Use a different compiler. Aborting build...");
+                LOG("Initializing MSVC environment... %S\n", !bShowExtraInfo ? S("[--help-msvc-init for more info]") : String_Null());
+
+                Clock_Start(&MSVCInitClock);
+
+                GMSVCFindAllocator = *Arena;
+
+                Find_Result MSVC_SDK_Result = {0};
+                MSVC_SDK_Result.allocate = MSVC_Find_Allocate;
+                MSVC_SDK_Result.release  = MSVC_Find_Release;
+                find_visual_studio_and_windows_sdk(&MSVC_SDK_Result);
+
+                if (bShowExtraInfo)
+                {
+                    LOG(" Windows SDK Version: %d", MSVC_SDK_Result.windows_sdk_version);
+
+                    if (MSVC_SDK_Result.windows_sdk_root)
+                    {
+                        String16 PathWide = CStr16(MSVC_SDK_Result.windows_sdk_root);
+                        StringLocal(Path, MAX_PATH_LENGTH);
+                        String_ToNarrow(PathWide, &Path);
+                        LOG("   Windows SDK path:      %S", Path);
+                    }
+
+                    if (MSVC_SDK_Result.windows_sdk_um_library_path)
+                    {
+                        String16 PathWide = CStr16(MSVC_SDK_Result.windows_sdk_um_library_path);
+                        StringLocal(Path, MAX_PATH_LENGTH);
+                        String_ToNarrow(PathWide, &Path);
+                        LOG("   Windows SDK um path:   %S", Path);
+                    }
+
+                    if (MSVC_SDK_Result.windows_sdk_ucrt_library_path)
+                    {
+                        String16 PathWide = CStr16(MSVC_SDK_Result.windows_sdk_ucrt_library_path);
+                        StringLocal(Path, MAX_PATH_LENGTH);
+                        String_ToNarrow(PathWide, &Path);
+                        LOG("   Windows SDK ucrt path: %S", Path);
+                    }
+
+                    if (MSVC_SDK_Result.vs_exe_path)
+                    {
+                        String16 PathWide = CStr16(MSVC_SDK_Result.vs_exe_path);
+                        StringLocal(Path, MAX_PATH_LENGTH);
+                        String_ToNarrow(PathWide, &Path);
+                        LOG("   VS exe path:           %S", Path);
+                    }
+
+                    if (MSVC_SDK_Result.vs_library_path)
+                    {
+                        String16 PathWide = CStr16(MSVC_SDK_Result.vs_library_path);
+                        StringLocal(Path, MAX_PATH_LENGTH);
+                        String_ToNarrow(PathWide, &Path);
+                        LOG("   VS library path:       %S", Path);
+                    }
+
+                    if (MSVC_SDK_Result.vs_base_path)
+                    {
+                        String16 PathWide = CStr16(MSVC_SDK_Result.vs_base_path);
+                        StringLocal(Path, MAX_PATH_LENGTH);
+                        String_ToNarrow(PathWide, &Path);
+                        LOG("   VS base path:          %S", Path);
+                    }
+                }
+
+                StringLocal(BasePath, MAX_PATH_LENGTH);
+                if (MSVC_SDK_Result.vs_base_path) String_ToNarrow(CStr16(MSVC_SDK_Result.vs_base_path), &BasePath);
+
+                StringLocal(ExePath, MAX_PATH_LENGTH);
+                if (MSVC_SDK_Result.vs_exe_path) String_ToNarrow(CStr16(MSVC_SDK_Result.vs_exe_path), &ExePath);
+
+                // Initialize vcvars environment
+                // find the vcvars bat file so we can run cl from a regular cmd line.
+                // luckily the bat file is always in the same place relative to the base path
+                if (Filesystem_DoesDirectoryExist(BasePath))
+                {
+                    StringLocal(CmdLine, 8192);
+                    String_Append(&CmdLine, S("\""));
+
+                    String_Append(&CmdLine, BasePath);
+                    String_Append(&CmdLine, S("\\VC\\Auxiliary\\Build\\"));
+
+                    // todo: think about target instead of host??
+                    #if PLATFORM_64_BIT
+                    String_Append(&CmdLine, S("vcvars64.bat"));
+                    #else
+                    String_Append(&CmdLine, S("vcvars32.bat"));
+                    #endif
+
+                    String_AppendChar(&CmdLine, '"');
+                    String_Append(&CmdLine, S(" >NUL 2>&1 && set")); // suppress output logs from the bat script
+
+                    if (bShowExtraInfo)
+                    {
+                        LOG_WARNING("\nBuild speed is affected, this may take a few seconds...");
+                        LOG(
+                        "\n    To fix this issue for your next build, exit this terminal"
+                        "\n    and run riftbuild from a different terminal application named"
+                        "\n    \"x64 (or x86) Native Tools Command Prompt for VS\"."
+                        "\n\n    This can be found through Windows Search.\n");
+                    }
+
+                    PlatformPipe StdOutHandle = {0};
+                    PlatformHandle H = Platform_RunCommand_Ex(CmdLine, WorkingPath, &StdOutHandle);
+                    if (!Platform_IsValidHandle(H))
+                    {
+                        LOG_ERROR("Failed to initialize MSVC environment. Aborting build...");
+                        return 1;
+                    }
+
+                    Platform_CloseHandle(StdOutHandle[1]);
+                    
+                    // dummy first read, nothing useful here
+                    StringLocal(StdOutData, UINT16_MAX);
+                    Filesystem_ReadPipe(StdOutHandle, StdOutData.Capacity, StdOutData.Data, NULL);
+
+                    while (1)
+                    {
+                        u64 BytesRead = 0;
+                        if (!Filesystem_ReadPipe(StdOutHandle, StdOutData.Capacity, StdOutData.Data, &BytesRead))
+                            break;
+                        
+                        if (BytesRead == 0)
+                            break;
+                        
+                        StdOutData.Length = Min((u32)BytesRead, StdOutData.Capacity);
+
+                        LinearAllocator Scratch = *Arena;
+                        StringArray EnvVars = String_ParseIntoArray(&Scratch, StdOutData, '\n', 0, 128);
+                        for each_str (e, EnvVars)
+                        {
+                            String Trimmed = String_EatNewLinesFromEnd(*e);
+
+                            u32 Equals = 0;
+                            String_IndexOfChar(Trimmed, '=', &Equals);
+
+                            if (Equals)
+                            {
+                                const String Key = StrSlice(Trimmed.Data, Equals);
+                                const String Value = StrShiftF(Trimmed, Equals+1);
+                                //LOG("  %S=%S", Key, Value);
+                                Platform_SetEnvironmentVariableValue(Key, Value);
+                            }
+                        }
+                    }
+
+                    Platform_CloseHandle(StdOutHandle[0]);
+
+                    String_Copy(&CompilerPath, ExePath);
+                    String_Append(&CompilerPath, S("\\cl.exe"));
+
+                    bCompilerProgramFound = true;
+
+                    Clock_Tick(&MSVCInitClock);
+                }
                 #endif
+
+                if (!bCompilerProgramFound)
+                {
+                    #if PLATFORM_WINDOWS
+                    LOG_ERROR("Compiler program \"%S\" does not exist. Aborting build...", CompilerProgram);
+                    
+                    LOG("\n    Make sure that you have the Visual Studio build tools installed and "
+                        "\n    that you run riftbuild from a different terminal application named"
+                        "\n    \"x64 (or x86) Native Tools Command Prompt for VS\".");
+
+                    LOG("\n    This can be found through Windows Search.");
+                    #else
+                    LOG_ERROR("Compiler program \"cl\" does not exist on non-Windows platforms. Use a different compiler. Aborting build...");
+                    #endif
+                }
             }
             else
             {
@@ -2978,9 +3145,10 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 "yo dat compiler program \"%S\" don exist cuh."
                 " need to be installed and set in da path ma nigga", CompilerProgram);
             #endif
-
-            return 1;
         }
+
+        if (!bCompilerProgramFound)
+            return 1;
     }
 
     //ECompiler Compiler = Compiler_Clang;
@@ -4773,7 +4941,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
         LOG("    Version:              %S", Version);
         
-        if (bExplicitProgramPath)
+        if (bExplicitCompilerPath)
             LOG("    Compiler:             %S", CompilerPath);
         else
             LOG("    Compiler:             %S -> \"%S\"", CompilerProgram, CompilerPath);
@@ -4905,7 +5073,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
     BuildParams p = {0};
     p.Arena                         = Arena;
-    p.CompilerProgram               = bExplicitProgramPath ? CompilerPath : CompilerProgram;
+    p.CompilerProgram               = bExplicitCompilerPath ? CompilerPath : CompilerProgram;
     p.CompilerPath                  = CompilerPath;
     p.AsmProgram                    = AsmProgram;
     p.AsmPath                       = AsmCompilerPath;
@@ -6141,6 +6309,27 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         LOG("Build parse time: %S", TimeString);
     }
 
+    if (MSVCInitClock.StartTime > 0)
+    {
+        Clock_GetElapsedTime_ToString(&MSVCInitClock, true, &TimeString);
+        LOG("MSVC init   time: %S", TimeString);
+    }
+
+    // calculate the overhead time
+    f64 TotalElapsedTime = CompileClock.ElapsedTime +
+                           LinkClock.ElapsedTime +
+                           IconClock.ElapsedTime +
+                           ResourceCompileClock.ElapsedTime +
+                           BundleCompileClock.ElapsedTime +
+                           BuildFileParseClock.ElapsedTime +
+                           MSVCInitClock.ElapsedTime;
+    
+    Clock OverheadClock = {0};
+    OverheadClock.ElapsedTime = BuildRuntime.ElapsedTime - TotalElapsedTime;
+
+    Clock_GetElapsedTime_ToString(&OverheadClock, true, &TimeString);
+    LOG("Overhead    time: %S", TimeString);
+
     Clock_GetElapsedTime_ToString(&BuildRuntime, true, &TimeString);
     LOG("Total build time: %S", TimeString);
 
@@ -7083,7 +7272,7 @@ u32 RunApplication(const StringArray Arguments)
     const bool bLaunchedFromDesktop = StringArray_Contains(Arguments, S("--from-desktop"), false);
     if (Platform_GetConsoleProcessCount() == 1 || bLaunchedFromDesktop)
     {
-        LOG_INLINE_WARNING("\nLaunched outside an existing terminal, pausing until user exit.\nPress any key to exit... ");
+        LOG_INLINE_WARNING("\nLaunched outside an existing terminal, pausing until user exit.\nPress any key to exit ... ");
 
         Platform_BeginNonBlockingMode();
         while (1)

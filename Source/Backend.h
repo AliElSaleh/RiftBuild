@@ -253,4 +253,10 @@ bool ExportIconRC(const BuildParams* Params, const String Path, const String Ico
 
 bool SourceFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData);
 
+#if PLATFORM_WINDOWS
+global LinearAllocator GMSVCFindAllocator;
+void* MSVC_Find_Allocate(usize Size);
+void MSVC_Find_Release(void* Memory);
+#endif
+
 #endif // _BASE_STRING_H_

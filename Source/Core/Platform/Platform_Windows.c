@@ -479,6 +479,18 @@ bool Platform_GetEnvironmentVariableValue(String Name, String* OutVariable)
 #endif
 }
 
+bool Platform_SetEnvironmentVariableValue(String Name, String Value)
+{
+    StringLocal(NameCopy, 128); // we copy the name because the passed in Name could have had its length altered but not the data, so create a copy with a null terminator at the length so windows gets the correct string
+    String_Copy(&NameCopy, Name);
+
+    StringLocal(ValueCopy, 4096); // we copy the name because the passed in Name could have had its length altered but not the data, so create a copy with a null terminator at the length so windows gets the correct string
+    String_Copy(&ValueCopy, Value);
+
+    BOOL bSuccess = SetEnvironmentVariable(NameCopy.Data, ValueCopy.Data);
+    return bSuccess;
+}
+
 bool Platform_DoesEnvironmentVariableExist(String Name)
 {
     StringLocal(NameCopy, 128); // we copy the name because the passed in Name could have had its length altered but not the data, so create a copy with a null terminator at the length so windows gets the correct string

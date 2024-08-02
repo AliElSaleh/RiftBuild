@@ -64,6 +64,7 @@ internal bool AsmSourceFileDirectoryIterator(const String FullPath, const String
 
                 // todo: parallelize this
                 PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
+                if (!Platform_IsValidHandle(H)) return false;
                 const u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
                 if (ExitCode != 0)
                 {
@@ -228,8 +229,9 @@ bool RC_Compile(const BuildParams* Params, const String FullRCPath, String* OutR
     
     if (Params->bVerbose) LOG("    %S", CmdLine);
 
-    PlatformHandle h = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
-    u32 ExitCode = Platform_WaitForProcessAndGetExitCode(h);
+    PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
+    if (!Platform_IsValidHandle(H)) return false;
+    u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
     if (ExitCode != 0)
     {
         return false;
@@ -502,6 +504,7 @@ bool C_DoCompile(CompileData* Data, const String FullPath, const String Relative
     //Clock_Start(&CompileTime);
 
     PlatformHandle Handle = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
+    if (!Platform_IsValidHandle(Handle)) return false;
     Array_Add(Processes, Handle);
     (*Data->NumCompiled)++;
 
@@ -599,7 +602,7 @@ bool C_Link(const BuildParams* Params)
         }
 
         PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
-
+        if (!Platform_IsValidHandle(H)) return false;
         const u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
         if (ExitCode != 0)
         {
@@ -683,7 +686,7 @@ bool C_Link(const BuildParams* Params)
         }
 
         PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
-
+        if (!Platform_IsValidHandle(H)) return false;
         u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
         if (ExitCode != 0)
         {
@@ -720,6 +723,7 @@ bool C_Link(const BuildParams* Params)
             String_Append(&CmdLine, S(".dll\""));
 
             PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
+            if (!Platform_IsValidHandle(H)) return false;
             u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
             if (ExitCode != 0)
             {
@@ -879,6 +883,7 @@ internal bool AsmSourceFileDirectoryIterator_MSVC(const String FullPath, const S
 
                 // todo: parallelize this
                 PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
+                if (!Platform_IsValidHandle(H)) return false;
                 const u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
                 if (ExitCode != 0)
                 {
@@ -1076,7 +1081,8 @@ bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String Relat
     Data->Index++;
     
     StringLocal(CmdLine, UINT16_MAX);
-    String_Append(&CmdLine, S("cl /nologo "));
+    String_Append(&CmdLine, Params->CompilerProgram);
+    String_Append(&CmdLine, S(" /nologo "));
 
     u32 LastSlash = 0;
     String_IndexOfLastPathSlash(RelativePath, &LastSlash);
@@ -1145,6 +1151,7 @@ bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String Relat
     }
 
     PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
+    if (!Platform_IsValidHandle(H)) return false;
     Array_Add(Processes, H);
     (*Data->NumCompiled)++;
 
@@ -1218,6 +1225,7 @@ bool MSVC_Link(const BuildParams* Params)
         }
 
         PlatformHandle Handle = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
+        if (!Platform_IsValidHandle(Handle)) return false;
         u32 ExitCode = Platform_WaitForProcessAndGetExitCode(Handle);
         if (ExitCode != 0)
         {
@@ -1275,6 +1283,7 @@ bool MSVC_Link(const BuildParams* Params)
         }
 
         PlatformHandle Handle = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
+        if (!Platform_IsValidHandle(Handle)) return false;
         u32 ExitCode = Platform_WaitForProcessAndGetExitCode(Handle);
         if (ExitCode != 0)
         {
@@ -1303,6 +1312,7 @@ bool MSVC_Link(const BuildParams* Params)
         String_Append(&CmdLine, S(".dll\""));
 
         PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
+        if (!Platform_IsValidHandle(H)) return false;
         u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
 
         if (ExitCode != 0)
@@ -1318,6 +1328,19 @@ bool MSVC_Link(const BuildParams* Params)
 
     return true;
 }
+
+LinearAllocator GMSVCFindAllocator = {0};
+
+void* MSVC_Find_Allocate(usize Size)
+{
+    return LinearAllocator_Allocate(&GMSVCFindAllocator, Size);
+}
+
+void MSVC_Find_Release(void* Memory)
+{
+    // don't free anything
+}
+
 #else
 bool MSVC_Compile(const BuildParams* Params, u32* OutNumCompiled) { return true; }
 bool MSVC_Link(const BuildParams* Params) { return true; }

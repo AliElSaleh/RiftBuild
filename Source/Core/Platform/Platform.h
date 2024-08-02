@@ -88,6 +88,7 @@ RIFT_API u64 Platform_GetMainThreadID(void);
 RIFT_API void Platform_GetWorkingDirectory(String* OutPath);
 
 RIFT_API bool Platform_GetEnvironmentVariableValue(String Name, String* OutVariable);
+RIFT_API bool Platform_SetEnvironmentVariableValue(String Name, String Value);
 RIFT_API bool Platform_DoesEnvironmentVariableExist(String Name);
 
 RIFT_API u32 Platform_GetNumLogicalProcessors(void);

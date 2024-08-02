@@ -170,7 +170,9 @@ typedef CONST CHAR *PCNZCH;
 // UNICODE (Wide Character) types
 //
 
+#ifndef __cplusplus
 typedef unsigned short wchar_t;
+#endif
 
 #ifndef _MAC
 typedef wchar_t WCHAR;    // wc,   16-bit UNICODE character
@@ -466,6 +468,82 @@ typedef struct _CONSOLE_SCREEN_BUFFER_INFO {
     COORD dwMaximumWindowSize;
 } CONSOLE_SCREEN_BUFFER_INFO, *PCONSOLE_SCREEN_BUFFER_INFO;
 
+
+/*
+// COM initialization flags; passed to CoInitialize.
+typedef enum tagCOINIT
+{
+  COINIT_APARTMENTTHREADED  = 0x2,      // Apartment model
+
+#if  (_WIN32_WINNT >= 0x0400 ) || defined(_WIN32_DCOM) // DCOM
+  // These constants are only valid on Windows NT 4.0
+  COINIT_MULTITHREADED      = COINITBASE_MULTITHREADED,
+  COINIT_DISABLE_OLE1DDE    = 0x4,      // Don't use DDE for Ole1 support.
+  COINIT_SPEED_OVER_MEMORY  = 0x8,      // Trade memory for speed.
+#endif // DCOM
+} COINIT;
+
+#ifdef __cplusplus
+#define STDMETHOD(method)        virtual COM_DECLSPEC_NOTHROW HRESULT STDMETHODCALLTYPE method
+#else
+#define STDMETHOD(method)       HRESULT (STDMETHODCALLTYPE * method)
+#endif
+
+#define _Out_
+#define _In_
+
+#define _Out_writes_to_(s,c)
+#define _Deref_out_range_(l,h)
+
+typedef enum tagCLSCTX
+{
+    CLSCTX_INPROC_SERVER	= 0x1,
+    CLSCTX_INPROC_HANDLER	= 0x2,
+    CLSCTX_LOCAL_SERVER	= 0x4,
+    CLSCTX_INPROC_SERVER16	= 0x8,
+    CLSCTX_REMOTE_SERVER	= 0x10,
+    CLSCTX_INPROC_HANDLER16	= 0x20,
+    CLSCTX_RESERVED1	= 0x40,
+    CLSCTX_RESERVED2	= 0x80,
+    CLSCTX_RESERVED3	= 0x100,
+    CLSCTX_RESERVED4	= 0x200,
+    CLSCTX_NO_CODE_DOWNLOAD	= 0x400,
+    CLSCTX_RESERVED5	= 0x800,
+    CLSCTX_NO_CUSTOM_MARSHAL	= 0x1000,
+    CLSCTX_ENABLE_CODE_DOWNLOAD	= 0x2000,
+    CLSCTX_NO_FAILURE_LOG	= 0x4000,
+    CLSCTX_DISABLE_AAA	= 0x8000,
+    CLSCTX_ENABLE_AAA	= 0x10000,
+    CLSCTX_FROM_DEFAULT_CONTEXT	= 0x20000,
+    CLSCTX_ACTIVATE_X86_SERVER	= 0x40000,
+    CLSCTX_ACTIVATE_32_BIT_SERVER	= CLSCTX_ACTIVATE_X86_SERVER,
+    CLSCTX_ACTIVATE_64_BIT_SERVER	= 0x80000,
+    CLSCTX_ENABLE_CLOAKING	= 0x100000,
+    CLSCTX_APPCONTAINER	= 0x400000,
+    CLSCTX_ACTIVATE_AAA_AS_IU	= 0x800000,
+    CLSCTX_RESERVED6	= 0x1000000,
+    CLSCTX_ACTIVATE_ARM32_SERVER	= 0x2000000,
+    CLSCTX_ALLOW_LOWER_TRUST_REGISTRATION	= 0x4000000,
+    CLSCTX_PS_DLL	= 0x80000000
+} 	CLSCTX;
+
+
+#ifndef DECLSPEC_UUID
+#if (_MSC_VER >= 1100) && defined (__cplusplus)
+#define DECLSPEC_UUID(x)    __declspec(uuid(x))
+#else
+#define DECLSPEC_UUID(x)
+#endif
+#endif
+
+#ifndef DECLSPEC_NOVTABLE
+#if (_MSC_VER >= 1100) && defined(__cplusplus)
+#define DECLSPEC_NOVTABLE   __declspec(novtable)
+#else
+#define DECLSPEC_NOVTABLE
+#endif
+#endif
+*/
 
 #define  _WIN32_WINNT   0x0A00
 #define  WINVER         0x0A00
@@ -1029,6 +1107,7 @@ BOOL QueryPerformanceFrequency(LARGE_INTEGER *lpFrequency);
 
     #define GetCurrentDirectory  GetCurrentDirectoryW
     #define GetEnvironmentVariable GetEnvironmentVariableW
+    #define SetEnvironmentVariable SetEnvironmentVariableW
 
     #define UuidToString         UuidToStringW
     #define UuidFromString       UuidFromStringW
@@ -1082,6 +1161,7 @@ BOOL QueryPerformanceFrequency(LARGE_INTEGER *lpFrequency);
 
     #define GetCurrentDirectory  GetCurrentDirectoryA
     #define GetEnvironmentVariable GetEnvironmentVariableA
+    #define SetEnvironmentVariable SetEnvironmentVariableA
 
     #define UuidToString         UuidToStringA
     
@@ -1203,6 +1283,8 @@ DWORD GetCurrentDirectoryW(DWORD nBufferLength, LPTSTR lpBuffer);
 
 DWORD GetEnvironmentVariableA(LPCTSTR lpName, LPTSTR lpBuffer, DWORD nSize);
 DWORD GetEnvironmentVariableW(LPCTSTR lpName, LPTSTR lpBuffer, DWORD nSize);
+BOOL SetEnvironmentVariableA(LPCTSTR lpName, LPCTSTR lpValue);
+BOOL SetEnvironmentVariableW(LPCTSTR lpName, LPCTSTR lpValue);
 
 void EnterCriticalSection(LPCRITICAL_SECTION lpCriticalSection);
 void LeaveCriticalSection(LPCRITICAL_SECTION lpCriticalSection);

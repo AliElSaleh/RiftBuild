@@ -1428,11 +1428,7 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
 
             PlatformPipe StdOutHandle = {0};
             PlatformHandle ShellCmd = Platform_RunCommand_Ex(CmdLine, WorkingDirectory, &StdOutHandle);
-            if (!ShellCmd)
-            {
-                return false;
-            }
-
+            if (!Platform_IsValidHandle(ShellCmd)) return false;
             Platform_WaitForHandle(ShellCmd, -1);
 
             StringLocal(StdOutData, 8192);

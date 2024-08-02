@@ -1,0 +1,8 @@
+Compiler clang++
+Type static_lib
+Includes ../../Core
+CompilerFlags -Os -Wno-writable-strings
+IncludedSourceFiles microsoft_craziness.cpp
+Defines RIFT_STATIC
+BuildDirectory ../Windows
+IntermediateDirectory ../../../Intermediate/microsoft_craziness
