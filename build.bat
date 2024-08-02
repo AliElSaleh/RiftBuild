@@ -9,7 +9,7 @@ set CompilerFlags= -std=c99 -Os -fno-exceptions -fno-math-errno -fno-strict-over
 
 echo Compiling sources (Windows)
 
-clang "Source/Core/Clock/Clock.c" "Source/Core/Memory/Memory.c" "Source/Core/String/StringUtils.c" "Source/Core/Log.c" "Source/Core/Globals.c" "Source/Core/Platform/Platform_Windows.c" "Source/Program.c" "Source/Backend.c" "Source/Parse.c" "Source/Exporter.c" %CompilerFlags% -o RiftBuild.exe -nostdlib -Wl,-entry:ProgramStart,-subsystem:console -Xlinker /stack:0x400000,0x400000 -lkernel32 -luser32 -lopengl32 -lshell32 -lgdi32 -lcomdlg32 -lcomctl32 -lws2_32 -lwinmm -lnetapi32 -lole32 -ladvapi32 -lwldap32 -lcrypt32 -lrpcrt4 -lshlwapi -ldbghelp -lbcrypt -lversion -limm32 -lcfgmgr32 -lsetupapi -loleaut32 -luuid -lodbc32 -lodbccp32 -ldelayimp || exit /b 1
+clang "Source/Core/Clock/Clock.c" "Source/Core/Memory/Memory.c" "Source/Core/String/StringUtils.c" "Source/Core/Log.c" "Source/Core/Globals.c" "Source/Core/Platform/Platform_Windows.c" "Source/Program.c" "Source/Backend.c" "Source/Parse.c" "Source/Exporter.c" %CompilerFlags% -o RiftBuild.exe -nostdlib -Wl,-entry:ProgramStart,-subsystem:console -Xlinker /stack:0x400000,0x400000 -LSource\Libraries\Windows -lkernel32 -luser32 -lopengl32 -lshell32 -lgdi32 -lcomdlg32 -lcomctl32 -lws2_32 -lwinmm -lnetapi32 -lole32 -ladvapi32 -lwldap32 -lcrypt32 -lrpcrt4 -lshlwapi -ldbghelp -lbcrypt -lversion -limm32 -lcfgmgr32 -lsetupapi -loleaut32 -luuid -lodbc32 -lodbccp32 -ldelayimp -lmicrosoft_craziness || exit /b 1
 
 echo [32m  Done: RiftBuild.exe[0m
 
