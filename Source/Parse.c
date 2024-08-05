@@ -440,7 +440,10 @@ bool ParseBuildFile(LinearAllocator* Arena,
             else
                 Condition = VarValue;
 
+            bool bSearchUserVar = String_EatCharInline(&Condition, '$');
+            bool bSearchCmdVar = String_EatCharInline(&Condition, '%');
             bool bSearchEnv = String_EatCharInline(&Condition, '@');
+            bool bPrefixedWithSymbol = bSearchUserVar || bSearchCmdVar || bSearchEnv;
 
             bool bIsNot = Condition.Data[0] == '!';
             String_EatCharInline(&Condition, '!');
@@ -463,10 +466,10 @@ bool ParseBuildFile(LinearAllocator* Arena,
                 }
             }
 
-            // check the condition string against the internal build vars passed in from the command line
-            // override VarValue for single line if's, for multiline if's, loop back to the top and process each line until '}' is found
-            if (!bConditionMet)
+            if (!bConditionMet && (bSearchCmdVar || !bPrefixedWithSymbol))
             {
+                // check the condition string against the internal build vars passed in from the command line
+                // override VarValue for single line if's, for multiline if's, loop back to the top and process each line until '}' is found
                 for each (CmdOption, o, CmdOptionsDB)
                 {
                     bool bMatch = String_IsEqual(o.Name, Condition, false);
@@ -481,22 +484,22 @@ bool ParseBuildFile(LinearAllocator* Arena,
                         }
                     }
                 }
-            }
 
-            if (!bConditionMet)
-            {
-                for each (InternalVariable, v, InternalVariablesDB)
+                if (!bConditionMet)
                 {
-                    if (String_IsEqual(v.Name, Condition, false))
+                    for each (InternalVariable, v, InternalVariablesDB)
                     {
-                        ConditionValuePtr = v.Value;
-                        bConditionMet = true;
-                        break;
+                        if (String_IsEqual(v.Name, Condition, false))
+                        {
+                            ConditionValuePtr = v.Value;
+                            bConditionMet = true;
+                            break;
+                        }
                     }
                 }
             }
 
-            if (!bConditionMet)
+            if (!bConditionMet && (bSearchUserVar || !bPrefixedWithSymbol))
             {
                 for each (FileVariable, o, VariablesDB) // intentional that we're not using expanded DB, this should only be used for simple things anyway
                 {

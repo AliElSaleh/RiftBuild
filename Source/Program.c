@@ -3509,9 +3509,10 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     // force rebuild if we say so in the build file
     if (!bIsRebuild)
     {
-        if (DoesBuildVarExist(VariablesDB, S("AlwaysRebuildAll")))
+        if (DoesBuildVarExist(VariablesDB, S("AlwaysRebuild")) ||
+            DoesBuildVarExist(VariablesDB, S("AlwaysRebuildAll")))
         {
-            LOG("\"AlwaysRebuildAll\" was specified in %S. Forcing rebuild...\n", BuildFileName);
+            LOG("\"AlwaysRebuild\" was specified in %S. Forcing rebuild...\n", BuildFileName);
 
             bIsRebuild = true;
             bIsClean = false;
@@ -3967,6 +3968,12 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
             StringLocal(DirCopy, MAX_PATH_LENGTH);
             String_SanitizeQuotes(&DirCopy, It.String);
+
+            if (String_IsEqual(It.String, BuildDirectory, false) ||
+                String_IsEqual(It.String, IntermediateDirectory, false))
+            {
+                continue;
+            }
 
             if (Filesystem_IsPathRelative(DirCopy))
             {
@@ -4515,19 +4522,6 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     }
     #endif
     
-    // force rebuild if we say so in the build file
-    if (!bIsRebuild)
-    {
-        if (DoesBuildVarExist(VariablesDB, S("AlwaysRebuild")) ||
-            DoesBuildVarExist(VariablesDB, S("AlwaysRebuildAll")))
-        {
-            LOG("\"AlwaysRebuild\" was specified in %S. Forcing rebuild...\n", BuildFileName);
-
-            bIsRebuild = true;
-            bIsClean = false;
-        }
-    }
-
     // force a rebuild if the .build file has been modified
     if (!bIsRebuild && !bIsClean && bFoundBuildFile)
     {
@@ -4856,6 +4850,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             Filesystem_Write(f, RiftCmdLine.Length, RiftCmdLine.Data, NULL);
             Filesystem_WriteLine(f, S("\n"), NULL);
 
+            // TODO: Speed: fill a buffer first, then write to file
             for each (FileVariable, v, ExpandedVariablesDB)
             {
                 StringLocal(Line, 4096);
