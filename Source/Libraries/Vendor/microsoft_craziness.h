@@ -80,6 +80,10 @@ C_LINKAGE_END
 #undef nullptr
 #undef NULL
 
+C_LINKAGE_BEGIN
+extern void* Platform_MemCopy(void* Dest, const void* Source, usize Size);
+C_LINKAGE_END
+
 #include <Windows.h>
 
 struct mem
@@ -251,11 +255,11 @@ wchar_t *concat(wchar_t *a, wchar_t *b, wchar_t *c = nullptr, wchar_t *d = nullp
     if (d) len_d = wide_str_len(d);
     
     wchar_t *result = (wchar_t *)malloc((len_a + len_b + len_c + len_d + 1) * 2);
-    memcpy(result, a, len_a*2);
-    memcpy(result + len_a, b, len_b*2);
+    Platform_MemCopy(result, a, len_a*2);
+    Platform_MemCopy(result + len_a, b, len_b*2);
 
-    if (c) memcpy(result + len_a + len_b, c, len_c * 2);
-    if (d) memcpy(result + len_a + len_b + len_c, d, len_d * 2);
+    if (c) Platform_MemCopy(result + len_a + len_b, c, len_c * 2);
+    if (d) Platform_MemCopy(result + len_a + len_b + len_c, d, len_d * 2);
         
     result[len_a + len_b + len_c + len_d] = 0;
 
@@ -397,7 +401,7 @@ void win10_best(wchar_t *short_name, wchar_t *full_name, Version_Data *data) {
     //data->best_name = _wcsdup(full_name);
     size_t buffer_size = (wide_str_len(full_name) + 1) * 2;
     wchar_t* name_copy = (wchar_t*)malloc(buffer_size);
-    memcpy(name_copy, full_name, buffer_size);
+    Platform_MemCopy(name_copy, full_name, buffer_size);
     data->best_name = name_copy;
             
     if (data->best_name) {
@@ -467,7 +471,7 @@ void win8_best(wchar_t *short_name, wchar_t *full_name, Version_Data *data) {
     //data->best_name = _wcsdup(full_name);
     size_t buffer_size = (wide_str_len(full_name) + 1) * 2;
     wchar_t* name_copy = (wchar_t*)malloc(buffer_size);
-    memcpy(name_copy, full_name, buffer_size);
+    Platform_MemCopy(name_copy, full_name, buffer_size);
     data->best_name = name_copy;
 
     if (data->best_name) {
@@ -643,7 +647,7 @@ bool find_visual_studio_2017_by_fighting_through_microsoft_craziness(Find_Result
             
             size_t buffer_size = wide_str_len(bstr_inst_path) * 2 + 2;
             wchar_t* buffer_copy = (wchar_t*)malloc(buffer_size);
-            memcpy(buffer_copy, bstr_inst_path, buffer_size);
+            Platform_MemCopy(buffer_copy, bstr_inst_path, buffer_size);
             result->vs_base_path    = (wchar*)bstr_inst_path;
             return true;
         }
@@ -702,7 +706,7 @@ void find_visual_studio_by_fighting_through_microsoft_craziness(Find_Result *res
 
             size_t buffer_size = wide_str_len(buffer) * 2 + 2;
             wchar_t* buffer_copy = (wchar_t*)malloc(buffer_size);
-            memcpy(buffer_copy, buffer, buffer_size);
+            Platform_MemCopy(buffer_copy, buffer, buffer_size);
             result->vs_base_path    = (wchar*)buffer_copy;
             return;
         }

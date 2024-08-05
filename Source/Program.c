@@ -2,7 +2,7 @@
 
 #include "EntryPoint.h"
 
-usize GEngineMemoryAmount  = Kibibytes(650);
+usize GEngineMemoryAmount  = Kibibytes(128);
 usize GEngineScratchAmount = 0;
 
 #include "Platform/Filesystem.h"
@@ -3622,12 +3622,16 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 VerboseFlag = S("-v");
             }
 
-            void* ArenaMemory = Platform_MemAllocZero(Kibibytes(512));
+            //void* ArenaMemory = Platform_MemAllocZero(Kibibytes(512));
+            /*
             if (!ArenaMemory)
             {
                 LOG_ERROR("Failed to allocate memory from the operating system for %S", BuildFileNameWithExt);
                 return 1;
             }
+            */
+
+            char ArenaMemory[Kilobytes(512)] = {0};
 
             LinearAllocator NewArena = {0};
             LinearAllocator_Create(Kibibytes(512), ArenaMemory, &NewArena);
@@ -3699,7 +3703,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             Filesystem_Close(&f);
 
             LinearAllocator_Destroy(&NewArena);
-            Platform_MemFree(ArenaMemory);
+            //Platform_MemFree(ArenaMemory);
 
             if (ExitCode == 2)
             {
@@ -7056,7 +7060,8 @@ u32 RunApplication(const StringArray Arguments)
 
 
     LinearAllocator ProgramArena = {0};
-    LinearAllocator_Create(Kilobytes(512), NULL, &ProgramArena);
+    char ProgramMemory[Kilobytes(512)] = {0};
+    LinearAllocator_Create(Kilobytes(512), ProgramMemory, &ProgramArena);
 
     const usize MemAmount_InternalOptions = _ArrayCalculateMemRequirement(64, sizeof(InternalVariable)); // 2048 bytes
     InternalVariablesDB  = Array_CreateStatic(InternalVariable, 64, LinearAllocator_Allocate(&ProgramArena, MemAmount_InternalOptions));

@@ -52,10 +52,10 @@ String String_Create(LinearAllocator* Arena, const String Source)
     }
 
     String str;
-    str.Length = Source.Length;
     str.Data = LinearAllocator_Allocate(Arena, Source.Length+1);
     MemCopy(str.Data, Source.Data, Source.Length);
     str.Data[Source.Length] = 0;
+    str.Length = Source.Length;
     str.Capacity = Source.Length;
     return str;
 }
@@ -68,10 +68,10 @@ String String_Duplicate(LinearAllocator* Arena, const String Source)
     }
 
     String str;
-    str.Length = Source.Length;
     str.Data = LinearAllocator_Allocate(Arena, Source.Length+1);
     MemCopy(str.Data, Source.Data, Source.Length);
     str.Data[Source.Length] = 0;
+    str.Length = Source.Length;
     str.Capacity = Source.Length;
     return str;
 }
@@ -84,8 +84,24 @@ String String_Reserve(LinearAllocator* Arena, u32 Capacity)
     }
 
     String str;
-    str.Length = 0;
     str.Data = LinearAllocator_Allocate(Arena, Capacity+1);
+    str.Length = 0;
+    str.Capacity = Capacity;
+    return str;
+}
+
+String String_ReserveAndCopy(LinearAllocator* Arena, u32 Capacity, const String Source)
+{
+    if (Arena->Allocated + Capacity > Arena->TotalSize)
+    {
+        return String_Null();
+    }
+
+    String str;
+    str.Data = LinearAllocator_Allocate(Arena, Capacity+1);
+    if (Source.Length) MemCopy(str.Data, Source.Data, Source.Length);
+    str.Data[Source.Length] = 0;
+    str.Length = Source.Length;
     str.Capacity = Capacity;
     return str;
 }

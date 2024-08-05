@@ -382,7 +382,7 @@ bool Platform_GetAccountName(String* OutName)
         return false;
     }
 
-    String_Copy(OutName, CStr(UserName));
+    String_Copy(OutName, StrSlice(UserName, Size-1));
     return true;
 }
 
@@ -484,7 +484,7 @@ bool Platform_SetEnvironmentVariableValue(String Name, String Value)
     StringLocal(NameCopy, 128); // we copy the name because the passed in Name could have had its length altered but not the data, so create a copy with a null terminator at the length so windows gets the correct string
     String_Copy(&NameCopy, Name);
 
-    StringLocal(ValueCopy, 4096); // we copy the name because the passed in Name could have had its length altered but not the data, so create a copy with a null terminator at the length so windows gets the correct string
+    StringLocal(ValueCopy, 4096);
     String_Copy(&ValueCopy, Value);
 
     BOOL bSuccess = SetEnvironmentVariable(NameCopy.Data, ValueCopy.Data);

@@ -19,6 +19,21 @@
 ##
 */
 
+internal void Internal_AddVariable(LinearAllocator* Arena,
+                                   TArray(FileVariable) VariablesDB,
+                                   const String Name,
+                                   const String Value,
+                                   bool bHasSpecial)
+{
+    // always reserve a fixed limited size so we can override if needed
+    FileVariable var;
+    var.Name        = String_ReserveAndCopy(Arena, 64, Name);
+    var.Value       = String_ReserveAndCopy(Arena, 2048, Value);
+    var.bHasSpecial = bHasSpecial;
+
+    Array_Add(VariablesDB, var);
+}
+
 bool ParseBuildFile(LinearAllocator* Arena,
                     const FileHandle H,
                     const String BuildFilePath,
@@ -33,10 +48,9 @@ bool ParseBuildFile(LinearAllocator* Arena,
                     StringList* Includes,
                     bool bIsAssemblyExe)
 {
-    if (ReturnCode)
-        *ReturnCode = 0;
+    if (ReturnCode) *ReturnCode = 0;
 
-    StringLocal(Line, 512);
+    StringLocal(Line, 2114); // 64 max length for name, 2048 max length for value
 
     bool bInsideIf = false;
     bool bIfFailed = false;
@@ -60,6 +74,8 @@ bool ParseBuildFile(LinearAllocator* Arena,
 
     LoopStart:
 
+        ENSURE(Line.Capacity == 2113); // sanity check to make sure no-one is modifying the line buffer
+
         if (bInMultiLineErrorMessage)
         {
             // prevent leading/trailing spaces causing confusion if we only have the '}' in the line. its better than doing Line.Data[0]
@@ -68,12 +84,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
             {
                 String_EatNewLinesInlineFromEnd(&ErrorMessage);
 
-                // TODO: extract into func?
-                FileVariable var;
-                var.Name = String_Create(Arena, ErrorMessage_Name);
-                var.Value = String_Create(Arena, ErrorMessage);
-                var.bHasSpecial = false;
-                Array_Add(VariablesDB, var);
+                Internal_AddVariable(Arena, VariablesDB, ErrorMessage_Name, ErrorMessage, false);
 
                 String_Empty(&ErrorMessage);
 
@@ -190,7 +201,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
                             bInsideElse = false;
     
                             // do a indirect copy otherwise it will crash on OpenBSD due to overlapping memory
-                            StringLocal(LineCopy, 512);
+                            StringLocal(LineCopy, 2114);
                             String_Copy(&LineCopy, StrShiftF(ElseOg, Space+1));
 
                             String_Copy(&Line, LineCopy);
@@ -245,6 +256,19 @@ bool ParseBuildFile(LinearAllocator* Arena,
         {
             VarName = Trimmed;
             VarValue = String_Null();
+        }
+
+        // validate
+        if (VarName.Length > 64)
+        {
+            LOG_ERROR("Variable name \"%S\" is too long. (%u chars)\n        Max length is 64 characters", VarName, VarName.Length);
+            return false;
+        }
+
+        if (VarValue.Length > 2048)
+        {
+            LOG_ERROR("Variable value \"%S\" is too long. (%u chars)\n       Max length is 2048 characters", VarValue, VarValue.Length);
+            return false;
         }
 
         const bool bHasOverwrite = String_EatCharInlineFromEnd(&VarName, '`');
@@ -744,7 +768,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
             String RestOfTheLine = StrShiftF(VarValue, Index);
             String_EatSpacesInlineFromEnd(&RestOfTheLine);
 
-            StringLocal(LineCopy, 512);
+            StringLocal(LineCopy, 2114);
             String_Copy(&LineCopy, RestOfTheLine);
 
             // else statement detection
@@ -894,14 +918,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
                     
                     if (!bWantsOverride)
                     {
-                        FileVariable var;
-                        var.Name = String_Create(Arena, VarName);
-                        var.Value.Data = LinearAllocator_Allocate(Arena, 8192); // allocate one really long line, because we dont know how many lines there will be
-                        var.Value.Length = 0;
-                        var.Value.Capacity = 8191;
-                        var.bHasSpecial = bHasSpecial;
-
-                        Array_Add(VariablesDB, var);
+                       Internal_AddVariable(Arena, VariablesDB, VarName, S(""), bHasSpecial);
                     }
 
                     continue;
@@ -910,9 +927,8 @@ bool ParseBuildFile(LinearAllocator* Arena,
 
             if (bWantsOverride)
             {
-                // we are kind of leaking the old value, but idk. i think we need to have a fixed sized when we allocate from the arena
-                // TODO: something better
-                *GetVariableValue_Ref(VariablesDB, VarName) = String_Create(Arena, String_EatSpacesFromEnd(VarValue));
+                String* Ref = GetVariableValue_Ref(VariablesDB, VarName);
+                String_Copy(Ref, VarValue);
             }
             else
             {
@@ -936,12 +952,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
                     continue;
                 }
 
-                FileVariable var;
-                var.Name  = String_Create(Arena, VarName);
-                var.Value = String_Create(Arena, String_EatSpacesFromEnd(VarValue));
-                var.bHasSpecial = bHasSpecial;
-
-                Array_Add(VariablesDB, var);
+                Internal_AddVariable(Arena, VariablesDB, VarName, VarValue, bHasSpecial);
             }
         }
 
@@ -966,7 +977,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
                 String_BuildPath(&IncludeFilePath, WorkingDirectory, VarValue);
             }
 
-            StringLocal(ExpandedPath, 512);
+            StringLocal(ExpandedPath, MAX_PATH_LENGTH);
             if (!ExpandBuildVariable(*Arena, VariablesDB, CmdOptionsDB, &ExpandedPath, S("Include"), IncludeFilePath, S("Include"), WorkingDirectory, false, bIsAssemblyExe))
             {
                 return false;
@@ -1079,7 +1090,10 @@ bool ParseBuildFile(LinearAllocator* Arena,
         if (SemiColonIndex > 0)
         {
             Trimmed.Length = LengthAfterTrim;
-            Line = StrShiftF(Trimmed, SemiColonIndex+1);
+
+            StringLocal(LineCopy, 2114);
+            String_Copy(&LineCopy, StrShiftF(Trimmed, SemiColonIndex+1));
+            String_Copy(&Line, LineCopy);
 
             goto LoopStart;
         }

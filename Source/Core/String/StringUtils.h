@@ -41,6 +41,7 @@ RIFT_API bool CString_IndexOfChar(const char* Str, char C, u32* OutIndex);
 RIFT_API String String_Create(LinearAllocator* Arena, const String Source); // todo: deprecate
 RIFT_API String String_Duplicate(LinearAllocator* Arena, const String Source);
 RIFT_API String String_Reserve(LinearAllocator* Arena, u32 Capacity);
+RIFT_API String String_ReserveAndCopy(LinearAllocator* Arena, u32 Capacity, const String Source);
 RIFT_API String String_Join(LinearAllocator* Arena, const StringArray Array);
 RIFT_API void   String_ConcatArray(String* Dest, const StringArray Array, u32 MaxSize);
 
