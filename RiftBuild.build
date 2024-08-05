@@ -21,7 +21,7 @@ LinkerFlags             $SharedLinkerFlags
 Includes                $SharedIncludeFlags
 Defines                 $SharedDefines RIFT_STATIC %^%hood
 
-IncludedSourceFiles     Clock.c Memory.c StringUtils.c Globals.c Log.c Program.c Backend.c Exporter.c Parse.c
+IncludedSourceFiles     Clock.c Memory.c StringUtils.c Globals.c Log.c Platform_Core.c Program.c Backend.c Exporter.c Parse.c
 
 if cl                   IncludedSourceFiles memcmp.asm memset.asm
 
