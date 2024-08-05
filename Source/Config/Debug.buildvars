@@ -28,7 +28,7 @@ SecurityFlags        -fno-strict-overflow -fno-strict-aliasing
 # -fstack-protector-strong
 # if x64 SecurityFlags -mshstk
 
-SharedCompilerFlags  -std=c99 -O0 -g3 -MD -fno-builtin-memcpy -fno-omit-frame-pointer -fno-exceptions -fno-math-errno $SecurityFlags $WarningFlags $WarningFlagsDisabled $WarningErrorFlags
+SharedCompilerFlags  -std=c99 -O0 -g3 -MD -fno-builtin-memcpy -fno-omit-frame-pointer -fno-exceptions -fno-math-errno -finline-functions -finline-hint-functions -funroll-loops -fno-rtti $SecurityFlags $WarningFlags $WarningFlagsDisabled $WarningErrorFlags
 SharedLinkerFlags    -g3
 SharedDefines        DEVELOPER NO_PROFILING _GLIBCXX_ASSERTIONS _GLIBCXX_DEBUG _GLIBCXX_DEBUG_PEDANTIC _NO_CRT_STDIO_INLINE _DEBUG 
 SharedIncludeFlags   Source/Core Source/Libraries/Vendor

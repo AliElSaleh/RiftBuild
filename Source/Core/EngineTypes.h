@@ -107,11 +107,6 @@ typedef void VoidFunc(void);
 
 #define INVALID_ID UINT32_MAX
 
-// move to engine.h?
-#define TICK_RATE_30  0.03333333333333333333333333333333
-#define TICK_RATE_60  0.01666666666666666666666666666667
-#define TICK_RATE_120 0.00833333333333333333333333333333
-
 // if only microsoft supported this like clang and gcc :((
 //#define each(Element, Array)          (typeof((Array)[0])* CONCAT(Element, _) = &(Array)[0], Element = *CONCAT(Element, _); CONCAT(Element, _) <= &(Array)[Array_Num((Array))-1]; CONCAT(Element, _)++, Element = *CONCAT(Element, _))
 //#define each_i(Index, Element, Array) (typeof((Array)[0])* CONCAT(Element, _) = &(Array)[0], Element = *CONCAT(Element, _); CONCAT(Element, _) <= &(Array)[Array_Num((Array))-1]; CONCAT(Element, _)++, Element = *CONCAT(Element, _), ++(Index))
@@ -236,8 +231,17 @@ typedef void VoidFunc(void);
 #elif defined(_M_PPC) || defined(__powerpc__) || defined(__powerpc64__)
     #define __CPU_PPC 1
     #define __CACHE_LINE_SIZE 128
-    #define CPU_ARCHITECTURE_STRING "powerpc"
-    #define PLATFORM_32_BIT 1
+
+    #if defined(__powerpc64__)
+        #define __CPU_PPC64 1
+        #define PLATFORM_64_BIT 1
+        #define CPU_ARCHITECTURE_STRING_EX "ppc64"
+        #define CPU_ARCHITECTURE_STRING_EX "powerpc|ppc|ppc64"
+    #else
+        #define PLATFORM_32_BIT 1
+        #define CPU_ARCHITECTURE_STRING "ppc"
+        #define CPU_ARCHITECTURE_STRING_EX "powerpc|ppc"
+    #endif 
 
 #elif defined(__arm__) || defined(__aarch64__) || defined(_M_ARM) || defined(_M_ARM64)
     #define __CPU_ARM 1

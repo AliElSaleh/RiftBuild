@@ -7,20 +7,78 @@
 
 STRUCT(SystemTime)
 {
-	u16 Year;
-	u16 Month;
-	u16 DayOfWeek;
-	u16 Day;
-	u16 Hour;
-	u16 Minute;
-	u16 Second;
-	u16 Millisecond;
+    u16 Year;
+    u16 Month;
+    u16 DayOfWeek;
+    u16 Day;
+    u16 Hour;
+    u16 Minute;
+    u16 Second;
+    u16 Millisecond;
 };
 
 STRUCT(PlatformMutex)
 {
     void* Handle;
     String Name;
+};
+
+STRUCT(CpuInfo)
+{
+    // Vendor
+    bool Intel           : 1;
+    bool AMD             : 1;
+
+    // Architecture
+    bool x86             : 1;
+    bool x64             : 1;
+    bool ARM             : 1;
+    bool ARM64           : 1;
+    bool PPC             : 1;
+    bool PPC64           : 1;
+
+    // Instruction Set Extensions
+    bool MMX             : 1;
+    bool SSE             : 1;
+    bool SSE2            : 1;
+    bool SSE3            : 1;
+    bool SSSE3           : 1;
+    bool SSE4            : 1;
+    bool SSE41           : 1;
+    bool SSE42           : 1;
+    bool AVX             : 1;
+    bool AVX2            : 1;
+    bool FMA3            : 1;
+    bool AES             : 1;
+    bool SHA             : 1;
+    bool ADX             : 1;
+    bool MPX             : 1;
+    bool BMI1            : 1;
+    bool BMI2            : 1;
+    bool RDSEED          : 1;
+    bool RDPID           : 1;
+    bool PREFETCHWT1     : 1;
+    bool AVX512          : 1;
+    bool AVX512F         : 1;
+    bool AVX512DQ        : 1;
+    bool AVX512IFMA      : 1;
+    bool AVX512PF        : 1;
+    bool AVX512ER        : 1;
+    bool AVX512CD        : 1;
+    bool AVX512BW        : 1;
+    bool AVX512VL        : 1;
+    bool AVX512VBMI      : 1;
+    bool AVX512VBMI2     : 1;
+    bool AVX512VPCLMUL   : 1;
+    bool AVX512VNNI      : 1;
+    bool AVX512BITALG    : 1;
+    bool AVX512VPOPCNTDQ : 1;
+    bool AVX5124VNNIW    : 1;
+    bool AVX5124FMAPS    : 1;
+    bool AVX512BF16      : 1;
+    bool AVX512FP16      : 1;
+    bool GFNI            : 1;
+    bool VAES            : 1;
 };
 
 RIFT_API void Platform_PreInitialize(void);
@@ -103,5 +161,7 @@ RIFT_API u64  Platform_GetCurrentProcessID(void);
 RIFT_API bool Platform_IsProgramRunning(const String ProgramName);
 
 RIFT_API bool Platform_GetTerminalDimensions(u32* OutRows, u32* OutColumns);
+
+RIFT_API CpuInfo Platform_QueryCPUInfo(void);
 
 #endif // _PLATFORM_H_
