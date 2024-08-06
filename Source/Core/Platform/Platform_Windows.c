@@ -1853,6 +1853,11 @@ u32 Platform_GetExitCodeForProcess(PlatformHandle Handle)
         return UINT32_MAX;
     }
 
+    if (ExitCode == 259) // STILL_ACTIVE
+    {
+        return UINT32_MAX;
+    }
+
     return ExitCode;
 }
 

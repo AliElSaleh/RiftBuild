@@ -452,7 +452,7 @@ u32 Platform_GetExitCodeForProcess(PlatformHandle Handle)
     pid_t pid = waitpid(Handle, &PidStatus, 0); // if you call this twice on the same pid, linux wont return the same exit code like windows does... sadge :(
     if (pid == -1)
     {
-        return 0;
+        return UINT32_MAX;
     }
 
     return WEXITSTATUS(PidStatus);
@@ -467,7 +467,7 @@ u32 Platform_WaitForProcessAndGetExitCode(PlatformHandle Handle)
     pid_t pid = waitpid(Handle, &PidStatus, 0);
     if (pid == -1)
     {
-        return 0;
+        return UINT32_MAX;
     }
 
     return WEXITSTATUS(PidStatus);

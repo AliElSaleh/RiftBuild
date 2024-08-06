@@ -390,6 +390,31 @@ bool C_DoCompile(CompileData* Data, const String FullPath, const String Relative
 {
     const BuildParams* Params = Data->Params;
     TArray(PlatformHandle) Processes = *Params->Processes;
+    //TArray(PlatformPipe) Pipes = *Params->Pipes;
+
+    /*
+    // exit if any process failed
+    u32 i = 0;
+    for each_i (i, PlatformHandle, Process, Processes)
+    {
+        const u32 ExitCode = Platform_GetExitCodeForProcess(Process);
+        if (ExitCode == UINT32_MAX) continue;
+        if (ExitCode != 0)
+        {
+            StringLocal(StdOutData, UINT16_MAX);
+            u64 BytesRead = 0;
+            Filesystem_ReadPipe(Pipes[i], StdOutData.Capacity, StdOutData.Data, &BytesRead);
+
+            StdOutData.Length = Min((u32)BytesRead, StdOutData.Capacity);
+
+            LOG_INLINE_ERROR("%S\n", StdOutData);
+
+            Platform_CloseHandle(Pipes[i][0]);
+
+            return false;
+        }
+    }
+    */
 
     if (Params->MaxCompilersAtOnce > 0 && !Params->bShouldWaitPerCompileProcess)
     {
@@ -412,6 +437,7 @@ bool C_DoCompile(CompileData* Data, const String FullPath, const String Relative
             }
 
             Array_RemoveAt(Processes, NULL, Index);
+            //Array_RemoveAt(Pipes, NULL, Index);
         }
     }
 
@@ -503,9 +529,13 @@ bool C_DoCompile(CompileData* Data, const String FullPath, const String Relative
     //Clock CompileTime;
     //Clock_Start(&CompileTime);
 
+    //PlatformPipe StdOutPipe = {0};
+    //PlatformHandle Handle = Platform_RunCommand_Ex(CmdLine, Params->RootDirectory, &StdOutPipe);
     PlatformHandle Handle = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
     if (!Platform_IsValidHandle(Handle)) return false;
+    //Platform_CloseHandle(StdOutPipe[1]);
     Array_Add(Processes, Handle);
+    //Array_Add(Pipes, StdOutPipe);
     (*Data->NumCompiled)++;
 
     if (Params->bShouldWaitPerCompileProcess)
@@ -774,8 +804,6 @@ bool IsHeader(const String Extension)
 }
 
 
-
-
 ////////////////////////////////////
 
 // MSVC BACKEND
@@ -783,37 +811,9 @@ bool IsHeader(const String Extension)
 ////////////////////////////////////
 
 
-
-
-#include "Backend.h"
-
 #if PLATFORM_WINDOWS
 
 /// TODO: if multithreaded and more than on soruce file. use /MP and call cl.exe only once
-
-// C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build 
-
-/*
-    // find the vcvars bat file so we can run cl from a regular cmd line. luckily the bat file is always in the same place relative to where cl.exe lives
-    u32 LastSlash = 0;
-    String_IndexOfLastPathSlash(Params->CompilerPath, &LastSlash);
-    const String CompilerPathNoExt = StrSlice(Params->CompilerPath.Data, LastSlash+1);
-    String_AppendChar(&CmdLine, '"');
-    String_Append(&CmdLine, CompilerPathNoExt);
-    String_Append(&CmdLine, StrLit("../../../../../../Auxiliary/Build/"));
-    if (Filesystem_DoesDirectoryExist(StrShiftF(CmdLine, 1)))
-    {
-        String_Append(&CmdLine, StrLit("vcvars64.bat")); //todo: switch between 32 or 64 bit?
-        String_AppendChar(&CmdLine, '"');
-        String_Append(&CmdLine, StrLit(" >NUL 2>&1 && ")); // suppress output logs from the bat script
-    }
-    else
-    {
-        String_Empty(&CmdLine);
-    }
-
-
-*/
 
 bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String RelativePath);
 
@@ -1051,8 +1051,31 @@ bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String Relat
     ASSERT(Data->Params != NULL);
 
     const BuildParams* Params = Data->Params;
-
     TArray(PlatformHandle) Processes = *Params->Processes;
+
+    // exit if any process failed
+    /*
+    u32 i = 0;
+    for each_i (i, PlatformHandle, Process, Processes)
+    {
+        const u32 ExitCode = Platform_GetExitCodeForProcess(Process);
+        if (ExitCode == UINT32_MAX) continue;
+        if (ExitCode != 0)
+        {
+            StringLocal(StdOutData, UINT16_MAX);
+            u64 BytesRead = 0;
+            Filesystem_ReadPipe(Pipes[i], StdOutData.Capacity, StdOutData.Data, &BytesRead);
+
+            StdOutData.Length = Min((u32)BytesRead, StdOutData.Capacity);
+
+            LOG_INLINE_ERROR("%S", StdOutData);
+
+            Platform_CloseHandle(Pipes[i][0]);
+
+            return false;
+        }
+    }
+    */
 
     if (Params->MaxCompilersAtOnce > 0 && !Params->bShouldWaitPerCompileProcess)
     {
@@ -1244,7 +1267,7 @@ bool MSVC_Link(const BuildParams* Params)
         String_Empty(&CmdLine);
         String_Append(&CmdLine, S("lib /nologo "));
 
-        String_BuildSeparator(&CmdLine, ' ', Params->Libraries, Params->LibraryDirectories, Params->VersionResFilePath);
+        String_BuildSeparator(&CmdLine, ' ', Params->LinkerFlags, Params->Libraries, Params->LibraryDirectories, Params->VersionResFilePath);
         String_AppendSpace(&CmdLine);
 
         LinkData Data = { Params, &CmdLine };

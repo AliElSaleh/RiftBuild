@@ -2080,14 +2080,15 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     StringLocal(IconResFilePath, MAX_PATH_LENGTH);
     StringLocal(VersionResFilePath, MAX_PATH_LENGTH);
 
-    ArrayLocal_Arena(FileVariable, VariablesDB,         256, Arena); // 8192 bytes
-    ArrayLocal_Arena(FileVariable, ExpandedVariablesDB, 256, Arena); // 8192 bytes
-    ArrayLocal_Arena(FileHandle,   IncludeFiles,        64,  Arena); // 1024 bytes
-    ArrayLocal_Arena(CmdOption,    CmdOptionsDB,        128, Arena); // 4608 bytes
-    ArrayLocal_Arena(String,       Messages,            128, Arena); // 2048 bytes
+    ArrayLocal_Arena(FileVariable,   VariablesDB,         256, Arena); // 8192 bytes
+    ArrayLocal_Arena(FileVariable,   ExpandedVariablesDB, 256, Arena); // 8192 bytes
+    ArrayLocal_Arena(FileHandle,     IncludeFiles,        64,  Arena); // 1024 bytes
+    ArrayLocal_Arena(CmdOption,      CmdOptionsDB,        128, Arena); // 4608 bytes
+    ArrayLocal_Arena(String,         Messages,            128, Arena); // 2048 bytes
 
     // 256 is a reasonable max number of compilers to run in parrallel. if you have more than 256 cores then what the fuck lol
-    ArrayLocal_Arena(PlatformHandle, Processes, 256, Arena); // 2048 bytes
+    ArrayLocal_Arena(PlatformHandle, Processes,           256, Arena); // 2048 bytes
+    //ArrayLocal_Arena(PlatformPipe,   Pipes,               256, Arena); // 4096 bytes
 
     // store custom command line options to be referenced inside of a .build file
     for (u8 i = 0; i < Parameters.Num; i++)
@@ -5086,6 +5087,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     p.BlacklistFiles                = BlacklistArray;
     p.BlacklistDirectories          = BlacklistDirArray;
     p.Processes                     = &Processes;
+    //p.Pipes                         = &Pipes;
     p.RootDirectory                 = WorkingPath;
     p.SourceDirectory               = SourceDirectory;
     p.BuildDirectory                = BuildDirectory;

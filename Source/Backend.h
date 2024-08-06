@@ -139,11 +139,8 @@ STRUCT(BuildParams)
 
     LinearAllocator* Arena;
 
-    #if PLATFORM_WINDOWS
-    TArray(void*)* Processes;
-    #else
-    TArray(i32)* Processes;
-    #endif
+    TArray(PlatformHandle)* Processes;
+    TArray(PlatformPipe)* Pipes;
 
     u32 NumSources;
     u32 NumHeaders;
