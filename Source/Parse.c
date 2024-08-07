@@ -1516,6 +1516,7 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
                         S("Includes"),
                         S("Icon"),
                         S("Compiler"),
+                        S("PCH"),
                         S("IncludedSourceDirectories"),
                         S("ExcludedSourceDirectories"),
                         S("ExternalSourceDirectories"),

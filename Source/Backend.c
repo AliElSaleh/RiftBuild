@@ -114,15 +114,18 @@ bool SourceFileDirectoryIterator(const String FullPath, const String RelativePat
 
         const String Extension = StrShiftF(FileName, DotIndex);
 
-        if (IsSource(Extension))
+        if (String_IsEqual(Extension, S(".asm"), false) ||
+            String_IsEqual(Extension, S(".rc"), false))
         {
-            if (String_IsEqual(Extension, S(".asm"), false) ||
-                String_IsEqual(Extension, S(".rc"), false))
-            {
-                // we will build this later
-                return true;
-            }
+            // we will build this later
+            return true;
+        }
 
+        const bool bIsPCH    = Data->Params->Type == AssemblyType_PCH;
+        const bool bIsSource = bIsPCH ? IsHeader(Extension) : IsSource(Extension);
+
+        if (bIsSource)
+        {
             if (FilterSourceFile(Data->Params->RootDirectory, Data->Params->SourceDirectory, FullPath, RelativePath, Data->Params->WhitelistFiles, Data->Params->BlacklistFiles, Data->Params->WhitelistDirectories, Data->Params->BlacklistDirectories))
             {
                 // compile this file
@@ -444,11 +447,29 @@ bool C_DoCompile(CompileData* Data, const String FullPath, const String Relative
     Data->Index++;
 
     StringLocal(FilePath, MAX_PATH_LENGTH);
-    String_Append(&FilePath, RelativePath);
-    String_Append(&FilePath, S(".o"));
+    if (Params->Type == AssemblyType_PCH)
+    {
+        //u32 LastDot = 0;
+        //String_IndexOfLastChar(RelativePath, '.', &LastDot);
+        //String_Append(&FilePath, StrSlice(RelativePath.Data, LastDot));
+        String_Append(&FilePath, RelativePath);
+        String_Append(&FilePath, S(".gch")); // todo: gch?
+    }
+    else
+    {
+        String_Append(&FilePath, RelativePath);
+        String_Append(&FilePath, S(".o"));
+    }
 
     StringLocal(ObjectPath, MAX_PATH_LENGTH);
-    String_BuildPath(&ObjectPath, Params->IntermediateBaseDirectory, FilePath);
+    if (Params->Type == AssemblyType_PCH)
+    {
+        String_BuildPath(&ObjectPath, Params->RootDirectory, Params->BuildDirectory, FilePath);
+    }
+    else
+    {
+        String_BuildPath(&ObjectPath, Params->IntermediateBaseDirectory, FilePath);
+    }
 
     StringLocal(FullSourcePath, MAX_PATH_LENGTH+2);
     String_AppendChar(&FullSourcePath, '"');
@@ -492,8 +513,22 @@ bool C_DoCompile(CompileData* Data, const String FullPath, const String Relative
 
     // build cmd line string
     StringLocal(CmdLine, UINT16_MAX);
-    String_BuildSeparator(&CmdLine, ' ', Params->CompilerProgram, FullSourcePath, Params->CompilerFlags, ErrorLimit, AdditionalPlatformFlags);
-    String_Concat(&CmdLine, S(" -c -o "), S("\""), ObjectPath, S("\" "), Params->DefineFlags, S(" "), Params->IncludeFlags);
+    String_BuildSeparator(&CmdLine, ' ', Params->CompilerProgram, S("-c"), FullSourcePath, Params->CompilerFlags, ErrorLimit, AdditionalPlatformFlags, Params->DefineFlags, Params->IncludeFlags);
+    String_EatSpacesInlineFromEnd(&CmdLine);
+    String_Append(&CmdLine, S(" -o \""));
+    String_Append(&CmdLine, ObjectPath);
+    String_Append(&CmdLine, S("\""));
+    //String_Concat(&CmdLine, S(" -c -o "), S("\""), ObjectPath, S("\" "), Params->DefineFlags, S(" "), Params->IncludeFlags);
+
+    if (Params->PCHPath.Length > 0)
+    {
+        // TODO: no hardcoded string compiler
+        if (String_IsEqual(Params->CompilerProgram, S("clang"), false) ||
+            String_IsEqual(Params->CompilerProgram, S("clang++"), false))
+        {
+            String_Concat(&CmdLine, S(" -include-pch "), S("\""), Params->PCHPath, S("\""));
+        }
+    }
 
     u64 ObjectFileWriteTime = Filesystem_GetLastWriteTime(ObjectPath);
     u64 SourceFileWriteTime = Filesystem_GetLastWriteTime(FullPath);

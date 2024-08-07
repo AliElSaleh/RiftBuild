@@ -107,6 +107,8 @@ STRUCT(BuildParams)
     String IntermediateDirectory; // relative
     String IntermediateBaseDirectory; // absolute (it is root + intermediate combined)
 
+    String PCHPath;
+
     String Assembly;
     String AssemblyWithExt;
     String Extension;

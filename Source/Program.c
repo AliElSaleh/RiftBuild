@@ -438,6 +438,7 @@ internal bool SourceFileCounterDirectoryIterator(const String FullPath, const St
             StringList WhitelistDirArray;
             StringList BlacklistDirArray;
             bool bHasCppFiles;
+            bool bIsPCHBuild;
         };
 
         // TODO: ignore intermediate and build directories
@@ -495,6 +496,14 @@ internal bool SourceFileCounterDirectoryIterator(const String FullPath, const St
         else if (IsHeader(Extension))
         {
             Data->NumHeaders++;
+            
+            if (Data->bIsPCHBuild)
+            {
+                if (Data->FirstSourceFileName->Length == 0)
+                {
+                    String_Copy(Data->FirstSourceFileName, FileName);
+                }
+            }
         }
     }
 
@@ -1341,6 +1350,10 @@ internal void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const Fi
             #else
                 Extension = S("");
             #endif
+        }
+        else if (String_IsEqual(Type, S("gch"), false))
+        {
+            Extension = S(".gch");
         }
         else if (String_IsEqual(Type, S("pch"), false) ||
                  String_IsEqual(Type, S("pre_compiled_header"), false))
@@ -2737,6 +2750,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     //const String OutsideSourceDirectories   = GetExpandedVariableValue(ExpandedVariablesDB, S("ExternalSourceDirectories"));
     String Icon                             = GetVariableValue(ExpandedVariablesDB, S("Icon"));
     const String MaxCompilerErrors          = GetVariableValue(ExpandedVariablesDB, S("MaxCompilerErrors"));
+    const String PCHPath                    = GetVariableValue(ExpandedVariablesDB, S("PCH"));
 
     #if PLATFORM_APPLE
     const String CustomInfoPlist            = GetVariableValue(ExpandedVariablesDB, S("Bundle.InfoPlist"));
@@ -2841,6 +2855,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             AssemblyType = AssemblyType_DynamicLibrary;
         }
         else if (String_IsEqual(Type, S("pch"), false) || 
+                 String_IsEqual(Type, S("gch"), false) || 
                  String_IsEqual(Type, S("pre_compiled_header"), false))
         {
             AssemblyType = AssemblyType_PCH;
@@ -2870,7 +2885,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
                 if (!bHasPCH)
                 {
-                    bHasPCH = String_EndsWith(*e, S("pch"), false);
+                    bHasPCH = String_EndsWith(*e, S("pch"), false) ||
+                              String_EndsWith(*e, S("gch"), false);
                 }
             }
 
@@ -3568,6 +3584,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
             String BuildFile = String_Null();
             String SpecifiedParams = String_Null();
+            String Directory = String_Null();
 
             u32 PipeIndex = 0;
             if (String_IndexOfChar(Value, '|', &PipeIndex))
@@ -3575,6 +3592,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 // we have params that we need to pass in
                 SpecifiedParams = String_EatSpaces(StrSlice(Value.Data+PipeIndex+1, Value.Length-PipeIndex-1));
             }
+
+            bool bDirectoryOnly = false;
 
             u32 SpaceIndex = 0;
             if (String_IndexOfFirstWhitespace(Value, &SpaceIndex))
@@ -3584,6 +3603,14 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             else
             {
                 BuildFile = Value;
+
+                // if someone wants to not specify a build file, they can specify the path instead
+                if (String_CountPathSeparators(BuildFile) > 0)
+                {
+                    BuildFile = String_Null();
+                    Directory = Value;
+                    bDirectoryOnly = true;
+                }
             }
 
             // circular dependency. abort, this is bad...
@@ -3628,16 +3655,34 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             }
             else
             {
-                String_Copy(&CustomWorkingPath, WorkingPath);
+                if (bDirectoryOnly)
+                {
+                    if (Filesystem_IsPathRelative(Directory))
+                    {
+                        String_BuildPath(&CustomWorkingPath, WorkingPath, Directory);
+                        Filesystem_ConvertRelativeToAbsolutePath(&CustomWorkingPath);
+                    }
+                    else
+                    {
+                        String_Copy(&CustomWorkingPath, Directory);
+                    }
+                }
+                else
+                {
+                    String_Copy(&CustomWorkingPath, WorkingPath);
+                }
             }
 
             String_EatPathSeparatorsInlineFromEnd(&CustomWorkingPath);
 
             StringLocal(BuildFileNameWithExt, 128);
-            String_Append(&BuildFileNameWithExt, BuildFile);
+            if (!bDirectoryOnly)
+            {
+                String_Append(&BuildFileNameWithExt, BuildFile);
 
-            if (!String_EndsWith(BuildFile, S(".build"), false))
-                String_Append(&BuildFileNameWithExt, S(".build"));
+                if (!String_EndsWith(BuildFile, S(".build"), false))
+                    String_Append(&BuildFileNameWithExt, S(".build"));
+            }
 
             //void* ArenaMemory = Platform_MemAllocZero(Kibibytes(512));
             /*
@@ -3678,7 +3723,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 }
             }
             
-            LOG("Depend -> %S\n", BuildFileNameWithExt);
+            LOG("Depend -> %S\n", bDirectoryOnly ? Directory : BuildFileNameWithExt);
             bRanAnyDependencies = true;
 
             StringLocal(NewBuildFilePath, MAX_PATH_LENGTH);
@@ -3695,7 +3740,11 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
             if (!Data.bFoundBuildFile)
             {
-                LOG_ERROR("Failed to find %S in %S", BuildFileNameWithExt, CustomWorkingPath);
+                if (!bDirectoryOnly)
+                {
+                    LOG_ERROR("Failed to find %S in %S", BuildFileNameWithExt, CustomWorkingPath);
+                }
+
                 return 1;
             }
 
@@ -3727,14 +3776,14 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             {
                 if (!bIsRebuild && !bNoRebuildOnDependencyChange)
                 {
-                    LOG("\nDependency \"%S\" was modified. Forcing rebuild...", BuildFile);
+                    LOG("\nDependency \"%S\" was modified. Forcing rebuild...", BuildFileNameWithExt);
                     bIsRebuild = true;
                 }
             }
             else if (ExitCode != 0)
             {
                 #ifndef HOOD
-                LOG_ERROR("Dependency build \"%S\" failed. Aborting build...", BuildFile);
+                LOG_ERROR("Dependency build \"%S\" failed. Aborting build...", BuildFileNameWithExt);
                 #else
                 LOG_ERROR("brah wtf, depndncy buil faild nigga");
                 #endif
@@ -4111,18 +4160,17 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         StringList WhitelistDirArray;
         StringList BlacklistDirArray;
         bool bHasCppFiles;
+        bool bIsPCHBuild;
     };
 
     StringLocal(FirstSourceFileName, 256);
-    struct SourceCountData CountData = { 0, 0, 0, 0, &FirstSourceFileName, WorkingPath, SourceDirectory, WhitelistArray, BlacklistArray, WhitelistDirArray, BlacklistDirArray, false };
+    struct SourceCountData CountData = { 0, 0, 0, 0, &FirstSourceFileName, WorkingPath, SourceDirectory, WhitelistArray, BlacklistArray, WhitelistDirArray, BlacklistDirArray, false, AssemblyType == AssemblyType_PCH};
 
     Filesystem_IterateDirectory_Ex(SourceDir, SourceFileCounterDirectoryIterator, true, &CountData);
 
-    //u32 NumSourceFiles = (u32)Array_Num(GSourceFiles);
-    //TArray(SourceFileData*) SourceFilesFiltered = Array_Reserve(SourceFileData*, NumSourceFiles > 0 ? NumSourceFiles : 2);
+    const u32 NumSources = AssemblyType == AssemblyType_PCH ? CountData.NumHeaders : CountData.NumSources;
 
-    if (CountData.NumSources == 0)
-    //if (Array_Num(GSourceFiles) == 0)
+    if (NumSources == 0)
     {
         if (bQuietBuild) Logging_Enable();
 
@@ -4141,28 +4189,12 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
     // use the first source file as the assembly name (if none provided or if "untitled" was set)
     //if (Array_Num(GSourceFiles) == 1)
-    if (CountData.NumSources == 1)
+    if (NumSources == 1)
     {
         if (!String_IsValid(AssemblyName) ||
             String_IsEqual(AssemblyName, S("Untitled"), false))
         {
             String TrimmedFileName = FirstSourceFileName;
-
-            //SourceFileData SFile = GSourceFiles[0];
-
-            // extract the name only, remove the path prefixes
-            /*
-            u32 SlashIndex = 0;
-            if (String_IndexOfLastPathSlash(SFile.RelativePath, &SlashIndex))
-            {
-                u32 Len = SFile.RelativePath.Length - SlashIndex;
-                TrimmedFileName = StrCompC(SFile.RelativePath.Data + (SlashIndex+1), Len-1, Len);
-            }
-            else
-            {
-                TrimmedFileName = SFile.RelativePath;
-            }
-            */
 
             // todo: left chop function
             u32 DotIndex = 0;
@@ -4550,11 +4582,54 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         // force a rebuild if the .build file has been modified
         if (!bIsRebuild && !bIsClean && bFoundBuildFile)
         {
-            // build the full source directory path
+            // build the full assembly path
             StringLocal(AssemblyPath, MAX_PATH_LENGTH);
-            String_BuildPath(&AssemblyPath, WorkingPath, BuildDirectory, AssemblyNameWithExt);
 
-            if (!Filesystem_DoesFileExist(AssemblyPath))
+            bool bAnyExist = false;
+
+            if (AssemblyType == AssemblyType_PCH)
+            {
+                const String PCHExts[] =
+                {
+                    S(".h.pch"),
+                    S(".h.gch"),
+                    S(".hpp.pch"),
+                    S(".hpp.gch"),
+                    S(".h++.pch"),
+                    S(".h++.gch"),
+                    S(".hh.pch"),
+                    S(".hh.gch"),
+                    S(".hxx.pch"),
+                    S(".hxx.gch"),
+                };
+
+                for (u32 i = 0; i < SArray_Capacity(PCHExts); i++)
+                {
+                    StringLocal(Name, 256);
+                    String_Copy(&Name, AssemblyName);
+                    String_Append(&Name, PCHExts[i]);
+
+                    String_Empty(&AssemblyPath);
+                    String_BuildPath(&AssemblyPath, WorkingPath, BuildDirectory, Name);
+
+                    if (Filesystem_DoesFileExist(AssemblyPath))
+                    {
+                        bAnyExist = true;
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                String_BuildPath(&AssemblyPath, WorkingPath, BuildDirectory, AssemblyNameWithExt);
+
+                if (Filesystem_DoesFileExist(AssemblyPath))
+                {
+                    bAnyExist = true;
+                }
+            }
+
+            if (!bAnyExist)
             {
                 LOG("Assembly file \"%S\" does not exist. Forcing rebuild...\n", AssemblyPath);
                 bIsRebuild = true;
@@ -4747,6 +4822,16 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 S(".idb"),
                 S(".ipch"),
                 S(".pch"),
+                S(".h.pch"),
+                S(".h.gch"),
+                S(".hpp.pch"),
+                S(".hpp.gch"),
+                S(".h++.pch"),
+                S(".h++.gch"),
+                S(".hxx.pch"),
+                S(".hxx.gch"),
+                S(".hh.pch"),
+                S(".hh.gch"),
                 S(".log"),
                 S(".tmp"),
                 S(".build.generated"),
@@ -4952,7 +5037,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 S("Library"),
                 S("Static Library"),
                 S("Shared Library"),
-                S("PCH"),
+                S("Pre Compiled Header"),
             };
 
             StringLocal(ExtInfo, 32);
@@ -5062,7 +5147,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     //LOG_INFO("Max logical cores: %u", MaxLogicalCores);
 
     // clamp to the min amount of source files vs cores
-    u32 MinResult = Min(CountData.NumSources, (u32)MaxCompilersAtOnce);
+    u32 MinResult = Min(NumSources, (u32)MaxCompilersAtOnce);
     MaxCompilersAtOnce = (u8)Min(MinResult, (u32)UINT8_MAX);
 
     if (String_IsValid(MaxConcurrentCompilations))
@@ -5124,6 +5209,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     p.BuildDirectory                = BuildDirectory;
     p.IntermediateDirectory         = IntermediateDirectory;
     p.IntermediateBaseDirectory     = IntermediateBaseDirectory;
+    p.PCHPath                       = PCHPath;
     p.MaxCompilersAtOnce            = MaxCompilersAtOnce;
     p.MaxErrors                     = MaxErrorsAllowed;
     p.bShouldWaitPerCompileProcess  = bShouldWaitPerCompileProcess;
@@ -5144,7 +5230,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     p.Description                   = Description;
     p.Copyright                     = Copyright;
     p.Version                       = Version;
-    p.NumSources                    = CountData.NumSources;
+    p.NumSources                    = NumSources;
     p.NumHeaders                    = CountData.NumHeaders;
     p.NumRcSources                  = CountData.NumRcSources;
 
@@ -5218,7 +5304,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     // log "Building (Assembly)" ui text
     if (GGenerator == Generator_None)
     {
-        if (CountData.NumSources > 0)
+        if (NumSources > 0)
         {
             u32 WhitespaceIndex = 0;
             bool bHasSpace = String_IndexOfFirstWhitespace(Extension_Og, &WhitespaceIndex);
@@ -5226,12 +5312,12 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             #ifndef HOOD
             if (bIsAssemblyExe || !bHasSpace)
             {
-                LOG("Building %S [%S] (%u %S) (with %u %S max)\n", AssemblyNameWithExt, S(CPU_ARCHITECTURE_STRING), CountData.NumSources, CountData.NumSources == 1 ? S("source file") : S("source files"), MaxCompilersAtOnce, MaxCompilersAtOnce == 1 ? S("core") : S("cores"));
+                LOG("Building %S [%S] (%u %S) (with %u %S max)\n", AssemblyNameWithExt, S(CPU_ARCHITECTURE_STRING), NumSources, NumSources == 1 ? S("source file") : S("source files"), MaxCompilersAtOnce, MaxCompilersAtOnce == 1 ? S("core") : S("cores"));
             }
             else
             {
                 String NextExt = StrShiftF(Extension_Og, WhitespaceIndex+1);
-                LOG("Building %S/%S [%S] (%u %S) (with %u %S max)\n", AssemblyNameWithExt, NextExt, S(CPU_ARCHITECTURE_STRING), CountData.NumSources, CountData.NumSources == 1 ? S("source file") : S("source files"), MaxCompilersAtOnce, MaxCompilersAtOnce == 1 ? S("core") : S("cores"));
+                LOG("Building %S/%S [%S] (%u %S) (with %u %S max)\n", AssemblyNameWithExt, NextExt, S(CPU_ARCHITECTURE_STRING), NumSources, NumSources == 1 ? S("source file") : S("source files"), MaxCompilersAtOnce, MaxCompilersAtOnce == 1 ? S("core") : S("cores"));
             }
             #else
             if (bIsAssemblyExe || !bHasSpace)
