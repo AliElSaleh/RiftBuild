@@ -160,11 +160,20 @@ internal void PrefixVariables(String* Dest, String VariableValue, const String P
             String_AppendChar(Dest, ':');
         }
         #endif
+
+        if (VariableValue.Data[0] != '"')
+        {
+            String_AppendChar(Dest, '"');
+        }
     }
 
     for (u32 i = 0; i < VariableValue.Length; i++)
     {
         char C = VariableValue.Data[i];
+
+        // ignore trailing space
+        if (C ==' ' && i == VariableValue.Length-1)
+            continue;
 
         if (C == ' ')
         {
@@ -187,6 +196,12 @@ internal void PrefixVariables(String* Dest, String VariableValue, const String P
                         String_AppendChar(Dest, ':');
                     }
                     #endif
+
+
+                    if (C != '"')
+                    {
+                        String_AppendChar(Dest, '"');
+                    }
                 }
             }
         }
@@ -196,7 +211,19 @@ internal void PrefixVariables(String* Dest, String VariableValue, const String P
             bInsideQuote = !bInsideQuote;
         }
 
+        if (C == ' ')
+        {
+            String_AppendChar(Dest, '"');
+        }
+        
         String_AppendChar(Dest, C);
+    }
+
+    if (Dest->Length > 0)
+    {
+        String_EatSpacesInlineFromEnd(Dest);
+        if (!String_IsLast(*Dest, '"'))
+            String_AppendChar(Dest, '"');
     }
 }
 
@@ -1892,6 +1919,9 @@ internal void ExpandPathFlags(LinearAllocator Scratch, String* Dest, const Strin
             String_AppendSpace(&NonWildcardFlags);
         }
     }
+
+    String_EatSpacesInlineFromEnd(&WildcardFlags);
+    String_EatSpacesInlineFromEnd(&NonWildcardFlags);
 
     PrefixVariables(Dest, WildcardFlags, FlagPrefix);
     PrefixVariables(Dest, NonWildcardFlags, FlagPrefix);
