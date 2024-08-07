@@ -155,16 +155,19 @@ internal void PrefixVariables(String* Dest, String VariableValue, const String P
 
     if (VariableValue.Length > 0)
     {
-        String_Append(Dest, Prefix);
-
-        #if PLATFORM_LINUX
-        if (String_StartsWith(VariableValue, S("lib"), false) && // TODO: only care about extension??
-            String_IsEqual(Prefix, S("-l"), true))// &&
-            //String_IndexOfChar(VariableValue, '.', NULL))
+        if (!String_StartsWith(VariableValue, Prefix, false))
         {
-            String_AppendChar(Dest, ':');
+            String_Append(Dest, Prefix);
+
+            #if PLATFORM_LINUX
+            if (String_StartsWith(VariableValue, S("lib"), false) && // TODO: only care about extension??
+                String_IsEqual(Prefix, S("-l"), true))// &&
+                //String_IndexOfChar(VariableValue, '.', NULL))
+            {
+                String_AppendChar(Dest, ':');
+            }
+            #endif
         }
-        #endif
 
         if (bWrapWithQuotes && VariableValue.Data[0] != '"')
         {
@@ -192,15 +195,18 @@ internal void PrefixVariables(String* Dest, String VariableValue, const String P
 
                 if (!bInsideQuote)
                 {
-                    String_Append(Dest, Prefix);
-
-                    #if PLATFORM_LINUX
-                    if (String_StartsWith(StrShiftF(VariableValue, i), S("lib"), false) &&
-                        String_IsEqual(Prefix, S("-l"), true))
+                    if (!String_StartsWith(StrShiftF(VariableValue, i), Prefix, false))
                     {
-                        String_AppendChar(Dest, ':');
+                        String_Append(Dest, Prefix);
+
+                        #if PLATFORM_LINUX
+                        if (String_StartsWith(StrShiftF(VariableValue, i), S("lib"), false) &&
+                            String_IsEqual(Prefix, S("-l"), true))
+                        {
+                            String_AppendChar(Dest, ':');
+                        }
+                        #endif
                     }
-                    #endif
 
                     if (bWrapWithQuotes && C != '"')
                     {
