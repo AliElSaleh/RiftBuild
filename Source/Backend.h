@@ -23,6 +23,10 @@ global TArray(InternalVariable) InternalVariablesDB;
 global bool bHasWrittenJSON;
 global bool bQuietBuild;
 global bool bNoWordWrapLogging;
+global bool bSingleThread;
+global bool bIsRebuild;
+global bool bIsClean;
+global bool bVerboseLog;
 
 STRUCT(SourceFileData)
 {
@@ -86,6 +90,8 @@ ENUM(EGenerator)
     Generator_GNOMEMime,
     Generator_KDEMime,
 };
+
+global EGenerator GGenerator;
 
 ENUM(EBuildMode)
 {
