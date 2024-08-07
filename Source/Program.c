@@ -6117,61 +6117,88 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
                     // todo: remove defines, use runtime check for gnome/xfce4
                     #if PLATFORM_LINUX_GNOME
-                    String_Append(&CmdLine, S("xdg-mime install --mode user "));
-                    String_Append(&CmdLine, XmlFilePath);
-                    if (bVerboseLog) LOG("    %S", CmdLine);
-
-                    H = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
-                    ExitCode = Platform_WaitForProcessAndGetExitCode(H);
-                    if (ExitCode != 0)
+                    if (Platform_FindProgram(S("xdg-mime")))
                     {
-                        LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
-                        return 1;
+                        String_Append(&CmdLine, S("xdg-mime install --mode user "));
+                        String_Append(&CmdLine, XmlFilePath);
+                        if (bVerboseLog) LOG("    %S", CmdLine);
+
+                        H = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
+                        ExitCode = Platform_WaitForProcessAndGetExitCode(H);
+                        if (ExitCode != 0)
+                        {
+                            LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
+                            return 1;
+                        }
+                    }
+                    else
+                    {
+                        LOG_WARNING("xdg-mime not found. Skipping icon database update...");
                     }
 
                     String_Empty(&CmdLine);
 
                     //xdg-icon-resource install --context mimetypes --novendor --size 32 Source/Resources/riftbuild.png riftbuild
-                    String_Append(&CmdLine, S("xdg-icon-resource install --context mimetypes --novendor --size 32 "));
-                    String_Append(&CmdLine, IconFilePath);
-                    String_AppendSpace(&CmdLine);
-                    String_Append(&CmdLine, AssemblyName);
-                    if (bVerboseLog) LOG("    %S", CmdLine);
-
-                    H = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
-                    ExitCode = Platform_WaitForProcessAndGetExitCode(H);
-                    if (ExitCode != 0)
+                    if (Platform_FindProgram(S("xdg-icon-resource")))
                     {
-                        LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
-                        return 1;
+                        String_Append(&CmdLine, S("xdg-icon-resource install --context mimetypes --novendor --size 32 "));
+                        String_Append(&CmdLine, IconFilePath);
+                        String_AppendSpace(&CmdLine);
+                        String_Append(&CmdLine, AssemblyName);
+                        if (bVerboseLog) LOG("    %S", CmdLine);
+
+                        H = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
+                        ExitCode = Platform_WaitForProcessAndGetExitCode(H);
+                        if (ExitCode != 0)
+                        {
+                            LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
+                            return 1;
+                        }
+                    }
+                    else
+                    {
+                        LOG_WARNING("xdg-icon-resource not found. Skipping icon database update...");
                     }
 
                     String_Empty(&CmdLine);
                     #endif
 
                     //update-desktop-database ~/.local/share/applications
-                    String_Copy(&CmdLine, S("update-desktop-database ~/.local/share/applications"));
-                    if (bVerboseLog) LOG("    %S", CmdLine);
-
-                    H = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
-                    ExitCode = Platform_WaitForProcessAndGetExitCode(H);
-                    if (ExitCode != 0)
+                    if (Platform_FindProgram(S("update-desktop-database")))
                     {
-                        LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
-                        return 1;
+                        String_Copy(&CmdLine, S("update-desktop-database ~/.local/share/applications"));
+                        if (bVerboseLog) LOG("    %S", CmdLine);
+
+                        H = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
+                        ExitCode = Platform_WaitForProcessAndGetExitCode(H);
+                        if (ExitCode != 0)
+                        {
+                            LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
+                            return 1;
+                        }
                     }
-                    
+                    else
+                    {
+                        LOG_WARNING("update-desktop-database not found. Skipping desktop database update...");
+                    }
 
                     //update-mime-database ~/.local/share/mime
-                    String_Copy(&CmdLine, S("update-mime-database ~/.local/share/mime"));
-                    if (bVerboseLog) LOG("    %S", CmdLine);
-
-                    H = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
-                    ExitCode = Platform_WaitForProcessAndGetExitCode(H);
-                    if (ExitCode != 0)
+                    if (Platform_FindProgram(S("update-mime-database")))
                     {
-                        LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
-                        return 1;
+                        String_Copy(&CmdLine, S("update-mime-database ~/.local/share/mime"));
+                        if (bVerboseLog) LOG("    %S", CmdLine);
+
+                        H = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
+                        ExitCode = Platform_WaitForProcessAndGetExitCode(H);
+                        if (ExitCode != 0)
+                        {
+                            LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
+                            return 1;
+                        }
+                    }
+                    else
+                    {
+                        LOG_WARNING("update-mime-database not found. Skipping mime database update...");
                     }
 
                     String_Empty(&CmdLine);
@@ -6279,19 +6306,34 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             // update databases
             {
                 StringLocal(CmdLine, 128);
-                String_Copy(&CmdLine, S("update-desktop-database ~/.local/share/applications"));
-                if (bVerboseLog) LOG("    %S", CmdLine);
 
-                PlatformHandle H = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
-                (void)Platform_WaitForProcessAndGetExitCode(H);
+                if (Platform_FindProgram(S("update-desktop-database")))
+                {
+                    String_Copy(&CmdLine, S("update-desktop-database ~/.local/share/applications"));
+                    if (bVerboseLog) LOG("    %S", CmdLine);
+
+                    PlatformHandle H = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
+                    (void)Platform_WaitForProcessAndGetExitCode(H);
+                }
+                else
+                {
+                    LOG_WARNING("update-desktop-database not found. Skipping desktop database update...");
+                }
 
                 String_Empty(&CmdLine);
 
-                String_Copy(&CmdLine, S("update-mime-database ~/.local/share/mime"));
-                if (bVerboseLog) LOG("    %S", CmdLine);
+                if (Platform_FindProgram(S("update-mime-database")))
+                {
+                    String_Copy(&CmdLine, S("update-mime-database ~/.local/share/mime"));
+                    if (bVerboseLog) LOG("    %S", CmdLine);
 
-                H = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
-                (void)Platform_WaitForProcessAndGetExitCode(H);
+                    H = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
+                    (void)Platform_WaitForProcessAndGetExitCode(H);
+                }
+                else
+                {
+                    LOG_WARNING("update-mime-database not found. Skipping mime database update...");
+                }
             }
         }
     }
