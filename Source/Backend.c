@@ -99,14 +99,6 @@ bool SourceFileDirectoryIterator(const String FullPath, const String RelativePat
             if (RelativePath.Length == Data->Params->BuildDirectory.Length)
                 if (String_StartsWith(RelativePath, Data->Params->BuildDirectory, false))
                     return true;
-
-            /*
-            if (String_StartsWith(RelativePath, Data->Params->IntermediateDirectory, false) ||
-                String_StartsWith(RelativePath, Data->Params->BuildDirectory, false))
-            {
-                return true;
-            }
-            */
         }
 
         u32 DotIndex = 0;
@@ -449,11 +441,8 @@ bool C_DoCompile(CompileData* Data, const String FullPath, const String Relative
     StringLocal(FilePath, MAX_PATH_LENGTH);
     if (Params->Type == AssemblyType_PCH)
     {
-        //u32 LastDot = 0;
-        //String_IndexOfLastChar(RelativePath, '.', &LastDot);
-        //String_Append(&FilePath, StrSlice(RelativePath.Data, LastDot));
         String_Append(&FilePath, RelativePath);
-        String_Append(&FilePath, S(".gch")); // todo: gch?
+        String_Append(&FilePath, S(".gch"));
     }
     else
     {
@@ -526,7 +515,12 @@ bool C_DoCompile(CompileData* Data, const String FullPath, const String Relative
         if (String_IsEqual(Params->CompilerProgram, S("clang"), false) ||
             String_IsEqual(Params->CompilerProgram, S("clang++"), false))
         {
-            String_Concat(&CmdLine, S(" -include-pch "), S("\""), Params->PCHPath, S("\""));
+            u32 LastDot = 0;
+            bool bHasExt = String_IndexOfLastChar(Params->PCHPath, '.', &LastDot);
+
+            const String Trimmed = bHasExt ? StrSlice(Params->PCHPath.Data, LastDot) : Params->PCHPath;
+
+            String_Concat(&CmdLine, S(" -include-pch "), S("\""), Trimmed, S(".h.gch\""));
         }
     }
 
@@ -952,6 +946,7 @@ internal bool Link_SourceFileDirectoryIterator_MSVC(const String FullPath, const
         {
             if (String_IndexOfFirstPathSlash(RelativePath, NULL))
             {
+                // todo: update this?
                 if (String_StartsWith(RelativePath, Data->Params->IntermediateDirectory, false) ||
                     String_StartsWith(RelativePath, Data->Params->BuildDirectory, false))
                 {
@@ -1140,7 +1135,7 @@ bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String Relat
     
     StringLocal(CmdLine, UINT16_MAX);
     String_Append(&CmdLine, Params->CompilerProgram);
-    String_Append(&CmdLine, S(" /nologo "));
+    String_Append(&CmdLine, S(" /nologo /c "));
 
     u32 LastSlash = 0;
     String_IndexOfLastPathSlash(RelativePath, &LastSlash);
@@ -1149,14 +1144,82 @@ bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String Relat
     String_IndexOfLastChar(RelativePath, '.', &LastDot);
 
     StringLocal(FilePath, MAX_PATH_LENGTH);
-    String_Append(&FilePath, StrSlice(RelativePath.Data, LastDot));
-    String_Append(&FilePath, S(".obj"));
+
+    if (Params->Type == AssemblyType_PCH)
+    {
+        String_BuildPath(&FilePath, StrSlice(RelativePath.Data, LastSlash), Params->Assembly);
+        String_Append(&FilePath, S(".pch"));
+    }
+    else
+    {
+        String_Append(&FilePath, StrSlice(RelativePath.Data, LastDot));
+        String_Append(&FilePath, S(".obj"));
+    }
 
     // build object path
     StringLocal(ObjectFilePath, MAX_PATH_LENGTH);
-    String_BuildPath(&ObjectFilePath, Params->RootDirectory, Params->IntermediateDirectory, FilePath);
+    if (Params->Type == AssemblyType_PCH)
+    {
+        String_BuildPath(&ObjectFilePath, Params->RootDirectory, Params->BuildDirectory, FilePath);
+    }
+    else
+    {
+        String_BuildPath(&ObjectFilePath, Params->IntermediateBaseDirectory, FilePath);
+        //String_BuildPath(&ObjectFilePath, Params->RootDirectory, Params->IntermediateDirectory, FilePath);
+    }
+
     Filesystem_ConvertRelativeToAbsolutePath(&ObjectFilePath);
-    
+
+    //String FinalFullPath     = FullPath;
+    String FinalRelativePath = RelativePath;
+
+    bool bIsCppHeader = String_EndsWith(RelativePath, S(".hh"), false) ||
+                        String_EndsWith(RelativePath, S(".hpp"), false) ||
+                        String_EndsWith(RelativePath, S(".hxx"), false) ||
+                        String_EndsWith(RelativePath, S(".h++"), false);
+
+    // generate a source file for the precompiled header (if it doesnt exist yet)
+    StringLocal(PchSourceFile, MAX_PATH_LENGTH);
+    StringLocal(RelativePathCopy, MAX_PATH_LENGTH);
+    String_Copy(&RelativePathCopy, StrSlice(RelativePath.Data, LastDot));
+    if (Params->Type == AssemblyType_PCH)
+    {
+        const String Exts[] = { S(".c"), S(".cc"), S(".cxx"), S(".c++"), S(".cpp") };
+        bool bAnyPchSourceExists = false;
+        for (u8 i = 0; i < SArray_Capacity(Exts); i++)
+        {
+            String_Empty(&PchSourceFile);
+            String_BuildPath(&PchSourceFile, Params->RootDirectory, Params->SourceDirectory, RelativePathCopy);
+            String_Append(&PchSourceFile, Exts[i]);
+            if (Filesystem_DoesFileExist(PchSourceFile))
+            {
+                String_Append(&RelativePathCopy, Exts[i]);
+                bAnyPchSourceExists = true;
+                break;
+            }
+        }
+
+        if (!bAnyPchSourceExists)
+        {
+            String_Append(&RelativePathCopy, bIsCppHeader ? S(".cpp") : S(".c"));
+            String_Empty(&PchSourceFile);
+            String_BuildPath(&PchSourceFile, Params->RootDirectory, Params->SourceDirectory, RelativePathCopy);
+
+            if (!Filesystem_DoesFileExist(PchSourceFile))
+            {
+                FileHandle f = FileHandle_Null();
+                if (Filesystem_Open(PchSourceFile, FileMode_Write, &f))
+                {
+                    Filesystem_WriteLineFormatted(f, S("#include \"%S\"\n"), NULL, RelativePath);
+                    Filesystem_Close(&f);
+                }
+            }
+        }
+
+        //FinalFullPath     = PchSourceFile;
+        FinalRelativePath = RelativePathCopy;
+    }
+
     u64 ObjectFileWriteTime = Filesystem_GetLastWriteTime(ObjectFilePath);
     u64 SourceFileWriteTime = Filesystem_GetLastWriteTime(FullPath);
 
@@ -1172,7 +1235,7 @@ bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String Relat
     }
 
     StringLocal(FullSourcePath, MAX_PATH_LENGTH+2);
-    String_BuildPath(&FullSourcePath, Params->SourceDirectory, RelativePath);
+    String_BuildPath(&FullSourcePath, Params->SourceDirectory, FinalRelativePath);
 
     String_AppendChar(&CmdLine, '"');
     String_Append(&CmdLine, FullSourcePath);
@@ -1181,6 +1244,68 @@ bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String Relat
 
     String_BuildSeparator(&CmdLine, ' ', Params->CompilerFlags, Params->DefineFlags, Params->IncludeFlags);
     String_EatSpacesInlineFromEnd(&CmdLine);
+
+    if (Params->Type == AssemblyType_PCH)
+    {
+        String_AppendSpace(&CmdLine);
+
+        String_Append(&CmdLine, S("/Yc\""));
+        String_Append(&CmdLine, RelativePath);
+        String_Append(&CmdLine, S("\" "));
+
+        String_Append(&CmdLine, S("/Fp\""));
+        String_Append(&CmdLine, ObjectFilePath);
+        String_Append(&CmdLine, S("\""));
+    }
+    else
+    {
+        if (Params->PCHPath.Length > 0)
+        {
+            String_AppendSpace(&CmdLine);
+
+            bool bHasExt = String_IndexOfLastChar(Params->PCHPath, '.', &LastDot);
+
+            const String Trimmed = bHasExt ? StrSlice(Params->PCHPath.Data, LastDot) : Params->PCHPath;
+
+            String_Append(&CmdLine, S("/Yu\""));
+            if (Params->PCHHeaderPath.Length > 0)
+            {
+                String_Append(&CmdLine, Params->PCHHeaderPath);
+            }
+            else
+            {
+                // test all header extensions
+                bool bAnyFound = false;
+                const String Exts[] = { S(".h"), S(".hh"), S(".hpp"), S(".hxx"), S(".h++") };
+                for (u8 i = 0; i < SArray_Capacity(Exts); i++)
+                {
+                    StringLocal(Test, MAX_PATH_LENGTH);
+                    String_Append(&Test, Trimmed);
+                    String_Append(&Test, Exts[i]);
+                    if (Filesystem_DoesFileExist(Test))
+                    {
+                        String_Append(&CmdLine, Trimmed);
+                        String_Append(&CmdLine, Exts[i]);
+                        bAnyFound = true;
+                        break;
+                    }
+                }
+
+                // hardcode the extension as failsafe
+                if (!bAnyFound)
+                {
+                    String_Append(&CmdLine, Trimmed);
+                    String_Append(&CmdLine, S(".h"));
+                }
+            }
+
+            String_Append(&CmdLine, S("\" "));
+
+            String_Append(&CmdLine, S("/Fp\""));
+            String_Append(&CmdLine, Trimmed);
+            String_Append(&CmdLine, S(".pch\""));
+        }
+    }
 
     StringLocal(ObjectPath, MAX_PATH_LENGTH);
     String_BuildPath(&ObjectPath, Params->IntermediateDirectory, StrSlice(RelativePath.Data, LastSlash));
@@ -1192,14 +1317,17 @@ bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String Relat
 
     Filesystem_OpenDirectory(FullObjectPath);
 
-    String_Append(&CmdLine, S(" /Fo\""));
-    String_Append(&CmdLine, ObjectPath);
-    String_Append(&CmdLine, S("\\\\\" /c"));
+    if (ObjectPath.Length > 0)
+    {
+        String_Append(&CmdLine, S(" /Fo\""));
+        String_Append(&CmdLine, ObjectPath);
+        String_Append(&CmdLine, S("\\\\\""));
+    }
 
     if (bQuietBuild) Logging_Enable();
 
     if (Params->bShouldWaitPerCompileProcess)
-        LOG_INLINE("[%i/%i] Compiling ", Data->Index, Params->NumSources);
+        LOG("[%i/%i] Compiling %S", Data->Index, Params->NumSources, FullPath);
 
     if (bQuietBuild) Logging_Disable();
 
@@ -1262,6 +1390,35 @@ bool MSVC_Link(const BuildParams* Params)
         Filesystem_IterateDirectory_Ex(SourceDir, Link_SourceFileDirectoryIterator_MSVC, true, &Data);
 
         String_EatSpacesInlineFromEnd(&CmdLine);
+
+        if (Params->PCHPath.Length > 0)
+        {
+            String_AppendSpace(&CmdLine);
+
+            String_Append(&CmdLine, S("\""));
+
+            if (Params->PCHHeaderPath.Length > 0)
+            {
+                u32 LastDot = 0;
+                bool bHasExt = String_IndexOfLastChar(Params->PCHHeaderPath, '.', &LastDot);
+                const String Trimmed = bHasExt ? StrSlice(Params->PCHHeaderPath.Data, LastDot) : Params->PCHHeaderPath;
+
+                String_Append(&CmdLine, Trimmed);
+                String_Append(&CmdLine, S(".obj"));
+            }
+            else
+            {
+                u32 LastDot = 0;
+                bool bHasExit = String_IndexOfLastChar(Params->PCHPath, '.', &LastDot);
+                const String Trimmed = bHasExit ? StrSlice(Params->PCHPath.Data, LastDot) : Params->PCHPath;
+
+                String_Append(&CmdLine, Trimmed);
+                String_Append(&CmdLine, S(".obj"));
+            }
+
+            String_Append(&CmdLine, S("\""));
+        }
+
         String_Concat(&CmdLine, S(" /OUT:\""), BuildPath, Params->AssemblyWithExt, S("\"")); // make this first then the flags?
 
         if (bQuietBuild) Logging_Enable();

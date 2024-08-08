@@ -259,16 +259,19 @@ bool ParseBuildFile(LinearAllocator* Arena,
         }
 
         // validate
-        if (VarName.Length > 64)
+        if (!bInsideSquareBrackets)
         {
-            LOG_ERROR("Variable name \"%S\" is too long. (%u chars)\n        Max length is 64 characters", VarName, VarName.Length);
-            return false;
-        }
+            if (VarName.Length > 64)
+            {
+                LOG_ERROR("Variable name \"%S\" is too long. (%u chars)\n        Max length is 64 characters", VarName, VarName.Length);
+                return false;
+            }
 
-        if (VarValue.Length > 2048)
-        {
-            LOG_ERROR("Variable value \"%S\" is too long. (%u chars)\n       Max length is 2048 characters", VarValue, VarValue.Length);
-            return false;
+            if (VarValue.Length > 2048)
+            {
+                LOG_ERROR("Variable value \"%S\" is too long. (%u chars)\n       Max length is 2048 characters", VarValue, VarValue.Length);
+                return false;
+            }
         }
 
         const bool bHasOverwrite = String_EatCharInlineFromEnd(&VarName, '`');
@@ -1517,6 +1520,7 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
                         S("Icon"),
                         S("Compiler"),
                         S("PCH"),
+                        S("PCH.h"),
                         S("IncludedSourceDirectories"),
                         S("ExcludedSourceDirectories"),
                         S("ExternalSourceDirectories"),

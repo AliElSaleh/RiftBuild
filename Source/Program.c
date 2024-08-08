@@ -495,13 +495,27 @@ internal bool SourceFileCounterDirectoryIterator(const String FullPath, const St
         }
         else if (IsHeader(Extension))
         {
-            Data->NumHeaders++;
-            
-            if (Data->bIsPCHBuild)
+            if (FilterSourceFile(Data->WorkingDirectory, Data->SourceDirectory, FullPath, RelativePath, Data->WhitelistArray, Data->BlacklistArray, Data->WhitelistDirArray, Data->BlacklistDirArray))
             {
-                if (Data->FirstSourceFileName->Length == 0)
+                Data->NumHeaders++;
+
+                if (!Data->bHasCppFiles)
                 {
+                    // is cpp header?
+                    if (String_EndsWith(RelativePath, S(".hh"), false) ||
+                        String_EndsWith(RelativePath, S(".hpp"), false) ||
+                        String_EndsWith(RelativePath, S(".hxx"), false) ||
+                        String_EndsWith(RelativePath, S(".h++"), false))
+                    {
+                        Data->bHasCppFiles = true;
+                    }
+                }
+                
+                if (Data->bIsPCHBuild)
+                {
+                    Data->NumSources++;
                     String_Copy(Data->FirstSourceFileName, FileName);
+                    return false;
                 }
             }
         }
@@ -521,29 +535,34 @@ internal bool HeaderFileRebuildCheckDirectoryIterator(const String FullPath, con
 
         if (IsHeader(Extension))
         {
-            struct HeaderIterData
+            // todo??
+            //if (FilterSourceFile(Data->WorkingDirectory, Data->SourceDirectory, FullPath, RelativePath, Data->WhitelistArray, Data->BlacklistArray, Data->WhitelistDirArray, Data->BlacklistDirArray))
             {
-                u64 AssemblyFileTime;
-                bool* bShouldRebuild;
-            };
+                struct HeaderIterData
+                {
+                    u64 AssemblyFileTime;
+                    bool* bShouldRebuild;
+                };
 
-            struct HeaderIterData* Data = UserData;
+                struct HeaderIterData* Data = UserData;
 
-            u64 HeaderFileTime = Filesystem_GetLastWriteTime(FullPath);
+                u64 HeaderFileTime = Filesystem_GetLastWriteTime(FullPath);
 
-            if (HeaderFileTime >= Data->AssemblyFileTime)
-            {
-                *Data->bShouldRebuild = true;
+                if (HeaderFileTime >= Data->AssemblyFileTime)
+                {
+                    *Data->bShouldRebuild = true;
 
-                #ifndef HOOD
-                LOG("Header file \"%S\" has been modified since last build. Forcing rebuild...", FullPath);
-                #else
-                LOG("yo homie, dis header file \"%S\" was recently changed. gon force a rebuild...", FullPath);
-                #endif
+                    #ifndef HOOD
+                    LOG("Header file \"%S\" has been modified since last build. Forcing rebuild...", FullPath);
+                    #else
+                    LOG("yo homie, dis header file \"%S\" was recently changed. gon force a rebuild...", FullPath);
+                    #endif
 
-                LOG_LINE_BREAK();
+                    LOG_LINE_BREAK();
 
-                return false;
+                    return false;
+                }
+
             }
         }
     }
@@ -2751,6 +2770,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     String Icon                             = GetVariableValue(ExpandedVariablesDB, S("Icon"));
     const String MaxCompilerErrors          = GetVariableValue(ExpandedVariablesDB, S("MaxCompilerErrors"));
     const String PCHPath                    = GetVariableValue(ExpandedVariablesDB, S("PCH"));
+    const String PCHHeaderPath              = GetVariableValue(ExpandedVariablesDB, S("PCH.h"));
 
     #if PLATFORM_APPLE
     const String CustomInfoPlist            = GetVariableValue(ExpandedVariablesDB, S("Bundle.InfoPlist"));
@@ -3172,7 +3192,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                     #if PLATFORM_WINDOWS
                     LOG_ERROR("Compiler program \"%S\" does not exist. Aborting build...", CompilerProgram);
                     
-                    LOG("\n    Make sure that you have the Visual Studio build tools installed and "
+                    LOG("\n    Make sure that the Visual Studio build tools and Windows SDK are installed and "
                         "\n    that you run riftbuild from a different terminal application named"
                         "\n    \"x64 (or x86) Native Tools Command Prompt for VS\".");
 
@@ -4591,6 +4611,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             {
                 const String PCHExts[] =
                 {
+                    S(".pch"),
                     S(".h.pch"),
                     S(".h.gch"),
                     S(".hpp.pch"),
@@ -5210,6 +5231,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     p.IntermediateDirectory         = IntermediateDirectory;
     p.IntermediateBaseDirectory     = IntermediateBaseDirectory;
     p.PCHPath                       = PCHPath;
+    p.PCHHeaderPath                 = PCHHeaderPath;
     p.MaxCompilersAtOnce            = MaxCompilersAtOnce;
     p.MaxErrors                     = MaxErrorsAllowed;
     p.bShouldWaitPerCompileProcess  = bShouldWaitPerCompileProcess;
@@ -5233,6 +5255,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     p.NumSources                    = NumSources;
     p.NumHeaders                    = CountData.NumHeaders;
     p.NumRcSources                  = CountData.NumRcSources;
+    p.bHasCppFiles                  = CountData.bHasCppFiles;
 
 
     // find the icon path (if specified)
@@ -6578,6 +6601,7 @@ End:
     // run the assembly (if an executable)
     if (bIsAssemblyExe)
     {
+        // todo:if we have run assembly's ignore this shit
         if (StringArray_Contains(Parameters, S("Run"), false))
         {
             // todo: args like runassembly key

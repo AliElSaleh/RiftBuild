@@ -108,6 +108,7 @@ STRUCT(BuildParams)
     String IntermediateBaseDirectory; // absolute (it is root + intermediate combined)
 
     String PCHPath;
+    String PCHHeaderPath;
 
     String Assembly;
     String AssemblyWithExt;
@@ -161,6 +162,7 @@ STRUCT(BuildParams)
     bool bShouldWaitPerCompileProcess;
     bool bIsAssemblyExe;
     bool bVerbose;
+    bool bHasCppFiles;
 };
 
 STRUCT(CompileData)
