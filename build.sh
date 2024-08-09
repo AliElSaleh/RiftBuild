@@ -44,6 +44,6 @@ CompilerFlags="-std=c99 -Os ${MiscFlags} -fno-omit-frame-pointer -fno-exceptions
 
 printf "Compiling sources (${Platform})\n"
 
-clang "Source/Core/Clock/Clock.c" "Source/Core/Memory/Memory.c" "Source/Core/String/StringUtils.c" "Source/Core/Log.c" "Source/Core/Globals.c" "Source/Core/Platform/Platform_${Platform}.c" "Source/Program.c" "Source/Backend.c" "Source/Parse.c" "Source/Exporter.c" ${CompilerFlags} ${LinuxDEDefines} ${CoverageCompilerFlags} -o riftbuild ${LinuxLinkerFlags} ${BSDLinkerFlags} -Wl,-rpath,'$ORIGIN'
+clang "Source/Core/Clock/Clock.c" "Source/Core/Memory/Memory.c" "Source/Core/String/StringUtils.c" "Source/Core/Log.c" "Source/Core/Globals.c" "Source/Core/Platform/Platform_Core.c" "Source/Core/Platform/Platform_${Platform}.c" "Source/Program.c" "Source/Backend.c" "Source/Parse.c" "Source/Exporter.c" ${CompilerFlags} ${LinuxDEDefines} ${CoverageCompilerFlags} -o riftbuild ${LinuxLinkerFlags} ${BSDLinkerFlags} -Wl,-rpath,'$ORIGIN'
 
 printf "\033[0;32m  Done: riftbuild\033[0m\n"
