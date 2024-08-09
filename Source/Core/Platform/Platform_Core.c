@@ -2,22 +2,41 @@
 
 #include "Platform.h"
 #include "String/StringUtils.h"
+#include "Log.h"
 
+#if __CPU_X86 || __CPU_X64
 #if !COMPILER_MSVC
-    #if (__x86_64__ || __i386__)
-    #include <cpuid.h>
-    #endif
+#include <cpuid.h>
 #endif
 
 internal void cpuid(int info[4], int infoType, int subtype)
 {
-#if __CPU_X86 || __CPU_X64
     #if COMPILER_MSVC
     __cpuidex(info, infoType, subtype);
     #else
     __cpuid_count(infoType, subtype, info[0], info[1], info[2], info[3]);
     #endif
-#endif
+}
+
+RIFT_API u32 Platform_GetCpuCacheLineSize(void)
+{
+    // todo: do this dynamically
+    return __CACHE_LINE_SIZE;
+}
+
+bool Platform_GetCpuBrandString(String* OutName)
+{
+    int info[4] = {0};
+    cpuid(info, 0, 0);
+
+    char vendor[13] = {0};
+    ((int*)vendor)[0] = info[1];
+    ((int*)vendor)[1] = info[3];
+    ((int*)vendor)[2] = info[2];
+    vendor[12] = '\0';
+
+    String_Copy(OutName, CStrEx(vendor, 12));
+    return true;
 }
 
 CpuInfo Platform_QueryCPUInfo(void)
@@ -32,7 +51,7 @@ CpuInfo Platform_QueryCPUInfo(void)
     int MaxSupportedIDs = info[0];
 
     // vendor string
-    char vendor[13];
+    char vendor[13] = {0};
     ((int*)vendor)[0] = info[1];
     ((int*)vendor)[1] = info[3];
     ((int*)vendor)[2] = info[2];
@@ -49,16 +68,6 @@ CpuInfo Platform_QueryCPUInfo(void)
         Result.x86 = 1;
     #elif __CPU_X86
         Result.x86 = 1;
-    #elif __CPU_ARM64
-        Result.ARM64 = 1;
-        Result.ARM   = 1;
-    #elif __CPU_ARM
-        Result.ARM = 1;
-    #elif __CPU_PPC64
-        Result.PPC64 = 1;
-        Result.PPC   = 1;
-    #elif __CPU_PPC
-        Result.PPC = 1;
     #endif
 
     // check for specific instruction sets
@@ -127,3 +136,136 @@ CpuInfo Platform_QueryCPUInfo(void)
 
     return Result;
 }
+
+#elif __CPU_ARM || __CPU_ARM64
+
+#if PLATFORM_APPLE || PLATFORM_BSD
+#include <sys/types.h>
+#include <sys/sysctl.h>
+#endif
+
+#if PLATFORM_APPLE
+internal inline bool IsSysAttributeSet(const char* Name)
+{
+    i64 Ret = 0;
+    size_t Size = sizeof(i64);
+    i32 Result = sysctlbyname(Name, &Ret, &Size, NULL, 0);
+    if (Result == -1)
+    {
+        return false;
+    }
+
+    return Ret != 0;
+}
+
+u32 Platform_GetCpuCacheLineSize(void)
+{
+    i64 LineSize = 0;
+    size_t Size = sizeof(LineSize);
+    i32 Result = sysctlbyname("hw.cachelinesize", &LineSize, &Size, NULL, 0);
+    if (Result == -1)
+    {
+        return 0;
+    }
+
+    return (u32)LineSize;
+}
+
+bool Platform_GetCpuBrandString(String* OutName)
+{
+    char Vendor[128] = {0};
+    size_t Size = sizeof(Vendor);
+    i32 Result = sysctlbyname("machdep.cpu.brand_string", Vendor, &Size, NULL, 0);
+    if (Result == -1)
+    {
+        return false;
+    }
+
+    String_Copy(OutName, CStrEx(Vendor, 127));
+    return true;
+}
+#endif
+
+CpuInfo Platform_QueryCPUInfo(void)
+{
+    CpuInfo Result = {0};
+
+    // architecture
+    #if __CPU_ARM64
+    Result.ARM64 = 1;
+    Result.ARM   = 1;
+    #elif __CPU_ARM
+    Result.ARM = 1;
+    #endif
+
+    #if PLATFORM_APPLE
+    Result.Apple = 1;
+    #else
+    #error "TODO: Intel/AMD"
+    #endif
+
+    #if PLATFORM_APPLE || PLATFORM_BSD
+    Result.NEON               = IsSysAttributeSet("hw.optional.neon");
+    Result.NEON_HPFP          = IsSysAttributeSet("hw.optional.neon_hpfp");
+    Result.NEON_FP16          = IsSysAttributeSet("hw.optional.neon_fp16");
+    Result.ARMV8_1_ATOMICS    = IsSysAttributeSet("hw.optional.armv8_1_atomics");
+    Result.ARMV8_2_FHM        = IsSysAttributeSet("hw.optional.armv8_2_fhm");
+    Result.ARMV8_2_SHA512     = IsSysAttributeSet("hw.optional.armv8_2_sha512");
+    Result.ARMV8_2_SHA3       = IsSysAttributeSet("hw.optional.armv8_2_sha3");
+    Result.ARMV8_3_COMPNUM    = IsSysAttributeSet("hw.optional.armv8_3_compnum");
+    Result.ARMV8_CRC32        = IsSysAttributeSet("hw.optional.armv8_crc32");
+    Result.ARMV8_GPI          = IsSysAttributeSet("hw.optional.armv8_gpi");
+    Result.AdvSIMD            = IsSysAttributeSet("hw.optional.AdvSIMD");
+    Result.AdvSIMD_HPFPCVT    = IsSysAttributeSet("hw.optional.AdvSIMD_HPFPCvt");
+    Result.UCNORMAL_MEM       = IsSysAttributeSet("hw.optional.ucnormal_mem");
+    Result.FLAGM              = IsSysAttributeSet("hw.optional.arm.FEAT_FlagM");
+    Result.FLAGM2             = IsSysAttributeSet("hw.optional.arm.FEAT_FlagM2");
+    Result.FLAGM3             = IsSysAttributeSet("hw.optional.arm.FEAT_FlagM3");
+    Result.FLAGM4             = IsSysAttributeSet("hw.optional.arm.FEAT_FlagM4");
+    Result.FHM                = IsSysAttributeSet("hw.optional.arm.FEAT_FHM");
+    Result.DOTPROD            = IsSysAttributeSet("hw.optional.arm.FEAT_DotProd");
+    Result.SHA3               = IsSysAttributeSet("hw.optional.arm.FEAT_SHA3");
+    Result.RDM                = IsSysAttributeSet("hw.optional.arm.FEAT_RDM");
+    Result.LSE                = IsSysAttributeSet("hw.optional.arm.FEAT_LSE");
+    Result.SHA256             = IsSysAttributeSet("hw.optional.arm.FEAT_SHA256");
+    Result.SHA512             = IsSysAttributeSet("hw.optional.arm.FEAT_SHA512");
+    Result.SHA1               = IsSysAttributeSet("hw.optional.arm.FEAT_SHA1");
+    Result.AES                = IsSysAttributeSet("hw.optional.arm.FEAT_AES");
+    Result.PMULL              = IsSysAttributeSet("hw.optional.arm.FEAT_PMULL");
+    Result.SPECRES            = IsSysAttributeSet("hw.optional.arm.FEAT_SPECRES");
+    Result.SB                 = IsSysAttributeSet("hw.optional.arm.FEAT_SB");
+    Result.FRINTTS            = IsSysAttributeSet("hw.optional.arm.FEAT_FRINTTS");
+    Result.LRCPC              = IsSysAttributeSet("hw.optional.arm.FEAT_LRCPC");
+    Result.LRCPC2             = IsSysAttributeSet("hw.optional.arm.FEAT_LRCPC2");
+    Result.FCMA               = IsSysAttributeSet("hw.optional.arm.FEAT_FCMA");
+    Result.JSCVT              = IsSysAttributeSet("hw.optional.arm.FEAT_JSCVT");
+    Result.PAUTH              = IsSysAttributeSet("hw.optional.arm.FEAT_PAuth");
+    Result.PAUTH2             = IsSysAttributeSet("hw.optional.arm.FEAT_PAuth2");
+    Result.FPAC               = IsSysAttributeSet("hw.optional.arm.FEAT_FPAC");
+    Result.DPB                = IsSysAttributeSet("hw.optional.arm.FEAT_DPB");
+    Result.DPB2               = IsSysAttributeSet("hw.optional.arm.FEAT_DPB2");
+    Result.BF16               = IsSysAttributeSet("hw.optional.arm.FEAT_BF16");
+    Result.I8MM               = IsSysAttributeSet("hw.optional.arm.FEAT_I8MM");
+    Result.ECV                = IsSysAttributeSet("hw.optional.arm.FEAT_ECV");
+    Result.LSE2               = IsSysAttributeSet("hw.optional.arm.FEAT_LSE2");
+    Result.CSV2               = IsSysAttributeSet("hw.optional.arm.FEAT_CSV2");
+    Result.CSV3               = IsSysAttributeSet("hw.optional.arm.FEAT_CSV3");
+    Result.DIT                = IsSysAttributeSet("hw.optional.arm.FEAT_DIT");
+    Result.FP16               = IsSysAttributeSet("hw.optional.arm.FEAT_FP16");
+    Result.SSBS               = IsSysAttributeSet("hw.optional.arm.FEAT_SSBS");
+    Result.BTI                = IsSysAttributeSet("hw.optional.arm.FEAT_BTI");
+    #endif
+
+    return Result;
+}
+
+#elif __CPU_PPC || __CPU_PPC64
+
+CpuInfo Platform_QueryCPUInfo(void)
+{
+    CpuInfo Result = {0};
+
+    return Result;
+}
+
+#endif

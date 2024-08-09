@@ -7210,43 +7210,11 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
     return ExitCode;
 }
 
-u32 RunApplication(const StringArray Arguments)
+internal void InitInternalVars(LinearAllocator* Arena)
 {
-    Logging_ToggleLogFile(false);
-    Logging_ToggleLogTimeStamp(false);
-    Logging_ToggleLogCategory(false);
-
-    // todo: clean, rebuild, verbose
-    bNoWordWrapLogging = StringArray_Contains(Arguments, S("-nowordwrap"), false);
-    bQuietBuild        = StringArray_Contains(Arguments, S("-q"), false);
-
-    if (bQuietBuild)
-    {
-        Logging_Disable();
-        Logging_ToggleEnableOnError(true);
-    }
-
-    const bool bOutputToLog = StringArray_Contains(Arguments, S("-l"), false);
-    Logging_ToggleLogFile(bOutputToLog);
-
-    #ifndef HOOD
-        #ifdef DEVELOPER
-        LOG("\nRift Build System v%S (%S %S) [DEBUG]\n", S(RIFTBUILD_VERSION_STRING), S(PLATFORM_STRING), S(CPU_ARCHITECTURE_STRING));
-        #else
-        LOG("\nRift Build System v%S (%S %S)\n", S(RIFTBUILD_VERSION_STRING), S(PLATFORM_STRING), S(CPU_ARCHITECTURE_STRING));
-        #endif
-    #else
-        LOG("\nRift Build System v%S (%S %S) - (HOOD EDITION)", S(RIFTBUILD_VERSION_STRING), S(PLATFORM_STRING), S(CPU_ARCHITECTURE_STRING));
-        LOG("\nwasssup yo. les get build'n...\n");
-    #endif
-
-
-    LinearAllocator ProgramArena = {0};
-    char ProgramMemory[Kilobytes(512)] = {0};
-    LinearAllocator_Create(Kilobytes(512), ProgramMemory, &ProgramArena);
-
-    const usize MemAmount_InternalOptions = _ArrayCalculateMemRequirement(128, sizeof(InternalVariable)); // 4096 bytes
-    InternalVariablesDB  = Array_CreateStatic(InternalVariable, 128, LinearAllocator_Allocate(&ProgramArena, MemAmount_InternalOptions));
+    const u32 MaxInternalVars = 256;
+    const u32 MaxSize = MaxInternalVars * sizeof(InternalVariable); // 8192 bytes
+    InternalVariablesDB = _ArrayCreateStatic(LinearAllocator_Allocate(Arena, MaxSize), MaxInternalVars, sizeof(InternalVariable));
 
     // store internal options. like platform, native os .lib's, etc..
     AddInternalVariable(S(PLATFORM_STRING), S(""));
@@ -7324,7 +7292,6 @@ u32 RunApplication(const StringArray Arguments)
     #endif
 
     AddInternalVariable(S("_Arch"), S(CPU_ARCHITECTURE_STRING));
-    AddInternalVariable(S(CPU_ARCHITECTURE_STRING), S(""));
     
     #if PLATFORM_64_BIT
     AddInternalVariable(S("_Bit"), S("64"));
@@ -7337,17 +7304,27 @@ u32 RunApplication(const StringArray Arguments)
     Uuid ID = UUID_Generate();
     StringLocal(UuidString, 64);
     UUID_ToString(ID, &UuidString);
-    AddInternalVariable(S("_UUID"), UuidString);
-
-    StringLocal(CpuVendor, 32);
+    AddInternalVariable(S("_UUID"), String_Create(Arena, UuidString));
 
     const CpuInfo CPUInfo = Platform_QueryCPUInfo();
+
+    String CpuBrandName = S("Unknown");
+    StringLocal(CPU, 64);
+    if (Platform_GetCpuBrandString(&CPU))
+    {
+        String_ReplaceCharInline(&CPU, ' ', '_');
+        CpuBrandName = String_Create(Arena, CPU);
+
+        AddInternalVariable(CpuBrandName, S("1"));
+    }
+
+    // todo: _cpu is full cpu name and vendor is just Intel/AMD/Apple?
     if (CPUInfo.Intel)
     {
         AddInternalVariable(S("_CPUVendor"), S("Intel"));
         AddInternalVariable(S("_CPU"), S("Intel"));
 
-        AddInternalVariable(S("_Intel"), S("1"));
+        AddInternalVariable(S("Intel"), S("1"));
     }
 
     if (CPUInfo.AMD)
@@ -7355,9 +7332,33 @@ u32 RunApplication(const StringArray Arguments)
         AddInternalVariable(S("_CPUVendor"), S("AMD"));
         AddInternalVariable(S("_CPU"), S("AMD"));
 
-        AddInternalVariable(S("_AMD"), S("1"));
+        AddInternalVariable(S("AMD"), S("1"));
     }
 
+    if (CPUInfo.Apple)
+    {
+        AddInternalVariable(S("_CPUVendor"), S("Apple"));
+        AddInternalVariable(S("_CPU"), CpuBrandName);
+    }
+
+    #if __CPU_X64
+    AddInternalVariable(S("x86"), S("1"));
+    AddInternalVariable(S("x64"), S("1"));
+    #elif __CPU_X86
+    AddInternalVariable(S("x86"), S("1"));
+    #elif __CPU_ARM64
+    AddInternalVariable(S("ARM"), S("1"));
+    AddInternalVariable(S("ARM64"), S("1"));
+    #elif __CPU_ARM
+    AddInternalVariable(S("ARM"), S("1"));
+    #elif __CPU_PPC64
+    AddInternalVariable(S("PPC"), S("1"));
+    AddInternalVariable(S("PPC64"), S("1"));
+    #elif __CPU_PPC
+    AddInternalVariable(S("PPC"), S("1"));
+    #endif
+
+    // x86
     AddInternalVariable(S("_MMX"),             CPUInfo.MMX             ? S("1") : S("0"));
     AddInternalVariable(S("_SSE"),             CPUInfo.SSE             ? S("1") : S("0"));
     AddInternalVariable(S("_SSE2"),            CPUInfo.SSE2            ? S("1") : S("0"));
@@ -7400,22 +7401,245 @@ u32 RunApplication(const StringArray Arguments)
     AddInternalVariable(S("_GFNI"),            CPUInfo.GFNI            ? S("1") : S("0"));
     AddInternalVariable(S("_VAES"),            CPUInfo.VAES            ? S("1") : S("0"));
 
+    // Arm
+    AddInternalVariable(S("_NEON"),            CPUInfo.NEON            ? S("1") : S("0"));
+    AddInternalVariable(S("_NEON_HPFP"),       CPUInfo.NEON_HPFP       ? S("1") : S("0"));
+    AddInternalVariable(S("_NEON_FP16"),       CPUInfo.NEON_FP16       ? S("1") : S("0"));
+    AddInternalVariable(S("_ARMV8_1_ATOMICS"), CPUInfo.ARMV8_1_ATOMICS ? S("1") : S("0"));
+    AddInternalVariable(S("_ARMV8_2_FHM"),     CPUInfo.ARMV8_2_FHM     ? S("1") : S("0"));
+    AddInternalVariable(S("_ARMV8_2_SHA512"),  CPUInfo.ARMV8_2_SHA512  ? S("1") : S("0"));
+    AddInternalVariable(S("_ARMV8_2_SHA3"),    CPUInfo.ARMV8_2_SHA3    ? S("1") : S("0"));
+    AddInternalVariable(S("_ARMV8_3_COMPNUM"), CPUInfo.ARMV8_3_COMPNUM ? S("1") : S("0"));
+    AddInternalVariable(S("_ARMV8_CRC32"),     CPUInfo.ARMV8_CRC32     ? S("1") : S("0"));
+    AddInternalVariable(S("_ARMV8_GPI"),       CPUInfo.ARMV8_GPI       ? S("1") : S("0"));
+    AddInternalVariable(S("_AdvSIMD"),         CPUInfo.AdvSIMD         ? S("1") : S("0"));
+    AddInternalVariable(S("_AdvSIMD_HPFPCvt"), CPUInfo.AdvSIMD_HPFPCVT ? S("1") : S("0"));
+    AddInternalVariable(S("_UCNORMAL_MEM"),    CPUInfo.UCNORMAL_MEM    ? S("1") : S("0"));
+    AddInternalVariable(S("_M1"),              CPUInfo.FLAGM           ? S("1") : S("0"));
+    AddInternalVariable(S("_M2"),              CPUInfo.FLAGM2          ? S("1") : S("0"));
+    AddInternalVariable(S("_M3"),              CPUInfo.FLAGM3          ? S("1") : S("0"));
+    AddInternalVariable(S("_M4"),              CPUInfo.FLAGM4          ? S("1") : S("0"));
+    AddInternalVariable(S("_FHM"),             CPUInfo.FHM             ? S("1") : S("0"));
+    AddInternalVariable(S("_DOTPROD"),         CPUInfo.DOTPROD         ? S("1") : S("0"));
+    AddInternalVariable(S("_SHA3"),            CPUInfo.SHA3            ? S("1") : S("0"));
+    AddInternalVariable(S("_RDM"),             CPUInfo.RDM             ? S("1") : S("0"));
+    AddInternalVariable(S("_LSE"),             CPUInfo.LSE             ? S("1") : S("0"));
+    AddInternalVariable(S("_SHA256"),          CPUInfo.SHA256          ? S("1") : S("0"));
+    AddInternalVariable(S("_SHA512"),          CPUInfo.SHA512          ? S("1") : S("0"));
+    AddInternalVariable(S("_SHA1"),            CPUInfo.SHA1            ? S("1") : S("0"));
+    AddInternalVariable(S("_AES"),             CPUInfo.AES             ? S("1") : S("0"));
+    AddInternalVariable(S("_PMULL"),           CPUInfo.PMULL           ? S("1") : S("0"));
+    AddInternalVariable(S("_SPECRES"),         CPUInfo.SPECRES         ? S("1") : S("0"));
+    AddInternalVariable(S("_SB"),              CPUInfo.SB              ? S("1") : S("0"));
+    AddInternalVariable(S("_FRINTTS"),         CPUInfo.FRINTTS         ? S("1") : S("0"));
+    AddInternalVariable(S("_LRCPC"),           CPUInfo.LRCPC           ? S("1") : S("0"));
+    AddInternalVariable(S("_LRCPC2"),          CPUInfo.LRCPC2          ? S("1") : S("0"));
+    AddInternalVariable(S("_FCMA"),            CPUInfo.FCMA            ? S("1") : S("0"));
+    AddInternalVariable(S("_JSCVT"),           CPUInfo.JSCVT           ? S("1") : S("0"));
+    AddInternalVariable(S("_PAUTH"),           CPUInfo.PAUTH           ? S("1") : S("0"));
+    AddInternalVariable(S("_PAUTH2"),          CPUInfo.PAUTH2          ? S("1") : S("0"));
+    AddInternalVariable(S("_FPAC"),            CPUInfo.FPAC            ? S("1") : S("0"));
+    AddInternalVariable(S("_DPB"),             CPUInfo.DPB             ? S("1") : S("0"));
+    AddInternalVariable(S("_DPB2"),            CPUInfo.DPB2            ? S("1") : S("0"));
+    AddInternalVariable(S("_BF16"),            CPUInfo.BF16            ? S("1") : S("0"));
+    AddInternalVariable(S("_I8MM"),            CPUInfo.I8MM            ? S("1") : S("0"));
+    AddInternalVariable(S("_ECV"),             CPUInfo.ECV             ? S("1") : S("0"));
+    AddInternalVariable(S("_LSE2"),            CPUInfo.LSE2            ? S("1") : S("0"));
+    AddInternalVariable(S("_CSV2"),            CPUInfo.CSV2            ? S("1") : S("0"));
+    AddInternalVariable(S("_CSV3"),            CPUInfo.CSV3            ? S("1") : S("0"));
+    AddInternalVariable(S("_DIT"),             CPUInfo.DIT             ? S("1") : S("0"));
+    AddInternalVariable(S("_FP16"),            CPUInfo.FP16            ? S("1") : S("0"));
+    AddInternalVariable(S("_SSBS"),            CPUInfo.SSBS            ? S("1") : S("0"));
+    AddInternalVariable(S("_BTI"),             CPUInfo.BTI             ? S("1") : S("0"));
+
+    // todo: store all supported extensions
+    //AddInternalVariable(S("_CPUExtensions"), S(""));
+
+    StringLocal(CacheLineSize, 8);
+    String_Format(&CacheLineSize, S("%u"), 7, Platform_GetCpuCacheLineSize());
+    AddInternalVariable(S("_CacheLineSize"), String_Create(Arena, CacheLineSize));
+
+    // todo: check if these are on bsd as well. maybe linux?
+    #if PLATFORM_APPLE
+    /*
+    hw.ncpu: 8
+    hw.byteorder: 1234
+    hw.memsize: 8589934592
+    hw.activecpu: 8
+    hw.perflevel0.physicalcpu: 4
+    hw.perflevel0.physicalcpu_max: 4
+    hw.perflevel0.logicalcpu: 4
+    hw.perflevel0.logicalcpu_max: 4
+    hw.perflevel0.l1icachesize: 196608
+    hw.perflevel0.l1dcachesize: 131072
+    hw.perflevel0.l2cachesize: 16777216
+    hw.perflevel0.cpusperl2: 4
+    hw.perflevel0.name: Performance
+    hw.perflevel1.physicalcpu: 4
+    hw.perflevel1.physicalcpu_max: 4
+    hw.perflevel1.logicalcpu: 4
+    hw.perflevel1.logicalcpu_max: 4
+    hw.perflevel1.l1icachesize: 131072
+    hw.perflevel1.l1dcachesize: 65536
+    hw.perflevel1.l2cachesize: 4194304
+    hw.perflevel1.cpusperl2: 4
+    hw.perflevel1.name: Efficiency
+    hw.optional.arm.FEAT_FlagM: 1
+    hw.optional.arm.FEAT_FlagM2: 1
+    hw.optional.arm.FEAT_FHM: 1
+    hw.optional.arm.FEAT_DotProd: 1
+    hw.optional.arm.FEAT_SHA3: 1
+    hw.optional.arm.FEAT_RDM: 1
+    hw.optional.arm.FEAT_LSE: 1
+    hw.optional.arm.FEAT_SHA256: 1
+    hw.optional.arm.FEAT_SHA512: 1
+    hw.optional.arm.FEAT_SHA1: 1
+    hw.optional.arm.FEAT_AES: 1
+    hw.optional.arm.FEAT_PMULL: 1
+    hw.optional.arm.FEAT_SPECRES: 0
+    hw.optional.arm.FEAT_SB: 1
+    hw.optional.arm.FEAT_FRINTTS: 1
+    hw.optional.arm.FEAT_LRCPC: 1
+    hw.optional.arm.FEAT_LRCPC2: 1
+    hw.optional.arm.FEAT_FCMA: 1
+    hw.optional.arm.FEAT_JSCVT: 1
+    hw.optional.arm.FEAT_PAuth: 1
+    hw.optional.arm.FEAT_PAuth2: 1
+    hw.optional.arm.FEAT_FPAC: 1
+    hw.optional.arm.FEAT_DPB: 1
+    hw.optional.arm.FEAT_DPB2: 1
+    hw.optional.arm.FEAT_BF16: 1
+    hw.optional.arm.FEAT_I8MM: 1
+    hw.optional.arm.FEAT_ECV: 1
+    hw.optional.arm.FEAT_LSE2: 1
+    hw.optional.arm.FEAT_CSV2: 1
+    hw.optional.arm.FEAT_CSV3: 1
+    hw.optional.arm.FEAT_DIT: 1
+    hw.optional.arm.FEAT_FP16: 1
+    hw.optional.arm.FEAT_SSBS: 1
+    hw.optional.arm.FEAT_BTI: 1
+    hw.optional.arm.FP_SyncExceptions: 1
+    hw.optional.floatingpoint: 1
+    hw.optional.neon: 1
+    hw.optional.neon_hpfp: 1
+    hw.optional.neon_fp16: 1
+    hw.optional.armv8_1_atomics: 1
+    hw.optional.armv8_2_fhm: 1
+    hw.optional.armv8_2_sha512: 1
+    hw.optional.armv8_2_sha3: 1
+    hw.optional.armv8_3_compnum: 1
+    hw.optional.watchpoint: 4
+    hw.optional.breakpoint: 6
+    hw.optional.armv8_crc32: 1
+    hw.optional.armv8_gpi: 1
+    hw.optional.AdvSIMD: 1
+    hw.optional.AdvSIMD_HPFPCvt: 1
+    hw.optional.ucnormal_mem: 1
+    hw.optional.arm64: 1
+    hw.features.allows_security_research: 0
+    hw.physicalcpu: 8
+    hw.physicalcpu_max: 8
+    hw.logicalcpu: 8
+    hw.logicalcpu_max: 8
+    hw.cputype: 16777228
+    hw.cpusubtype: 2
+    hw.cpu64bit_capable: 1
+    hw.cpufamily: -634136515
+    hw.cpusubfamily: 2
+    hw.cacheconfig: 8 1 4 0 0 0 0 0 0 0
+    hw.cachesize: 3697426432 65536 4194304 0 0 0 0 0 0 0
+    hw.pagesize: 16384
+    hw.pagesize32: 16384
+    hw.cachelinesize: 128
+    hw.l1icachesize: 131072
+    hw.l1dcachesize: 65536
+    hw.l2cachesize: 4194304
+    hw.tbfrequency: 24000000
+    hw.memsize_usable: 7992393728
+    hw.packages: 1
+    hw.osenvironment: 
+    hw.ephemeral_storage: 0
+    hw.use_recovery_securityd: 0
+    hw.use_kernelmanagerd: 1
+    hw.serialdebugmode: 0
+    hw.nperflevels: 2
+    hw.targettype: J413
+    machdep.cpu.cores_per_package: 8
+    machdep.cpu.core_count: 8
+    machdep.cpu.logical_per_package: 8
+    machdep.cpu.thread_count: 8
+    machdep.cpu.brand_string: Apple M2
+    machdep.user_idle_level: 0
+    machdep.wake_abstime: 11797809078509
+    machdep.time_since_reset: 44172175964
+    machdep.wake_conttime: 201324628
+    machdep.deferred_ipi_timeout: 64000
+    machdep.virtual_address_size: 47
+    machdep.report_phy_read_delay: 0
+    machdep.report_phy_write_delay: 0
+    machdep.trace_phy_read_delay: 0
+    machdep.trace_phy_write_delay: 0
+    machdep.phy_read_delay_panic: 0
+    machdep.phy_write_delay_panic: 0
+    */
+    #endif
+
     StringLocal(AccountName, 256);
     Platform_GetAccountName(&AccountName);
-    AddInternalVariable(S("_Account"), AccountName);
-    AddInternalVariable(S("_AccountName"), AccountName);
+    String Allocated = String_Create(Arena, AccountName);
+    AddInternalVariable(S("_Account"), Allocated);
+    AddInternalVariable(S("_AccountName"), Allocated);
 
     StringLocal(UserName, 256);
     Platform_GetUserName(&UserName);
+    Allocated = String_Create(Arena, UserName);
     AddInternalVariable(S("_User"), UserName);
     AddInternalVariable(S("_UserName"), UserName);
 
     StringLocal(UserDirectory, MAX_PATH_LENGTH);
     Platform_GetUserDirectory(&UserDirectory);
     String_EatPathSeparatorsInlineFromEnd(&UserDirectory);
-    AddInternalVariable(S("_UserDirectory"), UserDirectory);
-    AddInternalVariable(S("_HomeDirectory"), UserDirectory);
-    AddInternalVariable(S("_Home"), UserDirectory);
+    Allocated = String_Create(Arena, UserDirectory);
+    AddInternalVariable(S("_UserDirectory"), Allocated);
+    AddInternalVariable(S("_HomeDirectory"), Allocated);
+    AddInternalVariable(S("_Home"),          Allocated);
+}
+
+u32 RunApplication(const StringArray Arguments)
+{
+    Logging_ToggleLogFile(false);
+    Logging_ToggleLogTimeStamp(false);
+    Logging_ToggleLogCategory(false);
+
+    // todo: clean, rebuild, verbose
+    bNoWordWrapLogging = StringArray_Contains(Arguments, S("-nowordwrap"), false);
+    bQuietBuild        = StringArray_Contains(Arguments, S("-q"), false);
+
+    if (bQuietBuild)
+    {
+        Logging_Disable();
+        Logging_ToggleEnableOnError(true);
+    }
+
+    const bool bOutputToLog = StringArray_Contains(Arguments, S("-l"), false);
+    Logging_ToggleLogFile(bOutputToLog);
+
+    #ifndef HOOD
+        #ifdef DEVELOPER
+        LOG("\nRift Build System v%S (%S %S) [DEBUG]\n", S(RIFTBUILD_VERSION_STRING), S(PLATFORM_STRING), S(CPU_ARCHITECTURE_STRING));
+        #else
+        LOG("\nRift Build System v%S (%S %S)\n", S(RIFTBUILD_VERSION_STRING), S(PLATFORM_STRING), S(CPU_ARCHITECTURE_STRING));
+        #endif
+    #else
+        LOG("\nRift Build System v%S (%S %S) - (HOOD EDITION)", S(RIFTBUILD_VERSION_STRING), S(PLATFORM_STRING), S(CPU_ARCHITECTURE_STRING));
+        LOG("\nwasssup yo. les get build'n...\n");
+    #endif
+
+    LinearAllocator ProgramArena = {0};
+    char ProgramMemory[Kilobytes(512)] = {0};
+    LinearAllocator_Create(Kilobytes(512), ProgramMemory, &ProgramArena);
+
+    InitInternalVars(&ProgramArena);
 
     u32 ExitCode = RiftBuild(&ProgramArena, Arguments);
 

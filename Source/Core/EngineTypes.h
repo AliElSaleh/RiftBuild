@@ -245,16 +245,17 @@ typedef void VoidFunc(void);
 
 #elif defined(__arm__) || defined(__aarch64__) || defined(_M_ARM) || defined(_M_ARM64)
     #define __CPU_ARM 1
-    #define __CACHE_LINE_SIZE 64
     #if defined(__aarch64__) || defined(_M_ARM64)
         #define __CPU_ARM64 1
         #define CPU_ARCHITECTURE_STRING "arm64"
         #define CPU_ARCHITECTURE_STRING_EX "arm64|arm|aarch|aarch64"
         #define PLATFORM_64_BIT 1
+        #define __CACHE_LINE_SIZE 128
     #else
         #define CPU_ARCHITECTURE_STRING "arm"
         #define CPU_ARCHITECTURE_STRING_EX "arm|aarch"
         #define PLATFORM_32_BIT 1
+        #define __CACHE_LINE_SIZE 64
     #endif
 
 #else

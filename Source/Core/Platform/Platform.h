@@ -28,6 +28,7 @@ STRUCT(CpuInfo)
     // Vendor
     bool Intel           : 1;
     bool AMD             : 1;
+    bool Apple           : 1;
 
     // Architecture
     bool x86             : 1;
@@ -37,7 +38,7 @@ STRUCT(CpuInfo)
     bool PPC             : 1;
     bool PPC64           : 1;
 
-    // Instruction Set Extensions
+    // x86 Instruction Set Extensions
     bool MMX             : 1;
     bool SSE             : 1;
     bool SSE2            : 1;
@@ -79,6 +80,56 @@ STRUCT(CpuInfo)
     bool AVX512FP16      : 1;
     bool GFNI            : 1;
     bool VAES            : 1;
+
+    // Arm Instruction Set Extensions
+    bool NEON            : 1;
+    bool NEON_HPFP       : 1;
+    bool NEON_FP16       : 1;
+    bool ARMV8_1_ATOMICS : 1;
+    bool ARMV8_2_FHM     : 1;
+    bool ARMV8_2_SHA512  : 1;
+    bool ARMV8_2_SHA3    : 1;
+    bool ARMV8_3_COMPNUM : 1;
+    bool ARMV8_CRC32     : 1;
+    bool ARMV8_GPI       : 1;
+    bool AdvSIMD         : 1;
+    bool AdvSIMD_HPFPCVT : 1;
+    bool UCNORMAL_MEM    : 1;
+    bool FLAGM           : 1;
+    bool FLAGM2          : 1;
+    bool FLAGM3          : 1;
+    bool FLAGM4          : 1;
+    bool FHM             : 1;
+    bool DOTPROD         : 1;
+    bool SHA3            : 1;
+    bool RDM             : 1;
+    bool LSE             : 1;
+    bool SHA256          : 1;
+    bool SHA512          : 1;
+    bool SHA1            : 1;
+    bool PMULL           : 1;
+    bool SPECRES         : 1;
+    bool SB              : 1;
+    bool FRINTTS         : 1;
+    bool LRCPC           : 1;
+    bool LRCPC2          : 1;
+    bool FCMA            : 1;
+    bool JSCVT           : 1;
+    bool PAUTH           : 1;
+    bool PAUTH2          : 1;
+    bool FPAC            : 1;
+    bool DPB             : 1;
+    bool DPB2            : 1;
+    bool BF16            : 1;
+    bool I8MM            : 1;
+    bool ECV             : 1;
+    bool LSE2            : 1;
+    bool CSV2            : 1;
+    bool CSV3            : 1;
+    bool DIT             : 1;
+    bool FP16            : 1;
+    bool SSBS            : 1;
+    bool BTI             : 1;
 };
 
 RIFT_API void Platform_PreInitialize(void);
@@ -162,6 +213,8 @@ RIFT_API bool Platform_IsProgramRunning(const String ProgramName);
 
 RIFT_API bool Platform_GetTerminalDimensions(u32* OutRows, u32* OutColumns);
 
+RIFT_API u32 Platform_GetCpuCacheLineSize(void);
+RIFT_API bool Platform_GetCpuBrandString(String* OutName);
 RIFT_API CpuInfo Platform_QueryCPUInfo(void);
 
 #endif // _PLATFORM_H_

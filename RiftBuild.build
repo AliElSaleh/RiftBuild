@@ -55,9 +55,8 @@ if linux {
     if @XDG_CURRENT_DESKTOP contains Cinnamon Defines __cinnamon__
 }
 
-##
-yo   %_cpu
-yo2  %_cpuvendor
+cpu   %_cpu
+vendor %_cpuvendor
 SSE4 %_sse4
 FMA3 %_fma3
 SHA  %_sha
@@ -66,15 +65,27 @@ AVX512  %_avx512
 MPX  %_mpx
 VAES  %_vaes
 GFNI  %_gfni
+neon  %_neon
+fcma %_fcma
+specres %_specres
+bf16 %_bf16
 
+all_exts %_cpuextensions
+
+if apple_m2 AppleM2
+if arm army
+
+cache %_CacheLineSize
+
+##
 
 
 if !cl                  CompilerFlags:disassemble,$mode -S
 
-CompilerFlags:windows.clang -nostdlib -fno-builtin -ffreestanding
-LinkerFlags:windows,clang   -nostdlib -Wl,-entry:ProgramStart,-subsystem:console -Xlinker /stack:0x400000,0x400000
-LinkerFlags:windows.gcc     -nostdlib -Wl,--entry,ProgramStart,--subsystem,console,--stack,0x400000
-LinkerFlags:windows.msvc    /ENTRY:ProgramStart /SUBSYSTEM:CONSOLE /STACK:0x400000,0x400000
+CompilerFlags:windows:clang -nostdlib -fno-builtin -ffreestanding
+LinkerFlags:windows:clang   -nostdlib -Wl,-entry:ProgramStart,-subsystem:console -Xlinker /stack:0x400000,0x400000
+LinkerFlags:windows:gcc     -nostdlib -Wl,--entry,ProgramStart,--subsystem,console,--stack,0x400000
+LinkerFlags:windows:msvc    /ENTRY:ProgramStart /SUBSYSTEM:CONSOLE /STACK:0x400000,0x400000
 
 Libraries:windows       %_nativelibs
 Libraries:linux         uuidS pthread
