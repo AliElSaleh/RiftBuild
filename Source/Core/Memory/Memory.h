@@ -1,7 +1,7 @@
 #ifndef _MEMORY_H_
 #define _MEMORY_H_
 
-#include "Allocators.h"
+#include "EngineTypes.h"
 
 ENUM(EMemoryTag)
 {
@@ -52,9 +52,6 @@ RIFT_API void* MemZero(void* Block, usize Size);
 RIFT_API void* MemCopy(void* restrict Destination, const void* restrict Source, usize Size);
 RIFT_API void* MemMove(void* restrict Destination, const void* restrict Source, usize Size);
 RIFT_API bool  MemEqual(const void* Block1, const void* Block2, usize Size);
-
-RIFT_API LinearAllocator_Scratch Memory_GetScratch(void);
-RIFT_API void Memory_ReleaseScratch(LinearAllocator_Scratch* Scratch);
 
 RIFT_API u64 Memory_GetTotalAllocations(void);
 RIFT_API usize Memory_GetEngineMemoryRemaining(void);

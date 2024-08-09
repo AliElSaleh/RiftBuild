@@ -2092,6 +2092,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         MutexString.Data[0] = '/';
         #endif
 
+        // todo: try get process id of the guy who is holding the mutex?
         if (!Platform_CreateMutex(MutexString, BuildMutex))
         {
             StringLocal(BuildPath, MAX_PATH_LENGTH);
@@ -3594,6 +3595,9 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         }
     }
 
+    Clock DependencyBuildClock;
+    Clock_Start(&DependencyBuildClock);
+
     // run build depenencies
     bool bRanAnyDependencies = false;
     for each (FileVariable, Var, ExpandedVariablesDB)
@@ -3718,10 +3722,10 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             LinearAllocator NewArena = {0};
             LinearAllocator_Create(Kibibytes(512), ArenaMemory, &NewArena);
 
-            StringLocal(CmdLine, 1024);
-            String_Append(&CmdLine, SpecifiedParams);
+            //StringLocal(CmdLine, 1024);
+            //String_Append(&CmdLine, SpecifiedParams);
 
-            StringList List = String_SplitIntoList(&NewArena, CmdLine, ' ', true);
+            StringList List = String_SplitIntoList(&NewArena, SpecifiedParams, ' ', true);
             u8 Num = 0;
             for each_str_list (List)
             {
@@ -3817,6 +3821,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
     if (bRanAnyDependencies && !bIsClean)
     {
+        Clock_Tick(&DependencyBuildClock);
         LOG("[All build dependencies complete. Continuing with %S]\n", BuildFileName);
     }
 
@@ -6492,6 +6497,12 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         LOG("MSVC init   time: %S", TimeString);
     }
 
+    if (DependencyBuildClock.ElapsedTime > 0)
+    {
+        Clock_GetElapsedTime_ToString(&DependencyBuildClock, true, &TimeString);
+        LOG("Dependency  time: %S", TimeString);
+    }
+
     // calculate the overhead time
     f64 TotalElapsedTime = CompileClock.ElapsedTime +
                            LinkClock.ElapsedTime +
@@ -6499,8 +6510,9 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                            ResourceCompileClock.ElapsedTime +
                            BundleCompileClock.ElapsedTime +
                            BuildFileParseClock.ElapsedTime +
-                           MSVCInitClock.ElapsedTime;
-    
+                           MSVCInitClock.ElapsedTime +
+                           DependencyBuildClock.ElapsedTime;
+
     Clock OverheadClock = {0};
     OverheadClock.ElapsedTime = BuildRuntime.ElapsedTime - TotalElapsedTime;
 

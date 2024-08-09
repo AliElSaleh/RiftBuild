@@ -34,6 +34,9 @@ RIFT_API LinearAllocator_Scratch LinearAllocator_GetScratch(LinearAllocator* All
 RIFT_API void LinearAllocator_GetScratchInline(LinearAllocator* Allocator, LinearAllocator_Scratch* OutScratch);
 RIFT_API void LinearAllocator_ReleaseScratch(LinearAllocator_Scratch* Scratch);
 
+RIFT_API LinearAllocator_Scratch Memory_GetScratch(void);
+RIFT_API void Memory_ReleaseScratch(LinearAllocator_Scratch* Scratch);
+
 
 // ================================================================================
 
