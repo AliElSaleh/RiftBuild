@@ -18,6 +18,7 @@ internal void cpuid(int info[4], int infoType, int subtype)
     #endif
 }
 
+#if PLATFORM_WINDOWS || PLATFORM_LINUX
 RIFT_API u32 Platform_GetCpuCacheLineSize(void)
 {
     // todo: do this dynamically
@@ -38,6 +39,7 @@ bool Platform_GetCpuBrandName(String* OutName)
     String_Copy(OutName, CStrEx(vendor, 12));
     return true;
 }
+#endif
 
 CpuInfo Platform_QueryCPUInfo(void)
 {

@@ -37,9 +37,10 @@
 #include <ftw.h>
 #include <fcntl.h>
 #include <pwd.h>
-#include <uuid.h>
 #include <sys/mman.h>
 #include <sys/ioctl.h>
+#include <sys/sysctl.h>
+
 #if PLATFORM_FREE_BSD
 #include <sys/user.h>
 #else
@@ -48,6 +49,35 @@
 #include <spawn.h>
 #include <termios.h>
 #include <semaphore.h>
+
+// include uuid.h because i dont fucking know why this shit does not work
+// #include <uuid.h>
+
+#include <sys/types.h>
+#include <sys/uuid.h>
+
+/* Status codes returned by the functions. */
+#define	uuid_s_ok			0
+#define	uuid_s_bad_version		1
+#define	uuid_s_invalid_string_uuid	2
+#define	uuid_s_no_memory		3
+
+__BEGIN_DECLS
+int32_t	uuid_compare(const uuid_t *, const uuid_t *, uint32_t *);
+void	uuid_create(uuid_t *, uint32_t *);
+void	uuid_create_nil(uuid_t *, uint32_t *);
+int32_t	uuid_equal(const uuid_t *, const uuid_t *, uint32_t *);
+void	uuid_from_string(const char *, uuid_t *, uint32_t *);
+uint16_t uuid_hash(const uuid_t *, uint32_t *);
+int32_t	uuid_is_nil(const uuid_t *, uint32_t *);
+void	uuid_to_string(const uuid_t *, char **, uint32_t *);
+
+void	uuid_enc_le(void *, const uuid_t *);
+void	uuid_dec_le(const void *, uuid_t *);
+void	uuid_enc_be(void *, const uuid_t *);
+void	uuid_dec_be(const void *, uuid_t *);
+__END_DECLS
+
 
 #include <stdarg.h>
 
@@ -592,7 +622,7 @@ bool Platform_CreateMutex(PlatformMutex* OutMutex)
         return false;
     }
 
-    OutMutex->Handle = Semaphore.__size
+    OutMutex->Handle = Semaphore;
     OutMutex->ID = -1;
     OutMutex->Name = String_Null();
 
@@ -825,12 +855,6 @@ bool Platform_DoesEnvironmentVariableExist(String Name)
     return true;
 }
 
-bool Platform_CaptureStackTrace(LinearAllocator* Arena, TArray(StackTraceData)* OutInfo)
-{
-    UNIMPLEMENTED;
-    return false;
-}
-
 u32 Platform_GetNumLogicalProcessors(void)
 {
     u32 number_of_processors = (u32)sysconf(_SC_NPROCESSORS_ONLN);
@@ -972,17 +996,6 @@ u64 Platform_GetCurrentProcessID(void)
     return (u64)getpid();
 }
 
-bool Platform_GetThreadName(void* ThreadHandle, String* OutName)
-{
-    //UNIMPLEMENTED;
-    return false;
-}
-
-bool Platform_IsProgramRunning(const String ProgramName)
-{
-    return false;
-}
-
 static String GArgV[128] = {0};
 static i32 GArgC = 0;
 static char** GEnv = NULL;
@@ -1024,11 +1037,6 @@ StringArray Platform_GetCommandLineArgs(void)
     Args.List = GArgV;
     Args.Num = (u32)(GArgC-1 <= 0 ? 0 : (GArgC-1 < 128 ? GArgC-1 : 128));
     return Args;
-}
-
-void* Platform_GetDeviceContext(void)
-{
-    return NULL;
 }
 
 bool Filesystem_Open(const String FilePath, u32 Mode, FileHandle* OutHandle)
@@ -1969,7 +1977,7 @@ bool Platform_GetCpuBrandName(String* OutName)
 {
     char Vendor[128] = {0};
     size_t Size = sizeof(Vendor);
-    i32 Result = sysctlbyname("machdep.cpu.brand_string", Vendor, &Size, NULL, 0);
+    i32 Result = sysctlbyname("machdep.cpu_brand", Vendor, &Size, NULL, 0);
     if (Result == -1)
     {
         return false;
@@ -1991,7 +1999,7 @@ u32 Platform_GetCpuCacheLineSize(void)
     i32 Result = sysctlbyname("hw.cachelinesize", &LineSize, &Size, NULL, 0);
     if (Result == -1)
     {
-        return 0;
+        return __CACHE_LINE_SIZE;
     }
 
     return (u32)LineSize;
