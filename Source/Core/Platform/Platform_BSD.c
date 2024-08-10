@@ -615,22 +615,22 @@ bool Platform_AnyKeyPressed(void)
 
 bool Platform_CreateMutex(PlatformMutex* OutMutex)
 {
+#if PLATFORM_FREE_BSD
     pthread_mutex_t mutex = {0};
     pthread_mutex_init(&mutex, NULL);
     pthread_mutex_lock(&mutex);
 
-    /*
+    OutMutex->Handle = mutex;
+    OutMutex->ID = -1;
+    OutMutex->Name = String_Null();
+#else
     sem_t Semaphore = {0};
     sem_init(&Semaphore, 0, 1); // 0 for thread-shared semaphore
     if (sem_trywait(&Semaphore) == -1)
     {
         return false;
     }
-    */
-
-    OutMutex->Handle = mutex;
-    OutMutex->ID = -1;
-    OutMutex->Name = String_Null();
+#endif
 
     return true;
 }
@@ -728,10 +728,10 @@ bool Platform_ReleaseMutex(PlatformMutex* Mutex)
     }
     else
     {
+        #if PLATFORM_FREE_BSD
 	pthread_mutex_unlock(Mutex->Handle);
 	pthread_mutex_destroy(Mutex->Handle);
-
-	/*
+        #else
         sem_post(Mutex->Handle);
 
         if (sem_close(Mutex->Handle) == -1)
@@ -746,7 +746,7 @@ bool Platform_ReleaseMutex(PlatformMutex* Mutex)
         {
             return false;
         }
-	*/
+        #endif
     }
 
     return true;
