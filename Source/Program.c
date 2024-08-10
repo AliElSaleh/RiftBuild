@@ -2089,10 +2089,6 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
         String_ReplaceNonAlphaNumericCharInline(&MutexString, '_'); // mainly for windows, but keep it for other platforms just in case
 
-        #if PLATFORM_BSD
-        MutexString.Data[0] = '/';
-        #endif
-
         if (!Platform_CreateNamedMutex(MutexString, BuildMutex))
         {
             StringLocal(BuildPath, MAX_PATH_LENGTH);
