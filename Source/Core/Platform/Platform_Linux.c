@@ -598,58 +598,129 @@ bool Platform_AnyKeyPressed(void)
     return false;
 }
 
-bool Platform_CreateMutex(const String Name, PlatformMutex* OutMutex)
+bool Platform_CreateMutex(PlatformMutex* OutMutex)
 {
-    if ((NEVER(Name.Length == 0)) || (NEVER(OutMutex == NULL)))
+    sem_t Semaphore = {0};
+    sem_init(&Semaphore, 0, 1); // 0 for thread-shared semaphore
+    if (sem_trywait(&Semaphore) == -1)
     {
         return false;
     }
 
-    u32 Diff = Name.Length > 30 ? Name.Length - 30 : 0; // 31 is max name length for posix semaphores
-    String ClampedName = StrShiftF(Name, Diff);
+    OutMutex->Handle = NULL;
+    OutMutex->ID = Semaphore;
+    OutMutex->Name = String_Null();
 
-    sem_t* Semaphore = sem_open(ClampedName.Data, O_CREAT|O_EXCL, 0644, 1);
-    if (Semaphore == SEM_FAILED)
+    return true;
+}
+
+internal bool Internal_TryLockFile(int fd, pid_t* OutPID)
+{
+    struct flock lock = {0};
+    lock.l_type       = F_WRLCK;  // Write lock (exclusive)
+    lock.l_whence     = SEEK_SET;
+    lock.l_start      = 0;
+    lock.l_len        = 0;        // Lock the entire file
+
+    if (fcntl(fd, F_SETLK, &lock) == -1)
     {
-        if (errno == EACCES || errno == EEXIST)
+        // The lock is held by another process
+        if (OutPID)
         {
-            return false;
+            fcntl(fd, F_GETLK, &lock);
+            *OutPID = lock.l_pid;
         }
 
+        return false;
+    }
+
+    return true;
+}
+
+internal bool Internal_TryUnlockFile(i32 fd)
+{
+    struct flock lock = {0};
+    lock.l_type       = F_UNLCK;
+    lock.l_whence     = SEEK_SET;
+    lock.l_start      = 0;
+    lock.l_len        = 0;        // Unlock the entire file
+
+    if (fcntl(fd, F_SETLK, &lock) == -1)
+    {
+        return false;
+    }
+
+    return true;
+}
+
+bool Platform_CreateNamedMutex(const String Name, PlatformMutex* OutMutex)
+{
+    if (NEVER(Name.Length == 0) || NEVER(OutMutex == NULL))
+    {
+        return false;
+    }
+
+    StringLocal(Temp, MAX_PATH_LENGTH);
+    String_Append(&Temp, S("/tmp/lock_"));
+    String_Append(&Temp, Name);
+
+    i32 fd = open(Temp.Data, O_CREAT | O_RDWR, 0666);
+    if (fd == -1)
+    {
         StringLocal(Prefix, 512);
-        String_Format(&Prefix, S("Failed to create mutex %S"), Prefix.Capacity, ClampedName);
+        String_Format(&Prefix, S("Failed to temporary lock file %S"), Prefix.Capacity, Temp);
         LogLastError(Prefix);
         return false;
     }
 
-    OutMutex->Handle = Semaphore;
-    OutMutex->Name = ClampedName;
-    return true;
+    pid_t PID = -1;
+    if (Internal_TryLockFile(fd, &PID))
+    {
+        OutMutex->Handle = NULL;
+        OutMutex->ID = fd;
+        OutMutex->Name = Name;
+        return true;
+    }
+
+    OutMutex->Handle = NULL;
+    OutMutex->ID = PID;
+    OutMutex->Name = Name;
+
+    close(fd);
+    return false;
 }
 
 bool Platform_ReleaseMutex(PlatformMutex* Mutex)
 {
-    if ((NEVER(Mutex->Name.Length == 0)) || (NEVER(Mutex == NULL)))
-    {
-        return false;
-    }
+    if (NEVER(Mutex == NULL)) return false;
 
-    if (sem_close(Mutex->Handle) == -1)
+    // release based on type of mutex (named or unnamed)
+    if (String_IsValid(Mutex->Name))
     {
-        StringLocal(Prefix, 512);
-        String_Format(&Prefix, S("Failed to release mutex %S"), Prefix.Capacity, Mutex->Name);
-        LogLastError(Prefix);
-        return false;
-    }
+        if (!Internal_TryUnlockFile(Mutex->ID))
+        {
+            close(Mutex->ID);
+            return false;
+        }
 
-    // for some fucking reason semaphores have kernel persistence, so we need to unlink them, otherwise the user will have to shutdown their machine
-    // which is why again windows dominates the market, go look at the code in Platform_Windows.c!!!
-    if (sem_unlink(Mutex->Name.Data) == -1)
+        close(Mutex->ID);
+    }
+    else
     {
-        StringLocal(Prefix, 512);
-        String_Format(&Prefix, S("Failed to unlink mutex %S"), Prefix.Capacity, Mutex->Name);
-        LogLastError(Prefix);
-        return false;
+        sem_post(Mutex->Handle);
+
+        if (sem_close(Mutex->Handle) == -1)
+        {
+            StringLocal(Prefix, 512);
+            String_Format(&Prefix, S("Failed to release mutex %S"), Prefix.Capacity, Mutex->Name);
+            LogLastError(Prefix);
+            return false;
+        }
+
+        if (sem_destroy(Mutex->Handle) == -1)
+        {
+            return false;
+        }
     }
 
     return true;

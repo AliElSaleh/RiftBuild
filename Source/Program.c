@@ -2074,7 +2074,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                         i8 BuildFileIndex, i8 RootPathIndex)
 {
     // make sure no one else is building this target
-    #if PLATFORM_WINDOWS // this works on linux/mac too but theres a bug with the mutex persistance after a crash or program interruption
+    const bool bNoMutex = StringArray_Contains(Parameters, S("-no-mutex"), false);
+    if (!bNoMutex)
     {
         String MutexString = String_Reserve(Arena, MAX_PATH_LENGTH);
         if (IsValidFileHandle(BuildFileHandle))
@@ -2092,8 +2093,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         MutexString.Data[0] = '/';
         #endif
 
-        // todo: try get process id of the guy who is holding the mutex?
-        if (!Platform_CreateMutex(MutexString, BuildMutex))
+        if (!Platform_CreateNamedMutex(MutexString, BuildMutex))
         {
             StringLocal(BuildPath, MAX_PATH_LENGTH);
             if (IsValidFileHandle(BuildFileHandle))
@@ -2110,17 +2110,33 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             String BuildFileName = StrShiftF(BuildPath, LastSlash+1);
 
             LOG_ERROR("Failed to acquire a build mutex. Aborting build...");
-            LOG("\n    An existing riftbuild process is already running for \"%S\"", BuildFileName.Length > 0 ? BuildFileName : WorkingPath);
-            LOG("    To prevent conflicts, please wait for the existing build to finish before trying again.");
+            
+            if (BuildMutex->ID > 0)
+            {
+                LOG("\n    An existing riftbuild process is running for \"%S\" [Process ID: %i]", BuildFileName.Length > 0 ? BuildFileName : WorkingPath, BuildMutex->ID);
+            } 
+            else
+            {
+                LOG("\n    An existing riftbuild process is running for \"%S\"", BuildFileName.Length > 0 ? BuildFileName : WorkingPath);
+            }
+
+            LOG("    To prevent conflicts, please wait for the existing build to finish before trying again.\n");
+            LOG("    This feature can be disabled with -no-mutex");
 
             #if !PLATFORM_WINDOWS
-            LOG_LINE_BREAK();
+            //LOG_LINE_BREAK();
             #endif
             
             return 1;
         }
     }
-    #endif
+
+    /*
+    if (StringArray_Contains(Parameters, S("crash"), false))
+    {
+        _Crash_;
+    }
+    */
 
     Clock BuildRuntime;
     Clock_Start(&BuildRuntime);
@@ -3789,7 +3805,15 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
             PlatformMutex NewMutex = {0};
             u32 ExitCode = BuildTarget(&NewArena, f, &NewMutex, CustomWorkingPath, NewParams, BuildFileName, -1, -1);
-            if (NewMutex.Handle) Platform_ReleaseMutex(&NewMutex);
+            
+            // we're intentionally not releasing build mutexes on dependency builds because
+            // we dont want others to try and build a dependency by itself (unrelated to this build)
+            // when this process has not finished. This is to make things more robust against compiler/file conflicts.
+
+            // once this process dies then the OS will clean these mutexes automatically
+            // people can pass in -no-mutex to bypass the build mutex feature
+
+            // if (NewMutex.Handle) Platform_ReleaseMutex(&NewMutex);
 
             Filesystem_Close(&f);
 

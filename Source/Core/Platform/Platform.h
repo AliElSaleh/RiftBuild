@@ -20,6 +20,7 @@ STRUCT(SystemTime)
 STRUCT(PlatformMutex)
 {
     void* Handle;
+    i32 ID;
     String Name;
 };
 
@@ -180,7 +181,8 @@ RIFT_API void Platform_ExitCriticalSection(PlatformCriticalSection CriticalSecti
 
 RIFT_API bool Platform_AnyKeyPressed(void);
 
-RIFT_API bool Platform_CreateMutex(const String Name, PlatformMutex* OutMutex);
+RIFT_API bool Platform_CreateMutex(PlatformMutex* OutMutex);
+RIFT_API bool Platform_CreateNamedMutex(const String Name, PlatformMutex* OutMutex);
 RIFT_API bool Platform_ReleaseMutex(PlatformMutex* Mutex);
 
 RIFT_API u32  Platform_GetConsoleProcessCount(void);

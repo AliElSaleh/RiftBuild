@@ -149,12 +149,37 @@ void Platform_PreInitialize(void)
     LocalFree(ArgsW);
 }
 
-bool Platform_CreateMutex(const String Name, PlatformMutex* OutMutex)
+bool Platform_CreateMutex(PlatformMutex* OutMutex)
 {
+    HANDLE M = CreateMutexA(NULL, TRUE, NULL);
+    if (M == NULL)
+    {
+        return false;
+    }
+
+    if (GetLastError() == ERROR_ALREADY_EXISTS)
+    {
+        OutMutex->Handle = M;
+        OutMutex->Name = String_Null();
+        return false;
+    }
+
+    OutMutex->Handle = M;
+    OutMutex->Name = String_Null();
+    return true;
+}
+
+bool Platform_CreateNamedMutex(const String Name, PlatformMutex* OutMutex)
+{
+    if ((NEVER(Name.Length == 0)) || (NEVER(OutMutex == NULL)))
+    {
+        return false;
+    }
+
     u32 Diff = Name.Length > 255 ? Name.Length - 255 : 0; // clamp to 255 characters
     String ClampedName = StrShiftF(Name, Diff);
 
-    HANDLE M = CreateMutexA(NULL, TRUE, ClampedName.Data);
+    HANDLE M = CreateMutexA(NULL, TRUE, ClampedName.Length == 0 ? NULL : ClampedName.Data);
     if (M == NULL)
     {
         return false;
