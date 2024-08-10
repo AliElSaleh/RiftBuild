@@ -22,6 +22,7 @@ STRUCT(FileHandle)
 {
 	void* Data;
 	void* Data2;
+    bool bBypassSizeCheck;
 #if PLATFORM_OPEN_BSD
 	StringN(MAX_PATH_LENGTH) Path;
 #endif

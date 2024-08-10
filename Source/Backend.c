@@ -725,7 +725,7 @@ bool C_Link(const BuildParams* Params)
         if (bQuietBuild) Logging_Enable();
 
         #ifndef HOOD
-        LOG("\nLinking %S", LibFile);
+        LOG("\nLinking %S [static]", LibFile);
         #else
         LOG("\nstatic link'n it up: %S", LibFile);
         #endif

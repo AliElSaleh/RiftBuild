@@ -51,6 +51,7 @@ STRUCT(CpuInfo)
     bool AVX             : 1;
     bool AVX2            : 1;
     bool FMA3            : 1;
+    bool RDRAND          : 1;
     bool AES             : 1;
     bool SHA             : 1;
     bool ADX             : 1;
@@ -216,7 +217,8 @@ RIFT_API bool Platform_IsProgramRunning(const String ProgramName);
 RIFT_API bool Platform_GetTerminalDimensions(u32* OutRows, u32* OutColumns);
 
 RIFT_API u32 Platform_GetCpuCacheLineSize(void);
-RIFT_API bool Platform_GetCpuBrandString(String* OutName);
+RIFT_API bool Platform_GetCpuBrandName(String* OutName);
+RIFT_API bool Platform_GetFullCpuName(String* OutName);
 RIFT_API CpuInfo Platform_QueryCPUInfo(void);
 
 #endif // _PLATFORM_H_

@@ -36,6 +36,8 @@
 #include <sys/mman.h>
 #include <sys/ioctl.h>
 #include <sys/syslimits.h>
+#include <sys/types.h>
+#include <sys/sysctl.h>
 
 #include <stdarg.h>
 
@@ -1847,6 +1849,38 @@ bool Filesystem_ArePathsCommon(String PathA, String PathB)
     bool bPrefixMatch = String_StartsWith(PathB, PathA, true);
     
     return bPrefixMatch;
+}
+
+bool Platform_GetCpuBrandName(String* OutName)
+{
+    char Vendor[128] = {0};
+    size_t Size = sizeof(Vendor);
+    i32 Result = sysctlbyname("machdep.cpu.brand_string", Vendor, &Size, NULL, 0);
+    if (Result == -1)
+    {
+        return false;
+    }
+
+    String_Copy(OutName, CStrEx(Vendor, 127));
+    return true;
+}
+
+bool Platform_GetFullCpuName(String* OutName)
+{
+    return Platform_GetCpuBrandName(OutName);
+}
+
+u32 Platform_GetCpuCacheLineSize(void)
+{
+    i64 LineSize = 0;
+    size_t Size = sizeof(LineSize);
+    i32 Result = sysctlbyname("hw.cachelinesize", &LineSize, &Size, NULL, 0);
+    if (Result == -1)
+    {
+        return 0;
+    }
+
+    return (u32)LineSize;
 }
 
 Uuid UUID_Generate(void)

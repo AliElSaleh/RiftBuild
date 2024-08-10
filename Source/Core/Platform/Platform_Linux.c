@@ -1152,6 +1152,7 @@ bool Filesystem_DeleteFile(String FilePath)
     return Result == 0;
 }
 
+// todo: error handling
 bool Filesystem_Copy(const String Source, const String Destination)
 {
     StringLocal(Cmd, MAX_PATH_LENGTH);
@@ -1619,14 +1620,17 @@ bool Filesystem_ReadLine(const FileHandle Handle, String* LineBuffer)
 
     u64 CurrentPosition = Filesystem_GetCurrentFilePosition(Handle);
 
-    u64 Size = 0;
-    Filesystem_GetFileSize(Handle, &Size);
-    u64 FileSize = Size;
-
-    if (CurrentPosition >= FileSize)
+    if (!Handle.bBypassSizeCheck)
     {
-        Filesystem_SeekToBeginning(Handle);
-        return false;
+        u64 Size = 0;
+        Filesystem_GetFileSize(Handle, &Size);
+        u64 FileSize = Size;
+
+        if (CurrentPosition >= FileSize)
+        {
+            Filesystem_SeekToBeginning(Handle);
+            return false;
+        }
     }
 
     char TempBuffer[8192] = {0};
@@ -2007,6 +2011,42 @@ bool Filesystem_ArePathsCommon(String PathA, String PathB)
     bool bPrefixMatch = String_StartsWith(PathB, PathA, true);
     
     return bPrefixMatch;
+}
+
+bool Platform_GetFullCpuName(String* OutName)
+{
+    bool bFound = false;
+
+    FileHandle f = FileHandle_Null();
+
+    // files inside of /proc/ are fake files with a size of 0 and
+    // therefore our ReadLine function will return immediately.
+    // set this to true so we can skip the size check
+    f.bBypassSizeCheck = true;
+
+    if (Filesystem_Open(S("/proc/cpuinfo"), FileMode_Read, &f))
+    {
+        StringLocal(Line, 256);
+        while (Filesystem_ReadLine(f, &Line))
+        {
+            if (String_StartsWith(Line, S("model name"), false))
+            {
+                u32 Colon = 0;
+                if (String_IndexOfChar(Line, ':', &Colon))
+                {
+                    bFound = true;
+
+                    String_Copy(OutName, StrShiftF(Line, Colon+2)); // +2 because there is a space after :
+                }
+
+                break;
+            }
+        }
+
+        Filesystem_Close(&f);
+    }
+
+    return bFound;
 }
 
 Uuid UUID_Generate(void)

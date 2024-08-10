@@ -55,13 +55,17 @@ if linux {
     if @XDG_CURRENT_DESKTOP contains Cinnamon Defines __cinnamon__
 }
 
-cpu   %_cpu
+cpu   "%(_cpu)"
 vendor %_cpuvendor
+cpubrand %_cpubrand
 SSE4 %_sse4
 FMA3 %_fma3
 SHA  %_sha
 AES  %_aes
+AVX  %_avx
+AVX2 %_avx2
 AVX512  %_avx512
+RDRAND %_rdrand
 MPX  %_mpx
 VAES  %_vaes
 GFNI  %_gfni

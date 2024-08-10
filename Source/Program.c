@@ -7326,19 +7326,28 @@ internal void InitInternalVars(LinearAllocator* Arena)
 
     String CpuBrandName = S("Unknown");
     StringLocal(CPU, 64);
-    if (Platform_GetCpuBrandString(&CPU))
+    if (Platform_GetCpuBrandName(&CPU))
     {
+        CpuBrandName = String_Create(Arena, CPU);
+        AddInternalVariable(S("_CPUBrand"), CpuBrandName);
+
         String_ReplaceCharInline(&CPU, ' ', '_');
         CpuBrandName = String_Create(Arena, CPU);
-
         AddInternalVariable(CpuBrandName, S("1"));
+    }
+
+    if (Platform_GetFullCpuName(&CPU))
+    {
+        String_ReplaceCharInline(&CPU, '@', '|');
+
+        CpuBrandName = String_Create(Arena, CPU);
     }
 
     // todo: _cpu is full cpu name and vendor is just Intel/AMD/Apple?
     if (CPUInfo.Intel)
     {
         AddInternalVariable(S("_CPUVendor"), S("Intel"));
-        AddInternalVariable(S("_CPU"), S("Intel"));
+        AddInternalVariable(S("_CPU"), CpuBrandName);
 
         AddInternalVariable(S("Intel"), S("1"));
     }
@@ -7346,7 +7355,7 @@ internal void InitInternalVars(LinearAllocator* Arena)
     if (CPUInfo.AMD)
     {
         AddInternalVariable(S("_CPUVendor"), S("AMD"));
-        AddInternalVariable(S("_CPU"), S("AMD"));
+        AddInternalVariable(S("_CPU"), CpuBrandName);
 
         AddInternalVariable(S("AMD"), S("1"));
     }
@@ -7392,6 +7401,7 @@ internal void InitInternalVars(LinearAllocator* Arena)
     AddInternalVariable(S("_ADX"),             CPUInfo.ADX             ? S("1") : S("0"));
     AddInternalVariable(S("_MPX"),             CPUInfo.MPX             ? S("1") : S("0"));
     AddInternalVariable(S("_SHA"),             CPUInfo.SHA             ? S("1") : S("0"));
+    AddInternalVariable(S("_RDRAND"),          CPUInfo.RDRAND          ? S("1") : S("0"));
     AddInternalVariable(S("_RDSEED"),          CPUInfo.RDSEED          ? S("1") : S("0"));
     AddInternalVariable(S("_PREFETCHWT1"),     CPUInfo.PREFETCHWT1     ? S("1") : S("0"));
     AddInternalVariable(S("_RDPID"),           CPUInfo.RDPID           ? S("1") : S("0"));

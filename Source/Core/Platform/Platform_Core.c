@@ -24,7 +24,7 @@ RIFT_API u32 Platform_GetCpuCacheLineSize(void)
     return __CACHE_LINE_SIZE;
 }
 
-bool Platform_GetCpuBrandString(String* OutName)
+bool Platform_GetCpuBrandName(String* OutName)
 {
     int info[4] = {0};
     cpuid(info, 0, 0);
@@ -74,7 +74,6 @@ CpuInfo Platform_QueryCPUInfo(void)
     cpuid(info, 1, 0);
     int edx = info[3];
     int ecx = info[2];
-    // todo: neon??
 
     Result.MMX           = (edx & (1 << 23)) ? 1 : 0;
     Result.SSE           = (edx & (1 << 25)) ? 1 : 0;
@@ -87,6 +86,17 @@ CpuInfo Platform_QueryCPUInfo(void)
     Result.AES           = (ecx & (1 << 25)) ? 1 : 0;
     Result.AVX           = (ecx & (1 << 28)) ? 1 : 0;
     Result.FMA3          = (ecx & (1 << 12)) ? 1 : 0;
+    Result.RDRAND        = (ecx & (1 << 30)) ? 1 : 0;
+
+    // TODO: test all these holy moly
+    /*
+    flags           : fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx 
+                      pdpe1gb rdtscp lm constant_tsc art arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc cpuid aperfmperf pni pclmulqdq dtes64 
+                      monitor ds_cpl vmx smx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx 
+                      f16c rdrand lahf_lm abm 3dnowprefetch cpuid_fault epb ssbd ibrs ibpb stibp ibrs_enhanced tpr_shadow flexpriority ept vpid ept_ad 
+                      fsgsbase tsc_adjust sgx bmi1 avx2 smep bmi2 erms invpcid mpx rdseed adx smap clflushopt intel_pt xsaveopt xsavec xgetbv1 xsaves dtherm 
+                      ida arat pln pts hwp hwp_notify hwp_act_window hwp_epp vnmi md_clear flush_l1d arch_capabilities
+    */
 
     // extended features
     if (MaxSupportedIDs >= 7)
@@ -142,9 +152,7 @@ CpuInfo Platform_QueryCPUInfo(void)
 #if PLATFORM_APPLE || PLATFORM_BSD
 #include <sys/types.h>
 #include <sys/sysctl.h>
-#endif
 
-#if PLATFORM_APPLE
 internal inline bool IsSysAttributeSet(const char* Name)
 {
     i64 Ret = 0;
@@ -156,33 +164,6 @@ internal inline bool IsSysAttributeSet(const char* Name)
     }
 
     return Ret != 0;
-}
-
-u32 Platform_GetCpuCacheLineSize(void)
-{
-    i64 LineSize = 0;
-    size_t Size = sizeof(LineSize);
-    i32 Result = sysctlbyname("hw.cachelinesize", &LineSize, &Size, NULL, 0);
-    if (Result == -1)
-    {
-        return 0;
-    }
-
-    return (u32)LineSize;
-}
-
-bool Platform_GetCpuBrandString(String* OutName)
-{
-    char Vendor[128] = {0};
-    size_t Size = sizeof(Vendor);
-    i32 Result = sysctlbyname("machdep.cpu.brand_string", Vendor, &Size, NULL, 0);
-    if (Result == -1)
-    {
-        return false;
-    }
-
-    String_Copy(OutName, CStrEx(Vendor, 127));
-    return true;
 }
 #endif
 

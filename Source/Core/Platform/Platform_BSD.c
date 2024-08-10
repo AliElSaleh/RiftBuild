@@ -1965,6 +1965,38 @@ bool Filesystem_ArePathsCommon(String PathA, String PathB)
     return bPrefixMatch;
 }
 
+bool Platform_GetCpuBrandName(String* OutName)
+{
+    char Vendor[128] = {0};
+    size_t Size = sizeof(Vendor);
+    i32 Result = sysctlbyname("machdep.cpu.brand_string", Vendor, &Size, NULL, 0);
+    if (Result == -1)
+    {
+        return false;
+    }
+
+    String_Copy(OutName, CStrEx(Vendor, 127));
+    return true;
+}
+
+bool Platform_GetFullCpuName(String* OutName)
+{
+    return Platform_GetCpuBrandName(OutName);
+}
+
+u32 Platform_GetCpuCacheLineSize(void)
+{
+    i64 LineSize = 0;
+    size_t Size = sizeof(LineSize);
+    i32 Result = sysctlbyname("hw.cachelinesize", &LineSize, &Size, NULL, 0);
+    if (Result == -1)
+    {
+        return 0;
+    }
+
+    return (u32)LineSize;
+}
+
 Uuid UUID_Generate(void)
 {
     uuid_t id;
