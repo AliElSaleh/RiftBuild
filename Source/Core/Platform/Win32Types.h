@@ -147,6 +147,15 @@ typedef LONG_PTR *PSSIZE_T;
 
 typedef long RPC_STATUS;
 
+typedef LONG LSTATUS;
+typedef DWORD REGSAM;
+
+typedef void* HKEY;
+
+//DECLARE_HANDLE(HKEY);
+//struct HKEY__{int unused;}; typedef struct HKEY__ *HKEY;
+typedef HKEY* PHKEY;
+
 //
 // ANSI (Multi-byte Character) types
 //
@@ -627,6 +636,63 @@ typedef enum tagCLSCTX
 #define MAXBYTE     0xff        
 #define MAXWORD     0xffff      
 #define MAXDWORD    0xffffffff  
+
+#define HKEY_CLASSES_ROOT                   (( HKEY ) (ULONG_PTR)((LONG)0x80000000) )
+#define HKEY_CURRENT_USER                   (( HKEY ) (ULONG_PTR)((LONG)0x80000001) )
+#define HKEY_LOCAL_MACHINE                  (( HKEY ) (ULONG_PTR)((LONG)0x80000002) )
+#define HKEY_USERS                          (( HKEY ) (ULONG_PTR)((LONG)0x80000003) )
+#define HKEY_PERFORMANCE_DATA               (( HKEY ) (ULONG_PTR)((LONG)0x80000004) )
+#define HKEY_PERFORMANCE_TEXT               (( HKEY ) (ULONG_PTR)((LONG)0x80000050) )
+#define HKEY_PERFORMANCE_NLSTEXT            (( HKEY ) (ULONG_PTR)((LONG)0x80000060) )
+#if(WINVER >= 0x0400)
+#define HKEY_CURRENT_CONFIG                 (( HKEY ) (ULONG_PTR)((LONG)0x80000005) )
+#define HKEY_DYN_DATA                       (( HKEY ) (ULONG_PTR)((LONG)0x80000006) )
+#define HKEY_CURRENT_USER_LOCAL_SETTINGS    (( HKEY ) (ULONG_PTR)((LONG)0x80000007) )
+#endif
+
+//
+// Registry Specific Access Rights.
+//
+
+#define KEY_QUERY_VALUE         (0x0001)
+#define KEY_SET_VALUE           (0x0002)
+#define KEY_CREATE_SUB_KEY      (0x0004)
+#define KEY_ENUMERATE_SUB_KEYS  (0x0008)
+#define KEY_NOTIFY              (0x0010)
+#define KEY_CREATE_LINK         (0x0020)
+#define KEY_WOW64_32KEY         (0x0200)
+#define KEY_WOW64_64KEY         (0x0100)
+#define KEY_WOW64_RES           (0x0300)
+
+#define KEY_READ                ((STANDARD_RIGHTS_READ       |\
+                                  KEY_QUERY_VALUE            |\
+                                  KEY_ENUMERATE_SUB_KEYS     |\
+                                  KEY_NOTIFY)                 \
+                                  &                           \
+                                 (~SYNCHRONIZE))
+
+
+#define KEY_WRITE               ((STANDARD_RIGHTS_WRITE      |\
+                                  KEY_SET_VALUE              |\
+                                  KEY_CREATE_SUB_KEY)         \
+                                  &                           \
+                                 (~SYNCHRONIZE))
+
+#define KEY_EXECUTE             ((KEY_READ)                   \
+                                  &                           \
+                                 (~SYNCHRONIZE))
+
+#define KEY_ALL_ACCESS          ((STANDARD_RIGHTS_ALL        |\
+                                  KEY_QUERY_VALUE            |\
+                                  KEY_SET_VALUE              |\
+                                  KEY_CREATE_SUB_KEY         |\
+                                  KEY_ENUMERATE_SUB_KEYS     |\
+                                  KEY_NOTIFY                 |\
+                                  KEY_CREATE_LINK)            \
+                                  &                           \
+                                 (~SYNCHRONIZE))
+
+// end_access
 
 #define GENERIC_READ                     (0x80000000L)
 #define GENERIC_WRITE                    (0x40000000L)
@@ -1141,6 +1207,10 @@ BOOL QueryPerformanceFrequency(LARGE_INTEGER *lpFrequency);
     #define CreateProcess        CreateProcessW
     #define SearchPath           SearchPathW
 
+    #define RegOpenKeyEx         RegOpenKeyExW
+    #define RegQueryValueEx      RegQueryValueExW
+    #define RegGetValue          RegGetValueW
+
 #else
     #define PeekMessage          PeekMessageA
 
@@ -1194,6 +1264,10 @@ BOOL QueryPerformanceFrequency(LARGE_INTEGER *lpFrequency);
 
     #define CreateProcess        CreateProcessA
     #define SearchPath           SearchPathA
+
+    #define RegOpenKeyEx         RegOpenKeyExA
+    #define RegQueryValueEx      RegQueryValueExA
+    #define RegGetValue          RegGetValueA
 
 #endif
 
@@ -1291,6 +1365,13 @@ void LeaveCriticalSection(LPCRITICAL_SECTION lpCriticalSection);
 void DeleteCriticalSection(LPCRITICAL_SECTION lpCriticalSection);
 
 HANDLE GetCurrentProcess(void);
+
+LSTATUS RegOpenKeyExA(HKEY hKey, LPCSTR lpSubKey, DWORD  ulOptions, REGSAM samDesired, PHKEY phkResult);
+LSTATUS RegOpenKeyExW(HKEY hKey, LPCSTR lpSubKey, DWORD  ulOptions, REGSAM samDesired, PHKEY phkResult);
+LSTATUS RegQueryValueExA(HKEY hKey, LPCSTR lpValueName, LPDWORD lpReserved, LPDWORD lpType, LPBYTE lpData, LPDWORD lpcbData);
+LSTATUS RegQueryValueExW(HKEY hKey, LPCWSTR lpValueName, LPDWORD lpReserved, LPDWORD lpType, LPBYTE lpData, LPDWORD lpcbData);
+LSTATUS RegGetValueA(HKEY hkey, LPCSTR lpSubKey, LPCSTR lpValue, DWORD dwFlags, LPDWORD pdwType, PVOID pvData, LPDWORD pcbData);
+LSTATUS RegGetValueW(HKEY hkey, LPCWSTR lpSubKey, LPCWSTR lpValue, DWORD dwFlags, LPDWORD pdwType, PVOID pvData, LPDWORD pcbData);
 
 #define IMAGEAPI __stdcall
 

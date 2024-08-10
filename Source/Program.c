@@ -7343,7 +7343,6 @@ internal void InitInternalVars(LinearAllocator* Arena)
         CpuBrandName = String_Create(Arena, CPU);
     }
 
-    // todo: _cpu is full cpu name and vendor is just Intel/AMD/Apple?
     if (CPUInfo.Intel)
     {
         AddInternalVariable(S("_CPUVendor"), S("Intel"));

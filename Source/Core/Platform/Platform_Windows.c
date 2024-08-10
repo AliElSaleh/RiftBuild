@@ -1868,6 +1868,29 @@ void Platform_EndNonBlockingMode(void)
 {
 }
 
+bool Platform_GetFullCpuName(String* OutName)
+{
+    HKEY Key = NULL;
+    LSTATUS Status = RegOpenKeyExA(HKEY_LOCAL_MACHINE, "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0\\",
+                       0, KEY_QUERY_VALUE | KEY_WOW64_32KEY | KEY_ENUMERATE_SUB_KEYS, &Key);
+
+    if (Status != S_OK) return false;
+
+    DWORD Length = 511;
+    StringLocal(CpuName, 512);
+    Status = RegQueryValueEx(Key, "ProcessorNameString", NULL, NULL, (LPBYTE)CpuName.Data, &Length);
+    if (Status != S_OK) return false;
+
+    if (Length > 0)
+    {
+        CpuName.Length = Length-1;
+        String_Copy(OutName, CpuName);
+        return true;
+    }
+
+    return false;
+}
+
 u32 Platform_GetExitCodeForProcess(PlatformHandle Handle)
 {
     if (NEVER(!Platform_IsValidHandle(Handle))) return 0;
