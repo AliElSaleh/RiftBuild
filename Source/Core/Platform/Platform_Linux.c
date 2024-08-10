@@ -607,8 +607,8 @@ bool Platform_CreateMutex(PlatformMutex* OutMutex)
         return false;
     }
 
-    OutMutex->Handle = NULL;
-    OutMutex->ID = Semaphore;
+    OutMutex->Handle = Semaphore.__size;
+    OutMutex->ID = -1;
     OutMutex->Name = String_Null();
 
     return true;

@@ -3804,7 +3804,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             
             // we're intentionally not releasing build mutexes on dependency builds because
             // we dont want others to try and build a dependency by itself (unrelated to this build)
-            // when this process has not finished. This is to make things more robust against compiler/file conflicts.
+            // when this process has not finished. This is to make things more robust against compiler/file conflicts and invalid state.
 
             // once this process dies then the OS will clean these mutexes automatically
             // people can pass in -no-mutex to bypass the build mutex feature
@@ -4223,10 +4223,6 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         LOG("Nothing to compile");
         #else
         LOG("no work to do homie");
-        #endif
-
-        #if !PLATFORM_WINDOWS
-        LOG_LINE_BREAK();
         #endif
 
         goto End;
@@ -6461,7 +6457,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                     String_Copy(&CmdLine, S("update-mime-database ~/.local/share/mime"));
                     if (bVerboseLog) LOG("    %S", CmdLine);
 
-                    H = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
+                    PlatformHandle H = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
                     (void)Platform_WaitForProcessAndGetExitCode(H);
                 }
                 else
