@@ -7336,17 +7336,18 @@ internal void InitInternalVars(LinearAllocator* Arena)
         AddInternalVariable(CpuBrandName, S("1"));
     }
 
+    String CpuFullName = S("Unknown");
     if (Platform_GetFullCpuName(&CPU))
     {
         String_ReplaceCharInline(&CPU, '@', '|');
 
-        CpuBrandName = String_Create(Arena, CPU);
+        CpuFullName = String_Create(Arena, CPU);
     }
 
     if (CPUInfo.Intel)
     {
         AddInternalVariable(S("_CPUVendor"), S("Intel"));
-        AddInternalVariable(S("_CPU"), CpuBrandName);
+        AddInternalVariable(S("_CPU"), CpuFullName);
 
         AddInternalVariable(S("Intel"), S("1"));
     }
@@ -7354,7 +7355,7 @@ internal void InitInternalVars(LinearAllocator* Arena)
     if (CPUInfo.AMD)
     {
         AddInternalVariable(S("_CPUVendor"), S("AMD"));
-        AddInternalVariable(S("_CPU"), CpuBrandName);
+        AddInternalVariable(S("_CPU"), CpuFullName);
 
         AddInternalVariable(S("AMD"), S("1"));
     }
@@ -7362,7 +7363,7 @@ internal void InitInternalVars(LinearAllocator* Arena)
     if (CPUInfo.Apple)
     {
         AddInternalVariable(S("_CPUVendor"), S("Apple"));
-        AddInternalVariable(S("_CPU"), CpuBrandName);
+        AddInternalVariable(S("_CPU"), CpuFullName);
     }
 
     #if __CPU_X64
