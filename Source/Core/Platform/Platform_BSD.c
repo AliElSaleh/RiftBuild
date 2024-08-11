@@ -1098,8 +1098,9 @@ bool Filesystem_Open(const String FilePath, u32 Mode, FileHandle* OutHandle)
     OutHandle->Data2 = NULL;
 
 #if PLATFORM_OPEN_BSD
-    String* PathPtr = (String*)OutHandle->Path;
-    String_Copy(PathPtr, FilePath);
+    String Path = StrMake(OutHandle->Path);
+    String_Copy(&Path, FilePath);
+    OutHandle->Path.Length = Path.Length;
 #endif
 
     return true;
@@ -1975,6 +1976,11 @@ bool Filesystem_ArePathsCommon(String PathA, String PathB)
 
 bool Platform_GetCpuBrandName(String* OutName)
 {
+#if PLATFORM_OPEN_BSD
+    // TODO: can't be bothered right now
+    // hw.model
+    return false;
+#else
     char Vendor[128] = {0};
     size_t Size = sizeof(Vendor);
     i32 Result = sysctlbyname("machdep.cpu_brand", Vendor, &Size, NULL, 0);
@@ -1985,6 +1991,7 @@ bool Platform_GetCpuBrandName(String* OutName)
 
     String_Copy(OutName, CStrEx(Vendor, 127));
     return true;
+#endif
 }
 
 bool Platform_GetFullCpuName(String* OutName)
@@ -1994,6 +2001,10 @@ bool Platform_GetFullCpuName(String* OutName)
 
 u32 Platform_GetCpuCacheLineSize(void)
 {
+#if PLATFORM_OPEN_BSD
+    // TODO: can't be bothered right now
+    return __CACHE_LINE_SIZE;
+#else
     i64 LineSize = 0;
     size_t Size = sizeof(LineSize);
     i32 Result = sysctlbyname("hw.cachelinesize", &LineSize, &Size, NULL, 0);
@@ -2003,6 +2014,7 @@ u32 Platform_GetCpuCacheLineSize(void)
     }
 
     return (u32)LineSize;
+#endif
 }
 
 Uuid UUID_Generate(void)
