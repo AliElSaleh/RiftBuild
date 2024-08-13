@@ -1,5 +1,4 @@
 [![Build Status](https://github.com/AliElSaleh/RiftBuild/actions/workflows/main.yml/badge.svg)](https://github.com/AliElSaleh/RiftBuild/actions/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 
 # Rift Build (ALPHA)
