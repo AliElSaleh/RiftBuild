@@ -1,6 +1,4 @@
 [![Build Status](https://github.com/AliElSaleh/RiftBuild/actions/workflows/main.yml/badge.svg)](https://github.com/AliElSaleh/RiftBuild/actions/)
-[![Codacy Badge](https://app.codacy.com/project/badge/Grade/ff3c18bcf56545d2b1b08fa100281bfd)](https://app.codacy.com?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 
 # Rift Build (ALPHA)
