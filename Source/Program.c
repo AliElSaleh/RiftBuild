@@ -3848,6 +3848,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     u16 NumPreBuildCmds = 0;
     u16 NumPostBuildCmds = 0;
 
+    // TODO: time this
     for each (FileVariable, Var, ExpandedVariablesDB)
     {
         if (String_StartsWith(Var.Name, S("PreBuild"), false))
@@ -5278,6 +5279,72 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     p.NumRcSources                  = CountData.NumRcSources;
     p.bHasCppFiles                  = CountData.bHasCppFiles;
 
+    // enforce copyright in all source files
+    if (VariableHasSpecial(VariablesDB, S("Copyright")))
+    {
+        const String CopyrightString = GetVariableValue(ExpandedVariablesDB, S("Copyright"));
+        if (CopyrightString.Length > 0)
+        {
+            struct { bool bSuccess; String Content; } AuxData = { true, CopyrightString };
+            CompileData UserData = { EnforceCopyright, &p, NULL, 0, true, &AuxData};
+            Filesystem_IterateDirectory_Ex(SourceDir, SourceFileDirectoryIterator, true, &UserData);
+
+            if (!AuxData.bSuccess)
+            {
+                return 1;
+            }
+        }
+    }
+
+    Clock ExternalClock = {0};
+    Clock_Start(&ExternalClock);
+
+    // precompile step
+    u16 NumPreCompileCmds = 0;
+    u16 NumPostCompileCmds = 0;
+    u16 NumPreLinkCmds = 0;
+    u16 NumPostLinkCmds = 0;
+
+    for each (FileVariable, Var, ExpandedVariablesDB)
+    {
+        if      (String_StartsWith(Var.Name, S("PreCompile"), false))  NumPreCompileCmds++;
+        else if (String_StartsWith(Var.Name, S("PostCompile"), false)) NumPostCompileCmds++;
+        else if (String_StartsWith(Var.Name, S("PreLink"), false))     NumPreLinkCmds++;
+        else if (String_StartsWith(Var.Name, S("PostLink"), false))    NumPostLinkCmds++;
+    }
+
+    if (NumPreCompileCmds > 0 && !bIsClean)
+    {
+        #ifndef HOOD
+        LOG("Running pre compile commands...");
+        #else
+        LOG("cool mang, gonna run some pre compile cmds...");
+        #endif
+
+        for each (FileVariable, Var, ExpandedVariablesDB)
+        {
+            if (String_StartsWith(Var.Name, S("PreCompile"), false))
+            {
+                u32 ExitCode = 0;
+                bool bResult = Internal_ExecuteBuildCmd(WorkingPath, Var.Name, Var.Value, Var.bHasSpecial, &ExitCode);
+                if (!bResult)
+                {
+                    #ifndef HOOD
+                    LOG_ERROR("Pre-compile command exited with a failure result: %u", ExitCode);
+                    #else
+                    LOG_ERROR("brah wtf, gon have to stop you there nigga. da command we jus ran fuck'n failed on me nigga");
+                    #endif
+
+                    return 1;
+                }
+            }
+        }
+
+        Clock_Tick(&ExternalClock);
+
+        LOG_LINE_BREAK();
+    }
+
 
     // find the icon path (if specified)
     if (Icon.Length > 0)
@@ -5646,25 +5713,6 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         return 0;
     }
 
-    // enforce copyright in all source files
-    if (VariableHasSpecial(VariablesDB, S("Copyright")))
-    {
-        const String CopyrightString = GetVariableValue(ExpandedVariablesDB, S("Copyright"));
-        if (CopyrightString.Length > 0)
-        {
-            struct { bool bSuccess; String Content; } AuxData = { true, CopyrightString };
-            CompileData UserData = { EnforceCopyright, &p, NULL, 0, true, &AuxData};
-            Filesystem_IterateDirectory_Ex(SourceDir, SourceFileDirectoryIterator, true, &UserData);
-
-            if (!AuxData.bSuccess)
-            {
-                return 1;
-            }
-        }
-    }
-
-    // TODO: precompile step
-
     bool bSuccess = false;
     u32 NumCompiled = 0;
 
@@ -5702,9 +5750,80 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         goto PostBuild;
     }
 
-    // TODO: postcompile step
+    // postcompile step
+    if (NumPostCompileCmds > 0 && !bIsClean)
+    {
+        #ifndef HOOD
+        LOG("\nRunning post compile commands...");
+        #else
+        LOG("cool mang, gonna run some post compile cmds...");
+        #endif
 
-    // TODO: prelink step
+        f64 ElapsedSoFar = ExternalClock.ElapsedTime;
+        Clock_Start(&ExternalClock);
+
+        for each (FileVariable, Var, ExpandedVariablesDB)
+        {
+            if (String_StartsWith(Var.Name, S("PostCompile"), false))
+            {
+                u32 ExitCode = 0;
+                bool bResult = Internal_ExecuteBuildCmd(WorkingPath, Var.Name, Var.Value, Var.bHasSpecial, &ExitCode);
+                if (!bResult)
+                {
+                    #ifndef HOOD
+                    LOG_ERROR("Post-compile command exited with a failure result: %u", ExitCode);
+                    #else
+                    LOG_ERROR("brah wtf, gon have to stop you there nigga. da command we jus ran fuck'n failed on me nigga");
+                    #endif
+
+                    return 1;
+                }
+            }
+        }
+
+        Clock_Tick(&ExternalClock);
+        ExternalClock.ElapsedTime += ElapsedSoFar;
+
+        LOG_LINE_BREAK();
+    }
+
+
+    // prelink step
+    if (NumPreLinkCmds > 0 && !bIsClean)
+    {
+        #ifndef HOOD
+        LOG("Running pre link commands...");
+        #else
+        LOG("cool mang, gonna run some pre link cmds...");
+        #endif
+
+        f64 ElapsedSoFar = ExternalClock.ElapsedTime;
+        Clock_Start(&ExternalClock);
+
+        for each (FileVariable, Var, ExpandedVariablesDB)
+        {
+            if (String_StartsWith(Var.Name, S("PreLink"), false))
+            {
+                u32 ExitCode = 0;
+                bool bResult = Internal_ExecuteBuildCmd(WorkingPath, Var.Name, Var.Value, Var.bHasSpecial, &ExitCode);
+                if (!bResult)
+                {
+                    #ifndef HOOD
+                    LOG_ERROR("Pre-link command exited with a failure result: %u", ExitCode);
+                    #else
+                    LOG_ERROR("brah wtf, gon have to stop you there nigga. da command we jus ran fuck'n failed on me nigga");
+                    #endif
+
+                    return 1;
+                }
+            }
+        }
+
+        Clock_Tick(&ExternalClock);
+        ExternalClock.ElapsedTime += ElapsedSoFar;
+
+        LOG_LINE_BREAK();
+    }
 
     Clock LinkClock;
 
@@ -5726,6 +5845,42 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     {
         return 1;
     }
+
+    // postlink step
+    if (NumPostLinkCmds > 0 && !bIsClean)
+    {
+        #ifndef HOOD
+        LOG("\nRunning post link commands...");
+        #else
+        LOG("cool mang, gonna run some pre link cmds...");
+        #endif
+
+        f64 ElapsedSoFar = ExternalClock.ElapsedTime;
+        Clock_Start(&ExternalClock);
+
+        for each (FileVariable, Var, ExpandedVariablesDB)
+        {
+            if (String_StartsWith(Var.Name, S("PostLink"), false))
+            {
+                u32 ExitCode = 0;
+                bool bResult = Internal_ExecuteBuildCmd(WorkingPath, Var.Name, Var.Value, Var.bHasSpecial, &ExitCode);
+                if (!bResult)
+                {
+                    #ifndef HOOD
+                    LOG_ERROR("Post-link command exited with a failure result: %u", ExitCode);
+                    #else
+                    LOG_ERROR("brah wtf, gon have to stop you there nigga. da command we jus ran fuck'n failed on me nigga");
+                    #endif
+
+                    return 1;
+                }
+            }
+        }
+
+        Clock_Tick(&ExternalClock);
+        ExternalClock.ElapsedTime += ElapsedSoFar;
+    }
+
 
     #if PLATFORM_APPLE
     // compile the .app bundle (if desired)
@@ -6469,8 +6624,6 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     }
     #endif
 
-    // TODO: postlink step
-
     Clock_Tick(&BuildRuntime);
 
     if (bQuietBuild) Logging_Enable();
@@ -6519,6 +6672,12 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         LOG("Dependency  time: %S", TimeString);
     }
 
+    if (ExternalClock.ElapsedTime > 0)
+    {
+        Clock_GetElapsedTime_ToString(&ExternalClock, true, &TimeString);
+        LOG("External    time: %S", TimeString);
+    }
+
     // calculate the overhead time
     f64 TotalElapsedTime = CompileClock.ElapsedTime +
                            LinkClock.ElapsedTime +
@@ -6527,7 +6686,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                            BundleCompileClock.ElapsedTime +
                            BuildFileParseClock.ElapsedTime +
                            MSVCInitClock.ElapsedTime +
-                           DependencyBuildClock.ElapsedTime;
+                           DependencyBuildClock.ElapsedTime +
+                           ExternalClock.ElapsedTime;
 
     Clock OverheadClock = {0};
     OverheadClock.ElapsedTime = BuildRuntime.ElapsedTime - TotalElapsedTime;
