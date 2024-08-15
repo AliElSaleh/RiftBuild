@@ -107,6 +107,10 @@ typedef void VoidFunc(void);
 
 #define INVALID_ID UINT32_MAX
 
+// blessed by the gods
+#define If if (
+#define then )
+
 // if only microsoft supported this like clang and gcc :((
 //#define each(Element, Array)          (typeof((Array)[0])* CONCAT(Element, _) = &(Array)[0], Element = *CONCAT(Element, _); CONCAT(Element, _) <= &(Array)[Array_Num((Array))-1]; CONCAT(Element, _)++, Element = *CONCAT(Element, _))
 //#define each_i(Index, Element, Array) (typeof((Array)[0])* CONCAT(Element, _) = &(Array)[0], Element = *CONCAT(Element, _); CONCAT(Element, _) <= &(Array)[Array_Num((Array))-1]; CONCAT(Element, _)++, Element = *CONCAT(Element, _), ++(Index))
@@ -307,6 +311,10 @@ typedef void VoidFunc(void);
         #define PRAGMA_DISABLE_WARNINGS _Pragma("clang diagnostic push")
         #define PRAGMA_ENABLE_WARNINGS  _Pragma("clang diagnostic pop")
 
+        #define PRAGMA_DISABLE_SIGN_CONVERSION_WARNING \
+                PRAGMA_DISABLE_WARNINGS \
+                PRAGMA_DISABLE_WARNING("clang diagnostic ignored \"-Wsign-conversion\"")
+
         #define PRAGMA_DISABLE_MISSING_PROTOTYPES_WARNING \
                 PRAGMA_DISABLE_WARNINGS \
                 PRAGMA_DISABLE_WARNING("clang diagnostic ignored \"-Wmissing-prototypes\"")
@@ -314,6 +322,10 @@ typedef void VoidFunc(void);
     #elif COMPILER_GCC
         #define PRAGMA_DISABLE_WARNINGS _Pragma("GCC diagnostic push")
         #define PRAGMA_ENABLE_WARNINGS  _Pragma("GCC diagnostic pop")
+
+        #define PRAGMA_DISABLE_SIGN_CONVERSION_WARNING \
+                PRAGMA_DISABLE_WARNINGS \
+                PRAGMA_DISABLE_WARNING("GCC diagnostic ignored \"-Wsign-conversion\"")
 
         #define PRAGMA_DISABLE_MISSING_PROTOTYPES_WARNING \
                 PRAGMA_DISABLE_WARNINGS \
@@ -343,6 +355,8 @@ typedef void VoidFunc(void);
     #define PRAGMA_DISABLE_WARNINGS   __pragma(warning(push))
     #define PRAGMA_ENABLE_WARNINGS    __pragma(warning(pop))
     #define PRAGMA_DISABLE_WARNING(x) __pragma(warning(disable: x))
+
+    #define PRAGMA_DISABLE_SIGN_CONVERSION_WARNING
 
     #define PRAGMA_DISABLE_DEPRECATION_WARNINGS \
         PRAGMA_DISABLE_WARNINGS \

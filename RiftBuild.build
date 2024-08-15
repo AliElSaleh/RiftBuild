@@ -9,7 +9,7 @@ Icon                    riftbuild
 
 TitleName               Rift Build %^%debug
 Description             A simpler build tool for C/C++, because fuck cmake
-Version!                0.9.7-alpha-%_datenosep
+Version!                0.9.8-alpha-%_datenosep
 CompanyName             Ali El Saleh
 Copyright!              Copyright (c) 2024 Ali El Saleh
 
@@ -55,6 +55,7 @@ if linux {
     if @XDG_CURRENT_DESKTOP contains Cinnamon Defines __cinnamon__
 }
 
+##
 cpu   "%(_cpu)"
 vendor %_cpuvendor
 cpubrand %_cpubrand
@@ -73,6 +74,9 @@ neon  %_neon
 fcma %_fcma
 specres %_specres
 bf16 %_bf16
+f16c %_f16c
+lzcnt %_lzcnt
+tzcnt %_tzcnt
 
 all_exts %_cpuextensions
 
@@ -80,9 +84,6 @@ if apple_m2 AppleM2
 if arm army
 
 cache %_CacheLineSize
-
-##
-
 
 if !cl                  CompilerFlags:disassemble,$mode -S
 

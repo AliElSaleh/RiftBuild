@@ -117,6 +117,8 @@ internal void LogLastError(const String Prefix)
 
 void Platform_PreInitialize(void)
 {
+    __security_init_cookie();
+
     Platform_GetClockFrequency();
 
     i32 NumArgs = 0;
