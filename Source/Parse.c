@@ -443,6 +443,8 @@ bool ParseBuildFile(LinearAllocator* Arena,
             else
                 Condition = VarValue;
 
+            bool bIsPath = String_ContainsPathSeparators(Condition);
+
             bool bSearchUserVar = String_EatCharInline(&Condition, '$');
             bool bSearchCmdVar = String_EatCharInline(&Condition, '%');
             bool bSearchEnv = String_EatCharInline(&Condition, '@');
@@ -457,61 +459,78 @@ bool ParseBuildFile(LinearAllocator* Arena,
 
             StringLocal(EnvValue, 1024);
 
-            if (bSearchEnv)
+            if (bIsPath)
             {
-                // find this variable
-                StringLocal(Temp, 256);
+                bool bIsDirectory = String_IsLast(Condition, '/') || String_IsLast(Condition, '\\');
+                StringLocal(Temp, MAX_PATH_LENGTH);
                 String_Copy(&Temp, Condition);
-                if (Platform_GetEnvironmentVariableValue(Temp, &EnvValue))
+                if (bIsDirectory)
                 {
-                    ConditionValuePtr = EnvValue;
-                    bConditionMet = true;
+                    bConditionMet = Filesystem_DoesDirectoryExist(Temp);
+                }
+                else
+                {
+                    bConditionMet = Filesystem_DoesFileExist(Temp);
                 }
             }
-
-            if (!bConditionMet && (bSearchCmdVar || !bPrefixedWithSymbol))
+            else
             {
-                // check the condition string against the internal build vars passed in from the command line
-                // override VarValue for single line if's, for multiline if's, loop back to the top and process each line until '}' is found
-                for each (CmdOption, o, CmdOptionsDB)
+                if (!bConditionMet && bSearchEnv)
                 {
-                    bool bMatch = String_IsEqual(o.Name, Condition, false);
-                    if (bMatch)
+                    // find this variable
+                    StringLocal(Temp, 256);
+                    String_Copy(&Temp, Condition);
+                    if (Platform_GetEnvironmentVariableValue(Temp, &EnvValue))
                     {
-                        if (!o.bEqualsToSomething || 
-                            (o.bEqualsToSomething && o.Value.Length > 0)) // make sure we have some value if we specified an '=' sign
+                        ConditionValuePtr = EnvValue;
+                        bConditionMet = true;
+                    }
+                }
+
+                if (!bConditionMet && (bSearchCmdVar || !bPrefixedWithSymbol))
+                {
+                    // check the condition string against the internal build vars passed in from the command line
+                    // override VarValue for single line if's, for multiline if's, loop back to the top and process each line until '}' is found
+                    for each (CmdOption, o, CmdOptionsDB)
+                    {
+                        bool bMatch = String_IsEqual(o.Name, Condition, false);
+                        if (bMatch)
+                        {
+                            if (!o.bEqualsToSomething || 
+                                (o.bEqualsToSomething && o.Value.Length > 0)) // make sure we have some value if we specified an '=' sign
+                            {
+                                ConditionValuePtr = o.Value;
+                                bConditionMet = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!bConditionMet)
+                    {
+                        for each (InternalVariable, v, InternalVariablesDB)
+                        {
+                            if (String_IsEqual(v.Name, Condition, false))
+                            {
+                                ConditionValuePtr = v.Value;
+                                bConditionMet = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (!bConditionMet && (bSearchUserVar || !bPrefixedWithSymbol))
+                {
+                    for each (FileVariable, o, VariablesDB) // intentional that we're not using expanded DB, this should only be used for simple things anyway
+                    {
+                        bool bMatch = String_IsEqual(o.Name, Condition, false);
+                        if (bMatch)
                         {
                             ConditionValuePtr = o.Value;
                             bConditionMet = true;
                             break;
                         }
-                    }
-                }
-
-                if (!bConditionMet)
-                {
-                    for each (InternalVariable, v, InternalVariablesDB)
-                    {
-                        if (String_IsEqual(v.Name, Condition, false))
-                        {
-                            ConditionValuePtr = v.Value;
-                            bConditionMet = true;
-                            break;
-                        }
-                    }
-                }
-            }
-
-            if (!bConditionMet && (bSearchUserVar || !bPrefixedWithSymbol))
-            {
-                for each (FileVariable, o, VariablesDB) // intentional that we're not using expanded DB, this should only be used for simple things anyway
-                {
-                    bool bMatch = String_IsEqual(o.Name, Condition, false);
-                    if (bMatch)
-                    {
-                        ConditionValuePtr = o.Value;
-                        bConditionMet = true;
-                        break;
                     }
                 }
             }

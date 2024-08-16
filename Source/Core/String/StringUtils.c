@@ -312,6 +312,19 @@ bool String_Contains(const String Str, const String SubString, bool bCaseSensiti
     return false;
 }
 
+bool String_ContainsPathSeparators(const String Str)
+{
+    for (u32 i = 0; i < Str.Length; i++)
+    {
+        if (Str.Data[i] == '/' || Str.Data[i] == '\\')
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 bool String_ContainsDigits(const String Str)
 {
     for (u32 i = 0; i < Str.Length; i++)

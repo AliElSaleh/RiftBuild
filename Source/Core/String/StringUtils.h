@@ -56,6 +56,7 @@ RIFT_API bool String_IsFloat(const String Str);
 RIFT_API bool String_IsNumeric(const String Str);
 
 RIFT_API bool String_Contains(const String Str, const String SubString, bool bCaseSensitive);
+RIFT_API bool String_ContainsPathSeparators(const String Str);
 RIFT_API bool String_ContainsDigits(const String Str);
 RIFT_API bool String_ContainsNonDigits(const String Str);
 RIFT_API bool String_StartsWith(const String Str, const String SubString, bool bCaseSensitive);
