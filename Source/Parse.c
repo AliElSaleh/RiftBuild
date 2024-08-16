@@ -443,11 +443,10 @@ bool ParseBuildFile(LinearAllocator* Arena,
             else
                 Condition = VarValue;
 
-            bool bIsPath = String_ContainsPathSeparators(Condition);
-
-            bool bSearchUserVar = String_EatCharInline(&Condition, '$');
-            bool bSearchCmdVar = String_EatCharInline(&Condition, '%');
-            bool bSearchEnv = String_EatCharInline(&Condition, '@');
+            bool bIsPath             = String_ContainsPathSeparators(Condition);
+            bool bSearchUserVar      = String_EatCharInline(&Condition, '$');
+            bool bSearchCmdVar       = String_EatCharInline(&Condition, '%');
+            bool bSearchEnv          = String_EatCharInline(&Condition, '@');
             bool bPrefixedWithSymbol = bSearchUserVar || bSearchCmdVar || bSearchEnv;
 
             bool bIsNot = Condition.Data[0] == '!';
@@ -462,8 +461,17 @@ bool ParseBuildFile(LinearAllocator* Arena,
             if (bIsPath)
             {
                 bool bIsDirectory = String_IsLast(Condition, '/') || String_IsLast(Condition, '\\');
+
                 StringLocal(Temp, MAX_PATH_LENGTH);
-                String_Copy(&Temp, Condition);
+                if (Filesystem_IsPathRelative(Condition))
+                {
+                    String_BuildPath(&Temp, WorkingDirectory, Condition);
+                }
+                else
+                {
+                    String_Copy(&Temp, Condition);
+                }
+
                 if (bIsDirectory)
                 {
                     bConditionMet = Filesystem_DoesDirectoryExist(Temp);
