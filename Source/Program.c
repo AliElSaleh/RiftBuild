@@ -23,6 +23,7 @@ bool bSingleThread = false;
 bool bIsRebuild = false;
 bool bIsClean = false;
 bool bVerboseLog = false;
+bool bHelp = false;
 
 STRUCT(BuildFileDirectoryIteratorData)
 {
@@ -1659,6 +1660,7 @@ internal void PrintUsage(const String WorkingDirectory)
     LOG("   -v                    : Enable verbose logging");
     LOG("   -q                    : Quiet mode. Disables logging but outputs necessary information, like errors");
     LOG("   -t                    : Display a tutorial on how to set environment variables");
+    LOG("   help                  : Print out custom help message from the build file");
     LOG("   clean                 : Delete all intermediate and binary files");
     LOG("   rebuild               : Clean all and build");
     LOG("   list                  : List all the build files in the current directory");
@@ -2783,6 +2785,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     const String MaxCompilerErrors          = GetVariableValue(ExpandedVariablesDB, S("MaxCompilerErrors"));
     const String PCHPath                    = GetVariableValue(ExpandedVariablesDB, S("PCH"));
     const String PCHHeaderPath              = GetVariableValue(ExpandedVariablesDB, S("PCH.h"));
+    const String HelpMessage                = GetVariableValue(ExpandedVariablesDB, S(".Help"));
 
     #if PLATFORM_APPLE
     const String CustomInfoPlist            = GetVariableValue(ExpandedVariablesDB, S("Bundle.InfoPlist"));
@@ -2805,6 +2808,21 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     const bool bBundleApp                   = DoesBuildVarExist(ExpandedVariablesDB, S("Bundle"));
     const bool bBundleAppIsTerminal         = DoesBuildVarExist(ExpandedVariablesDB, S("Bundle.IsTerminal"));
     #endif
+
+    if (bHelp && bFoundBuildFile)
+    {
+        LOG_INLINE_WARNING("Help\n");
+        if (HelpMessage.Length > 0)
+        {
+            LOG("%S", HelpMessage);
+        }
+        else
+        {
+            LOG("    No help message provided");
+        }
+
+        return 0;
+    }
 
     bShouldWaitPerCompileProcess = bSingleThread;
 
@@ -7045,12 +7063,14 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
         return 0;
     }
 
+    bHelp                              = StringArray_Contains(Arguments, S("help"), false);
     bIsClean                           = StringArray_Contains(Arguments, S("clean"), false);
     bIsRebuild                         = StringArray_Contains(Arguments, S("rebuild"), false);
     bVerboseLog                        = StringArray_Contains(Arguments, S("-v"), false);
 
     const bool bSingleThreadMode       = StringArray_Contains(Arguments, S("-singlethread"), false) ||
                                          StringArray_Contains(Arguments, S("-s"), false);
+
     //const bool bGenCompileCommandsJSON = StringArray_Contains(Arguments, S("export:compile_commands"), false) ||
     //                                     StringArray_Contains(Arguments, S("export:cc"), false);
     //const bool bGenPlist               = StringArray_Contains(Arguments, S("export:plist"), false);

@@ -59,11 +59,13 @@ bool ParseBuildFile(LinearAllocator* Arena,
     bool bGoto = false;
     bool bInMultiLineComment = false;
     bool bInMultiLineErrorMessage = false;
+    bool bInMultiLineHelpMessage = false;
 
     StringLocal(NamespaceKey, 64);
     StringLocal(GotoValue, 64);
     StringLocal(ErrorMessage_Name, 256);
     StringLocal(ErrorMessage, 4096);
+    StringLocal(HelpMessage, 4096);
 
     EComparisonType Comparison = Cmp_None;
 
@@ -94,6 +96,28 @@ bool ParseBuildFile(LinearAllocator* Arena,
             
             String_Append(&ErrorMessage, Line);
             String_Append(&ErrorMessage, S("\n"));
+
+            continue;
+        }
+
+        if (bInMultiLineHelpMessage)
+        {
+            // prevent leading/trailing spaces causing confusion if we only have the '}' in the line. its better than doing Line.Data[0]
+            String Trimmed = String_EatSpacesFromEnd(String_EatSpaces(Line));
+            if (Trimmed.Data[0] == '}')
+            {
+                String_EatNewLinesInlineFromEnd(&HelpMessage);
+
+                Internal_AddVariable(Arena, VariablesDB, S(".help"), HelpMessage, false);
+
+                String_Empty(&HelpMessage);
+
+                bInMultiLineHelpMessage = false;
+                continue;
+            }
+            
+            String_Append(&HelpMessage, Line);
+            String_Append(&HelpMessage, S("\n"));
 
             continue;
         }
@@ -376,6 +400,15 @@ bool ParseBuildFile(LinearAllocator* Arena,
             if (VarValue.Length > 0 && VarValue.Data[0] == '{')
             {
                 bInMultiLineErrorMessage = true;
+                continue;
+            }
+        }
+
+        if (String_IsEqual(VarName, S(".help"), false))
+        {
+            if (VarValue.Length > 0 && VarValue.Data[0] == '{')
+            {
+                bInMultiLineHelpMessage = true;
                 continue;
             }
         }
@@ -1173,6 +1206,7 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
         bool bWantsToUpper = false;
 
         if (String_EndsWith(Key, S(".errormessage"), false) ||
+            String_StartsWith(Key, S(".help"), false) ||
             String_EndsWith(Key, S(".Cmd"), false)) // todo: rethink
         {
             if (C == '!')
@@ -1505,7 +1539,8 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
         {
             bool bCheckChar = true;
 
-            if (String_EndsWith(Key, S(".errormessage"), false))
+            if (String_EndsWith(Key, S(".errormessage"), false) ||
+                String_StartsWith(Key, S(".help"), false))
             {
                 bCheckChar = false;
             }

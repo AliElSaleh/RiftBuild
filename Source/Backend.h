@@ -27,6 +27,7 @@ global bool bSingleThread;
 global bool bIsRebuild;
 global bool bIsClean;
 global bool bVerboseLog;
+global bool bHelp;
 
 STRUCT(SourceFileData)
 {
