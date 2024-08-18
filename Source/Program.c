@@ -23,7 +23,6 @@ bool bSingleThread = false;
 bool bIsRebuild = false;
 bool bIsClean = false;
 bool bVerboseLog = false;
-//EGenerator GGenerator = Generator_None;
 
 STRUCT(BuildFileDirectoryIteratorData)
 {
@@ -5332,7 +5331,6 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                     //const bool bGenVisualStudio        = String_IsEqual(*var, S("export:visual_studio"), false);
                     //const bool bGenXCode               = String_IsEqual(*var, S("export:xcode"), false);
 
-                    //if (GGenerator == Generator_CompileCommandsJSON)
                     if (bGenCompileCommandsJSON)
                     {
                         if (bQuietBuild) Logging_Enable();
@@ -5364,7 +5362,6 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
                         if (bQuietBuild) Logging_Disable();
                     }
-                    //else if (GGenerator == Generator_Plist)
                     else if (bGenPlist)
                     {
                         if (bQuietBuild) Logging_Enable();
@@ -5414,7 +5411,6 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
                         if (bQuietBuild) Logging_Disable();
                     }
-                    //else if (GGenerator == Generator_PkgInfo)
                     else if (bGenPkgInfo)
                     {
                         if (bQuietBuild) Logging_Enable();
@@ -5451,8 +5447,6 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
                         if (bQuietBuild) Logging_Disable();
                     }
-                    //else if (GGenerator == Generator_VersionRC ||
-                    //        GGenerator == Generator_IconRC)
                     else if (bGenVersionRc || bGenIconRc)
                     {
                         if (bQuietBuild) Logging_Enable();
@@ -5505,11 +5499,6 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             }
         }
     }
-
-
-
-
-
 
     // enforce copyright in all source files
     if (VariableHasSpecial(VariablesDB, S("Copyright")))
@@ -5645,7 +5634,6 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     }
 
     // log "Building (Assembly)" ui text
-    //if (GGenerator == Generator_None)
     {
         if (NumSources > 0)
         {
@@ -5773,179 +5761,6 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     {
         LOG_LINE_BREAK();
     }
-
-    /*
-    if (GGenerator == Generator_CompileCommandsJSON)
-    {
-        if (bQuietBuild) Logging_Enable();
-
-        LOG("Generating compile_commands.json ...");
-
-        bool bLast = CameFromBuildFile.Length == 0;
-
-        Clock c;
-        Clock_Start(&c);
-
-        if (!ExportCompileCommands(&p, ExpandedCompilerFlags, ExpandedIncludeFlags, ExpandedDefineFlags, ExpandedUnDefineFlags, bLast))
-        {
-            return 1;
-        }
-
-        Clock_Tick(&c);
-
-        if (bLast)
-        {
-            StringLocal(ExportTimeString, 32);
-            Clock_GetElapsedTime_ToString(&c, true, &ExportTimeString);
-            LOG("\nExport time: %S", ExportTimeString);
-
-            StringLocal(CompileCommandsPath, MAX_PATH_LENGTH);
-            String_BuildPath(&CompileCommandsPath, WorkingPath, S("compile_commands.json"));
-            LOG_SUCCESS("\n\"%S\"", CompileCommandsPath);
-        }
-
-        if (bQuietBuild) Logging_Disable();
-
-        return 0;
-    }
-    else if (GGenerator == Generator_Plist)
-    {
-        if (bQuietBuild) Logging_Enable();
-
-        LOG("Generating Info.plist ...");
-
-        StringLocal(ExportPath, MAX_PATH_LENGTH);
-        String_BuildPath(&ExportPath, WorkingPath, IntermediateDirectory, S("__Exports"));
-
-        if (!Filesystem_OpenDirectory(ExportPath))
-        {
-            return 1;
-        }
-
-        StringLocal(PlistPath, MAX_PATH_LENGTH);
-        String_BuildPath(&PlistPath, ExportPath, S("Info.plist"));
-
-        Clock c;
-        Clock_Start(&c);
-
-        if (!ExportInfoPlist(*Arena, &p, PlistPath, ExpandedVariablesDB, DoesBuildVarExist(ExpandedVariablesDB, S("Info.plist"))))
-        {
-            LOG_ERROR("Failed to export \"%S\". Aborting build...", PlistPath);
-            return 1;
-        }
-
-        LOG_SUCCESS("\n\"%S\"", PlistPath);
-
-        LOG("\nGenerating Version.plist ...");
-
-        String_Empty(&PlistPath);
-        String_BuildPath(&PlistPath, ExportPath, S("Version.plist"));
-
-        if (!ExportVersionPlist(*Arena, &p, PlistPath, ExpandedVariablesDB, DoesBuildVarExist(ExpandedVariablesDB, S("Version.plist"))))
-        {
-            LOG_ERROR("Failed to export \"%S\". Aborting build...", PlistPath);
-            return 1;
-        }
-
-        Clock_Tick(&c);
-
-        LOG_SUCCESS("\n\"%S\"", PlistPath);
-
-        StringLocal(ExportTimeString, 32);
-        Clock_GetElapsedTime_ToString(&c, true, &ExportTimeString);
-        LOG("\nExport time: %S", ExportTimeString);
-
-        if (bQuietBuild) Logging_Disable();
-
-        return 0;
-    }
-    else if (GGenerator == Generator_PkgInfo)
-    {
-        if (bQuietBuild) Logging_Enable();
-
-        LOG("Generating PkgInfo ...");
-
-        StringLocal(ExportPath, MAX_PATH_LENGTH);
-        String_BuildPath(&ExportPath, WorkingPath, IntermediateDirectory, S("__Exports"));
-
-        if (!Filesystem_OpenDirectory(ExportPath))
-        {
-            return 1;
-        }
-
-        StringLocal(PkgInfoPath, MAX_PATH_LENGTH);
-        String_BuildPath(&PkgInfoPath, ExportPath, S("PkgInfo"));
-
-        Clock c;
-        Clock_Start(&c);
-
-        if (!ExportPkgInfo(&p, PkgInfoPath))
-        {
-            LOG_ERROR("Failed to export \"%S\". Aborting build...", PkgInfoPath);
-            return 1;
-        }
-
-        Clock_Tick(&c);
-
-        StringLocal(ExportTimeString, 32);
-        Clock_GetElapsedTime_ToString(&c, true, &ExportTimeString);
-        LOG("\nExport time: %S", ExportTimeString);
-
-        LOG_SUCCESS("\n\"%S\"", PkgInfoPath);
-
-        if (bQuietBuild) Logging_Disable();
-
-        return 0;
-    }
-    else if (GGenerator == Generator_VersionRC ||
-             GGenerator == Generator_IconRC)
-    {
-        if (bQuietBuild) Logging_Enable();
-
-        LOG("Generating resource file ...");
-
-        StringLocal(ExportPath, MAX_PATH_LENGTH);
-        String_BuildPath(&ExportPath, WorkingPath, IntermediateDirectory, S("__Exports"));
-
-        if (!Filesystem_OpenDirectory(ExportPath))
-        {
-            return 1;
-        }
-
-        Clock c;
-        Clock_Start(&c);
-
-        StringLocal(RCPath, MAX_PATH_LENGTH);
-
-        if (GGenerator == Generator_VersionRC)
-        {
-            String_BuildPath(&RCPath, ExportPath, S("version.rc"));
-        }
-        else
-        {
-            String_BuildPath(&RCPath, ExportPath, S("icon.rc"));
-        }
-
-        if ((GGenerator == Generator_VersionRC && !ExportVersionRC(&p, RCPath)) ||
-            (GGenerator == Generator_IconRC && !ExportIconRC(&p, RCPath, IconFilePath)))
-        {
-            LOG_ERROR("Failed to export \"%S\". Aborting build...", RCPath);
-            return 1;
-        }
-
-        Clock_Tick(&c);
-
-        StringLocal(ExportTimeString, 32);
-        Clock_GetElapsedTime_ToString(&c, true, &ExportTimeString);
-        LOG("\nExport time: %S", ExportTimeString);
-
-        LOG_SUCCESS("\n\"%S\"", RCPath);
-
-        if (bQuietBuild) Logging_Disable();
-
-        return 0;
-    }
-    */
 
     bool bSuccess = false;
     u32 NumCompiled = 0;
@@ -7609,7 +7424,6 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
     }
 
     bSingleThread = bSingleThreadMode;
-    //GGenerator = Generator;
 
     PlatformMutex BuildMutex = {0};
     u32 ExitCode = BuildTarget(Arena, BuildFileHandle, &BuildMutex, WorkingDirectory, BuildArguments, S(""), BuildFileIndex, RootPathIndex);
