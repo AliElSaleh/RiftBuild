@@ -23,9 +23,11 @@ typedef void VoidFunc(void);
 
 #ifndef __cplusplus
     #if (__STDC_VERSION__ >= 199901L)
-        #define bool  _Bool
+        typedef _Bool bool;
+        //#define bool  _Bool
     #else
-        #define bool  u8
+        typedef u8 bool;
+        //#define bool  u8
     #endif
 
     #define true  1

@@ -91,7 +91,7 @@ ENUM(EGenerator)
     Generator_KDEMime,
 };
 
-global EGenerator GGenerator;
+//global EGenerator GGenerator;
 
 ENUM(EBuildMode)
 {

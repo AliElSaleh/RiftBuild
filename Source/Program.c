@@ -23,7 +23,7 @@ bool bSingleThread = false;
 bool bIsRebuild = false;
 bool bIsClean = false;
 bool bVerboseLog = false;
-EGenerator GGenerator = Generator_None;
+//EGenerator GGenerator = Generator_None;
 
 STRUCT(BuildFileDirectoryIteratorData)
 {
@@ -1915,7 +1915,7 @@ bool FilterSourceFile(const String WorkingDirectory, const String SourceDirector
     return false;
 }
 
-internal void ExpandPathFlags(LinearAllocator Scratch, String* Dest, const String Flags, const String FlagPrefix)
+internal void ExpandPathFlags(LinearAllocator Scratch, String* Dest, const String Flags, const String FlagPrefix, bool bWrapWithQuotes)
 {
     // expand include flags with * and ** wildcards
     StringLocal(WildcardFlags, 4096);
@@ -1967,8 +1967,8 @@ internal void ExpandPathFlags(LinearAllocator Scratch, String* Dest, const Strin
     String_EatSpacesInlineFromEnd(&WildcardFlags);
     String_EatSpacesInlineFromEnd(&NonWildcardFlags);
 
-    PrefixVariables(Dest, WildcardFlags, FlagPrefix, GGenerator == Generator_None);
-    PrefixVariables(Dest, NonWildcardFlags, FlagPrefix, GGenerator == Generator_None);
+    PrefixVariables(Dest, WildcardFlags, FlagPrefix, bWrapWithQuotes);
+    PrefixVariables(Dest, NonWildcardFlags, FlagPrefix, bWrapWithQuotes);
 }
 
 internal void Internal_RunAssembly(LinearAllocator Scratch, const String WorkingPath, const String BuildDirectory, const String AssemblyNameWithExt, const String ArgString)
@@ -4619,7 +4619,19 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     }
     #endif
 
-    if (GGenerator == Generator_None)
+    bool bExportingSomething = false;
+    for (u8 i = 0; i < Parameters.Num; i++)
+    {
+        const String Arg = Parameters.List[i];
+
+        if (String_StartsWith(Arg, S("export:"), false))
+        {
+            bExportingSomething = true;
+            break;
+        }
+    }
+
+    if (!bExportingSomething)
     {
         // force a rebuild if the .build file has been modified
         if (!bIsRebuild && !bIsClean && bFoundBuildFile)
@@ -5049,7 +5061,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     bool bHasRcProgram = Platform_FindProgram_Ex(RCProgram, &RCProgramPath);
     #endif
 
-    if (GGenerator == Generator_None)
+    if (!bExportingSomething)
     {
         if (bFoundBuildFile)
         {
@@ -5137,7 +5149,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     String_Append(&FlagPrefix, CompilerFlagPrefixSymbol);
     String_Append(&FlagPrefix, S("I"));
 
-    ExpandPathFlags(*Arena, &ExpandedIncludeFlags, IncludeFlags, FlagPrefix);
+    ExpandPathFlags(*Arena, &ExpandedIncludeFlags, IncludeFlags, FlagPrefix, !bExportingSomething);
 
     FlagPrefix.Data[1] = 'l';
     if (String_IsEqual(CompilerProgram, S("cl"), false) ||
@@ -5147,28 +5159,28 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     }
     else
     {
-        PrefixVariables(&ExpandedLibraries, Libraries, FlagPrefix, GGenerator == Generator_None);
+        PrefixVariables(&ExpandedLibraries, Libraries, FlagPrefix, !bExportingSomething);
     }
 
     FlagPrefix.Data[1] = 'L';
     if (String_IsEqual(CompilerProgram, S("cl"), false) ||
         String_IsEqual(CompilerProgram, S("msvc"), false)) // todo: something better
     {
-        ExpandPathFlags(*Arena, &ExpandedLibraryDirectories, LibraryDirectories, S("/LIBPATH:"));
+        ExpandPathFlags(*Arena, &ExpandedLibraryDirectories, LibraryDirectories, S("/LIBPATH:"), !bExportingSomething);
     }
     else
     {
-        ExpandPathFlags(*Arena, &ExpandedLibraryDirectories, LibraryDirectories, FlagPrefix);
+        ExpandPathFlags(*Arena, &ExpandedLibraryDirectories, LibraryDirectories, FlagPrefix, !bExportingSomething);
     }
 
     FlagPrefix.Data[1] = 'D';
-    PrefixVariables(&ExpandedDefineFlags, Defines, FlagPrefix, GGenerator == Generator_None);
-    PrefixVariables(&ExpandedLinkerDefineFlags, LinkerDefines, FlagPrefix, GGenerator == Generator_None);
+    PrefixVariables(&ExpandedDefineFlags, Defines, FlagPrefix, !bExportingSomething);
+    PrefixVariables(&ExpandedLinkerDefineFlags, LinkerDefines, FlagPrefix, !bExportingSomething);
 
     FlagPrefix.Data[1] = 'U';
-    PrefixVariables(&ExpandedUnDefineFlags, UnDefines, FlagPrefix, GGenerator == Generator_None);
+    PrefixVariables(&ExpandedUnDefineFlags, UnDefines, FlagPrefix, !bExportingSomething);
 
-    if (GGenerator == Generator_None)
+    if (!bExportingSomething)
     {
         LogNameValuePair(*Arena, S("Expanded Compiler  Flags: "), ExpandedCompilerFlags,      !bNoWordWrapLogging);
         LogNameValuePair(*Arena, S("Expanded Assembler Flags: "), ExpandedAssemblerFlags,     !bNoWordWrapLogging);
@@ -5278,6 +5290,226 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     p.NumHeaders                    = CountData.NumHeaders;
     p.NumRcSources                  = CountData.NumRcSources;
     p.bHasCppFiles                  = CountData.bHasCppFiles;
+
+
+    // export feature
+    for (u8 i = 0; i < Parameters.Num; i++)
+    {
+        const String Arg = Parameters.List[i];
+
+        if (String_StartsWith(Arg, S("export:"), false))
+        {
+            u32 Colon = 0;
+            if (String_IndexOfChar(Arg, ':', &Colon))
+            {
+                const String VarToList = StrShiftF(Arg, Colon+1);
+
+                if (VarToList.Length == 0)
+                {
+                    LOG_ERROR("Failed to export. No export type was given after ':'");
+                    LOG_INLINE_WARNING("\nUsage\n");
+                    LOG("     export:compile_commands");
+                    LOG("     export:icon.rc");
+                    LOG("     export:plist,bat,sh");
+                    return 1;
+                }
+
+                char TempMemory[1024] = {0};
+                LinearAllocator Temp = {0};
+                LinearAllocator_Create(1024, TempMemory, &Temp);
+                StringArray Vars = String_ParseIntoArray(&Temp, VarToList, ',', 0, 128);
+            
+                for each_str (var, Vars)
+                {
+                    const bool bGenCompileCommandsJSON = String_IsEqual(*var, S("compile_commands"), false) ||
+                                                         String_IsEqual(*var, S("cc"), false);
+                    const bool bGenPlist               = String_IsEqual(*var, S("plist"), false);
+                    const bool bGenPkgInfo             = String_IsEqual(*var, S("pkginfo"), false);
+                    const bool bGenVersionRc           = String_IsEqual(*var, S("versionrc"), false) ||
+                                                         String_IsEqual(*var, S("version.rc"), false);
+                    const bool bGenIconRc              = String_IsEqual(*var, S("iconrc"), false) ||
+                                                         String_IsEqual(*var, S("icon.rc"), false);
+                    //const bool bGenVisualStudio        = String_IsEqual(*var, S("export:visual_studio"), false);
+                    //const bool bGenXCode               = String_IsEqual(*var, S("export:xcode"), false);
+
+                    //if (GGenerator == Generator_CompileCommandsJSON)
+                    if (bGenCompileCommandsJSON)
+                    {
+                        if (bQuietBuild) Logging_Enable();
+
+                        LOG("Generating compile_commands.json ...");
+
+                        bool bLast = CameFromBuildFile.Length == 0;
+
+                        Clock c;
+                        Clock_Start(&c);
+
+                        if (!ExportCompileCommands(&p, ExpandedCompilerFlags, ExpandedIncludeFlags, ExpandedDefineFlags, ExpandedUnDefineFlags, bLast))
+                        {
+                            return 1;
+                        }
+
+                        Clock_Tick(&c);
+
+                        if (bLast)
+                        {
+                            StringLocal(ExportTimeString, 32);
+                            Clock_GetElapsedTime_ToString(&c, true, &ExportTimeString);
+                            LOG("\nExport time: %S", ExportTimeString);
+
+                            StringLocal(CompileCommandsPath, MAX_PATH_LENGTH);
+                            String_BuildPath(&CompileCommandsPath, WorkingPath, S("compile_commands.json"));
+                            LOG_SUCCESS("\n\"%S\"", CompileCommandsPath);
+                        }
+
+                        if (bQuietBuild) Logging_Disable();
+                    }
+                    //else if (GGenerator == Generator_Plist)
+                    else if (bGenPlist)
+                    {
+                        if (bQuietBuild) Logging_Enable();
+
+                        LOG("Generating Info.plist ...");
+
+                        StringLocal(ExportPath, MAX_PATH_LENGTH);
+                        String_BuildPath(&ExportPath, WorkingPath, IntermediateDirectory, S("__Exports"));
+
+                        if (!Filesystem_OpenDirectory(ExportPath))
+                        {
+                            return 1;
+                        }
+
+                        StringLocal(PlistPath, MAX_PATH_LENGTH);
+                        String_BuildPath(&PlistPath, ExportPath, S("Info.plist"));
+
+                        Clock c;
+                        Clock_Start(&c);
+
+                        if (!ExportInfoPlist(*Arena, &p, PlistPath, ExpandedVariablesDB, DoesBuildVarExist(ExpandedVariablesDB, S("Info.plist"))))
+                        {
+                            LOG_ERROR("Failed to export \"%S\". Aborting build...", PlistPath);
+                            return 1;
+                        }
+
+                        LOG_SUCCESS("\n\"%S\"", PlistPath);
+
+                        LOG("\nGenerating Version.plist ...");
+
+                        String_Empty(&PlistPath);
+                        String_BuildPath(&PlistPath, ExportPath, S("Version.plist"));
+
+                        if (!ExportVersionPlist(*Arena, &p, PlistPath, ExpandedVariablesDB, DoesBuildVarExist(ExpandedVariablesDB, S("Version.plist"))))
+                        {
+                            LOG_ERROR("Failed to export \"%S\". Aborting build...", PlistPath);
+                            return 1;
+                        }
+
+                        Clock_Tick(&c);
+
+                        LOG_SUCCESS("\n\"%S\"", PlistPath);
+
+                        StringLocal(ExportTimeString, 32);
+                        Clock_GetElapsedTime_ToString(&c, true, &ExportTimeString);
+                        LOG("\nExport time: %S", ExportTimeString);
+
+                        if (bQuietBuild) Logging_Disable();
+                    }
+                    //else if (GGenerator == Generator_PkgInfo)
+                    else if (bGenPkgInfo)
+                    {
+                        if (bQuietBuild) Logging_Enable();
+
+                        LOG("Generating PkgInfo ...");
+
+                        StringLocal(ExportPath, MAX_PATH_LENGTH);
+                        String_BuildPath(&ExportPath, WorkingPath, IntermediateDirectory, S("__Exports"));
+
+                        if (!Filesystem_OpenDirectory(ExportPath))
+                        {
+                            return 1;
+                        }
+
+                        StringLocal(PkgInfoPath, MAX_PATH_LENGTH);
+                        String_BuildPath(&PkgInfoPath, ExportPath, S("PkgInfo"));
+
+                        Clock c;
+                        Clock_Start(&c);
+
+                        if (!ExportPkgInfo(&p, PkgInfoPath))
+                        {
+                            LOG_ERROR("Failed to export \"%S\". Aborting build...", PkgInfoPath);
+                            return 1;
+                        }
+
+                        Clock_Tick(&c);
+
+                        StringLocal(ExportTimeString, 32);
+                        Clock_GetElapsedTime_ToString(&c, true, &ExportTimeString);
+                        LOG("\nExport time: %S", ExportTimeString);
+
+                        LOG_SUCCESS("\n\"%S\"", PkgInfoPath);
+
+                        if (bQuietBuild) Logging_Disable();
+                    }
+                    //else if (GGenerator == Generator_VersionRC ||
+                    //        GGenerator == Generator_IconRC)
+                    else if (bGenVersionRc || bGenIconRc)
+                    {
+                        if (bQuietBuild) Logging_Enable();
+
+                        LOG("Generating resource file ...");
+
+                        StringLocal(ExportPath, MAX_PATH_LENGTH);
+                        String_BuildPath(&ExportPath, WorkingPath, IntermediateDirectory, S("__Exports"));
+
+                        if (!Filesystem_OpenDirectory(ExportPath))
+                        {
+                            return 1;
+                        }
+
+                        Clock c;
+                        Clock_Start(&c);
+
+                        StringLocal(RCPath, MAX_PATH_LENGTH);
+
+                        if (String_IsEqual(*var, S("version.rc"), false) ||
+                            String_IsEqual(*var, S("versionrc"), false))
+                        {
+                            String_BuildPath(&RCPath, ExportPath, S("version.rc"));
+                        }
+                        else
+                        {
+                            String_BuildPath(&RCPath, ExportPath, S("icon.rc"));
+                        }
+
+                        if ((bGenVersionRc && !ExportVersionRC(&p, RCPath)) ||
+                            (bGenIconRc && !ExportIconRC(&p, RCPath, IconFilePath)))
+                        {
+                            LOG_ERROR("Failed to export \"%S\". Aborting build...", RCPath);
+                            return 1;
+                        }
+
+                        Clock_Tick(&c);
+
+                        StringLocal(ExportTimeString, 32);
+                        Clock_GetElapsedTime_ToString(&c, true, &ExportTimeString);
+                        LOG("\nExport time: %S", ExportTimeString);
+
+                        LOG_SUCCESS("\n\"%S\"", RCPath);
+
+                        if (bQuietBuild) Logging_Disable();
+                    }
+                }
+
+                return 0;
+            }
+        }
+    }
+
+
+
+
+
 
     // enforce copyright in all source files
     if (VariableHasSpecial(VariablesDB, S("Copyright")))
@@ -5413,7 +5645,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     }
 
     // log "Building (Assembly)" ui text
-    if (GGenerator == Generator_None)
+    //if (GGenerator == Generator_None)
     {
         if (NumSources > 0)
         {
@@ -5542,6 +5774,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         LOG_LINE_BREAK();
     }
 
+    /*
     if (GGenerator == Generator_CompileCommandsJSON)
     {
         if (bQuietBuild) Logging_Enable();
@@ -5712,6 +5945,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
         return 0;
     }
+    */
 
     bool bSuccess = false;
     u32 NumCompiled = 0;
@@ -7002,25 +7236,25 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
 
     const bool bSingleThreadMode       = StringArray_Contains(Arguments, S("-singlethread"), false) ||
                                          StringArray_Contains(Arguments, S("-s"), false);
-    const bool bGenCompileCommandsJSON = StringArray_Contains(Arguments, S("export:compile_commands"), false) ||
-                                         StringArray_Contains(Arguments, S("export:cc"), false);
-    const bool bGenPlist               = StringArray_Contains(Arguments, S("export:plist"), false);
-    const bool bGenPkgInfo             = StringArray_Contains(Arguments, S("export:pkginfo"), false);
-    const bool bGenVersionRc           = StringArray_Contains(Arguments, S("export:versionrc"), false) ||
-                                         StringArray_Contains(Arguments, S("export:version.rc"), false);
-    const bool bGenIconRc              = StringArray_Contains(Arguments, S("export:iconrc"), false) ||
-                                         StringArray_Contains(Arguments, S("export:icon.rc"), false);
+    //const bool bGenCompileCommandsJSON = StringArray_Contains(Arguments, S("export:compile_commands"), false) ||
+    //                                     StringArray_Contains(Arguments, S("export:cc"), false);
+    //const bool bGenPlist               = StringArray_Contains(Arguments, S("export:plist"), false);
+    //const bool bGenPkgInfo             = StringArray_Contains(Arguments, S("export:pkginfo"), false);
+    //const bool bGenVersionRc           = StringArray_Contains(Arguments, S("export:versionrc"), false) ||
+    //                                     StringArray_Contains(Arguments, S("export:version.rc"), false);
+    //const bool bGenIconRc              = StringArray_Contains(Arguments, S("export:iconrc"), false) ||
+    //                                     StringArray_Contains(Arguments, S("export:icon.rc"), false);
     //const bool bGenVisualStudio        = StringArray_Contains(Arguments, S("export:visual_studio"), false);
     //const bool bGenXCode               = StringArray_Contains(Arguments, S("export:xcode"), false);
 
-    EGenerator Generator = Generator_None;
+    //EGenerator Generator = Generator_None;
 
     // todo: support multple gen at a time??
-    if (bGenCompileCommandsJSON) Generator = Generator_CompileCommandsJSON;
-    if (bGenPlist)               Generator = Generator_Plist;
-    if (bGenPkgInfo)             Generator = Generator_PkgInfo;
-    if (bGenVersionRc)           Generator = Generator_VersionRC;
-    if (bGenIconRc)              Generator = Generator_IconRC;
+    //if (bGenCompileCommandsJSON) Generator = Generator_CompileCommandsJSON;
+    //if (bGenPlist)               Generator = Generator_Plist;
+    //if (bGenPkgInfo)             Generator = Generator_PkgInfo;
+    //if (bGenVersionRc)           Generator = Generator_VersionRC;
+    //if (bGenIconRc)              Generator = Generator_IconRC;
 
     //if (bGenVisualStudio)        Generator = Generator_VisualStudioSolution;
     //if (bGenXCode)               Generator = Generator_XCodeProject;
@@ -7375,7 +7609,7 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
     }
 
     bSingleThread = bSingleThreadMode;
-    GGenerator = Generator;
+    //GGenerator = Generator;
 
     PlatformMutex BuildMutex = {0};
     u32 ExitCode = BuildTarget(Arena, BuildFileHandle, &BuildMutex, WorkingDirectory, BuildArguments, S(""), BuildFileIndex, RootPathIndex);
