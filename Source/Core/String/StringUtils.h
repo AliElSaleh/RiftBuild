@@ -5,6 +5,14 @@
 #include "Memory/Allocators.h"
 #include "String/BaseString.h"
 
+ENUM(ECompareResult)
+{
+    CompareResult_None,
+    CompareResult_Equal,
+    CompareResult_Less,
+    CompareResult_Greater
+};
+
 // C String Helpers
 // ----------------------------------
 
@@ -73,6 +81,8 @@ RIFT_API void String_AppendNewline(String* Dest);
 RIFT_API void String_AppendPathSeparator(String* Dest);
 RIFT_API void String_AppendPathSeparator_Checked(String* Dest);
 
+RIFT_API ECompareResult String_CompareVersion(const String VersionA, const String VersionB);
+
 RIFT_API void String_Zero(String* Str);
 RIFT_API void String_Fill(String* Str, char C);
 
@@ -132,6 +142,7 @@ RIFT_API bool String_IndexOfFirstPathSlash(const String Str, u32* OutIndex);
 RIFT_API bool String_IndexOfLastPathSlash(const String Str, u32* OutIndex);
 RIFT_API bool String_IndexOfFirstWhitespace(const String Str, u32* OutIndex);
 RIFT_API bool String_IndexOfLastWhitespace(const String Str, u32* OutIndex);
+RIFT_API bool String_IndexOfSubstring(const String Str, const String Substring, bool bCaseSensitive, u32* OutIndex);
 
 RIFT_API bool String_SanitizePath(String* Dest, const String Source);
 RIFT_API bool String_SanitizePathAndWrap(String* Dest, const String Source);

@@ -1784,12 +1784,15 @@ bool Platform_FindFile_Ex(String FileName, String ExtensionWithDot, String* OutF
         return false;
     }
 
+    StringLocal(FileNameCopy, MAX_PATH_LENGTH);
+    String_Copy(&FileNameCopy, FileName);
+
     char* Ext = NULL;
     if (ExtensionWithDot.Length > 1)
         Ext = ExtensionWithDot.Data;
 
     char FullPath[MAX_PATH] = {0};
-    DWORD Len = SearchPath(NULL, FileName.Data, Ext, MAX_PATH, FullPath, NULL);
+    DWORD Len = SearchPath(NULL, FileNameCopy.Data, Ext, MAX_PATH, FullPath, NULL);
     if (Len == 0)
         return false;
 

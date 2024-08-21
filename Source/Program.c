@@ -2832,6 +2832,56 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         String_ToU8(MaxCompilerErrors, &MaxErrorsAllowed);
     }
 
+    String RequireCompilerVersion = String_Null();
+    EComparisonType CompilerVersionComparisonType = Cmp_Equal;
+    if (CompilerProgram.Length > 0)
+    {
+        u32 Index = 0;
+        if (String_IndexOfChar(CompilerProgram, '|', &Index))
+        {
+            const String V  = String_EatSpacesFromEnd(String_EatSpaces(StrShiftF(CompilerProgram, Index+1)));
+            CompilerProgram = String_EatSpacesFromEnd(String_EatSpaces(StrSlice(CompilerProgram.Data, Index)));
+
+            if (V.Length > 0)
+            {
+                u8 SymbolLength = 0;
+
+                if (String_StartsWith(V, S("=="), false))
+                {
+                    CompilerVersionComparisonType = Cmp_Equal;
+                    SymbolLength = 2;
+                }
+                else if (String_StartsWith(V, S(">="), false))
+                {
+                    CompilerVersionComparisonType = Cmp_GreaterThanOrEqual;
+                    SymbolLength = 2;
+                }
+                else if (String_StartsWith(V, S("<="), false))
+                {
+                    CompilerVersionComparisonType = Cmp_LessThanOrEqual;
+                    SymbolLength = 2;
+                }
+                else if (String_StartsWith(V, S(">"), false))
+                {
+                    CompilerVersionComparisonType = Cmp_GreaterThan;
+                    SymbolLength = 1;
+                }
+                else if (String_StartsWith(V, S("<"), false))
+                {
+                    CompilerVersionComparisonType = Cmp_LessThan;
+                    SymbolLength = 1;
+                }
+                else if (String_StartsWith(V, S("="), false))
+                {
+                    CompilerVersionComparisonType = Cmp_Equal;
+                    SymbolLength = 1;
+                }
+
+                RequireCompilerVersion = String_EatSpacesFromEnd(String_EatSpaces(StrShiftF(V, SymbolLength)));
+            }
+        }
+    }
+
     bool bNoCompilerProgramExplicityGiven = false;
     if (CompilerProgram.Length == 0)
     {
@@ -3248,6 +3298,96 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
         if (!bCompilerProgramFound)
             return 1;
+    }
+
+    if (RequireCompilerVersion.Length > 0)
+    {
+        PlatformPipe StdOutPipe = {0};
+        StringLocal(CmdLine, 2048);
+        String_Append(&CmdLine, CompilerPath);
+        String_AppendSpace(&CmdLine);
+
+        if (!String_IsEqual(CompilerProgram, S("cl"), false))
+        {
+            String_Append(&CmdLine, S("-v"));
+        }
+
+        PlatformHandle H = Platform_RunCommand_Ex(CmdLine, WorkingPath, &StdOutPipe);
+
+        Platform_CloseHandle(StdOutPipe[1]);
+
+        if (Platform_IsValidHandle(H))
+        {
+            Platform_WaitForHandle(H, -1);
+            
+            StringLocal(StdOutData, UINT16_MAX);
+
+            u64 BytesRead = 0;
+            if (Filesystem_ReadPipe(StdOutPipe, StdOutData.Capacity, StdOutData.Data, &BytesRead))
+            {
+                StdOutData.Length = Min((u32)BytesRead, StdOutData.Capacity);
+
+                u32 Index = 0;
+                if (String_IndexOfSubstring(StdOutData, S("version "), false, &Index))
+                {
+                    String FoundVersion = StrShiftF(StdOutData, Index+8);
+
+                    String_IndexOfFirstWhitespace(FoundVersion, &Index);
+                    FoundVersion = StrSlice(FoundVersion.Data, Index);
+
+                    ECompareResult Result = String_CompareVersion(FoundVersion, RequireCompilerVersion);
+
+                    bool bCompareResultsMatch = false;
+                    if (Result == CompareResult_Equal)
+                    {
+                        bCompareResultsMatch = CompilerVersionComparisonType == Cmp_Equal ||
+                                               CompilerVersionComparisonType == Cmp_GreaterThanOrEqual ||
+                                               CompilerVersionComparisonType == Cmp_LessThanOrEqual;
+                    }
+                    else if (Result == CompareResult_Greater)
+                    {
+                        bCompareResultsMatch = CompilerVersionComparisonType == Cmp_GreaterThan ||
+                                               CompilerVersionComparisonType == Cmp_GreaterThanOrEqual;
+                    }
+                    else if (Result == CompareResult_Less)
+                    {
+                        bCompareResultsMatch = CompilerVersionComparisonType == Cmp_LessThan ||
+                                               CompilerVersionComparisonType == Cmp_LessThanOrEqual;
+                    }
+
+                    if (!bCompareResultsMatch)
+                    {
+                        String Prefix = S("of");
+
+                        String Extra = S(" exactly");
+
+                        if (CompilerVersionComparisonType == Cmp_GreaterThan)
+                        {
+                            Prefix = S("above");
+                            Extra = S("");
+                        }
+                        else if (CompilerVersionComparisonType == Cmp_GreaterThanOrEqual)
+                        {
+                            Extra = S(" or above");
+                        }
+                        else if (CompilerVersionComparisonType == Cmp_LessThan)
+                        {
+                            Prefix = S("below");
+                            Extra = S("");
+                        }
+                        else if (CompilerVersionComparisonType == Cmp_LessThanOrEqual)
+                        {
+                            Extra = S(" or below");
+                        }
+
+                        LOG_INLINE_ERROR("[ASSERTION FAILURE] %S compiler version \"%S\" does not meet the required version %S \"%S\"%S. Aborting build...\n", CompilerProgram, FoundVersion, Prefix, RequireCompilerVersion, Extra);
+                        return 1;
+                    }
+                }
+            }
+        }
+
+        Platform_CloseHandle(StdOutPipe[0]);
     }
 
     //ECompiler Compiler = Compiler_Clang;
@@ -5483,16 +5623,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                         Clock_Start(&c);
 
                         StringLocal(RCPath, MAX_PATH_LENGTH);
-
-                        if (String_IsEqual(*var, S("version.rc"), false) ||
-                            String_IsEqual(*var, S("versionrc"), false))
-                        {
-                            String_BuildPath(&RCPath, ExportPath, S("version.rc"));
-                        }
-                        else
-                        {
-                            String_BuildPath(&RCPath, ExportPath, S("icon.rc"));
-                        }
+                        String_BuildPath(&RCPath, ExportPath, bGenVersionRc ? S("version.rc") : S("icon.rc"));
 
                         if ((bGenVersionRc && !ExportVersionRC(&p, RCPath)) ||
                             (bGenIconRc && !ExportIconRC(&p, RCPath, IconFilePath)))

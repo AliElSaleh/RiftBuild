@@ -504,6 +504,115 @@ void String_AppendPathSeparator_Checked(String* Dest)
 #endif
 }
 
+ECompareResult String_CompareVersion(const String VersionA, const String VersionB)
+{
+    if (VersionA.Length == 0 || VersionB.Length == 0)
+    {
+        return CompareResult_None;
+    }
+
+    // compare each version separated by '.' or '-'
+
+    ECompareResult Result = CompareResult_None;
+
+    u64 VersionArrayA[32];
+    u64 VersionArrayB[32];
+    for (u8 i = 0; i < 32; i++) VersionArrayA[i] = UINT64_MAX;
+    for (u8 i = 0; i < 32; i++) VersionArrayB[i] = UINT64_MAX;
+
+    u8 VersionIndexA = 0, VersionIndexB = 0;
+
+    u32 OffsetA = 0, OffsetB = 0;
+
+    while (1)
+    {
+        u32 IndexA = 0, IndexB = 0;
+        u32 ThisOffsetA = OffsetA, ThisOffsetB = OffsetB;
+
+        for (u32 i = OffsetA; i < VersionA.Length; i++)
+        {
+            if (VersionA.Data[i] == '.' || VersionA.Data[i] == '-' || i == VersionA.Length-1)
+            {
+                IndexA = i - OffsetA;
+                OffsetA = i;
+
+                if (i == VersionA.Length-1)
+                {
+                    IndexA++;
+                    OffsetA++;
+                }
+
+                break;
+            }
+        }
+
+        for (u32 i = OffsetB; i < VersionB.Length; i++)
+        {
+            if (VersionB.Data[i] == '.' || VersionB.Data[i] == '-' || i == VersionB.Length-1)
+            {
+                IndexB = i - OffsetB;
+                OffsetB = i;
+
+                if (i == VersionB.Length-1)
+                {
+                    IndexB++;
+                    OffsetB++;
+                }
+                
+                break;
+            }
+        }
+
+        const String SubVersionA = StrSlice(StrShiftF(VersionA, ThisOffsetA).Data, IndexA);
+        const String SubVersionB = StrSlice(StrShiftF(VersionB, ThisOffsetB).Data, IndexB);
+
+        u64 A = 0, B = 0;
+        String_ToU64(SubVersionA, &A);
+        String_ToU64(SubVersionB, &B);
+
+        VersionArrayA[VersionIndexA] = A;
+        VersionArrayB[VersionIndexB] = B;
+
+        VersionIndexA++;
+        VersionIndexB++;
+
+        OffsetA++;
+        OffsetB++;
+
+        if (VersionIndexA >= 32 || VersionIndexB >= 32)
+            break;
+
+        if (OffsetA > VersionA.Length-1 || OffsetB > VersionB.Length-1)
+            break;
+    }
+
+    for (u8 i = 0; i < 32; i++)
+    {
+        if (VersionArrayA[i] == UINT64_MAX || VersionArrayB[i] == UINT64_MAX)
+            break;
+
+        if (VersionArrayA[i] == VersionArrayB[i])
+        {
+            Result = CompareResult_Equal;
+            continue;
+        }
+
+        if (VersionArrayA[i] > VersionArrayB[i])
+        {
+            Result = CompareResult_Greater;
+            break;
+        }
+
+        if (VersionArrayA[i] < VersionArrayB[i])
+        {
+            Result = CompareResult_Less;
+            break;
+        }
+    }
+
+    return Result;
+}
+
 i32 String_Format(String* Dest, const String Format, u32 Capacity, ...)
 {
     va_list Args;
@@ -1459,6 +1568,27 @@ bool String_IndexOfLastWhitespace(const String Str, u32* OutIndex)
             *OutIndex = 0;
 
         return true;
+    }
+    
+    return false;
+}
+
+bool String_IndexOfSubstring(const String Str, const String Substring, bool bCaseSensitive, u32* OutIndex)
+{
+    if (Str.Length == 0 || Substring.Length == 0)
+    {
+        return false;
+    }
+
+    for (u32 i = 0; i < Str.Length; ++i)
+    {
+        if (String_IsEqual(StrSlice(Str.Data + i, Substring.Length), Substring, bCaseSensitive))
+        {
+            if (OutIndex)
+                *OutIndex = i;
+
+            return true;
+        }
     }
     
     return false;
