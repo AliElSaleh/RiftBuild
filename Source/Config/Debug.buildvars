@@ -5,7 +5,7 @@
 if cl goto msvc
 
 WarningFlags         -Wall -Wextra -Wshadow -Wconversion -Wmissing-prototypes -Warray-bounds -Wunused -Wuninitialized
-WarningFlagsDisabled -Wno-unused-variable -Wno-unused-parameter -Wno-gnu-zero-variadic-macro-arguments -Wno-variadic-macros -Wno-missing-field-initializers -Wno-missing-braces
+WarningFlagsDisabled -Wno-unused-variable -Wno-unused-parameter -Wno-gnu-zero-variadic-macro-arguments -Wno-variadic-macros -Wno-missing-field-initializers -Wno-missing-braces -Wno-typedef-redefinition
 WarningErrorFlags    -Werror=vla -Werror=implicit-function-declaration -Werror=pointer-arith -Werror=shadow -Werror=uninitialized -Werror=array-bounds -Werror=implicit -Werror=incompatible-pointer-types -Werror=int-conversion
 #-Werror=return-type
 
