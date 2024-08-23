@@ -5,7 +5,7 @@ where /q clang || (
   goto :end
 )
 
-set CompilerFlags= -std=c99 -Os -fno-exceptions -fno-math-errno -fno-strict-overflow -fno-strict-aliasing -Wall -Wextra -Wshadow -Wconversion -Wmissing-prototypes -Warray-bounds -Wunused -Wuninitialized -Wno-empty-translation-unit -Wno-gnu-zero-variadic-macro-arguments -Wno-unused-parameter -Wunused-function -Werror=vla -Werror=implicit-function-declaration -Werror=pointer-arith -Werror=shadow -Werror=uninitialized -Werror=array-bounds -Werror=implicit -Werror=incompatible-pointer-types -Werror=int-conversion -DNO_ASSERT -DNO_PROFILING -D_NO_CRT_STDIO_INLINE -DRIFT_STATIC -DWIN32_LEAN_AND_MEAN -DRIFTBUILD_VERSION_STRING=\"0.9.7-alpha\" -DRIFTBUILD_MAJOR_VERSION=0 -DRIFTBUILD_MINOR_VERSION=9 -DRIFTBUILD_PATCH_VERSION=7 -ISource/Core -ISource/Libraries/Vendor
+set CompilerFlags= -std=c99 -Os -fno-exceptions -fno-math-errno -fno-strict-overflow -fno-strict-aliasing -Wall -Wextra -Wshadow -Wconversion -Wmissing-prototypes -Warray-bounds -Wunused -Wuninitialized -Wno-empty-translation-unit -Wno-gnu-zero-variadic-macro-arguments -Wno-unused-parameter -Wunused-function -Werror=vla -Werror=implicit-function-declaration -Werror=pointer-arith -Werror=shadow -Werror=uninitialized -Werror=array-bounds -Werror=implicit -Werror=incompatible-pointer-types -Werror=int-conversion -DNO_ASSERT -DNO_PROFILING -D_NO_CRT_STDIO_INLINE -DRIFT_STATIC -DWIN32_LEAN_AND_MEAN -DRIFTBUILD_VERSION_STRING=\"0.9.7-alpha\" -DRIFTBUILD_MAJOR_VERSION=0 -DRIFTBUILD_MINOR_VERSION=9 -DRIFTBUILD_PATCH_VERSION=8 -ISource/Core -ISource/Libraries/Vendor
 
 echo Compiling sources (Windows)
 
