@@ -1,9 +1,13 @@
 // Copyright (c) 2024 Ali El Saleh
 
+#ifndef UNITY_BUILD
 #include "Platform.h"
+#endif
 
 #if PLATFORM_WINDOWS
 
+#ifndef UNITY_BUILD
+#include "Globals.h"
 #include "Log.h"
 
 #include "Uuid.h"
@@ -11,8 +15,12 @@
 #include "String/BaseString.h"
 #include "String/StringUtils.h"
 #include "Structures/Array.h"
+#include <stdarg.h>
+#endif
 
 #include "Win32Types.h"
+
+#include <gs_support.c>
 
 //#include <Windows.h>
 //#include <strsafe.h>
@@ -21,10 +29,6 @@
 //#include <shellapi.h>
 //#include <psapi.h>
 //#include <Shlobj.h>
-
-#include <stdarg.h>
-
-#include <gs_support.c>
 
 PRAGMA_DISABLE_MISSING_PROTOTYPES_WARNING
 
@@ -1739,7 +1743,7 @@ PlatformHandle Platform_RunCommand_Ex(const String CmdLine, const String Working
     StartupInfo.hStdInput = NULL;
     StartupInfo.dwFlags |= STARTF_USESTDHANDLES;
 
-    char* Dir = WorkingDirectory.Length > 0 ? WorkingDirectory.Data : NULL;
+    const char* Dir = WorkingDirectory.Length > 0 ? WorkingDirectory.Data : NULL;
     if (!CreateProcess(NULL, CmdLine.Data, NULL, NULL, TRUE, 0, NULL, Dir, &StartupInfo, &ProcessInfo))
     {
         StringLocal(Prefix, Kibibytes(8));
@@ -1787,7 +1791,7 @@ bool Platform_FindFile_Ex(String FileName, String ExtensionWithDot, String* OutF
     StringLocal(FileNameCopy, MAX_PATH_LENGTH);
     String_Copy(&FileNameCopy, FileName);
 
-    char* Ext = NULL;
+    const char* Ext = NULL;
     if (ExtensionWithDot.Length > 1)
         Ext = ExtensionWithDot.Data;
 

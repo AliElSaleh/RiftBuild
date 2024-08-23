@@ -64,7 +64,7 @@ RIFT_API void* memmove(void* dst, void* src, usize len)
     return dst;
 }
 
-RIFT_API int memcmp(void* s1, void* s2, usize len)
+RIFT_API int memcmp(const void* s1, const void* s2, usize len)
 {
     //#if PLATFORM_32_BIT
     const unsigned char* p1 = (const unsigned char*)s1;

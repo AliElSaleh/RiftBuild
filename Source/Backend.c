@@ -2,11 +2,15 @@
 
 #include "Backend.h"
 
+#ifndef UNITY_BUILD
+#include "Globals.h"
+#include "Memory/Allocators.h"
 #include "Structures/Array.h"
 #include "String/StringUtils.h"
 #include "Platform/Filesystem.h"
 #include "Platform/Platform.h"
 #include "Log.h"
+#endif
 
 bool C_DoCompile(CompileData* Data, const String FullPath, const String RelativePath);
 
@@ -309,14 +313,14 @@ internal bool Link_SourceFileDirectoryIterator(const String FullPath, const Stri
     return true;
 }
 
-bool C_Compile(const BuildParams* Params, u32* NumCompiled)
+bool C_Compile(const BuildParams* Params, u32* OutNumCompiled)
 {
     StringLocal(SourceDir, MAX_PATH_LENGTH);
     String_BuildPath(&SourceDir, Params->RootDirectory, Params->SourceDirectory);
 
     // compile all .asm files first
     {
-        CompileData UserData = { NULL, Params, NumCompiled, 0, true, NULL };
+        CompileData UserData = { NULL, Params, OutNumCompiled, 0, true, NULL };
         Filesystem_IterateDirectory_Ex(SourceDir, AsmSourceFileDirectoryIterator, true, &UserData);
         if (!UserData.bSuccess)
         {
@@ -326,7 +330,7 @@ bool C_Compile(const BuildParams* Params, u32* NumCompiled)
 
     // compile all .c/c++ files
     {
-        CompileData UserData = { C_DoCompile, Params, NumCompiled, 0, true, NULL };
+        CompileData UserData = { C_DoCompile, Params, OutNumCompiled, 0, true, NULL };
         Filesystem_IterateDirectory_Ex(SourceDir, SourceFileDirectoryIterator, true, &UserData);
         if (!UserData.bSuccess)
         {
@@ -334,7 +338,7 @@ bool C_Compile(const BuildParams* Params, u32* NumCompiled)
         }
     }
 
-    if (*NumCompiled == 0)
+    if (*OutNumCompiled == 0)
     {
         #ifndef HOOD
         LOG("\nNothing to compile - source files unchanged since last build");
@@ -369,7 +373,7 @@ bool C_Compile(const BuildParams* Params, u32* NumCompiled)
     #if PLATFORM_WINDOWS
     if (Params->bHasRCProgram)
     {
-        CompileData RcUserData = { NULL, Params, NumCompiled, 0, true, NULL };
+        CompileData RcUserData = { NULL, Params, OutNumCompiled, 0, true, NULL };
         Filesystem_IterateDirectory_Ex(SourceDir, ResourceFileDirectoryIterator, true, &RcUserData);
         if (!RcUserData.bSuccess)
         {
@@ -1008,7 +1012,7 @@ internal bool Link_SourceFileDirectoryIterator_MSVC(const String FullPath, const
     return true;
 }
 
-bool MSVC_Compile(const BuildParams* Params, u32* NumCompiled)
+bool MSVC_Compile(const BuildParams* Params, u32* OutNumCompiled)
 {
     if (NEVER(Params == NULL)) return false;
 
@@ -1017,7 +1021,7 @@ bool MSVC_Compile(const BuildParams* Params, u32* NumCompiled)
 
     // compile all .asm files first
     {
-        CompileData UserData = { NULL, Params, NumCompiled, 0, true, NULL };
+        CompileData UserData = { NULL, Params, OutNumCompiled, 0, true, NULL };
         Filesystem_IterateDirectory_Ex(SourceDir, AsmSourceFileDirectoryIterator_MSVC, true, &UserData);
         if (!UserData.bSuccess)
         {
@@ -1027,7 +1031,7 @@ bool MSVC_Compile(const BuildParams* Params, u32* NumCompiled)
 
     // compile all .c files
     {
-        CompileData UserData = { MSVC_DoCompile, Params, NumCompiled, 0, true, NULL };
+        CompileData UserData = { MSVC_DoCompile, Params, OutNumCompiled, 0, true, NULL };
         Filesystem_IterateDirectory_Ex(SourceDir, SourceFileDirectoryIterator, true, &UserData);
         if (!UserData.bSuccess)
         {
@@ -1035,7 +1039,7 @@ bool MSVC_Compile(const BuildParams* Params, u32* NumCompiled)
         }
     }
 
-    if (*NumCompiled == 0)
+    if (*OutNumCompiled == 0)
     {
         #ifndef HOOD
         LOG("\nNothing to compile - source files unchanged since last build");
@@ -1064,7 +1068,7 @@ bool MSVC_Compile(const BuildParams* Params, u32* NumCompiled)
     // compile resource files
     if (Params->bHasRCProgram)
     {
-        CompileData RcUserData = { NULL, Params, NumCompiled, 0, true, NULL };
+        CompileData RcUserData = { NULL, Params, OutNumCompiled, 0, true, NULL };
         Filesystem_IterateDirectory_Ex(SourceDir, ResourceFileDirectoryIterator, true, &RcUserData);
         if (!RcUserData.bSuccess)
         {

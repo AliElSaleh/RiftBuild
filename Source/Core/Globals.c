@@ -1,6 +1,8 @@
 // Copyright (c) 2024 Ali El Saleh 
 
+#ifndef UNITY_BUILD
 #include "Globals.h"
+#include "String/BaseString.h"
 #include "Memory/Allocators.h"
 #include "String/StringUtils.h"
 #include "Structures/Array.h"
@@ -8,10 +10,20 @@
 #include "Clock/Clock.h"
 #include "Memory/Memory.h"
 #include "Log.h"
+#endif
+
+STRUCT(EngineGlobals)
+{
+	TArray(void) NullArray;
+	struct FileHandle NullFileHandle;
+	Clock NullClock;
+	String NullString;
+	StringArray NullStringArray;
+	StringList NullStringList;
+};
 
 internal LinearAllocator GlobalsAllocator = {0};
-
-internal EngineGlobals GGlobals = {0};
+internal EngineGlobals   GGlobals = {0};
 
 internal void InitGlobals(EngineGlobals* G)
 {

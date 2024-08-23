@@ -1,7 +1,11 @@
 ﻿// Copyright (c) 2024 Ali El Saleh 
 
 #ifndef NO_LOG
+
+#ifndef UNITY_BUILD
 #include "Log.h"
+
+#include "Memory/Allocators.h"
 
 #include "Platform/Platform.h"
 #include "Platform/Filesystem.h"
@@ -11,6 +15,7 @@
 #include "Structures/Array.h"
 
 #include <stdarg.h>
+#endif
 
 STRUCT(LoggingSystemState)
 {
@@ -78,7 +83,7 @@ internal bool Internal_TryOpenLogFile(void)
     return true;
 }
 
-internal void Internal_WriteToLogFile(char* Text, u32 Length)
+internal void Internal_WriteToLogFile(const char* Text, u32 Length)
 {
     if (!GLoggingSystemState->bLogToFile)
     {

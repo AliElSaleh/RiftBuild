@@ -1,8 +1,9 @@
 #ifndef _CLOCK_H_
 #define _CLOCK_H_
 
+#ifndef UNITY_BUILD
 #include "EngineTypes.h"
-#include "String/BaseString.h"
+#endif
 
 #ifdef _DEBUG
 #define TIME_SCOPE_SLOW(name, code) { Clock CONCAT(c, __LINE__); Clock_Start(&CONCAT(c, __LINE__)); code Clock_Tick(&CONCAT(c, __LINE__)); char ElapsedTimeString[16] = { 0 }; Time_ToString(CONCAT(c, __LINE__).ElapsedTime, true, ElapsedTimeString); LOG_INFO(name " took: %s", ElapsedTimeString); }

@@ -1,34 +1,17 @@
 // Copyright (c) 2024 Ali El Saleh
 
+#ifndef UNITY_BUILD
 #include "Memory.h"
 #include "MemoryUtils.h"
-
 #include "Platform/Platform.h"
 #include "Allocators.h"
 #include "Globals.h"
 #include "Log.h"
 #include "String/StringUtils.h"
+#endif
 
 #include "libmemory.c"
 
-#define MAX_MEM_INFO_BUFFER_LENGTH 2048
-
-struct MemoryStats
-{
-    u64 TotalAllocated;
-    u64 TaggedAllocations[MemoryTag_Count];
-    u64 TaggedLifetimeAllocation[MemoryTag_Count];
-};
-
-typedef struct MemorySubsystemState
-{
-    u64 Allocations;
-    u64 LifeTimeAllocations;
-    u64 LifeTimeFrees;
-    struct MemoryStats Stats;
-} MemorySubsystemState;
-
-internal MemorySubsystemState* GMemorySubsystemState = NULL;
 internal FreeListAllocator GEngineAllocator = { 0 };
 internal LinearAllocator GEngineScratchAllocator = { 0 };
 internal void* GEngineMemory = NULL;
@@ -44,8 +27,6 @@ static PlatformCriticalSection GCriticalSection_Debug = NULL;
 #endif
 
 void* nullptr_z = NULL;
-
-internal char* Memory_GetUsageInfo(struct MemoryStats* Stats);
 
 void* MemoryDump(void)
 {
@@ -68,9 +49,6 @@ bool Memory_Initialize(void* Memory, usize MemSize, void* Dump, void* ScratchMem
 
     FreeListAllocator_Create(&GEngineAllocator, MemSize, GEngineMemory);
     
-    GMemorySubsystemState = FreeListAllocator_Allocate(&GEngineAllocator, sizeof(MemorySubsystemState), NULL);
-    GMemorySubsystemState->Allocations = 0;
-
     if (ScratchSize > 0)
         LinearAllocator_Create(ScratchSize, ScratchMemory, &GEngineScratchAllocator);
 
@@ -235,14 +213,6 @@ void* MemAlloc(usize Size, EMemoryTag Tag)
     }
     */
 
-    #ifdef _DEBUG
-    GMemorySubsystemState->Stats.TotalAllocated += BytesAllocated;
-    GMemorySubsystemState->Stats.TaggedAllocations[Tag] += BytesAllocated;
-    GMemorySubsystemState->Stats.TaggedLifetimeAllocation[Tag]++;
-    GMemorySubsystemState->Allocations++;
-    GMemorySubsystemState->LifeTimeAllocations++;
-    #endif
-
     Platform_ExitCriticalSection(GCriticalSection);
     
     return Memory;
@@ -264,16 +234,6 @@ void MemFree(void* Block, EMemoryTag Tag)
 
     usize BytesFreed;
     FreeListAllocator_Free(&GEngineAllocator, Block, &BytesFreed);
-
-    #ifdef _DEBUG
-    if (LIKELY(BytesFreed > 0))
-    {
-        GMemorySubsystemState->Stats.TotalAllocated -= BytesFreed;
-        GMemorySubsystemState->Stats.TaggedAllocations[Tag] -= BytesFreed;
-        GMemorySubsystemState->Allocations--;
-        GMemorySubsystemState->LifeTimeFrees++;
-    }
-    #endif
 
     Platform_ExitCriticalSection(GCriticalSection);
 }
@@ -310,140 +270,6 @@ bool Platform_MemEqual(const void* Block1, const void* Block2, usize Size)
 }
 #endif
 
-char* Memory_GetUsageInfo(struct MemoryStats* Stats)
-{
-    #ifdef META_GENERATED
-    #pragma GCC diagnostic push
-    #pragma GCC diagnostic ignored "-Wdouble-promotion"
-
-    static char GMemUsageInfoBuffer[MAX_MEM_INFO_BUFFER_LENGTH] = { 0 };
-    
-    char Buffer[MAX_MEM_INFO_BUFFER_LENGTH] = "System Memory Use (Tagged):\n";
-    
-    usize Offset = String_GetLength(Buffer);
-
-    for (u8 i = 0; i < (u8)MemoryTag_Count; ++i)
-    {
-        char Unit[4] = "XiB";
-        float Amount;
-
-        if (Stats->TaggedAllocations[i] >= Gigabytes(1))
-        {
-            Unit[0] = 'G';
-            Amount = (float)Stats->TaggedAllocations[i]/(float)Gigabytes(1);
-        }
-        else if (Stats->TaggedAllocations[i] >= Megabytes(1))
-        {
-            Unit[0] = 'M';
-            Amount = (float)Stats->TaggedAllocations[i]/(float)Megabytes(1);
-        }
-        else if (Stats->TaggedAllocations[i] >= Kilobytes(1))
-        {
-            Unit[0] = 'K';
-            Amount = (float)Stats->TaggedAllocations[i]/(float)Kilobytes(1);
-        }
-        else
-        {
-            Unit[0] = 'B';
-            Unit[1] = 0;
-            Amount = (float)Stats->TaggedAllocations[i];
-        }
-
-        i32 Length = CString_Format(Buffer + Offset, "  %s: %.2f%s | %llu\n", MAX_MEM_INFO_BUFFER_LENGTH, GMemoryTagStringTable[i], (f32)Amount, Unit, Stats->TaggedLifetimeAllocation[i]);
-        //i32 Length = snprintf(Buffer + Offset, MAX_MEM_INFO_BUFFER_LENGTH, "  %s: %.2f%s | %llu\n", GMemoryTagStringTable[i], (f32)Amount, Unit, Stats->TaggedLifetimeAllocation[i]);
-        Offset += Length;
-    }
-
-    i32 Length = CString_Format(Buffer + Offset, "Total Bytes Allocated: %lluB\n", MAX_MEM_INFO_BUFFER_LENGTH, Stats->TotalAllocated);
-    //i32 Length = snprintf(Buffer + Offset, MAX_MEM_INFO_BUFFER_LENGTH, "Total Bytes Allocated: %lluB\n", Stats->TotalAllocated);
-    Offset += Length;
-
-    char UnitAllocated[4] = "XiB";
-    char UnitTotal[4] = "XiB";
-    float AmountAllocated;
-    float TotalAmount;
-
-    if (GEngineAllocator.Allocated >= Gigabytes(1))
-    {
-        UnitAllocated[0] = 'G';
-        AmountAllocated = (float)GEngineAllocator.Allocated / (float)Gigabytes(1);
-    }
-    else if (GEngineAllocator.Allocated >= Megabytes(1))
-    {
-        UnitAllocated[0] = 'M';
-        AmountAllocated = (float)GEngineAllocator.Allocated / (float)Megabytes(1);
-    }
-    else if (GEngineAllocator.Allocated >= Kilobytes(1))
-    {
-        UnitAllocated[0] = 'K';
-        AmountAllocated = (float)GEngineAllocator.Allocated / (float)Kilobytes(1);
-    }
-    else
-    {
-        UnitAllocated[0] = 'B';
-        UnitAllocated[1] = 0;
-        AmountAllocated = (float)GEngineAllocator.Allocated;
-    }
-
-    if (GEngineAllocator.TotalSize >= Gigabytes(1))
-    {
-        UnitTotal[0] = 'G';
-        TotalAmount = (float)GEngineAllocator.TotalSize / (float)Gigabytes(1);
-    }
-    else if (GEngineAllocator.TotalSize >= Megabytes(1))
-    {
-        UnitTotal[0] = 'M';
-        TotalAmount = (float)GEngineAllocator.TotalSize / (float)Megabytes(1);
-    }
-    else if (GEngineAllocator.TotalSize >= Kilobytes(1))
-    {
-        UnitTotal[0] = 'K';
-        TotalAmount = (float)GEngineAllocator.TotalSize / (float)Kilobytes(1);
-    }
-    else
-    {
-        UnitTotal[0] = 'B';
-        UnitTotal[1] = 0;
-        TotalAmount = (float)GEngineAllocator.TotalSize;
-    }
-
-    usize MemRemaining = Memory_GetEngineMemoryRemaining();
-    char RemainingUnitTotal[4] = "XiB";
-    float RemainingAmount;
-    if (MemRemaining >= Gigabytes(1))
-    {
-        RemainingUnitTotal[0] = 'G';
-        RemainingAmount = (float)MemRemaining / (float)Gigabytes(1);
-    }
-    else if (MemRemaining >= Megabytes(1))
-    {
-        RemainingUnitTotal[0] = 'M';
-        RemainingAmount = (float)MemRemaining / (float)Megabytes(1);
-    }
-    else if (MemRemaining >= Kilobytes(1))
-    {
-        RemainingUnitTotal[0] = 'K';
-        RemainingAmount = (float)MemRemaining / (float)Kilobytes(1);
-    }
-    else
-    {
-        RemainingUnitTotal[0] = 'B';
-        RemainingUnitTotal[1] = 0;
-        RemainingAmount = (float)MemRemaining;
-    }
-
-    CString_Format(Buffer + Offset, "Total Memory Allocated: %.3f%s/%.3f%s | Free: %.3f%s", MAX_MEM_INFO_BUFFER_LENGTH, AmountAllocated, UnitAllocated, TotalAmount, UnitTotal, RemainingAmount, RemainingUnitTotal);
-    //snprintf(Buffer + Offset, MAX_MEM_INFO_BUFFER_LENGTH, "Total Engine Memory Allocated: %.3f%s/%.3f%s | Free: %.3f%s", AmountAllocated, UnitAllocated, TotalAmount, UnitTotal, RemainingAmount, RemainingUnitTotal);
-
-    CString_Copy(GMemUsageInfoBuffer, Buffer);
-    #pragma GCC diagnostic pop 
-    
-    return GMemUsageInfoBuffer;
-    #else
-    return "";
-    #endif
-}
-
 LinearAllocator_Scratch Memory_GetScratch(void)
 {
     return LinearAllocator_GetScratch(&GEngineScratchAllocator);
@@ -457,28 +283,6 @@ void Memory_ReleaseScratch(LinearAllocator_Scratch* Scratch)
 usize Memory_GetEngineMemoryRemaining(void)
 {
     return GEngineAllocator.TotalSize - GEngineAllocator.Allocated;
-}
-
-u64 Memory_GetTotalAllocations(void)
-{
-    return GMemorySubsystemState->Allocations;
-}
-
-void Memory_PrintUsageInfo(void)
-{
-    LOG_INFO("%s", Memory_GetUsageInfo(&GMemorySubsystemState->Stats));
-    LOG_INFO("Total Active Mem Allocations: %llu", Memory_GetTotalAllocations());
-    LOG_INFO("Total Lifetime Allocations: %llu", GMemorySubsystemState->LifeTimeAllocations);
-    LOG_INFO("Total Lifetime Frees: %llu", GMemorySubsystemState->LifeTimeFrees);
-}
-
-const char* MemoryTagToString(EMemoryTag Tag)
-{
-    #ifdef META_GENERATED
-    return GMemoryTagStringTable[Tag];
-    #else
-    return "";
-    #endif
 }
 
 usize MemoryUtils_CalculatePaddingWithHeader(usize Ptr, usize Alignment, usize HeaderSize)
@@ -959,7 +763,9 @@ void FreeListAllocator_Free(FreeListAllocator* Allocator, void* Memory, usize* O
 /////////////////////////////////////
 
 
+#ifndef UNITY_BUILD
 #include "Structures/Array.h"
+#endif
 
 void* _ArrayCreate(usize Num, usize Stride)
 {
@@ -1029,7 +835,7 @@ internal void* _ArrayResize(void* Array)
     return Array;
 }
 
-void* _ArrayAdd(void* Array, const void* ValuePtr)
+void _ArrayAdd(void* Array, const void* ValuePtr)
 {
     usize Num = Array_Num(Array);
     usize Stride = Array_Stride(Array);
@@ -1047,7 +853,7 @@ void* _ArrayAdd(void* Array, const void* ValuePtr)
             LOG_WARNING("Fixed size TArray is full, cannot resize or add more elements because it does not own the memory.");
             #endif
 
-            return Array;
+            return;
         }
     }
     
@@ -1057,11 +863,9 @@ void* _ArrayAdd(void* Array, const void* ValuePtr)
     MemCopy((void*)Addr, ValuePtr, Stride);
 
     _ArrayFieldSet(Array, ArrayField_Num, Num+1);
-    
-    return Array;
 }
 
-void* _ArrayInsertAt(void* Array, const void* ValuePtr, usize Index)
+void _ArrayInsertAt(void* Array, const void* ValuePtr, usize Index)
 {
     usize Num = Array_Num(Array);
     usize Stride = Array_Stride(Array);
@@ -1069,7 +873,7 @@ void* _ArrayInsertAt(void* Array, const void* ValuePtr, usize Index)
     if (Index >= Num)
     {
         LOG_WARNING("Index outside the bounds of the array. Num: %llu | Index: %llu", Num, Index);
-        return Array;
+        return;
     }
 
     // Resize if needed
@@ -1085,7 +889,7 @@ void* _ArrayInsertAt(void* Array, const void* ValuePtr, usize Index)
             LOG_WARNING("Fixed size TArray is full, cannot resize or add more elements because it does not own the memory.");
             #endif
 
-            return Array;
+            return;
         }
     }
 
@@ -1102,7 +906,6 @@ void* _ArrayInsertAt(void* Array, const void* ValuePtr, usize Index)
     MemCopy((void*)(Addr + (Index * Stride)), ValuePtr, Stride);
 
     _ArrayFieldSet(Array, ArrayField_Num, Num+1);
-    return Array;
 }
 
 void _ArrayRemoveLast(void* Array, void* ValuePtr)
@@ -1118,7 +921,7 @@ void _ArrayRemoveLast(void* Array, void* ValuePtr)
     _ArrayFieldSet(Array, ArrayField_Num, Num-1);
 }
 
-void* _ArrayRemoveAt(void* Array, void* ValuePtr, usize Index)
+void _ArrayRemoveAt(void* Array, void* ValuePtr, usize Index)
 {
     usize Num = Array_Num(Array);
     usize Stride = Array_Stride(Array);
@@ -1126,7 +929,7 @@ void* _ArrayRemoveAt(void* Array, void* ValuePtr, usize Index)
     if (Index >= Num)
     {
         LOG_WARNING("Index outside the bounds of the array. Num: %llu | Index: %llu", Num, Index);
-        return Array;
+        return;
     }
 
     usize Addr = (usize)Array;
@@ -1146,5 +949,4 @@ void* _ArrayRemoveAt(void* Array, void* ValuePtr, usize Index)
     }
 
     _ArrayFieldSet(Array, ArrayField_Num, Num-1);
-    return Array;
 }

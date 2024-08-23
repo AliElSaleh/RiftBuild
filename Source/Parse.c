@@ -1,23 +1,14 @@
 // Copyright (c) 2024 Ali El Saleh
 
+#ifndef UNITY_BUILD
 #include "Backend.h"
-
+#include "Memory/Allocators.h"
 #include "Platform/Platform.h"
-#include "Platform/Filesystem.h"
 #include "String/StringUtils.h"
 #include "Structures/Array.h"
-#include "Uuid.h"
+#include "Globals.h"
 #include "Log.h"
-
-/*
-##
-# something like this would be nice
-    if /usr/bin/gnome-terminal
-    if /usr/bin/konsole
-
-    if Source/Resources/Info.plist Defsiofnef j
-##
-*/
+#endif
 
 internal void Internal_AddVariable(LinearAllocator* Arena,
                                    TArray(FileVariable) VariablesDB,
@@ -516,7 +507,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
             }
             else
             {
-                if (!bConditionMet && bSearchEnv)
+                if (bSearchEnv)
                 {
                     // find this variable
                     StringLocal(Temp, 256);
@@ -537,8 +528,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
                         bool bMatch = String_IsEqual(o.Name, Condition, false);
                         if (bMatch)
                         {
-                            if (!o.bEqualsToSomething || 
-                                (o.bEqualsToSomething && o.Value.Length > 0)) // make sure we have some value if we specified an '=' sign
+                            if (!o.bEqualsToSomething || o.Value.Length > 0) // make sure we have some value if we specified an '=' sign
                             {
                                 ConditionValuePtr = o.Value;
                                 bConditionMet = true;
@@ -1344,7 +1334,7 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
             if (String_IsValid(VarValue))
             {
                 // if the first letter is capitalized, then also make the first letter of the value capitalized. revert back when done
-                bool bWasValueLower = IsAlphabetLower(VarValue.Data[0]);
+                //bool bWasValueLower = IsAlphabetLower(VarValue.Data[0]);
                 bool bIsVarUpper = IsAlphabetUpper(Slice.Data[0]);
                 if (bIsVarUpper)
                     VarValue.Data[0] = ToUpper(VarValue.Data[0]);
@@ -1361,8 +1351,8 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
                 if (bWantsToLower) String_ToLower(&DestEnd);
                 if (bWantsToUpper) String_ToUpper(&DestEnd);
 
-                if (bIsVarUpper && bWasValueLower)
-                    VarValue.Data[0] = ToLower(VarValue.Data[0]);
+                //if (bIsVarUpper && bWasValueLower)
+                    //VarValue.Data[0] = ToLower(VarValue.Data[0]);
             }
             else
             {

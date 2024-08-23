@@ -1,9 +1,10 @@
 #ifndef _PLATFORM_H_
 #define _PLATFORM_H_
 
+#ifndef UNITY_BUILD
 #include "EngineTypes.h"
 #include "String/BaseString.h"
-#include "Memory/Allocators.h"
+#endif
 
 STRUCT(SystemTime)
 {

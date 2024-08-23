@@ -1,10 +1,11 @@
 #ifndef _BACKEND_H_
 #define _BACKEND_H_
 
+#ifndef UNITY_BUILD
 #include "EngineTypes.h"
 #include "String/BaseString.h"
-#include "Memory/Allocators.h"
 #include "Platform/Filesystem.h"
+#endif
 
 STRUCT(FileVariable)
 {
@@ -190,7 +191,7 @@ bool C_Compile(const BuildParams* Params, u32* OutNumCompiled);
 bool C_Link(const BuildParams* Params);
 
 #if PLATFORM_WINDOWS
-bool RC_Compile(const BuildParams* Params, const String FullRCPath, String* OutRestPath);
+bool RC_Compile(const BuildParams* Params, const String FullRCPath, String* OutResPath);
 #endif
 
 bool IsSource(const String Extension);
@@ -214,8 +215,8 @@ bool FilterSourceFile(const String WorkingDirectory, const String SourceDirector
                       StringList WhitelistFiles, StringList BlacklistFiles,
                       StringList WhitelistDirectories, StringList BlacklistDirectories);
 
-bool LogStringList_WordWrapped(LinearAllocator Arena, const String Name, const StringList List);
-bool LogString_WordWrapped    (LinearAllocator Arena, const String Name, const String Value, const bool bAddNewLine);
+bool LogStringList_WordWrapped(LinearAllocator Scratch, const String Name, const StringList List);
+bool LogString_WordWrapped    (LinearAllocator Scratch, const String Name, const String Value, const bool bAddNewLine);
 
 bool LogCustomErrorMessage(TArray(FileVariable) VariablesDB, const String Context, const String Key, const bool bLineBreak);
 

@@ -2,8 +2,10 @@
 
 #include "Clock.h"
 
+#ifndef UNITY_BUILD
 #include "Platform/Platform.h"
 #include "String/StringUtils.h"
+#endif
 
 void Clock_Start(Clock* C)
 {

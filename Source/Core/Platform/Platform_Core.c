@@ -1,8 +1,11 @@
 // Copyright (c) 2024 Ali El Saleh
 
+#ifndef UNITY_BUILD
 #include "Platform.h"
+
 #include "String/StringUtils.h"
 #include "Log.h"
+#endif
 
 #if __CPU_X86 || __CPU_X64
 #if !COMPILER_MSVC

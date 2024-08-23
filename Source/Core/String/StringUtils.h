@@ -1,9 +1,9 @@
 #ifndef _STRINGUTILS_H_
 #define _STRINGUTILS_H_
 
+#ifndef UNITY_BUILD
 #include "EngineTypes.h"
-#include "Memory/Allocators.h"
-#include "String/BaseString.h"
+#endif
 
 ENUM(ECompareResult)
 {
@@ -86,9 +86,9 @@ RIFT_API ECompareResult String_CompareVersion(const String VersionA, const Strin
 RIFT_API void String_Zero(String* Str);
 RIFT_API void String_Fill(String* Str, char C);
 
-#define String_Concat(Dest, ...)               do { String __SArgs__[] = {__VA_ARGS__}; StringArray __TempArray__; __TempArray__.List = __SArgs__; __TempArray__.Num = SArray_Capacity(__SArgs__); StringInternal_Concat(Dest, __TempArray__); } while (0)
-#define String_BuildSeparator(Dest, Char, ...) do { String __SArgs__[] = {__VA_ARGS__}; StringArray __TempArray__; __TempArray__.List = __SArgs__; __TempArray__.Num = SArray_Capacity(__SArgs__); StringInternal_BuildSeparator(Dest, Char, __TempArray__); } while (0)
-#define String_BuildPath(Dest, ...)            do { String __SArgs__[] = {__VA_ARGS__}; StringArray __TempArray__; __TempArray__.List = __SArgs__; __TempArray__.Num = SArray_Capacity(__SArgs__); StringInternal_BuildPath(Dest, __TempArray__); } while (0)
+#define String_Concat(Dest, ...)               do { String __SArgs__[] = {__VA_ARGS__}; StringArray __TempArray__ = {0}; __TempArray__.List = __SArgs__; __TempArray__.Num = SArray_Capacity(__SArgs__); StringInternal_Concat(Dest, __TempArray__); } while (0)
+#define String_BuildSeparator(Dest, Char, ...) do { String __SArgs__[] = {__VA_ARGS__}; StringArray __TempArray__ = {0}; __TempArray__.List = __SArgs__; __TempArray__.Num = SArray_Capacity(__SArgs__); StringInternal_BuildSeparator(Dest, Char, __TempArray__); } while (0)
+#define String_BuildPath(Dest, ...)            do { String __SArgs__[] = {__VA_ARGS__}; StringArray __TempArray__ = {0}; __TempArray__.List = __SArgs__; __TempArray__.Num = SArray_Capacity(__SArgs__); StringInternal_BuildPath(Dest, __TempArray__); } while (0)
 
 RIFT_API void StringInternal_Concat(String* Dest, const StringArray Array);
 RIFT_API void StringInternal_BuildSeparator(String* Dest, char Separator, const StringArray Array);

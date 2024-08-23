@@ -19,6 +19,13 @@ typedef double               f64;
 
 typedef unsigned short       wchar;
 
+// forward declare
+typedef struct LinearAllocator LinearAllocator;
+typedef struct String          String;
+typedef struct String16        String16;
+typedef struct StringArray     StringArray;
+typedef struct StringList      StringList;
+
 typedef void VoidFunc(void);
 
 #ifndef __cplusplus
@@ -38,7 +45,7 @@ typedef void VoidFunc(void);
 #define NULL ((void*)0)
 #endif
 
-#define _Crash_ do { int* volatile _nptr_ = (int*)1; *_nptr_ = 69; } while (0)
+#define _Crash_ do { int* volatile _ = (int*)1; *_ = 69; } while (0)
 
 #define INT8_MIN         -127
 #define INT16_MIN        -32767

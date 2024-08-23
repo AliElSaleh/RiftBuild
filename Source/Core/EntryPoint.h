@@ -1,11 +1,11 @@
 #ifndef _ENTRY_POINT_H_
 #define _ENTRY_POINT_H_
 
+#ifndef UNITY_BUILD
 #include "Platform/Platform.h"
 #include "Memory/Memory.h"
-#include "Memory/Allocators.h"
-#include "Clock/Clock.h"
 #include "Log.h"
+#endif
 
 global usize GEngineMemoryAmount;
 global usize GEngineScratchAmount;
@@ -33,7 +33,7 @@ extern void pre_main(int argc, char* argv[], char* env[]);
 #if USE_MAIN
 int main(i32 ArgC, char* ArgV[], char* ArgEnv[])
 #else
-void ProgramStart(void)
+void EntryPoint(void)
 #endif
 {
     #if USE_MAIN

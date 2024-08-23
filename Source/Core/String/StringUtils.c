@@ -1,10 +1,13 @@
 // Copyright (c) 2024 Ali El Saleh
 
+#ifndef UNITY_BUILD
 #include "StringUtils.h"
-
+#include "BaseString.h"
 #include "Memory/Memory.h"
+#include "Memory/Allocators.h"
 #include "Globals.h"
 #include "Log.h"
+#endif
 
 #define STB_SPRINTF_IMPLEMENTATION
 #include "stb_sprintf.h"
@@ -603,11 +606,11 @@ ECompareResult String_CompareVersion(const String VersionA, const String Version
             break;
         }
 
-        if (VersionArrayA[i] < VersionArrayB[i])
-        {
+        //if (VersionArrayA[i] < VersionArrayB[i])
+        //{
             Result = CompareResult_Less;
             break;
-        }
+        //}
     }
 
     return Result;
@@ -1332,19 +1335,19 @@ void CString_Fill(char* Str, u32 Length, char N)
     }
 }
 
-i32 CString_Format(char* Dest, const char* Format, u32 Capacity, ...)
+i32 CString_Format(char* Dest, const char* Format, u32 MaxLength, ...)
 {
     va_list Args;
-    va_start(Args, Capacity);
-    i32 Written = stbsp_vsnprintf(Dest, (i32)Capacity, Format, Args);
+    va_start(Args, MaxLength);
+    i32 Written = stbsp_vsnprintf(Dest, (i32)MaxLength, Format, Args);
     va_end(Args);
 
     return Written;
 }
 
-i32 CString_FormatV(char* Dest, const char* Format, u32 Capacity, void* VAList)
+i32 CString_FormatV(char* Dest, const char* Format, u32 MaxLength, void* VAList)
 {
-    return stbsp_vsnprintf(Dest, (i32)Capacity, Format, VAList);
+    return stbsp_vsnprintf(Dest, (i32)MaxLength, Format, VAList);
 }
 
 
@@ -2560,11 +2563,10 @@ StringList String_SplitIntoList(LinearAllocator* Arena, const String Value, char
     StringList List = {0};
     List.Next = NULL;
 
-    bool bInsideQuote = false;
-    bool bSawDelimiter = false;
-
     if (Value.Length > 0)
     {
+        bool bInsideQuote = false;
+        bool bSawDelimiter = false;
         u32 Offset = 0;
         u32 CurrentLength = 0;
         for (u32 i = 0; i < Value.Length+1; i++)

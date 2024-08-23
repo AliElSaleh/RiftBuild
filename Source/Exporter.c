@@ -1,13 +1,12 @@
 // Copyright (c) 2024 Ali El Saleh
 
+#ifndef UNITY_BUILD
 #include "Backend.h"
-
-#include "Platform/Platform.h"
-#include "Platform/Filesystem.h"
+#include "Memory/Allocators.h"
 #include "String/StringUtils.h"
 #include "Structures/Array.h"
-#include "Uuid.h"
-#include "Log.h"
+#include "Globals.h"
+#endif
 
 bool bHasWrittenJSON = false;
 

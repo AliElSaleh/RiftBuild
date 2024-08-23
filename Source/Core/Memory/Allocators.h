@@ -1,7 +1,9 @@
 #ifndef _ALLOCATORS_H_
 #define _ALLOCATORS_H_
 
+#ifndef UNITY_BUILD
 #include "EngineTypes.h"
+#endif
 
 STRUCT(LinearAllocator)
 {

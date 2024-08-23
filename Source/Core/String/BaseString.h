@@ -1,7 +1,9 @@
 #ifndef _BASE_STRING_H_
 #define _BASE_STRING_H_
 
+#ifndef UNITY_BUILD
 #include "EngineTypes.h"
+#endif
 
 STRUCT(String)
 {

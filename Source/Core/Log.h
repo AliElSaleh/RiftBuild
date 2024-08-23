@@ -1,7 +1,9 @@
 ﻿#ifndef _LOG_H_
 #define _LOG_H_
 
+#ifndef UNITY_BUILD
 #include "EngineTypes.h"
+#endif
 
 #ifdef NO_ASSERT
     #define ASSERT(Expression)

@@ -1,8 +1,9 @@
 #ifndef _FILESYSTEM_H_
 #define _FILESYSTEM_H_
 
+#ifndef UNITY_BUILD
 #include "EngineTypes.h"
-#include "String/BaseString.h"
+#endif
 
 #if PLATFORM_WINDOWS
     #define MAX_PATH_LENGTH 260
@@ -20,18 +21,18 @@
 
 STRUCT(FileHandle)
 {
-	void* Data;
-	void* Data2;
+    void* Data;
+    void* Data2;
     bool bBypassSizeCheck;
 #if PLATFORM_OPEN_BSD
-	StringN(MAX_PATH_LENGTH) Path;
+    StringN(MAX_PATH_LENGTH) Path;
 #endif
 };
 
 ENUM(EFileMode)
 {
-	FileMode_Read = 0x1,
-	FileMode_Write = 0x2,
+    FileMode_Read = 0x1,
+    FileMode_Write = 0x2,
 };
 
 STRUCT(FileTimeData)

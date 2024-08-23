@@ -1,8 +1,9 @@
 #ifndef _UUID_H_
 #define _UUID_H_
 
+#ifndef UNITY_BUILD
 #include "EngineTypes.h"
-#include "String/BaseString.h"
+#endif
 
 #define GUID_LENGTH 37
 

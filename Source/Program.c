@@ -5,12 +5,15 @@
 usize GEngineMemoryAmount  = Kibibytes(128);
 usize GEngineScratchAmount = 0;
 
-#include "Platform/Filesystem.h"
+#ifndef UNITY_BUILD
+#include "Backend.h"
+#include "Memory/Allocators.h"
+#include "Clock/Clock.h"
 #include "String/StringUtils.h"
 #include "Structures/Array.h"
+#include "Globals.h"
 #include "Uuid.h"
-
-#include "Backend.h"
+#endif
 
 #if PLATFORM_WINDOWS
 #include "microsoft_craziness.h"
@@ -48,6 +51,7 @@ internal bool IsBuildBatchFile(const String FilePath)
     return String_EndsWith(FilePath, S(".buildbatch"), false);
 }
 
+/*
 bool DoesCmdVarExist(TArray(CmdOption) CmdOptionsDB, const String Name)
 {
     for each (CmdOption, o, CmdOptionsDB)
@@ -60,6 +64,7 @@ bool DoesCmdVarExist(TArray(CmdOption) CmdOptionsDB, const String Name)
 
     return false;
 }
+*/
 
 String GetCmdOptionValue(TArray(CmdOption) CmdOptionsDB, const String Name)
 {
@@ -241,28 +246,18 @@ internal void PrefixVariables(String* Dest, String VariableValue, const String P
 
 internal void SuffixVariables(String* Dest, String VariableValue, const String Suffix)
 {
-    bool bInsideQuote = false;
-    bool bSawSpace = false;
-
     for (u32 i = 0; i < VariableValue.Length; i++)
     {
         char C = VariableValue.Data[i];
 
+        bool bSawSpace;
         if (C == ' ')
         {
             bSawSpace = true;
         }
         else
         {
-            if (bSawSpace)
-            {
-                bSawSpace = false;
-            }
-        }
-
-        if (C == '"')
-        {
-            bInsideQuote = !bInsideQuote;
+            bSawSpace = false;
         }
 
         if (bSawSpace)
@@ -285,6 +280,7 @@ internal void SuffixVariables(String* Dest, String VariableValue, const String S
     }
 }
 
+/*
 bool ExtensionHas(LinearAllocator Scratch, const String ExtensionString, const String Ext)
 {
     StringArray Options = String_ParseIntoArray(&Scratch, ExtensionString, ' ', 0, 8);
@@ -301,6 +297,7 @@ bool ExtensionHas(LinearAllocator Scratch, const String ExtensionString, const S
 
     return false;
 }
+*/
 
 internal bool VariableHasSpecial(TArray(FileVariable) VariablesDB, const String Name)
 {
@@ -1319,7 +1316,6 @@ internal void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const Fi
         
         FileVariable Expanded;
         Expanded.Name = S("Extension");
-        Expanded.Value = S("");
         Expanded.bHasSpecial = false;
 
         if (String_IsEqual(Type, S("lib"), false) ||
@@ -1486,9 +1482,9 @@ internal bool CheckForBuildVariableOverrides(TArray(FileVariable) VariablesDB, T
     // check if the user wants to override a build variable
     for each (CmdOption, o, CmdOptionsDB)
     {
-        bool bOverriden = false;
         if (String_StartsWith(o.Name, S("override:"), false))
         {
+            bool bOverriden = false;
             String VarToOverride = StrShiftF(o.Name, 9);
 
             for each (FileVariable, Var, VariablesDB)
@@ -1528,7 +1524,7 @@ internal bool CheckForBuildVariableOverrides(TArray(FileVariable) VariablesDB, T
                 Internal_AddOrUpdateBuildVariable(VariablesDB, NewOverride);
                 Internal_AddOrUpdateBuildVariable(ExpandedVariablesDB, NewOverride);
 
-                bOverriden = true;
+                //bOverriden = true;
                 bAnyOverriden = true;
             }
         }
@@ -1675,7 +1671,7 @@ bool FilterSourceFile(const String WorkingDirectory, const String SourceDirector
                       StringList WhitelistFiles, StringList BlacklistFiles,
                       StringList WhitelistDirectories, StringList BlacklistDirectories)
 {
-    String TrimmedFileName = String_Null();
+    String TrimmedFileName;
     String TrimmedDirName = String_Null();
     u32 SlashIndex = 0;
     if (String_IndexOfLastPathSlash(RelativePath, &SlashIndex))
@@ -1856,7 +1852,7 @@ bool FilterSourceFile(const String WorkingDirectory, const String SourceDirector
                 i32 Diff = (i32)(Index-LastSlash+(TestPath.Length-1-Index));
                 if (Diff <= 1 && TrimmedDirName.Length > 0)
                 {
-                    bIsBlacklisted = true;
+                    //bIsBlacklisted = true;
                     break;
                 }
 
@@ -2689,7 +2685,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         bool bAnyOverriden = CheckForBuildVariableOverrides(VariablesDB, ExpandedVariablesDB, CmdOptionsDB);
         Internal_SetDefaultBuildVariables(Arena, f, VariablesDB, ExpandedVariablesDB);
 
-        if (!bAnyVarsOverriden) bAnyVarsOverriden = bAnyOverriden;
+        bAnyVarsOverriden = bAnyOverriden;
     }
 
     if (bAnyVarsOverriden)
@@ -3417,7 +3413,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     // convert prefix symbols (if appropriate)
     for (u32 i = 0; i < CompilerFlags.Length; i++)
     {
-        if (i == 0 || (i > 0 && IsWhitespace(CompilerFlags.Data[i-1])))
+        if (i == 0 || IsWhitespace(CompilerFlags.Data[i-1]))
         {
             if (CompilerFlags.Data[i] == '-' || CompilerFlags.Data[i] == '/')
             {
@@ -3775,7 +3771,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         {
             String Value = Var.Value;
 
-            String BuildFile = String_Null();
+            String BuildFile;
             String SpecifiedParams = String_Null();
             String Directory = String_Null();
 
@@ -5862,7 +5858,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         // and no custom resource file was specified
         if (CountData.NumRcSources == 0 &&
             ((TitleName.Length > 0 || CompanyName.Length > 0 || Description.Length > 0 ||
-            (!bFallbackVersion && Version.Length > 0) || CompanyName.Length > 0 || Copyright.Length > 0)))
+            (!bFallbackVersion && Version.Length > 0) || Copyright.Length > 0)))
         {
             if (bHasRcProgram)
             {
@@ -7315,7 +7311,7 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
                         if (bWantsClean)
                         {
                             NewArguments.List[i] = S("clean");
-                            i++;
+                            //i++;
                         }
                     }
 
@@ -7693,6 +7689,10 @@ internal void InitInternalVars(LinearAllocator* Arena)
         String_ReplaceCharInline(&CPU, ' ', '_');
         CpuBrandName = String_Create(Arena, CPU);
         AddInternalVariable(CpuBrandName, S("1"));
+    }
+    else
+    {
+        AddInternalVariable(S("_CPUBrand"), CpuBrandName);
     }
 
     String CpuFullName = S("Unknown");
@@ -8072,8 +8072,8 @@ internal void InitInternalVars(LinearAllocator* Arena)
     StringLocal(UserName, 256);
     Platform_GetUserName(&UserName);
     Allocated = String_Create(Arena, UserName);
-    AddInternalVariable(S("_User"), UserName);
-    AddInternalVariable(S("_UserName"), UserName);
+    AddInternalVariable(S("_User"), Allocated);
+    AddInternalVariable(S("_UserName"), Allocated);
 
     StringLocal(UserDirectory, MAX_PATH_LENGTH);
     Platform_GetUserDirectory(&UserDirectory);
