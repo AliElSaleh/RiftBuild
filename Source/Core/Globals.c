@@ -2,13 +2,13 @@
 
 #ifndef UNITY_BUILD
 #include "Globals.h"
-#include "String/BaseString.h"
-#include "Memory/Allocators.h"
-#include "String/StringUtils.h"
-#include "Structures/Array.h"
-#include "Platform/Filesystem.h"
-#include "Clock/Clock.h"
-#include "Memory/Memory.h"
+#include "BaseString.h"
+#include "Allocators.h"
+#include "StringUtils.h"
+#include "Array.h"
+#include "Filesystem.h"
+#include "Clock.h"
+#include "Memory.h"
 #include "Log.h"
 #endif
 

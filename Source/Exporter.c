@@ -2,9 +2,9 @@
 
 #ifndef UNITY_BUILD
 #include "Backend.h"
-#include "Memory/Allocators.h"
-#include "String/StringUtils.h"
-#include "Structures/Array.h"
+#include "Allocators.h"
+#include "StringUtils.h"
+#include "Array.h"
 #include "Globals.h"
 #endif
 

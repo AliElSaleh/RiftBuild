@@ -5,14 +5,14 @@
 #ifndef UNITY_BUILD
 #include "Log.h"
 
-#include "Memory/Allocators.h"
+#include "Allocators.h"
 
-#include "Platform/Platform.h"
-#include "Platform/Filesystem.h"
+#include "Platform.h"
+#include "Filesystem.h"
 
-#include "String/StringUtils.h"
+#include "StringUtils.h"
 
-#include "Structures/Array.h"
+#include "Array.h"
 
 #include <stdarg.h>
 #endif

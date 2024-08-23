@@ -2,10 +2,10 @@
 
 #ifndef UNITY_BUILD
 #include "Backend.h"
-#include "Memory/Allocators.h"
-#include "Platform/Platform.h"
-#include "String/StringUtils.h"
-#include "Structures/Array.h"
+#include "Allocators.h"
+#include "Platform.h"
+#include "StringUtils.h"
+#include "Array.h"
 #include "Globals.h"
 #include "Log.h"
 #endif

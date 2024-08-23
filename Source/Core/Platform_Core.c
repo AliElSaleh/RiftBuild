@@ -3,8 +3,7 @@
 #ifndef UNITY_BUILD
 #include "Platform.h"
 
-#include "String/StringUtils.h"
-#include "Log.h"
+#include "StringUtils.h"
 #endif
 
 #if __CPU_X86 || __CPU_X64

@@ -4,11 +4,11 @@
 
 #ifndef UNITY_BUILD
 #include "Globals.h"
-#include "Memory/Allocators.h"
-#include "Structures/Array.h"
-#include "String/StringUtils.h"
-#include "Platform/Filesystem.h"
-#include "Platform/Platform.h"
+#include "Allocators.h"
+#include "Array.h"
+#include "StringUtils.h"
+#include "Filesystem.h"
+#include "Platform.h"
 #include "Log.h"
 #endif
 

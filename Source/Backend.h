@@ -3,8 +3,8 @@
 
 #ifndef UNITY_BUILD
 #include "EngineTypes.h"
-#include "String/BaseString.h"
-#include "Platform/Filesystem.h"
+#include "BaseString.h"
+#include "Filesystem.h"
 #endif
 
 STRUCT(FileVariable)

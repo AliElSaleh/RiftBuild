@@ -2,8 +2,8 @@
 #define _ENTRY_POINT_H_
 
 #ifndef UNITY_BUILD
-#include "Platform/Platform.h"
-#include "Memory/Memory.h"
+#include "Platform.h"
+#include "Memory.h"
 #include "Log.h"
 #endif
 

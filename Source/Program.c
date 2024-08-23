@@ -7,10 +7,10 @@ usize GEngineScratchAmount = 0;
 
 #ifndef UNITY_BUILD
 #include "Backend.h"
-#include "Memory/Allocators.h"
-#include "Clock/Clock.h"
-#include "String/StringUtils.h"
-#include "Structures/Array.h"
+#include "Allocators.h"
+#include "Clock.h"
+#include "StringUtils.h"
+#include "Array.h"
 #include "Globals.h"
 #include "Uuid.h"
 #endif

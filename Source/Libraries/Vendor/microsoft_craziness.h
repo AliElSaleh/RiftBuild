@@ -50,9 +50,9 @@
 #include "EngineTypes.h"
 
 C_LINKAGE_BEGIN
-#include "Platform/Filesystem.h"
-#include "String/BaseString.h"
-#include "String/StringUtils.h"
+#include "Filesystem.h"
+#include "BaseString.h"
+#include "StringUtils.h"
 
 typedef struct Find_Result Find_Result;
 struct Find_Result {
