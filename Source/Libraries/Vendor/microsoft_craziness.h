@@ -51,6 +51,7 @@
 
 C_LINKAGE_BEGIN
 #include "Platform/Filesystem.h"
+#include "String/BaseString.h"
 #include "String/StringUtils.h"
 
 typedef struct Find_Result Find_Result;
