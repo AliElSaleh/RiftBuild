@@ -10,9 +10,9 @@
 
 #include "Uuid.h"
 #include "Filesystem.h"
-#include "String/BaseString.h"
-#include "String/StringUtils.h"
-#include "Structures/Array.h"
+#include "BaseString.h"
+#include "StringUtils.h"
+#include "Array.h"
 #endif
 
 #define _XOPEN_SOURCE 700
