@@ -3,6 +3,9 @@
 #include "Platform.h"
 
 #if PLATFORM_LINUX
+
+#ifndef UNITY_BUILD
+#include "Globals.h"
 #include "Log.h"
 
 #include "Uuid.h"
@@ -10,6 +13,7 @@
 #include "String/BaseString.h"
 #include "String/StringUtils.h"
 #include "Structures/Array.h"
+#endif
 
 #define _XOPEN_SOURCE 700
 
