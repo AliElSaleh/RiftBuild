@@ -4,11 +4,11 @@
 
 #if PLATFORM_MAC
 
-#include "Memory/Memory.h"
-#include "String/StringUtils.h"
+#include "Memory.h"
+#include "StringUtils.h"
 #include "Globals.h"
 #include "Uuid.h"
-#include "Platform/Filesystem.h"
+#include "Filesystem.h"
 #include "Log.h"
 
 #undef internal
