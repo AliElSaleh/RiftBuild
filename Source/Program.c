@@ -2798,7 +2798,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     String Version                          = GetVariableValue(ExpandedVariablesDB, S("Version"));
 
     const bool bNoRebuildOnDependencyChange = String_ToBool(GetVariableValue(ExpandedVariablesDB, S("NoRebuildOnDependencyChange")));
-    const bool bRunPostBuildWhenWorkWasDone = String_ToBool(GetVariableValue(ExpandedVariablesDB, S("RunPostBuildOnChange")));
+    const bool bRunPostBuildWhenWorkWasDone = String_ToBool(GetVariableValue(ExpandedVariablesDB, S(".OnlyRunPostBuildOnChange")));
 
     #if PLATFORM_APPLE
     const bool bBundleApp                   = DoesBuildVarExist(ExpandedVariablesDB, S("Bundle"));

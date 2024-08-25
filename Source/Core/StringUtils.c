@@ -302,10 +302,10 @@ bool String_Contains(const String Str, const String SubString, bool bCaseSensiti
 {
     for (u32 i = 0; i < Str.Length; i++)
     {
-        const String S = StrShiftF(Str, i);
         if (Str.Length - i < SubString.Length)
             return false;
 
+        const String S = StrShiftF(Str, i);
         if (String_IsEqual(StrSlice(S.Data, SubString.Length), SubString, bCaseSensitive))
         {
             return true;

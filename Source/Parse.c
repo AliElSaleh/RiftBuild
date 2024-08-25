@@ -452,11 +452,28 @@ bool ParseBuildFile(LinearAllocator* Arena,
 
         if (String_IsEqual(VarName, S("if"), false) && bFoundSpace) // make sure this isnt a lone 'if'
         {
+            bool bSearchUserVar      = String_EatCharInline(&VarValue, '$');
+            bool bSearchCmdVar       = String_EatCharInline(&VarValue, '%');
+            bool bSearchEnv          = String_EatCharInline(&VarValue, '@');
+            bool bIsNot              = String_EatCharInline(&VarValue, '!');
+            bool bCaseSensitive      = String_EatCharInline(&VarValue, '^');
+            bool bPrefixedWithSymbol = bSearchUserVar || bSearchCmdVar || bSearchEnv;
+
             u32 Index = 0;
             String_IndexOfFirstWhitespace(VarValue, &Index);
 
+            if (String_IsFirst(VarValue, '"'))
+            {
+                u32 LastQuote = 0;
+                if (String_IndexOfChar(StrShiftF(VarValue, 1), '"', &LastQuote))
+                {
+                    String_IndexOfFirstWhitespace(StrShiftF(VarValue, LastQuote), &Index);
+
+                    Index += LastQuote;
+                }
+            }
+
             bool bIsMultiLineIf = String_IndexOfChar(VarValue, '{', NULL);
-            //bool bIsMultiLineVar = VarValue.Data[VarValue.Length - 1];
             bool bIsMultiLineVar = String_IsLast(VarValue, '[');
             bInsideIf = bIsMultiLineIf;
             bInsideElse = false;
@@ -467,21 +484,15 @@ bool ParseBuildFile(LinearAllocator* Arena,
             else
                 Condition = VarValue;
 
-            bool bIsPath             = String_ContainsPathSeparators(Condition);
-            bool bSearchUserVar      = String_EatCharInline(&Condition, '$');
-            bool bSearchCmdVar       = String_EatCharInline(&Condition, '%');
-            bool bSearchEnv          = String_EatCharInline(&Condition, '@');
-            bool bPrefixedWithSymbol = bSearchUserVar || bSearchCmdVar || bSearchEnv;
-
-            bool bIsNot = Condition.Data[0] == '!';
-            String_EatCharInline(&Condition, '!');
-            bool bCaseSensitive = String_EatCharInline(&Condition, '^');
+            String_EatCharInline(&Condition, '"');
+            String_EatCharInlineFromEnd(&Condition, '"');
 
             bool bConditionMet = false;
             String ConditionValuePtr = String_Null();
 
             StringLocal(EnvValue, 1024);
 
+            bool bIsPath = String_ContainsPathSeparators(Condition);
             if (bIsPath)
             {
                 bool bIsDirectory = String_IsLast(Condition, '/') || String_IsLast(Condition, '\\');
