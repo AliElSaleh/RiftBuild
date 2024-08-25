@@ -91,7 +91,7 @@ build.bat
 ./build.sh
 ```
 
-<sub><sup>if only every open source project were this simple...</sup></sub>
+<sub><sup>if only every open source project were like this...</sup></sub>
 
 
 ---
