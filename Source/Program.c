@@ -924,6 +924,7 @@ internal void ListVariables(LinearAllocator Arena, const String Name, TArray(Fil
         S("PreBuild"),
         S("PostBuild"),
         S("RunAssembly"),
+        S("Depend"),
         S("Depends"),
         S("Assembly"),
         S("Extension"),
@@ -2618,6 +2619,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 S("AssertPlatform"),
                 S("PreBuild"),
                 S("PostBuild"),
+                S("Depend"),
                 S("Depends"),
                 S("RunAssembly"),
             };
@@ -3767,7 +3769,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     bool bRanAnyDependencies = false;
     for each (FileVariable, Var, ExpandedVariablesDB)
     {
-        if (String_IsEqual(Var.Name, S("Depends"), false))
+        if (String_IsEqual(Var.Name, S("Depend"), false) ||
+            String_IsEqual(Var.Name, S("Depends"), false))
         {
             String Value = Var.Value;
 
@@ -4212,8 +4215,11 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     String_AppendPathSeparator(&SourceDir);
     Filesystem_ConvertRelativeToAbsolutePath(&SourceDir);
 
-    bool bBuildDirSameAsSource = String_IsEqual(BuildBaseDirectory, SourceDir, false);
-    bool bIntermediateDirSameAsSource = String_IsEqual(IntermediateBaseDirectory, SourceDir, false);
+    const bool bBuildDirSameAsSource        = String_IsEqual(BuildBaseDirectory, SourceDir, false);
+    const bool bIntermediateDirSameAsSource = String_IsEqual(IntermediateBaseDirectory, SourceDir, false);
+
+    const bool bDidIntermediateDirectoryExist = Filesystem_DoesDirectoryExist(IntermediateBaseDirectory);
+    const bool bDidBuildDirectoryExist        = Filesystem_DoesDirectoryExist(BuildBaseDirectory);
 
     // assert that the given directories exist before proceeding with the build
     // ignoring build/intermediate since they will be created if they don't exist
@@ -4839,8 +4845,15 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
             if (!bAnyExist)
             {
-                LOG("Assembly file \"%S\" does not exist. Forcing rebuild...\n", AssemblyPath);
                 bIsRebuild = true;
+                
+                StringLocal(Temp, MAX_PATH_LENGTH);
+                String_BuildPath(&Temp, WorkingPath, BuildDirectory);
+                if (Filesystem_DoesDirectoryExist(Temp))
+                {
+                    // only say this if we have a build directory but no assembly file
+                    LOG("Assembly file \"%S\" does not exist. Forcing rebuild...\n", AssemblyPath);
+                }
             }
 
             if (!bIsRebuild)
@@ -4904,11 +4917,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         // force a rebuild if either the build directory or the intermediate directory is missing
         if (!bIsRebuild && !bIsClean)
         {
-            StringLocal(FullBuildDirectory, MAX_PATH_LENGTH);
-            String_BuildPath(&FullBuildDirectory, WorkingPath, BuildDirectory);
-
-            if (!Filesystem_DoesDirectoryExist(FullBuildDirectory) ||
-                !Filesystem_DoesDirectoryExist(IntermediateBaseDirectory))
+            if (!bDidBuildDirectoryExist || !bDidIntermediateDirectoryExist)
             {
                 bIsRebuild = true;
             }
@@ -4927,14 +4936,11 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
             bool bFileExists = Filesystem_DoesFileExist(OutputDebugFile);
             if (bFileExists)
-            //if ((!bFileExists && RiftCmdLine.Length > 0) ||
-            //    bFileExists)
             {
                 FileHandle h = {0};
                 Filesystem_Open(OutputDebugFile, FileMode_Read, &h);
                 StringLocal(SavedCmdLine, 2048);
                 Filesystem_ReadLine(h, &SavedCmdLine);
-                //if (SavedCmdLine.Length > 0 && RiftCmdLine.Length > 0)
                 {
                     if (!String_IsEqual(SavedCmdLine, RiftCmdLine, false))
                     {
@@ -5057,7 +5063,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             #endif
 
             // Delete all [Assembly]*.* files
-            if (Filesystem_DoesDirectoryExist(BuildBaseDirectory))
+            if (bDidBuildDirectoryExist)
             {
                 #ifndef HOOD
                 LOG("Cleaning %S%S%S", BuildBaseDirectory, AssemblyName, Wildcard);
@@ -5112,7 +5118,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             }
 
             // Delete intermediate directory based on given source directory
-            if (Filesystem_DoesDirectoryExist(IntermediateBaseDirectory))
+            if (bDidIntermediateDirectoryExist)
             {
                 Wildcard = S("*");
 
@@ -7344,6 +7350,7 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
                 }
 
                 Filesystem_Close(&f);
+                LOG("Batch build complete");
                 return 0;
             }
 
