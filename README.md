@@ -72,7 +72,7 @@ They work on Windows, Mac OS and Linux (where appropriate).
 - [RPCS3 TODO](https://google.com)
 - [Raylib TODO](https://google.com)
 - [Playdate SDK TODO](https://google.com)
-- [Kinema TODO](https://google.com)
+- [Kinema](https://github.com/AliElSaleh/kinema)
 - [PhysFS](https://github.com/AliElSaleh/physfs)
 - [Zydis](https://github.com/AliElSaleh/zydis)
 - [Tracy](https://github.com/AliElSaleh/tracy)
@@ -91,7 +91,7 @@ build.bat
 ./build.sh
 ```
 
-<sub><sup>if only every open source project were this simple...</sup></sub>
+<sub><sup>if only every open source project were like this...</sup></sub>
 
 
 ---
