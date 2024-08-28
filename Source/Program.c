@@ -316,9 +316,6 @@ bool LogCustomErrorMessage(TArray(FileVariable) VariablesDB, const String Contex
 {
     if (bQuietBuild) Logging_Enable();
 
-    //StringLocal(Format, 256);
-    //String_Format(&Format, S("%S%S%S."), 256, Context, Context.Length > 0 ? S(".") : S(""), Key);
-
     bool bLogged = false;
     for each (FileVariable, Var, VariablesDB)
     {
@@ -351,17 +348,6 @@ bool LogCustomErrorMessage(TArray(FileVariable) VariablesDB, const String Contex
 
             if (bLogged)
                 break;
-
-            /*
-            if (String_StartsWith(Var.Name, Format, false))
-            {
-                if (bLineBreak) LOG_LINE_BREAK();
-
-                LOG("%S", Var.Value);
-                bLogged = true;
-                break;
-            }
-            */
         }
     }
 
