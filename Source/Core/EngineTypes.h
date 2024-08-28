@@ -180,10 +180,10 @@ typedef void VoidFunc(void);
     #define PLATFORM_UNIX 1
 
     #if defined(__MACH__)
-        #define PLATFORM_STRING "Apple MacOS"
+        #define PLATFORM_STRING "macOS"
         #define PLATFORM_MAC 1
     #elif defined(__arm__) || defined(__arm64__) || TARGET_OS_IPHONE
-        #define PLATFORM_STRING "Apple iOS"
+        #define PLATFORM_STRING "iOS"
         #define PLATFORM_IOS 1
         #if TARGET_IPHONE_SIMULATOR
             #define PLATFORM_IOS_SIMULATOR 1

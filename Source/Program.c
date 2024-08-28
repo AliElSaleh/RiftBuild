@@ -3622,24 +3622,24 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             }
         }
 
+        #if PLATFORM_WINDOWS
+        const String HostPlatform = S("Windows");
+        #elif PLATFORM_MAC
+        const String HostPlatform = S("Apple Mac MacOS Unix");
+        #elif PLATFORM_LINUX
+        const String HostPlatform = S("Linux Unix");
+        #elif PLATFORM_BSD
+        const String HostPlatform = S("BSD " PLATFORM_STRING);
+        #else
+        const String HostPlatform = S("Unix");
+        #endif
+
         if (PlatformsArray.Num > 0)
         {
             bool bAnyPlatformMatch = false;
-            for each_str (S, PlatformsArray)
+            for each_str (s, PlatformsArray)
             {
-                String Trimmed = String_EatSpaces(*S);
-
-                #if PLATFORM_WINDOWS
-                const String HostPlatform = S("Windows");
-                #elif PLATFORM_MAC
-                const String HostPlatform = S("Apple MacOS Unix");
-                #elif PLATFORM_LINUX
-                const String HostPlatform = S("Linux Unix");
-                #elif PLATFORM_BSD
-                const String HostPlatform = S("BSD " PLATFORM_STRING);
-                #else
-                const String HostPlatform = S("Unix");
-                #endif
+                String Trimmed = String_EatSpaces(*s);
 
                 bool bMatch = String_IsEqual(Trimmed, HostPlatform, false);
                 if (bMatch)
@@ -3668,8 +3668,14 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 LOG_ERROR("yo u cant build on dis platform nigga\n");
                 #endif
 
-                // TODO: this may not work
-                LogCustomErrorMessage(ExpandedVariablesDB, S("Platform"), S(PLATFORM_STRING), true);
+                StringArray AdditionalPlatforms = String_ParseIntoArray(&Scratch, HostPlatform, ' ', 0, 128);
+                for each_str (p, AdditionalPlatforms)
+                {
+                    if (LogCustomErrorMessage(ExpandedVariablesDB, S("Platform"), *p, true))
+                    {
+                        break;
+                    }
+                }
 
                 return 1;
             }
@@ -3710,7 +3716,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                     break;
                 }
 
-                StringArray AdditionalArchs = String_ParseIntoArray(&Scratch, S(CPU_ARCHITECTURE_STRING), ' ', 0, 128);
+                StringArray AdditionalArchs = String_ParseIntoArray(&Scratch, S(CPU_ARCHITECTURE_STRING_EX), '|', 0, 128);
                 for each_str (p, AdditionalArchs)
                 {
                     bMatch = String_IsEqual(Trimmed, *p, false);
@@ -3730,8 +3736,14 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 LOG_ERROR("yo u cant build on dis platform nigga\n");
                 #endif
 
-                // TODO: this may not work
-                LogCustomErrorMessage(ExpandedVariablesDB, S("Arch"), S(CPU_ARCHITECTURE_STRING), true);
+                StringArray AdditionalArchs = String_ParseIntoArray(&Scratch, S(CPU_ARCHITECTURE_STRING_EX), '|', 0, 128);
+                for each_str (p, AdditionalArchs)
+                {
+                    if (LogCustomErrorMessage(ExpandedVariablesDB, S("Arch"), *p, true))
+                    {
+                        break;
+                    }
+                }
 
                 return 1;
             }
@@ -7636,14 +7648,14 @@ internal void InitInternalVars(LinearAllocator* Arena)
     AddInternalVariable(S("Win64"), S(""));
     #endif
     #elif PLATFORM_MAC
-    AddInternalVariable(S("_Platform"), S("Apple MacOS Unix"));
+    AddInternalVariable(S("_Platform"), S("macOS"));
     AddInternalVariable(S("Apple"), S(""));
     AddInternalVariable(S("Macintosh"), S(""));
     AddInternalVariable(S("Mac"), S(""));
-    AddInternalVariable(S("MacOS"), S(""));
+    AddInternalVariable(S("macOS"), S(""));
     AddInternalVariable(S("Unix"), S(""));
     #elif PLATFORM_LINUX
-    AddInternalVariable(S("_Platform"), S("Linux Unix"));
+    AddInternalVariable(S("_Platform"), S("Linux"));
     AddInternalVariable(S("Linux"), S(""));
     AddInternalVariable(S("Unix"), S(""));
 
