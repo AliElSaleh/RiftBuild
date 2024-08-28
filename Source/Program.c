@@ -312,25 +312,56 @@ internal bool VariableHasSpecial(TArray(FileVariable) VariablesDB, const String 
     return false;
 }
 
-// todo: mutliple keys? separate by .
 bool LogCustomErrorMessage(TArray(FileVariable) VariablesDB, const String Context, const String Key, const bool bLineBreak)
 {
     if (bQuietBuild) Logging_Enable();
 
-    StringLocal(Format, 256);
-    String_Format(&Format, S("%S%S%S."), 256, Context, Context.Length > 0 ? S(".") : S(""), Key);
+    //StringLocal(Format, 256);
+    //String_Format(&Format, S("%S%S%S."), 256, Context, Context.Length > 0 ? S(".") : S(""), Key);
 
     bool bLogged = false;
     for each (FileVariable, Var, VariablesDB)
     {
-        if (String_StartsWith(Var.Name, Format, false) &&
-            String_EndsWith(Var.Name, S(".errormessage"), false))
+        if (String_EndsWith(Var.Name, S(".errormessage"), false))
         {
-            if (bLineBreak) LOG_LINE_BREAK();
+            String Slice = StrSlice(Var.Name.Data, Var.Name.Length-13);
 
-            LOG("%S", Var.Value);
-            bLogged = true;
-            break;
+            u32 Dot = 0;
+            if (String_IndexOfChar(Slice, '.', &Dot))
+            {
+                Slice = StrShiftF(Slice, Dot+1);
+            }
+            
+            char ScratchMemory[64] = {0};
+            LinearAllocator Scratch = {0};
+            LinearAllocator_Create(64, ScratchMemory, &Scratch);
+            StringArray Keys = String_ParseIntoArray(&Scratch, Slice, '|', 0, 8);
+            for each_str (k, Keys)
+            {
+                if (String_IsEqual(*k, Key, false) &&
+                   (Context.Length == 0 || String_StartsWith(Var.Name, Context, false)))
+                {
+                    if (bLineBreak) LOG_LINE_BREAK();
+
+                    LOG("%S", Var.Value);
+                    bLogged = true;
+                    break;
+                }
+            }
+
+            if (bLogged)
+                break;
+
+            /*
+            if (String_StartsWith(Var.Name, Format, false))
+            {
+                if (bLineBreak) LOG_LINE_BREAK();
+
+                LOG("%S", Var.Value);
+                bLogged = true;
+                break;
+            }
+            */
         }
     }
 
