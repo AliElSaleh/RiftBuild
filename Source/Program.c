@@ -2639,11 +2639,12 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 S("Depend"),
                 S("Depends"),
                 S("RunAssembly"),
+                S("_"),
             };
 
             // do not join the above variables into one long string basically, is what this is for
             bool bIsExcludedFromMultiVarDeclarations = false;
-            for (u8 i = 0; i < (sizeof Exclusions / sizeof(String)); i++)
+            for (u8 i = 0; i < SArray_Capacity(Exclusions); i++)
             {
                 if (String_StartsWith(v.Name, Exclusions[i], false))
                 {

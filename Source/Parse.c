@@ -294,13 +294,14 @@ bool ParseBuildFile(LinearAllocator* Arena,
 
         // TODO: ignore ! when parsing a preset: var
 
-        if (String_IsEqual(VarName, S("_stop"), false))
+        if (String_IsEqual(VarName, S("_stop"), false) ||
+            String_IsEqual(VarName, S(".stop"), false))
         {
-            //LOG_INFO("Stopping build file parsing...");
             break;
         }
 
-        if (String_IsEqual(VarName, S("_abort"), false))
+        if (String_IsEqual(VarName, S("_abort"), false) ||
+            String_IsEqual(VarName, S(".abort"), false))
         {
             u32 ExitCode = 0;
             u32 FirstSpace = 0;

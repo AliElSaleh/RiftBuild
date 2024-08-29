@@ -2392,7 +2392,7 @@ bool String_ToI16(const String Str, i16* OutInt)
 
 bool String_ToI32(const String Str, i32* OutInt)
 {
-    // -2147483647-2147483647
+    // -2147483648-2147483647
     
     u64 Index = 0;
 

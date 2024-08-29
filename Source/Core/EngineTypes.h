@@ -356,7 +356,7 @@ typedef void VoidFunc(void);
 
     #define FORCEINLINE    __attribute__((always_inline)) inline
     #define FORCENOINLINE
-    #define read_only 
+    #define read_only      __attribute__((section(".rdata")))
 
     #define DEBUG_BREAK __builtin_trap
 
