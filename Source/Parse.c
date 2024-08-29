@@ -1302,7 +1302,7 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
             {
                 for each (FileVariable, Var, VariablesDB)
                 {
-                    if (String_IsEqual(Var.Name, S("AssertCmdVarExists"), false))
+                    if (String_IsEqual(Var.Name, S("AssertArgExists"), false))
                     {
                         StringArray CmdVarsArray = String_ParseIntoArray(&Scratch, Var.Value, ' ', 0, 128);
 
@@ -1334,7 +1334,7 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
                                 LOG_ERROR("yo da cmd line var \"%S\" don exist cuh. dat shit not there nigga", Trimmed);
                                 #endif
 
-                                LogCustomErrorMessage(VariablesDB, S("Cmd"), Trimmed, true);
+                                LogCustomErrorMessage(VariablesDB, S("Arg"), Trimmed, true);
 
                                 return false;
                             }
