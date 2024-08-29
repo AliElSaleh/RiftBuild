@@ -14,15 +14,19 @@ STRUCT(ExportData)
 {
     FileHandle File;
     bool bIsLastBuild;
+    bool bKeepOneLine;
 };
 
-internal void WriteFlags(LinearAllocator Scratch, const FileHandle File, const String Flags, bool bConvertSlashes)
+internal void WriteFlags(LinearAllocator Scratch, const FileHandle File, const String Flags, bool bConvertSlashes, bool bOneLine)
 {
     u16 i = 0;
     StringArray List = String_ParseIntoArray(&Scratch, Flags, ' ', 0, 256);
     if (List.Num > 0)
     {
-        Filesystem_WriteLine(File, S(",\n"), NULL);
+        if (bOneLine)
+            Filesystem_WriteLine(File, S(", "), NULL);
+        else
+            Filesystem_WriteLine(File, S(",\n"), NULL);
     }
 
     for each_str_i (i, Flag, List)
@@ -32,8 +36,8 @@ internal void WriteFlags(LinearAllocator Scratch, const FileHandle File, const S
         if (bConvertSlashes)
             String_BackSlashToForwardSlash(&FlagCopy);
 
-        String Comma = i != List.Num-1 ? S(",\n") : S("");
-        Filesystem_WriteLineFormatted(File, S("            \"%S\"%S"), NULL, FlagCopy, Comma);
+        String Comma = i != List.Num-1 ? (bOneLine ? S(", ") : S(",\n")) : S("");
+        Filesystem_WriteLineFormatted(File, S("%S\"%S\"%S"), NULL, bOneLine ? S("") : S("            "), FlagCopy, Comma);
     }
 }
 
@@ -68,16 +72,16 @@ internal bool GenCommandObject(CompileData* Data, const String FullPath, const S
     Filesystem_WriteLine         (Export->File, S("    {\n"), NULL);
     Filesystem_WriteLineFormatted(Export->File, S("        \"directory\": \"%S\",\n"), NULL, RootDirectory);
     Filesystem_WriteLineFormatted(Export->File, S("        \"file\": \"%S\",\n"), NULL, RelativePathCopy);
-    Filesystem_WriteLine         (Export->File, S("        \"arguments\": [\n"), NULL);
-    Filesystem_WriteLineFormatted(Export->File, S("            \"-c\""), NULL);
+    Filesystem_WriteLineFormatted(Export->File, S("        \"arguments\": [%S"), NULL, Export->bKeepOneLine ? S("") : S("\n"));
+    Filesystem_WriteLineFormatted(Export->File, S("%S\"-c\""), NULL, Export->bKeepOneLine ? S(" ") : S("            "));
     
-    WriteFlags(*Params->Arena, Export->File, Params->CompilerFlags, false);
-    WriteFlags(*Params->Arena, Export->File, AdditionalPlatformFlags, false);
-    WriteFlags(*Params->Arena, Export->File, Params->IncludeFlags, true);
-    WriteFlags(*Params->Arena, Export->File, Params->DefineFlags, false);
-    WriteFlags(*Params->Arena, Export->File, Params->UnDefineFlags, false);
+    WriteFlags(*Params->Arena, Export->File, Params->CompilerFlags, false, Export->bKeepOneLine);
+    WriteFlags(*Params->Arena, Export->File, AdditionalPlatformFlags, false, Export->bKeepOneLine);
+    WriteFlags(*Params->Arena, Export->File, Params->IncludeFlags, true, Export->bKeepOneLine);
+    WriteFlags(*Params->Arena, Export->File, Params->DefineFlags, false, Export->bKeepOneLine);
+    WriteFlags(*Params->Arena, Export->File, Params->UnDefineFlags, false, Export->bKeepOneLine);
     
-    Filesystem_WriteLine         (Export->File, S("\n        ]\n"), NULL);
+    Filesystem_WriteLineFormatted(Export->File, S("%S]\n"), NULL, Export->bKeepOneLine ? S(" ") : S("\n        "));
     Filesystem_WriteLineFormatted(Export->File, S("    }%S"), NULL, Data->Index != Params->NumSources-1 || !Export->bIsLastBuild ? S(",\n") : S("\n"));
 
     Data->Index++;
@@ -88,7 +92,7 @@ internal bool GenCommandObject(CompileData* Data, const String FullPath, const S
 bool ExportCompileCommands(const BuildParams* Params,
                            const String CompileFlags, const String IncludeFlags,
                            const String DefineFlags, const String UnDefineFlags,
-                           const bool bIsLastBuild)
+                           const bool bIsLastBuild, const bool bKeepOneLine)
 {
     if (NEVER(Params == NULL)) return false;
 
@@ -97,7 +101,7 @@ bool ExportCompileCommands(const BuildParams* Params,
     {
         if (!bHasWrittenJSON) Filesystem_WriteLine(f, S("[\n"), NULL);
 
-        ExportData Data = { f, bIsLastBuild };
+        ExportData Data = { f, bIsLastBuild, bKeepOneLine };
         CompileData UserData = { GenCommandObject, Params, NULL, 0, true, &Data};
         Filesystem_IterateDirectory_Ex(Params->SourceDirectory, SourceFileDirectoryIterator, true, &UserData);
 

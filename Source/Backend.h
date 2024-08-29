@@ -249,7 +249,7 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
 bool ExportCompileCommands(const BuildParams* Params,
                            const String CompileFlags, const String IncludeFlags,
                            const String DefineFlags, const String UnDefineFlags,
-                           const bool bIsLastBuild);
+                           const bool bIsLastBuild, const bool bKeepOneLine);
 
 
 bool ExportInfoPlist(LinearAllocator Arena, const BuildParams* Params, const String Path, TArray(FileVariable) ExpandedVariablesDB, bool bRawMode);

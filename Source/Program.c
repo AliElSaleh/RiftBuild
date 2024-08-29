@@ -5510,18 +5510,22 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             
                 for each_str (var, Vars)
                 {
-                    const bool bGenCompileCommandsJSON = String_IsEqual(*var, S("compile_commands"), false) ||
-                                                         String_IsEqual(*var, S("cc"), false);
-                    const bool bGenPlist               = String_IsEqual(*var, S("plist"), false);
-                    const bool bGenPkgInfo             = String_IsEqual(*var, S("pkginfo"), false);
-                    const bool bGenVersionRc           = String_IsEqual(*var, S("versionrc"), false) ||
-                                                         String_IsEqual(*var, S("version.rc"), false);
-                    const bool bGenIconRc              = String_IsEqual(*var, S("iconrc"), false) ||
-                                                         String_IsEqual(*var, S("icon.rc"), false);
-                    //const bool bGenVisualStudio        = String_IsEqual(*var, S("export:visual_studio"), false);
-                    //const bool bGenXCode               = String_IsEqual(*var, S("export:xcode"), false);
+                    const bool bGenCompileCommandsJSON        = String_IsEqual(*var, S("compile_commands"), false) ||
+                                                                String_IsEqual(*var, S("cc"), false);
+                    const bool bGenCompileCommandsJSONOneLine = String_IsEqual(*var, S("compile_commands_one_line"), false) ||
+                                                                String_IsEqual(*var, S("cc_one_line"), false) ||
+                                                                String_IsEqual(*var, S("compile_commands1"), false) ||
+                                                                String_IsEqual(*var, S("cc1"), false);
+                    const bool bGenPlist                      = String_IsEqual(*var, S("plist"), false);
+                    const bool bGenPkgInfo                    = String_IsEqual(*var, S("pkginfo"), false);
+                    const bool bGenVersionRc                  = String_IsEqual(*var, S("versionrc"), false) ||
+                                                                String_IsEqual(*var, S("version.rc"), false);
+                    const bool bGenIconRc                     = String_IsEqual(*var, S("iconrc"), false) ||
+                                                                String_IsEqual(*var, S("icon.rc"), false);
+                    //const bool bGenVisualStudio             = String_IsEqual(*var, S("export:visual_studio"), false);
+                    //const bool bGenXCode                    = String_IsEqual(*var, S("export:xcode"), false);
 
-                    if (bGenCompileCommandsJSON)
+                    if (bGenCompileCommandsJSON || bGenCompileCommandsJSONOneLine)
                     {
                         if (bQuietBuild) Logging_Enable();
 
@@ -5532,7 +5536,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                         Clock c;
                         Clock_Start(&c);
 
-                        if (!ExportCompileCommands(&p, ExpandedCompilerFlags, ExpandedIncludeFlags, ExpandedDefineFlags, ExpandedUnDefineFlags, bLast))
+                        if (!ExportCompileCommands(&p, ExpandedCompilerFlags, ExpandedIncludeFlags, ExpandedDefineFlags, ExpandedUnDefineFlags, bLast, bGenCompileCommandsJSONOneLine))
                         {
                             return 1;
                         }
