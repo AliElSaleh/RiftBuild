@@ -5508,6 +5508,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 LinearAllocator_Create(1024, TempMemory, &Temp);
                 StringArray Vars = String_ParseIntoArray(&Temp, VarToList, ',', 0, 128);
             
+                bool bAnyExported = false;
                 for each_str (var, Vars)
                 {
                     const bool bGenCompileCommandsJSON        = String_IsEqual(*var, S("compile_commands"), false) ||
@@ -5516,6 +5517,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                                                                 String_IsEqual(*var, S("cc_one_line"), false) ||
                                                                 String_IsEqual(*var, S("compile_commands1"), false) ||
                                                                 String_IsEqual(*var, S("cc1"), false);
+                    const bool bGenInfoPlist                  = String_IsEqual(*var, S("info.plist"), false);
+                    const bool bGenVersionPlist               = String_IsEqual(*var, S("version.plist"), false);
                     const bool bGenPlist                      = String_IsEqual(*var, S("plist"), false);
                     const bool bGenPkgInfo                    = String_IsEqual(*var, S("pkginfo"), false);
                     const bool bGenVersionRc                  = String_IsEqual(*var, S("versionrc"), false) ||
@@ -5555,12 +5558,12 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                         }
 
                         if (bQuietBuild) Logging_Disable();
+
+                        bAnyExported = true;
                     }
-                    else if (bGenPlist)
+                    else if (bGenPlist || bGenInfoPlist || bGenVersionPlist)
                     {
                         if (bQuietBuild) Logging_Enable();
-
-                        LOG("Generating Info.plist ...");
 
                         StringLocal(ExportPath, MAX_PATH_LENGTH);
                         String_BuildPath(&ExportPath, WorkingPath, IntermediateDirectory, S("__Exports"));
@@ -5570,40 +5573,50 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                             return 1;
                         }
 
-                        StringLocal(PlistPath, MAX_PATH_LENGTH);
-                        String_BuildPath(&PlistPath, ExportPath, S("Info.plist"));
-
                         Clock c;
                         Clock_Start(&c);
 
-                        if (!ExportInfoPlist(*Arena, &p, PlistPath, ExpandedVariablesDB, DoesBuildVarExist(ExpandedVariablesDB, S("Info.plist"))))
+                        if (bGenPlist || bGenInfoPlist)
                         {
-                            LOG_ERROR("Failed to export \"%S\". Aborting build...", PlistPath);
-                            return 1;
+                            LOG("Generating Info.plist ...");
+
+                            StringLocal(PlistPath, MAX_PATH_LENGTH);
+                            String_BuildPath(&PlistPath, ExportPath, S("Info.plist"));
+
+                            if (!ExportInfoPlist(*Arena, &p, PlistPath, ExpandedVariablesDB, DoesBuildVarExist(ExpandedVariablesDB, S("Info.plist"))))
+                            {
+                                LOG_ERROR("Failed to export \"%S\". Aborting build...", PlistPath);
+                                return 1;
+                            }
+
+                            LOG_SUCCESS("\n\"%S\"", PlistPath);
                         }
 
-                        LOG_SUCCESS("\n\"%S\"", PlistPath);
-
-                        LOG("\nGenerating Version.plist ...");
-
-                        String_Empty(&PlistPath);
-                        String_BuildPath(&PlistPath, ExportPath, S("Version.plist"));
-
-                        if (!ExportVersionPlist(*Arena, &p, PlistPath, ExpandedVariablesDB, DoesBuildVarExist(ExpandedVariablesDB, S("Version.plist"))))
+                        if (bGenPlist || bGenVersionPlist)
                         {
-                            LOG_ERROR("Failed to export \"%S\". Aborting build...", PlistPath);
-                            return 1;
+                            LOG("\nGenerating Version.plist ...");
+
+                            StringLocal(PlistPath, MAX_PATH_LENGTH);
+                            String_BuildPath(&PlistPath, ExportPath, S("Version.plist"));
+
+                            if (!ExportVersionPlist(*Arena, &p, PlistPath, ExpandedVariablesDB, DoesBuildVarExist(ExpandedVariablesDB, S("Version.plist"))))
+                            {
+                                LOG_ERROR("Failed to export \"%S\". Aborting build...", PlistPath);
+                                return 1;
+                            }
+
+                            LOG_SUCCESS("\n\"%S\"", PlistPath);
                         }
 
                         Clock_Tick(&c);
-
-                        LOG_SUCCESS("\n\"%S\"", PlistPath);
 
                         StringLocal(ExportTimeString, 32);
                         Clock_GetElapsedTime_ToString(&c, true, &ExportTimeString);
                         LOG("\nExport time: %S", ExportTimeString);
 
                         if (bQuietBuild) Logging_Disable();
+
+                        bAnyExported = true;
                     }
                     else if (bGenPkgInfo)
                     {
@@ -5640,6 +5653,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                         LOG_SUCCESS("\n\"%S\"", PkgInfoPath);
 
                         if (bQuietBuild) Logging_Disable();
+
+                        bAnyExported = true;
                     }
                     else if (bGenVersionRc || bGenIconRc)
                     {
@@ -5677,7 +5692,32 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                         LOG_SUCCESS("\n\"%S\"", RCPath);
 
                         if (bQuietBuild) Logging_Disable();
+
+                        bAnyExported = true;
                     }
+                }
+                
+                if (!bAnyExported)
+                {
+                    LOG_INLINE("Nothing happened. No export logic was implemented for ");
+
+                    i = 0;
+                    for each_str_i (i, var, Vars)
+                    {
+                        if (i == 0)
+                        {
+                            LOG_INLINE("\"%S\"", *var);
+                        }
+                        else
+                        {
+                            String Prefix = i == Vars.Num-1 ? S("or") : S(",");
+                            LOG_INLINE("%S \"%S\" ", Prefix, *var);
+                        }
+                    }
+
+                    LOG_LINE_BREAK();
+
+                    //TODO: list all export types
                 }
 
                 return 0;
