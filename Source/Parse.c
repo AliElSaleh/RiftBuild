@@ -607,21 +607,36 @@ bool ParseBuildFile(LinearAllocator* Arena,
 
             Comparison = Cmp_None;
 
-            if      (String_IsEqual(ComparisonOperator, S("=="), false))           Comparison = Cmp_Equal;
-            else if (String_IsEqual(ComparisonOperator, S("!="), false))           Comparison = Cmp_NotEqual;
-            else if (String_IsEqual(ComparisonOperator, S(">="), false))           Comparison = Cmp_GreaterThanOrEqual;
-            else if (String_IsEqual(ComparisonOperator, S("<="), false))           Comparison = Cmp_LessThanOrEqual;
-            else if (String_IsEqual(ComparisonOperator, S(">"), false))            Comparison = Cmp_GreaterThan;
-            else if (String_IsEqual(ComparisonOperator, S("<"), false))            Comparison = Cmp_LessThan;
-            else if (String_IsEqual(ComparisonOperator, S("starts_with"), false))  Comparison = Cmp_StartsWith;
-            else if (String_IsEqual(ComparisonOperator, S("ends_with"), false))    Comparison = Cmp_EndsWith;
-            else if (String_IsEqual(ComparisonOperator, S("contains"), false))     Comparison = Cmp_Contains;
+            if      (String_IsEqual(ComparisonOperator, S("=="), false))          Comparison = Cmp_Equal;
+            else if (String_IsEqual(ComparisonOperator, S("!="), false))          Comparison = Cmp_NotEqual;
+            else if (String_IsEqual(ComparisonOperator, S(">="), false))          Comparison = Cmp_GreaterThanOrEqual;
+            else if (String_IsEqual(ComparisonOperator, S("<="), false))          Comparison = Cmp_LessThanOrEqual;
+            else if (String_IsEqual(ComparisonOperator, S(">"), false))           Comparison = Cmp_GreaterThan;
+            else if (String_IsEqual(ComparisonOperator, S("<"), false))           Comparison = Cmp_LessThan;
+            else if (String_IsEqual(ComparisonOperator, S("starts_with"), false)) Comparison = Cmp_StartsWith;
+            else if (String_IsEqual(ComparisonOperator, S("ends_with"), false))   Comparison = Cmp_EndsWith;
+            else if (String_IsEqual(ComparisonOperator, S("contains"), false))    Comparison = Cmp_Contains;
 
-            //String TestValue = String_EatSpaces(StrSlice(VarValue.Data+Index+1+SecondWhitespaceIndex, VarValue.Length-Index-1-SecondWhitespaceIndex));
             String TestValue = String_EatSpaces(StrShiftF(VarValue, Index+1+SecondWhitespaceIndex));
+
             u32 ThirdWhitespaceIndex = 0;
             String_IndexOfFirstWhitespace(TestValue, &ThirdWhitespaceIndex);
+
+            if (String_IsFirst(TestValue, '"'))
+            {
+                u32 LastQuote = 0;
+                if (String_IndexOfChar(StrShiftF(TestValue, 1), '"', &LastQuote))
+                {
+                    String_IndexOfFirstWhitespace(StrShiftF(TestValue, LastQuote), &ThirdWhitespaceIndex);
+
+                    ThirdWhitespaceIndex += LastQuote;
+                }
+            }
+
             TestValue = StrSlice(TestValue.Data, ThirdWhitespaceIndex);
+
+            String_EatCharInline(&TestValue, '"');
+            String_EatCharInlineFromEnd(&TestValue, '"');
 
             if (Comparison != Cmp_None && ThirdWhitespaceIndex)
             {

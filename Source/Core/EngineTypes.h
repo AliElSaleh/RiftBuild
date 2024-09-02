@@ -485,11 +485,13 @@ STATIC_ASSERT(sizeof(void*) == 4, "Expected size of a pointer to be 4 bytes.");
 
 #if PLATFORM_64_BIT
 typedef u64 uptr;
+typedef i64 isize;
 typedef u64 usize;
 
 #define USIZE_MAX UINT64_MAX
 #else
 typedef u32 uptr;
+typedef i32 isize;
 typedef u32 usize;
 
 #define USIZE_MAX UINT32_MAX
