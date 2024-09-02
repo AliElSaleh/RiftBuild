@@ -320,3 +320,20 @@ with RiftBuild, all you need to do is specify this in your .build file
 Bundle
 ```
 That's literally it
+
+There are also some optional extra settings for fine-grain control, if that is needed
+```make
+Bundle.InfoPlist    path/to/custom.plist
+Bundle.VersionPlist path/to/custom.plist
+Bundle.PkgInfo      path/to/custom/PkgInfo
+
+# OR you can inline plist keys/values!
+Info.plist {
+    CFBundleDisplayName My App Name
+    ...
+}
+
+Version.plist {
+    ...
+}
+```
