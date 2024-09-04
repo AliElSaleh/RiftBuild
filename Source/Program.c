@@ -239,7 +239,7 @@ internal void PrefixVariables(String* Dest, String VariableValue, const String P
     {
         String_EatSpacesInlineFromEnd(Dest);
 
-        if (bWrapWithQuotes && !String_IsLast(*Dest, '"'))
+        if (bWrapWithQuotes)// && !String_IsLast(*Dest, '"'))
             String_AppendChar(Dest, '"');
     }
 }
@@ -2062,7 +2062,7 @@ internal void Internal_RunAssembly(LinearAllocator Scratch, const String Working
     LOG_LINE_BREAK();
     #endif
 
-    if (Filesystem_DoesFileExist(ExePath))
+    if (AssemblyNameWithExt.Length > 0 && Filesystem_DoesFileExist(ExePath))
     {
         LOG("Launching %S ...", AssemblyNameWithExt);
         LOG(" -> Working Directory: %S", ExecutableWorkingPath);
@@ -2835,7 +2835,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         }
         else
         {
-            LOG("    No help message provided");
+            LOG("    No help message provided. Use -h to view this program's usage help instead.");
         }
 
         return 0;
