@@ -2818,6 +2818,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     String Version                          = GetVariableValue(ExpandedVariablesDB, S("Version"));
 
     const bool bNoRebuildOnDependencyChange = String_ToBool(GetVariableValue(ExpandedVariablesDB, S("NoRebuildOnDependencyChange")));
+    // todo: run pre build?
     const bool bRunPostBuildWhenWorkWasDone = String_ToBool(GetVariableValue(ExpandedVariablesDB, S(".OnlyRunPostBuildOnChange")));
 
     #if PLATFORM_APPLE
@@ -3197,6 +3198,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 StringLocal(ExePath, MAX_PATH_LENGTH);
                 if (MSVC_SDK_Result.vs_exe_path) String_ToNarrow(CStr16(MSVC_SDK_Result.vs_exe_path), &ExePath);
 
+                // TODO: .InitMSVCEnvironment in build file to trigger this
+                
                 // Initialize vcvars environment
                 // find the vcvars bat file so we can run cl from a regular cmd line.
                 // luckily the bat file is always in the same place relative to the base path
@@ -3452,142 +3455,6 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         StringArray ArchitecturesArray = String_ParseIntoArray(&Scratch, AssertArchitecture, ' ', 0, 128);
         StringArray CompilersArray     = String_ParseIntoArray(&Scratch, AssertCompilers, ' ', 0, 128);
 
-        if (CompilersArray.Num > 0)
-        {
-            bool bAnyCompilerMatch = false;
-            for each_str (S, CompilersArray)
-            {
-                String Trimmed = String_EatSpaces(*S);
-
-                if (String_IsEqual(Trimmed, CompilerProgram, false) ||
-                    String_IsEqual(Trimmed, CompilerPath, false))
-                {
-                    bAnyCompilerMatch = true;
-                    break;
-                }
-            }
-
-            StringLocal(CompilersLogString, 128);
-            {
-                u8 i = 0;
-                for each_str_i (i, a, CompilersArray)
-                {
-                    String_Append(&CompilersLogString, *a);
-                    if (CompilersArray.Num > 1 && i != CompilersArray.Num-1)
-                    {
-                        if (i == CompilersArray.Num-2)
-                        {
-                            String_Append(&CompilersLogString, S(" and "));
-                        }
-                        else
-                        {
-                            String_AppendChar (&CompilersLogString, ',');
-                            String_AppendSpace(&CompilersLogString);
-                        }
-                    }
-                }
-            }
-
-            if (!bAnyCompilerMatch)
-            {
-                #ifndef HOOD
-                LOG_INLINE_ERROR("[ASSERTION FAILURE] %S can only be compiled with %S. First compiler found was \"%S\". Aborting build...\n\n", BuildFileName, CompilersLogString, CompilerProgram);
-                LOG("    This can be fixed by explicity providing the compiler name inside of %S", BuildFileName);
-
-                LOG("    For example:");
-                {
-                    u8 i = 0;
-                    for each_str_i (i, a, CompilersArray)
-                    {
-                        if (i > 0)
-                            LOG("      or Compiler %S", *a);
-                        else
-                            LOG("         Compiler %S", *a);
-                    }
-                }
-
-                #else
-                LOG_ERROR("yo dis compiler program \"%S\" cant be used cuh", CompilerProgram);
-                #endif
-
-                if (LogCustomErrorMessage(ExpandedVariablesDB, S("Compiler"), CompilerProgram, false))
-                {
-                    LOG_LINE_BREAK();
-                }
-
-                return 1;
-            }
-        }
-
-        for each_str (S, ProgramsArray)
-        {
-            String Trimmed = String_EatSpaces(*S);
-
-            bool bFound = Platform_FindProgram(Trimmed);
-
-            if (!bFound)
-            {
-                #ifndef HOOD
-                LOG_INLINE_ERROR("[ASSERTION FAILURE] Program \"%S\" does not exist. Make sure that \"%S\" is installed and that its directory has been set in the path environment variable. Aborting build...\n\n", Trimmed, Trimmed);
-                #else
-                LOG_ERROR("yo dis program \"%S\" don exist cuh. need to be installed and set in da path ma nigga", Trimmed);
-                #endif
-
-                if (LogCustomErrorMessage(ExpandedVariablesDB, S("Program"), Trimmed, false))
-                {
-                    LOG_LINE_BREAK();
-                }
-                
-                LogPathEnvVarTutorialSteps();
-
-                return 1;
-            }
-        }
-
-        for each_str (S, EnvVarsArray)
-        {
-            String Trimmed = String_EatSpaces(*S);
-            Trimmed = String_EatSpacesFromEnd(Trimmed);
-
-            bool bFound = Platform_DoesEnvironmentVariableExist(Trimmed);
-
-            if (!bFound)
-            {
-                #ifndef HOOD
-                LOG_INLINE_ERROR("[ASSERTION FAILURE] Environment variable \"%S\" does not exist. Aborting build...\n\n", Trimmed);
-                #else
-                LOG_ERROR("yo da environment var \"%S\" don exist cuh. need to be setup n' shit ma nigga\n", Trimmed);
-                #endif
-
-                if (LogCustomErrorMessage(ExpandedVariablesDB, S("Env"), Trimmed, false))
-                {
-                    LOG_LINE_BREAK();
-                }
-
-                LogRegularEnvVarTutorialSteps();
-
-                return 1;
-            }
-        }
-
-        for each_str (S, BuildVarsArray)
-        {
-            String Trimmed = String_EatSpaces(*S);
-
-            bool bFound = DoesBuildVarExist(VariablesDB, Trimmed);
-
-            if (!bFound)
-            {
-                #ifndef HOOD
-                LOG_INLINE_ERROR("[ASSERTION FAILURE] Build variable \"%S\" does not exist. Aborting build...\n", Trimmed);
-                #else
-                LOG_ERROR("yo da build var \"%S\" don exist cuh. dat shit not there nigga", Trimmed);
-                #endif
-
-                return 1;
-            }
-        }
-
         StringLocal(PlatformsLogString, 128);
         {
             u8 i = 0;
@@ -3772,6 +3639,142 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 LOG_INLINE_ERROR("[ASSERTION FAILURE] %S requires that riftbuild must be ran from this directory -> \"%S\" but we are in \"%S\". Aborting build...\n", BuildFileName, AssertPath, WorkingPath);
                 #else
                 LOG_ERROR("yo we cant run from this dir cuh \"%S\" you gotta run from \"%S\"", WorkingPath, AssertPath);
+                #endif
+
+                return 1;
+            }
+        }
+
+        if (CompilersArray.Num > 0)
+        {
+            bool bAnyCompilerMatch = false;
+            for each_str (S, CompilersArray)
+            {
+                String Trimmed = String_EatSpaces(*S);
+
+                if (String_IsEqual(Trimmed, CompilerProgram, false) ||
+                    String_IsEqual(Trimmed, CompilerPath, false))
+                {
+                    bAnyCompilerMatch = true;
+                    break;
+                }
+            }
+
+            StringLocal(CompilersLogString, 128);
+            {
+                u8 i = 0;
+                for each_str_i (i, a, CompilersArray)
+                {
+                    String_Append(&CompilersLogString, *a);
+                    if (CompilersArray.Num > 1 && i != CompilersArray.Num-1)
+                    {
+                        if (i == CompilersArray.Num-2)
+                        {
+                            String_Append(&CompilersLogString, S(" and "));
+                        }
+                        else
+                        {
+                            String_AppendChar (&CompilersLogString, ',');
+                            String_AppendSpace(&CompilersLogString);
+                        }
+                    }
+                }
+            }
+
+            if (!bAnyCompilerMatch)
+            {
+                #ifndef HOOD
+                LOG_INLINE_ERROR("[ASSERTION FAILURE] %S can only be compiled with %S. First compiler found was \"%S\". Aborting build...\n\n", BuildFileName, CompilersLogString, CompilerProgram);
+                LOG("    This can be fixed by explicity providing the compiler name inside of %S", BuildFileName);
+
+                LOG("    For example:");
+                {
+                    u8 i = 0;
+                    for each_str_i (i, a, CompilersArray)
+                    {
+                        if (i > 0)
+                            LOG("      or Compiler %S", *a);
+                        else
+                            LOG("         Compiler %S", *a);
+                    }
+                }
+
+                #else
+                LOG_ERROR("yo dis compiler program \"%S\" cant be used cuh", CompilerProgram);
+                #endif
+
+                if (LogCustomErrorMessage(ExpandedVariablesDB, S("Compiler"), CompilerProgram, false))
+                {
+                    LOG_LINE_BREAK();
+                }
+
+                return 1;
+            }
+        }
+
+        for each_str (S, ProgramsArray)
+        {
+            String Trimmed = String_EatSpaces(*S);
+
+            bool bFound = Platform_FindProgram(Trimmed);
+
+            if (!bFound)
+            {
+                #ifndef HOOD
+                LOG_INLINE_ERROR("[ASSERTION FAILURE] Program \"%S\" does not exist. Make sure that \"%S\" is installed and that its directory has been set in the path environment variable. Aborting build...\n\n", Trimmed, Trimmed);
+                #else
+                LOG_ERROR("yo dis program \"%S\" don exist cuh. need to be installed and set in da path ma nigga", Trimmed);
+                #endif
+
+                if (LogCustomErrorMessage(ExpandedVariablesDB, S("Program"), Trimmed, false))
+                {
+                    LOG_LINE_BREAK();
+                }
+                
+                LogPathEnvVarTutorialSteps();
+
+                return 1;
+            }
+        }
+
+        for each_str (S, EnvVarsArray)
+        {
+            String Trimmed = String_EatSpaces(*S);
+            Trimmed = String_EatSpacesFromEnd(Trimmed);
+
+            bool bFound = Platform_DoesEnvironmentVariableExist(Trimmed);
+
+            if (!bFound)
+            {
+                #ifndef HOOD
+                LOG_INLINE_ERROR("[ASSERTION FAILURE] Environment variable \"%S\" does not exist. Aborting build...\n\n", Trimmed);
+                #else
+                LOG_ERROR("yo da environment var \"%S\" don exist cuh. need to be setup n' shit ma nigga\n", Trimmed);
+                #endif
+
+                if (LogCustomErrorMessage(ExpandedVariablesDB, S("Env"), Trimmed, false))
+                {
+                    LOG_LINE_BREAK();
+                }
+
+                LogRegularEnvVarTutorialSteps();
+
+                return 1;
+            }
+        }
+
+        for each_str (S, BuildVarsArray)
+        {
+            String Trimmed = String_EatSpaces(*S);
+
+            bool bFound = DoesBuildVarExist(VariablesDB, Trimmed);
+
+            if (!bFound)
+            {
+                #ifndef HOOD
+                LOG_INLINE_ERROR("[ASSERTION FAILURE] Build variable \"%S\" does not exist. Aborting build...\n", Trimmed);
+                #else
+                LOG_ERROR("yo da build var \"%S\" don exist cuh. dat shit not there nigga", Trimmed);
                 #endif
 
                 return 1;
