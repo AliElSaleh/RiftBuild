@@ -453,13 +453,6 @@ bool ParseBuildFile(LinearAllocator* Arena,
 
         if (String_IsEqual(VarName, S("if"), false) && bFoundSpace) // make sure this isnt a lone 'if'
         {
-            bool bSearchUserVar      = String_EatCharInline(&VarValue, '$');
-            bool bSearchCmdVar       = String_EatCharInline(&VarValue, '%');
-            bool bSearchEnv          = String_EatCharInline(&VarValue, '@');
-            bool bIsNot              = String_EatCharInline(&VarValue, '!');
-            bool bCaseSensitive      = String_EatCharInline(&VarValue, '^');
-            bool bPrefixedWithSymbol = bSearchUserVar || bSearchCmdVar || bSearchEnv;
-
             u32 Index = 0;
             String_IndexOfFirstWhitespace(VarValue, &Index);
 
@@ -493,12 +486,22 @@ bool ParseBuildFile(LinearAllocator* Arena,
 
             StringLocal(EnvValue, 1024);
 
+            bool bIsNot = false;
+            bool bCaseSensitive = false;
+
             {
                 LinearAllocator Scratch = *Arena;
                 StringArray ConditionArray = String_ParseIntoArray(&Scratch, Condition, '|', 0, 32);
                 for each_str (SubCondition, ConditionArray)
                 {
                     Condition = *SubCondition;
+
+                    bool bSearchUserVar      = String_EatCharInline(&Condition, '$');
+                    bool bSearchCmdVar       = String_EatCharInline(&Condition, '%');
+                    bool bSearchEnv          = String_EatCharInline(&Condition, '@');
+                         bIsNot              = String_EatCharInline(&Condition, '!');
+                         bCaseSensitive      = String_EatCharInline(&Condition, '^');
+                    bool bPrefixedWithSymbol = bSearchUserVar || bSearchCmdVar || bSearchEnv;
 
                     bool bIsPath = String_ContainsPathSeparators(Condition);
                     if (bIsPath)
