@@ -390,3 +390,127 @@ CpuInfo Platform_QueryCPUInfo(void)
 }
 
 #endif
+
+#if PLATFORM_WINDOWS && PLATFORM_32_BIT
+PRAGMA_DISABLE_MISSING_PROTOTYPES_WARNING
+u64 _aulldiv(u64 Numerator, u64 Denominator)
+{
+    if (Denominator == 0)
+    {
+        return 0; // Indicate error (undefined behavior)
+    }
+
+    u64 Result = 0;
+    u64 Remainder = 0;
+
+    // Loop over each bit of the numerator
+    for (u8 i = 63; i >= 0; i--)
+    {
+        // Shift remainder to the left and add the next bit of the numerator
+        Remainder = (Remainder << 1) | ((Numerator >> i) & 1);
+
+        // If the remainder is greater than or equal to the denominator, we can subtract
+        if (Remainder >= Denominator)
+        {
+            Remainder -= Denominator;
+            Result |= (1 << i);
+        }
+    }
+
+    return Result;
+}
+
+i64 _alldiv(i64 Numerator, i64 Denominator)
+{
+    if (Denominator == 0)
+    {
+        return 0; // Division by zero is undefined
+    }
+
+    i64 Quotient = 0;
+    i64 Remainder = 0;
+
+    // We need to handle the case where the numerator is negative or positive.
+    // We also need to handle cases where the denominator is negative or positive.
+    i64 AbsNumerator = (Numerator < 0) ? -Numerator : Numerator;
+    i64 AbsDenominator = (Denominator < 0) ? -Denominator : Denominator;
+    i64 Sign = ((Numerator < 0) ^ (Denominator < 0)) ? -1 : 1;
+
+    // Loop over each bit of the numerator
+    for (u8 i = 63; i >= 0; i--)
+    {
+        // Shift remainder to the left and add the next bit of the numerator
+        Remainder = (Remainder << 1) | ((AbsNumerator >> i) & 1);
+
+        // If the remainder is greater than or equal to the denominator, we can subtract
+        if (Remainder >= AbsDenominator)
+        {
+            Remainder -= AbsDenominator;
+            Quotient |= (1LL << i);
+        }
+    }
+
+    return Quotient * Sign;
+}
+
+i64 _allrem(i64 Numerator, i64 Denominator)
+{
+    if (Denominator == 0)
+    {
+        return 0; // Division by zero is undefined
+    }
+
+    i64 Remainder = 0;
+
+    // We need to handle the case where the numerator is negative or positive.
+    // We also need to handle cases where the denominator is negative or positive.
+    i64 AbsNumerator = (Numerator < 0) ? -Numerator : Numerator;
+    i64 AbsDenominator = (Denominator < 0) ? -Denominator : Denominator;
+    i64 Sign = (Numerator < 0) ? -1 : 1;
+
+    // Loop over each bit of the numerator
+    for (u8 i = 63; i >= 0; i--)
+    {
+        // Shift remainder to the left and add the next bit of the numerator
+        Remainder = (Remainder << 1) | ((AbsNumerator >> i) & 1);
+
+        // If the remainder is greater than or equal to the denominator, we can subtract
+        if (Remainder >= AbsDenominator)
+        {
+            Remainder -= AbsDenominator;
+        }
+    }
+
+    if (Sign < 0)
+    {
+        return -Remainder;
+    }
+
+    return Remainder;
+}
+
+u64 _aullrem(u64 Numerator, u64 Denominator)
+{
+    if (Denominator == 0)
+    {
+        return 0; // Division by zero is undefined; handle accordingly
+    }
+
+    u64 Remainder = 0;
+
+    // Perform bit-by-bit division
+    for (u8 i = 63; i >= 0; i--)
+    {
+        Remainder = (Remainder << 1) | ((Numerator >> i) & 1);
+
+        if (Remainder >= Denominator)
+        {
+            Remainder -= Denominator;
+        }
+    }
+
+    return Remainder;
+}
+
+PRAGMA_ENABLE_WARNINGS
+#endif

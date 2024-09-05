@@ -3517,7 +3517,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             if (!bAnyPlatformMatch)
             {
                 #ifndef HOOD
-                LOG_INLINE_ERROR("[ASSERTION FAILURE] %S can only be used on %S. You are on %S. Aborting build...\n", BuildFileName, PlatformsLogString, S(PLATFORM_STRING));
+                LOG_INLINE_ERROR("[ASSERTION FAILURE] %S can only be built on %S. You are on %S. Aborting build...\n", BuildFileName, PlatformsLogString, S(PLATFORM_STRING));
                 #else
                 LOG_ERROR("yo u cant build on dis platform nigga\n");
                 #endif
@@ -3585,7 +3585,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             if (!bAnyArchMatch)
             {
                 #ifndef HOOD
-                LOG_INLINE_ERROR("[ASSERTION FAILURE] %S can only be used on %S architectures. You are on %S. Aborting build...\n", BuildFileName, ArchitecturesLogString, S(CPU_ARCHITECTURE_STRING));
+                LOG_INLINE_ERROR("[ASSERTION FAILURE] %S can only be built on %S architectures. You are on %S. Aborting build...\n", BuildFileName, ArchitecturesLogString, S(CPU_ARCHITECTURE_STRING));
                 #else
                 LOG_ERROR("yo u cant build on dis platform nigga\n");
                 #endif
@@ -3636,7 +3636,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             if (AssertPath.Length > 0 && !String_IsEqual(WorkingPath, AssertPath, false))
             {
                 #ifndef HOOD
-                LOG_INLINE_ERROR("[ASSERTION FAILURE] %S requires that riftbuild must be ran from this directory -> \"%S\" but we are in \"%S\". Aborting build...\n", BuildFileName, AssertPath, WorkingPath);
+                LOG_INLINE_ERROR("[ASSERTION FAILURE] %% must be ran from this directory -> \"%S\" but we are in \"%S\". Aborting build...\n", BuildFileName, AssertPath, WorkingPath);
                 #else
                 LOG_ERROR("yo we cant run from this dir cuh \"%S\" you gotta run from \"%S\"", WorkingPath, AssertPath);
                 #endif

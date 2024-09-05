@@ -2,7 +2,6 @@ if debug Mode Debug else Mode Dist
 include Source/Config/$(Mode).buildvars
 
 Compiler                %%clang %%gcc %%cl
-
 Assembly                RiftBuild
 Icon                    riftbuild
 
@@ -13,7 +12,7 @@ CompanyName             Ali El Saleh
 Copyright!              Copyright (c) 2024 Ali El Saleh
 
 SourceDirectory         Source
-BuildDirectory          Build/$(Mode)/%%Hood
+BuildDirectory          Build/$(Mode)%(%32)/%%Hood
 
 CompilerFlags           $SharedCompilerFlags
 LinkerFlags             $SharedLinkerFlags
@@ -21,31 +20,31 @@ Includes                $SharedIncludeFlags
 Defines                 $SharedDefines RIFT_STATIC %^%hood
 
 IncludedSourceFiles     Clock.c Memory.c StringUtils.c Globals.c Log.c Platform_Core.c Program.c Backend.c Exporter.c Parse.c
-
-if cl                   IncludedSourceFiles memcmp.asm memset.asm
-
 if windows              IncludedSourceFiles Platform_Windows.c
 if linux                IncludedSourceFiles Platform_Linux.c
 if mac                  IncludedSourceFiles Platform_Mac.c
 if bsd                  IncludedSourceFiles Platform_BSD.c
+if cl                   IncludedSourceFiles memcmp.asm memset.asm
 
 if mac                  CompilerFlags -mmacosx-version-min=10.10
-
 if !cl if !gcc          CompilerFlags -mstack-probe-size=999999999
 if gcc                  CompilerFlags -mno-stack-arg-probe
 if cl                   CompilerFlags /GS- /Gs999999999
-
 if !cl if disassemble   CompilerFlags -S
+if !cl if trace         CompilerFlags -ftime-trace
+if !cl if 32            CompilerFlags -m32
 
 if windows {
     if !cl              CompilerFlags -nostdlib -fno-builtin -ffreestanding
-    if !cl if !gcc      LinkerFlags   -nostdlib -Wl,-entry:ProgramStart,-subsystem:console -Xlinker /stack:0x400000,0x400000
-    if gcc              LinkerFlags   -nostdlib -Wl,--entry,ProgramStart,--subsystem,console,--stack,0x400000
-    if cl               LinkerFlags   /ENTRY:ProgramStart /SUBSYSTEM:CONSOLE /STACK:0x400000,0x400000
+    if !cl if !gcc      LinkerFlags   -nostdlib -Wl,-entry:EntryPoint,-subsystem:console -Xlinker /stack:0x400000,0x400000
+    if gcc              LinkerFlags   -nostdlib -Wl,--entry,EntryPoint,--subsystem,console,--stack,0x400000
+    if cl               LinkerFlags   /ENTRY:EntryPoint /SUBSYSTEM:CONSOLE /STACK:0x400000,0x400000
+    if cl if 32         LinkerFlags   /MACHINE:X86
+    if !cl if 32        LinkerFlags   --target=i386-pc-windows-msvc
 }
 
-if windows              Libraries %_NativeLibs microsoft_craziness ; LibraryDirectories Source/Libraries/Windows
-if linux                Libraries uuidS pthread                    ; LibraryDirectories Source/Libraries/Linux
+if windows              Libraries %_NativeLibs microsoft_craziness%%32 ; LibraryDirectories Source/Libraries/Windows
+if linux                Libraries uuidS pthread                        ; LibraryDirectories Source/Libraries/Linux
 if bsd                  Libraries pthread
 
 if linux {
@@ -87,14 +86,13 @@ cache %_CacheLineSize
 if !cl                  CompilerFlags:disassemble,$mode -S
 
 CompilerFlags:windows:clang -nostdlib -fno-builtin -ffreestanding
-LinkerFlags:windows:clang   -nostdlib -Wl,-entry:ProgramStart,-subsystem:console -Xlinker /stack:0x400000,0x400000
-LinkerFlags:windows:gcc     -nostdlib -Wl,--entry,ProgramStart,--subsystem,console,--stack,0x400000
-LinkerFlags:windows:msvc    /ENTRY:ProgramStart /SUBSYSTEM:CONSOLE /STACK:0x400000,0x400000
+LinkerFlags:windows:clang   -nostdlib -Wl,-entry:EntryPoint,-subsystem:console -Xlinker /stack:0x400000,0x400000
+LinkerFlags:windows:gcc     -nostdlib -Wl,--entry,EntryPoint,--subsystem,console,--stack,0x400000
+LinkerFlags:windows:msvc    /ENTRY:EntryPoint /SUBSYSTEM:CONSOLE /STACK:0x400000,0x400000
 
 Libraries:windows       %_nativelibs
 Libraries:linux         uuidS pthread
 Libaries:bsd            pthread
 
 Libaries:bsd:x64|arm64:gcc something
-Libaries:bsd:x64 arm64:gcc something
 Libaries:bsd:x64      :gcc blah

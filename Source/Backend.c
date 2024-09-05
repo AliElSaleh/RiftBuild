@@ -892,6 +892,7 @@ internal bool AsmSourceFileDirectoryIterator_MSVC(const String FullPath, const S
             {
                 StringLocal(CmdLine, Kibibytes(4));
 
+                // todo: not this, something different
                 #if PLATFORM_64_BIT
                 String_Append(&CmdLine, S("ml64 /nologo /c /Fo\""));
                 #else

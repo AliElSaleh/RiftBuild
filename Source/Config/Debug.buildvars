@@ -5,28 +5,15 @@
 if cl goto msvc
 
 WarningFlags         -Wall -Wextra -Wshadow -Wconversion -Wmissing-prototypes -Warray-bounds -Wunused -Wuninitialized
-WarningFlagsDisabled -Wno-unused-variable -Wno-unused-parameter -Wno-gnu-zero-variadic-macro-arguments -Wno-variadic-macros -Wno-missing-field-initializers -Wno-missing-braces -Wno-typedef-redefinition -Wno-nonportable-include-path
+WarningFlagsDisabled -Wno-unused-variable -Wno-unused-parameter -Wno-gnu-zero-variadic-macro-arguments -Wno-variadic-macros -Wno-missing-field-initializers -Wno-missing-braces -Wno-typedef-redefinition
 WarningErrorFlags    -Werror=vla -Werror=implicit-function-declaration -Werror=pointer-arith -Werror=shadow -Werror=uninitialized -Werror=array-bounds -Werror=implicit -Werror=incompatible-pointer-types -Werror=int-conversion
 #-Werror=return-type
-
-# newer flags (not supported in clang 3.4)
-# -Wmisleading-indentation
-# -Werror=alloca
-# -Werror=float-conversion
-# -Winfinite-recursion
-# -fdeclspec -fdiagnostics-absolute-paths
-# -gcodeview
 
 if !gcc              WarningFlags         -Wpedantic
 if !gcc              WarningFlagsDisabled -Wno-empty-translation-unit
 if !gcc              WarningErrorFlags    -Werror=shorten-64-to-32 -Werror=compare-distinct-pointer-types
 
 SecurityFlags        -fno-strict-overflow -fno-strict-aliasing
-
-# newer security flags (not supported in clang 3.4)
-# -fno-delete-null-pointer-checks 
-# -fstack-protector-strong
-# if x64 SecurityFlags -mshstk
 
 SharedCompilerFlags  -std=c99 -O0 -g3 -MD -fno-builtin-memcpy -fno-omit-frame-pointer -fno-exceptions -fno-math-errno -finline-functions -finline-hint-functions -funroll-loops -fno-rtti $SecurityFlags $WarningFlags $WarningFlagsDisabled $WarningErrorFlags
 SharedLinkerFlags    -g3

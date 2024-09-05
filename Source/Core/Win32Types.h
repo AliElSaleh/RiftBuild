@@ -64,6 +64,97 @@ typedef long HRESULT;
 #define PASCAL      pascal
 #endif
 
+// apisetcconv.h
+#if !defined(WINADVAPI)
+#if !defined(_ADVAPI32_)
+#define WINADVAPI DECLSPEC_IMPORT
+#else
+#define WINADVAPI
+#endif
+#endif
+
+#if !defined(WINBASEAPI)
+#if !defined(_KERNEL32_)
+#define WINBASEAPI DECLSPEC_IMPORT
+#else
+#define WINBASEAPI
+#endif
+#endif
+
+#if !defined(ZAWPROXYAPI)
+#if !defined(_ZAWPROXY_)
+#define ZAWPROXYAPI DECLSPEC_IMPORT
+#else
+#define ZAWPROXYAPI
+#endif
+#endif
+
+#if !defined(WINUSERAPI)
+#if !defined(_USER32_)
+#define WINUSERAPI DECLSPEC_IMPORT
+#define WINABLEAPI DECLSPEC_IMPORT
+#else
+#define WINUSERAPI
+#define WINABLEAPI
+#endif
+#endif
+
+#if !defined(WINABLEAPI)
+#if !defined(_USER32_)
+#define WINABLEAPI DECLSPEC_IMPORT
+#else
+#define WINABLEAPI
+#endif
+#endif
+
+#if !defined(WINCFGMGR32API)
+#if !defined(_SETUPAPI_)
+#define WINCFGMGR32API DECLSPEC_IMPORT
+#else
+#define WINCFGMGR32API
+#endif
+#endif
+
+#if !defined(WINDEVQUERYAPI)
+#if !defined(_CFGMGR32_)
+#define WINDEVQUERYAPI DECLSPEC_IMPORT
+#else
+#define WINDEVQUERYAPI
+#endif
+#endif
+
+#if !defined(WINSWDEVICEAPI)
+#if !defined(_CFGMGR32_)
+#define WINSWDEVICEAPI DECLSPEC_IMPORT
+#else
+#define WINSWDEVICEAPI
+#endif
+#endif
+
+#if !defined(CMAPI)
+#if !defined(_CFGMGR32_)
+#define CMAPI     DECLSPEC_IMPORT
+#else
+#define CMAPI
+#endif
+#endif
+
+#if !defined(WINPATHCCHAPI)
+#if !defined(STATIC_PATHCCH)
+#define WINPATHCCHAPI WINBASEAPI
+#else
+#define WINPATHCCHAPI
+#endif
+#endif
+
+#if !defined(WINSTORAGEAPI)
+#if !defined(_WINSTORAGEAPI_)
+#define WINSTORAGEAPI DECLSPEC_IMPORT
+#else
+#define WINSTORAGEAPI
+#endif
+#endif
+
 #if defined(_WIN64)
     typedef signed long long INT_PTR, *PINT_PTR;
     typedef unsigned long long  UINT_PTR, *PUINT_PTR;
@@ -1114,15 +1205,16 @@ typedef struct tagMSG {
 SHFOLDERAPI SHGetFolderPathA(HWND hwnd, int csidl, HANDLE hToken, DWORD dwFlags, LPSTR  pszPath);
 SHFOLDERAPI SHGetFolderPathW(HWND hwnd, int csidl, HANDLE hToken, DWORD dwFlags, LPWSTR pszPath);
 
-void GetSystemTimeAsFileTime(LPFILETIME lpSystemTimeAsFileTime);
-DWORD GetCurrentProcessId(void);
-DWORD GetCurrentThreadId(void);
-ULONGLONG GetTickCount64(void);
+WINBASEAPI void WINAPI GetSystemTimeAsFileTime(LPFILETIME lpSystemTimeAsFileTime);
+WINBASEAPI DWORD WINAPI GetCurrentProcessId(void);
+WINBASEAPI DWORD WINAPI GetCurrentThreadId(void);
+WINBASEAPI ULONGLONG WINAPI GetTickCount64(void);
 
-BOOL QueryPerformanceCounter(LARGE_INTEGER *lpPerformanceCount);
-DWORD GetLastError(void);
+WINBASEAPI BOOL WINAPI QueryPerformanceCounter(LARGE_INTEGER *lpPerformanceCount);
+WINBASEAPI DWORD WINAPI GetLastError(void);
 
-DWORD FormatMessageA(
+WINBASEAPI
+DWORD WINAPI FormatMessageA(
     DWORD   dwFlags,
     LPCVOID lpSource,
     DWORD   dwMessageId,
@@ -1132,7 +1224,8 @@ DWORD FormatMessageA(
     va_list *Arguments
 );
 
-DWORD FormatMessageW(
+WINBASEAPI
+DWORD WINAPI FormatMessageW(
     DWORD   dwFlags,
     LPCVOID lpSource,
     DWORD   dwMessageId,
@@ -1142,16 +1235,16 @@ DWORD FormatMessageW(
     va_list *Arguments
 );
 
-void InitializeCriticalSectionAndSpinCount(LPCRITICAL_SECTION lpCriticalSection, DWORD dwSpinCount);
-LPWSTR* CommandLineToArgvW(LPCWSTR lpCmdLine, int* pNumArgs); 
-LPWSTR GetCommandLineW(void);
-HLOCAL LocalFree(HLOCAL hMem);
-HANDLE CreateMutexA(LPSECURITY_ATTRIBUTES lpMutexAttributes, BOOL bInitialOwner, LPCSTR lpName);
-BOOL ReleaseMutex(HANDLE hMutex);
-BOOL CloseHandle(HANDLE hObject);
-DWORD WINAPI GetConsoleProcessList(LPDWORD lpdwProcessList, DWORD dwProcessCount);
-void ExitProcess(UINT uExitCode);
-BOOL QueryPerformanceFrequency(LARGE_INTEGER *lpFrequency);
+WINBASEAPI void    WINAPI InitializeCriticalSectionAndSpinCount(LPCRITICAL_SECTION lpCriticalSection, DWORD dwSpinCount);
+WINBASEAPI LPWSTR* WINAPI CommandLineToArgvW(LPCWSTR lpCmdLine, int* pNumArgs); 
+WINBASEAPI LPWSTR  WINAPI GetCommandLineW(void);
+WINBASEAPI HLOCAL  WINAPI LocalFree(HLOCAL hMem);
+WINBASEAPI HANDLE  WINAPI CreateMutexA(LPSECURITY_ATTRIBUTES lpMutexAttributes, BOOL bInitialOwner, LPCSTR lpName);
+WINBASEAPI BOOL    WINAPI ReleaseMutex(HANDLE hMutex);
+WINBASEAPI BOOL    WINAPI CloseHandle(HANDLE hObject);
+WINBASEAPI DWORD   WINAPI GetConsoleProcessList(LPDWORD lpdwProcessList, DWORD dwProcessCount);
+WINBASEAPI void    WINAPI ExitProcess(UINT uExitCode);
+WINBASEAPI BOOL    WINAPI QueryPerformanceFrequency(LARGE_INTEGER *lpFrequency);
 
 #ifdef UNICODE
     #define PeekMessage          PeekMessageW
@@ -1274,7 +1367,8 @@ BOOL QueryPerformanceFrequency(LARGE_INTEGER *lpFrequency);
 #define EnumProcesses         K32EnumProcesses
 #define CaptureStackBackTrace RtlCaptureStackBackTrace
 
-BOOL PeekMessageA(
+WINBASEAPI
+BOOL WINAPI PeekMessageA(
     LPMSG lpMsg,
     HWND  hWnd,
     UINT  wMsgFilterMin,
@@ -1282,7 +1376,8 @@ BOOL PeekMessageA(
     UINT  wRemoveMsg
 );
 
-BOOL PeekMessageW(
+WINBASEAPI
+BOOL WINAPI PeekMessageW(
     LPMSG lpMsg,
     HWND  hWnd,
     UINT  wMsgFilterMin,
@@ -1290,24 +1385,39 @@ BOOL PeekMessageW(
     UINT  wRemoveMsg
 );
 
-BOOL TranslateMessage(const MSG *lpMsg);
-LRESULT WINAPI DispatchMessageA(const MSG *lpMsg);
-LRESULT WINAPI DispatchMessageW(const MSG *lpMsg);
+WINBASEAPI BOOL WINAPI TranslateMessage(const MSG *lpMsg);
+WINBASEAPI LRESULT WINAPI DispatchMessageA(const MSG *lpMsg);
+WINBASEAPI LRESULT WINAPI DispatchMessageW(const MSG *lpMsg);
 
-HANDLE GetProcessHeap(void);
-LPVOID HeapAlloc(HANDLE hHeap, DWORD  dwFlags, SIZE_T dwBytes);
-LPVOID HeapReAlloc(HANDLE hHeap, DWORD dwFlags, LPVOID lpMem, SIZE_T dwBytes);
-BOOL HeapFree(HANDLE hHeap, DWORD  dwFlags, LPVOID lpMem);
-void RtlZeroMemory(PVOID Destination, SIZE_T Length);
-void RtlCopyMemory(PVOID Destination, const void* Source, SIZE_T Length);
-void RtlMoveMemory(PVOID Destination, const void* Source, SIZE_T Length);
-void RtlFillMemory(PVOID Destination, SIZE_T Length, BYTE Fill);
-HANDLE WINAPI GetStdHandle(DWORD nStdHandle);
+WINBASEAPI HANDLE WINAPI GetStdHandle(DWORD nStdHandle);
+WINBASEAPI HANDLE WINAPI GetProcessHeap(void);
+WINBASEAPI LPVOID WINAPI HeapAlloc(HANDLE hHeap, DWORD  dwFlags, SIZE_T dwBytes);
+WINBASEAPI LPVOID WINAPI HeapReAlloc(HANDLE hHeap, DWORD dwFlags, LPVOID lpMem, SIZE_T dwBytes);
+WINBASEAPI BOOL   WINAPI HeapFree(HANDLE hHeap, DWORD  dwFlags, LPVOID lpMem);
 
-BOOL WINAPI SetConsoleTextAttribute(HANDLE hConsoleOutput, WORD wAttributes);
-void OutputDebugStringA(LPCSTR lpOutputString);
-void OutputDebugStringW(LPCWSTR lpOutputString);
-BOOL WINAPI WriteConsoleA(
+#if _WIN64
+WINBASEAPI void   WINAPI RtlZeroMemory(PVOID Destination, SIZE_T Length);
+WINBASEAPI void   WINAPI RtlCopyMemory(PVOID Destination, const void* Source, SIZE_T Length);
+WINBASEAPI void   WINAPI RtlMoveMemory(PVOID Destination, const void* Source, SIZE_T Length);
+WINBASEAPI void   WINAPI RtlFillMemory(PVOID Destination, SIZE_T Length, BYTE Fill);
+#else
+
+void* memset(void* dst, int c, SIZE_T len);
+void* memcpy(void* dst, const void* src, SIZE_T len);
+void* memmove(void* dst, const void* src, SIZE_T len);
+void* memcmp(const void* s1, const void* s2, SIZE_T len);
+
+#define RtlEqualMemory(Destination,Source,Length) (!memcmp((Destination),(Source),(Length)))
+#define RtlMoveMemory(Destination,Source,Length)   memmove((Destination),(Source),(Length))
+#define RtlCopyMemory(Destination,Source,Length)   memcpy((Destination),(Source),(Length))
+#define RtlFillMemory(Destination,Length,Fill)     memset((Destination),(Fill),(Length))
+#define RtlZeroMemory(Destination,Length)          memset((Destination),0,(Length))
+#endif
+
+WINBASEAPI BOOL WINAPI SetConsoleTextAttribute(HANDLE hConsoleOutput, WORD wAttributes);
+WINBASEAPI void WINAPI OutputDebugStringA(LPCSTR lpOutputString);
+WINBASEAPI void WINAPI OutputDebugStringW(LPCWSTR lpOutputString);
+WINBASEAPI BOOL WINAPI WriteConsoleA(
     HANDLE hConsoleOutput,
     const void* lpBuffer,
     DWORD nNumberOfCharsToWrite,
@@ -1315,6 +1425,7 @@ BOOL WINAPI WriteConsoleA(
     LPVOID lpReserved
 );
 
+WINBASEAPI
 BOOL WINAPI WriteConsoleW(
     HANDLE hConsoleOutput,
     const void* lpBuffer,
@@ -1323,15 +1434,15 @@ BOOL WINAPI WriteConsoleW(
     LPVOID lpReserved
 );
 
-void GetLocalTime(LPSYSTEMTIME lpSystemTime);
+WINBASEAPI void WINAPI GetLocalTime(LPSYSTEMTIME lpSystemTime);
 
-HCURSOR SetCursor(HCURSOR hCursor);
-HCURSOR LoadCursorA(HINSTANCE hInstance, LPCSTR lpCursorName);
-HCURSOR LoadCursorW(HINSTANCE hInstance, LPCWSTR lpCursorName);
-BOOL GetCursorPos(LPPOINT lpPoint);
+WINBASEAPI HCURSOR WINAPI SetCursor(HCURSOR hCursor);
+WINBASEAPI HCURSOR WINAPI LoadCursorA(HINSTANCE hInstance, LPCSTR lpCursorName);
+WINBASEAPI HCURSOR WINAPI LoadCursorW(HINSTANCE hInstance, LPCWSTR lpCursorName);
+WINBASEAPI BOOL    WINAPI GetCursorPos(LPPOINT lpPoint);
 
-BOOL GetUserNameA(LPSTR lpBuffer, LPDWORD pcbBuffer);
-BOOL GetUserNameW(LPWSTR lpBuffer, LPDWORD pcbBuffer);
+WINBASEAPI BOOL WINAPI GetUserNameA(LPSTR lpBuffer, LPDWORD pcbBuffer);
+WINBASEAPI BOOL WINAPI GetUserNameW(LPWSTR lpBuffer, LPDWORD pcbBuffer);
 
 SHFOLDERAPI SHGetFolderPathA(
     HWND   hwnd,
@@ -1349,34 +1460,36 @@ SHFOLDERAPI SHGetFolderPathW(
     LPWSTR  pszPath
 );
 
-DWORD GetModuleFileNameA(HMODULE hModule, LPSTR lpFilename, DWORD nSize);
-DWORD GetModuleFileNameW(HMODULE hModule, LPWSTR lpFilename, DWORD nSize);
+WINBASEAPI DWORD WINAPI GetModuleFileNameA(HMODULE hModule, LPSTR lpFilename, DWORD nSize);
+WINBASEAPI DWORD WINAPI GetModuleFileNameW(HMODULE hModule, LPWSTR lpFilename, DWORD nSize);
 
-DWORD GetCurrentDirectoryA(DWORD nBufferLength, LPTSTR lpBuffer);
-DWORD GetCurrentDirectoryW(DWORD nBufferLength, LPTSTR lpBuffer);
+WINBASEAPI DWORD WINAPI GetCurrentDirectoryA(DWORD nBufferLength, LPTSTR lpBuffer);
+WINBASEAPI DWORD WINAPI GetCurrentDirectoryW(DWORD nBufferLength, LPTSTR lpBuffer);
 
-DWORD GetEnvironmentVariableA(LPCTSTR lpName, LPTSTR lpBuffer, DWORD nSize);
-DWORD GetEnvironmentVariableW(LPCTSTR lpName, LPTSTR lpBuffer, DWORD nSize);
-BOOL SetEnvironmentVariableA(LPCTSTR lpName, LPCTSTR lpValue);
-BOOL SetEnvironmentVariableW(LPCTSTR lpName, LPCTSTR lpValue);
+WINBASEAPI DWORD WINAPI GetEnvironmentVariableA(LPCTSTR lpName, LPTSTR lpBuffer, DWORD nSize);
+WINBASEAPI DWORD WINAPI GetEnvironmentVariableW(LPCTSTR lpName, LPTSTR lpBuffer, DWORD nSize);
+WINBASEAPI BOOL  WINAPI SetEnvironmentVariableA(LPCTSTR lpName, LPCTSTR lpValue);
+WINBASEAPI BOOL  WINAPI SetEnvironmentVariableW(LPCTSTR lpName, LPCTSTR lpValue);
 
-void EnterCriticalSection(LPCRITICAL_SECTION lpCriticalSection);
-void LeaveCriticalSection(LPCRITICAL_SECTION lpCriticalSection);
-void DeleteCriticalSection(LPCRITICAL_SECTION lpCriticalSection);
+WINBASEAPI void WINAPI EnterCriticalSection(LPCRITICAL_SECTION lpCriticalSection);
+WINBASEAPI void WINAPI LeaveCriticalSection(LPCRITICAL_SECTION lpCriticalSection);
+WINBASEAPI void WINAPI DeleteCriticalSection(LPCRITICAL_SECTION lpCriticalSection);
 
-HANDLE GetCurrentProcess(void);
+WINBASEAPI HANDLE WINAPI GetCurrentProcess(void);
 
-LSTATUS RegOpenKeyExA(HKEY hKey, LPCSTR lpSubKey, DWORD  ulOptions, REGSAM samDesired, PHKEY phkResult);
-LSTATUS RegOpenKeyExW(HKEY hKey, LPCSTR lpSubKey, DWORD  ulOptions, REGSAM samDesired, PHKEY phkResult);
-LSTATUS RegQueryValueExA(HKEY hKey, LPCSTR lpValueName, LPDWORD lpReserved, LPDWORD lpType, LPBYTE lpData, LPDWORD lpcbData);
-LSTATUS RegQueryValueExW(HKEY hKey, LPCWSTR lpValueName, LPDWORD lpReserved, LPDWORD lpType, LPBYTE lpData, LPDWORD lpcbData);
-LSTATUS RegGetValueA(HKEY hkey, LPCSTR lpSubKey, LPCSTR lpValue, DWORD dwFlags, LPDWORD pdwType, PVOID pvData, LPDWORD pcbData);
-LSTATUS RegGetValueW(HKEY hkey, LPCWSTR lpSubKey, LPCWSTR lpValue, DWORD dwFlags, LPDWORD pdwType, PVOID pvData, LPDWORD pcbData);
+WINBASEAPI LSTATUS WINAPI RegOpenKeyExA(HKEY hKey, LPCSTR lpSubKey, DWORD  ulOptions, REGSAM samDesired, PHKEY phkResult);
+WINBASEAPI LSTATUS WINAPI RegOpenKeyExW(HKEY hKey, LPCSTR lpSubKey, DWORD  ulOptions, REGSAM samDesired, PHKEY phkResult);
+WINBASEAPI LSTATUS WINAPI RegQueryValueExA(HKEY hKey, LPCSTR lpValueName, LPDWORD lpReserved, LPDWORD lpType, LPBYTE lpData, LPDWORD lpcbData);
+WINBASEAPI LSTATUS WINAPI RegQueryValueExW(HKEY hKey, LPCWSTR lpValueName, LPDWORD lpReserved, LPDWORD lpType, LPBYTE lpData, LPDWORD lpcbData);
+WINBASEAPI LSTATUS WINAPI RegGetValueA(HKEY hkey, LPCSTR lpSubKey, LPCSTR lpValue, DWORD dwFlags, LPDWORD pdwType, PVOID pvData, LPDWORD pcbData);
+WINBASEAPI LSTATUS WINAPI RegGetValueW(HKEY hkey, LPCWSTR lpSubKey, LPCWSTR lpValue, DWORD dwFlags, LPDWORD pdwType, PVOID pvData, LPDWORD pcbData);
 
 #define IMAGEAPI __stdcall
 
+WINBASEAPI
 BOOL IMAGEAPI SymInitialize(HANDLE hProcess, PCSTR  UserSearchPath, BOOL   fInvadeProcess);
 
+WINBASEAPI
 USHORT WINAPI RtlCaptureStackBackTrace(
     ULONG  FramesToSkip,
     ULONG  FramesToCapture,
@@ -1384,6 +1497,7 @@ USHORT WINAPI RtlCaptureStackBackTrace(
     PULONG BackTraceHash
 );
 
+WINBASEAPI
 BOOL IMAGEAPI SymFromAddr(
     HANDLE       hProcess,
     DWORD64      Address,
@@ -1391,24 +1505,23 @@ BOOL IMAGEAPI SymFromAddr(
     PSYMBOL_INFO Symbol
 );
 
-void GetSystemInfo(LPSYSTEM_INFO lpSystemInfo);
-HRESULT GetThreadDescription(HANDLE hThread, PWSTR* ppszThreadDescription);
+WINBASEAPI void    WINAPI GetSystemInfo(LPSYSTEM_INFO lpSystemInfo);
+WINBASEAPI HRESULT WINAPI GetThreadDescription(HANDLE hThread, PWSTR* ppszThreadDescription);
 
-RPC_STATUS UuidCreate(UUID *Uuid);
+WINBASEAPI RPC_STATUS WINAPI UuidCreate(UUID *Uuid);
 
-RPC_STATUS UuidToStringA(const UUID *Uuid, RPC_CSTR* StringUuid);
-RPC_STATUS UuidToStringW(const UUID *Uuid, RPC_WSTR* StringUuid);
+WINBASEAPI RPC_STATUS WINAPI UuidToStringA(const UUID *Uuid, RPC_CSTR* StringUuid);
+WINBASEAPI RPC_STATUS WINAPI UuidToStringW(const UUID *Uuid, RPC_WSTR* StringUuid);
+WINBASEAPI RPC_STATUS WINAPI RpcStringFreeA(RPC_CSTR *String);
+WINBASEAPI RPC_STATUS WINAPI RpcStringFreeW(RPC_WSTR *String);
+WINBASEAPI RPC_STATUS WINAPI UuidFromStringA(RPC_CSTR StringUuid, UUID *Uuid);
+WINBASEAPI RPC_STATUS WINAPI UuidFromStringW(RPC_WSTR StringUuid, UUID *Uuid);
 
-RPC_STATUS RpcStringFreeA(RPC_CSTR *String);
-RPC_STATUS RpcStringFreeW(RPC_WSTR *String);
+WINBASEAPI BOOL WINAPI CreateDirectoryA(LPCTSTR lpPathName, LPSECURITY_ATTRIBUTES lpSecurityAttributes);
+WINBASEAPI BOOL WINAPI CreateDirectoryW(LPCTSTR lpPathName, LPSECURITY_ATTRIBUTES lpSecurityAttributes);
 
-RPC_STATUS UuidFromStringA(RPC_CSTR StringUuid, UUID *Uuid);
-RPC_STATUS UuidFromStringW(RPC_WSTR StringUuid, UUID *Uuid);
-
-BOOL CreateDirectoryA(LPCTSTR lpPathName, LPSECURITY_ATTRIBUTES lpSecurityAttributes);
-BOOL CreateDirectoryW(LPCTSTR lpPathName, LPSECURITY_ATTRIBUTES lpSecurityAttributes);
-
-HANDLE CreateFile(
+WINBASEAPI
+HANDLE WINAPI CreateFileA(
     LPCSTR                lpFileName,
     DWORD                 dwDesiredAccess,
     DWORD                 dwShareMode,
@@ -1418,9 +1531,10 @@ HANDLE CreateFile(
     HANDLE                hTemplateFile
 );
 
-BOOL DeleteFile(LPCTSTR lpFileName);
+WINBASEAPI BOOL WINAPI DeleteFileA(LPCTSTR lpFileName);
 
-HANDLE CreateFileMapping(
+WINBASEAPI
+HANDLE WINAPI CreateFileMappingA(
     HANDLE                hFile,
     LPSECURITY_ATTRIBUTES lpFileMappingAttributes,
     DWORD                 flProtect,
@@ -1429,9 +1543,10 @@ HANDLE CreateFileMapping(
     LPCSTR                lpName
 );
 
-BOOL GetFileSizeEx(HANDLE hFile, PLARGE_INTEGER lpFileSize);
+WINBASEAPI BOOL WINAPI GetFileSizeEx(HANDLE hFile, PLARGE_INTEGER lpFileSize);
 
-LPVOID MapViewOfFile(
+WINBASEAPI
+LPVOID WINAPI MapViewOfFile(
     HANDLE hFileMappingObject,
     DWORD  dwDesiredAccess,
     DWORD  dwFileOffsetHigh,
@@ -1439,21 +1554,24 @@ LPVOID MapViewOfFile(
     SIZE_T dwNumberOfBytesToMap
 );
 
-DWORD SetFilePointer(
+WINBASEAPI
+DWORD WINAPI SetFilePointer(
     HANDLE hFile,
     LONG   lDistanceToMove,
     PLONG  lpDistanceToMoveHigh,
     DWORD  dwMoveMethod
 );
 
-BOOL GetFileTime(
+WINBASEAPI
+BOOL WINAPI GetFileTime(
     HANDLE     hFile,
     LPFILETIME lpCreationTime,
     LPFILETIME lpLastAccessTime,
     LPFILETIME lpLastWriteTime
 );
 
-BOOL ReadFile(
+WINBASEAPI
+BOOL WINAPI ReadFile(
     HANDLE       hFile,
     LPVOID       lpBuffer,
     DWORD        nNumberOfBytesToRead,
@@ -1461,7 +1579,8 @@ BOOL ReadFile(
     LPOVERLAPPED lpOverlapped
 );
 
-BOOL WriteFile(
+WINBASEAPI
+BOOL WINAPI WriteFile(
     HANDLE       hFile,
     LPCVOID      lpBuffer,
     DWORD        nNumberOfBytesToWrite,
@@ -1469,44 +1588,43 @@ BOOL WriteFile(
     LPOVERLAPPED lpOverlapped
 );
 
-BOOL PathFileExistsA(LPCSTR pszPath);
-BOOL PathFileExistsW(LPWSTR pszPath);
+WINBASEAPI BOOL WINAPI PathFileExistsA(LPCSTR pszPath);
+WINBASEAPI BOOL WINAPI PathFileExistsW(LPWSTR pszPath);
 
-DWORD GetFileAttributesA(LPCSTR lpFileName);
-DWORD GetFileAttributesW(LPCWSTR lpFileName);
+WINBASEAPI DWORD WINAPI GetFileAttributesA(LPCSTR lpFileName);
+WINBASEAPI DWORD WINAPI GetFileAttributesW(LPCWSTR lpFileName);
 
-DWORD GetFinalPathNameByHandleA(
+WINBASEAPI
+DWORD WINAPI GetFinalPathNameByHandleA(
     HANDLE hFile,
     LPSTR  lpszFilePath,
     DWORD  cchFilePath,
     DWORD  dwFlags
 );
 
-DWORD GetFinalPathNameByHandleW(
+WINBASEAPI
+DWORD WINAPI GetFinalPathNameByHandleW(
     HANDLE hFile,
     LPWSTR  lpszFilePath,
     DWORD  cchFilePath,
     DWORD  dwFlags
 );
 
-BOOL PathCanonicalizeA(LPSTR pszBuf, LPCSTR pszPath);
-BOOL PathCanonicalizeW(LPWSTR pszBuf, LPCWSTR pszPath);
+WINBASEAPI BOOL WINAPI PathCanonicalizeA(LPSTR pszBuf, LPCSTR pszPath);
+WINBASEAPI BOOL WINAPI PathCanonicalizeW(LPWSTR pszBuf, LPCWSTR pszPath);
 
-HANDLE FindFirstFileA(LPCSTR lpFileName, LPWIN32_FIND_DATAA lpFindFileData);
-HANDLE FindFirstFileW(LPCWSTR lpFileName, LPWIN32_FIND_DATAA lpFindFileData);
+WINBASEAPI HANDLE WINAPI FindFirstFileA(LPCSTR lpFileName, LPWIN32_FIND_DATAA lpFindFileData);
+WINBASEAPI HANDLE WINAPI FindFirstFileW(LPCWSTR lpFileName, LPWIN32_FIND_DATAA lpFindFileData);
+WINBASEAPI BOOL  WINAPI FindNextFileA(HANDLE hFindFile, LPWIN32_FIND_DATAA lpFindFileData);
+WINBASEAPI BOOL  WINAPI FindNextFileW(HANDLE hFindFile, LPWIN32_FIND_DATAA lpFindFileData);
+WINBASEAPI BOOL  WINAPI FindClose(HANDLE hFindFile);
+WINBASEAPI BOOL  WINAPI RemoveDirectoryA(LPCSTR lpPathName);
+WINBASEAPI BOOL  WINAPI RemoveDirectoryW(LPCWSTR lpPathName);
+WINBASEAPI BOOL  WINAPI SetFileAttributesA(LPCSTR lpFileName, DWORD dwFileAttributes);
+WINBASEAPI BOOL  WINAPI SetFileAttributesW(LPCWSTR lpFileName, DWORD dwFileAttributes);
 
-BOOL FindNextFileA(HANDLE hFindFile, LPWIN32_FIND_DATAA lpFindFileData);
-BOOL FindNextFileW(HANDLE hFindFile, LPWIN32_FIND_DATAA lpFindFileData);
-
-BOOL FindClose(HANDLE hFindFile);
-
-BOOL RemoveDirectoryA(LPCSTR lpPathName);
-BOOL RemoveDirectoryW(LPCWSTR lpPathName);
-
-BOOL SetFileAttributesA(LPCSTR lpFileName, DWORD dwFileAttributes);
-BOOL SetFileAttributesW(LPCWSTR lpFileName, DWORD dwFileAttributes);
-
-BOOL CopyFileExA(
+WINBASEAPI
+BOOL WINAPI CopyFileExA(
     LPCSTR             lpExistingFileName,
     LPCSTR             lpNewFileName,
     LPPROGRESS_ROUTINE lpProgressRoutine,
@@ -1515,7 +1633,8 @@ BOOL CopyFileExA(
     DWORD              dwCopyFlags
 );
 
-BOOL CopyFileExW(
+WINBASEAPI
+BOOL WINAPI CopyFileExW(
     LPCSTR             lpExistingFileName,
     LPCSTR             lpNewFileName,
     LPPROGRESS_ROUTINE lpProgressRoutine,
@@ -1524,13 +1643,14 @@ BOOL CopyFileExW(
     DWORD              dwCopyFlags
 );
 
-BOOL MoveFileExA(LPCSTR lpExistingFileName, LPCSTR lpNewFileName, DWORD  dwFlags);
-BOOL MoveFileExW(LPCWSTR lpExistingFileName, LPCWSTR lpNewFileName, DWORD  dwFlags);
+WINBASEAPI BOOL WINAPI MoveFileExA(LPCSTR lpExistingFileName, LPCSTR lpNewFileName, DWORD  dwFlags);
+WINBASEAPI BOOL WINAPI MoveFileExW(LPCWSTR lpExistingFileName, LPCWSTR lpNewFileName, DWORD  dwFlags);
 
-int PathCommonPrefixA(LPCSTR pszFile1, LPCSTR pszFile2, LPSTR  achPath);
-int PathCommonPrefixW(LPCWSTR pszFile1, LPCWSTR pszFile2, LPWSTR  achPath);
+WINBASEAPI int WINAPI PathCommonPrefixA(LPCSTR pszFile1, LPCSTR pszFile2, LPSTR  achPath);
+WINBASEAPI int WINAPI PathCommonPrefixW(LPCWSTR pszFile1, LPCWSTR pszFile2, LPWSTR  achPath);
 
-HANDLE CreateThread(
+WINBASEAPI
+HANDLE WINAPI CreateThread(
     LPSECURITY_ATTRIBUTES   lpThreadAttributes,
     SIZE_T                  dwStackSize,
     LPTHREAD_START_ROUTINE  lpStartAddress,
@@ -1539,11 +1659,12 @@ HANDLE CreateThread(
     LPDWORD                 lpThreadId
 );
 
-BOOL SetThreadPriority(HANDLE hThread, int nPriority);
-HRESULT SetThreadDescription(HANDLE hThread, PCWSTR lpThreadDescription);
-DWORD ResumeThread(HANDLE hThread);
+WINBASEAPI BOOL    WINAPI SetThreadPriority(HANDLE hThread, int nPriority);
+WINBASEAPI HRESULT WINAPI SetThreadDescription(HANDLE hThread, PCWSTR lpThreadDescription);
+WINBASEAPI DWORD   WINAPI ResumeThread(HANDLE hThread);
 
-BOOL CreateProcessA(
+WINBASEAPI
+BOOL WINAPI CreateProcessA(
     LPCSTR                lpApplicationName,
     LPSTR                 lpCommandLine,
     LPSECURITY_ATTRIBUTES lpProcessAttributes,
@@ -1556,7 +1677,8 @@ BOOL CreateProcessA(
     LPPROCESS_INFORMATION lpProcessInformation
 );
 
-BOOL CreateProcessW(
+WINBASEAPI
+BOOL WINAPI CreateProcessW(
     LPCWSTR               lpApplicationName,
     LPWSTR                lpCommandLine,
     LPSECURITY_ATTRIBUTES lpProcessAttributes,
@@ -1569,22 +1691,28 @@ BOOL CreateProcessW(
     LPPROCESS_INFORMATION lpProcessInformation
 );
 
-BOOL CreateEnvironmentBlock(LPVOID *lpEnvironment, HANDLE hToken, BOOL bInherit);
+WINBASEAPI
+BOOL WINAPI CreateEnvironmentBlock(LPVOID *lpEnvironment, HANDLE hToken, BOOL bInherit);
 
-BOOL SetPriorityClass(HANDLE hProcess, DWORD dwPriorityClass);
+WINBASEAPI
+BOOL WINAPI SetPriorityClass(HANDLE hProcess, DWORD dwPriorityClass);
 
-BOOL CreatePipe(
+WINBASEAPI
+BOOL WINAPI CreatePipe(
     PHANDLE               hReadPipe,
     PHANDLE               hWritePipe,
     LPSECURITY_ATTRIBUTES lpPipeAttributes,
     DWORD                 nSize
 );
 
-BOOL SetHandleInformation(HANDLE hObject, DWORD dwMask, DWORD dwFlags);
+WINBASEAPI
+BOOL WINAPI SetHandleInformation(HANDLE hObject, DWORD dwMask, DWORD dwFlags);
 
-BOOL TerminateProcess( HANDLE hProcess, UINT uExitCode);
+WINBASEAPI
+BOOL WINAPI TerminateProcess( HANDLE hProcess, UINT uExitCode);
 
-DWORD SearchPathA(
+WINBASEAPI
+DWORD WINAPI SearchPathA(
     LPCSTR lpPath,
     LPCSTR lpFileName,
     LPCSTR lpExtension,
@@ -1593,7 +1721,8 @@ DWORD SearchPathA(
     LPSTR  *lpFilePart
 );
 
-DWORD SearchPathW(
+WINBASEAPI
+DWORD WINAPI SearchPathW(
     LPCWSTR lpPath,
     LPCWSTR lpFileName,
     LPCWSTR lpExtension,
@@ -1602,9 +1731,9 @@ DWORD SearchPathW(
     LPWSTR  *lpFilePart
 );
 
-BOOL GetExitCodeProcess(HANDLE hProcess, LPDWORD lpExitCode);
-DWORD WaitForSingleObject(HANDLE hHandle, DWORD dwMilliseconds);
-DWORD WaitForMultipleObjects(
+WINBASEAPI BOOL  WINAPI GetExitCodeProcess(HANDLE hProcess, LPDWORD lpExitCode);
+WINBASEAPI DWORD WINAPI WaitForSingleObject(HANDLE hHandle, DWORD dwMilliseconds);
+WINBASEAPI DWORD WINAPI WaitForMultipleObjects(
     DWORD        nCount,
     const HANDLE *lpHandles,
     BOOL         bWaitAll,
@@ -1612,10 +1741,11 @@ DWORD WaitForMultipleObjects(
 );
 
 
-BOOL K32EnumProcesses(DWORD* lpidProcess, DWORD cb, LPDWORD lpcbNeeded);
+WINBASEAPI BOOL WINAPI K32EnumProcesses(DWORD* lpidProcess, DWORD cb, LPDWORD lpcbNeeded);
 
-HANDLE OpenProcess(DWORD dwDesiredAccess, BOOL bInheritHandle, DWORD dwProcessId);
+WINBASEAPI HANDLE WINAPI OpenProcess(DWORD dwDesiredAccess, BOOL bInheritHandle, DWORD dwProcessId);
 
+WINBASEAPI
 DWORD WINAPI K32GetModuleFileNameExA(
     HANDLE  hProcess,
     HMODULE hModule,
@@ -1623,6 +1753,7 @@ DWORD WINAPI K32GetModuleFileNameExA(
     DWORD   nSize
 );
 
+WINBASEAPI
 DWORD WINAPI K32GetModuleFileNameExW(
     HANDLE  hProcess,
     HMODULE hModule,
@@ -1630,16 +1761,19 @@ DWORD WINAPI K32GetModuleFileNameExW(
     DWORD   nSize
 );
 
-HMODULE GetModuleHandleA(LPCSTR lpModuleName);
-HMODULE GetModuleHandleW(LPCWSTR lpModuleName);
+WINBASEAPI HMODULE WINAPI GetModuleHandleA(LPCSTR lpModuleName);
+WINBASEAPI HMODULE WINAPI GetModuleHandleW(LPCWSTR lpModuleName);
 
-HANDLE GetCurrentThread(void);
+WINBASEAPI HANDLE WINAPI GetCurrentThread(void);
 
+WINBASEAPI
 BOOL WINAPI GetConsoleScreenBufferInfo(
     HANDLE                      hConsoleOutput,
     PCONSOLE_SCREEN_BUFFER_INFO lpConsoleScreenBufferInfo
 );
 
-DWORD GetTimeZoneInformation(LPTIME_ZONE_INFORMATION lpTimeZoneInformation);
+WINBASEAPI
+DWORD WINAPI GetTimeZoneInformation(LPTIME_ZONE_INFORMATION lpTimeZoneInformation);
 
-SHORT GetAsyncKeyState(int vKey); 
+WINBASEAPI
+SHORT WINAPI GetAsyncKeyState(int vKey); 

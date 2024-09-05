@@ -69,6 +69,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
 
         ENSURE(Line.Capacity == 2113); // sanity check to make sure no-one is modifying the line buffer
 
+        // TODO: allow whitespace in single line error messages
         if (bInMultiLineErrorMessage)
         {
             // prevent leading/trailing spaces causing confusion if we only have the '}' in the line. its better than doing Line.Data[0]
