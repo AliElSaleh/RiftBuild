@@ -195,7 +195,13 @@ If no extension was specified, RiftBuild will automatically choose the correct e
 
 ---
 
-# Supported Platforms
+# Supported Platforms & Architectures
+
+#### Architectures
+- x86/x64
+- arm/arm64
+  
+#### Platforms
 - Windows
   - 7 and above
 - Linux
