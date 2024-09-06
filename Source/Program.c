@@ -1033,9 +1033,7 @@ internal bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const Stri
         *ExitCode = Platform_WaitForProcessAndGetExitCode(Handle);
         if (*ExitCode != 0 && !bIgnoreErrors)
         {
-            LOG("    You can ignore this error by using ._Cmd instead\n"
-            "    or you can use .Cmd! to check whether the source files exist\n"
-            "    and gracefully skip the move operation if they don't.\n");
+            LOG("    You can ignore this error by using ._Cmd instead");
 
             return false;
         }
@@ -1083,11 +1081,17 @@ internal bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const Stri
 
         bool bIgnoreErrors = String_EndsWith(Name, S("_Copy"), false);
 
-        if (!Filesystem_Copy(SourceFile, DestinationDirectory) && !bIgnoreErrors)
+        StringLocal(FullSourcePath, MAX_PATH_LENGTH);
+        String_BuildPath(&FullSourcePath, WorkingDirectory, SourceFile);
+
+        StringLocal(FullDestPath, MAX_PATH_LENGTH);
+        String_BuildPath(&FullDestPath, WorkingDirectory, DestinationDirectory);
+
+        if (!Filesystem_Copy(FullSourcePath, FullDestPath) && !bIgnoreErrors)
         {
             LOG("    You can ignore this error by using ._Copy instead\n"
             "    or you can use .Copy! to check whether the source files exist\n"
-            "    and gracefully skip the move operation if they don't.\n");
+            "    and gracefully skip the copy operation if they don't.\n");
 
             *ExitCode = 1;
             return false;
@@ -1162,8 +1166,14 @@ internal bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const Stri
         bool bIgnoreErrors = String_EndsWith(Name, S("_Move"), false) ||
                              String_EndsWith(Name, S("_Rename"), false);
 
+        StringLocal(FullSourcePath, MAX_PATH_LENGTH);
+        String_BuildPath(&FullSourcePath, WorkingDirectory, SourceFile);
+
+        StringLocal(FullDestPath, MAX_PATH_LENGTH);
+        String_BuildPath(&FullDestPath, WorkingDirectory, DestinationDirectory);
+
         if (bIgnoreErrors) Logging_Disable();
-        bool bResult = Filesystem_Move(SourceFile, DestinationDirectory, bIsRename);
+        bool bResult = Filesystem_Move(FullSourcePath, FullDestPath, bIsRename);
         if (bIgnoreErrors) Logging_Enable();
 
         if (!bResult && !bIgnoreErrors)
@@ -1188,7 +1198,8 @@ internal bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const Stri
 
         if (String_IsEqual(Cmd, S("*"), false) ||
             String_IsEqual(Cmd, S("."), false) ||
-            String_IsEqual(Cmd, S(".."), false))
+            String_IsEqual(Cmd, S(".."), false) ||
+            String_IsEqual(Cmd, S("/"), false))
         {
             return false;
         }
@@ -1208,21 +1219,24 @@ internal bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const Stri
 
         bool bIgnoreErrors = String_EndsWith(Name, S("_Delete"), false);
 
+        StringLocal(FullFilePath, MAX_PATH_LENGTH);
+        String_BuildPath(&FullFilePath, WorkingDirectory, Cmd);
+
         if (bIgnoreErrors) Logging_Disable();
         bool bResult = false;
         if (bHasExtension)
         {
-            if (!Filesystem_DoesFileExist(Cmd))
+            if (!Filesystem_DoesFileExist(FullFilePath))
                 return true;
 
-            bResult = Filesystem_DeleteFile(Cmd);
+            bResult = Filesystem_DeleteFile(FullFilePath);
         }
         else
         {
-            if (!Filesystem_DoesDirectoryExist(Cmd))
+            if (!Filesystem_DoesDirectoryExist(FullFilePath))
                 return true;
 
-            bResult = Filesystem_DeleteDirectory(Cmd);
+            bResult = Filesystem_DeleteDirectory(FullFilePath);
         }
         if (bIgnoreErrors) Logging_Enable();
 
@@ -1240,8 +1254,11 @@ internal bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const Stri
 
         bool bIgnoreErrors = String_EndsWith(Name, S("_NewFile"), false);
 
+        StringLocal(FullFilePath, MAX_PATH_LENGTH);
+        String_BuildPath(&FullFilePath, WorkingDirectory, Cmd);
+
         if (bIgnoreErrors) Logging_Disable();
-        bool bResult = Filesystem_NewFile(Cmd);
+        bool bResult = Filesystem_NewFile(FullFilePath);
         if (bIgnoreErrors) Logging_Enable();
 
         if (!bResult && !bIgnoreErrors)
@@ -1260,8 +1277,11 @@ internal bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const Stri
         bool bIgnoreErrors = String_EndsWith(Name, S("_NewDirectory"), false) ||
                              String_EndsWith(Name, S("_NewDir"), false);
 
+        StringLocal(FullDirPath, MAX_PATH_LENGTH);
+        String_BuildPath(&FullDirPath, WorkingDirectory, Cmd);
+
         if (bIgnoreErrors) Logging_Disable();
-        bool bResult = Filesystem_OpenDirectory(Cmd);
+        bool bResult = Filesystem_OpenDirectory(FullDirPath);
         if (bIgnoreErrors) Logging_Enable();
 
         if (!bResult && !bIgnoreErrors)
@@ -1422,7 +1442,7 @@ internal void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const Fi
     {
         FileVariable Expanded;
         Expanded.Name = S("Compiler");
-        Expanded.Value = S("clang");
+        Expanded.Value = S("");
         Expanded.bHasSpecial = false;
 
         Array_Add(VariablesDB, Expanded);
