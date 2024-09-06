@@ -67,7 +67,6 @@ They work on Windows, Mac OS and Linux (where appropriate).
 - [libjpeg-turbo](https://github.com/AliElSaleh/libjpeg-turbo)
 - [libpng](https://github.com/AliElSaleh/libpng)
 - [zlib](https://github.com/AliElSaleh/zlib)
-- [Hazel TODO](https://google.com)
 - [PCSX2 TODO](https://google.com)
 - [RPCS3 TODO](https://google.com)
 - [Raylib TODO](https://google.com)
