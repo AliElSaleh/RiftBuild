@@ -2003,6 +2003,8 @@ internal void ExpandPathFlags(LinearAllocator Scratch, String* Dest, const Strin
     String_EatSpacesInlineFromEnd(&NonWildcardFlags);
 
     PrefixVariables(Dest, WildcardFlags, FlagPrefix, bWrapWithQuotes);
+    if (WildcardFlags.Length > 0)
+        String_AppendSpace(Dest);
     PrefixVariables(Dest, NonWildcardFlags, FlagPrefix, bWrapWithQuotes);
 }
 
