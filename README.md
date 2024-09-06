@@ -58,7 +58,7 @@ They work on Windows, Mac OS and Linux (where appropriate).
 - [Refterm](https://github.com/AliElSaleh/refterm)
 - [Craft](https://github.com/AliElSaleh/Craft)
 - [RAD Debugger](https://github.com/AliElSaleh/raddebugger)
-- [PhysX TODO](https://google.com)
+- [PhysX 4.1](https://github.com/AliElSaleh/PhysX)
 - [SDL2 TODO](https://google.com)
 - [Star Ruler 2](https://github.com/AliElSaleh/StarRuler2-Source)
 - [fmt](https://github.com/AliElSaleh/fmt)
