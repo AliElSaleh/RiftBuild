@@ -46,4 +46,5 @@ printf "Compiling sources (${Platform})\n"
 
 clang "Source/Core/Clock.c" "Source/Core/Memory.c" "Source/Core/StringUtils.c" "Source/Core/Log.c" "Source/Core/Globals.c" "Source/Core/Platform_Core.c" "Source/Core/Platform_${Platform}.c" "Source/Program.c" "Source/Backend.c" "Source/Parse.c" "Source/Exporter.c" ${CompilerFlags} ${LinuxDEDefines} ${CoverageCompilerFlags} -o riftbuild ${LinuxLinkerFlags} ${BSDLinkerFlags} -Wl,-rpath,'$ORIGIN'
 
-printf "\033[0;32m  Done: riftbuild\033[0m\n"
+SCRIPT_PATH="$(cd "$(dirname "$0")" && pwd)"
+printf "\033[0;32m  Done: ${SCRIPT_PATH}/riftbuild\033[0m\n"
