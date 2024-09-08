@@ -139,7 +139,7 @@ void Logging_Shutdown(void)
     
     Filesystem_Close(&GLoggingSystemState->LogFileHandle);
     
-    GLoggingSystemState = nullptr;
+    GLoggingSystemState = NULL;
 }
 
 usize Logging_GetMemoryRequirement(void)

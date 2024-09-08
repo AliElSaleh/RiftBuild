@@ -3,7 +3,6 @@
 
 #ifndef UNITY_BUILD
 #include "EngineTypes.h"
-#include "BaseString.h"
 #endif
 
 STRUCT(SystemTime)

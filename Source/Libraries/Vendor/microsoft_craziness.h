@@ -51,7 +51,6 @@
 
 C_LINKAGE_BEGIN
 #include "Filesystem.h"
-#include "BaseString.h"
 #include "StringUtils.h"
 
 typedef struct Find_Result Find_Result;
@@ -78,7 +77,6 @@ C_LINKAGE_END
 #ifdef MICROSOFT_CRAZINESS_IMPLEMENTATION
 
 #undef STRUCT
-#undef nullptr
 #undef NULL
 
 C_LINKAGE_BEGIN

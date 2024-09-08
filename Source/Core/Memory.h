@@ -44,7 +44,7 @@ STRUCT(MemoryRange)
     usize Size;
 };
 
-RIFT_API bool Memory_Initialize(void* Memory, usize MemSize, void* Dump, void* ScratchMemory, usize ScratchSize);
+RIFT_API bool Memory_Initialize(void* Memory, usize MemSize, void* ScratchMemory, usize ScratchSize);
 RIFT_API void Memory_Shutdown(void);
 
 RIFT_API void* MemAlloc(usize Size, EMemoryTag Tag);// RETURN_NON_NULL;

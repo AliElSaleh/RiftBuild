@@ -10,7 +10,6 @@
 
 #include "Uuid.h"
 #include "Filesystem.h"
-#include "BaseString.h"
 #include "StringUtils.h"
 #include "Array.h"
 #endif

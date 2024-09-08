@@ -5,10 +5,6 @@
 #include "EngineTypes.h"
 #endif
 
-// forward declare
-struct String;
-struct StringArray;
-struct StringList;
 struct EngineGlobals;
 
 RIFT_API void InitializeGlobals(void* Memory, usize Size);

@@ -2,7 +2,6 @@
 
 #ifndef UNITY_BUILD
 #include "Platform.h"
-
 #include "StringUtils.h"
 #endif
 
@@ -288,6 +287,8 @@ CpuInfo Platform_QueryCPUInfo(void)
 }
 
 #elif __CPU_ARM || __CPU_ARM64
+
+// TODO: linux and windows?
 
 #if PLATFORM_APPLE || PLATFORM_BSD
 #include <sys/types.h>

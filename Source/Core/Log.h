@@ -62,8 +62,6 @@
 
 #define UNIMPLEMENTED 
 #else
-struct String; // forward declare
-
 #define MAX_LOG_MSG_LENGTH 32768
 
 #define LOG_TYPE_INFO 0

@@ -2793,6 +2793,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     String Extension                        = GetVariableValue(ExpandedVariablesDB, S("Extension"));
     String Type                             = GetVariableValue(ExpandedVariablesDB, S("Type"));
     String CompilerProgram                  = GetVariableValue(ExpandedVariablesDB, S("Compiler"));
+    // TODO: specify a linker program
+    //String LinkerProgram                  = GetVariableValue(ExpandedVariablesDB, S("Linker"));
     String AsmProgram                       = GetVariableValue(ExpandedVariablesDB, S("Assembler"));
     String CompilerFlagPrefixSymbol         = S("-");
     const String CompilerFlags              = GetVariableValue(ExpandedVariablesDB, S("CompilerFlags"));
@@ -7838,9 +7840,11 @@ internal void InitInternalVars(LinearAllocator* Arena)
     AddInternalVariable(S("x86"), S("1"));
     #elif __CPU_ARM64
     AddInternalVariable(S("ARM"), S("1"));
+    AddInternalVariable(S("ARM32"), S("1"));
     AddInternalVariable(S("ARM64"), S("1"));
     #elif __CPU_ARM
     AddInternalVariable(S("ARM"), S("1"));
+    AddInternalVariable(S("ARM32"), S("1"));
     #elif __CPU_PPC64
     AddInternalVariable(S("PPC"), S("1"));
     AddInternalVariable(S("PPC64"), S("1"));

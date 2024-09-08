@@ -15,7 +15,6 @@
 internal FreeListAllocator GEngineAllocator = { 0 };
 internal LinearAllocator GEngineScratchAllocator = { 0 };
 internal void* GEngineMemory = NULL;
-internal void* GMemoryDump = NULL;
 internal void* GGlobalsMemory = NULL;
 
 static PlatformCriticalSection GCriticalSection = NULL;
@@ -26,22 +25,13 @@ internal FreeListAllocator GEngineAllocator_Debug = { 0 };
 static PlatformCriticalSection GCriticalSection_Debug = NULL;
 #endif
 
-void* nullptr_z = NULL;
-
-void* MemoryDump(void)
-{
-    return GMemoryDump;
-}
-
 #ifdef RIFT_DEBUG_MEMORY
-bool Memory_Initialize(void* Memory, usize MemSize, void* DebugMemory, usize DebugMemSize, void* Dump, void* ScratchMemory, usize ScratchSize)
+bool Memory_Initialize(void* Memory, usize MemSize, void* DebugMemory, usize DebugMemSize, void* ScratchMemory, usize ScratchSize)
 #else
-bool Memory_Initialize(void* Memory, usize MemSize, void* Dump, void* ScratchMemory, usize ScratchSize)
+bool Memory_Initialize(void* Memory, usize MemSize, void* ScratchMemory, usize ScratchSize)
 #endif
 {
     GEngineMemory = Memory;
-    GMemoryDump = Dump;
-    nullptr_z = Dump;
 
     #ifdef RIFT_DEBUG_MEMORY
     GEngineMemory_Debug = DebugMemory;
@@ -319,7 +309,7 @@ usize MemoryUtils_CalculatePaddingWithHeader(usize Ptr, usize Alignment, usize H
 
 bool IsValid(const void* Memory)
 {
-    return Memory != NULL && Memory != MemoryDump();
+    return Memory != NULL;// && Memory != MemoryDump();
 }
 
 bool IsValidSlow(const void* Memory)
@@ -327,13 +317,7 @@ bool IsValidSlow(const void* Memory)
     if (Memory == NULL)
         return false;
     
-    if (Memory == GMemoryDump)
-        return false;
-    
     if (Memory < GEngineMemory)
-        return false;
-    
-    if (Memory > GMemoryDump)
         return false;
     
     return true;
@@ -389,7 +373,7 @@ void LinearAllocator_Destroy(LinearAllocator* Allocator)
         MemFree(Allocator->Memory, MemoryTag_LinearAllocator);
     }
 
-    Allocator->Memory = nullptr;
+    Allocator->Memory = NULL;
     Allocator->TotalSize = 0;
     Allocator->Allocated = 0;
     Allocator->bOwnsMemory = false;
@@ -609,8 +593,9 @@ void* FreeListAllocator_Allocate(FreeListAllocator* Allocator, usize Size, usize
     //ASSERT_MSG(LIKELY(Node != NULL), "Out of memory");
     if (UNLIKELY(Node == NULL))
     {
-        LOG_ERROR("Out of memory! Further allocations will now point to the memory dump!");
-        return MemoryDump(); // point to the memory dump to prevent NULL crashes
+        //LOG_ERROR("Out of memory! Further allocations will now point to the memory dump!");
+        LOG_FATAL("Out of memory!");
+        return NULL;// MemoryDump(); // point to the memory dump to prevent NULL crashes
     }
     
     //usize AlignmentPadding = 0;

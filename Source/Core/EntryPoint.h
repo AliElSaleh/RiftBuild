@@ -16,8 +16,6 @@ PRAGMA_DISABLE_MISSING_PROTOTYPES_WARNING
 C_LINKAGE_BEGIN
 int _fltused = 0;
 C_LINKAGE_END
-
-void* nullptr_z = NULL;
 #endif
 
 extern u32 RunApplication(const StringArray Arguments);
@@ -76,12 +74,6 @@ void EntryPoint(void)
     
     void* EngineScratch = ((u8*)EngineMemory) + MemoryAmount;
 
-    void* EngineMemoryDump = ((u8*)EngineMemory) + MemoryAmount + ScratchAmount;
-    
-    #ifndef RIFT_STATIC
-    nullptr_z = EngineMemoryDump;
-    #endif
-
     u32 ReturnVal = 0;
     
     StringArray Arguments = Platform_GetCommandLineArgs();
@@ -91,7 +83,7 @@ void EntryPoint(void)
     
     // Initialize core engine subsystems
     // Memory subsystem
-    if (!Memory_Initialize(EngineMemory, MemoryAmount, EngineMemoryDump, EngineScratch, GEngineScratchAmount))
+    if (!Memory_Initialize(EngineMemory, MemoryAmount, EngineScratch, GEngineScratchAmount))
     {
         Platform_ConsoleWrite("Failed to initialize memory subsystem. Required for engine to run. Aborting...\n", 4, true);
 

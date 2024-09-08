@@ -8,7 +8,6 @@
 
 #include "Uuid.h"
 #include "Filesystem.h"
-#include "String/BaseString.h"
 #include "String/StringUtils.h"
 #include "Structures/Array.h"
 

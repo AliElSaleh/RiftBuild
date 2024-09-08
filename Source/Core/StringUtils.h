@@ -16,36 +16,30 @@ ENUM(ECompareResult)
 // C String Helpers
 // ----------------------------------
 
-RIFT_API u32 CString_Copy(char* Dest, const char* Source);
-RIFT_API u32 CString_CopyN(char* Dest, const char* Source, u32 Length);
-
-RIFT_API void CString_ToBytes(const char* Data, u32 Length, u8* OutBytes);
-RIFT_API void CString_FromBytes(const u8* Data, u32 Length, char* OutCharacters);
-
-RIFT_API bool CString_IsEqual(const char* StringA, const char* StringB, bool bCaseSensitive);
-
-RIFT_API i32 CString_Format(char* Dest, const char* Format, u32 MaxLength, ...);
-RIFT_API i32 CString_FormatV(char* Dest, const char* Format, u32 MaxLength, void* VAList);
-
-RIFT_API void CString_Zero(char* Str, u32 Length);
-RIFT_API void CString_Fill(char* Str, u32 Length, char N);
-
+RIFT_API u32   CString_Copy(char* Dest, const char* Source);
+RIFT_API u32   CString_CopyN(char* Dest, const char* Source, u32 Length);
+RIFT_API void  CString_ToBytes(const char* Data, u32 Length, u8* OutBytes);
+RIFT_API void  CString_FromBytes(const u8* Data, u32 Length, char* OutCharacters);
+RIFT_API bool  CString_IsEqual(const char* StringA, const char* StringB, bool bCaseSensitive);
+RIFT_API i32   CString_Format(char* Dest, const char* Format, u32 MaxLength, ...);
+RIFT_API i32   CString_FormatV(char* Dest, const char* Format, u32 MaxLength, void* VAList);
+RIFT_API void  CString_Zero(char* Str, u32 Length);
+RIFT_API void  CString_Fill(char* Str, u32 Length, char N);
 RIFT_API char* CString_Empty(char* Str);
-
-RIFT_API void CString_ToLower(char* Str);
-RIFT_API void CString_ToUpper(char* Str);
-
-RIFT_API void CString_ToWide(const char* FromString, wchar* ToString);
-RIFT_API void CString_ToNarrow(const wchar* FromString, char* ToString);
-
-RIFT_API u32 CString_ScanUntil(const char* Str, char Char);
-
-RIFT_API void CString_SubString(char* Dest, const char* Source, u32 Start, u32 Length);
-
-RIFT_API bool CString_IndexOfChar(const char* Str, char C, u32* OutIndex);
+RIFT_API void  CString_ToLower(char* Str);
+RIFT_API void  CString_ToUpper(char* Str);
+RIFT_API void  CString_ToWide(const char* FromString, wchar* ToString);
+RIFT_API void  CString_ToNarrow(const wchar* FromString, char* ToString);
+RIFT_API u32   CString_ScanUntil(const char* Str, char Char);
+RIFT_API void  CString_SubString(char* Dest, const char* Source, u32 Start, u32 Length);
+RIFT_API bool  CString_IndexOfChar(const char* Str, char C, u32* OutIndex);
 
 // String Helpers
 // ----------------------------------
+RIFT_API bool String_IsValid(const String Str);
+RIFT_API bool StringArray_IsValid(const StringArray Str);
+RIFT_API bool StringList_IsValid(const StringList Str);
+
 RIFT_API String String_Create(LinearAllocator* Arena, const String Source); // todo: deprecate
 RIFT_API String String_Duplicate(LinearAllocator* Arena, const String Source);
 RIFT_API String String_Reserve(LinearAllocator* Arena, u32 Capacity);
@@ -222,5 +216,30 @@ RIFT_API void EatParenthesis(char** Str);
 RIFT_API void EatParenthesis_Backwards(char** Str);
 RIFT_API void EatSymbols(char** Str);
 RIFT_API void EatSymbols_Backwards(char** Str);
+
+
+// inline implementations
+FORCEINLINE static String StrSlice(const char* Data, u32 Len)
+{
+    String Result;
+    Result.Data     = (char*)Data;
+    Result.Length   = Len;
+    Result.Capacity = Len;
+
+    return Result;
+}
+
+FORCEINLINE static String StrShiftF(String s, u32 Offset)
+{
+    const u32 MinLength   = Min(Offset, s.Length);
+    const u32 MinCapacity = Min(Offset, s.Capacity);
+
+    String Result;
+    Result.Data           = s.Data     + MinLength;
+    Result.Length         = s.Length   - MinLength;
+    Result.Capacity       = s.Capacity - MinCapacity;
+
+    return Result;
+}
 
 #endif // _STRINGUTILS_H_

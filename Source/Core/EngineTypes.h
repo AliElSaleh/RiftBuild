@@ -21,20 +21,29 @@ typedef unsigned short       wchar;
 
 // forward declare
 typedef struct LinearAllocator LinearAllocator;
-typedef struct String          String;
-typedef struct String16        String16;
-typedef struct StringArray     StringArray;
-typedef struct StringList      StringList;
 
 typedef void VoidFunc(void);
 
-#ifndef __cplusplus
-    #if (__STDC_VERSION__ >= 199901L)
+#ifdef __cplusplus
+#define LANG_CPP 1
+#define C_LINKAGE_BEGIN extern "C" {
+#define C_LINKAGE_END }
+#define C_LINKAGE extern "C"
+#else
+#define LANG_C 1
+#define C_LINKAGE_BEGIN
+#define C_LINKAGE_END
+#define C_LINKAGE
+#define LANG_C_STD_99 __STDC_VERSION__ >= 199901L
+#define LANG_C_STD_11 __STDC_VERSION__ >= 201101L
+#define LANG_C_STD_17 __STDC_VERSION__ >= 201701L
+#endif
+
+#if LANG_C
+    #if LANG_C_STD_99
         typedef _Bool bool;
-        //#define bool  _Bool
     #else
         typedef u8 bool;
-        //#define bool  u8
     #endif
 
     #define true  1
@@ -63,12 +72,12 @@ typedef void VoidFunc(void);
 
 // Stolen from <float.h>
 #define FLT_MAX          340282346638528859811704183484516925440.0f //3.402823466e+38F
-#define FLT_MAX_10_EXP   38                      // max decimal exponent
-#define FLT_MAX_EXP      128                     // max binary exponent
+#define FLT_MAX_10_EXP   38  // max decimal exponent
+#define FLT_MAX_EXP      128 // max binary exponent
 
 #define DBL_MAX          179769313486231570814527423731704356798070567525844996598917476803157260780028538760589558632766878171540458953514382464234321326889464182768467546703537516986049910576551282076245490090389328944075868508455133942304583236903222948165808559332123348274797826204144723168738177180919299881250404026184124858368.0 //1.7976931348623158e+308 // max value
-#define DBL_MAX_10_EXP   308                     // max decimal exponent
-#define DBL_MAX_EXP      1024                    // max binary exponent
+#define DBL_MAX_10_EXP   308  // max decimal exponent
+#define DBL_MAX_EXP      1024 // max binary exponent
 
 #define Clamp(Value, Min, Max) ((Value) < (Min)) ? (Min) : ((Value) < (Max)) ? (Value) : (Max)
 #define ClampMin(Value, Min) ((Value) < (Min)) ? (Min) : (Value)
@@ -114,11 +123,65 @@ typedef void VoidFunc(void);
 #define ENUM(Name)              typedef u8 Name; enum
 #define ENUM_TYPED(Name, Type)  typedef Type Name; enum
 
-#define INVALID_ID UINT32_MAX
+STRUCT(String)
+{
+    char* Data;
+    u32   Length;
+    u32   Capacity;
+};
 
-// blessed by the gods
-#define If if (
-#define then )
+STRUCT(String16)
+{
+    wchar* Data;
+    u32    Length;
+    u32    Capacity;
+};
+
+STRUCT(StringArray)
+{
+    String* List;
+    u32     Num;
+    u32     IterIndex;
+    void*   IterCurrent;
+};
+
+STRUCT(StringList)
+{
+    String String;
+    struct StringList* Next;
+};
+
+#define each_str(Element, Array)            (const String* (Element) = StringArray_Iterate_Begin(&(Array)); (Element) != NULL; (Element) = StringArray_Iterate_Next(&(Array)))
+#define each_str_i(Index, Element, Array)   (const String* (Element) = StringArray_Iterate_Begin(&(Array)); (Element) != NULL; (Element) = StringArray_Iterate_Next(&(Array)), (++Index))
+#define each_str_list(List)                 (StringList It = List; (It).String.Data != NULL || (It).Next != NULL; (It) = StringList_Iterate_Next(It))
+#define each_str_list_it(Element, List)     (StringList (Element) = List; (Element).String.Data != NULL || (Element).Next != NULL; (Element) = StringList_Iterate_Next(Element))
+
+#define StringN(n)  		                struct { char Data[n]; u32 Length; u32 Capacity; }
+
+#define StringLocal(Name, n) 	            char  MACRO_VAR(CONCAT(Buffer_, Name))[n] = {0}; String   Name; Name.Data = MACRO_VAR(CONCAT(Buffer_, Name)); Name.Length = 0; Name.Capacity = (n)-1
+#define String16Local(Name, n) 	            wchar MACRO_VAR(CONCAT(Buffer_, Name))[n] = {0}; String16 Name; Name.Data = MACRO_VAR(CONCAT(Buffer_, Name)), Name.Length = 0, Name.Capacity = (n)-1
+
+#define CStr(s)                             (String)         {.Data = (char* )(s), .Length = String_GetLength(s),       .Capacity = 0}
+#define CStrEx(s, n)                        (String)         {.Data = (char* )(s), .Length = String_GetLength_Ex(s, n), .Capacity = 0}
+#define CStrView(s)                         (const String)   {.Data = (char* )(s), .Length = String_GetLength(s),       .Capacity = 0}
+#define CStr16(s)                           (String16)       {.Data = (wchar*)(s), .Length = String16_GetLength((wchar*)(s)),     .Capacity = 0}
+#define CStr16View(s)                       (const String16) {.Data = (wchar*)(s), .Length = String16_GetLength(s),     .Capacity = 0}
+
+#define S(s)                                (const String)   {.Data = (char* )((s)), .Length = sizeof((s))-1, .Capacity = sizeof((s))-1}
+#define SC(s)                                                {.Data = (char* )((s)), .Length = sizeof((s))-1, .Capacity = sizeof((s))-1}
+#define S16(s)                              (const String16) {.Data = (wchar*)((s)), .Length = sizeof((s))-1, .Capacity = sizeof((s))-1}
+
+#define StrMake(s)                          (String)         {.Data = (s).Data,        .Length = (s).Length, .Capacity = (s).Capacity}
+#define StrView(s)                          (const String)   {.Data = (char*)(s).Data, .Length = (s).Length, .Capacity = (s).Capacity}
+#define Str16Slice(s, Len)                  (String16)       {.Data = (wchar*)(s),     .Length = Len,        .Capacity = Len}
+
+#define StrArray(...)                       (StringArray)    {.List = ((String[]){__VA_ARGS__}), .Num = SArray_Capacity(((String[]){__VA_ARGS__}))}
+
+#define StrFormat                           "%.*s"
+#define StrArg(s)                           (i32)(s).Length, (s).Data
+
+
+#define INVALID_ID UINT32_MAX
 
 // if only microsoft supported this like clang and gcc :((
 //#define each(Element, Array)          (typeof((Array)[0])* CONCAT(Element, _) = &(Array)[0], Element = *CONCAT(Element, _); CONCAT(Element, _) <= &(Array)[Array_Num((Array))-1]; CONCAT(Element, _)++, Element = *CONCAT(Element, _))
@@ -394,30 +457,7 @@ typedef void VoidFunc(void);
     #define DEBUG_BREAK __debugbreak
 #endif
 
-#ifdef __cplusplus
-#define LANG_CPP 1
-#define C_LINKAGE_BEGIN extern "C" {
-#define C_LINKAGE_END }
-#define C_LINKAGE extern "C"
-#else
-#define LANG_C 1
-#define C_LINKAGE_BEGIN
-#define C_LINKAGE_END
-#define C_LINKAGE
-#endif
-
-RIFT_API void* MemoryDump(void);
-
-#ifndef ENGINE_GLOBALS
-#define ENGINE_GLOBALS
-    #ifndef __cplusplus
-    global void* nullptr_z; // points to the engine memory dump
-    #define nullptr nullptr_z
-    #endif
-#endif
-
 #if DEVELOPER
-
     #if COMPILER_CLANG
     PRAGMA_DISABLE_WARNINGS
     PRAGMA_DISABLE_WARNING("clang diagnostic ignored \"-Wunused-function\"")

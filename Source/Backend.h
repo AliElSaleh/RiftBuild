@@ -3,7 +3,6 @@
 
 #ifndef UNITY_BUILD
 #include "EngineTypes.h"
-#include "BaseString.h"
 #include "Filesystem.h"
 #endif
 

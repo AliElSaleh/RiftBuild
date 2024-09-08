@@ -2,7 +2,6 @@
 
 #ifndef UNITY_BUILD
 #include "StringUtils.h"
-#include "BaseString.h"
 #include "Memory.h"
 #include "Allocators.h"
 #include "Globals.h"

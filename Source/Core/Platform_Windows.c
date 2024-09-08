@@ -12,7 +12,6 @@
 
 #include "Uuid.h"
 #include "Filesystem.h"
-#include "BaseString.h"
 #include "StringUtils.h"
 #include "Array.h"
 #include <stdarg.h>
@@ -1810,7 +1809,7 @@ bool Platform_FindFile_Ex(String FileName, String ExtensionWithDot, String* OutF
 
 bool Platform_IsValidHandle(const PlatformHandle Handle)
 {
-    return Handle != NULL && Handle != INVALID_HANDLE_VALUE && Handle != nullptr;
+    return Handle != NULL && Handle != INVALID_HANDLE_VALUE;// && Handle != nullptr;
 }
 
 usize Platform_GetCriticalSectionMemoryRequirement(void)
