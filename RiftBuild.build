@@ -1,5 +1,5 @@
 if debug Mode Debug else Mode Dist
-include Source/Config/$(Mode).buildvars
+include Source/Config/Common.buildvars
 
 Compiler                %%clang %%gcc %%cl
 Assembly                RiftBuild

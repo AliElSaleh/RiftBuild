@@ -1562,6 +1562,6 @@ void MSVC_Find_Release(void* Memory)
 }
 
 #else
-bool MSVC_Compile(const BuildParams* Params, u32* OutNumCompiled) { return true; }
-bool MSVC_Link(const BuildParams* Params) { return true; }
+bool MSVC_Compile(UNUSED const BuildParams* Params, UNUSED u32* OutNumCompiled) { return true; }
+bool MSVC_Link(UNUSED const BuildParams* Params) { return true; }
 #endif // PLATFORM_WINDOWS

@@ -1,0 +1,34 @@
+SharedIncludeFlags               Source/Core Source/Libraries/Vendor
+if linux      SharedIncludeFlags Source/Libraries/Linux
+
+SharedDefines                    NO_PROFILING _NO_CRT_STDIO_INLINE
+if warn_leaks SharedDefines      WARN_MEMLEAKS
+if debug      SharedDefines      _DEBUG DEVELOPER
+if !debug     SharedDefines      NDEBUG NO_ASSERT
+
+if cl goto msvc
+
+WarningFlags                     -Wall -Wextra -Wshadow -Wconversion -Wmissing-prototypes -Wunused -Wuninitialized -Werror
+WarningFlagsDisabled             -Wno-typedef-redefinition -Wno-unused-parameter -Wno-unused-variable -Wno-gnu-zero-variadic-macro-arguments
+if !gcc WarningFlags             -Wpedantic
+if mac  WarningFlagsDisabled     -Wno-nonportable-include-path
+
+SharedCompilerFlags              -std=c99 -fno-builtin-memcpy -fno-omit-frame-pointer -fno-exceptions -fno-math-errno -funroll-loops -fno-rtti -fno-strict-overflow -fno-strict-aliasing $WarningFlags $WarningFlagsDisabled
+SharedLinkerFlags                
+if _sse2 SharedCompilerFlags     -msse2
+if linux SharedCompilerFlags     -fstack-clash-protection
+if linux SharedLinkerFlags       -Wl,-z,nodlopen -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now
+if debug SharedCompilerFlags     -O0 -g3 -MD
+if debug SharedLinkerFlags       -g3
+if debug SharedDefines           _GLIBCXX_ASSERTIONS _GLIBCXX_DEBUG _GLIBCXX_DEBUG_PEDANTIC
+if !debug SharedCompilerFlags    -Os -finline-functions -finline-hint-functions
+if !debug SharedDefines          _FORTIFY_SOURCE=3
+
+_stop
+
+msvc:
+SharedCompilerFlags              /std:c99 /TC
+SharedLinkerFlags                
+if debug SharedCompilerFlags     /Od /Zi /FS /Fd"$(BuildDirectory)\$(Assembly).pdb"
+if debug SharedLinkerFlags       /DEBUG
+if !debug SharedCompilerFlags    /O2
