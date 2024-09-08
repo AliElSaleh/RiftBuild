@@ -1,5 +1,5 @@
 if debug Mode Debug else Mode Dist
-include Source/Config/Common.buildvars
+include Source/Common.buildvars
 
 Compiler                %%clang %%gcc %%cl
 Assembly                RiftBuild
@@ -27,12 +27,6 @@ if bsd                  IncludedSourceFiles Platform_BSD.c
 if cl                   IncludedSourceFiles memcmp.asm memset.asm
 
 if mac                  CompilerFlags -mmacosx-version-min=10.10
-if !cl if !gcc          CompilerFlags -mstack-probe-size=999999999
-if gcc                  CompilerFlags -mno-stack-arg-probe
-if cl                   CompilerFlags /GS- /Gs999999999
-if !cl if disassemble   CompilerFlags -S
-if !cl if trace         CompilerFlags -ftime-trace
-if !cl if 32            CompilerFlags -m32
 
 if windows {
     if !cl              CompilerFlags -nostdlib -fno-builtin -ffreestanding

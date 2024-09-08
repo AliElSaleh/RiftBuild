@@ -4728,7 +4728,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                     }
 
                     #else
-                    LOG_ERROR("yo dis assembler program \"%S\" cant be used cuh", AssemblerProgram);
+                    LOG_ERROR("yo dis assembler program \"%S\" cant be used cuh", AsmProgram);
                     #endif
 
                     if (LogCustomErrorMessage(ExpandedVariablesDB, S("Assembler"), AsmProgram, false))

@@ -16,6 +16,8 @@ if mac  WarningFlagsDisabled     -Wno-nonportable-include-path
 SharedCompilerFlags              -std=c99 -fno-builtin-memcpy -fno-omit-frame-pointer -fno-exceptions -fno-math-errno -funroll-loops -fno-rtti -fno-strict-overflow -fno-strict-aliasing $WarningFlags $WarningFlagsDisabled
 SharedLinkerFlags                
 if _sse2 SharedCompilerFlags     -msse2
+if !gcc  SharedCompilerFlags     -mstack-probe-size=999999999
+if gcc   SharedCompilerFlags     -mno-stack-arg-probe
 if linux SharedCompilerFlags     -fstack-clash-protection
 if linux SharedLinkerFlags       -Wl,-z,nodlopen -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now
 if debug SharedCompilerFlags     -O0 -g3 -MD
@@ -24,10 +26,14 @@ if debug SharedDefines           _GLIBCXX_ASSERTIONS _GLIBCXX_DEBUG _GLIBCXX_DEB
 if !debug SharedCompilerFlags    -Os -finline-functions -finline-hint-functions
 if !debug SharedDefines          _FORTIFY_SOURCE=3
 
+if disassem  SharedCompilerFlags -S
+if trace     SharedCompilerFlags -ftime-trace
+if 32        SharedCompilerFlags -m32
+
 _stop
 
 msvc:
-SharedCompilerFlags              /std:c99 /TC
+SharedCompilerFlags              /TC /GS- /Gs999999999
 SharedLinkerFlags                
 if debug SharedCompilerFlags     /Od /Zi /FS /Fd"$(BuildDirectory)\$(Assembly).pdb"
 if debug SharedLinkerFlags       /DEBUG
