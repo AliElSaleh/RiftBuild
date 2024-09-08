@@ -7,6 +7,6 @@ LinkerFlags
 if 32                  CompilerFlags -m32 ; LinkerFlags --target=i386-pc-windows-msvc 
 IncludedSourceFiles    microsoft_craziness.cpp
 Defines                RIFT_STATIC
-BuildDirectory         ../Windows
+BuildDirectory         .
 IntermediateDirectory  ../../../Intermediate/microsoft_craziness
 AssertWorkingDirectory .
