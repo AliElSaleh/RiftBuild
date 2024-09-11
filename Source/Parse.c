@@ -867,6 +867,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
             }
 
             String RestOfTheLine = StrShiftF(VarValue, Index);
+            String_EatSpacesInline(&RestOfTheLine);
             String_EatSpacesInlineFromEnd(&RestOfTheLine);
 
             StringLocal(LineCopy, 2114);
@@ -900,6 +901,12 @@ bool ParseBuildFile(LinearAllocator* Arena,
                 {
                     if (LineCopy.Length > 0)
                     {
+                        // TODO: temp. remove/clean up syntax
+                        if (String_StartsWith(LineCopy, S(".Help"), false))
+                        {
+                            bIsMultiLineIf = false;
+                        }
+
                         if (bIsMultiLineIf)
                         {
                             continue;

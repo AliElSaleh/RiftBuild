@@ -340,15 +340,15 @@ bool C_Compile(const BuildParams* Params, u32* OutNumCompiled)
 
     if (*OutNumCompiled == 0)
     {
+        if (bQuietBuild) Logging_Enable();
+
         #ifndef HOOD
         LOG("\nNothing to compile - source files unchanged since last build");
         #else
         LOG("\nno work to do homie");
         #endif
 
-        #if !PLATFORM_WINDOWS
-        //LOG_LINE_BREAK();
-        #endif
+        if (bQuietBuild) Logging_Disable();
 
         return true;
     }
@@ -813,7 +813,7 @@ bool IsSource(const String Extension)
             String_IsEqual(Extension, S(".cpp"), false) ||
             String_IsEqual(Extension, S(".asm"), false) ||
             String_IsEqual(Extension, S(".s"), false) ||
-            String_IsEqual(Extension, S(".S"), false)
+            String_IsEqual(Extension, S(".spp"), false)
             #if PLATFORM_WINDOWS
             || String_IsEqual(Extension, S(".rc"), false);
             #elif PLATFORM_APPLE
@@ -1042,11 +1042,15 @@ bool MSVC_Compile(const BuildParams* Params, u32* OutNumCompiled)
 
     if (*OutNumCompiled == 0)
     {
+        if (bQuietBuild) Logging_Enable();
+
         #ifndef HOOD
         LOG("\nNothing to compile - source files unchanged since last build");
         #else
         LOG("\nno work to do homie");
         #endif
+
+        if (bQuietBuild) Logging_Disable();
 
         return true;
     }

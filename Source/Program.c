@@ -3660,7 +3660,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             if (AssertPath.Length > 0 && !String_IsEqual(WorkingPath, AssertPath, false))
             {
                 #ifndef HOOD
-                LOG_INLINE_ERROR("[ASSERTION FAILURE] %% must be ran from this directory -> \"%S\" but we are in \"%S\". Aborting build...\n", BuildFileName, AssertPath, WorkingPath);
+                LOG_INLINE_ERROR("[ASSERTION FAILURE] %S must be ran from this directory -> \"%S\"\n                    but we are in \"%S\". Aborting build...\n", BuildFileName, AssertPath, WorkingPath);
                 #else
                 LOG_ERROR("yo we cant run from this dir cuh \"%S\" you gotta run from \"%S\"", WorkingPath, AssertPath);
                 #endif
@@ -7697,6 +7697,9 @@ internal void InitInternalVars(LinearAllocator* Arena)
 
     // store internal options. like platform, native os .lib's, etc..
     AddInternalVariable(S(PLATFORM_STRING), S(""));
+
+    // TODO: POSIX
+    // TODO: _POSIX = "version"
 
     #if PLATFORM_WINDOWS
     AddInternalVariable(S("_Platform"), S("Windows"));
