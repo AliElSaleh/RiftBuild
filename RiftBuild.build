@@ -19,11 +19,11 @@ LinkerFlags             $SharedLinkerFlags
 Includes                $SharedIncludeFlags
 Defines                 $SharedDefines RIFT_STATIC %^%hood
 
-IncludedSourceFiles     Clock.c Memory.c StringUtils.c Globals.c Log.c Platform_Core.c Program.c Backend.c Exporter.c Parse.c
+IncludedSourceFiles     Memory.c StringUtils.c Globals.c Log.c Platform_Core.c Program.c Backend.c Exporter.c Parse.c
 if windows              IncludedSourceFiles Platform_Windows.c
-if linux                IncludedSourceFiles Platform_Linux.c
-if mac                  IncludedSourceFiles Platform_Mac.c
-if bsd                  IncludedSourceFiles Platform_BSD.c
+if linux                IncludedSourceFiles Platform_Unix.c Platform_Linux.c
+if mac                  IncludedSourceFiles Platform_Unix.c Platform_Mac.c
+if bsd                  IncludedSourceFiles Platform_Unix.c Platform_BSD.c
 if cl                   IncludedSourceFiles memcmp.asm memset.asm
 
 if mac                  CompilerFlags -mmacosx-version-min=10.10

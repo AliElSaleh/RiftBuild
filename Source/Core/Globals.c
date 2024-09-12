@@ -13,12 +13,12 @@
 
 STRUCT(EngineGlobals)
 {
-	TArray(void) NullArray;
-	struct FileHandle NullFileHandle;
-	Clock NullClock;
-	String NullString;
-	StringArray NullStringArray;
-	StringList NullStringList;
+    TArray(void) NullArray;
+    struct FileHandle NullFileHandle;
+    Clock NullClock;
+    String NullString;
+    StringArray NullStringArray;
+    StringList NullStringList;
 };
 
 internal LinearAllocator GlobalsAllocator = {0};
@@ -133,7 +133,7 @@ StringList StringList_Null(void)
 
 void* Array_Null(void)
 {
-	return GGlobals.NullArray;
+    return GGlobals.NullArray;
 }
 
 FileHandle FileHandle_Null(void)

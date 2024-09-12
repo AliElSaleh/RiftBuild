@@ -297,8 +297,6 @@ RIFT_API bool Platform_GetUserDirectory(String* OutDirectory);
 RIFT_API bool Platform_GetCurrentProcessName(String* OutName);
 RIFT_API u64  Platform_GetCurrentProcessID(void);
 
-RIFT_API bool Platform_IsProgramRunning(const String ProgramName);
-
 RIFT_API bool Platform_GetTerminalDimensions(u32* OutRows, u32* OutColumns);
 
 RIFT_API u32 Platform_GetCpuCacheLineSize(void);

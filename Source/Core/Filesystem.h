@@ -75,7 +75,6 @@ RIFT_API bool Filesystem_ReadPipe(PlatformPipe Handle, u64 DataSize, void* OutDa
 RIFT_API bool Filesystem_Read(const FileHandle Handle, u64 DataSize, void* OutData, u64* OutBytesRead);
 RIFT_API bool Filesystem_ReadEntireFile(const FileHandle Handle, void* OutData, u64* OutBytesRead);
 RIFT_API bool Filesystem_ReadLine(const FileHandle Handle, String* LineBuffer);
-RIFT_API bool Filesystem_ReadLine_Backwards(const FileHandle Handle, String* LineBuffer);
 
 RIFT_API bool Filesystem_Write(const FileHandle Handle, u64 DataSize, const void* Data, u64* OutBytesWritten);
 RIFT_API bool Filesystem_WriteLine(const FileHandle Handle, const String Text, u64* OutBytesWritten);

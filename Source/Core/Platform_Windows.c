@@ -1146,6 +1146,7 @@ bool Filesystem_ReadLine(const FileHandle Handle, String* LineBuffer)
 }
 
 // todo: make internal function, code duplication
+/*
 bool Filesystem_ReadLine_Backwards(const FileHandle Handle, String* LineBuffer)
 {
     if (NEVER(!IsValidFileHandle(Handle))) return false;
@@ -1241,6 +1242,7 @@ bool Filesystem_ReadLine_Backwards(const FileHandle Handle, String* LineBuffer)
         return Counter > 0;
     }
 }
+*/
 
 bool Filesystem_Write(const FileHandle Handle, u64 DataSize, const void* Data, u64* OutBytesWritten)
 {
