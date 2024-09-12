@@ -11,6 +11,10 @@
 #include "Filesystem.h"
 #include "Log.h"
 
+#if PLATFORM_LINUX
+#define _XOPEN_SOURCE 700
+#endif
+
 #include <signal.h>
 #include <stdio.h>
 
