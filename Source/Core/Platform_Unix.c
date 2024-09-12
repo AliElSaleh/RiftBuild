@@ -24,6 +24,7 @@
 #include <termios.h>
 
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <sys/mman.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
