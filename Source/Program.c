@@ -51,21 +51,6 @@ internal bool IsBuildBatchFile(const String FilePath)
     return String_EndsWith(FilePath, S(".buildbatch"), false);
 }
 
-/*
-bool DoesCmdVarExist(TArray(CmdOption) CmdOptionsDB, const String Name)
-{
-    for each (CmdOption, o, CmdOptionsDB)
-    {
-        if (String_IsEqual(o.Name, Name, false))
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
-*/
-
 String GetCmdOptionValue(TArray(CmdOption) CmdOptionsDB, const String Name)
 {
     for each (CmdOption, o, CmdOptionsDB)
@@ -2163,13 +2148,6 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             return 1;
         }
     }
-
-    /*
-    if (StringArray_Contains(Parameters, S("crash"), false))
-    {
-        _Crash_;
-    }
-    */
 
     Clock BuildRuntime;
     Clock_Start(&BuildRuntime);
@@ -7304,29 +7282,6 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
 
     const bool bSingleThreadMode       = StringArray_Contains(Arguments, S("-singlethread"), false) ||
                                          StringArray_Contains(Arguments, S("-s"), false);
-
-    //const bool bGenCompileCommandsJSON = StringArray_Contains(Arguments, S("export:compile_commands"), false) ||
-    //                                     StringArray_Contains(Arguments, S("export:cc"), false);
-    //const bool bGenPlist               = StringArray_Contains(Arguments, S("export:plist"), false);
-    //const bool bGenPkgInfo             = StringArray_Contains(Arguments, S("export:pkginfo"), false);
-    //const bool bGenVersionRc           = StringArray_Contains(Arguments, S("export:versionrc"), false) ||
-    //                                     StringArray_Contains(Arguments, S("export:version.rc"), false);
-    //const bool bGenIconRc              = StringArray_Contains(Arguments, S("export:iconrc"), false) ||
-    //                                     StringArray_Contains(Arguments, S("export:icon.rc"), false);
-    //const bool bGenVisualStudio        = StringArray_Contains(Arguments, S("export:visual_studio"), false);
-    //const bool bGenXCode               = StringArray_Contains(Arguments, S("export:xcode"), false);
-
-    //EGenerator Generator = Generator_None;
-
-    // todo: support multple gen at a time??
-    //if (bGenCompileCommandsJSON) Generator = Generator_CompileCommandsJSON;
-    //if (bGenPlist)               Generator = Generator_Plist;
-    //if (bGenPkgInfo)             Generator = Generator_PkgInfo;
-    //if (bGenVersionRc)           Generator = Generator_VersionRC;
-    //if (bGenIconRc)              Generator = Generator_IconRC;
-
-    //if (bGenVisualStudio)        Generator = Generator_VisualStudioSolution;
-    //if (bGenXCode)               Generator = Generator_XCodeProject;
 
     BuildFileDirectoryIteratorData Data = {0};
     Data.bNoBuildFileSpecifiedInCmd = bNoBuildFileSpecifiedInCmd;

@@ -844,6 +844,8 @@ bool IsHeader(const String Extension)
 ////////////////////////////////////
 
 
+// TODO: dont call vcvarsall.bat every time, pass the lib and include directories to the compiler instead
+
 #if PLATFORM_WINDOWS
 
 /// TODO: if multithreaded and more than on soruce file. use /MP and call cl.exe only once
