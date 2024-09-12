@@ -11,10 +11,7 @@
 #include "Filesystem.h"
 #include "Log.h"
 
-#define _XOPEN_SOURCE 700
-
 #include <signal.h>
-
 #include <stdio.h>
 
 #define _LARGEFILE64_SOURCE
