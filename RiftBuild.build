@@ -47,6 +47,8 @@ if linux {
     if @XDG_CURRENT_DESKTOP contains Cinnamon Defines __cinnamon__
 }
 
+if pull PreBuild.Cmd git pull
+
 ##
 cpu   "%(_cpu)"
 vendor %_cpuvendor
