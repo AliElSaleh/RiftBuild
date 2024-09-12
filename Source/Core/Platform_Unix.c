@@ -26,9 +26,6 @@
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <sys/ioctl.h>
-#include <sys/syslimits.h>
-#include <sys/types.h>
-#include <sys/sysctl.h>
 
 #include <stdarg.h>
 
