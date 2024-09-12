@@ -1,3 +1,4 @@
+// Copyright (c) 2024 Ali El Saleh
 
 #include "Platform.h"
 
@@ -207,20 +208,6 @@ f64 Platform_GetAbsoluteTime(void)
     clock_gettime(CLOCK_REALTIME, &t);
     const f64 a = (f64)t.tv_sec + ((f64)t.tv_nsec * 0.000000001); // 1e-9
     return a;
-}
-
-bool Platform_GetTimeZone(String* OutTimeZone)
-{
-    time_t mytime = time(0);
-    ctime(&mytime);
-
-    struct tm lt = {0};
-
-    localtime_r(&mytime, &lt);
-
-    String_Copy(OutTimeZone, CStr(lt.tm_zone));
-
-    return true;
 }
 
 void Platform_Sleep(f64 ms)

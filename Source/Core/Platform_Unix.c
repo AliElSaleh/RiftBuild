@@ -11,17 +11,28 @@
 #include "Filesystem.h"
 #include "Log.h"
 
+#define _XOPEN_SOURCE 700
+
+#include <signal.h>
+
 #include <stdio.h>
+
+#define _LARGEFILE64_SOURCE
+#define _FILE_OFFSET_BITS 64
+#define __USE_FILE_OFFSET64
+#define __USE_GNU
+#define __USE_MISC
+
 #include <stdlib.h>
 #include <memory.h>
 #include <string.h>
-#include <signal.h>
 #include <time.h>
 #include <errno.h>
 #include <dirent.h>
 #include <unistd.h>
 #include <pwd.h>
 #include <termios.h>
+#include <limits.h>
 
 #include <sys/stat.h>
 #include <sys/time.h>
@@ -30,6 +41,7 @@
 #include <sys/mman.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
+#include <sys/syscall.h>
 
 #include <stdarg.h>
 
@@ -1707,11 +1719,6 @@ bool Filesystem_ArePathsCommon(String PathA, String PathB)
     bool bPrefixMatch = String_StartsWith(PathB, PathA, true);
     
     return bPrefixMatch;
-}
-
-bool Platform_GetFullCpuName(String* OutName)
-{
-    return Platform_GetCpuBrandName(OutName);
 }
 
 bool Platform_GetTerminalDimensions(u32* OutRows, u32* OutColumns)

@@ -223,6 +223,11 @@ bool Platform_GetCpuBrandName(String* OutName)
     return true;
 }
 
+bool Platform_GetFullCpuName(String* OutName)
+{
+    return Platform_GetCpuBrandName(OutName);
+}
+
 u32 Platform_GetCpuCacheLineSize(void)
 {
     i64 LineSize = 0;

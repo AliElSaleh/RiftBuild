@@ -306,6 +306,11 @@ bool Platform_GetCpuBrandName(String* OutName)
 #endif
 }
 
+bool Platform_GetFullCpuName(String* OutName)
+{
+    return Platform_GetCpuBrandName(OutName);
+}
+
 u32 Platform_GetCpuCacheLineSize(void)
 {
 #if PLATFORM_OPEN_BSD
