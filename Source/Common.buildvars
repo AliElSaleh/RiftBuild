@@ -9,7 +9,7 @@ if !debug     SharedDefines      NDEBUG NO_ASSERT
 if cl goto msvc
 
 WarningFlags                     -Wall -Wextra -Wshadow -Wconversion -Wmissing-prototypes -Wunused -Wuninitialized -Werror
-WarningFlagsDisabled             -Wno-typedef-redefinition -Wno-unused-parameter -Wno-unused-variable -Wno-gnu-zero-variadic-macro-arguments
+WarningFlagsDisabled             -Wno-typedef-redefinition -Wno-unused-parameter -Wno-unused-variable -Wno-gnu-zero-variadic-macro-arguments -Wno-incompatible-library-redeclaration
 if !gcc WarningFlags             -Wpedantic
 if mac  WarningFlagsDisabled     -Wno-nonportable-include-path
 
