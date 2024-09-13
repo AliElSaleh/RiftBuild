@@ -239,6 +239,17 @@ _The most basic rift build project is an executable built from a single source f
 
 ---
 
+#### SCons
+![image](https://github.com/user-attachments/assets/4d9eb822-527e-4a84-8bd8-2e3e8d212da9)
+
+Admittedly, one of the simpler build tools out there.
+
+But still... you don't need to write a build file with riftbuild
+
+<img src="https://github.com/user-attachments/assets/62516fa8-c65b-4203-b9f4-9d76f4929b3a" width="66%" height="66%"/>
+
+---
+
 #### Bazel
 ![image](https://github.com/AliElSaleh/Rift-Build/assets/19608222/fe030f44-99dd-4e03-9fb0-2c3f190238fa)
 
