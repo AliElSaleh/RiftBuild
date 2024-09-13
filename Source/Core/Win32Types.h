@@ -564,7 +564,10 @@ typedef struct _CONSOLE_SCREEN_BUFFER_INFO {
 } CONSOLE_SCREEN_BUFFER_INFO, *PCONSOLE_SCREEN_BUFFER_INFO;
 
 
+#ifndef _WIN32_WINNT
 #define  _WIN32_WINNT   0x0A00
+#endif
+
 #define  WINVER         0x0A00
 
 #define MOVEFILE_REPLACE_EXISTING       0x00000001
@@ -1280,7 +1283,7 @@ WINBASEAPI void       WINAPI RtlFillMemory(PVOID Destination, SIZE_T Length, BYT
 void* memset(void* dst, int c, SIZE_T len);
 void* memcpy(void* dst, const void* src, SIZE_T len);
 void* memmove(void* dst, const void* src, SIZE_T len);
-void* memcmp(const void* s1, const void* s2, SIZE_T len);
+int memcmp(const void* s1, const void* s2, SIZE_T len);
 
 #define RtlEqualMemory(Destination,Source,Length) (!memcmp((Destination),(Source),(Length)))
 #define RtlMoveMemory(Destination,Source,Length)   memmove((Destination),(Source),(Length))

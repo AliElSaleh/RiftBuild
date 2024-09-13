@@ -4,6 +4,7 @@
 #include "Platform.h"
 #include "Clock.h"
 #include "StringUtils.h"
+#include "Log.h"
 #endif
 
 #if __CPU_X86 || __CPU_X64
@@ -393,20 +394,23 @@ CpuInfo Platform_QueryCPUInfo(void)
 
 #endif
 
-#if PLATFORM_WINDOWS && PLATFORM_32_BIT
 PRAGMA_DISABLE_MISSING_PROTOTYPES_WARNING
+#if PLATFORM_WINDOWS && PLATFORM_32_BIT
+/*
 u64 _aulldiv(u64 Numerator, u64 Denominator)
 {
+    if (Numerator == 0) return 0;
+    
     if (Denominator == 0)
     {
-        return 0; // Indicate error (undefined behavior)
+        return Numerator; // Indicate error (undefined behavior)
     }
 
     u64 Result = 0;
     u64 Remainder = 0;
 
     // Loop over each bit of the numerator
-    for (u8 i = 63; i >= 0; i--)
+    for (i8 i = 63; i >= 0; i--)
     {
         // Shift remainder to the left and add the next bit of the numerator
         Remainder = (Remainder << 1) | ((Numerator >> i) & 1);
@@ -424,9 +428,11 @@ u64 _aulldiv(u64 Numerator, u64 Denominator)
 
 i64 _alldiv(i64 Numerator, i64 Denominator)
 {
+    if (Numerator == 0) return 0;
+
     if (Denominator == 0)
     {
-        return 0; // Division by zero is undefined
+        return Numerator; // Division by zero is undefined
     }
 
     i64 Quotient = 0;
@@ -439,7 +445,7 @@ i64 _alldiv(i64 Numerator, i64 Denominator)
     i64 Sign = ((Numerator < 0) ^ (Denominator < 0)) ? -1 : 1;
 
     // Loop over each bit of the numerator
-    for (u8 i = 63; i >= 0; i--)
+    for (i8 i = 63; i >= 0; i--)
     {
         // Shift remainder to the left and add the next bit of the numerator
         Remainder = (Remainder << 1) | ((AbsNumerator >> i) & 1);
@@ -457,9 +463,11 @@ i64 _alldiv(i64 Numerator, i64 Denominator)
 
 i64 _allrem(i64 Numerator, i64 Denominator)
 {
+    if (Numerator == 0) return 0;
+
     if (Denominator == 0)
     {
-        return 0; // Division by zero is undefined
+        return Numerator; // Division by zero is undefined
     }
 
     i64 Remainder = 0;
@@ -471,7 +479,7 @@ i64 _allrem(i64 Numerator, i64 Denominator)
     i64 Sign = (Numerator < 0) ? -1 : 1;
 
     // Loop over each bit of the numerator
-    for (u8 i = 63; i >= 0; i--)
+    for (i8 i = 63; i >= 0; i--)
     {
         // Shift remainder to the left and add the next bit of the numerator
         Remainder = (Remainder << 1) | ((AbsNumerator >> i) & 1);
@@ -493,15 +501,17 @@ i64 _allrem(i64 Numerator, i64 Denominator)
 
 u64 _aullrem(u64 Numerator, u64 Denominator)
 {
+    if (Numerator == 0) return 0;
     if (Denominator == 0)
     {
-        return 0; // Division by zero is undefined; handle accordingly
+        // Handle division by zero as appropriate for your use case
+        return Numerator;
     }
 
     u64 Remainder = 0;
 
     // Perform bit-by-bit division
-    for (u8 i = 63; i >= 0; i--)
+    for (i32 i = 63; i >= 0; i--)
     {
         Remainder = (Remainder << 1) | ((Numerator >> i) & 1);
 
@@ -509,10 +519,13 @@ u64 _aullrem(u64 Numerator, u64 Denominator)
         {
             Remainder -= Denominator;
         }
+
+        //LOG("Bit: %d, Remainder: %llu\n", i, Remainder);
     }
 
     return Remainder;
 }
+*/
 
 PRAGMA_ENABLE_WARNINGS
 #endif
