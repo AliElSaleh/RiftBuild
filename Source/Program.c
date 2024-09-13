@@ -7275,13 +7275,12 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
         return 0;
     }
 
-    bHelp                              = StringArray_Contains(Arguments, S("help"), false);
-    bIsClean                           = StringArray_Contains(Arguments, S("clean"), false);
-    bIsRebuild                         = StringArray_Contains(Arguments, S("rebuild"), false);
-    bVerboseLog                        = StringArray_Contains(Arguments, S("-v"), false);
-
-    const bool bSingleThreadMode       = StringArray_Contains(Arguments, S("-singlethread"), false) ||
-                                         StringArray_Contains(Arguments, S("-s"), false);
+    bHelp         = StringArray_Contains(Arguments, S("help"), false);
+    bIsClean      = StringArray_Contains(Arguments, S("clean"), false);
+    bIsRebuild    = StringArray_Contains(Arguments, S("rebuild"), false);
+    bVerboseLog   = StringArray_Contains(Arguments, S("-v"), false);
+    bSingleThread = StringArray_Contains(Arguments, S("-singlethread"), false) ||
+                    StringArray_Contains(Arguments, S("-s"), false);
 
     BuildFileDirectoryIteratorData Data = {0};
     Data.bNoBuildFileSpecifiedInCmd = bNoBuildFileSpecifiedInCmd;
@@ -7632,8 +7631,6 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
             }
         }
     }
-
-    bSingleThread = bSingleThreadMode;
 
     PlatformMutex BuildMutex = {0};
     u32 ExitCode = BuildTarget(Arena, BuildFileHandle, &BuildMutex, WorkingDirectory, BuildArguments, S(""), BuildFileIndex, RootPathIndex);
