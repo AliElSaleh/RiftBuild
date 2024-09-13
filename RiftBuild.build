@@ -30,9 +30,9 @@ if mac                  CompilerFlags -mmacosx-version-min=10.10
 
 if windows {
     if !cl              CompilerFlags -nostdlib -fno-builtin -ffreestanding
-    if !cl if !gcc      LinkerFlags   -nostdlib -Wl,-entry:EntryPoint,-subsystem:console -Xlinker /stack:0x400000,0x400000
-    if gcc              LinkerFlags   -nostdlib -Wl,--entry,EntryPoint,--subsystem,console,--stack,0x400000
-    if cl               LinkerFlags   /ENTRY:EntryPoint /SUBSYSTEM:CONSOLE /STACK:0x400000,0x400000
+    if !cl if !gcc      LinkerFlags   -nostdlib -Wl,-entry:EntryPoint,-subsystem:console -Xlinker /stack:0x800000,0x800000
+    if gcc              LinkerFlags   -nostdlib -Wl,--entry,EntryPoint,--subsystem,console,--stack,0x800000
+    if cl               LinkerFlags   /ENTRY:EntryPoint /SUBSYSTEM:CONSOLE /STACK:0x800000,0x800000
     if cl if 32         LinkerFlags   /MACHINE:X86
     if !cl if 32        LinkerFlags   --target=i386-pc-windows-msvc
 }
