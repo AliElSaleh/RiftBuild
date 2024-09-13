@@ -35,6 +35,7 @@ if windows {
     if cl               LinkerFlags   /ENTRY:EntryPoint /SUBSYSTEM:CONSOLE /STACK:0x800000,0x800000
     if cl if 32         LinkerFlags   /MACHINE:X86
     if !cl if 32        LinkerFlags   --target=i386-pc-windows-msvc
+    if 32               Libraries     msvcrt
 }
 
 if windows              Libraries %_NativeLibs microsoft_craziness%%32 ; LibraryDirectories Source/Libraries/Windows

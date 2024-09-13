@@ -13,7 +13,7 @@ WarningFlagsDisabled             -Wno-typedef-redefinition -Wno-unused-parameter
 if !gcc WarningFlags             -Wpedantic
 if mac  WarningFlagsDisabled     -Wno-nonportable-include-path
 
-SharedCompilerFlags              -std=c99 -fno-builtin-memcpy -fno-omit-frame-pointer -fno-exceptions -fno-math-errno -funroll-loops -fno-rtti -fno-strict-overflow -fno-strict-aliasing $WarningFlags $WarningFlagsDisabled
+SharedCompilerFlags              -std=c99 -fno-builtin-memcpy -fno-omit-frame-pointer -fno-exceptions -fno-math-errno -funroll-loops -fno-strict-overflow -fno-strict-aliasing $WarningFlags $WarningFlagsDisabled
 SharedLinkerFlags                
 if _sse2 SharedCompilerFlags     -msse2
 if !gcc  SharedCompilerFlags     -mstack-probe-size=999999999
@@ -23,7 +23,7 @@ if linux SharedLinkerFlags       -Wl,-z,nodlopen -Wl,-z,noexecstack -Wl,-z,relro
 if debug SharedCompilerFlags     -O0 -g3 -MD
 if debug SharedLinkerFlags       -g3
 if debug SharedDefines           _GLIBCXX_ASSERTIONS _GLIBCXX_DEBUG _GLIBCXX_DEBUG_PEDANTIC
-if !debug SharedCompilerFlags    -Os -finline-functions -finline-hint-functions
+if !debug SharedCompilerFlags    -Os -finline-functions
 if !debug SharedDefines          _FORTIFY_SOURCE=3
 
 if disassem  SharedCompilerFlags -S
