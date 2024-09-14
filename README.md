@@ -75,6 +75,7 @@ They work on Windows, Mac OS and Linux (where appropriate).
 - [PhysFS](https://github.com/AliElSaleh/physfs)
 - [Zydis](https://github.com/AliElSaleh/zydis)
 - [Tracy](https://github.com/AliElSaleh/tracy)
+- [Z3](https://github.com/AliElSaleh/z3)
 
 [Extended list can be found here]()
 
