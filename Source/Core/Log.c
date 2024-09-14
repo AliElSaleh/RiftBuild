@@ -66,10 +66,10 @@ internal bool Internal_TryOpenLogFile(void)
     StringLocal(LogFileName, 512);
     String_Format(&LogFileName, S("RiftBuild-%S.log"), 512, TimeStampBuffer);
 
-    LinearAllocator_Scratch Temp = LinearAllocator_GetScratch(&GLoggingMemoryAllocator);
-    String FullPath = String_Join(Temp.Allocator, StrArray(S("Logs/"), LogFileName));
+    // TODO: scratch never gets poisoned again...
+    LinearAllocator Scratch = GLoggingMemoryAllocator;
+    String FullPath = String_Join(&Scratch, StrArray(S("Logs/"), LogFileName));
     String_Copy(&GLoggingSystemState->LogFileName, FullPath);
-    LinearAllocator_ReleaseScratch(&Temp);
     
     if (!Filesystem_Open(GLoggingSystemState->LogFileName, FileMode_Write, &GLoggingSystemState->LogFileHandle))
     {
@@ -218,8 +218,6 @@ void LogMessage(u8 LogType, const String LogCat, const String Text, ...)
     String TrimmedFmt = String_EatChar(FormattedText, '\n');
     String TrimmedNewLines = StrSlice(FormattedText.Data, (u32)(TrimmedFmt.Data - FormattedText.Data));
 
-    LinearAllocator_Scratch Temp = LinearAllocator_GetScratch(&GLoggingMemoryAllocator);
-
     StringLocal(LogPrefix, 512);
 
     //if (GLoggingSystemState->bComfyMode)
@@ -240,13 +238,12 @@ void LogMessage(u8 LogType, const String LogCat, const String Text, ...)
         String_Append(&LogPrefix, LogTypeString[LogType]);
     }
 
-    String FinalMsg = String_Join(Temp.Allocator, StrArray(TrimmedNewLines, LogPrefix, TrimmedFmt));
+    LinearAllocator Scratch = GLoggingMemoryAllocator;
+    String FinalMsg = String_Join(&Scratch, StrArray(TrimmedNewLines, LogPrefix, TrimmedFmt));
 
     Platform_ConsoleWrite_CustomLength(FinalMsg.Data, FinalMsg.Length, LogType, LogType > LOG_TYPE_WARNING);
 
     Internal_WriteToLogFile(FinalMsg.Data, FinalMsg.Length);
-
-    LinearAllocator_ReleaseScratch(&Temp);
 }
 
 void LogDirectMessage(u8 LogType, const String Text, ...)

@@ -314,9 +314,9 @@ bool LogCustomErrorMessage(TArray(FileVariable) VariablesDB, const String Contex
                 Slice = StrShiftF(Slice, Dot+1);
             }
             
-            char ScratchMemory[64] = {0};
             LinearAllocator Scratch = {0};
-            LinearAllocator_Create(64, ScratchMemory, &Scratch);
+            char ScratchMemory[128] = {0};
+            LinearAllocator_Create(128, ScratchMemory, &Scratch);
             StringArray Keys = String_ParseIntoArray(&Scratch, Slice, '|', 0, 8);
             for each_str (k, Keys)
             {
@@ -330,6 +330,7 @@ bool LogCustomErrorMessage(TArray(FileVariable) VariablesDB, const String Contex
                     break;
                 }
             }
+            LinearAllocator_Destroy(&Scratch);
 
             if (bLogged)
                 break;

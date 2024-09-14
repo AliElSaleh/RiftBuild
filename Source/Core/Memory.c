@@ -273,16 +273,6 @@ bool Platform_MemEqual(const void* Block1, const void* Block2, usize Size)
 }
 #endif
 
-LinearAllocator_Scratch Memory_GetScratch(void)
-{
-    return LinearAllocator_GetScratch(&GEngineScratchAllocator);
-}
-
-void Memory_ReleaseScratch(LinearAllocator_Scratch* Scratch)
-{
-    LinearAllocator_ReleaseScratch(Scratch);
-}
-
 usize Memory_GetEngineMemoryRemaining(void)
 {
     return GEngineAllocator.TotalSize - GEngineAllocator.Allocated;
@@ -385,6 +375,10 @@ void LinearAllocator_Create(usize TotalSize, void* Memory, LinearAllocator* OutA
 
 void LinearAllocator_Destroy(LinearAllocator* Allocator)
 {
+    #if RIFT_ASAN
+    __asan_unpoison_memory_region(Allocator->Memory, Allocator->TotalSize);
+    #endif
+
     if (Allocator->bOwnsMemory && IsValid(Allocator->Memory))
     {
         MemFree(Allocator->Memory, MemoryTag_LinearAllocator);
@@ -457,6 +451,7 @@ void* LinearAllocator_MemoryHead(LinearAllocator* Allocator)
     return ((u8*)Allocator->Memory) + Allocator->Allocated;
 }
 
+/*
 LinearAllocator_Scratch LinearAllocator_GetScratch(LinearAllocator* Allocator)
 {
     return (LinearAllocator_Scratch)
@@ -477,6 +472,7 @@ void LinearAllocator_ReleaseScratch(LinearAllocator_Scratch* Scratch)
     if (NumBytesUsed > 0 && NumBytesUsed <= Scratch->Allocator->TotalSize)
     {
         Scratch->Allocator->Allocated = Scratch->StartPosition;
+
         void* Head = LinearAllocator_MemoryHead(Scratch->Allocator);
         MemZero(Head, NumBytesUsed);
 
@@ -485,6 +481,7 @@ void LinearAllocator_ReleaseScratch(LinearAllocator_Scratch* Scratch)
         #endif
     }
 }
+*/
 
 
 // ===================================================
@@ -569,11 +566,19 @@ void FreeListAllocator_Create(FreeListAllocator* OutAllocator, usize TotalSize, 
     OutAllocator->Memory = Memory;
     OutAllocator->TotalSize = TotalSize;
 
+    #if RIFT_ASAN
+    __asan_poison_memory_region(OutAllocator->Memory, TotalSize);
+    #endif
+
     FreeListAllocator_FreeAll(OutAllocator);
 }
 
 void FreeListAllocator_Destroy(FreeListAllocator* Allocator)
 {
+    #if RIFT_ASAN
+    __asan_unpoison_memory_region(Allocator->Memory, Allocator->TotalSize);
+    #endif
+
     MemZero(Allocator->Memory, Allocator->TotalSize);
     
     Allocator->Memory = NULL;
@@ -637,11 +642,14 @@ void* FreeListAllocator_Allocate(FreeListAllocator* Allocator, usize Size, usize
         return NULL;// MemoryDump(); // point to the memory dump to prevent NULL crashes
     }
     
-    //usize AlignmentPadding = 0;
     usize AlignmentPadding = Padding - sizeof(FreeListAllocator_Header);
     usize RequiredSpace = Size + Padding;
     usize Remaining = Node->BlockSize - RequiredSpace;
-    
+
+    #if RIFT_ASAN
+    __asan_unpoison_memory_region(Node, AlignmentPadding + sizeof(FreeListAllocator_Node) + RequiredSpace);
+    #endif
+
     if (Remaining > 0)
     {
         FreeListAllocator_Node* NewFreeNode = (FreeListAllocator_Node*)((u8*)Node + RequiredSpace);
@@ -657,6 +665,10 @@ void* FreeListAllocator_Allocate(FreeListAllocator* Allocator, usize Size, usize
             NewFreeNode->Next = Node->Next;
             Node->Next = NewFreeNode;
         }
+
+        #if RIFT_ASAN
+        __asan_poison_memory_region(NewFreeNode, NewFreeNode->BlockSize);
+        #endif
     }
 
     if (!IsValid(PrevNode))	
@@ -668,8 +680,6 @@ void* FreeListAllocator_Allocate(FreeListAllocator* Allocator, usize Size, usize
         PrevNode->Next = Node->Next;
     }
     
-    //Internal_FreeListAllocator_NodeRemove(&Allocator->Head, PrevNode, Node);
-
     FreeListAllocator_Header* Header = (FreeListAllocator_Header*)((u8*)Node + AlignmentPadding);
     Header->BlockSize = RequiredSpace;
     Header->AlignmentPadding = AlignmentPadding;
@@ -775,6 +785,10 @@ void FreeListAllocator_Free(FreeListAllocator* Allocator, void* Memory, usize* O
     }
     
     Allocator->Allocated -= BlockSize;
+
+    #if RIFT_ASAN
+    __asan_poison_memory_region(FreeNode, BlockSize);
+    #endif
 
     Internal_FreeListAllocator_Coalesce(Allocator, PrevNode, FreeNode);
 }
