@@ -34,7 +34,7 @@ int main(i32 ArgC, char* ArgV[], char* ArgEnv[])
 void EntryPoint(void)
 #endif
 {
-    #if USE_MAIN
+    #if !PLATFORM_WINDOWS && USE_MAIN
     pre_main(ArgC, ArgV, ArgEnv);
     #endif
 
@@ -57,9 +57,7 @@ void EntryPoint(void)
     // for example, clock frequency, critical sections, etc.
     Platform_PreInitialize();
 
-    usize MemoryDumpAmount = Kibibytes(8);
-    
-    void* EngineMemory = Platform_MemAlloc(MemoryAmount + ScratchAmount + MemoryDumpAmount);
+    void* EngineMemory = Platform_MemAlloc(MemoryAmount + ScratchAmount);
     
     if (!EngineMemory)
     {
@@ -79,7 +77,7 @@ void EntryPoint(void)
     StringArray Arguments = Platform_GetCommandLineArgs();
 
     // "Use" the memory so the OS assigns it all to us
-    Platform_MemZero(EngineMemory, MemoryAmount + MemoryDumpAmount + ScratchAmount);
+    Platform_MemZero(EngineMemory, MemoryAmount + ScratchAmount);
     
     // Initialize core engine subsystems
     // Memory subsystem

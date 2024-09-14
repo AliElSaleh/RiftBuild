@@ -10,7 +10,9 @@
 #include "StringUtils.h"
 #endif
 
+#if !RIFT_ASAN
 #include "libmemory.c"
+#endif
 
 internal FreeListAllocator GEngineAllocator = { 0 };
 internal LinearAllocator GEngineScratchAllocator = { 0 };
@@ -18,6 +20,16 @@ internal void* GEngineMemory = NULL;
 internal void* GGlobalsMemory = NULL;
 
 static PlatformCriticalSection GCriticalSection = NULL;
+
+#ifdef RIFT_ASAN
+extern void __asan_poison_memory_region(void const volatile* addr, usize size);
+extern void __asan_unpoison_memory_region(void const volatile* addr, usize size);
+extern const char* __asan_default_options(void);
+const char* __asan_default_options(void)
+{
+    return "verbosity=4:allow_user_poisoning=1:abort_on_error=0:detect_stack_use_after_return=1";
+}
+#endif
 
 #ifdef RIFT_DEBUG_MEMORY
 internal void* GEngineMemory_Debug = NULL;
@@ -254,6 +266,7 @@ bool MemEqual(const void* Block1, const void* Block2, usize Size)
 }
 
 #if PLATFORM_WINDOWS
+extern int memcmp(const void* s1, const void* s2, usize len);
 bool Platform_MemEqual(const void* Block1, const void* Block2, usize Size)
 {
     return memcmp((void*)Block1, (void*)Block2, Size) == 0;
@@ -364,6 +377,10 @@ void LinearAllocator_Create(usize TotalSize, void* Memory, LinearAllocator* OutA
     {
         OutAllocator->Memory = MemAlloc(TotalSize, MemoryTag_LinearAllocator);
     }
+
+    #if RIFT_ASAN
+    __asan_poison_memory_region(OutAllocator->Memory, TotalSize);
+    #endif
 }
 
 void LinearAllocator_Destroy(LinearAllocator* Allocator)
@@ -397,13 +414,24 @@ void* LinearAllocator_Allocate(LinearAllocator* Allocator, usize Size)
     {
         Allocator->Allocated += Size;
     }
-    
+
+    #if RIFT_ASAN
+    __asan_unpoison_memory_region(Block, Size);
+    #endif
+
     return Block;
 }
 
 void* LinearAllocator_AllocateAll(LinearAllocator* Allocator)
 {
     Allocator->Allocated = Allocator->TotalSize;
+
+    /*
+    #if RIFT_ASAN
+    __asan_unpoison_memory_region(Allocator->Memory, Allocator->TotalSize);
+    #endif
+    */
+
     return Allocator->Memory;
 }
 
@@ -416,6 +444,12 @@ void LinearAllocator_FreeAll(LinearAllocator* Allocator, bool bZeroMemory)
         if (bZeroMemory)
             MemZero(Allocator->Memory, Allocator->TotalSize);
     }
+
+    /*
+    #if RIFT_ASAN
+    __asan_poison_memory_region(Allocator->Memory, Allocator->TotalSize);
+    #endif
+    */
 }
 
 void* LinearAllocator_MemoryHead(LinearAllocator* Allocator)
@@ -443,7 +477,12 @@ void LinearAllocator_ReleaseScratch(LinearAllocator_Scratch* Scratch)
     if (NumBytesUsed > 0 && NumBytesUsed <= Scratch->Allocator->TotalSize)
     {
         Scratch->Allocator->Allocated = Scratch->StartPosition;
-        MemZero(LinearAllocator_MemoryHead(Scratch->Allocator), NumBytesUsed);
+        void* Head = LinearAllocator_MemoryHead(Scratch->Allocator);
+        MemZero(Head, NumBytesUsed);
+
+        #if RIFT_ASAN
+        __asan_poison_memory_region(Head, NumBytesUsed);
+        #endif
     }
 }
 
@@ -512,7 +551,7 @@ internal void Internal_FreeListAllocator_Coalesce(FreeListAllocator* Allocator, 
         }
     }
     
-    if (PrevNode)
+    if (PrevNode && FreeNode->Next)
     {
         if (PrevNode->Next != NULL)
         {

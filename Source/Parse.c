@@ -10,6 +10,10 @@
 #include "Log.h"
 #endif
 
+
+// Parser rules notes:
+// only alphanumeric key names are allowed, but we can have a . for the first character and underscore anywhere
+
 internal void Internal_AddVariable(LinearAllocator* Arena,
                                    TArray(FileVariable) VariablesDB,
                                    const String Name,
@@ -321,7 +325,9 @@ bool ParseBuildFile(LinearAllocator* Arena,
                     LOG("Exiting with code %i", ExitCode);
                 }
 
-                return ExitCode;
+                if (ReturnCode) *ReturnCode = ExitCode;
+
+                return ExitCode == 0;
             }
 
             if (VarValue.Length > 0)
@@ -333,7 +339,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
                 LOG("Exiting...");
             }
 
-            *ReturnCode = ExitCode;
+            if (ReturnCode) *ReturnCode = ExitCode;
 
             return ExitCode == 0;
         }

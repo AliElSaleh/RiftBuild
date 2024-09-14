@@ -3041,6 +3041,40 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         Version = S("1.0.0");
     }
 
+    // to make life easier on linux because of case fuckjing sensitive commands
+    #if !PLATFORM_WINDOWS
+    StringLocal(AssemblyNameCopy, 256);
+    if (bIsAssemblyExe || !bFoundBuildFile) // only do this for executables. people may want case sensitivity when building libraries
+    {
+        String_Copy(&AssemblyNameCopy, AssemblyName);
+        String_ToLower(&AssemblyNameCopy);
+        AssemblyName = AssemblyNameCopy;
+    }
+    else
+    {
+        String_Append(&AssemblyNameCopy, S("lib"));
+        String_Append(&AssemblyNameCopy, AssemblyName);
+        AssemblyName = AssemblyNameCopy;
+    }
+    #endif
+
+    StringLocal(AssemblyNameWithExt, 128);
+    String_Copy(&AssemblyNameWithExt, AssemblyName);
+    if (Extension.Length > 0)
+    {
+        if (Extension.Data[0] != '.')
+            String_AppendChar(&AssemblyNameWithExt, '.');
+
+        String_Append(&AssemblyNameWithExt, Extension);
+    }
+
+    #if !PLATFORM_WINDOWS
+    if (bIsAssemblyExe)
+    {
+        String_ToLower(&AssemblyNameWithExt);
+    }
+    #endif
+
     StringLocal(CompilerPath, MAX_PATH_LENGTH);
 
     bool bExplicitCompilerPath = false;
@@ -3920,13 +3954,9 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             }
             */
 
-            char ArenaMemory[Kilobytes(512)] = {0};
-
             LinearAllocator NewArena = {0};
+            char ArenaMemory[Kilobytes(512)] = {0};
             LinearAllocator_Create(Kibibytes(512), ArenaMemory, &NewArena);
-
-            //StringLocal(CmdLine, 1024);
-            //String_Append(&CmdLine, SpecifiedParams);
 
             StringList List = String_SplitIntoList(&NewArena, SpecifiedParams, ' ', true);
             u8 Num = 0;
@@ -4410,6 +4440,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
     const u32 NumSources = AssemblyType == AssemblyType_PCH ? CountData.NumHeaders : CountData.NumSources;
 
+    u32 NumCompiled = 0;
+
     if (NumSources == 0)
     {
         if (bQuietBuild) Logging_Enable();
@@ -4778,40 +4810,6 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             }
         }
     }
-
-    // to make life easier on linux because of case fuckjing sensitive commands
-    #if !PLATFORM_WINDOWS
-    StringLocal(AssemblyNameCopy, 256);
-    if (bIsAssemblyExe || !bFoundBuildFile) // only do this for executables. people may want case sensitivity when building libraries
-    {
-        String_Copy(&AssemblyNameCopy, AssemblyName);
-        String_ToLower(&AssemblyNameCopy);
-        AssemblyName = AssemblyNameCopy;
-    }
-    else
-    {
-        String_Append(&AssemblyNameCopy, S("lib"));
-        String_Append(&AssemblyNameCopy, AssemblyName);
-        AssemblyName = AssemblyNameCopy;
-    }
-    #endif
-
-    StringLocal(AssemblyNameWithExt, 128);
-    String_Copy(&AssemblyNameWithExt, AssemblyName);
-    if (Extension.Length > 0)
-    {
-        if (Extension.Data[0] != '.')
-            String_AppendChar(&AssemblyNameWithExt, '.');
-
-        String_Append(&AssemblyNameWithExt, Extension);
-    }
-
-    #if !PLATFORM_WINDOWS
-    if (bIsAssemblyExe)
-    {
-        String_ToLower(&AssemblyNameWithExt);
-    }
-    #endif
 
     bool bExportingSomething = false;
     for (u8 i = 0; i < Parameters.Num; i++)
@@ -5993,7 +5991,6 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     }
 
     bool bSuccess = false;
-    u32 NumCompiled = 0;
 
     Clock CompileClock;
 
@@ -8168,15 +8165,21 @@ u32 RunApplication(const StringArray Arguments)
     const bool bOutputToLog = StringArray_Contains(Arguments, S("-l"), false);
     Logging_ToggleLogFile(bOutputToLog);
 
-    #ifndef HOOD
-        #ifdef DEVELOPER
-        LOG("\nRift Build System v%S (%S %S) [DEBUG]\n", S(RIFTBUILD_VERSION_STRING), S(PLATFORM_STRING), S(CPU_ARCHITECTURE_STRING));
-        #else
-        LOG("\nRift Build System v%S (%S %S)\n", S(RIFTBUILD_VERSION_STRING), S(PLATFORM_STRING), S(CPU_ARCHITECTURE_STRING));
-        #endif
-    #else
-        LOG("\nRift Build System v%S (%S %S) - (HOOD EDITION)", S(RIFTBUILD_VERSION_STRING), S(PLATFORM_STRING), S(CPU_ARCHITECTURE_STRING));
-        LOG("\nwasssup yo. les get build'n...\n");
+    StringLocal(ExtraFlags, 128);
+    #ifdef DEVELOPER
+    String_BuildSeparator(&ExtraFlags, ' ', S("[DEBUG]"));
+    #endif
+    #ifdef RIFT_ASAN
+    String_BuildSeparator(&ExtraFlags, ' ', S("[ASAN]"));
+    #endif
+    #ifdef HOOD
+    String_BuildSeparator(&ExtraFlags, ' ', S("- (HOOD EDITION)"));
+    #endif
+
+    LOG("\nRift Build System v%S (%S %S) %S\n", S(RIFTBUILD_VERSION_STRING), S(PLATFORM_STRING), S(CPU_ARCHITECTURE_STRING), ExtraFlags);
+
+    #ifdef HOOD
+    LOG("\nwasssup yo. les get build'n...\n");
     #endif
 
     LinearAllocator ProgramArena = {0};

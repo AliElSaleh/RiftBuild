@@ -41,6 +41,7 @@ if windows {
 if windows              Libraries %_NativeLibs microsoft_craziness%%32 ; LibraryDirectories Source/Libraries/Windows
 if linux                Libraries uuidS pthread                        ; LibraryDirectories Source/Libraries/Linux
 if bsd                  Libraries pthread
+if windows if asan      Libraries libucrt
 
 if linux {
     if @XDG_CURRENT_DESKTOP contains GNOME    Defines __gnome__

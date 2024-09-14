@@ -31,11 +31,17 @@
 
 PRAGMA_DISABLE_MISSING_PROTOTYPES_WARNING
 
+#if defined(_M_IX86)
+    #define GSAPI __fastcall
+#else
+    #define GSAPI __cdecl
+#endif
+
 uptr __security_cookie = 0;
 uptr __security_cookie_complement = 0;
-void __fastcall __security_check_cookie(usize cookie)
+void GSAPI __security_check_cookie(_In_ uintptr_t _StackCookie)
 {
-    if (cookie != __security_cookie)
+    if (_StackCookie != __security_cookie)
     {
         DEBUG_BREAK();
     }
@@ -1707,6 +1713,7 @@ PlatformHandle Platform_RunCommand(const String CmdLine, const String WorkingDir
     }
 
     SetPriorityClass(ProcessInfo.hProcess, ABOVE_NORMAL_PRIORITY_CLASS);
+    CloseHandle(ProcessInfo.hThread);
 
     return ProcessInfo.hProcess;
 }
@@ -1755,6 +1762,7 @@ PlatformHandle Platform_RunCommand_Ex(const String CmdLine, const String Working
     }
 
     SetPriorityClass(ProcessInfo.hProcess, ABOVE_NORMAL_PRIORITY_CLASS);
+    CloseHandle(ProcessInfo.hThread);
 
     return ProcessInfo.hProcess;
 }

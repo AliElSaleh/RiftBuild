@@ -428,7 +428,8 @@ STRUCT(StringList)
     #define PRAGMA_ENABLE_WARNINGS    __pragma(warning(pop))
     #define PRAGMA_DISABLE_WARNING(x) __pragma(warning(disable: x))
 
-    #define PRAGMA_DISABLE_SIGN_CONVERSION_WARNING
+    #define PRAGMA_DISABLE_SIGN_CONVERSION_WARNING \
+        PRAGMA_DISABLE_WARNINGS \
 
     #define PRAGMA_DISABLE_DEPRECATION_WARNINGS \
         PRAGMA_DISABLE_WARNINGS \
@@ -473,8 +474,9 @@ STRUCT(StringList)
     PRAGMA_ENABLE_WARNINGS
     #endif
 
-    #define ALWAYS(Expression) __always__(Expression)
-    #define NEVER(Expression)  __never__(Expression)
+    // the || (Expression) is only here for msvc's /analyze flag, as it trips up about "dereferencing null pointers" sometimes
+    #define ALWAYS(Expression) (__always__(Expression) || (Expression))
+    #define NEVER(Expression)  (__never__(Expression) || (Expression))
 #else
     #define ALWAYS(Expression) Expression
     #define NEVER(Expression)  Expression

@@ -5,6 +5,7 @@ SharedDefines                    NO_PROFILING _NO_CRT_STDIO_INLINE
 if warn_leaks SharedDefines      WARN_MEMLEAKS
 if debug      SharedDefines      _DEBUG DEVELOPER
 if !debug     SharedDefines      NDEBUG NO_ASSERT
+if asan       SharedDefines      RIFT_ASAN
 
 if cl goto msvc
 
@@ -21,6 +22,7 @@ if gcc   SharedCompilerFlags     -mno-stack-arg-probe
 if linux SharedCompilerFlags     -fstack-clash-protection
 if linux SharedLinkerFlags       -Wl,-z,nodlopen -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now
 if debug SharedCompilerFlags     -O0 -g3 -MD
+if asan  SharedLinkerFlags       -fsanitize=address,undefined
 if debug SharedLinkerFlags       -g3
 if debug SharedDefines           _GLIBCXX_ASSERTIONS _GLIBCXX_DEBUG _GLIBCXX_DEBUG_PEDANTIC
 if !debug SharedCompilerFlags    -Os -finline-functions
@@ -33,7 +35,7 @@ if 32        SharedCompilerFlags -m32
 _stop
 
 msvc:
-SharedCompilerFlags              /TC /GS- /Gs999999999
+SharedCompilerFlags              /W4 /WX /wd4100 /TC /GS- /Gs999999999 /analyze /analyze:stacksize 8000000
 SharedLinkerFlags                
 if debug SharedCompilerFlags     /Od /Zi /FS /Fd"$(BuildDirectory)\$(Assembly).pdb"
 if debug SharedLinkerFlags       /DEBUG

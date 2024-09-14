@@ -37,9 +37,9 @@ _except_handler4(
 
 #ifdef _WIN64
 #define DEFAULT_SECURITY_COOKIE 0x00002B992DDFA232
-#else  /* _WIN64 */
+#else 
 #define DEFAULT_SECURITY_COOKIE 0xBB40E64E
-#endif  /* _WIN64 */
+#endif
 
 /*
  * The global security cookie.  This name is known to the compiler.

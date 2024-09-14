@@ -19,6 +19,18 @@ typedef long HRESULT;
 #define HRESULT_CODE(hr) ((hr) & 0xFFFF)
 #define SCODE_CODE(sc)   ((sc) & 0xFFFF)
 
+#ifndef _In_
+#define _In_
+#endif
+
+#ifndef _In_opt_
+#define _In_opt_
+#endif
+
+#ifndef _Out_
+#define _Out_
+#endif
+
 #ifndef far
 #define far
 #endif
@@ -152,7 +164,7 @@ typedef long HRESULT;
 
 #if defined(_WIN64)
     typedef signed long long INT_PTR, *PINT_PTR;
-    typedef unsigned long long  UINT_PTR, *PUINT_PTR;
+    typedef unsigned long long  UINT_PTR, *PUINT_PTR, uintptr_t;
 
     typedef signed long long LONG_PTR, *PLONG_PTR;
     typedef unsigned long long ULONG_PTR, *PULONG_PTR;
@@ -174,7 +186,7 @@ typedef void*               HDC;
 typedef void*               PVOID;
 typedef void*               HICON;
 typedef unsigned long       DWORD;
-typedef int                 BOOL;
+typedef _Bool               BOOL;
 typedef unsigned char       BYTE;
 typedef unsigned short      WORD;
 typedef float               FLOAT;
