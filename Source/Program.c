@@ -3956,7 +3956,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             */
 
             LinearAllocator NewArena = {0};
-            char ArenaMemory[Kilobytes(512)] = {0};
+            char ArenaMemory[Kibibytes(512)] = {0};
             LinearAllocator_Create(Kibibytes(512), ArenaMemory, &NewArena);
 
             StringList List = String_SplitIntoList(&NewArena, SpecifiedParams, ' ', true);
@@ -8184,8 +8184,8 @@ u32 RunApplication(const StringArray Arguments)
     #endif
 
     LinearAllocator ProgramArena = {0};
-    char ProgramMemory[Kilobytes(512)] = {0};
-    LinearAllocator_Create(Kilobytes(512), ProgramMemory, &ProgramArena);
+    char ProgramMemory[Kibibytes(512)] = {0};
+    LinearAllocator_Create(Kibibytes(512), ProgramMemory, &ProgramArena);
 
     InitInternalVars(&ProgramArena);
 

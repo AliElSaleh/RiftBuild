@@ -451,6 +451,18 @@ void* LinearAllocator_MemoryHead(LinearAllocator* Allocator)
     return ((u8*)Allocator->Memory) + Allocator->Allocated;
 }
 
+void LinearAllocator_Reset(LinearAllocator* Allocator, u64 Position)
+{
+    ASSERT(Position <= Allocator->TotalSize);
+    ASSERT(Position <= Allocator->Allocated);
+    
+    Allocator->Allocated = Position;
+    
+    #if RIFT_ASAN
+    __asan_poison_memory_region(LinearAllocator_MemoryHead(Allocator), Allocator->TotalSize - Position);
+    #endif
+}
+
 /*
 LinearAllocator_Scratch LinearAllocator_GetScratch(LinearAllocator* Allocator)
 {
