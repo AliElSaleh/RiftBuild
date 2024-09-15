@@ -2896,10 +2896,12 @@ void EatBraces(char** Str)
 {
     if (!(Str == NULL || *Str == NULL || *(*Str) == 0))
     {
-        char c = *(*Str);
+        char* S = *Str;
+        char c = *S;
         while (c > 0 && (c == '{' || c == '}'))
         {
-            (*Str)++;
+            S++;
+            c = *S;
         }
     }
 }
@@ -2908,10 +2910,12 @@ void EatBraces_Backwards(char** Str)
 {
     if (!(Str == NULL || *Str == NULL || *(*Str) == 0))
     {
-        char c = *(*Str);
+        char* S = *Str;
+        char c = *S;
         while (c > 0 && (c == '{' || c == '}'))
         {
-            (*Str)--;
+            S--;
+            c = *S;
         }
     }
 }
@@ -2920,10 +2924,12 @@ void EatParenthesis(char** Str)
 {
     if (!(Str == NULL || *Str == NULL || *(*Str) == 0))
     {
-        char c = *(*Str);
+        char* S = *Str;
+        char c = *S;
         while (c > 0 && (c == '(' || c == ')'))
         {
-            (*Str)++;
+            S++;
+            c = *S;
         }
     }
 }
@@ -2932,10 +2938,12 @@ void EatParenthesis_Backwards(char** Str)
 {
     if (!(Str == NULL || *Str == NULL || *(*Str) == 0))
     {
-        char c = *(*Str);
+        char* S = *Str;
+        char c = *S;
         while (c > 0 && (c == '(' || c == ')'))
         {
-            (*Str)--;
+            S--;
+            c = *S;
         }
     }
 }
@@ -2944,14 +2952,16 @@ void EatSymbols(char** Str)
 {
     if (!(Str == NULL || *Str == NULL || *(*Str) == 0))
     {
-        char c = *(*Str);
+        char* S = *Str;
+        char c = *S;
         while (c > 0 &&
             (c == '(' || c == ')' || c == '{' || c == '}' ||
 			c == '!' || c == '@' || c == '#' || c == '$' ||
 			c == '%' || c == '^' || c == '&' || c == '*' ||
 			c == '+' || c == '='))
         {
-            (*Str)++;
+            S++;
+            c = *S;
         }
     }
 }
@@ -2960,14 +2970,16 @@ void EatSymbols_Backwards(char** Str)
 {
     if (!(Str == NULL || *Str == NULL || *(*Str) == 0))
     {
-        char c = *(*Str);
+        char* S = *Str;
+        char c = *S;
         while (c > 0 &&
             (c == '(' || c == ')' || c == '{' || c == '}' ||
 			c == '!' || c == '@' || c == '#' || c == '$' ||
 			c == '%' || c == '^' || c == '&' || c == '*' ||
 			c == '+' || c == '='))
         {
-            (*Str)--;
+            S--;
+            c = *S;
         }
     }
 }
