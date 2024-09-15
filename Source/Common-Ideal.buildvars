@@ -1,0 +1,36 @@
+SharedIncludeFlags               Source/Core Source/Libraries/Vendor
+SharedIncludeFlags:linux         Source/Libraries/Linux
+
+SharedDefines                    NO_PROFILING _NO_CRT_STDIO_INLINE
+SharedDefines:warn_leaks         WARN_MEMLEAKS
+SharedDefines:debug              _DEBUG DEVELOPER
+SharedDefines:!debug             NDEBUG NO_ASSERT
+
+if cl {
+    SharedCompilerFlags          /TC /GS- /Gs999999999
+    SharedLinkerFlags            
+    SharedCompilerFlags:debug    /Od /Zi /FS /Fd"$(BuildDirectory)\$(Assembly).pdb"
+    SharedLinkerFlags:debug      /DEBUG
+    SharedCompilerFlags:!debug   /O2
+} else {
+    WarningFlags                 -Wall -Wextra -Wshadow -Wconversion -Wmissing-prototypes -Wunused -Wuninitialized -Werror
+    WarningFlagsDisabled         -Wno-typedef-redefinition -Wno-unused-parameter -Wno-unused-variable -Wno-gnu-zero-variadic-macro-arguments
+    WarningFlags:!gcc            -Wpedantic
+    WarningFlagsDisabled:mac     -Wno-nonportable-include-path
+
+    SharedCompilerFlags          -std=c99 -fno-builtin-memcpy -fno-omit-frame-pointer -fno-exceptions -fno-math-errno -funroll-loops -fno-rtti -fno-strict-overflow -fno-strict-aliasing $WarningFlags $WarningFlagsDisabled
+    SharedLinkerFlags            
+    SharedCompilerFlags:_sse2    -msse2
+    SharedCompilerFlags:!gcc     -mstack-probe-size=999999999
+    SharedCompilerFlags:gcc      -mno-stack-arg-probe
+    SharedCompilerFlags:linux    -fstack-clash-protection
+    SharedCompilerFlags:debug    -O0 -g3 -MD
+    SharedCompilerFlags:!debug   -Os -finline-functions -finline-hint-functions
+    SharedCompilerFlags:disassem -S
+    SharedCompilerFlags:trace    -ftime-trace
+    SharedCompilerFlags:32       -m32
+    SharedLinkerFlags:linux      -Wl,-z,nodlopen -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now
+    SharedLinkerFlags:debug      -g3
+    SharedDefines:debug          _GLIBCXX_ASSERTIONS _GLIBCXX_DEBUG _GLIBCXX_DEBUG_PEDANTIC
+    SharedDefines:!debug         _FORTIFY_SOURCE=3
+}

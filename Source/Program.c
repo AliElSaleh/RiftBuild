@@ -3284,7 +3284,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
                     while (1)
                     {
-                        u64 BytesRead = 0;
+                        usize BytesRead = 0;
                         if (!Filesystem_ReadPipe(StdOutHandle, StdOutData.Capacity, StdOutData.Data, &BytesRead))
                             break;
                         

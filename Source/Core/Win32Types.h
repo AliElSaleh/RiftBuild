@@ -173,7 +173,7 @@ typedef long HRESULT;
 
 #else
     typedef int INT_PTR, *PINT_PTR;
-    typedef unsigned int UINT_PTR, *PUINT_PTR;
+    typedef unsigned int UINT_PTR, *PUINT_PTR, uintptr_t;
 
     typedef long LONG_PTR, *PLONG_PTR;
     typedef unsigned long ULONG_PTR, *PULONG_PTR;
