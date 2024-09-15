@@ -809,7 +809,7 @@ bool Filesystem_Open(const String FilePath, u32 Mode, FileHandle* OutHandle)
 {
     if (NEVER(OutHandle == NULL)) return false;
 
-    String ModeStr = String_Null();
+    String ModeStr;
 
     if (((Mode & FileMode_Read) != 0) && ((Mode & FileMode_Write) != 0)) // read and write
     {
@@ -1029,7 +1029,7 @@ bool Filesystem_Close(FileHandle* Handle)
         }
     }
 
-    if (IsValidFileHandle(*Handle))
+    if (Handle->Data && IsValidFileHandle(*Handle))
     {
         fclose(Handle->Data);
         *Handle = FileHandle_Null();
