@@ -1123,7 +1123,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
                 return false;
             }
 
-            u64 Size = 0;
+            usize Size = 0;
             Filesystem_GetFileSize(IncludeFileHandle, &Size);
 
             if (Size == 0)
@@ -1561,7 +1561,7 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
             Platform_WaitForHandle(ShellCmd, -1);
 
             StringLocal(StdOutData, 8192);
-            u64 BytesRead = 0;
+            usize BytesRead = 0;
             if (!Filesystem_ReadPipe(StdOutHandle, StdOutData.Capacity, StdOutData.Data, &BytesRead))
             {
                 LOG_ERROR("Failed to read from standard output pipe for command -> \"%S\"", Slice);

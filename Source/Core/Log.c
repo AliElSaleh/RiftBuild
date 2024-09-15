@@ -101,8 +101,7 @@ internal void Internal_WriteToLogFile(const char* Text, u32 Length)
         return;
     }
 
-    u64 Written = 0;
-
+    usize Written = 0;
     if (!Filesystem_WriteLine(GLoggingSystemState->LogFileHandle, StrSlice(Text, Length), &Written))
     {
         StringLocal(FormattedMessage, 256);

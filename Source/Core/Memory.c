@@ -451,7 +451,7 @@ void* LinearAllocator_MemoryHead(LinearAllocator* Allocator)
     return ((u8*)Allocator->Memory) + Allocator->Allocated;
 }
 
-void LinearAllocator_Reset(LinearAllocator* Allocator, u64 Position)
+void LinearAllocator_Reset(LinearAllocator* Allocator, usize Position)
 {
     ASSERT(Position <= Allocator->TotalSize);
     ASSERT(Position <= Allocator->Allocated);

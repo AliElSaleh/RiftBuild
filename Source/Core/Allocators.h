@@ -33,7 +33,7 @@ RIFT_API void* LinearAllocator_AllocateAll(LinearAllocator* Allocator);
 RIFT_API void LinearAllocator_FreeAll(LinearAllocator* Allocator, bool bZeroMemory);
 
 RIFT_API void* LinearAllocator_MemoryHead(LinearAllocator* Allocator);
-RIFT_API void LinearAllocator_Reset(LinearAllocator* Allocator, u64 Position);
+RIFT_API void LinearAllocator_Reset(LinearAllocator* Allocator, usize Position);
 
 
 // ================================================================================

@@ -3378,7 +3378,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             
             StringLocal(StdOutData, UINT16_MAX);
 
-            u64 BytesRead = 0;
+            usize BytesRead = 0;
             if (Filesystem_ReadPipe(StdOutPipe, StdOutData.Capacity, StdOutData.Data, &BytesRead))
             {
                 StdOutData.Length = Min((u32)BytesRead, StdOutData.Capacity);
