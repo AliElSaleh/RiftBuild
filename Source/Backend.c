@@ -498,6 +498,11 @@ bool C_DoCompile(CompileData* Data, const String FullPath, const String Relative
     {
         AdditionalPlatformFlags = S("-fPIC -fvisibility=default");
     }
+    else if (Params->Type == AssemblyType_Library ||
+             Params->Type == AssemblyType_StaticLibrary)
+    {
+        AdditionalPlatformFlags = S("-fPIC");
+    }
     else if (Params->Type == AssemblyType_Executable)
     {
         AdditionalPlatformFlags = S("-fPIE");
