@@ -10,6 +10,7 @@ STRUCT(FileVariable)
 {
     String Name;
     String Value;
+    String SpecialData;
     bool   bHasSpecial;
 };
 
@@ -20,6 +21,7 @@ STRUCT(InternalVariable)
 };
 
 global TArray(InternalVariable) InternalVariablesDB;
+global FileVariable FileVariable_Empty;
 global bool bHasWrittenJSON;
 global bool bQuietBuild;
 global bool bNoWordWrapLogging;
@@ -205,6 +207,7 @@ bool DoesCmdVarExist(TArray(CmdOption) CmdOptionsDB, const String Name);
 bool DoesBuildVarExist(TArray(FileVariable) VariablesDB, const String Name);
 
 String GetCmdOptionValue(TArray(CmdOption) CmdOptionsDB, const String Name);
+FileVariable GetVariable(TArray(FileVariable) Variables, const String Name);
 String GetVariableValue(TArray(FileVariable) Variables, const String Name);
 String* GetVariableValue_Ref(TArray(FileVariable) Variables, const String Name);
 StringList GetVariableValueList(LinearAllocator* Arena, TArray(FileVariable) VariablesDB, const String Name);

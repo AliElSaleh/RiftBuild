@@ -12,18 +12,20 @@
 
 
 // Parser rules notes:
-// only alphanumeric key names are allowed, but we can have a . for the first character and underscore anywhere
+// only alphanumeric key names are allowed, but we can have . and underscore anywhere
 
 internal void Internal_AddVariable(LinearAllocator* Arena,
                                    TArray(FileVariable) VariablesDB,
                                    const String Name,
                                    const String Value,
+                                   const String SpecialData,
                                    bool bHasSpecial)
 {
     // always reserve a fixed limited size so we can override if needed
     FileVariable var;
     var.Name        = String_ReserveAndCopy(Arena, 64, Name);
     var.Value       = String_ReserveAndCopy(Arena, 2048, Value);
+    var.SpecialData = String_IsValid(SpecialData) ? String_ReserveAndCopy(Arena, 16, SpecialData) : String_Null();
     var.bHasSpecial = bHasSpecial;
 
     Array_Add(VariablesDB, var);
@@ -82,7 +84,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
             {
                 String_EatNewLinesInlineFromEnd(&ErrorMessage);
 
-                Internal_AddVariable(Arena, VariablesDB, ErrorMessage_Name, ErrorMessage, false);
+                Internal_AddVariable(Arena, VariablesDB, ErrorMessage_Name, ErrorMessage, String_Null(), false);
 
                 String_Empty(&ErrorMessage);
 
@@ -104,7 +106,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
             {
                 String_EatNewLinesInlineFromEnd(&HelpMessage);
 
-                Internal_AddVariable(Arena, VariablesDB, S(".help"), HelpMessage, false);
+                Internal_AddVariable(Arena, VariablesDB, S(".help"), HelpMessage, String_Null(), false);
 
                 String_Empty(&HelpMessage);
 
@@ -294,8 +296,17 @@ bool ParseBuildFile(LinearAllocator* Arena,
             }
         }
 
-        const bool bHasOverwrite = String_EatCharInlineFromEnd(&VarName, '`');
-        const bool bHasSpecial = String_EatCharInlineFromEnd(&VarName, '!');
+        bool bHasSpecial = false;
+        u32 ExclamationMarkIndex = 0;
+        String SpecialData = String_Null();
+        if (String_IndexOfChar(VarName, '!', &ExclamationMarkIndex))
+        {
+            bHasSpecial = true;
+            SpecialData = StrShiftF(VarName, ExclamationMarkIndex+1);
+            VarName = StrSlice(VarName.Data, ExclamationMarkIndex);
+        }
+
+        const bool bHasOverwrite = String_EatCharInlineFromEnd(&VarName, '`'); // todo: move this to the start?
 
         // TODO: ignore ! when parsing a preset: var
 
@@ -1032,7 +1043,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
                     
                     if (!bWantsOverride)
                     {
-                       Internal_AddVariable(Arena, VariablesDB, VarName, S(""), bHasSpecial);
+                        Internal_AddVariable(Arena, VariablesDB, VarName, S(""), SpecialData, bHasSpecial);
                     }
 
                     continue;
@@ -1066,7 +1077,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
                     continue;
                 }
 
-                Internal_AddVariable(Arena, VariablesDB, VarName, VarValue, bHasSpecial);
+                Internal_AddVariable(Arena, VariablesDB, VarName, VarValue, SpecialData, bHasSpecial);
             }
         }
 

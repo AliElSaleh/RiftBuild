@@ -20,6 +20,7 @@ usize GEngineScratchAmount = 0;
 #endif
 
 TArray(InternalVariable) InternalVariablesDB = NULL;
+FileVariable FileVariable_Empty = {0};
 bool bQuietBuild = false;
 bool bNoWordWrapLogging = false;
 bool bSingleThread = false;
@@ -110,6 +111,19 @@ StringList GetVariableValueList(LinearAllocator* Arena, TArray(FileVariable) Var
     }
 
     return list;
+}
+
+FileVariable GetVariable(TArray(FileVariable) Variables, const String Name)
+{
+    for each (FileVariable, Var, Variables)
+    {
+        if (String_IsEqual(Var.Name, Name, false))
+        {
+            return Var;
+        }
+    }
+
+    return FileVariable_Empty;
 }
 
 String GetVariableValue(TArray(FileVariable) Variables, const String Name)
@@ -746,21 +760,50 @@ internal bool PathFlagDirectoryIterator(const String FullPath, const String Rela
 
 internal bool EnforceCopyright(CompileData* Data, const String FullPath, const String RelativePath)
 {
-    struct { bool bSuccess; String Content; } * AuxData = Data->AdditionalData;
+    struct { bool bSuccess; String Content; u32 FromLine; u32 ToLine; } * AuxData = Data->AdditionalData;
 
+    u32 LineNum = 0;
+    bool bSuccess = false;
     FileHandle f = FileHandle_Null();
     Filesystem_Open(FullPath, FileMode_Read, &f);
     StringLocal(Line, 4096);
-    Filesystem_ReadLine(f, &Line);
-    if (!String_Contains(Line, AuxData->Content, false))
+    while (Filesystem_ReadLine(f, &Line))
     {
-        AuxData->bSuccess = false;
-        Filesystem_Close(&f);
-        LOG_ERROR("Source file \"%S\" does not contain the required copyright notice on the first line", RelativePath);
+        LineNum++;
+        if (LineNum < AuxData->FromLine)
+            continue;
+
+        if (LineNum > AuxData->ToLine)
+            break;
+
+        if (String_Contains(Line, AuxData->Content, false))
+        {
+            bSuccess = true;
+            break;
+        }
+    }
+    Filesystem_Close(&f);
+
+    AuxData->bSuccess = bSuccess;
+
+    if (!bSuccess)
+    {
+        StringLocal(LineInfo, 32);
+        if (AuxData->FromLine == AuxData->ToLine)
+        {
+            String_Format(&LineInfo, S("line %u"), LineInfo.Capacity, AuxData->FromLine);
+        }
+        else
+        {
+            bool bEnd = AuxData->ToLine == UINT32_MAX;
+            if (bEnd)  String_Format(&LineInfo, S("lines %u - End Of File"), LineInfo.Capacity, AuxData->FromLine);
+            if (!bEnd) String_Format(&LineInfo, S("lines %u - %u"), LineInfo.Capacity, AuxData->FromLine, AuxData->ToLine);
+        }
+
+        LOG_ERROR("Source file \"%S\" does not contain the required copyright notice on %S", RelativePath, LineInfo);
         LOG("\n    This is the missing notice string -> %S", AuxData->Content);
         return false;
     }
-    Filesystem_Close(&f);
 
     return true;
 }
@@ -2282,11 +2325,11 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         // add another for time zone information
         String_Format(&TimeStampVar, S("%hu.%.2hu.%.2hu.%.2hu.%.2hu.%.2hu.%S"), TimeStamp.Capacity, TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second, TimeZone);
         a = String_Create(Arena, TimeStampVar);
+        AddCmdOption(&CmdOptionsDB, S("_Timestamp.WithZone"), a);
 
-        AddCmdOption(&CmdOptionsDB, S("_Timestamp_z"), a);
         String_Format(&TimeStampVar, S("%hu%.2hu%.2hu%.2hu%.2hu%.2hu"), TimeStamp.Capacity, TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
         a = String_Create(Arena, TimeStampVar);
-        AddCmdOption(&CmdOptionsDB, S("_TimestampNoSep"), a);
+        AddCmdOption(&CmdOptionsDB, S("_Timestamp.NoSep"), a);
 
         String_Format(&TimeStampVar, S("%hu.%.2hu.%.2hu"), TimeStamp.Capacity, TimeNow.Year, TimeNow.Month, TimeNow.Day);
         a = String_Create(Arena, TimeStampVar);
@@ -2294,7 +2337,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
         String_Format(&TimeStampVar, S("%hu%.2hu%.2hu"), TimeStamp.Capacity, TimeNow.Year, TimeNow.Month, TimeNow.Day);
         a = String_Create(Arena, TimeStampVar);
-        AddCmdOption(&CmdOptionsDB, S("_DateNoSep"), a);
+        AddCmdOption(&CmdOptionsDB, S("_Date.NoSep"), a);
 
         String_Format(&TimeStampVar, S("%.2hu.%.2hu.%.2hu"), TimeStamp.Capacity, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
         a = String_Create(Arena, TimeStampVar);
@@ -2302,7 +2345,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
         String_Format(&TimeStampVar, S("%.2hu%.2hu%.2hu"), TimeStamp.Capacity, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
         a = String_Create(Arena, TimeStampVar);
-        AddCmdOption(&CmdOptionsDB, S("_TimeNoSep"), a);
+        AddCmdOption(&CmdOptionsDB, S("_Time.NoSep"), a);
     }
 
     StringLocal(RiftBuildArgs, 4096);
@@ -2686,6 +2729,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             FileVariable Expanded;
             Expanded.Name = v.Name;
             Expanded.Value = String_Create(Arena, ExpandedVar);
+            Expanded.SpecialData = v.SpecialData;
             Expanded.bHasSpecial = v.bHasSpecial;
 
             Array_Add(ExpandedVariablesDB, Expanded);
@@ -5730,18 +5774,50 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     }
 
     // enforce copyright in all source files
-    if (VariableHasSpecial(VariablesDB, S("Copyright")))
     {
-        const String CopyrightString = GetVariableValue(ExpandedVariablesDB, S("Copyright"));
-        if (CopyrightString.Length > 0)
+        const FileVariable CopyrightVar = GetVariable(ExpandedVariablesDB, S("Copyright"));
+        if (CopyrightVar.bHasSpecial)
         {
-            struct { bool bSuccess; String Content; } AuxData = { true, CopyrightString };
-            CompileData UserData = { EnforceCopyright, &p, NULL, 0, true, &AuxData};
-            Filesystem_IterateDirectory_Ex(SourceDir, SourceFileDirectoryIterator, true, &UserData);
-
-            if (!AuxData.bSuccess)
+            if (CopyrightVar.Value.Length > 0)
             {
-                return 1;
+                String SpecialData = CopyrightVar.SpecialData;
+
+                u32 DashIndex = 0;
+                u32 FromLine = 1;
+                u32 ToLine = 1;
+                if (String_IndexOfChar(SpecialData, '-', &DashIndex))
+                {
+                    String From = StrSlice(SpecialData.Data, DashIndex);
+                    String To   = StrShiftF(SpecialData, DashIndex+1);
+
+                    String_ToU32(From, &FromLine);
+                    bool bHasTo = String_ToU32(To, &ToLine);
+
+                    FromLine = Max(1, FromLine);
+                    ToLine   = Max(1, ToLine);
+                    if (!bHasTo) ToLine = UINT32_MAX; // end of file
+
+                    if (FromLine > ToLine)
+                    {
+                        u32 Temp = FromLine;
+                        FromLine = ToLine;
+                        ToLine = Temp;
+                    }
+                }
+                else
+                {
+                    String_ToU32(SpecialData, &FromLine);
+                    ToLine = FromLine;
+                }
+
+                struct { bool bSuccess; String Content; u32 FromLine; u32 ToLine; } AuxData = { true, CopyrightVar.Value, FromLine, ToLine };
+                CompileData UserData = { EnforceCopyright, &p, NULL, 0, true, &AuxData };
+                Filesystem_IterateDirectory_Ex(SourceDir, SourceFileDirectoryIterator, true, &UserData);
+
+                if (!AuxData.bSuccess)
+                {
+                    return 1;
+                }
             }
         }
     }
@@ -8145,6 +8221,11 @@ internal void InitInternalVars(LinearAllocator* Arena)
     AddInternalVariable(S("_UserDirectory"), Allocated);
     AddInternalVariable(S("_HomeDirectory"), Allocated);
     AddInternalVariable(S("_Home"),          Allocated);
+
+    FileVariable_Empty.Name = String_Null();
+    FileVariable_Empty.Value = String_Null();
+    FileVariable_Empty.SpecialData = String_Null();
+    FileVariable_Empty.bHasSpecial = false;
 }
 
 u32 RunApplication(const StringArray Arguments)

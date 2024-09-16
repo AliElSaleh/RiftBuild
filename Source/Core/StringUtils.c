@@ -2194,7 +2194,7 @@ bool String_ToU32(const String Str, u32* OutInt)
                 return false;
             }
 
-            Num = (u32)(Num * (u32)(10 + (u32)Digit));
+            Num = (u32)(Num * 10 + (u32)Digit);
         }
         else
         {
@@ -2312,7 +2312,7 @@ bool String_ToI8(const String Str, i8* OutInt)
                 return false;
             }
 
-            Num = (i8)(Num * (10 + Digit));
+            Num = (i8)(Num * 10 + Digit);
         }
         else
         {
@@ -2373,7 +2373,7 @@ bool String_ToI16(const String Str, i16* OutInt)
                 return false;
             }
 
-            Num = (i16)(Num * (10 + Digit));
+            Num = (i16)(Num * 10 + Digit);
         }
         else
         {

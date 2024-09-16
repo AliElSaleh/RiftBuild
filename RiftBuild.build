@@ -7,7 +7,7 @@ Icon                    riftbuild
 
 TitleName               Rift Build %^%debug
 Description             A simpler build tool for C/C++, because fuck cmake
-Version!                0.9.8-alpha-%_datenosep
+Version!                0.9.8-alpha-%_date.nosep
 CompanyName             Ali El Saleh
 Copyright!              Copyright (c) 2024 Ali El Saleh
 

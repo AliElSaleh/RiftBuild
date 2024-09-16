@@ -33,7 +33,7 @@ if trace     SharedCompilerFlags -ftime-trace
 if 32        SharedCompilerFlags -m32
 if 32        SharedLinkerFlags   -m32
 
-_stop
+.stop
 
 msvc:
 SharedCompilerFlags              /W4 /WX /wd4100 /TC /GS- /Gs999999999 /analyze /analyze:stacksize 8000000
