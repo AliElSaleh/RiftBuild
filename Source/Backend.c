@@ -30,6 +30,7 @@ internal bool AsmSourceFileDirectoryIterator(const String FullPath, const String
             FilterSourceFile(Data->Params->RootDirectory, Data->Params->SourceDirectory, FullPath, RelativePath, Data->Params->WhitelistFiles, Data->Params->BlacklistFiles, Data->Params->WhitelistDirectories, Data->Params->BlacklistDirectories))
         {
             // ignore the intermediate and build directories
+            // TODO: check this if logic
             if (String_IndexOfFirstPathSlash(RelativePath, NULL))
             {
                 if (String_StartsWith(RelativePath, Data->Params->IntermediateDirectory, false) ||
@@ -44,7 +45,16 @@ internal bool AsmSourceFileDirectoryIterator(const String FullPath, const String
 
             StringLocal(FilePath, MAX_PATH_LENGTH);
             String_Append(&FilePath, StrSlice(FileName.Data, LastDot));
-            String_Append(&FilePath, S(".o"));
+            
+            // TODO: rework, hack for now
+            if (String_IsEqual(Params->CompilerProgram, S("cl"), false))
+            {
+                String_Append(&FilePath, S(".obj"));
+            }
+            else
+            {
+                String_Append(&FilePath, S(".o"));
+            }
 
             StringLocal(ObjectFilePath, MAX_PATH_LENGTH);
             String_BuildPath(&ObjectFilePath, Params->IntermediateDirectory, FilePath);
@@ -64,7 +74,16 @@ internal bool AsmSourceFileDirectoryIterator(const String FullPath, const String
                 // todo: assmembler defines and includes
                 String_BuildSeparator(&CmdLine, ' ', Params->AssemblerFlags, SourcePath);
 
+                StringLocal(ObjectPath, MAX_PATH_LENGTH);
+                String_BuildPath(&ObjectPath, Params->IntermediateBaseDirectory, FilePath);
+
+                String_Append(&CmdLine, S(" -o \""));
+                String_Append(&CmdLine, ObjectPath);
+                String_Append(&CmdLine, S("\""));
+
                 if (Params->bVerbose) LOG("    CMD: %S", CmdLine);
+
+                LOG("Assembling %S", FullPath);
 
                 // todo: parallelize this
                 PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
@@ -866,7 +885,7 @@ internal bool AsmSourceFileDirectoryIterator_MSVC(const String FullPath, const S
             return true;
         }
 
-        CompileData* Data = (CompileData*)UserData;
+        CompileData* Data = UserData;
         const BuildParams* Params = Data->Params;
 
         if (String_EndsWith(RelativePath, S(".asm"), false) &&
@@ -1030,7 +1049,10 @@ bool MSVC_Compile(const BuildParams* Params, u32* OutNumCompiled)
     // compile all .asm files first
     {
         CompileData UserData = { NULL, Params, OutNumCompiled, 0, true, NULL };
-        Filesystem_IterateDirectory_Ex(SourceDir, AsmSourceFileDirectoryIterator_MSVC, true, &UserData);
+        // TODO: rework, ugly
+        bool bMASM = String_IsEqual(Params->AsmProgram, S("ml"), false) ||
+                     String_IsEqual(Params->AsmProgram, S("ml64"), false);
+        Filesystem_IterateDirectory_Ex(SourceDir, bMASM ? AsmSourceFileDirectoryIterator_MSVC : AsmSourceFileDirectoryIterator, true, &UserData);
         if (!UserData.bSuccess)
         {
             return false;

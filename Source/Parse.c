@@ -1518,7 +1518,8 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
                     if (bWantsToLower) String_ToLower(&DestEnd);
                     if (bWantsToUpper) String_ToUpper(&DestEnd);
 
-                    NumEntries++;
+                    if (Var.Value.Length > 0)
+                        NumEntries++;
                 }
             }
         }

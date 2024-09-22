@@ -2335,6 +2335,17 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         a = String_Create(Arena, TimeStampVar);
         AddCmdOption(&CmdOptionsDB, S("_Date"), a);
 
+        String_Format(&TimeStampVar, S("%hu"), TimeStamp.Capacity, TimeNow.Year);
+        a = String_Create(Arena, TimeStampVar);
+        AddCmdOption(&CmdOptionsDB, S("_Date.Year"), a);
+        String_Format(&TimeStampVar, S("%.2hu"), TimeStamp.Capacity, TimeNow.Month);
+        a = String_Create(Arena, TimeStampVar);
+        AddCmdOption(&CmdOptionsDB, S("_Date.Month"), a);
+        String_Format(&TimeStampVar, S("%.2hu"), TimeStamp.Capacity, TimeNow.Day);
+        a = String_Create(Arena, TimeStampVar);
+        AddCmdOption(&CmdOptionsDB, S("_Date.Day"), a);
+        // TODO: month name and day name
+
         String_Format(&TimeStampVar, S("%hu%.2hu%.2hu"), TimeStamp.Capacity, TimeNow.Year, TimeNow.Month, TimeNow.Day);
         a = String_Create(Arena, TimeStampVar);
         AddCmdOption(&CmdOptionsDB, S("_Date.NoSep"), a);
@@ -2342,6 +2353,19 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         String_Format(&TimeStampVar, S("%.2hu.%.2hu.%.2hu"), TimeStamp.Capacity, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
         a = String_Create(Arena, TimeStampVar);
         AddCmdOption(&CmdOptionsDB, S("_Time"), a);
+
+        String_Format(&TimeStampVar, S("%.2hu"), TimeStamp.Capacity, TimeNow.Hour);
+        a = String_Create(Arena, TimeStampVar);
+        AddCmdOption(&CmdOptionsDB, S("_Time.Hour"), a);
+        String_Format(&TimeStampVar, S("%.2hu"), TimeStamp.Capacity, TimeNow.Minute);
+        a = String_Create(Arena, TimeStampVar);
+        AddCmdOption(&CmdOptionsDB, S("_Time.Minute"), a);
+        String_Format(&TimeStampVar, S("%.2hu"), TimeStamp.Capacity, TimeNow.Second);
+        a = String_Create(Arena, TimeStampVar);
+        AddCmdOption(&CmdOptionsDB, S("_Time.Second"), a);
+        String_Format(&TimeStampVar, S("%.3hu"), TimeStamp.Capacity, TimeNow.Millisecond);
+        a = String_Create(Arena, TimeStampVar);
+        AddCmdOption(&CmdOptionsDB, S("_Time.Millisecond"), a);
 
         String_Format(&TimeStampVar, S("%.2hu%.2hu%.2hu"), TimeStamp.Capacity, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
         a = String_Create(Arena, TimeStampVar);
@@ -7864,6 +7888,7 @@ internal void InitInternalVars(LinearAllocator* Arena)
 
     #if __CPU_X64
     AddInternalVariable(S("x86"), S("1"));
+    AddInternalVariable(S("x86_64"), S("1"));
     AddInternalVariable(S("x64"), S("1"));
     #elif __CPU_X86
     AddInternalVariable(S("x86"), S("1"));
@@ -7875,10 +7900,29 @@ internal void InitInternalVars(LinearAllocator* Arena)
     AddInternalVariable(S("ARM"), S("1"));
     AddInternalVariable(S("ARM32"), S("1"));
     #elif __CPU_PPC64
+    AddInternalVariable(S("PowerPC"), S("1"));
     AddInternalVariable(S("PPC"), S("1"));
+    AddInternalVariable(S("PowerPC64"), S("1"));
     AddInternalVariable(S("PPC64"), S("1"));
     #elif __CPU_PPC
+    AddInternalVariable(S("PowerPC"), S("1"));
     AddInternalVariable(S("PPC"), S("1"));
+    #endif
+
+    #if defined(_M_IX86)
+    AddInternalVariable(S("iX86"), S("1"));
+    #endif
+    #if defined(__i386__)
+    AddInternalVariable(S("i386"), S("1"));
+    #endif
+    #if defined(__i486__)
+    AddInternalVariable(S("i486"), S("1"));
+    #endif
+    #if defined(__i586__)
+    AddInternalVariable(S("i586"), S("1"));
+    #endif
+    #if defined(__i686__)
+    AddInternalVariable(S("i686"), S("1"));
     #endif
 
     #define AddInstruction(Instruction) AddInternalVariable(S("_" #Instruction), CPUInfo.Instruction ? S("1") : S("0"))

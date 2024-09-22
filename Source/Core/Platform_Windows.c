@@ -1613,6 +1613,13 @@ bool Filesystem_Copy(const String Source, const String Destination)
     String_ConvertSlashToPlatformSlash(&DestinationCopy);
 
     u32 LastSlash = 0;
+    if (String_IndexOfLastPathSlash(DestinationCopy, &LastSlash))
+    {
+        Filesystem_OpenDirectory(StrSlice(DestinationCopy.Data, LastSlash));
+    }
+
+    /*
+    u32 LastSlash = 0;
     String_IndexOfLastPathSlash(SourceCopy, &LastSlash);
 
     const String FileName = StrShiftF(SourceCopy, LastSlash);
@@ -1626,6 +1633,7 @@ bool Filesystem_Copy(const String Source, const String Destination)
     // try to create the directory if it doesn't exist
     String_IndexOfLastPathSlash(DestinationCopy, &LastSlash);
     Filesystem_OpenDirectory(StrSlice(DestinationCopy.Data, LastSlash));
+    */
 
     // remove the read only attribute if we're copying from a source which had a readonly attribute set on it,
     // otherwise the copy will fail if the file already exists at the destination
