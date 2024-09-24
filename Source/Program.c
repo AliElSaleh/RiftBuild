@@ -225,7 +225,7 @@ internal void PrefixVariables(String* Dest, String VariableValue, const String P
             bInsideQuote = !bInsideQuote;
         }
 
-        if (C == ' ')
+        if (C == ' ' && !bInsideQuote)
         {
             if (bWrapWithQuotes)
                 String_AppendChar(Dest, '"');
@@ -3808,7 +3808,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 LOG_ERROR("yo dis compiler program \"%S\" cant be used cuh", CompilerProgram);
                 #endif
 
-                if (LogCustomErrorMessage(ExpandedVariablesDB, S("Compiler"), CompilerProgram, false))
+                if (LogCustomErrorMessage(ExpandedVariablesDB, S("Compiler"), CompilerProgram, true))
                 {
                     LOG_LINE_BREAK();
                 }
@@ -4810,7 +4810,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                     LOG_ERROR("yo dis assembler program \"%S\" cant be used cuh", AsmProgram);
                     #endif
 
-                    if (LogCustomErrorMessage(ExpandedVariablesDB, S("Assembler"), AsmProgram, false))
+                    if (LogCustomErrorMessage(ExpandedVariablesDB, S("Assembler"), AsmProgram, true))
                     {
                         LOG_LINE_BREAK();
                     }

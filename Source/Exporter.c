@@ -555,6 +555,7 @@ bool ExportVersionRC(const BuildParams* Params, const String Path)
                                 "FILEVERSION      %S  // this can only have 4 parts\n"
                                 "PRODUCTVERSION   %S  // same here\n\n"
 
+                                // TODO: check for this specific define
                                 /*
                                 "#ifdef _DEBUG\n"
                                 "FILEFLAGS        %X  // %S\n"

@@ -790,6 +790,8 @@ void String_ForwardSlashToBackSlash(String* Str)
     }
 }
 
+// TODO
+//void String_ToNativePathSeparators(String* Str)
 void String_ConvertSlashToPlatformSlash(String* Str)
 {
 #if PLATFORM_WINDOWS

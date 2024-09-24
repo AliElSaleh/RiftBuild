@@ -10,6 +10,10 @@
 #include "Log.h"
 #endif
 
+#define MAX_KEY_LENGTH 64
+#define MAX_VALUE_LENGTH 4096
+#define MAX_META_KEY_LENGTH 16
+#define LINE_BUFFER_SIZE (MAX_KEY_LENGTH+MAX_VALUE_LENGTH+MAX_META_KEY_LENGTH)
 
 // Parser rules notes:
 // only alphanumeric key names are allowed, but we can have . and underscore anywhere
@@ -23,9 +27,9 @@ internal void Internal_AddVariable(LinearAllocator* Arena,
 {
     // always reserve a fixed limited size so we can override if needed
     FileVariable var;
-    var.Name        = String_ReserveAndCopy(Arena, 64, Name);
-    var.Value       = String_ReserveAndCopy(Arena, 2048, Value);
-    var.SpecialData = String_IsValid(SpecialData) ? String_ReserveAndCopy(Arena, 16, SpecialData) : String_Null();
+    var.Name        = String_ReserveAndCopy(Arena, MAX_KEY_LENGTH, Name);
+    var.Value       = String_ReserveAndCopy(Arena, MAX_VALUE_LENGTH, Value);
+    var.SpecialData = String_IsValid(SpecialData) ? String_ReserveAndCopy(Arena, MAX_META_KEY_LENGTH, SpecialData) : String_Null();
     var.bHasSpecial = bHasSpecial;
 
     Array_Add(VariablesDB, var);
@@ -47,7 +51,8 @@ bool ParseBuildFile(LinearAllocator* Arena,
 {
     if (ReturnCode) *ReturnCode = 0;
 
-    StringLocal(Line, 2114); // 64 max length for name, 2048 max length for value
+    
+    StringLocal(Line, LINE_BUFFER_SIZE);
 
     bool bInsideIf = false;
     bool bIfFailed = false;
@@ -73,7 +78,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
 
     LoopStart:
 
-        ENSURE(Line.Capacity == 2113); // sanity check to make sure no-one is modifying the line buffer
+        ENSURE(Line.Capacity == LINE_BUFFER_SIZE-1); // sanity check to make sure no-one is modifying the line buffer
 
         // TODO: allow whitespace in single line error messages
         if (bInMultiLineErrorMessage)
@@ -223,7 +228,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
                             bInsideElse = false;
     
                             // do a indirect copy otherwise it will crash on OpenBSD due to overlapping memory
-                            StringLocal(LineCopy, 2114);
+                            StringLocal(LineCopy, LINE_BUFFER_SIZE);
                             String_Copy(&LineCopy, StrShiftF(ElseOg, Space+1));
 
                             String_Copy(&Line, LineCopy);
@@ -450,10 +455,10 @@ bool ParseBuildFile(LinearAllocator* Arena,
                     const String Arg = StringArray_GetStringFromIndex(MsgArgsList, ArgIndex);
                     ArgIndex++;
 
-                    //todo :expand to 0 if not exist but expand to nothing if it has an =
+                    // TODO: $
                     String Var = String_EatChar(Arg, '%');
                     String Val = GetCmdOptionValue(CmdOptionsDB, Var);
-                    String_Append(&FormattedMsg, Val);
+                    String_Append(&FormattedMsg, Val.Length == 0 ? S("0") : Val);
                     continue;
                 }
 
@@ -887,7 +892,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
             String_EatSpacesInline(&RestOfTheLine);
             String_EatSpacesInlineFromEnd(&RestOfTheLine);
 
-            StringLocal(LineCopy, 2114);
+            StringLocal(LineCopy, LINE_BUFFER_SIZE);
             String_Copy(&LineCopy, RestOfTheLine);
 
             // else statement detection
@@ -1216,7 +1221,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
         {
             Trimmed.Length = LengthAfterTrim;
 
-            StringLocal(LineCopy, 2114);
+            StringLocal(LineCopy, LINE_BUFFER_SIZE);
             String_Copy(&LineCopy, StrShiftF(Trimmed, SemiColonIndex+1));
             String_Copy(&Line, LineCopy);
 
