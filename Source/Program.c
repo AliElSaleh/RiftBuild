@@ -2691,7 +2691,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 continue;
             }
 
-            StringLocal(ExpandedVar, 4096);
+            StringLocal(ExpandedVar, 8192);
 
             const String Exclusions[] =
             {
@@ -3584,7 +3584,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         #if PLATFORM_WINDOWS
         const String HostPlatform = S("Windows");
         #elif PLATFORM_MAC
-        const String HostPlatform = S("Apple Mac MacOS Unix");
+        const String HostPlatform = S("Apple Mac MacOS OSX Unix");
         #elif PLATFORM_LINUX
         const String HostPlatform = S("Linux Unix");
         #elif PLATFORM_BSD
@@ -4024,8 +4024,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             */
 
             LinearAllocator NewArena = {0};
-            char ArenaMemory[Kibibytes(512)] = {0};
-            LinearAllocator_Create(Kibibytes(512), ArenaMemory, &NewArena);
+            char ArenaMemory[Mebibytes(1)] = {0};
+            LinearAllocator_Create(Mebibytes(1), ArenaMemory, &NewArena);
 
             StringList List = String_SplitIntoList(&NewArena, SpecifiedParams, ' ', true);
             u8 Num = 0;
@@ -7764,6 +7764,7 @@ internal void InitInternalVars(LinearAllocator* Arena)
     AddInternalVariable(S("Macintosh"), S(""));
     AddInternalVariable(S("Mac"), S(""));
     AddInternalVariable(S("macOS"), S(""));
+    AddInternalVariable(S("OSX"), S(""));
     AddInternalVariable(S("Unix"), S(""));
     #elif PLATFORM_LINUX
     AddInternalVariable(S("_Platform"), S("Linux"));
@@ -8309,8 +8310,8 @@ u32 RunApplication(const StringArray Arguments)
     #endif
 
     LinearAllocator ProgramArena = {0};
-    char ProgramMemory[Kibibytes(512)] = {0};
-    LinearAllocator_Create(Kibibytes(512), ProgramMemory, &ProgramArena);
+    char ProgramMemory[Mebibytes(1)] = {0};
+    LinearAllocator_Create(Mebibytes(1), ProgramMemory, &ProgramArena);
 
     InitInternalVars(&ProgramArena);
 

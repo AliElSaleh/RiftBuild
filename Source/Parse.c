@@ -10,8 +10,10 @@
 #include "Log.h"
 #endif
 
+// todo: when appending values, use linked list?
+
 #define MAX_KEY_LENGTH 64
-#define MAX_VALUE_LENGTH 4096
+#define MAX_VALUE_LENGTH 8192
 #define MAX_META_KEY_LENGTH 16
 #define LINE_BUFFER_SIZE (MAX_KEY_LENGTH+MAX_VALUE_LENGTH+MAX_META_KEY_LENGTH)
 

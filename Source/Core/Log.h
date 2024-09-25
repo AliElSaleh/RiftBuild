@@ -37,6 +37,7 @@
 #define LOG_CAT_FATAL(LogCategory, Text, ...)
 
 #define LOG(Text, ...)
+#define LOG_MUTE(....)
 #define LOG_INFO(Text, ...)
 #define LOG_SUCCESS(Text, ...)
 #define LOG_WARNING(Text, ...)
@@ -44,6 +45,7 @@
 #define LOG_FATAL(Text, ...)
 
 #define LOG_INLINE(Text, ...)
+#define LOG_INLINE_MUTE(Text, ...)
 #define LOG_INLINE_INFO(Text, ...)
 #define LOG_INLINE_SUCCESS(Text, ...)
 #define LOG_INLINE_WARNING(Text, ...)
@@ -70,8 +72,10 @@
 #define LOG_TYPE_ERROR 3
 #define LOG_TYPE_FATAL 4
 #define LOG_TYPE_NONE 5
+#define LOG_TYPE_MUTE 6
 
 #define LOG_CAT(LogCategory, Text, ...)                LogMessage(LOG_TYPE_NONE,    S(LogCategory), S(Text), ##__VA_ARGS__)
+#define LOG_CAT_MUTE(LogCategory, Text, ...)           LogMessage(LOG_TYPE_MUTE,    S(LogCategory), S(Text), ##__VA_ARGS__)
 #define LOG_CAT_INFO(LogCategory, Text, ...)           LogMessage(LOG_TYPE_INFO,    S(LogCategory), S(Text), ##__VA_ARGS__)
 #define LOG_CAT_SUCCESS(LogCategory, Text, ...)        LogMessage(LOG_TYPE_SUCCESS, S(LogCategory), S(Text), ##__VA_ARGS__)
 #define LOG_CAT_WARNING(LogCategory, Text, ...)        LogMessage(LOG_TYPE_WARNING, S(LogCategory), S(Text), ##__VA_ARGS__)
@@ -79,6 +83,7 @@
 #define LOG_CAT_FATAL(LogCategory, Text, ...)          LogMessage(LOG_TYPE_FATAL,   S(LogCategory), S(Text), ##__VA_ARGS__); _Crash_
 
 #define LOG(Text, ...)                                 LogMessage(LOG_TYPE_NONE,    S(__FILE_NAME__), S(Text), ##__VA_ARGS__)
+#define LOG_MUTE(Text, ...)                            LogMessage(LOG_TYPE_MUTE,    S(__FILE_NAME__), S(Text), ##__VA_ARGS__)
 #define LOG_INFO(Text, ...)                            LogMessage(LOG_TYPE_INFO,    S(__FILE_NAME__), S(Text), ##__VA_ARGS__)
 #define LOG_SUCCESS(Text, ...)                         LogMessage(LOG_TYPE_SUCCESS, S(__FILE_NAME__), S(Text), ##__VA_ARGS__)
 #define LOG_WARNING(Text, ...)                         LogMessage(LOG_TYPE_WARNING, S(__FILE_NAME__), S(Text), ##__VA_ARGS__)
@@ -91,6 +96,7 @@
 #define LOG_LINE_BREAK                                 LogLineBreak
 
 #define LOG_INLINE(Text, ...)                          LogDirectMessage(LOG_TYPE_NONE,    S(Text), ##__VA_ARGS__)
+#define LOG_INLINE_MUTE(Text, ...)                     LogDirectMessage(LOG_TYPE_MUTE,    S(Text), ##__VA_ARGS__)
 #define LOG_INLINE_INFO(Text, ...)                     LogDirectMessage(LOG_TYPE_INFO,    S(Text), ##__VA_ARGS__)
 #define LOG_INLINE_SUCCESS(Text, ...)                  LogDirectMessage(LOG_TYPE_SUCCESS, S(Text), ##__VA_ARGS__)
 #define LOG_INLINE_WARNING(Text, ...)                  LogDirectMessage(LOG_TYPE_WARNING, S(Text), ##__VA_ARGS__)

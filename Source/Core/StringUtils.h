@@ -136,6 +136,7 @@ RIFT_API bool String_IndexOfFirstPathSlash(const String Str, u32* OutIndex);
 RIFT_API bool String_IndexOfLastPathSlash(const String Str, u32* OutIndex);
 RIFT_API bool String_IndexOfFirstWhitespace(const String Str, u32* OutIndex);
 RIFT_API bool String_IndexOfLastWhitespace(const String Str, u32* OutIndex);
+RIFT_API bool String_IndexOfFirstNewline(const String Str, u32* OutIndex);
 RIFT_API bool String_IndexOfSubstring(const String Str, const String Substring, bool bCaseSensitive, u32* OutIndex);
 
 RIFT_API bool String_SanitizePath(String* Dest, const String Source);

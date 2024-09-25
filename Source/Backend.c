@@ -694,7 +694,7 @@ bool C_Link(const BuildParams* Params)
         if (ExitCode != 0)
         {
             #ifndef HOOD
-            LOG_ERROR("Linker errors detected. See above errors to fix. Exit code for process: %u. Aborting build...", ExitCode);
+            LOG_ERROR("\nLinker errors detected. See above errors to fix. Exit code for process: %u. Aborting build...", ExitCode);
             #else
             LOG_ERROR("seen some linker errors homie. fix yo shit up, something aint linkin' right");
             #endif
@@ -778,7 +778,7 @@ bool C_Link(const BuildParams* Params)
         if (ExitCode != 0)
         {
             #ifndef HOOD
-            LOG_ERROR("Linker errors detected. See above errors to fix. Exit code for process: %u. Aborting build...", ExitCode);
+            LOG_ERROR("\nLinker errors detected. See above errors to fix. Exit code for process: %u. Aborting build...", ExitCode);
             #else
             LOG_ERROR("seen some linker errors homie. fix yo shit up, something aint linkin' right");
             #endif
@@ -1392,6 +1392,248 @@ bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String Relat
     return true;
 }
 
+internal void Internal_ParseAndLogLinkerOutput_MSVC(String StdOutData)
+{
+    if (StdOutData.Length == 0) return;
+
+    String LastObjFile = String_Null();
+
+    u32 Offset = 0;
+    while (Offset < StdOutData.Length)
+    {
+        String PipeDataSlice = StrShiftF(StdOutData, Offset);
+
+        u32 NewLineIndex = 0;
+        if (String_IndexOfFirstNewline(PipeDataSlice, &NewLineIndex))
+        {
+            Offset += NewLineIndex+1;
+            if (PipeDataSlice.Data[NewLineIndex] == '\r')
+            {
+                Offset++;
+            }
+
+            String Line = String_EatSpaces(StrSlice(PipeDataSlice.Data, NewLineIndex));
+            {
+                if (String_StartsWith(Line, S("LINK : "), true))
+                {
+                    if (String_IsValid(LastObjFile) && String_IsEqual(LastObjFile, S("Linker Warnings"), true))
+                    {
+                        LOG_INLINE("    ");
+                    }
+                    else
+                    {
+                        LOG_INLINE_WARNING("\nLinker Warnings\n    ");
+                    }
+
+                    LastObjFile = S("Linker Warnings");
+
+                    String Trimmed = StrShiftF(Line, 7);
+
+                    if (String_StartsWith(Trimmed, S("warning LNK"), true))
+                    {
+                        u32 ColonIndex = 0;
+
+                        String Meta = StrShiftF(Trimmed, 8);
+                        String_IndexOfChar(Meta, ':', &ColonIndex);
+                        LOG_INLINE_WARNING("[WARNING] %S", StrSlice(Meta.Data, ColonIndex));
+
+                        String_IndexOfChar(Trimmed, ':', &ColonIndex);
+                        String Message = StrShiftF(Trimmed, ColonIndex+1);
+
+                        const String SymbolDefineWarningPhrases[] =
+                        {
+                            S("defined in"),
+                            S("is imported by"),
+                            S("in function")
+                        };
+
+                        String TempLine = Message;
+                        for (u8 i = 0; i < SArray_Capacity(SymbolDefineWarningPhrases); i++)
+                        {
+                            u32 Index = 0;
+                            if (String_IndexOfSubstring(TempLine, SymbolDefineWarningPhrases[i], true, &Index))
+                            {
+                                String FirstPart = StrSlice(TempLine.Data, Index);
+                                if (i == 0)
+                                    LOG_INLINE(" |%S\n                        ", FirstPart);
+                                else
+                                    LOG_INLINE("%S\n                        ", FirstPart);
+
+                                String SecondPart = StrShiftF(TempLine, Index);
+                                TempLine = SecondPart;
+
+                                if (i == SArray_Capacity(SymbolDefineWarningPhrases)-1)
+                                {
+                                    // mute the name mangled part
+                                    u32 QuestionIndex = 0;
+                                    if (String_IndexOfSubstring(SecondPart, S("(?"), true, &QuestionIndex))
+                                    {
+                                        LOG_INLINE("%S", StrSlice(SecondPart.Data, QuestionIndex));
+                                        //LOG_MUTE("%S\n", StrShiftF(SecondPart, QuestionIndex));
+                                        LOG_LINE_BREAK();
+                                        LOG_LINE_BREAK();
+                                    }
+                                    else
+                                    {
+                                        LOG("%S\n", SecondPart);
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                if (i == 0)
+                                    LOG(" |%S", TempLine);
+                                else
+                                    LOG("%S", TempLine);
+
+                                break;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        LOG("%S", Trimmed);
+                    }
+                }
+                else if (String_StartsWith(Line, S("Creating library "), true))
+                {
+                    LOG("\n%S", Line);
+                }
+                else if (String_EndsWith(Line, S(" unresolved externals"), true))
+                {
+                    LOG("\n%S", Line);
+                }
+                else
+                {
+                    u32 ColonIndex = 0;
+                    if (String_IndexOfSubstring(Line, S(" : "), true, &ColonIndex))
+                    {
+                        String ObjFile = StrSlice(Line.Data, ColonIndex+1);
+
+                        if (String_IsValid(LastObjFile) && String_IsEqual(LastObjFile, ObjFile, true))
+                        {
+                            LOG_INLINE("    ");
+                        }
+                        else
+                        {
+                            LOG_INLINE_WARNING("\n%S\n    ", ObjFile);
+                        }
+
+                        LastObjFile = ObjFile;
+
+                        String Trimmed = String_EatSpaces(StrShiftF(Line, ColonIndex+2));
+                        {
+                            if (String_StartsWith(Trimmed, S("error LNK"), true))
+                            {
+                                ColonIndex = 0;
+                                String Meta = StrShiftF(Trimmed, 6);
+                                String_IndexOfChar(Meta, ':', &ColonIndex);
+                                LOG_INLINE_ERROR("[ERROR] %S", StrSlice(Meta.Data, ColonIndex));
+
+                                String_IndexOfChar(Trimmed, ':', &ColonIndex);
+                                String Message = StrShiftF(Trimmed, ColonIndex+1);
+
+                                u32 ReferencedIndex = 0;
+                                if (String_IndexOfSubstring(Message, S("referenced in function"), true, &ReferencedIndex))
+                                {
+                                    String FirstPart = StrSlice(Message.Data, ReferencedIndex);
+                                    String SecondPart = StrShiftF(Message, ReferencedIndex);
+
+                                    // mute the name mangled part
+                                    u32 QuestionIndex = 0;
+                                    if (String_IndexOfSubstring(FirstPart, S("(?"), true, &QuestionIndex))
+                                    {
+                                        LOG_INLINE(" |%S", StrSlice(FirstPart.Data, QuestionIndex));
+                                        //LOG_MUTE("%S", StrShiftF(FirstPart, QuestionIndex));
+
+                                        LOG_LINE_BREAK();
+                                    }
+                                    else
+                                    {
+                                        LOG(" |%S", FirstPart);
+                                    }
+
+                                    QuestionIndex = 0;
+                                    if (String_IndexOfSubstring(SecondPart, S("(?"), true, &QuestionIndex))
+                                    {
+                                        LOG_INLINE("                          %S", StrSlice(SecondPart.Data, QuestionIndex));
+                                        //LOG_MUTE("%S", StrShiftF(SecondPart, QuestionIndex));
+                                        LOG_LINE_BREAK();
+                                    }
+                                    else
+                                    {
+                                        LOG("                          %S", SecondPart);
+                                    }
+                                }
+                                else
+                                {
+                                    String FirstPart = Message;
+
+                                    // mute the name mangled part
+                                    u32 QuestionIndex = 0;
+                                    if (String_IndexOfSubstring(FirstPart, S("(?"), true, &QuestionIndex))
+                                    {
+                                        LOG_INLINE(" |%S", StrSlice(FirstPart.Data, QuestionIndex));
+                                        //LOG_MUTE("%S", StrShiftF(FirstPart, QuestionIndex));
+                                        LOG_LINE_BREAK();
+                                    }
+                                    else
+                                    {
+                                        LOG(" |%S", FirstPart);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        LOG("%S", Line);
+                    }
+                }
+            }
+        }
+        else
+        {
+            break;
+        }
+    }
+}
+
+internal void Internal_ProcessLinkerOutput_MSVC(PlatformPipe StdOutHandle)
+{
+    Platform_CloseHandle(StdOutHandle[1]);
+
+    StringLocal(StdOutData, UINT16_MAX);
+
+    // TODO: think about logging speed
+    do
+    {
+        StringLocal(PipeData, UINT16_MAX);
+
+        usize BytesRead = 0;
+        if (!Filesystem_ReadPipe(StdOutHandle, PipeData.Capacity, PipeData.Data, &BytesRead))
+            break;
+        
+        if (BytesRead == 0)
+            break;
+
+        PipeData.Length = Min((u32)BytesRead, StdOutData.Capacity);
+
+        if (PipeData.Length + StdOutData.Length > StdOutData.Capacity)
+        {
+            Internal_ParseAndLogLinkerOutput_MSVC(StdOutData);
+            String_Empty(&StdOutData);
+        }
+
+        String_Append(&StdOutData, PipeData);
+    }
+    while (1);
+
+    Internal_ParseAndLogLinkerOutput_MSVC(StdOutData);
+
+    Platform_CloseHandle(StdOutHandle[0]);
+}
+
 bool MSVC_Link(const BuildParams* Params)
 {
     if (NEVER(Params == NULL)) return false;
@@ -1477,13 +1719,24 @@ bool MSVC_Link(const BuildParams* Params)
             }
         }
 
-        PlatformHandle Handle = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
-        if (!Platform_IsValidHandle(Handle)) return false;
-        u32 ExitCode = Platform_WaitForProcessAndGetExitCode(Handle);
+        // TODO: switch between fancy and non fancy logging
+
+        //PlatformHandle Handle = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
+        //if (!Platform_IsValidHandle(Handle)) return false;
+        //u32 ExitCode = Platform_WaitForProcessAndGetExitCode(Handle);
+
+        PlatformPipe StdOutHandle = {0};
+        PlatformHandle H = Platform_RunCommand_Ex(CmdLine, Params->RootDirectory, &StdOutHandle);
+        if (!Platform_IsValidHandle(H)) return false;
+
+        Internal_ProcessLinkerOutput_MSVC(StdOutHandle);
+
+        u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
+
         if (ExitCode != 0)
         {
             #ifndef HOOD
-            LOG_ERROR("Linker errors detected. See above errors to fix. Exit code for process: %u. Aborting build...", ExitCode);
+            LOG_ERROR("\nLinker errors detected. See above errors to fix. Exit code for process: %u. Aborting build...", ExitCode);
             #else
             LOG_ERROR("seen some linker errors homie. fix yo shit up, something aint linkin' right");
             #endif
@@ -1541,7 +1794,7 @@ bool MSVC_Link(const BuildParams* Params)
         if (ExitCode != 0)
         {
             #ifndef HOOD
-            LOG_ERROR("Linker errors detected. See above errors to fix. Exit code for process: %u. Aborting build...", ExitCode);
+            LOG_ERROR("\nLinker errors detected. See above errors to fix. Exit code for process: %u. Aborting build...", ExitCode);
             #else
             LOG_ERROR("seen some linker errors homie. fix yo shit up, something aint linkin' right");
             #endif

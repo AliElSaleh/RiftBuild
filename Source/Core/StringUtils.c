@@ -1577,6 +1577,22 @@ bool String_IndexOfLastWhitespace(const String Str, u32* OutIndex)
     return false;
 }
 
+bool String_IndexOfFirstNewline(const String Str, u32* OutIndex)
+{
+    for (u32 i = 0; i < Str.Length; ++i)
+    {
+        if (IsNewline(Str.Data[i]))
+        {
+            if (OutIndex)
+                *OutIndex = i;
+
+            return true;
+        }
+    }
+    
+    return false;
+}
+
 bool String_IndexOfSubstring(const String Str, const String Substring, bool bCaseSensitive, u32* OutIndex)
 {
     if (Str.Length == 0 || Substring.Length == 0)
