@@ -438,6 +438,7 @@ internal bool SourceFileCounterDirectoryIterator(const String FullPath, const St
             return true;
         }
 
+        // todo: move this out of here
         struct SourceCountData
         {
             u32 NumSources;
@@ -447,6 +448,9 @@ internal bool SourceFileCounterDirectoryIterator(const String FullPath, const St
             String* FirstSourceFileName;
             String WorkingDirectory;
             String SourceDirectory;
+            String IntermediateBaseDirectory;
+            String IntermediateDirectory;
+            String BuildDirectory;
             StringList WhitelistArray;
             StringList BlacklistArray;
             StringList WhitelistDirArray;
@@ -455,9 +459,17 @@ internal bool SourceFileCounterDirectoryIterator(const String FullPath, const St
             bool bIsPCHBuild;
         };
 
-        // TODO: ignore intermediate and build directories
-
         struct SourceCountData* Data = UserData;
+
+        // ignore the intermediate and build directories
+        if (String_IndexOfFirstPathSlash(RelativePath, NULL))
+        {
+            if (String_StartsWith(RelativePath, Data->IntermediateDirectory, false) ||
+                String_StartsWith(RelativePath, Data->BuildDirectory, false))
+            {
+                return true;
+            }
+        }
 
         u32 DotIndex = 0;
         String_IndexOfLastChar(FileName, '.', &DotIndex);
@@ -615,7 +627,7 @@ internal bool BuildFileDirectoryIterator_Args(const String FullPath, const Strin
                 Data->bFoundBuildFile = true;
 
                 String_Copy(Data->Name, FileName);
-                String_Copy(Data->Path, RelativePath);
+                String_Copy(Data->Path, FullPath);
 
                 return false;
             }
@@ -721,7 +733,7 @@ internal bool BuildFileDirectoryIterator(const String FullPath, const String Rel
                 else
                 {
                     String_Copy(Data->Name, FileName);
-                    String_Copy(Data->Path, RelativePath);
+                    String_Copy(Data->Path, FullPath);
                 }
 
                 Data->NumBuildFilesFound++;
@@ -1072,10 +1084,10 @@ internal bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const Stri
         const String Cmd = Value;
 
         u32 FirstSpace = 0;
-        String_IndexOfFirstWhitespace(Cmd, &FirstSpace);
+        String_IndexOfFirstWhitespace(Cmd, &FirstSpace); // TODO: this wont work with paths with spaces
 
         const String SourceFile           = String_EatPathSeparatorsFromEnd(StrSlice(Cmd.Data, FirstSpace));
-        const String DestinationDirectory = String_EatPathSeparatorsFromEnd(String_EatSpaces(StrShiftF(Cmd, FirstSpace+1)));
+        const String DestinationDirectory = String_EatSpaces(StrShiftF(Cmd, FirstSpace+1));
 
         LOG("Copy: %S", Cmd);
 
@@ -1115,6 +1127,14 @@ internal bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const Stri
 
         StringLocal(FullDestPath, MAX_PATH_LENGTH);
         String_BuildPath(&FullDestPath, WorkingDirectory, DestinationDirectory);
+
+        if (String_IsLast(DestinationDirectory, '/') ||
+            String_IsLast(DestinationDirectory, '\\'))
+        {
+            u32 LastSlash = 0;
+            String_IndexOfLastPathSlash(SourceFile, &LastSlash);
+            String_BuildPath(&FullDestPath, StrShiftF(SourceFile, LastSlash == 0 ? 0 : LastSlash+1));
+        }
 
         if (!Filesystem_Copy(FullSourcePath, FullDestPath) && !bIgnoreErrors)
         {
@@ -2200,8 +2220,10 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     for (u8 i = 0; i < Parameters.Num; i++)
     {
         // todo: something better, ignore certain parameters
+        // todo: allow the user to specify which args can be ignored for rebuild?
         if (String_IsEqual(Parameters.List[i], S("rebuild"), false) ||
             String_IsEqual(Parameters.List[i], S("clean"), false) ||
+            String_IsEqual(Parameters.List[i], S("run"), false) ||
             String_IsEqual(Parameters.List[i], S("-v"), false) ||
             String_IsEqual(Parameters.List[i], S("-q"), false) ||
             String_IsEqual(Parameters.List[i], S("-s"), false) ||
@@ -4074,16 +4096,13 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 return 1;
             }
 
-            StringLocal(Path, MAX_PATH_LENGTH);
-            String_BuildPath(&Path, CustomWorkingPath, NewBuildFilePath);
-
             FileHandle f = {0};
-            if (!Filesystem_Open(Path, FileMode_Read, &f))
+            if (!Filesystem_Open(NewBuildFilePath, FileMode_Read, &f))
             {
                 #ifndef HOOD
-                LOG_ERROR("Failed to open build file \"%S\" for reading", Path);
+                LOG_ERROR("Failed to open build file \"%S\" for reading", NewBuildFilePath);
                 #else
-                LOG_ERROR("wtf, cant read this shit man, think the path to the build file is wrong or smthg homie. this is what i got: %S", Path);
+                LOG_ERROR("wtf, cant read this shit man, think the path to the build file is wrong or smthg homie. this is what i got: %S", NewBuildFilePath);
                 #endif
 
                 return 1;
@@ -4091,15 +4110,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
             PlatformMutex NewMutex = {0};
             u32 ExitCode = BuildTarget(&NewArena, f, &NewMutex, CustomWorkingPath, NewParams, BuildFileName, -1, -1);
-            
-            // we're intentionally not releasing build mutexes on dependency builds because
-            // we dont want others to try and build a dependency by itself (unrelated to this build)
-            // when this process has not finished. This is to make things more robust against compiler/file conflicts and invalid state.
-
-            // once this process dies then the OS will clean these mutexes automatically
-            // people can pass in -no-mutex to bypass the build mutex feature
-
-            // if (NewMutex.Handle) Platform_ReleaseMutex(&NewMutex);
+            if (NewMutex.Handle) Platform_ReleaseMutex(&NewMutex);
 
             Filesystem_Close(&f);
 
@@ -4494,6 +4505,9 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         String* FirstSourceFileName;
         String WorkingDirectory;
         String SourceDirectory;
+        String IntermediateBaseDirectory;
+        String IntermediateDirectory;
+        String BuildDirectory;
         StringList WhitelistArray;
         StringList BlacklistArray;
         StringList WhitelistDirArray;
@@ -4503,7 +4517,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     };
 
     StringLocal(FirstSourceFileName, 256);
-    struct SourceCountData CountData = { 0, 0, 0, 0, &FirstSourceFileName, WorkingPath, SourceDirectory, WhitelistArray, BlacklistArray, WhitelistDirArray, BlacklistDirArray, false, AssemblyType == AssemblyType_PCH};
+    struct SourceCountData CountData = { 0, 0, 0, 0, &FirstSourceFileName, WorkingPath, SourceDirectory, IntermediateBaseDirectory, IntermediateDirectory, BuildDirectory, WhitelistArray, BlacklistArray, WhitelistDirArray, BlacklistDirArray, false, AssemblyType == AssemblyType_PCH};
 
     Filesystem_IterateDirectory_Ex(SourceDir, SourceFileCounterDirectoryIterator, true, &CountData);
 
@@ -7200,7 +7214,29 @@ End:
     return 0;
 }
 
-internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
+internal void LogDividerLine(void)
+{
+    if (bQuietBuild) Logging_Enable();
+
+    LOG_LINE_BREAK();
+
+    u32 Rows = 0, Cols = 0;
+    if (Platform_GetTerminalDimensions(&Rows, &Cols))
+    {
+        char Separator[256] = {0};
+        for (i32 i = 0; i < Min((i32)(Cols-1), 255); i++)
+        {
+            Separator[i] = '=';
+        }
+
+        u32 Len = (i32)(Cols - 1) <= 0 ? 0 : Cols-1;
+        LOG("%S\n", StrSlice(Separator, Len));
+    }
+
+    if (bQuietBuild) Logging_Disable();
+}
+
+internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments, const String BaseDirectory)
 {
     if (NEVER(Arena == NULL)) return 1;
 
@@ -7208,8 +7244,8 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
     StringLocal(BuildFilePath, MAX_PATH_LENGTH);
 
     StringLocal(WorkingDirectory, MAX_PATH_LENGTH);
-    Platform_GetWorkingDirectory(&WorkingDirectory);
-    
+    String_Copy(&WorkingDirectory, BaseDirectory);
+
     bool bBuildPathGivenInCmdLine = false;
     bool bNoBuildFileSpecifiedInCmd = false;
 
@@ -7224,7 +7260,8 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
     {
         for (u8 i = 0; i < Arguments.Num; i++)
         {
-            if (IsBuildFile(Arguments.List[i]))
+            if (IsBuildFile(Arguments.List[i]) ||
+                IsBuildBatchFile(Arguments.List[i]))
             {
                 BuildFileIndex = (i8)i;
                 break;
@@ -7279,13 +7316,16 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
             {
                 String Name = StrShiftF(Arguments.List[BuildFileIndex], LastSlash+1);
                 String_Copy(&BuildFileName, Name);
-                String_Copy(&BuildFilePath, Arguments.List[BuildFileIndex]);
+                String_BuildPath(&BuildFilePath, WorkingDirectory, Arguments.List[BuildFileIndex]);
 
-                if (!String_EndsWith(BuildFilePath, S(".build"), false))
-                    String_Append(&BuildFilePath, S(".build"));
+                if (!IsBuildFile(Name) && !IsBuildBatchFile(Name))
+                {
+                    if (!String_EndsWith(BuildFilePath, S(".build"), false))
+                        String_Append(&BuildFilePath, S(".build"));
 
-                if (!String_EndsWith(BuildFileName, S(".build"), false))
-                    String_Append(&BuildFileName, S(".build"));
+                    if (!String_EndsWith(BuildFileName, S(".build"), false))
+                        String_Append(&BuildFileName, S(".build"));
+                }
 
                 bBuildPathGivenInCmdLine = true;
             }
@@ -7343,8 +7383,6 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
 
     String_EatPathSeparatorsInlineFromEnd(&WorkingDirectory);
 
-    // TODO: if "help" was given just log the .build files' custom help message
-
     if (StringArray_Contains(Arguments, S("-h"), false) ||
         StringArray_Contains(Arguments, S("--help"), false) ||
         StringArray_Contains(Arguments, S("?"), false) ||
@@ -7391,19 +7429,39 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
 
     // first, find .buildbatch files
     {
-        for (u8 i = 0; i < Arguments.Num; i++)
+        if (IsBuildBatchFile(BuildFileName) && bBuildPathGivenInCmdLine)
         {
-            if (IsBuildBatchFile(Arguments.List[i]))
+            Data.bFoundBuildFile = true;
+
+            if (!Filesystem_DoesFileExist(BuildFilePath))
             {
-                String_Copy(&BuildFileName, Arguments.List[i]);
-                Filesystem_IterateDirectory_Ex(WorkingDirectory, BuildFileDirectoryIterator, false, &Data);
-                break;
+                LOG_ERROR("Failed to find %S in %S", BuildFileName, WorkingDirectory);
+                return 1;
             }
         }
 
-        if ((!Data.bFoundBuildFile || Data.NumBuildFilesFound > 1) && Arguments.Num > 0)
+        if (!Data.bFoundBuildFile)
         {
-            Filesystem_IterateDirectory_Ex(WorkingDirectory, BuildFileDirectoryIterator_Args, true, &Data);
+            // TODO: simplify this, this is shit
+            for (u8 i = 0; i < Arguments.Num; i++)
+            {
+                if (IsBuildBatchFile(Arguments.List[i]))
+                {
+                    String_Copy(&BuildFileName, Arguments.List[i]);
+                    Filesystem_IterateDirectory_Ex(WorkingDirectory, BuildFileDirectoryIterator, false, &Data);
+                    break;
+                }
+            }
+
+            if ((!Data.bFoundBuildFile || Data.NumBuildFilesFound > 1) && Arguments.Num > 0)
+            {
+                Filesystem_IterateDirectory_Ex(WorkingDirectory, BuildFileDirectoryIterator_Args, false, &Data);
+            }
+
+            if (!Data.bFoundBuildFile) // final search for .buildbatch
+            {
+                Filesystem_IterateDirectory_Ex(WorkingDirectory, BuildFileDirectoryIterator, false, &Data);
+            }
         }
 
         if (Data.bFoundBuildFile)
@@ -7418,6 +7476,9 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
 
                 bool bWantsRebuild = StringArray_Contains(Arguments, S("rebuild"), false);
                 bool bWantsClean = StringArray_Contains(Arguments, S("clean"), false);
+
+                LOG("Batch build begin");
+                LogDividerLine();
 
                 while (Filesystem_ReadLine(f, &Line))
                 {
@@ -7474,29 +7535,13 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
                         }
                     }
 
-                    u32 ReturnValue = RiftBuild(Arena, NewArguments);
+                    u32 ReturnValue = RiftBuild(Arena, NewArguments, WorkingDirectory);
                     if (ReturnValue != 0)
                     {
                         return ReturnValue;
                     }
 
-                    if (bQuietBuild) Logging_Enable();
-
-                    LOG_LINE_BREAK();
-
-                    u32 Rows = 0, Cols = 0;
-                    if (Platform_GetTerminalDimensions(&Rows, &Cols))
-                    {
-                        char Separator[256] = {'='};
-                        for (u32 i = 0; i < Min(Cols, 255); i++)
-                        {
-                            Separator[i] = '=';
-                        }
-
-                        LOG("%S\n", StrSlice(Separator, Cols));
-                    }
-
-                    if (bQuietBuild) Logging_Disable();
+                    LogDividerLine();
 
                     // "free" the memory back to the original spot
                     Arena->Allocated = Allocated;
@@ -7591,7 +7636,8 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments)
         }
         else
         {
-            String_BuildPath(&BuildFilePathFull, WorkingDirectory, BuildFilePath);
+            //String_BuildPath(&BuildFilePathFull, WorkingDirectory, BuildFilePath);
+            String_Copy(&BuildFilePathFull, BuildFilePath);
         }
 
         if (!Filesystem_Open(BuildFilePathFull, FileMode_Read, &BuildFileHandle))
@@ -8309,13 +8355,16 @@ u32 RunApplication(const StringArray Arguments)
     LOG("\nwasssup yo. les get build'n...\n");
     #endif
 
+    StringLocal(WorkingDirectory, MAX_PATH_LENGTH);
+    Platform_GetWorkingDirectory(&WorkingDirectory);
+
     LinearAllocator ProgramArena = {0};
     char ProgramMemory[Mebibytes(1)] = {0};
     LinearAllocator_Create(Mebibytes(1), ProgramMemory, &ProgramArena);
 
     InitInternalVars(&ProgramArena);
 
-    u32 ExitCode = RiftBuild(&ProgramArena, Arguments);
+    u32 ExitCode = RiftBuild(&ProgramArena, Arguments, WorkingDirectory);
 
     #if !PLATFORM_MAC
     const bool bLaunchedFromDesktop = StringArray_Contains(Arguments, S("--from-desktop"), false);

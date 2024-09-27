@@ -590,7 +590,7 @@ bool Filesystem_Open(const String FilePath, u32 Mode, FileHandle* OutHandle)
     {
         OpenStyle = GENERIC_READ;
         ShareStyle = FILE_SHARE_READ;
-        Disposition = OPEN_ALWAYS;
+        Disposition = OPEN_EXISTING;
     }
     else if ((Mode & FileMode_Read) == 0 && (Mode & FileMode_Write) != 0)
     {

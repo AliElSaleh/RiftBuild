@@ -196,6 +196,12 @@ STRUCT(StringList)
 #define For(Array) for each (It, Array)
 #define ForEach(It, Array) for each (It, Array)
 
+#define is ==
+#define isnt !=
+#define and &&
+#define or ||
+#define not !
+
 #define TArray(Type) Type*
 #define SArray(Type, Name, Count) Type Name[Count]; u32 CONCAT(Name, _Count)
 #define TMap(KeyType, ValueType) Map

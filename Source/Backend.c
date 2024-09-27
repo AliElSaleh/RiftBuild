@@ -95,6 +95,14 @@ internal bool AsmSourceFileDirectoryIterator(const String FullPath, const String
                     return false;
                 }
             }
+            else
+            {
+                #ifndef HOOD
+                LOG("[Skipping] %S", FullPath);
+                #else
+                LOG("skip'n dis shit %S", FullPath);
+                #endif
+            }
         }
     }
 
@@ -909,7 +917,7 @@ internal bool AsmSourceFileDirectoryIterator_MSVC(const String FullPath, const S
             String_Append(&FilePath, S(".obj"));
 
             StringLocal(ObjectFilePath, MAX_PATH_LENGTH);
-            String_BuildPath(&ObjectFilePath, Params->IntermediateDirectory, FilePath);
+            String_BuildPath(&ObjectFilePath, Params->IntermediateBaseDirectory, FilePath);
 
             u64 ObjectFileWriteTime = Filesystem_GetLastWriteTime(ObjectFilePath);
             u64 SourceFileWriteTime = Filesystem_GetLastWriteTime(FullPath);
@@ -950,6 +958,14 @@ internal bool AsmSourceFileDirectoryIterator_MSVC(const String FullPath, const S
                     Data->bSuccess = false;
                     return false;
                 }
+            }
+            else
+            {
+                #ifndef HOOD
+                LOG("[Skipping] %S", FullPath);
+                #else
+                LOG("skip'n dis shit %S", FullPath);
+                #endif
             }
         }
     }
@@ -1416,6 +1432,7 @@ internal void Internal_ParseAndLogLinkerOutput_MSVC(String StdOutData)
             {
                 if (String_StartsWith(Line, S("LINK : "), true))
                 {
+                    /*
                     if (String_IsValid(LastObjFile) && String_IsEqual(LastObjFile, S("Linker Warnings"), true))
                     {
                         LOG_INLINE("    ");
@@ -1424,13 +1441,14 @@ internal void Internal_ParseAndLogLinkerOutput_MSVC(String StdOutData)
                     {
                         LOG_INLINE_WARNING("\nLinker Warnings\n    ");
                     }
-
-                    LastObjFile = S("Linker Warnings");
+                    */
 
                     String Trimmed = StrShiftF(Line, 7);
 
                     if (String_StartsWith(Trimmed, S("warning LNK"), true))
                     {
+                        //LastObjFile = S("Linker Warnings");
+
                         u32 ColonIndex = 0;
 
                         String Meta = StrShiftF(Trimmed, 8);
@@ -1489,6 +1507,19 @@ internal void Internal_ParseAndLogLinkerOutput_MSVC(String StdOutData)
                                 break;
                             }
                         }
+                    }
+                    else if (String_StartsWith(Trimmed, S("fatal error LNK"), true) ||
+                             String_StartsWith(Trimmed, S("error LNK"), true))
+                    {
+                        u32 ColonIndex = 0;
+                        u32 Blah = String_StartsWith(Trimmed, S("fatal error LNK"), true) ? 12 : 6;
+                        String Meta = StrShiftF(Trimmed, Blah);
+                        String_IndexOfChar(Meta, ':', &ColonIndex);
+                        LOG_INLINE_ERROR("[ERROR] %S", StrSlice(Meta.Data, ColonIndex));
+
+                        String_IndexOfChar(Trimmed, ':', &ColonIndex);
+                        String Message = StrShiftF(Trimmed, ColonIndex+1);
+                        LOG(" |%S", Message);
                     }
                     else
                     {
