@@ -138,7 +138,8 @@ bool SourceFileDirectoryIterator(const String FullPath, const String RelativePat
         const String Extension = StrShiftF(FileName, DotIndex);
 
         if (String_IsEqual(Extension, S(".asm"), false) ||
-            String_IsEqual(Extension, S(".rc"), false))
+            String_IsEqual(Extension, S(".rc"), false) ||
+            String_IsEqual(Extension, S(".manifest"), false))
         {
             // we will build this later
             return true;
@@ -282,6 +283,11 @@ internal bool Link_SourceFileDirectoryIterator(const String FullPath, const Stri
         String_IndexOfLastChar(FileName, '.', &DotIndex);
 
         const String Extension = StrShiftF(FileName, DotIndex);
+
+        if (String_EndsWith(Extension, S(".manifest"), false))
+        {
+            return true;
+        }
 
         if (IsSource(Extension))
         {
@@ -847,7 +853,8 @@ bool IsSource(const String Extension)
             String_IsEqual(Extension, S(".s"), false) ||
             String_IsEqual(Extension, S(".spp"), false)
             #if PLATFORM_WINDOWS
-            || String_IsEqual(Extension, S(".rc"), false);
+            || String_IsEqual(Extension, S(".rc"), false)
+            || String_IsEqual(Extension, S(".manifest"), false);
             #elif PLATFORM_APPLE
             || String_IsEqual(Extension, S(".m"), false)
             || String_IsEqual(Extension, S(".mm"), false);
@@ -988,6 +995,11 @@ internal bool Link_SourceFileDirectoryIterator_MSVC(const String FullPath, const
         String_IndexOfLastChar(FileName, '.', &DotIndex);
 
         const String Extension = StrShiftF(FileName, DotIndex);
+
+        if (String_EndsWith(Extension, S(".manifest"), false))
+        {
+            return true;
+        }
 
         if (IsSource(Extension))
         {

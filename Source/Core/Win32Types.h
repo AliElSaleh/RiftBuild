@@ -1408,5 +1408,7 @@ WINBASEAPI HMODULE    WINAPI GetModuleHandleW(LPCWSTR lpModuleName);
 WINBASEAPI HANDLE     WINAPI GetCurrentThread(void);
 WINBASEAPI BOOL       WINAPI GetConsoleScreenBufferInfo(HANDLE hConsoleOutput, PCONSOLE_SCREEN_BUFFER_INFO lpConsoleScreenBufferInfo);
 WINBASEAPI DWORD      WINAPI GetTimeZoneInformation(LPTIME_ZONE_INFORMATION lpTimeZoneInformation);
-WINBASEAPI SHORT      WINAPI GetAsyncKeyState(int vKey); 
+WINBASEAPI SHORT      WINAPI GetAsyncKeyState(int vKey);
+WINBASEAPI BOOL       WINAPI SetCurrentDirectoryW(LPCWSTR lpPathName);
+WINBASEAPI BOOL       WINAPI SetCurrentDirectoryA(LPCTSTR lpPathName);
 #endif

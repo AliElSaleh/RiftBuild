@@ -7316,8 +7316,16 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments, cons
             {
                 String Name = StrShiftF(Arguments.List[BuildFileIndex], LastSlash+1);
                 String_Copy(&BuildFileName, Name);
-                String_BuildPath(&BuildFilePath, WorkingDirectory, Arguments.List[BuildFileIndex]);
 
+                if (Filesystem_IsPathRelative(Arguments.List[BuildFileIndex]))
+                {
+                    String_BuildPath(&BuildFilePath, WorkingDirectory, Arguments.List[BuildFileIndex]);
+                }
+                else
+                {
+                    String_Copy(&BuildFilePath, Arguments.List[BuildFileIndex]);
+                }
+                
                 if (!IsBuildFile(Name) && !IsBuildBatchFile(Name))
                 {
                     if (!String_EndsWith(BuildFilePath, S(".build"), false))
@@ -7382,6 +7390,17 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments, cons
     }
 
     String_EatPathSeparatorsInlineFromEnd(&WorkingDirectory);
+
+    if (!Platform_SetWorkingDirectory(WorkingDirectory))
+    {
+        #ifndef HOOD
+        LOG_ERROR("Failed to set working directory to \"%S\"", WorkingDirectory);
+        #else
+        LOG_ERROR("nah cuh, couldnt set the workin directory to \"%S\"", WorkingDirectory);
+        #endif
+
+        return 1;
+    }
 
     if (StringArray_Contains(Arguments, S("-h"), false) ||
         StringArray_Contains(Arguments, S("--help"), false) ||
@@ -7505,8 +7524,10 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments, cons
                     u16 Num = 0;
                     for each_str_list (List) Num++;
 
+                    // TODO: rework this, so baaaaaddd...
                     if (bWantsRebuild) Num++;
                     if (bWantsClean)   Num++;
+                    if (bVerboseLog)   Num++;
 
                     StringArray NewArguments = {0};
                     if (Num > 0)
@@ -7531,6 +7552,12 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments, cons
                         if (bWantsClean)
                         {
                             NewArguments.List[i] = S("clean");
+                            i++;
+                        }
+
+                        if (bVerboseLog)
+                        {
+                            NewArguments.List[i] = S("-v");
                             //i++;
                         }
                     }
@@ -7857,7 +7884,7 @@ internal void InitInternalVars(LinearAllocator* Arena)
 
     String Win32Libs = S("kernel32 user32 opengl32 shell32 gdi32 comdlg32 comctl32 ws2_32 winmm netapi32 ole32 advapi32 "
                          "wldap32 crypt32 rpcrt4 shlwapi dbghelp bcrypt version imm32 cfgmgr32 setupapi oleaut32 "
-                         "uuid odbc32 odbccp32 delayimp userenv");
+                         "uuid odbc32 odbccp32 delayimp userenv pathcch");
 
     String LinuxLibs = S("m");
 

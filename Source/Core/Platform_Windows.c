@@ -300,6 +300,15 @@ void* Platform_MemSet(void* Dest, i32 Value, usize Size)
     return Dest;
 }
 
+bool Platform_SetWorkingDirectory(const String Path)
+{
+    StringLocal(Copy, MAX_PATH_LENGTH);
+    String_Copy(&Copy, Path);
+
+    BOOL bResult = SetCurrentDirectoryA(Copy.Data);
+    return bResult;
+}
+
 void Platform_ConsoleWrite(const char* Message, u8 Color, bool bIsError)
 {
     Platform_ConsoleWrite_CustomLength(Message, String_GetLength(Message), Color, bIsError);
@@ -1711,8 +1720,12 @@ PlatformHandle Platform_RunCommand(const String CmdLine, const String WorkingDir
     StartupInfo.cb = sizeof(StartupInfo);
 
     // todo: verify parent env gets included
-    char* Dir = WorkingDirectory.Length > 0 ? WorkingDirectory.Data : NULL;
-    if (!CreateProcess(NULL, CmdLine.Data, NULL, NULL, TRUE, 0, EnvBlock.Length == 0 ? NULL : EnvBlock.Data, Dir, &StartupInfo, &ProcessInfo))
+    StringLocal(Copy, MAX_PATH_LENGTH);
+    String_Copy(&Copy, WorkingDirectory);
+
+    const char* Dir = Copy.Length > 0 ? Copy.Data : NULL;
+    void* Env = EnvBlock.Length == 0 ? NULL : EnvBlock.Data;
+    if (!CreateProcess(NULL, CmdLine.Data, NULL, NULL, TRUE, 0, Env, Dir, &StartupInfo, &ProcessInfo))
     {
         StringLocal(Prefix, Kibibytes(8));
         String_Format(&Prefix, S("Failed to run command: \"%S\""), Prefix.Capacity, CmdLine);
@@ -1760,7 +1773,10 @@ PlatformHandle Platform_RunCommand_Ex(const String CmdLine, const String Working
     StartupInfo.hStdInput = NULL;
     StartupInfo.dwFlags |= STARTF_USESTDHANDLES;
 
-    const char* Dir = WorkingDirectory.Length > 0 ? WorkingDirectory.Data : NULL;
+    StringLocal(Copy, MAX_PATH_LENGTH);
+    String_Copy(&Copy, WorkingDirectory);
+    const char* Dir = Copy.Length > 0 ? Copy.Data : NULL;
+
     if (!CreateProcess(NULL, CmdLine.Data, NULL, NULL, TRUE, 0, NULL, Dir, &StartupInfo, &ProcessInfo))
     {
         StringLocal(Prefix, Kibibytes(8));

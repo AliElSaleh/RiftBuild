@@ -236,6 +236,8 @@ RIFT_API void* Platform_MemMove(void* restrict Dest, const void* restrict Source
 RIFT_API void* Platform_MemSet(void* Dest, i32 Value, usize Size);
 RIFT_API bool Platform_MemEqual(const void* Block1, const void* Block2, usize Size);
 
+RIFT_API bool Platform_SetWorkingDirectory(const String Path);
+
 RIFT_API void Platform_ConsoleWrite(const char* Message, u8 Color, bool bIsError);
 RIFT_API void Platform_ConsoleWrite_CustomLength(const char* Message, u32 Length, u8 Color, bool bIsError);
 

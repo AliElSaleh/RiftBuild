@@ -1660,13 +1660,16 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
                     bool bKeyIsPathBased = false;
                     for (u8 j = 0; j < SArray_Capacity(KeysToCareAbout); j++)
                     {
-                        if (String_IsEqual(Key, KeysToCareAbout[j], false))
+                        if (String_IsEqual(Key, KeysToCareAbout[j], false) ||
+                            String_EndsWith(Key, S(".Copy"), false) ||
+                            String_EndsWith(Key, S(".Move"), false) ||
+                            String_EndsWith(Key, S(".Delete"), false) ||
+                            String_EndsWith(Key, S(".Rename"), false) ||
+                            String_EndsWith(Key, S(".NewDir"), false) ||
+                            String_EndsWith(Key, S(".NewDirectory"), false) ||
+                            String_EndsWith(Key, S(".NewFile"), false))
                         {
-                            #if PLATFORM_WINDOWS
-                            C = '\\';
-                            #else
-                            C = '/';
-                            #endif
+                            C = PATH_SEPARATOR;
                             
                             bKeyIsPathBased = true;
 
