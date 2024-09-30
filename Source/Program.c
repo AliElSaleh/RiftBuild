@@ -184,10 +184,10 @@ internal void PrefixVariables(String* Dest, String VariableValue, const String P
         char C = VariableValue.Data[i];
 
         // ignore trailing space
-        if (C ==' ' && i == VariableValue.Length-1)
+        if (IsWhitespace(C) && i == VariableValue.Length-1)
             continue;
 
-        if (C == ' ')
+        if (IsWhitespace(C))
         {
             bSawSpace = true;
         }
@@ -225,10 +225,20 @@ internal void PrefixVariables(String* Dest, String VariableValue, const String P
             bInsideQuote = !bInsideQuote;
         }
 
-        if (C == ' ' && !bInsideQuote)
+        // TODO: look at other parts of code base for C == ' '
+        if (IsWhitespace(C) && !bInsideQuote)
         {
             if (bWrapWithQuotes)
                 String_AppendChar(Dest, '"');
+        }
+
+        if ((C == '\\' || C == '/') && !bInsideQuote)
+        {
+            // is next char a whitespace? skip add path separator
+            if (i+1 < VariableValue.Length && IsWhitespace(VariableValue.Data[i+1]))
+            {
+                continue;
+            }
         }
         
         String_AppendChar(Dest, C);
@@ -979,6 +989,7 @@ internal void ListVariables(LinearAllocator Arena, const String Name, TArray(Fil
         S("AssertArgExists"),
         S("AssertEnvVarExists"),
         S("AssertPlatform"),
+        S("PreDepend"),
         S("PreBuild"),
         S("PostBuild"),
         S("RunAssembly"),
@@ -1338,6 +1349,10 @@ internal bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const Stri
             *ExitCode = 1;
             return false;
         }
+    }
+    else if (String_EndsWith(Name, S("Log"), false))
+    {
+        LOG("%S", Value);
     }
 
     return true;
@@ -2159,6 +2174,17 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                         const String WorkingPath, const StringArray Parameters, const String CameFromBuildFile,
                         i8 BuildFileIndex, i8 RootPathIndex)
 {
+    if (!Platform_SetWorkingDirectory(WorkingPath))
+    {
+        #ifndef HOOD
+        LOG_ERROR("Failed to set working directory to \"%S\"", WorkingPath);
+        #else
+        LOG_ERROR("nah cuh, couldnt set the workin directory to \"%S\"", WorkingPath);
+        #endif
+
+        return 1;
+    }
+
     // make sure no one else is building this target
     const bool bNoMutex = StringArray_Contains(Parameters, S("-no-mutex"), false);
     if (!bNoMutex)
@@ -2724,6 +2750,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 S("AssertArgExists"),
                 S("AssertEnvVarExists"),
                 S("AssertPlatform"),
+                S("PreDepend"),
                 S("PreBuild"),
                 S("PostBuild"),
                 S("Depend"),
@@ -3921,6 +3948,49 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             bIsClean = false;
         }
     }
+
+    // pre depend
+    u16 NumPreDependCmds = 0;
+
+    // TODO: time this
+    for each (FileVariable, Var, ExpandedVariablesDB)
+    {
+        if (String_StartsWith(Var.Name, S("PreDepend"), false))
+        {
+            NumPreDependCmds++;
+        }
+    }
+
+    if (NumPreDependCmds > 0 && !bIsClean)
+    {
+        #ifndef HOOD
+        LOG("Running pre depend commands...");
+        #else
+        LOG("cool mang, gonna run some pre depend cmds...");
+        #endif
+
+        // run pre build commands (if specified)
+        for each (FileVariable, Var, ExpandedVariablesDB)
+        {
+            if (String_StartsWith(Var.Name, S("PreDepend"), false))
+            {
+                u32 ExitCode = 0;
+                bool bResult = Internal_ExecuteBuildCmd(WorkingPath, Var.Name, Var.Value, Var.bHasSpecial, &ExitCode);
+                if (!bResult)
+                {
+                    #ifndef HOOD
+                    LOG_ERROR("Pre-depend command exited with a failure result: %u", ExitCode);
+                    #else
+                    LOG_ERROR("brah wtf, gon have to stop you there nigga. da command we jus run fuck'n failed on me nigga");
+                    #endif
+                    return 1;
+                }
+            }
+        }
+
+        LOG_LINE_BREAK();
+    }
+
 
     Clock DependencyBuildClock;
     Clock_Start(&DependencyBuildClock);
@@ -5413,11 +5483,12 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     const String ExpandedAssemblerFlags = GetVariableValue(ExpandedVariablesDB, S("AssemblerFlags"));
     const String ExpandedLinkerFlags    = GetVariableValue(ExpandedVariablesDB, S("LinkerFlags"));
 
+    // TODO: use max value length?
     StringLocal(ExpandedIncludeFlags, 4096);
-    StringLocal(ExpandedLibraries, 1024);
+    StringLocal(ExpandedLibraries, 2048);
     StringLocal(ExpandedLibraryDirectories, 4096);
-    StringLocal(ExpandedDefineFlags, 1024);
-    StringLocal(ExpandedUnDefineFlags, 1024);
+    StringLocal(ExpandedDefineFlags, 2048);
+    StringLocal(ExpandedUnDefineFlags, 2048);
     StringLocal(ExpandedLinkerDefineFlags, 1024);
 
     StringLocal(FlagPrefix, 4);
