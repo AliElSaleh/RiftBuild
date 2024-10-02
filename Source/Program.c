@@ -1401,6 +1401,69 @@ internal bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const Stri
 
         LOG_LINE_BREAK();
     }
+    else if (String_EndsWith(Name, S("Zip"), false))
+    {
+        LinearAllocator Scratch = Memory_GetScratch();
+        StringList ArgList      = String_SplitIntoList(&Scratch, Value, ' ', true);
+        String FilePath         = StringList_GetStringFromIndex(ArgList, 0);
+        String Destination      = StringList_GetStringFromIndex(ArgList, 1);
+
+        String_EatPathSeparatorsInlineFromEnd(&FilePath);
+
+        if (!Filesystem_DoesFileExist(FilePath) &&
+            !Filesystem_DoesDirectoryExist(FilePath))
+        {
+            LOG_ERROR("File path \"%S\" does not exist", FilePath);
+            return false;
+        }
+
+        bool bFilePathHasExtension = Filesystem_DoesPathHaveFileExtension(FilePath);
+
+        StringLocal(FinalDestinationPath, MAX_PATH_LENGTH);
+        String_BuildPath(&FinalDestinationPath, WorkingDirectory, Destination);
+
+        if (!String_EndsWith(Destination, S(".zip"), false))
+        {
+            String FileName = FilePath;
+            u32 LastSlash = 0;
+            if (String_IndexOfLastPathSlash(FilePath, &LastSlash))
+            {
+                FileName = StrShiftF(FilePath, LastSlash+1);
+            }
+
+            String_BuildPath(&FinalDestinationPath, FileName);
+            String_Append(&FinalDestinationPath, S(".zip"));
+        }
+
+        u32 LastSlash = 0;
+        if (String_IndexOfLastPathSlash(FinalDestinationPath, &LastSlash))
+        {
+            Filesystem_OpenDirectory(StrSlice(FinalDestinationPath.Data, LastSlash));
+        }
+
+        StringLocal(CmdLine, 8192);
+        
+        #if PLATFORM_WINDOWS
+        String_Concat(&CmdLine, S("powershell -Command \"Compress-Archive -Force -Path \"\"\""), FilePath, bFilePathHasExtension ? S("") : S("\\*"),  S("\"\"\" -DestinationPath \"\""), FinalDestinationPath, S("\"\"\""));
+        #else
+        UNIMPLEMENTED;
+        #endif
+
+        LOG("Zip: %S\n -> Destination: %S", FilePath, FinalDestinationPath);
+
+        if (bVerboseLog) LOG("    %S", CmdLine);
+
+        PlatformHandle H = Platform_RunCommand(CmdLine, WorkingDirectory, String_Null());
+        if (!Platform_IsValidHandle(H)) return false;
+
+        *ExitCode = Platform_WaitForProcessAndGetExitCode(H);
+        if (*ExitCode != 0)
+        {
+            return false;
+        }
+
+        LOG_LINE_BREAK();
+    }
     else if (String_EndsWith(Name, S("Unzip"), false))
     {
         LinearAllocator Scratch = Memory_GetScratch();
