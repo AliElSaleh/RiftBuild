@@ -3171,17 +3171,17 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     #if !PLATFORM_WINDOWS
     if (bIsAssemblyExe || !bFoundBuildFile) // only do this for executables. people may want case sensitivity when building libraries
     {
-        String_Copy(&FinalAssemblyName, AssemblyNamePrefix);
-        String_Append(&FinalAssemblyName, AssemblyName);
-        String_Append(&FinalAssemblyName, AssemblyNamePostfix);
+        String_Copy(&FinalAssemblyName, AssemblyPrefix);
+        String_Append(&FinalAssemblyName, Assembly);
+        String_Append(&FinalAssemblyName, AssemblyPostfix);
         String_ToLower(&FinalAssemblyName);
     }
     else
     {
         String_Append(&FinalAssemblyName, S("lib"));
-        String_Append(&FinalAssemblyName, AssemblyNamePrefix);
-        String_Append(&FinalAssemblyName, AssemblyName);
-        String_Append(&FinalAssemblyName, AssemblyNamePostfix);
+        String_Append(&FinalAssemblyName, AssemblyPrefix);
+        String_Append(&FinalAssemblyName, Assembly);
+        String_Append(&FinalAssemblyName, AssemblyPostfix);
     }
     #else
     String_Copy(&FinalAssemblyName, AssemblyPrefix);
