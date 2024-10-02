@@ -273,6 +273,11 @@ bool Platform_MemEqual(const void* Block1, const void* Block2, usize Size)
 }
 #endif
 
+LinearAllocator Memory_GetScratch(void)
+{
+    return GEngineScratchAllocator;
+}
+
 usize Memory_GetEngineMemoryRemaining(void)
 {
     return GEngineAllocator.TotalSize - GEngineAllocator.Allocated;

@@ -119,6 +119,9 @@ RIFT_API bool Filesystem_Move(const String Source, const String Destination, boo
 
 RIFT_API bool Filesystem_ArePathsCommon(String PathA, String PathB);
 
+RIFT_API bool Filesystem_DoesPathHaveFileExtension(const String Path);
+RIFT_API String Filesystem_ExtractFileNameFromPath(const String Path, bool bIncludeExtension);
+
 RIFT_API bool IsValidFileHandle(const FileHandle Handle);
 
 RIFT_API FileHandle FileHandle_Null(void);

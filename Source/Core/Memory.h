@@ -55,6 +55,7 @@ RIFT_API void* MemCopy(void* restrict Destination, const void* restrict Source, 
 RIFT_API void* MemMove(void* restrict Destination, const void* restrict Source, usize Size);
 RIFT_API bool  MemEqual(const void* Block1, const void* Block2, usize Size);
 
+RIFT_API LinearAllocator Memory_GetScratch(void);
 RIFT_API usize Memory_GetEngineMemoryRemaining(void);
 
 RIFT_API bool IsValid(const void* Memory);

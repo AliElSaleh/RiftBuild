@@ -173,8 +173,11 @@ RIFT_API StringArray String_SplitIntoArray(LinearAllocator* Arena, const String 
 RIFT_API StringArray String_ParseIntoArray(LinearAllocator* Arena, const String Str, char Delimiter, u32 StartingIndex, u32 MaxCount);
 RIFT_API StringArray String_ParseIntoArray_IntoExistingBuffer(String* ArrayBuffer, const String Str, char Delimiter, u32 StartingIndex, u32 MaxCount);
 
-RIFT_API bool StringArray_Find(StringArray Array, const String Source, u32* FoundIndex);
-RIFT_API String StringArray_GetStringFromIndex(StringArray Array, u32 Index);
+RIFT_API bool StringArray_Find(StringArray List, const String Source, u32* FoundIndex);
+RIFT_API String StringArray_GetStringFromIndex(StringArray List, u32 Index);
+
+RIFT_API bool StringList_Find(StringList Array, const String Source, u32* FoundIndex);
+RIFT_API String StringList_GetStringFromIndex(StringList Array, u32 Index);
 
 RIFT_API bool String_ToF32(const String Str, f32* OutFloat);
 RIFT_API bool String_ToF64(const String Str, f64* OutFloat);
@@ -230,7 +233,7 @@ FORCEINLINE static String StrSlice(const char* Data, u32 Len)
     return Result;
 }
 
-FORCEINLINE static String StrShiftF(String s, u32 Offset)
+FORCEINLINE static String StrShiftF(const String s, u32 Offset)
 {
     const u32 MinLength   = Min(Offset, s.Length);
     const u32 MinCapacity = Min(Offset, s.Capacity);

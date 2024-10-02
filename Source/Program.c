@@ -3,7 +3,7 @@
 #include "EntryPoint.h"
 
 usize GEngineMemoryAmount  = Kibibytes(128);
-usize GEngineScratchAmount = 0;
+usize GEngineScratchAmount = Kibibytes(8);
 
 #ifndef UNITY_BUILD
 #include "Backend.h"
@@ -1035,6 +1035,8 @@ internal bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const Stri
     if (!String_IsValid(Value))
         return true;
 
+    ASSERT(ExitCode != NULL);
+
     if (String_EndsWith(Name, S("Cmd"), false))
     {
         const String Cmd = Value;
@@ -1344,13 +1346,101 @@ internal bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const Stri
         }
         else
         {
-            LOG("%S", Value);
+            LOG("%S\n", Value);
         }
     }
     else if (String_EndsWith(Name, S("WriteFile"), false) ||
              String_EndsWith(Name, S("WriteFileLines"), false))
     {
         UNIMPLEMENTED;
+    }
+    else if (String_EndsWith(Name, S("Download"), false))
+    {
+        LinearAllocator Scratch = Memory_GetScratch();
+        StringList ArgList      = String_SplitIntoList(&Scratch, Value, ' ', true);
+        String URL              = StringList_GetStringFromIndex(ArgList, 0);
+        String Destination      = StringList_GetStringFromIndex(ArgList, 1);
+
+        StringLocal(FinalDestinationPath, MAX_PATH_LENGTH);
+        String_BuildPath(&FinalDestinationPath, WorkingDirectory, Destination);
+
+        if (!Filesystem_DoesPathHaveFileExtension(Destination))
+        {
+            Filesystem_OpenDirectory(FinalDestinationPath);
+
+            const String FileName = Filesystem_ExtractFileNameFromPath(URL, true);
+            String_BuildPath(&FinalDestinationPath, FileName);
+        }
+
+        LOG("Download: %S\n -> Destination: %S", URL, FinalDestinationPath);
+
+        if (Filesystem_DoesFileExist(FinalDestinationPath))
+        {
+            LOG("    File already exists. Skipping download.\n");
+            return true;
+        }
+
+        StringLocal(CmdLine, 8192);
+        
+        #if PLATFORM_WINDOWS
+        String_Concat(&CmdLine, S("powershell -Command \"(New-Object Net.WebClient).DownloadFile('"), URL, S("', '"), FinalDestinationPath, S("')\""));
+        #else
+        UNIMPLEMENTED;
+        #endif
+
+        if (bVerboseLog) LOG("    %S", CmdLine);
+
+        PlatformHandle H = Platform_RunCommand(CmdLine, WorkingDirectory, String_Null());
+        if (!Platform_IsValidHandle(H)) return false;
+
+        *ExitCode = Platform_WaitForProcessAndGetExitCode(H);
+        if (*ExitCode != 0)
+        {
+            return false;
+        }
+
+        LOG_LINE_BREAK();
+    }
+    else if (String_EndsWith(Name, S("Unzip"), false))
+    {
+        LinearAllocator Scratch = Memory_GetScratch();
+        StringList ArgList      = String_SplitIntoList(&Scratch, Value, ' ', true);
+        String ZipFilePath      = StringList_GetStringFromIndex(ArgList, 0);
+        String Destination      = StringList_GetStringFromIndex(ArgList, 1);
+
+        if (!Filesystem_DoesFileExist(ZipFilePath))
+        {
+            LOG_ERROR("Zip file \"%S\" does not exist", ZipFilePath);
+            return false;
+        }
+
+        StringLocal(FinalDestinationPath, MAX_PATH_LENGTH);
+        String_BuildPath(&FinalDestinationPath, WorkingDirectory, Destination);
+
+        Filesystem_OpenDirectory(FinalDestinationPath);
+
+        StringLocal(CmdLine, 8192);
+        
+        #if PLATFORM_WINDOWS
+        String_Concat(&CmdLine, S("powershell -Command \"Expand-Archive -Force -Path \"\"\""), ZipFilePath, S("\"\"\" -DestinationPath \"\""), FinalDestinationPath, S("\"\"\""));
+        #else
+        UNIMPLEMENTED;
+        #endif
+
+        LOG("Unzip: %S\n -> Destination: %S", ZipFilePath, FinalDestinationPath);
+
+        if (bVerboseLog) LOG("    %S", CmdLine);
+
+        PlatformHandle H = Platform_RunCommand(CmdLine, WorkingDirectory, String_Null());
+        if (!Platform_IsValidHandle(H)) return false;
+
+        *ExitCode = Platform_WaitForProcessAndGetExitCode(H);
+        if (*ExitCode != 0)
+        {
+            return false;
+        }
+
+        LOG_LINE_BREAK();
     }
 
     return true;
@@ -3981,9 +4071,9 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     if (NumPreDependCmds > 0 && !bIsClean)
     {
         #ifndef HOOD
-        LOG("Running pre depend commands...");
+        LOG("Running pre depend commands...\n");
         #else
-        LOG("cool mang, gonna run some pre depend cmds...");
+        LOG("cool mang, gonna run some pre depend cmds...\n");
         #endif
 
         // run pre build commands (if specified)

@@ -2783,6 +2783,37 @@ String StringArray_GetStringFromIndex(StringArray Array, u32 Index)
     return String_Null();
 }
 
+bool StringList_Find(StringList List, const String Source, u32* FoundIndex)
+{
+    u32 Index = 0;
+    for each_str_list_i (Index, List)
+    {
+        if (String_IsEqual(It.String, Source, true))
+        {
+            if (FoundIndex)
+            {
+                *FoundIndex = Index;
+            }
+
+            return true;
+        }
+    }
+
+    return false;
+}
+
+String StringList_GetStringFromIndex(StringList List, u32 Index)
+{
+    u32 i = 0;
+    for each_str_list_i (i, List)
+    {
+        if (i == Index)
+            return It.String;
+    }
+
+    return String_Null();
+}
+
 u32 String_GetLength(const char *Str)
 {
     char* Start = (char*)Str;

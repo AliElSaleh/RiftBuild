@@ -4,6 +4,7 @@
 #include "Platform.h"
 #include "Clock.h"
 #include "StringUtils.h"
+#include "Globals.h"
 #include "Log.h"
 #endif
 
@@ -718,4 +719,51 @@ void Clock_PrintElapsedTime(const Clock* C, bool bAutoConvertTimeUnit)
 
     Platform_ConsoleWrite_CustomLength(Time.Data, Time.Length, 0, false);
     Platform_ConsoleWrite_CustomLength("\n", 1, 0, false);
+}
+
+bool Filesystem_DoesPathHaveFileExtension(const String Path)
+{
+    if (Path.Length < 2 ||
+        String_IsEqual(Path, S("."), false) ||
+        String_IsEqual(Path, S(".."), false))
+    {
+        return false;
+    }
+
+    u32 LastDot = 0, LastSlash = 0;
+    String_IndexOfLastChar(Path, '.', &LastDot);
+    String_IndexOfLastPathSlash(Path, &LastSlash);
+
+    bool bSomeCharAfterDot = false;
+    if (LastDot+1 < Path.Length)
+    {
+        char C = Path.Data[LastDot+1];
+        bSomeCharAfterDot = IsAlphabet(C) || IsDigit(C);
+    }
+
+    return LastDot > LastSlash && bSomeCharAfterDot;
+}
+
+String Filesystem_ExtractFileNameFromPath(const String Path, bool bIncludeExtension)
+{
+    String FileName = String_Null();
+
+    u32 LastSlash = 0;
+    if (String_IndexOfLastPathSlash(Path, &LastSlash))
+    {
+        FileName = StrShiftF(Path, LastSlash+1);
+    }
+
+    if (bIncludeExtension)
+    {
+        return FileName;
+    }
+
+    u32 LastDot = 0;
+    if (String_IndexOfLastChar(FileName, '.', &LastDot))
+    {
+        FileName = StrSlice(FileName.Data, LastDot);
+    }
+
+    return FileName;
 }
