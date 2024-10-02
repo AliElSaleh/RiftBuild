@@ -338,7 +338,7 @@ Bundle
 ```
 That's literally it
 
-There are also some optional extra settings for fine-grain control, if that is needed
+And, there are also some optional settings for fine-grain custom control (if that is needed for your macOS app)
 ```make
 Bundle.InfoPlist    path/to/custom.plist
 Bundle.VersionPlist path/to/custom.plist
