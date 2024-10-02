@@ -55,6 +55,7 @@ typedef void VoidFunc(void);
 #endif
 
 #define _Crash_ do { int* volatile _ = (int*)1; *_ = 69; } while (0)
+//#define _Crash_ do { *(volatile char*)1 = 69; } while (0)
 
 #define INT8_MIN         -127
 #define INT16_MIN        -32767

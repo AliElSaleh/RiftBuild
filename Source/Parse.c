@@ -1350,14 +1350,17 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
                 }
             }
 
-            for each (InternalVariable, v, InternalVariablesDB)
+            if (!bFoundCmd)
             {
-                if (String_IsEqual(v.Name, Slice, false))
+                for each (InternalVariable, v, InternalVariablesDB)
                 {
-                    bFoundCmd = true;
-                    VarValue = v.Value;
-                    bEqualsToSomething = true;
-                    break;
+                    if (String_IsEqual(v.Name, Slice, false))
+                    {
+                        bFoundCmd = true;
+                        VarValue = v.Value;
+                        bEqualsToSomething = true;
+                        break;
+                    }
                 }
             }
 
@@ -1402,6 +1405,76 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
 
                                 return false;
                             }
+                        }
+                    }
+                    else if (String_IsEqual(Var.Name, S("AssertArgExists.Any"), false))
+                    {
+                        StringArray ArgArray = String_ParseIntoArray(&Scratch, Var.Value, ' ', 0, 128);
+
+                        bool bFound = false;
+                        for each_str (Arg, ArgArray)
+                        {
+                            const String Trimmed = String_EatSpaces(*Arg);
+
+                            for each (CmdOption, o, CmdOptionsDB)
+                            {
+                                if (String_IsEqual(o.Name, Trimmed, false))
+                                {
+                                    bFound = true;
+
+                                    // TODO: this might confuse people if they specify 'arg' but not 'arg=VALUE'?
+                                    if (o.bEqualsToSomething && o.Value.Length == 0)
+                                    {
+                                        bFound = false;
+                                    }
+
+                                    if (bFound)
+                                    {
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+
+                        if (!bFound)
+                        {
+                            LOG_ERROR("[ASSERTION FAILURE] Any one of these arguments must be specified: %S", Var.Value);
+                            return false;
+                        }
+                    }
+                    else if (String_IsEqual(Var.Name, S("AssertArgExists.OnlyOne"), false)) // TODO: make dynamic
+                    {
+                        StringArray ArgArray = String_ParseIntoArray(&Scratch, Var.Value, ' ', 0, 128);
+
+                        bool bFound = false;
+                        for each_str (Arg, ArgArray)
+                        {
+                            const String Trimmed = String_EatSpaces(*Arg);
+
+                            for each (CmdOption, o, CmdOptionsDB)
+                            {
+                                if (String_IsEqual(o.Name, Trimmed, false))
+                                {
+                                    if (bFound)
+                                    {
+                                        bFound = false;
+                                        goto MultipleArgsFound;
+                                    }
+
+                                    bFound = true;
+                                    if (o.bEqualsToSomething && o.Value.Length == 0)
+                                    {
+                                        bFound = false;
+                                    }
+                                }
+                            }
+                        }
+                        
+                        MultipleArgsFound:
+                        if (!bFound)
+                        {
+                            LOG_ERROR("[ASSERTION FAILURE] Only one of these arguments can be specified: %S", Var.Value);
+                            return false;
                         }
                     }
                 }
@@ -1513,17 +1586,25 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
                         }
                     }
 
-                    String DestEnd = StrShiftF(*Dest, Dest->Length);
-                    u32 DestLengthBefore = Dest->Length;
+                    //String DestEnd = StrShiftF(*Dest, Dest->Length);
+                    //u32 DestLengthBefore = Dest->Length;
 
-                    if (!ExpandBuildVariable(Scratch, VariablesDB, CmdOptionsDB, Dest, Slice, Var.Value, Root, WorkingDirectory, bLowerStrings, bIsAssemblyExe))
+                    String TempDest = String_Reserve(&Scratch, Dest->Capacity);
+                    if (!ExpandBuildVariable(Scratch, VariablesDB, CmdOptionsDB, &TempDest, Slice, Var.Value, Root, WorkingDirectory, bLowerStrings, bIsAssemblyExe))
                     {
                         return false;
                     }
 
+                    if (bWantsToLower) String_ToLower(&TempDest);
+                    if (bWantsToUpper) String_ToUpper(&TempDest);
+                    
+                    String_Append(Dest, TempDest);
+
+                    /*
                     DestEnd.Length = Dest->Length - DestLengthBefore;
                     if (bWantsToLower) String_ToLower(&DestEnd);
                     if (bWantsToUpper) String_ToUpper(&DestEnd);
+                    */
 
                     if (Var.Value.Length > 0)
                         NumEntries++;
@@ -1699,6 +1780,7 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
     }
 
 End:
+    String_EatSpacesInline(Dest);
     String_EatSpacesInlineFromEnd(Dest);
 
     return true;

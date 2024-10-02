@@ -12,6 +12,8 @@
 #include "Log.h"
 #endif
 
+// TODO: wrap all compiler path strings in quotes
+
 bool C_DoCompile(CompileData* Data, const String FullPath, const String RelativePath);
 
 internal bool AsmSourceFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
@@ -141,14 +143,15 @@ bool SourceFileDirectoryIterator(const String FullPath, const String RelativePat
             String_IsEqual(Extension, S(".rc"), false) ||
             String_IsEqual(Extension, S(".manifest"), false))
         {
-            // we will build this later
+            // we will build these later
             return true;
         }
 
-        const bool bIsPCH    = Data->Params->Type == AssemblyType_PCH;
+        const bool bIsPCH = Data->Params->Type == AssemblyType_PCH;
         const bool bIsSource = bIsPCH ? IsHeader(Extension) : IsSource(Extension);
+        const bool bIsCustomSource = IsSourceCustom(Extension, Data->Params->SourceFileExtensions);
 
-        if (bIsSource)
+        if (bIsSource || bIsCustomSource)
         {
             if (FilterSourceFile(Data->Params->RootDirectory, Data->Params->SourceDirectory, FullPath, RelativePath, Data->Params->WhitelistFiles, Data->Params->BlacklistFiles, Data->Params->WhitelistDirectories, Data->Params->BlacklistDirectories))
             {
@@ -277,7 +280,7 @@ internal bool Link_SourceFileDirectoryIterator(const String FullPath, const Stri
             return true;
         }
 
-        LinkData* Data = (LinkData*)UserData;
+        LinkData* Data = UserData;
 
         u32 DotIndex = 0;
         String_IndexOfLastChar(FileName, '.', &DotIndex);
@@ -289,7 +292,10 @@ internal bool Link_SourceFileDirectoryIterator(const String FullPath, const Stri
             return true;
         }
 
-        if (IsSource(Extension))
+        const bool bIsSource       = IsSource(Extension);
+        const bool bIsCustomSource = IsSourceCustom(Extension, Data->Params->SourceFileExtensions);
+
+        if (bIsSource || bIsCustomSource)
         {
             // TODO: ignore .asm files for now when compiling with clang/gcc, i still need to support them
             if (String_IsEqual(Extension, S(".asm"), false))
@@ -478,12 +484,16 @@ bool C_DoCompile(CompileData* Data, const String FullPath, const String Relative
     StringLocal(FilePath, MAX_PATH_LENGTH);
     if (Params->Type == AssemblyType_PCH)
     {
-        String_Append(&FilePath, RelativePath);
+        if (!Params->bDumpObjFilesInOneDirectory)
+            String_Append(&FilePath, RelativePath);
+        
         String_Append(&FilePath, S(".gch"));
     }
     else
     {
-        String_Append(&FilePath, RelativePath);
+        if (!Params->bDumpObjFilesInOneDirectory)
+            String_Append(&FilePath, RelativePath);
+
         String_Append(&FilePath, S(".o"));
     }
 
@@ -501,27 +511,6 @@ bool C_DoCompile(CompileData* Data, const String FullPath, const String Relative
     String_AppendChar(&FullSourcePath, '"');
     String_Append(&FullSourcePath, FullPath);
     String_AppendChar(&FullSourcePath, '"');
-
-    StringLocal(ErrorLimit, 32);
-    // todo: i could dynamically test whether this is supported by the compiler??
-    /*
-    if (Params->MaxErrors > 0)
-    {
-        if (String_IsEqual(Params->CompilerProgram, S("gcc"), false) ||
-            String_IsEqual(Params->CompilerProgram, S("cc"), false) ||
-            String_IsEqual(Params->CompilerProgram, S("g++"), false) ||
-            String_Contains(Params->CompilerProgram, S("mingw32"), false) ||
-            String_Contains(Params->CompilerProgram, S("-gcc"), false) ||
-            String_Contains(Params->CompilerProgram, S("-g++"), false))
-        {
-            String_Format(&ErrorLimit, S("-fmax-errors=%i"), 32, Params->MaxErrors);
-        }
-        else
-        {
-            String_Format(&ErrorLimit, S("-ferror-limit=%i"), 32, Params->MaxErrors);
-        }
-    }
-    */
 
     String AdditionalPlatformFlags = String_Null();
 
@@ -544,12 +533,53 @@ bool C_DoCompile(CompileData* Data, const String FullPath, const String Relative
 
     // build cmd line string
     StringLocal(CmdLine, UINT16_MAX);
-    String_BuildSeparator(&CmdLine, ' ', Params->CompilerProgram, S("-c"), FullSourcePath, Params->CompilerFlags, ErrorLimit, AdditionalPlatformFlags, Params->DefineFlags, Params->IncludeFlags);
-    String_EatSpacesInlineFromEnd(&CmdLine);
-    String_Append(&CmdLine, S(" -o \""));
-    String_Append(&CmdLine, ObjectPath);
-    String_Append(&CmdLine, S("\""));
-    //String_Concat(&CmdLine, S(" -c -o "), S("\""), ObjectPath, S("\" "), Params->DefineFlags, S(" "), Params->IncludeFlags);
+    if (Params->Type == AssemblyType_CompilerObject) // TODO: if (custom compiler) ?? 
+    {
+        String_Empty(&ObjectPath);
+
+        // int/relativepath/assmeblyprefix|filename.no_ext|assemblypostfix|ext
+
+        String FileName = RelativePath;
+        String RelativePathNoFile = String_Null();
+        u32 LastSlash = 0;
+        if (String_IndexOfLastPathSlash(RelativePath, &LastSlash))
+        {
+            RelativePathNoFile = StrSlice(RelativePath.Data, LastSlash);
+            FileName = StrShiftF(RelativePath, LastSlash+1);
+        }
+
+        u32 LastDot = 0;
+        if (String_IndexOfLastChar(FileName, '.', &LastDot))
+        {
+            FileName = StrSlice(FileName.Data, LastDot);
+        }
+
+        if (Params->bDumpObjFilesInOneDirectory)
+        {
+            RelativePathNoFile = String_Null();
+        }
+
+        String_BuildPath(&ObjectPath, Params->IntermediateBaseDirectory, RelativePathNoFile);
+        String_AppendPathSeparator(&ObjectPath);
+        String_Append(&ObjectPath, Params->AssemblyPrefix);
+        String_Append(&ObjectPath, FileName);
+        String_Append(&ObjectPath, Params->AssemblyPostfix);
+        String_Append(&ObjectPath, Params->Extension);
+
+        String_BuildSeparator(&CmdLine, ' ', Params->CompilerProgram, FullSourcePath, Params->CompilerFlags, Params->CompilerOutputFlag);
+        String_EatSpacesInlineFromEnd(&CmdLine);
+        String_Append(&CmdLine, S(" \""));
+        String_Append(&CmdLine, ObjectPath);
+        String_Append(&CmdLine, S("\""));
+    }
+    else
+    {
+        String_BuildSeparator(&CmdLine, ' ', Params->CompilerProgram, S("-c"), FullSourcePath, Params->CompilerFlags, AdditionalPlatformFlags, Params->DefineFlags, Params->IncludeFlags);
+        String_EatSpacesInlineFromEnd(&CmdLine);
+        String_Append(&CmdLine, S(" -o \""));
+        String_Append(&CmdLine, ObjectPath);
+        String_Append(&CmdLine, S("\""));
+    }
 
     if (Params->PCHPath.Length > 0)
     {
@@ -842,6 +872,19 @@ bool C_Link(const BuildParams* Params)
     return true;
 }
 
+bool IsSourceCustom(const String Extension, const StringList CustomExtensions)
+{
+    for each_str_list (CustomExtensions)
+    {
+        if (String_IsEqual(Extension, It.String, false))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 bool IsSource(const String Extension)
 {
     return  String_IsEqual(Extension, S(".c"), false) ||
@@ -1001,7 +1044,10 @@ internal bool Link_SourceFileDirectoryIterator_MSVC(const String FullPath, const
             return true;
         }
 
-        if (IsSource(Extension))
+        const bool bIsSource       = IsSource(Extension);
+        const bool bIsCustomSource = IsSourceCustom(Extension, Data->Params->SourceFileExtensions);
+
+        if (bIsSource || bIsCustomSource)
         {
             if (String_IndexOfFirstPathSlash(RelativePath, NULL))
             {

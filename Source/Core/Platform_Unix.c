@@ -430,6 +430,12 @@ PlatformHandle Platform_RunCommand_Ex(const String CmdLine, const String Working
     return pid;
 }
 
+bool Platform_SetWorkingDirectory(const String Path)
+{
+    UNIMPLEMENTED;
+    return false;
+}
+
 bool Platform_FindProgram(String ProgramName)
 {
     return Platform_FindFile_Ex(ProgramName, S(""), NULL);

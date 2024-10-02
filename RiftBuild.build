@@ -9,7 +9,7 @@ TitleName               Rift Build %^%debug
 Description             A simpler build tool for C/C++, because fuck cmake
 Version!                0.9.8-alpha-%_date.nosep
 CompanyName             Ali El Saleh
-Copyright!              Copyright (c) %_date.year Ali El Saleh
+Copyright!              Copyright (c) %_date.year $CompanyName
 
 SourceDirectory         Source
 BuildDirectory          Build/$(Mode)%(%32)/%%Hood

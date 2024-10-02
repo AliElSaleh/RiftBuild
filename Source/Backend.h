@@ -37,6 +37,27 @@ STRUCT(SourceFileData)
     String RelativePath;
 };
 
+STRUCT(SourceCountData)
+{
+    u32 NumSources;
+    u32 NumAsmSources;
+    u32 NumHeaders;
+    u32 NumRcSources;
+    String* FirstSourceFileName;
+    String WorkingDirectory;
+    String SourceDirectory;
+    String IntermediateBaseDirectory;
+    String IntermediateDirectory;
+    String BuildDirectory;
+    StringList WhitelistArray;
+    StringList BlacklistArray;
+    StringList WhitelistDirArray;
+    StringList BlacklistDirArray;
+    StringList CustomSourceExtensions;
+    bool bHasCppFiles;
+    bool bIsPCHBuild;
+};
+
 STRUCT(CmdOption)
 {
     String Name;
@@ -52,6 +73,7 @@ ENUM(EAssemblyType)
     AssemblyType_StaticLibrary,
     AssemblyType_DynamicLibrary,
     AssemblyType_PCH,
+    AssemblyType_CompilerObject
 };
 
 ENUM(ECompiler)
@@ -113,10 +135,13 @@ STRUCT(BuildParams)
 
     String Assembly;
     String AssemblyWithExt;
+    String AssemblyPrefix;
+    String AssemblyPostfix;
     String Extension;
     String Extension_Og;
     String CompilerProgram;
     String CompilerPath;
+    String CompilerOutputFlag;
     String AsmProgram;
     String AsmPath;
     String RCProgram;
@@ -144,6 +169,7 @@ STRUCT(BuildParams)
 
     StringList WhitelistFiles, WhitelistDirectories;
     StringList BlacklistFiles, BlacklistDirectories;
+    StringList SourceFileExtensions;
 
     EAssemblyType Type;
 
@@ -164,6 +190,7 @@ STRUCT(BuildParams)
     bool bIsAssemblyExe;
     bool bVerbose;
     bool bHasCppFiles;
+    bool bDumpObjFilesInOneDirectory;
 };
 
 STRUCT(CompileData)
@@ -196,6 +223,7 @@ bool RC_Compile(const BuildParams* Params, const String FullRCPath, String* OutR
 #endif
 
 bool IsSource(const String Extension);
+bool IsSourceCustom(const String Extension, const StringList CustomExtensions);
 bool IsHeader(const String Extension);
 
 
