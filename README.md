@@ -93,6 +93,25 @@ build.bat
 
 <sub><sup>if only every open source project were like this...</sup></sub>
 
+---
+
+# Philosophy and Principles
+
+The guiding north star of RiftBuild, followed in design and implementation.
+
+### One-step build
+- A single `riftbuild` call is all that is needed to build a program. No need to configure or setup anything.
+
+### Focused
+- RiftBuild is solely focused on alleviating the headaches of building C and C++ projects specifically. This is not a one-size fits all build tool and it should not try to be.
+
+### Simplicity
+- No `.build` file is necessary to build simple C or C++ programs. Source files are all that is needed to build your program.
+- **No complicated syntax or language to learn**, anyone can immediately write a `.build` file without prerequisite knowledege or reading a documentation page.
+
+### Convenience
+- RiftBuild brings the lost joy of building C and C++ projects. It automatically finds tools on your system to do the job for you without having to remember esoteric command line arguments of various compilers and linkers.
+- Designed to be cross platform. No need to write build scripts for every operating system that you want to target.
 
 ---
 
