@@ -115,7 +115,7 @@ The guiding north star of RiftBuild, followed in design and implementation.
 
 ### Performance
 - RiftBuild is written in pure C with **zero** dynamic memory allocation, everything happens on the stack, therefore it is fast by default.
-- RiftBuild is essentially a wrapper over the compiler and linker with a minimal amount of overhead, **always** in the order of milliseconds.
+- RiftBuild should essentially only be a wrapper over the compiler and linker with a minimal amount of overhead, **always** in the order of milliseconds.
 
 ---
 
