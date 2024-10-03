@@ -231,8 +231,8 @@ If no extension was specified, RiftBuild will automatically choose the correct e
   - 7 and above
 - Linux
   - All Debian, Red Hat, Fedora, SUSE and Arch based systems
-- MacOS
-  - 10.10 (Yosemite) and above
+- macOS
+  - 10.12 (Mojave) and above
 - BSD
   - FreeBSD, OpenBSD and NetBSD
 
