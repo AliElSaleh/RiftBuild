@@ -113,6 +113,10 @@ The guiding north star of RiftBuild, followed in design and implementation.
 - RiftBuild brings the lost joy of building C and C++ projects. It automatically finds tools on your system to do the job for you without having to remember esoteric command line arguments of various compilers and linkers.
 - Designed to be cross platform. No need to write build scripts for every operating system that you want to target.
 
+### Performance
+- RiftBuild is written in pure C with **zero** dynamic memory allocation, everything happens on the stack, therefore it is fast by default.
+- RiftBuild is essentially a wrapper over the compiler and linker with a minimal amount of overhead, **always** in the order of milliseconds.
+
 ---
 
 # Advanced Stuff (Work In Progress!)
