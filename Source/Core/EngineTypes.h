@@ -160,8 +160,8 @@ STRUCT(StringList)
 
 #define StringN(n)  		                struct { char Data[n]; u32 Length; u32 Capacity; }
 
-#define StringLocal(Name, n) 	            char  MACRO_VAR(CONCAT(Buffer_, Name))[n] = {0}; String   Name; Name.Data = MACRO_VAR(CONCAT(Buffer_, Name)); Name.Length = 0; Name.Capacity = (n)-1
-#define String16Local(Name, n) 	            wchar MACRO_VAR(CONCAT(Buffer_, Name))[n] = {0}; String16 Name; Name.Data = MACRO_VAR(CONCAT(Buffer_, Name)), Name.Length = 0, Name.Capacity = (n)-1
+#define StringLocal(Name, n) 	            char  MACRO_VAR(CONCAT(Buffer_, Name))[n+1] = {0}; String   Name; Name.Data = MACRO_VAR(CONCAT(Buffer_, Name)); Name.Length = 0; Name.Capacity = (n)
+#define String16Local(Name, n) 	            wchar MACRO_VAR(CONCAT(Buffer_, Name))[n+1] = {0}; String16 Name; Name.Data = MACRO_VAR(CONCAT(Buffer_, Name)), Name.Length = 0, Name.Capacity = (n)
 
 #define CStr(s)                             (String)         {.Data = (char* )(s), .Length = String_GetLength(s),       .Capacity = 0}
 #define CStrEx(s, n)                        (String)         {.Data = (char* )(s), .Length = String_GetLength_Ex(s, n), .Capacity = 0}

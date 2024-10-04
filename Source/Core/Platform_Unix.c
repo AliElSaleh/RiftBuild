@@ -432,8 +432,17 @@ PlatformHandle Platform_RunCommand_Ex(const String CmdLine, const String Working
 
 bool Platform_SetWorkingDirectory(const String Path)
 {
-    UNIMPLEMENTED;
-    return false;
+    StringLocal(Copy, MAX_PATH_LENGTH);
+    String_Copy(&Copy, Path);
+
+    i32 Result = chdir(Path.Data);
+    if (Result < 0)
+    {
+        LogLastError(String_Null());
+        return false;
+    }
+
+    return Result >= 0;
 }
 
 bool Platform_FindProgram(String ProgramName)

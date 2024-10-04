@@ -26,7 +26,7 @@ if mac                  IncludedSourceFiles Platform_Unix.c Platform_Mac.c
 if bsd                  IncludedSourceFiles Platform_Unix.c Platform_BSD.c
 if cl                   IncludedSourceFiles memcmp.asm memset.asm
 
-if mac                  CompilerFlags -mmacosx-version-min=10.10
+if mac                  CompilerFlags -mmacosx-version-min=10.12 ; LinkerFlags -framework Foundation
 
 if windows {
     if !cl              CompilerFlags -nostdlib -fno-builtin -ffreestanding
@@ -50,6 +50,23 @@ if linux {
 }
 
 if pull PreBuild.Cmd git pull
+
+if _platform.version == 14.2.0 versionis14.2.0
+if _platform.version.major >= 14 major 14
+if _platform.version.minor == 2 minor >=0
+if _platform.version.patch >= 0 patch >=0
+
+version.string "%(_platform.version)"
+version.major  "%(_platform.version.major)"
+version.minor  "%(_platform.version.minor)"
+version.patch  "%(_platform.version.patch)"
+
+riftbuild.version %_version
+riftbuild.version.major %_version.major
+riftbuild.version.minor %_version.minor
+riftbuild.version.patch %_version.patch
+
+assertplatformversion 14.1
 
 ##
 cpu   "%(_cpu)"

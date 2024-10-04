@@ -219,6 +219,13 @@ STRUCT(CpuInfo)
     bool BTI              : 1;
 };
 
+STRUCT(PlatformVersion)
+{
+    u32 Major;
+    u32 Minor;
+    u32 Patch;
+};
+
 RIFT_API void Platform_PreInitialize(void);
 RIFT_API f64 Platform_GetClockFrequency(void);
 
@@ -305,5 +312,8 @@ RIFT_API u32 Platform_GetCpuCacheLineSize(void);
 RIFT_API bool Platform_GetCpuBrandName(String* OutName);
 RIFT_API bool Platform_GetFullCpuName(String* OutName);
 RIFT_API CpuInfo Platform_QueryCPUInfo(void);
+
+RIFT_API PlatformVersion Platform_GetVersion(void);
+// TODO: kernel version
 
 #endif // _PLATFORM_H_

@@ -16,6 +16,7 @@
 
 #include <mach/mach_time.h>
 #include <dispatch/dispatch.h>
+#include <CoreFoundation/CoreFoundation.h>
 
 #define internal static
 #define global extern
@@ -239,6 +240,49 @@ u32 Platform_GetCpuCacheLineSize(void)
     }
 
     return (u32)LineSize;
+}
+
+PlatformVersion Platform_GetVersion(void)
+{
+    PlatformVersion Result = {0};
+
+    // Path to the system version plist
+    CFURLRef url = CFURLCreateWithFileSystemPath(kCFAllocatorDefault,
+            CFSTR("/System/Library/CoreServices/SystemVersion.plist"),
+            kCFURLPOSIXPathStyle, false);
+
+    CFReadStreamRef stream = CFReadStreamCreateWithFile(kCFAllocatorDefault, url);
+    CFRelease(url);
+
+    if (!stream || !CFReadStreamOpen(stream))
+    {
+        return Result;
+    }
+
+    CFPropertyListRef plist = CFPropertyListCreateWithStream(kCFAllocatorDefault, stream, 0, kCFPropertyListImmutable, NULL, NULL);
+    CFReadStreamClose(stream);
+    CFRelease(stream);
+
+    if (!plist || CFGetTypeID(plist) != CFDictionaryGetTypeID())
+    {
+        return Result;
+    }
+
+    CFDictionaryRef dict = (CFDictionaryRef)plist;
+    CFStringRef versionString = CFDictionaryGetValue(dict, CFSTR("ProductVersion"));
+
+    if (versionString)
+    {
+        StringLocal(Version, 32);
+        if (CFStringGetCString(versionString, Version.Data, Version.Capacity, kCFStringEncodingUTF8))
+        {
+            sscanf(Version.Data, "%d.%d.%d", &Result.Major, &Result.Minor, &Result.Patch);
+        }
+    }
+
+    CFRelease(plist);
+
+    return Result;
 }
 
 Uuid UUID_Generate(void)

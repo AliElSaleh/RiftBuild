@@ -1417,8 +1417,6 @@ internal bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const Stri
             return false;
         }
 
-        bool bFilePathHasExtension = Filesystem_DoesPathHaveFileExtension(FilePath);
-
         StringLocal(FinalDestinationPath, MAX_PATH_LENGTH);
         String_BuildPath(&FinalDestinationPath, WorkingDirectory, Destination);
 
@@ -3059,6 +3057,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     const String AssertCompilers            = GetVariableValue(ExpandedVariablesDB, S("AssertCompiler"));
     const String AssertAssemblers           = GetVariableValue(ExpandedVariablesDB, S("AssertAssembler"));
     const String AssertPlatforms            = GetVariableValue(ExpandedVariablesDB, S("AssertPlatform"));
+    const String AssertPlatformVersion      = GetVariableValue(ExpandedVariablesDB, S("AssertPlatformVersion"));
+    const String AssertVersion              = GetVariableValue(ExpandedVariablesDB, S("AssertVersion"));
     const String AssertArchitecture         = GetVariableValue(ExpandedVariablesDB, S("AssertArchitecture"));
     const String AssertPrograms             = GetVariableValue(ExpandedVariablesDB, S("AssertProgramExists"));
     const String AssertEnvVars              = GetVariableValue(ExpandedVariablesDB, S("AssertEnvVarExists"));
@@ -3778,6 +3778,18 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         StringArray PlatformsArray     = String_ParseIntoArray(&Scratch, AssertPlatforms, ' ', 0, 128);
         StringArray ArchitecturesArray = String_ParseIntoArray(&Scratch, AssertArchitecture, ' ', 0, 128);
         StringArray CompilersArray     = String_ParseIntoArray(&Scratch, AssertCompilers, ' ', 0, 128);
+        
+        {
+            if (String_CountChar(AssertVersion, '.') >= 1) // make sure this is something sensible
+            {
+                ECompareResult Result = String_CompareVersion(S(RIFTBUILD_VERSION_STRING), AssertVersion);
+                if (Result == CompareResult_Less)
+                {
+                    LOG_INLINE_ERROR("[ASSERTION FAILURE] RiftBuild version \"%S\" is less than the required version \"%S\". Please upgrade to \"%S\" or later. Aborting build...\n", S(RIFTBUILD_VERSION_STRING), AssertVersion, AssertVersion);
+                    return 1;
+                }
+            }
+        }
 
         StringLocal(PlatformsLogString, 128);
         {
@@ -3856,6 +3868,21 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 }
 
                 return 1;
+            }
+        }
+
+        {
+            if (String_CountChar(AssertPlatformVersion, '.') >= 1) // make sure this is something sensible
+            {
+                PlatformVersion OSVersion = Platform_GetVersion();
+                StringLocal(VersionString, 32);
+                String_Format(&VersionString, S("%u.%u.%u"), VersionString.Capacity, OSVersion.Major, OSVersion.Minor, OSVersion.Patch);
+                ECompareResult Result = String_CompareVersion(VersionString, AssertPlatformVersion);
+                if (Result == CompareResult_Less)
+                {
+                    LOG_INLINE_ERROR("[ASSERTION FAILURE] Unsupported platform version \"%u.%u.%u\" is less than the required version \"%S\" or later. Aborting build...\n", OSVersion.Major, OSVersion.Minor, OSVersion.Patch, AssertPlatformVersion);
+                    return 1;
+                }
             }
         }
 
@@ -8105,8 +8132,36 @@ internal void InitInternalVars(LinearAllocator* Arena)
     // store internal options. like platform, native os .lib's, etc..
     AddInternalVariable(S(PLATFORM_STRING), S(""));
 
+    // TODO: riftbuild version
+
     // TODO: POSIX
     // TODO: _POSIX = "version"
+
+    // store riftbuild version
+    AddInternalVariable(S("_Version"), S(RIFTBUILD_VERSION_STRING));
+    AddInternalVariable(S("_Version.Major"), S(STRINGIZE(RIFTBUILD_MAJOR_VERSION)));
+    AddInternalVariable(S("_Version.Minor"), S(STRINGIZE(RIFTBUILD_MINOR_VERSION)));
+    AddInternalVariable(S("_Version.Patch"), S(STRINGIZE(RIFTBUILD_PATCH_VERSION)));
+
+    const PlatformVersion OSVersion = Platform_GetVersion();
+    String OSVersionString = String_Reserve(Arena, 24);
+    String OSVersionStringMajor = String_Reserve(Arena, 8);
+    String OSVersionStringMinor = String_Reserve(Arena, 8);
+    String OSVersionStringPatch = String_Reserve(Arena, 8);
+
+    String_Format(&OSVersionString, S("%u.%u.%u"),    OSVersionString.Capacity, OSVersion.Major, OSVersion.Minor, OSVersion.Patch);
+    AddInternalVariable(S("_Platform.Version"),       OSVersionString);
+    String_Format(&OSVersionStringMajor, S("%u"),     OSVersionString.Capacity, OSVersion.Major);
+    AddInternalVariable(S("_Platform.Version.Major"), OSVersionStringMajor);
+    String_Format(&OSVersionStringMinor, S("%u"),     OSVersionString.Capacity, OSVersion.Minor);
+    AddInternalVariable(S("_Platform.Version.Minor"), OSVersionStringMinor);
+    String_Format(&OSVersionStringPatch, S("%u"),     OSVersionString.Capacity, OSVersion.Patch);
+    AddInternalVariable(S("_Platform.Version.Patch"), OSVersionStringPatch);
+
+    // TODO _Ram
+    // TODO
+    //AddInternalVariable(S("_Platform.KernelVersion"), OSVersionString);
+    //AddInternalVariable(S("_Platform.BuildVersion"), OSVersionString);
 
     #if PLATFORM_WINDOWS
     AddInternalVariable(S("_Platform"), S("Windows"));
@@ -8660,7 +8715,9 @@ u32 RunApplication(const StringArray Arguments)
     String_BuildSeparator(&ExtraFlags, ' ', S("- (HOOD EDITION)"));
     #endif
 
-    LOG("\nRift Build System v%S (%S %S) %S\n", S(RIFTBUILD_VERSION_STRING), S(PLATFORM_STRING), S(CPU_ARCHITECTURE_STRING), ExtraFlags);
+    const PlatformVersion OSVersion = Platform_GetVersion();
+
+    LOG("\nRift Build System v%S (%S %u.%u.%u %S) %S\n", S(RIFTBUILD_VERSION_STRING), S(PLATFORM_STRING), OSVersion.Major, OSVersion.Minor, OSVersion.Patch, S(CPU_ARCHITECTURE_STRING), ExtraFlags);
 
     #ifdef HOOD
     LOG("\nwasssup yo. les get build'n...\n");
