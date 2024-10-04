@@ -103,7 +103,7 @@ The guiding north star of RiftBuild, followed in design and implementation.
 - A single `riftbuild` call is all that is needed to build a program. No need to configure or setup anything.
 
 ### Focused
-- RiftBuild is solely focused on alleviating the headaches of building C and C++ projects specifically. This is not a one-size fits all build tool and it should not try to be.
+- RiftBuild is solely focused on alleviating the headaches of building C and C++ projects specifically. This is not a general-purpose build tool (like CMake, Ninja, etc.) and it should not try to be.
 
 ### Simplicity
 - No `.build` file is necessary to build simple C or C++ programs. Source files are all that is needed to build your program.
