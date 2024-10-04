@@ -210,9 +210,9 @@ To set an icon for an executable, specify the name of the icon file (with or wit
 ```make
 Icon someicon.ico # or path/to/icon/file.ico
 ```
-The fact that other build systems are unable to do this is fucking pathetic and embarrassing
+The fact that other build systems are unable to do this is fucking pathetic and embarrassing.
 
-If no extension was specified, RiftBuild will automatically choose the correct extension based on the operating system
+If no extension was specified, RiftBuild will automatically choose the correct extension based on the operating system. So that means you can have an icon.ico and icon.png in the same directory and the correct one will always be chosen.
 
 | Windows     | Linux       | Mac         | BSD        | 
 | ----------- | ----------- | ----------- | ---------- |
