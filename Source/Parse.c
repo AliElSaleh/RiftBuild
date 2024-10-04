@@ -1780,7 +1780,7 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
     }
 
 End:
-    String_EatSpacesInline(Dest);
+    //String_EatSpacesInline(Dest);
     String_EatSpacesInlineFromEnd(Dest);
 
     return true;

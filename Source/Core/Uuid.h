@@ -9,10 +9,10 @@
 
 STRUCT(Uuid)
 {
-	u32 Data1;
-	u16 Data2;
-	u16 Data3;
-	u8 Data4[8];
+    u32 Data1;
+    u16 Data2;
+    u16 Data3;
+    u8 Data4[8];
 };
 
 RIFT_API Uuid UUID_Generate(void);

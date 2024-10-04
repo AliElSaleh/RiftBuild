@@ -13,6 +13,7 @@
 #endif
 
 // TODO: wrap all compiler path strings in quotes
+// TODO: use compiler path directly, dont rely on shell to find it
 
 bool C_DoCompile(CompileData* Data, const String FullPath, const String RelativePath);
 

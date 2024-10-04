@@ -576,6 +576,34 @@ typedef struct _CONSOLE_SCREEN_BUFFER_INFO {
 } CONSOLE_SCREEN_BUFFER_INFO, *PCONSOLE_SCREEN_BUFFER_INFO;
 
 
+// end_ntosifs
+typedef struct _OSVERSIONINFOA {
+    DWORD dwOSVersionInfoSize;
+    DWORD dwMajorVersion;
+    DWORD dwMinorVersion;
+    DWORD dwBuildNumber;
+    DWORD dwPlatformId;
+    CHAR   szCSDVersion[ 128 ];     // Maintenance string for PSS usage
+} OSVERSIONINFOA, *POSVERSIONINFOA, *LPOSVERSIONINFOA;
+
+typedef struct _OSVERSIONINFOW {
+    DWORD dwOSVersionInfoSize;
+    DWORD dwMajorVersion;
+    DWORD dwMinorVersion;
+    DWORD dwBuildNumber;
+    DWORD dwPlatformId;
+    WCHAR  szCSDVersion[ 128 ];     // Maintenance string for PSS usage
+} OSVERSIONINFOW, *POSVERSIONINFOW, *LPOSVERSIONINFOW, RTL_OSVERSIONINFOW, *PRTL_OSVERSIONINFOW;
+#ifdef UNICODE
+typedef OSVERSIONINFOW OSVERSIONINFO;
+typedef POSVERSIONINFOW POSVERSIONINFO;
+typedef LPOSVERSIONINFOW LPOSVERSIONINFO;
+#else
+typedef OSVERSIONINFOA OSVERSIONINFO;
+typedef POSVERSIONINFOA POSVERSIONINFO;
+typedef LPOSVERSIONINFOA LPOSVERSIONINFO;
+#endif // UNICODE
+
 #ifndef _WIN32_WINNT
 #define  _WIN32_WINNT   0x0A00
 #endif
@@ -1411,4 +1439,7 @@ WINBASEAPI DWORD      WINAPI GetTimeZoneInformation(LPTIME_ZONE_INFORMATION lpTi
 WINBASEAPI SHORT      WINAPI GetAsyncKeyState(int vKey);
 WINBASEAPI BOOL       WINAPI SetCurrentDirectoryW(LPCWSTR lpPathName);
 WINBASEAPI BOOL       WINAPI SetCurrentDirectoryA(LPCTSTR lpPathName);
+WINBASEAPI BOOL       WINAPI GetVersionExA(LPOSVERSIONINFOA lpVersionInformation);
+WINBASEAPI BOOL       WINAPI GetVersionExW(LPOSVERSIONINFOW lpVersionInformation);
+WINBASEAPI LONG       WINAPI RtlGetVersion(PRTL_OSVERSIONINFOW lpVersionInformation); 
 #endif

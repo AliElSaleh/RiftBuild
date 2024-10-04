@@ -2007,6 +2007,21 @@ bool Platform_GetTerminalDimensions(u32* OutRows, u32* OutColumns)
     return true;
 }
 
+PlatformVersion Platform_GetVersion(void)
+{
+    PlatformVersion Result = {0};
+    
+    RTL_OSVERSIONINFOW Info = {0};
+    Info.dwOSVersionInfoSize = sizeof(Info);
+    RtlGetVersion(&Info);
+
+    Result.Major = Info.dwMajorVersion;
+    Result.Minor = Info.dwMinorVersion;
+    Result.Patch = Info.dwBuildNumber;
+
+    return Result;
+}
+
 PRAGMA_DISABLE_MISSING_PROTOTYPES_WARNING
 
 FORCENOINLINE BOOL __cdecl _DllMainCRTStartup(HANDLE hDllHandle, DWORD dwReason, LPVOID lpreserved)

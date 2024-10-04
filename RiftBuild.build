@@ -10,6 +10,7 @@ Description             A simpler build tool for C/C++, because fuck cmake
 Version!                0.9.8-alpha-%_date.nosep
 CompanyName             Ali El Saleh
 Copyright!              Copyright (c) %_date.year $CompanyName
+License                 BSD 3-Clause
 
 SourceDirectory         Source
 BuildDirectory          Build/$(Mode)%(%32)/%%Hood
@@ -51,22 +52,7 @@ if linux {
 
 if pull PreBuild.Cmd git pull
 
-if _platform.version == 14.2.0 versionis14.2.0
-if _platform.version.major >= 14 major 14
-if _platform.version.minor == 2 minor >=0
-if _platform.version.patch >= 0 patch >=0
-
-version.string "%(_platform.version)"
-version.major  "%(_platform.version.major)"
-version.minor  "%(_platform.version.minor)"
-version.patch  "%(_platform.version.patch)"
-
-riftbuild.version %_version
-riftbuild.version.major %_version.major
-riftbuild.version.minor %_version.minor
-riftbuild.version.patch %_version.patch
-
-assertplatformversion 14.1
+if mac assertplatformversion 14.1
 
 ##
 cpu   "%(_cpu)"

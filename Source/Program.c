@@ -344,8 +344,9 @@ bool LogCustomErrorMessage(TArray(FileVariable) VariablesDB, const String Contex
             StringArray Keys = String_ParseIntoArray(&Scratch, Slice, '|', 0, 8);
             for each_str (k, Keys)
             {
-                if (String_IsEqual(*k, Key, false) &&
-                   (Context.Length == 0 || String_StartsWith(Var.Name, Context, false)))
+                if (String_IsEqual(*k, S("*"), false) ||
+                   (String_IsEqual(*k, Key, false) &&
+                   (Context.Length == 0 || String_StartsWith(Var.Name, Context, false))))
                 {
                     if (bLineBreak) LOG_LINE_BREAK();
 
@@ -1442,6 +1443,7 @@ internal bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const Stri
         StringLocal(CmdLine, 8192);
         
         #if PLATFORM_WINDOWS
+        const bool bFilePathHasExtension = Filesystem_DoesPathHaveFileExtension(FilePath);
         String_Concat(&CmdLine, S("powershell -Command \"Compress-Archive -Force -Path \"\"\""), FilePath, bFilePathHasExtension ? S("") : S("\\*"),  S("\"\"\" -DestinationPath \"\""), FinalDestinationPath, S("\"\"\""));
         #else
         UNIMPLEMENTED;
@@ -8221,7 +8223,7 @@ internal void InitInternalVars(LinearAllocator* Arena)
     AddInternalVariable(S("Unix"), S(""));
     #endif
 
-    String Win32Libs = S("kernel32 user32 opengl32 shell32 gdi32 comdlg32 comctl32 ws2_32 winmm netapi32 ole32 advapi32 "
+    String Win32Libs = S("kernel32 user32 opengl32 shell32 gdi32 comdlg32 comctl32 ws2_32 ntdll winmm netapi32 ole32 advapi32 "
                          "wldap32 crypt32 rpcrt4 shlwapi dbghelp bcrypt version imm32 cfgmgr32 setupapi oleaut32 "
                          "uuid odbc32 odbccp32 delayimp userenv pathcch");
 
