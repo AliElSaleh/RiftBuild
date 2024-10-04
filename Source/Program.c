@@ -2517,14 +2517,14 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
     {
         StringLocal(TimeStampVar, 64);
-        String_Format(&TimeStampVar, S("%hu.%.2hu.%.2hu.%.2hu.%.2hu.%.2hu"), TimeStamp.Capacity, TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
+        String_Format(&TimeStampVar, S("%hu-%.2hu-%.2hu %.2hu:%.2hu:%.2hu"), TimeStamp.Capacity, TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
         String a = String_Create(Arena, TimeStampVar);
         AddCmdOption(&CmdOptionsDB, S("_Timestamp"), a);
 
         // add another for time zone information
-        String_Format(&TimeStampVar, S("%hu.%.2hu.%.2hu.%.2hu.%.2hu.%.2hu.%S"), TimeStamp.Capacity, TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second, TimeZone);
+        String_Format(&TimeStampVar, S("%hu-%.2hu-%.2hu %.2hu:%.2hu:%.2hu [%S]"), TimeStamp.Capacity, TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second, TimeZone);
         a = String_Create(Arena, TimeStampVar);
-        AddCmdOption(&CmdOptionsDB, S("_Timestamp.WithZone"), a);
+        AddCmdOption(&CmdOptionsDB, S("_Timestamp.Zone"), a);
 
         String_Format(&TimeStampVar, S("%hu%.2hu%.2hu%.2hu%.2hu%.2hu"), TimeStamp.Capacity, TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
         a = String_Create(Arena, TimeStampVar);
