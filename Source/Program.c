@@ -1402,7 +1402,48 @@ internal bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const Stri
 
         LOG_LINE_BREAK();
     }
-    else if (String_EndsWith(Name, S("Zip"), false))
+    else if (String_EndsWith(Name, S(".Unzip"), false))
+    {
+        LinearAllocator Scratch = Memory_GetScratch();
+        StringList ArgList      = String_SplitIntoList(&Scratch, Value, ' ', true);
+        String ZipFilePath      = StringList_GetStringFromIndex(ArgList, 0);
+        String Destination      = StringList_GetStringFromIndex(ArgList, 1);
+
+        if (!Filesystem_DoesFileExist(ZipFilePath))
+        {
+            LOG_ERROR("Zip file \"%S\" does not exist", ZipFilePath);
+            return false;
+        }
+
+        StringLocal(FinalDestinationPath, MAX_PATH_LENGTH);
+        String_BuildPath(&FinalDestinationPath, WorkingDirectory, Destination);
+
+        Filesystem_OpenDirectory(FinalDestinationPath);
+
+        StringLocal(CmdLine, 8192);
+        
+        #if PLATFORM_WINDOWS
+        String_Concat(&CmdLine, S("powershell -Command \"Expand-Archive -Force -Path \"\"\""), ZipFilePath, S("\"\"\" -DestinationPath \"\""), FinalDestinationPath, S("\"\"\""));
+        #else
+        UNIMPLEMENTED;
+        #endif
+
+        LOG("Unzip: %S\n -> Destination: %S", ZipFilePath, FinalDestinationPath);
+
+        if (bVerboseLog) LOG("    %S", CmdLine);
+
+        PlatformHandle H = Platform_RunCommand(CmdLine, WorkingDirectory, String_Null());
+        if (!Platform_IsValidHandle(H)) return false;
+
+        *ExitCode = Platform_WaitForProcessAndGetExitCode(H);
+        if (*ExitCode != 0)
+        {
+            return false;
+        }
+
+        LOG_LINE_BREAK();
+    }
+    else if (String_EndsWith(Name, S(".Zip"), false))
     {
         LinearAllocator Scratch = Memory_GetScratch();
         StringList ArgList      = String_SplitIntoList(&Scratch, Value, ' ', true);
@@ -1450,47 +1491,6 @@ internal bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const Stri
         #endif
 
         LOG("Zip: %S\n -> Destination: %S", FilePath, FinalDestinationPath);
-
-        if (bVerboseLog) LOG("    %S", CmdLine);
-
-        PlatformHandle H = Platform_RunCommand(CmdLine, WorkingDirectory, String_Null());
-        if (!Platform_IsValidHandle(H)) return false;
-
-        *ExitCode = Platform_WaitForProcessAndGetExitCode(H);
-        if (*ExitCode != 0)
-        {
-            return false;
-        }
-
-        LOG_LINE_BREAK();
-    }
-    else if (String_EndsWith(Name, S("Unzip"), false))
-    {
-        LinearAllocator Scratch = Memory_GetScratch();
-        StringList ArgList      = String_SplitIntoList(&Scratch, Value, ' ', true);
-        String ZipFilePath      = StringList_GetStringFromIndex(ArgList, 0);
-        String Destination      = StringList_GetStringFromIndex(ArgList, 1);
-
-        if (!Filesystem_DoesFileExist(ZipFilePath))
-        {
-            LOG_ERROR("Zip file \"%S\" does not exist", ZipFilePath);
-            return false;
-        }
-
-        StringLocal(FinalDestinationPath, MAX_PATH_LENGTH);
-        String_BuildPath(&FinalDestinationPath, WorkingDirectory, Destination);
-
-        Filesystem_OpenDirectory(FinalDestinationPath);
-
-        StringLocal(CmdLine, 8192);
-        
-        #if PLATFORM_WINDOWS
-        String_Concat(&CmdLine, S("powershell -Command \"Expand-Archive -Force -Path \"\"\""), ZipFilePath, S("\"\"\" -DestinationPath \"\""), FinalDestinationPath, S("\"\"\""));
-        #else
-        UNIMPLEMENTED;
-        #endif
-
-        LOG("Unzip: %S\n -> Destination: %S", ZipFilePath, FinalDestinationPath);
 
         if (bVerboseLog) LOG("    %S", CmdLine);
 
@@ -2530,7 +2530,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         a = String_Create(Arena, TimeStampVar);
         AddCmdOption(&CmdOptionsDB, S("_Timestamp.NoSep"), a);
 
-        String_Format(&TimeStampVar, S("%hu.%.2hu.%.2hu"), TimeStamp.Capacity, TimeNow.Year, TimeNow.Month, TimeNow.Day);
+        String_Format(&TimeStampVar, S("%hu-%.2hu-%.2hu"), TimeStamp.Capacity, TimeNow.Year, TimeNow.Month, TimeNow.Day);
         a = String_Create(Arena, TimeStampVar);
         AddCmdOption(&CmdOptionsDB, S("_Date"), a);
 
@@ -2543,13 +2543,13 @@ internal u32 BuildTarget(LinearAllocator* Arena,
         String_Format(&TimeStampVar, S("%.2hu"), TimeStamp.Capacity, TimeNow.Day);
         a = String_Create(Arena, TimeStampVar);
         AddCmdOption(&CmdOptionsDB, S("_Date.Day"), a);
-        // TODO: month name and day name
+        // TODO: month name and day name, week number 0-52, day of week 0-6, day number 0-365
 
         String_Format(&TimeStampVar, S("%hu%.2hu%.2hu"), TimeStamp.Capacity, TimeNow.Year, TimeNow.Month, TimeNow.Day);
         a = String_Create(Arena, TimeStampVar);
         AddCmdOption(&CmdOptionsDB, S("_Date.NoSep"), a);
 
-        String_Format(&TimeStampVar, S("%.2hu.%.2hu.%.2hu"), TimeStamp.Capacity, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
+        String_Format(&TimeStampVar, S("%.2hu:%.2hu:%.2hu"), TimeStamp.Capacity, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
         a = String_Create(Arena, TimeStampVar);
         AddCmdOption(&CmdOptionsDB, S("_Time"), a);
 

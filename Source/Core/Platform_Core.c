@@ -4,6 +4,7 @@
 #include "Platform.h"
 #include "Clock.h"
 #include "StringUtils.h"
+#include "Filesystem.h"
 #include "Globals.h"
 #include "Log.h"
 #endif
@@ -395,8 +396,8 @@ CpuInfo Platform_QueryCPUInfo(void)
 
 #endif
 
-PRAGMA_DISABLE_MISSING_PROTOTYPES_WARNING
 #if PLATFORM_WINDOWS && PLATFORM_32_BIT
+PRAGMA_DISABLE_MISSING_PROTOTYPES_WARNING
 /*
 u64 _aulldiv(u64 Numerator, u64 Denominator)
 {

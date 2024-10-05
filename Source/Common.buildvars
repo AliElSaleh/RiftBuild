@@ -14,7 +14,7 @@ WarningFlagsDisabled             -Wno-typedef-redefinition -Wno-unused-parameter
 if !gcc WarningFlags             -Wpedantic
 if mac  WarningFlagsDisabled     -Wno-nonportable-include-path
 
-SharedCompilerFlags              -std=c99 -fno-builtin-memcpy -fno-omit-frame-pointer -fno-exceptions -fno-math-errno -funroll-loops -fno-strict-overflow -fno-strict-aliasing $WarningFlags $WarningFlagsDisabled
+SharedCompilerFlags              -std=c99 -fno-builtin-memcpy -fno-omit-frame-pointer -fno-exceptions -fno-math-errno -fno-trapping-math -funroll-loops -fno-strict-overflow -fno-strict-aliasing $WarningFlags $WarningFlagsDisabled
 SharedLinkerFlags                
 if _sse2 SharedCompilerFlags     -msse2
 if !gcc  SharedCompilerFlags     -mstack-probe-size=999999999
