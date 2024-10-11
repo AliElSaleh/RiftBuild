@@ -1343,14 +1343,20 @@ bool Filesystem_DoesFileExist(const String FilePath)
 {
     if (FilePath.Length == 0) return false;
 
-    return PathFileExists(FilePath.Data);
+    StringLocal(Copy, MAX_PATH);
+    String_Copy(&Copy, FilePath);
+
+    return PathFileExists(Copy.Data);
 }
 
 bool Filesystem_DoesDirectoryExist(const String FilePath)
 {
     if (FilePath.Length == 0) return false;
 
-    DWORD Attrib = GetFileAttributes(FilePath.Data);
+    StringLocal(Copy, MAX_PATH);
+    String_Copy(&Copy, FilePath);
+
+    DWORD Attrib = GetFileAttributes(Copy.Data);
     return (Attrib != INVALID_FILE_ATTRIBUTES && (Attrib & FILE_ATTRIBUTE_DIRECTORY));
 }
 

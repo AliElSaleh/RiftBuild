@@ -5920,7 +5920,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                         Clock c;
                         Clock_Start(&c);
 
-                        if (!ExportCompileCommands(&p, ExpandedCompilerFlags, ExpandedIncludeFlags, ExpandedDefineFlags, ExpandedUnDefineFlags, bLast, bGenCompileCommandsJSONOneLine))
+                        if (!Export_CompileCommands(&p, ExpandedCompilerFlags, ExpandedIncludeFlags, ExpandedDefineFlags, ExpandedUnDefineFlags, bLast, bGenCompileCommandsJSONOneLine))
                         {
                             return 1;
                         }
@@ -5964,7 +5964,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                             StringLocal(PlistPath, MAX_PATH_LENGTH);
                             String_BuildPath(&PlistPath, ExportPath, S("Info.plist"));
 
-                            if (!ExportInfoPlist(*Arena, &p, PlistPath, ExpandedVariablesDB, DoesBuildVarExist(ExpandedVariablesDB, S("Info.plist"))))
+                            if (!Export_InfoPlist(*Arena, &p, PlistPath, ExpandedVariablesDB, DoesBuildVarExist(ExpandedVariablesDB, S("Info.plist"))))
                             {
                                 LOG_ERROR("Failed to export \"%S\". Aborting build...", PlistPath);
                                 return 1;
@@ -5980,7 +5980,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                             StringLocal(PlistPath, MAX_PATH_LENGTH);
                             String_BuildPath(&PlistPath, ExportPath, S("Version.plist"));
 
-                            if (!ExportVersionPlist(*Arena, &p, PlistPath, ExpandedVariablesDB, DoesBuildVarExist(ExpandedVariablesDB, S("Version.plist"))))
+                            if (!Export_VersionPlist(*Arena, &p, PlistPath, ExpandedVariablesDB, DoesBuildVarExist(ExpandedVariablesDB, S("Version.plist"))))
                             {
                                 LOG_ERROR("Failed to export \"%S\". Aborting build...", PlistPath);
                                 return 1;
@@ -6019,7 +6019,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                         Clock c;
                         Clock_Start(&c);
 
-                        if (!ExportPkgInfo(&p, PkgInfoPath))
+                        if (!Export_PkgInfo(&p, PkgInfoPath))
                         {
                             LOG_ERROR("Failed to export \"%S\". Aborting build...", PkgInfoPath);
                             return 1;
@@ -6057,8 +6057,8 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                         StringLocal(RCPath, MAX_PATH_LENGTH);
                         String_BuildPath(&RCPath, ExportPath, bGenVersionRc ? S("version.rc") : S("icon.rc"));
 
-                        if ((bGenVersionRc && !ExportVersionRC(&p, RCPath)) ||
-                            (bGenIconRc && !ExportIconRC(&p, RCPath, IconFilePath)))
+                        if ((bGenVersionRc && !Export_VersionRC(&p, RCPath)) ||
+                            (bGenIconRc && !Export_IconRC(&p, RCPath, IconFilePath)))
                         {
                             LOG_ERROR("Failed to export \"%S\". Aborting build...", RCPath);
                             return 1;
@@ -6331,7 +6331,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                     String_BuildPath(&RcFilePath, BasePath, S("icon.rc"));
                 }
 
-                if (ExportIconRC(&p, RcFilePath, IconFilePath))
+                if (Export_IconRC(&p, RcFilePath, IconFilePath))
                 {
                     if (!RC_Compile(&p, RcFilePath, &IconResFilePath))
                     {
@@ -6374,7 +6374,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                 // todo: allow custom version rc file?
 
                 // generate version rc file
-                if (ExportVersionRC(&p, VersionRCPath))
+                if (Export_VersionRC(&p, VersionRCPath))
                 {
                     if (!RC_Compile(&p, VersionRCPath, &VersionResFilePath))
                     {

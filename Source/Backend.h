@@ -276,17 +276,23 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
 
 // Export functions --------------------
 
-bool ExportCompileCommands(const BuildParams* Params,
+bool Export_CompileCommands(const BuildParams* Params,
                            const String CompileFlags, const String IncludeFlags,
                            const String DefineFlags, const String UnDefineFlags,
                            const bool bIsLastBuild, const bool bKeepOneLine);
 
 
-bool ExportInfoPlist(LinearAllocator Arena, const BuildParams* Params, const String Path, TArray(FileVariable) ExpandedVariablesDB, bool bRawMode);
-bool ExportVersionPlist(LinearAllocator Arena, const BuildParams* Params, const String Path, TArray(FileVariable) ExpandedVariablesDB, bool bRawMode);
-bool ExportPkgInfo(const BuildParams* Params, const String Path);
-bool ExportVersionRC(const BuildParams* Params, const String Path);
-bool ExportIconRC(const BuildParams* Params, const String Path, const String IconFilePath);
+bool Export_InfoPlist(LinearAllocator Arena, const BuildParams* Params, const String Path, TArray(FileVariable) ExpandedVariablesDB, bool bRawMode);
+bool Export_VersionPlist(LinearAllocator Arena, const BuildParams* Params, const String Path, TArray(FileVariable) ExpandedVariablesDB, bool bRawMode);
+bool Export_PkgInfo(const BuildParams* Params, const String Path);
+bool Export_VersionRC(const BuildParams* Params, const String Path);
+bool Export_IconRC(const BuildParams* Params, const String Path, const String IconFilePath);
+
+bool Export_License_BSD2(const BuildParams* Params, const String Path);
+bool Export_License_BSD3(const BuildParams* Params, const String Path);
+bool Export_License_MIT(const BuildParams* Params, const String Path);
+bool Export_License_DoWhatTheFuckYouWantTo(const BuildParams* Params, const String Path);
+bool Export_License_TheUnlicense(const String Path);
 
 bool SourceFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData);
 
@@ -296,4 +302,4 @@ void* MSVC_Find_Allocate(usize Size);
 void MSVC_Find_Release(void* Memory);
 #endif
 
-#endif // _BASE_STRING_H_
+#endif // _BACKEND_H_
