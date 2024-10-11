@@ -1,9 +1,9 @@
-[![Build Status](https://github.com/AliElSaleh/RiftBuild/actions/workflows/main.yml/badge.svg)](https://github.com/AliElSaleh/RiftBuild/actions/)
+<h1 align="center">Rift Build (ALPHA)</h1>
+<p align="center">A simpler build tool for C/C++, because fuck CMake.</p>
 
-
-# Rift Build (ALPHA)
-A simpler build tool for C/C++, because fuck CMake
-
+<p align="center">
+    <a href="https://github.com/AliElSaleh/RiftBuild/actions/"><img src="https://github.com/AliElSaleh/RiftBuild/actions/workflows/main.yml/badge.svg" alt="GitHub Actions"></a>
+</p>
 
 ### Usage
 A build call will look like this (in a directory with or without a .build file)
