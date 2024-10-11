@@ -75,7 +75,7 @@ They work on Windows, Mac OS and Linux (where appropriate).
 - [PhysFS](https://github.com/AliElSaleh/physfs)
 - [Zydis](https://github.com/AliElSaleh/zydis)
 - [Tracy](https://github.com/AliElSaleh/tracy)
-- [Z3](https://github.com/AliElSaleh/z3)
+- [Z3 TODO](https://github.com/AliElSaleh/z3)
 
 [Extended list can be found here]()
 
@@ -251,7 +251,7 @@ I was trying to build my game engine using CMake (because that's what profession
 
 And yes, I've also tried alternative build systems like Meson, Ninja, Bazel, Premake, etc., and guess what, they were all shit, they were all too complicated and bloated for what should be (in my view) a straightforward process, so I spent one weekend developing the first iteration of my own build system. A perk of this system, is that you don't even need to write **_any_** .build script if your program is dead simple. This allows you to be productive much quicker so you spend **_zero_** time thinking about how you should build something and more time programming.
 
-Writing a build file **should** be so much simpler than whatever the fuck CMake has concocted, and I firmly believe that you shouldn't have to learn **another** language (or a DSL) to build your program. A simple declarative build file is understood by everyone, thus there is no need to learn any complicated syntax to successfully write one. You get to skip the `cmake .`, `make`, `make install` dance bullshit and go straight to the compiler with just one command, `riftbuild`.
+Writing a build file **should** be so much simpler than whatever the fuck CMake has concocted, and I firmly believe that you shouldn't have to learn **another** language (or a DSL) to build your program. A simple declarative build file is understood by everyone, thus there is no need to learn any complicated syntax to successfully write one. You get to skip the `cmake ..`, `make`, `make install` dance bullshit and go straight to the compiler with just one command, `riftbuild`.
 
 Note: You may encounter situations where CMake may cover more cases than Rift Build, but I don't care. My mental health and happiness is more important.
 
