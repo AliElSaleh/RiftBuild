@@ -250,8 +250,6 @@ f64 Platform_GetClockFrequency(void)
     return ClockFrequency;
 }
 
-// Note: MSVC does not allow me to define these for 32-bit builds
-#if 1//!COMPILER_MSVC
 PRAGMA_DISABLE_WARNINGS
 
 #if COMPILER_CLANG
@@ -266,9 +264,11 @@ PRAGMA_DISABLE_WARNINGS
 #pragma GCC diagnostic ignored "-Wmissing-prototypes"
 #endif
 
+#if COMPILER_MSVC
 #pragma intrinsic(memset, memcpy, memmove, memcmp)
+#pragma function(memset, memcpy, memmove, memcmp)
+#endif
 
-#pragma function(memset)
 void* memset(void *dst, int c, SIZE_T len)
 {
     register volatile u8* dp = dst;
@@ -281,7 +281,6 @@ void* memset(void *dst, int c, SIZE_T len)
     return dst;
 }
 
-#pragma function(memcpy)
 void* memcpy(void* restrict dst, const void* restrict src, SIZE_T len)
 {
     register volatile u8* dp = dst;
@@ -295,7 +294,6 @@ void* memcpy(void* restrict dst, const void* restrict src, SIZE_T len)
     return dst;
 }
 
-#pragma function(memmove)
 void* memmove(void* dst, const void* src, SIZE_T len)
 {
     register volatile u8* dp = dst;
@@ -319,7 +317,6 @@ void* memmove(void* dst, const void* src, SIZE_T len)
     return dst;
 }
 
-#pragma function(memcmp)
 int memcmp(const void* s1, const void* s2, SIZE_T len)
 {
     register const u8* p1 = (const u8*)s1;
@@ -341,7 +338,6 @@ int memcmp(const void* s1, const void* s2, SIZE_T len)
 }
 
 PRAGMA_ENABLE_WARNINGS
-#endif
 
 void* Platform_MemAlloc(usize Size)
 {
