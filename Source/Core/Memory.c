@@ -10,10 +10,6 @@
 #include "StringUtils.h"
 #endif
 
-#if !RIFT_ASAN
-#include "libmemory.c"
-#endif
-
 internal FreeListAllocator GEngineAllocator = { 0 };
 internal LinearAllocator GEngineScratchAllocator = { 0 };
 internal void* GEngineMemory = NULL;

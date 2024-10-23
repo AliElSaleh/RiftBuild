@@ -8134,8 +8134,6 @@ internal void InitInternalVars(LinearAllocator* Arena)
     // store internal options. like platform, native os .lib's, etc..
     AddInternalVariable(S(PLATFORM_STRING), S(""));
 
-    // TODO: riftbuild version
-
     // TODO: POSIX
     // TODO: _POSIX = "version"
 
@@ -8248,6 +8246,10 @@ internal void InitInternalVars(LinearAllocator* Arena)
     AddInternalVariable(S("32-bit"), S(""));
     #endif
 
+    // TODO
+    const String One = S("1");
+    const String Zero = S("0");
+
     Uuid ID = UUID_Generate();
     StringLocal(UuidString, 64);
     UUID_ToString(ID, &UuidString);
@@ -8340,54 +8342,54 @@ internal void InitInternalVars(LinearAllocator* Arena)
     AddInternalVariable(S("i686"), S("1"));
     #endif
 
-    #define AddInstruction(Instruction) AddInternalVariable(S("_" #Instruction), CPUInfo.Instruction ? S("1") : S("0"))
+    #define AddInstruction(Instruction) AddInternalVariable(S("_" #Instruction), CPUInfo.Instruction ? One : Zero)
 
     // x86
     if (CPUInfo.x86 || CPUInfo.x64)
     {
-        AddInternalVariable(S("_MMX"),             CPUInfo.MMX             ? S("1") : S("0"));
-        AddInternalVariable(S("_SSE"),             CPUInfo.SSE             ? S("1") : S("0"));
-        AddInternalVariable(S("_SSE2"),            CPUInfo.SSE2            ? S("1") : S("0"));
-        AddInternalVariable(S("_SSE3"),            CPUInfo.SSE3            ? S("1") : S("0"));
-        AddInternalVariable(S("_SSSE3"),           CPUInfo.SSSE3           ? S("1") : S("0"));
-        AddInternalVariable(S("_SSE4"),            CPUInfo.SSE4            ? S("1") : S("0"));
-        AddInternalVariable(S("_SSE4.1"),          CPUInfo.SSE41           ? S("1") : S("0"));
-        AddInternalVariable(S("_SSE4.2"),          CPUInfo.SSE42           ? S("1") : S("0"));
-        AddInternalVariable(S("_AES"),             CPUInfo.AES             ? S("1") : S("0"));
-        AddInternalVariable(S("_FMA3"),            CPUInfo.FMA3            ? S("1") : S("0"));
-        AddInternalVariable(S("_AVX"),             CPUInfo.AVX             ? S("1") : S("0"));
-        AddInternalVariable(S("_AVX2"),            CPUInfo.AVX2            ? S("1") : S("0"));
-        AddInternalVariable(S("_F16C"),            CPUInfo.F16C            ? S("1") : S("0"));
-        AddInternalVariable(S("_BMI1"),            CPUInfo.BMI1            ? S("1") : S("0"));
-        AddInternalVariable(S("_BMI2"),            CPUInfo.BMI2            ? S("1") : S("0"));
-        AddInternalVariable(S("_LZCNT"),           CPUInfo.LZCNT           ? S("1") : S("0"));
-        AddInternalVariable(S("_TZCNT"),           CPUInfo.TZCNT           ? S("1") : S("0"));
-        AddInternalVariable(S("_ADX"),             CPUInfo.ADX             ? S("1") : S("0"));
-        AddInternalVariable(S("_MPX"),             CPUInfo.MPX             ? S("1") : S("0"));
-        AddInternalVariable(S("_SHA"),             CPUInfo.SHA             ? S("1") : S("0"));
-        AddInternalVariable(S("_RDRAND"),          CPUInfo.RDRAND          ? S("1") : S("0"));
-        AddInternalVariable(S("_PCLMULQDQ"),       CPUInfo.PCLMULQDQ       ? S("1") : S("0"));
-        AddInternalVariable(S("_DTES64"),          CPUInfo.DTES64          ? S("1") : S("0"));
-        AddInternalVariable(S("_MONITOR"),         CPUInfo.MONITOR         ? S("1") : S("0"));
-        AddInternalVariable(S("_DSCPL"),           CPUInfo.DSCPL           ? S("1") : S("0"));
-        AddInternalVariable(S("_VMX"),             CPUInfo.VMX             ? S("1") : S("0"));
-        AddInternalVariable(S("_SMX"),             CPUInfo.SMX             ? S("1") : S("0"));
-        AddInternalVariable(S("_EIST"),            CPUInfo.EIST            ? S("1") : S("0"));
-        AddInternalVariable(S("_TM2"),             CPUInfo.TM2             ? S("1") : S("0"));
-        AddInternalVariable(S("_CNXTID"),          CPUInfo.CNXTID          ? S("1") : S("0"));
-        AddInternalVariable(S("_SDBG"),            CPUInfo.SDBG            ? S("1") : S("0"));
-        AddInternalVariable(S("_CX16"),            CPUInfo.CX16            ? S("1") : S("0"));
-        AddInternalVariable(S("_XTPR"),            CPUInfo.XTPR            ? S("1") : S("0"));
-        AddInternalVariable(S("_PDCM"),            CPUInfo.PDCM            ? S("1") : S("0"));
-        AddInternalVariable(S("_PCID"),            CPUInfo.PCID            ? S("1") : S("0"));
-        AddInternalVariable(S("_DCA"),             CPUInfo.DCA             ? S("1") : S("0"));
-        AddInternalVariable(S("_X2APIC"),          CPUInfo.X2APIC          ? S("1") : S("0"));
-        AddInternalVariable(S("_MOVBE"),           CPUInfo.MOVBE           ? S("1") : S("0"));
-        AddInternalVariable(S("_POPCNT"),          CPUInfo.POPCNT          ? S("1") : S("0"));
-        AddInternalVariable(S("_TSCDEADLINE"),     CPUInfo.TSCDEADLINE     ? S("1") : S("0"));
-        AddInternalVariable(S("_XSAVE"),           CPUInfo.XSAVE           ? S("1") : S("0"));
-        AddInternalVariable(S("_OSXSAVE"),         CPUInfo.OSXSAVE         ? S("1") : S("0"));
-        AddInternalVariable(S("_HYPERVISOR"),      CPUInfo.HYPERVISOR      ? S("1") : S("0"));
+        AddInternalVariable(S("_MMX"),             CPUInfo.MMX             ? One : Zero);
+        AddInternalVariable(S("_SSE"),             CPUInfo.SSE             ? One : Zero);
+        AddInternalVariable(S("_SSE2"),            CPUInfo.SSE2            ? One : Zero);
+        AddInternalVariable(S("_SSE3"),            CPUInfo.SSE3            ? One : Zero);
+        AddInternalVariable(S("_SSSE3"),           CPUInfo.SSSE3           ? One : Zero);
+        AddInternalVariable(S("_SSE4"),            CPUInfo.SSE4            ? One : Zero);
+        AddInternalVariable(S("_SSE4.1"),          CPUInfo.SSE41           ? One : Zero);
+        AddInternalVariable(S("_SSE4.2"),          CPUInfo.SSE42           ? One : Zero);
+        AddInternalVariable(S("_AES"),             CPUInfo.AES             ? One : Zero);
+        AddInternalVariable(S("_FMA3"),            CPUInfo.FMA3            ? One : Zero);
+        AddInternalVariable(S("_AVX"),             CPUInfo.AVX             ? One : Zero);
+        AddInternalVariable(S("_AVX2"),            CPUInfo.AVX2            ? One : Zero);
+        AddInternalVariable(S("_F16C"),            CPUInfo.F16C            ? One : Zero);
+        AddInternalVariable(S("_BMI1"),            CPUInfo.BMI1            ? One : Zero);
+        AddInternalVariable(S("_BMI2"),            CPUInfo.BMI2            ? One : Zero);
+        AddInternalVariable(S("_LZCNT"),           CPUInfo.LZCNT           ? One : Zero);
+        AddInternalVariable(S("_TZCNT"),           CPUInfo.TZCNT           ? One : Zero);
+        AddInternalVariable(S("_ADX"),             CPUInfo.ADX             ? One : Zero);
+        AddInternalVariable(S("_MPX"),             CPUInfo.MPX             ? One : Zero);
+        AddInternalVariable(S("_SHA"),             CPUInfo.SHA             ? One : Zero);
+        AddInternalVariable(S("_RDRAND"),          CPUInfo.RDRAND          ? One : Zero);
+        AddInternalVariable(S("_PCLMULQDQ"),       CPUInfo.PCLMULQDQ       ? One : Zero);
+        AddInternalVariable(S("_DTES64"),          CPUInfo.DTES64          ? One : Zero);
+        AddInternalVariable(S("_MONITOR"),         CPUInfo.MONITOR         ? One : Zero);
+        AddInternalVariable(S("_DSCPL"),           CPUInfo.DSCPL           ? One : Zero);
+        AddInternalVariable(S("_VMX"),             CPUInfo.VMX             ? One : Zero);
+        AddInternalVariable(S("_SMX"),             CPUInfo.SMX             ? One : Zero);
+        AddInternalVariable(S("_EIST"),            CPUInfo.EIST            ? One : Zero);
+        AddInternalVariable(S("_TM2"),             CPUInfo.TM2             ? One : Zero);
+        AddInternalVariable(S("_CNXTID"),          CPUInfo.CNXTID          ? One : Zero);
+        AddInternalVariable(S("_SDBG"),            CPUInfo.SDBG            ? One : Zero);
+        AddInternalVariable(S("_CX16"),            CPUInfo.CX16            ? One : Zero);
+        AddInternalVariable(S("_XTPR"),            CPUInfo.XTPR            ? One : Zero);
+        AddInternalVariable(S("_PDCM"),            CPUInfo.PDCM            ? One : Zero);
+        AddInternalVariable(S("_PCID"),            CPUInfo.PCID            ? One : Zero);
+        AddInternalVariable(S("_DCA"),             CPUInfo.DCA             ? One : Zero);
+        AddInternalVariable(S("_X2APIC"),          CPUInfo.X2APIC          ? One : Zero);
+        AddInternalVariable(S("_MOVBE"),           CPUInfo.MOVBE           ? One : Zero);
+        AddInternalVariable(S("_POPCNT"),          CPUInfo.POPCNT          ? One : Zero);
+        AddInternalVariable(S("_TSCDEADLINE"),     CPUInfo.TSCDEADLINE     ? One : Zero);
+        AddInternalVariable(S("_XSAVE"),           CPUInfo.XSAVE           ? One : Zero);
+        AddInternalVariable(S("_OSXSAVE"),         CPUInfo.OSXSAVE         ? One : Zero);
+        AddInternalVariable(S("_HYPERVISOR"),      CPUInfo.HYPERVISOR      ? One : Zero);
 
 
         AddInstruction(FPU);
@@ -8417,123 +8419,123 @@ internal void InitInternalVars(LinearAllocator* Arena)
         AddInstruction(TM);
         AddInstruction(PBE);
 
-        AddInternalVariable(S("_RDSEED"),           CPUInfo.RDSEED            ? S("1") : S("0"));
-        AddInternalVariable(S("_PREFETCHWT1"),      CPUInfo.PREFETCHWT1       ? S("1") : S("0"));
-        AddInternalVariable(S("_RDPID"),            CPUInfo.RDPID             ? S("1") : S("0"));
-        AddInternalVariable(S("_AVX512F"),          CPUInfo.AVX512F           ? S("1") : S("0"));
-        AddInternalVariable(S("_AVX512DQ"),         CPUInfo.AVX512DQ          ? S("1") : S("0"));
-        AddInternalVariable(S("_AVX512IFMA"),       CPUInfo.AVX512IFMA        ? S("1") : S("0"));
-        AddInternalVariable(S("_AVX512PF"),         CPUInfo.AVX512PF          ? S("1") : S("0"));
-        AddInternalVariable(S("_AVX512ER"),         CPUInfo.AVX512ER          ? S("1") : S("0"));
-        AddInternalVariable(S("_AVX512CD"),         CPUInfo.AVX512CD          ? S("1") : S("0"));
-        AddInternalVariable(S("_AVX512BW"),         CPUInfo.AVX512BW          ? S("1") : S("0"));
-        AddInternalVariable(S("_AVX512VL"),         CPUInfo.AVX512VL          ? S("1") : S("0"));
-        AddInternalVariable(S("_AVX512"),           CPUInfo.AVX512            ? S("1") : S("0"));
-        AddInternalVariable(S("_AVX512VBMI"),       CPUInfo.AVX512VBMI        ? S("1") : S("0"));
-        AddInternalVariable(S("_AVX512VBMI2"),      CPUInfo.AVX512VBMI2       ? S("1") : S("0"));
-        AddInternalVariable(S("_AVX512VPCLMUL"),    CPUInfo.AVX512VPCLMUL     ? S("1") : S("0"));
-        AddInternalVariable(S("_AVX512VNNI"),       CPUInfo.AVX512VNNI        ? S("1") : S("0"));
-        AddInternalVariable(S("_AVX512BITALG"),     CPUInfo.AVX512BITALG      ? S("1") : S("0"));
-        AddInternalVariable(S("_AVX512VPOPCNTDQ"),  CPUInfo.AVX512VPOPCNTDQ   ? S("1") : S("0"));
-        AddInternalVariable(S("_AVX5124VNNIW"),     CPUInfo.AVX512VNNI        ? S("1") : S("0"));
-        AddInternalVariable(S("_AVX5124FMAPS"),     CPUInfo.AVX5124FMAPS      ? S("1") : S("0"));
-        AddInternalVariable(S("_AVX512BF16"),       CPUInfo.AVX512BF16        ? S("1") : S("0"));
-        AddInternalVariable(S("_AVX512FP16"),       CPUInfo.AVX512FP16        ? S("1") : S("0"));
-        AddInternalVariable(S("_GFNI"),             CPUInfo.GFNI              ? S("1") : S("0"));
-        AddInternalVariable(S("_VAES"),             CPUInfo.VAES              ? S("1") : S("0"));
-        AddInternalVariable(S("_FSGSBASE"),         CPUInfo.FSGSBASE          ? S("1") : S("0"));
-        AddInternalVariable(S("_TSCADJUST"),        CPUInfo.TSCADJUST         ? S("1") : S("0"));
-        AddInternalVariable(S("_SGX"),              CPUInfo.SGX               ? S("1") : S("0"));
-        AddInternalVariable(S("_HLE"),              CPUInfo.HLE               ? S("1") : S("0"));
-        AddInternalVariable(S("_FDP_EXCEPTN_ONLY"), CPUInfo.FDP_EXCEPTN_ONLY  ? S("1") : S("0"));
-        AddInternalVariable(S("_SMEP"),             CPUInfo.SMEP              ? S("1") : S("0"));
-        AddInternalVariable(S("_ERMS"),             CPUInfo.ERMS              ? S("1") : S("0"));
-        AddInternalVariable(S("_INVPCID"),          CPUInfo.INVPCID           ? S("1") : S("0"));
-        AddInternalVariable(S("_RTM"),              CPUInfo.RTM               ? S("1") : S("0"));
-        AddInternalVariable(S("_PQM"),              CPUInfo.PQM               ? S("1") : S("0"));
-        AddInternalVariable(S("_FPU_DEPR"),         CPUInfo.FPU_DEPR          ? S("1") : S("0"));
-        AddInternalVariable(S("_PQE"),              CPUInfo.PQE               ? S("1") : S("0"));
-        AddInternalVariable(S("_SMAP"),             CPUInfo.SMAP              ? S("1") : S("0"));
-        AddInternalVariable(S("_PCOMMIT"),          CPUInfo.PCOMMIT           ? S("1") : S("0"));
-        AddInternalVariable(S("_CLFLUSHOPT"),       CPUInfo.CLFLUSHOPT        ? S("1") : S("0"));
-        AddInternalVariable(S("_CLWB"),             CPUInfo.CLWB              ? S("1") : S("0"));
-        AddInternalVariable(S("_INTELPT"),          CPUInfo.INTELPT           ? S("1") : S("0"));
-        AddInternalVariable(S("_UMIP"),             CPUInfo.UMIP              ? S("1") : S("0"));
-        AddInternalVariable(S("_PKU"),              CPUInfo.PKU               ? S("1") : S("0"));
-        AddInternalVariable(S("_OSPKE"),            CPUInfo.OSPKE             ? S("1") : S("0"));
-        AddInternalVariable(S("_WAITPKG"),          CPUInfo.WAITPKG           ? S("1") : S("0"));
-        AddInternalVariable(S("_CET_SS"),           CPUInfo.CET_SS            ? S("1") : S("0"));
-        AddInternalVariable(S("_VPCLMULQDQ"),       CPUInfo.VPCLMULQDQ        ? S("1") : S("0"));
-        AddInternalVariable(S("_TME"),              CPUInfo.TME               ? S("1") : S("0"));
-        AddInternalVariable(S("_LA57"),             CPUInfo.LA57              ? S("1") : S("0"));
-        AddInternalVariable(S("_KL"),               CPUInfo.KL                ? S("1") : S("0"));
-        AddInternalVariable(S("_CLDEMOTE"),         CPUInfo.CLDEMOTE          ? S("1") : S("0"));
-        AddInternalVariable(S("_MOVDIRI"),          CPUInfo.MOVDIRI           ? S("1") : S("0"));
-        AddInternalVariable(S("_MOVDIR64B"),        CPUInfo.MOVDIR64B         ? S("1") : S("0"));
-        AddInternalVariable(S("_ENQCMD"),           CPUInfo.ENQCMD            ? S("1") : S("0"));
-        AddInternalVariable(S("_SGXLC"),            CPUInfo.SGXLC             ? S("1") : S("0"));
-        AddInternalVariable(S("_BUSLOCKDETECT"),    CPUInfo.BUSLOCKDETECT     ? S("1") : S("0"));
+        AddInternalVariable(S("_RDSEED"),           CPUInfo.RDSEED            ? One : Zero);
+        AddInternalVariable(S("_PREFETCHWT1"),      CPUInfo.PREFETCHWT1       ? One : Zero);
+        AddInternalVariable(S("_RDPID"),            CPUInfo.RDPID             ? One : Zero);
+        AddInternalVariable(S("_AVX512F"),          CPUInfo.AVX512F           ? One : Zero);
+        AddInternalVariable(S("_AVX512DQ"),         CPUInfo.AVX512DQ          ? One : Zero);
+        AddInternalVariable(S("_AVX512IFMA"),       CPUInfo.AVX512IFMA        ? One : Zero);
+        AddInternalVariable(S("_AVX512PF"),         CPUInfo.AVX512PF          ? One : Zero);
+        AddInternalVariable(S("_AVX512ER"),         CPUInfo.AVX512ER          ? One : Zero);
+        AddInternalVariable(S("_AVX512CD"),         CPUInfo.AVX512CD          ? One : Zero);
+        AddInternalVariable(S("_AVX512BW"),         CPUInfo.AVX512BW          ? One : Zero);
+        AddInternalVariable(S("_AVX512VL"),         CPUInfo.AVX512VL          ? One : Zero);
+        AddInternalVariable(S("_AVX512"),           CPUInfo.AVX512            ? One : Zero);
+        AddInternalVariable(S("_AVX512VBMI"),       CPUInfo.AVX512VBMI        ? One : Zero);
+        AddInternalVariable(S("_AVX512VBMI2"),      CPUInfo.AVX512VBMI2       ? One : Zero);
+        AddInternalVariable(S("_AVX512VPCLMUL"),    CPUInfo.AVX512VPCLMUL     ? One : Zero);
+        AddInternalVariable(S("_AVX512VNNI"),       CPUInfo.AVX512VNNI        ? One : Zero);
+        AddInternalVariable(S("_AVX512BITALG"),     CPUInfo.AVX512BITALG      ? One : Zero);
+        AddInternalVariable(S("_AVX512VPOPCNTDQ"),  CPUInfo.AVX512VPOPCNTDQ   ? One : Zero);
+        AddInternalVariable(S("_AVX5124VNNIW"),     CPUInfo.AVX512VNNI        ? One : Zero);
+        AddInternalVariable(S("_AVX5124FMAPS"),     CPUInfo.AVX5124FMAPS      ? One : Zero);
+        AddInternalVariable(S("_AVX512BF16"),       CPUInfo.AVX512BF16        ? One : Zero);
+        AddInternalVariable(S("_AVX512FP16"),       CPUInfo.AVX512FP16        ? One : Zero);
+        AddInternalVariable(S("_GFNI"),             CPUInfo.GFNI              ? One : Zero);
+        AddInternalVariable(S("_VAES"),             CPUInfo.VAES              ? One : Zero);
+        AddInternalVariable(S("_FSGSBASE"),         CPUInfo.FSGSBASE          ? One : Zero);
+        AddInternalVariable(S("_TSCADJUST"),        CPUInfo.TSCADJUST         ? One : Zero);
+        AddInternalVariable(S("_SGX"),              CPUInfo.SGX               ? One : Zero);
+        AddInternalVariable(S("_HLE"),              CPUInfo.HLE               ? One : Zero);
+        AddInternalVariable(S("_FDP_EXCEPTN_ONLY"), CPUInfo.FDP_EXCEPTN_ONLY  ? One : Zero);
+        AddInternalVariable(S("_SMEP"),             CPUInfo.SMEP              ? One : Zero);
+        AddInternalVariable(S("_ERMS"),             CPUInfo.ERMS              ? One : Zero);
+        AddInternalVariable(S("_INVPCID"),          CPUInfo.INVPCID           ? One : Zero);
+        AddInternalVariable(S("_RTM"),              CPUInfo.RTM               ? One : Zero);
+        AddInternalVariable(S("_PQM"),              CPUInfo.PQM               ? One : Zero);
+        AddInternalVariable(S("_FPU_DEPR"),         CPUInfo.FPU_DEPR          ? One : Zero);
+        AddInternalVariable(S("_PQE"),              CPUInfo.PQE               ? One : Zero);
+        AddInternalVariable(S("_SMAP"),             CPUInfo.SMAP              ? One : Zero);
+        AddInternalVariable(S("_PCOMMIT"),          CPUInfo.PCOMMIT           ? One : Zero);
+        AddInternalVariable(S("_CLFLUSHOPT"),       CPUInfo.CLFLUSHOPT        ? One : Zero);
+        AddInternalVariable(S("_CLWB"),             CPUInfo.CLWB              ? One : Zero);
+        AddInternalVariable(S("_INTELPT"),          CPUInfo.INTELPT           ? One : Zero);
+        AddInternalVariable(S("_UMIP"),             CPUInfo.UMIP              ? One : Zero);
+        AddInternalVariable(S("_PKU"),              CPUInfo.PKU               ? One : Zero);
+        AddInternalVariable(S("_OSPKE"),            CPUInfo.OSPKE             ? One : Zero);
+        AddInternalVariable(S("_WAITPKG"),          CPUInfo.WAITPKG           ? One : Zero);
+        AddInternalVariable(S("_CET_SS"),           CPUInfo.CET_SS            ? One : Zero);
+        AddInternalVariable(S("_VPCLMULQDQ"),       CPUInfo.VPCLMULQDQ        ? One : Zero);
+        AddInternalVariable(S("_TME"),              CPUInfo.TME               ? One : Zero);
+        AddInternalVariable(S("_LA57"),             CPUInfo.LA57              ? One : Zero);
+        AddInternalVariable(S("_KL"),               CPUInfo.KL                ? One : Zero);
+        AddInternalVariable(S("_CLDEMOTE"),         CPUInfo.CLDEMOTE          ? One : Zero);
+        AddInternalVariable(S("_MOVDIRI"),          CPUInfo.MOVDIRI           ? One : Zero);
+        AddInternalVariable(S("_MOVDIR64B"),        CPUInfo.MOVDIR64B         ? One : Zero);
+        AddInternalVariable(S("_ENQCMD"),           CPUInfo.ENQCMD            ? One : Zero);
+        AddInternalVariable(S("_SGXLC"),            CPUInfo.SGXLC             ? One : Zero);
+        AddInternalVariable(S("_BUSLOCKDETECT"),    CPUInfo.BUSLOCKDETECT     ? One : Zero);
     }
 
     // Arm
     if (CPUInfo.ARM || CPUInfo.ARM64)
     {
-        AddInternalVariable(S("_NEON"),             CPUInfo.NEON              ? S("1") : S("0"));
-        AddInternalVariable(S("_NEON_HPFP"),        CPUInfo.NEON_HPFP         ? S("1") : S("0"));
-        AddInternalVariable(S("_NEON_FP16"),        CPUInfo.NEON_FP16         ? S("1") : S("0"));
-        AddInternalVariable(S("_ARMV8_1_ATOMICS"),  CPUInfo.ARMV8_1_ATOMICS   ? S("1") : S("0"));
-        AddInternalVariable(S("_ARMV8_2_FHM"),      CPUInfo.ARMV8_2_FHM       ? S("1") : S("0"));
-        AddInternalVariable(S("_ARMV8_2_SHA512"),   CPUInfo.ARMV8_2_SHA512    ? S("1") : S("0"));
-        AddInternalVariable(S("_ARMV8_2_SHA3"),     CPUInfo.ARMV8_2_SHA3      ? S("1") : S("0"));
-        AddInternalVariable(S("_ARMV8_3_COMPNUM"),  CPUInfo.ARMV8_3_COMPNUM   ? S("1") : S("0"));
-        AddInternalVariable(S("_ARMV8_CRC32"),      CPUInfo.ARMV8_CRC32       ? S("1") : S("0"));
-        AddInternalVariable(S("_ARMV8_GPI"),        CPUInfo.ARMV8_GPI         ? S("1") : S("0"));
-        AddInternalVariable(S("_AdvSIMD"),          CPUInfo.AdvSIMD           ? S("1") : S("0"));
-        AddInternalVariable(S("_AdvSIMD_HPFPCvt"),  CPUInfo.AdvSIMD_HPFPCVT   ? S("1") : S("0"));
-        AddInternalVariable(S("_UCNORMAL_MEM"),     CPUInfo.UCNORMAL_MEM      ? S("1") : S("0"));
-        AddInternalVariable(S("_M1"),               CPUInfo.FLAGM             ? S("1") : S("0"));
-        AddInternalVariable(S("_M2"),               CPUInfo.FLAGM2            ? S("1") : S("0"));
-        AddInternalVariable(S("_M3"),               CPUInfo.FLAGM3            ? S("1") : S("0"));
-        AddInternalVariable(S("_M4"),               CPUInfo.FLAGM4            ? S("1") : S("0"));
-        AddInternalVariable(S("_FHM"),              CPUInfo.FHM               ? S("1") : S("0"));
-        AddInternalVariable(S("_DOTPROD"),          CPUInfo.DOTPROD           ? S("1") : S("0"));
-        AddInternalVariable(S("_SHA3"),             CPUInfo.SHA3              ? S("1") : S("0"));
-        AddInternalVariable(S("_RDM"),              CPUInfo.RDM               ? S("1") : S("0"));
-        AddInternalVariable(S("_LSE"),              CPUInfo.LSE               ? S("1") : S("0"));
-        AddInternalVariable(S("_SHA256"),           CPUInfo.SHA256            ? S("1") : S("0"));
-        AddInternalVariable(S("_SHA512"),           CPUInfo.SHA512            ? S("1") : S("0"));
-        AddInternalVariable(S("_SHA1"),             CPUInfo.SHA1              ? S("1") : S("0"));
-        AddInternalVariable(S("_AES"),              CPUInfo.AES               ? S("1") : S("0"));
-        AddInternalVariable(S("_PMULL"),            CPUInfo.PMULL             ? S("1") : S("0"));
-        AddInternalVariable(S("_SPECRES"),          CPUInfo.SPECRES           ? S("1") : S("0"));
-        AddInternalVariable(S("_SB"),               CPUInfo.SB                ? S("1") : S("0"));
-        AddInternalVariable(S("_FRINTTS"),          CPUInfo.FRINTTS           ? S("1") : S("0"));
-        AddInternalVariable(S("_LRCPC"),            CPUInfo.LRCPC             ? S("1") : S("0"));
-        AddInternalVariable(S("_LRCPC2"),           CPUInfo.LRCPC2            ? S("1") : S("0"));
-        AddInternalVariable(S("_FCMA"),             CPUInfo.FCMA              ? S("1") : S("0"));
-        AddInternalVariable(S("_JSCVT"),            CPUInfo.JSCVT             ? S("1") : S("0"));
-        AddInternalVariable(S("_PAUTH"),            CPUInfo.PAUTH             ? S("1") : S("0"));
-        AddInternalVariable(S("_PAUTH2"),           CPUInfo.PAUTH2            ? S("1") : S("0"));
-        AddInternalVariable(S("_FPAC"),             CPUInfo.FPAC              ? S("1") : S("0"));
-        AddInternalVariable(S("_DPB"),              CPUInfo.DPB               ? S("1") : S("0"));
-        AddInternalVariable(S("_DPB2"),             CPUInfo.DPB2              ? S("1") : S("0"));
-        AddInternalVariable(S("_BF16"),             CPUInfo.BF16              ? S("1") : S("0"));
-        AddInternalVariable(S("_I8MM"),             CPUInfo.I8MM              ? S("1") : S("0"));
-        AddInternalVariable(S("_ECV"),              CPUInfo.ECV               ? S("1") : S("0"));
-        AddInternalVariable(S("_LSE2"),             CPUInfo.LSE2              ? S("1") : S("0"));
-        AddInternalVariable(S("_CSV2"),             CPUInfo.CSV2              ? S("1") : S("0"));
-        AddInternalVariable(S("_CSV3"),             CPUInfo.CSV3              ? S("1") : S("0"));
-        AddInternalVariable(S("_DIT"),              CPUInfo.DIT               ? S("1") : S("0"));
-        AddInternalVariable(S("_FP16"),             CPUInfo.FP16              ? S("1") : S("0"));
-        AddInternalVariable(S("_SSBS"),             CPUInfo.SSBS              ? S("1") : S("0"));
-        AddInternalVariable(S("_BTI"),              CPUInfo.BTI               ? S("1") : S("0"));
+        AddInternalVariable(S("_NEON"),             CPUInfo.NEON              ? One : Zero);
+        AddInternalVariable(S("_NEON_HPFP"),        CPUInfo.NEON_HPFP         ? One : Zero);
+        AddInternalVariable(S("_NEON_FP16"),        CPUInfo.NEON_FP16         ? One : Zero);
+        AddInternalVariable(S("_ARMV8_1_ATOMICS"),  CPUInfo.ARMV8_1_ATOMICS   ? One : Zero);
+        AddInternalVariable(S("_ARMV8_2_FHM"),      CPUInfo.ARMV8_2_FHM       ? One : Zero);
+        AddInternalVariable(S("_ARMV8_2_SHA512"),   CPUInfo.ARMV8_2_SHA512    ? One : Zero);
+        AddInternalVariable(S("_ARMV8_2_SHA3"),     CPUInfo.ARMV8_2_SHA3      ? One : Zero);
+        AddInternalVariable(S("_ARMV8_3_COMPNUM"),  CPUInfo.ARMV8_3_COMPNUM   ? One : Zero);
+        AddInternalVariable(S("_ARMV8_CRC32"),      CPUInfo.ARMV8_CRC32       ? One : Zero);
+        AddInternalVariable(S("_ARMV8_GPI"),        CPUInfo.ARMV8_GPI         ? One : Zero);
+        AddInternalVariable(S("_AdvSIMD"),          CPUInfo.AdvSIMD           ? One : Zero);
+        AddInternalVariable(S("_AdvSIMD_HPFPCvt"),  CPUInfo.AdvSIMD_HPFPCVT   ? One : Zero);
+        AddInternalVariable(S("_UCNORMAL_MEM"),     CPUInfo.UCNORMAL_MEM      ? One : Zero);
+        AddInternalVariable(S("_M1"),               CPUInfo.FLAGM             ? One : Zero);
+        AddInternalVariable(S("_M2"),               CPUInfo.FLAGM2            ? One : Zero);
+        AddInternalVariable(S("_M3"),               CPUInfo.FLAGM3            ? One : Zero);
+        AddInternalVariable(S("_M4"),               CPUInfo.FLAGM4            ? One : Zero);
+        AddInternalVariable(S("_FHM"),              CPUInfo.FHM               ? One : Zero);
+        AddInternalVariable(S("_DOTPROD"),          CPUInfo.DOTPROD           ? One : Zero);
+        AddInternalVariable(S("_SHA3"),             CPUInfo.SHA3              ? One : Zero);
+        AddInternalVariable(S("_RDM"),              CPUInfo.RDM               ? One : Zero);
+        AddInternalVariable(S("_LSE"),              CPUInfo.LSE               ? One : Zero);
+        AddInternalVariable(S("_SHA256"),           CPUInfo.SHA256            ? One : Zero);
+        AddInternalVariable(S("_SHA512"),           CPUInfo.SHA512            ? One : Zero);
+        AddInternalVariable(S("_SHA1"),             CPUInfo.SHA1              ? One : Zero);
+        AddInternalVariable(S("_AES"),              CPUInfo.AES               ? One : Zero);
+        AddInternalVariable(S("_PMULL"),            CPUInfo.PMULL             ? One : Zero);
+        AddInternalVariable(S("_SPECRES"),          CPUInfo.SPECRES           ? One : Zero);
+        AddInternalVariable(S("_SB"),               CPUInfo.SB                ? One : Zero);
+        AddInternalVariable(S("_FRINTTS"),          CPUInfo.FRINTTS           ? One : Zero);
+        AddInternalVariable(S("_LRCPC"),            CPUInfo.LRCPC             ? One : Zero);
+        AddInternalVariable(S("_LRCPC2"),           CPUInfo.LRCPC2            ? One : Zero);
+        AddInternalVariable(S("_FCMA"),             CPUInfo.FCMA              ? One : Zero);
+        AddInternalVariable(S("_JSCVT"),            CPUInfo.JSCVT             ? One : Zero);
+        AddInternalVariable(S("_PAUTH"),            CPUInfo.PAUTH             ? One : Zero);
+        AddInternalVariable(S("_PAUTH2"),           CPUInfo.PAUTH2            ? One : Zero);
+        AddInternalVariable(S("_FPAC"),             CPUInfo.FPAC              ? One : Zero);
+        AddInternalVariable(S("_DPB"),              CPUInfo.DPB               ? One : Zero);
+        AddInternalVariable(S("_DPB2"),             CPUInfo.DPB2              ? One : Zero);
+        AddInternalVariable(S("_BF16"),             CPUInfo.BF16              ? One : Zero);
+        AddInternalVariable(S("_I8MM"),             CPUInfo.I8MM              ? One : Zero);
+        AddInternalVariable(S("_ECV"),              CPUInfo.ECV               ? One : Zero);
+        AddInternalVariable(S("_LSE2"),             CPUInfo.LSE2              ? One : Zero);
+        AddInternalVariable(S("_CSV2"),             CPUInfo.CSV2              ? One : Zero);
+        AddInternalVariable(S("_CSV3"),             CPUInfo.CSV3              ? One : Zero);
+        AddInternalVariable(S("_DIT"),              CPUInfo.DIT               ? One : Zero);
+        AddInternalVariable(S("_FP16"),             CPUInfo.FP16              ? One : Zero);
+        AddInternalVariable(S("_SSBS"),             CPUInfo.SSBS              ? One : Zero);
+        AddInternalVariable(S("_BTI"),              CPUInfo.BTI               ? One : Zero);
     }
 
     // todo: store all supported extensions
     //AddInternalVariable(S("_CPUExtensions"), S(""));
 
     StringLocal(CacheLineSize, 8);
-    String_Format(&CacheLineSize, S("%u"), 7, Platform_GetCpuCacheLineSize());
+    String_Format(&CacheLineSize, S("%u"), CacheLineSize.Capacity, Platform_GetCpuCacheLineSize());
     AddInternalVariable(S("_CacheLineSize"), String_Create(Arena, CacheLineSize));
 
     // todo: check if these are on bsd as well. maybe linux?

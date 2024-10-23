@@ -1491,17 +1491,6 @@ internal void Internal_ParseAndLogLinkerOutput_MSVC(String StdOutData)
             {
                 if (String_StartsWith(Line, S("LINK : "), true))
                 {
-                    /*
-                    if (String_IsValid(LastObjFile) && String_IsEqual(LastObjFile, S("Linker Warnings"), true))
-                    {
-                        LOG_INLINE("    ");
-                    }
-                    else
-                    {
-                        LOG_INLINE_WARNING("\nLinker Warnings\n    ");
-                    }
-                    */
-
                     String Trimmed = StrShiftF(Line, 7);
 
                     if (String_StartsWith(Trimmed, S("warning LNK"), true))
@@ -1613,6 +1602,11 @@ internal void Internal_ParseAndLogLinkerOutput_MSVC(String StdOutData)
 
                         String Trimmed = String_EatSpaces(StrShiftF(Line, ColonIndex+2));
                         {
+                            if (String_StartsWith(Trimmed, S("fatal error LNK"), true))
+                            {
+                                Trimmed = StrShiftF(Trimmed, 6);
+                            }
+                            
                             if (String_StartsWith(Trimmed, S("error LNK"), true))
                             {
                                 ColonIndex = 0;
@@ -1672,6 +1666,10 @@ internal void Internal_ParseAndLogLinkerOutput_MSVC(String StdOutData)
                                         LOG(" |%S", FirstPart);
                                     }
                                 }
+                            }
+                            else
+                            {
+                                LOG("%S", Line);
                             }
                         }
                     }
@@ -1811,17 +1809,18 @@ bool MSVC_Link(const BuildParams* Params)
 
         // TODO: switch between fancy and non fancy logging
 
-        //PlatformHandle Handle = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
-        //if (!Platform_IsValidHandle(Handle)) return false;
-        //u32 ExitCode = Platform_WaitForProcessAndGetExitCode(Handle);
+        /*
+        PlatformHandle Handle = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
+        if (!Platform_IsValidHandle(Handle)) return false;
+        */
 
         PlatformPipe StdOutHandle = {0};
-        PlatformHandle H = Platform_RunCommand_Ex(CmdLine, Params->RootDirectory, &StdOutHandle);
-        if (!Platform_IsValidHandle(H)) return false;
+        PlatformHandle Handle = Platform_RunCommand_Ex(CmdLine, Params->RootDirectory, &StdOutHandle);
+        if (!Platform_IsValidHandle(Handle)) return false;
 
         Internal_ProcessLinkerOutput_MSVC(StdOutHandle);
 
-        u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
+        u32 ExitCode = Platform_WaitForProcessAndGetExitCode(Handle);
 
         if (ExitCode != 0)
         {

@@ -36,8 +36,9 @@ if 32        SharedLinkerFlags   -m32
 .stop
 
 msvc:
-SharedCompilerFlags              /W4 /WX /wd4100 /TC /GS- /Gs999999999 /analyze /analyze:stacksize 8000000
-SharedLinkerFlags                
-if debug SharedCompilerFlags     /Od /Zi /FS /Fd"$(BuildDirectory)\$(Assembly).pdb"
+SharedCompilerFlags              /W4 /WX /wd4100 /wd4164 /TC /GS- /Gs999999999 /EHs- /analyze /analyze:stacksize 8000000
+SharedLinkerFlags                /SAFESEH:NO
+if debug SharedCompilerFlags     /MTd /Od /Zi /FS /Fd"$(BuildDirectory)\$(Assembly).pdb"
 if debug SharedLinkerFlags       /DEBUG
-if !debug SharedCompilerFlags    /O2
+if !debug SharedCompilerFlags    /MT /O2
+if 32 SharedCompilerFlags        /d2noftol3

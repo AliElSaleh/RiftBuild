@@ -19,7 +19,7 @@
 
 #include "Win32Types.h"
 
-#include <gs_support.c>
+//#include <gs_support.c>
 
 //#include <Windows.h>
 //#include <strsafe.h>
@@ -127,7 +127,7 @@ internal void LogLastError(const String Prefix)
 
 void Platform_PreInitialize(void)
 {
-    __security_init_cookie();
+    //__security_init_cookie();
 
     Platform_GetClockFrequency();
 
@@ -249,6 +249,99 @@ f64 Platform_GetClockFrequency(void)
     const f64 ClockFrequency = 1.0/(f64)Frequency.QuadPart;
     return ClockFrequency;
 }
+
+// Note: MSVC does not allow me to define these for 32-bit builds
+#if 1//!COMPILER_MSVC
+PRAGMA_DISABLE_WARNINGS
+
+#if COMPILER_CLANG
+#pragma clang diagnostic ignored "-Wincompatible-library-redeclaration"
+#pragma clang diagnostic ignored "-Wsign-conversion"
+#pragma clang diagnostic ignored "-Wunused-function"
+#pragma clang diagnostic ignored "-Wmissing-prototypes"
+#elif COMPILER_GCC
+#pragma GCC diagnostic ignored "-Wbuiltin-declaration-mismatch"
+#pragma GCC diagnostic ignored "-Wsign-conversion"
+#pragma GCC diagnostic ignored "-Wunused-function"
+#pragma GCC diagnostic ignored "-Wmissing-prototypes"
+#endif
+
+#pragma intrinsic(memset, memcpy, memmove, memcmp)
+
+#pragma function(memset)
+void* memset(void *dst, int c, SIZE_T len)
+{
+    register volatile u8* dp = dst;
+
+    while (len--)
+    {
+        *dp++ = (u8)c;
+    }
+
+    return dst;
+}
+
+#pragma function(memcpy)
+void* memcpy(void* restrict dst, const void* restrict src, SIZE_T len)
+{
+    register volatile u8* dp = dst;
+    register const u8* sp = src;
+
+    while (len--)
+    {
+        *dp++ = *sp++;
+    }
+
+    return dst;
+}
+
+#pragma function(memmove)
+void* memmove(void* dst, const void* src, SIZE_T len)
+{
+    register volatile u8* dp = dst;
+    register const u8* sp = src;
+
+    if (sp < dp)
+    {
+        for (dp += len, sp += len; len--;)
+        {
+            *--dp = *--sp;
+        }
+    }
+    else
+    {
+        while (len--)
+        {
+            *dp++ = *sp++;
+        }
+    }
+
+    return dst;
+}
+
+#pragma function(memcmp)
+int memcmp(const void* s1, const void* s2, SIZE_T len)
+{
+    register const u8* p1 = (const u8*)s1;
+    register const u8* p2 = (const u8*)s2;
+
+    for (register usize i = 0; i < len; i++)
+    {
+        if (p1[i] < p2[i])
+        {
+            return -1;
+        }
+        else if (p1[i] > p2[i]) 
+        {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+PRAGMA_ENABLE_WARNINGS
+#endif
 
 void* Platform_MemAlloc(usize Size)
 {

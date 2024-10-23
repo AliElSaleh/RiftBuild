@@ -25,7 +25,6 @@ if windows              IncludedSourceFiles Platform_Windows.c
 if linux                IncludedSourceFiles Platform_Unix.c Platform_Linux.c
 if mac                  IncludedSourceFiles Platform_Unix.c Platform_Mac.c
 if bsd                  IncludedSourceFiles Platform_Unix.c Platform_BSD.c
-if cl                   IncludedSourceFiles memcmp.asm memset.asm
 
 if mac                  CompilerFlags -mmacosx-version-min=10.12 ; LinkerFlags -framework Foundation
 
@@ -36,7 +35,8 @@ if windows {
     if cl               LinkerFlags   /ENTRY:EntryPoint /SUBSYSTEM:CONSOLE /STACK:0x800000,0x800000
     if cl if 32         LinkerFlags   /MACHINE:X86
     if !cl if 32        LinkerFlags   --target=i386-pc-windows-msvc
-    if 32               Libraries     msvcrt
+    if 32 if !debug     Libraries     libcmt libvcruntime
+    if 32 if debug      Libraries     libcmtd libvcruntimed
 }
 
 if windows              Libraries %_NativeLibs microsoft_craziness%%32 ; LibraryDirectories Source/Libraries/Windows
