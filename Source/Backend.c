@@ -907,6 +907,14 @@ bool IsSource(const String Extension)
             #endif
 }
 
+bool IsCppSource(const String Extension)
+{
+    return  String_IsEqual(Extension, S(".cc"), false) ||
+            String_IsEqual(Extension, S(".cxx"), false) ||
+            String_IsEqual(Extension, S(".c++"), false) ||
+            String_IsEqual(Extension, S(".cpp"), false);
+}
+
 bool IsHeader(const String Extension)
 {
     return  String_IsEqual(Extension, S(".h"), false) ||
@@ -916,6 +924,18 @@ bool IsHeader(const String Extension)
             String_IsEqual(Extension, S(".h++"), false) ||
             String_IsEqual(Extension, S(".inc"), false) ||
             String_IsEqual(Extension, S(".inl"), false) ||
+            String_IsEqual(Extension, S(".ipp"), false) ||
+            String_IsEqual(Extension, S(".ixx"), false) ||
+            String_IsEqual(Extension, S(".tpp"), false) ||
+            String_IsEqual(Extension, S(".txx"), false);
+}
+
+bool IsCppHeader(const String Extension)
+{
+    return  String_IsEqual(Extension, S(".hh"), false) ||
+            String_IsEqual(Extension, S(".hpp"), false) ||
+            String_IsEqual(Extension, S(".hxx"), false) ||
+            String_IsEqual(Extension, S(".h++"), false) ||
             String_IsEqual(Extension, S(".ipp"), false) ||
             String_IsEqual(Extension, S(".ixx"), false) ||
             String_IsEqual(Extension, S(".tpp"), false) ||

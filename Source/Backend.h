@@ -223,8 +223,10 @@ bool RC_Compile(const BuildParams* Params, const String FullRCPath, String* OutR
 #endif
 
 bool IsSource(const String Extension);
+bool IsCppSource(const String Extension);
 bool IsSourceCustom(const String Extension, const StringList CustomExtensions);
 bool IsHeader(const String Extension);
+bool IsCppHeader(const String Extension);
 
 
 // Util functions --------------------

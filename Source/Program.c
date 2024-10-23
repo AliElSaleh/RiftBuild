@@ -498,14 +498,7 @@ internal bool SourceFileCounterDirectoryIterator(const String FullPath, const St
 
                 if (!Data->bHasCppFiles)
                 {
-                    if (String_EndsWith(RelativePath, S(".cpp"), false) ||
-                        String_EndsWith(RelativePath, S(".c++"), false) ||
-                        String_EndsWith(RelativePath, S(".cc"), false) ||
-                        String_EndsWith(RelativePath, S(".cxx"), false) ||
-                        String_EndsWith(RelativePath, S(".hpp"), false) ||
-                        String_EndsWith(RelativePath, S(".h++"), false) ||
-                        String_EndsWith(RelativePath, S(".hh"), false) ||
-                        String_EndsWith(RelativePath, S(".hxx"), false))
+                    if (IsCppSource(Extension) || IsCppHeader(Extension))
                     {
                         Data->bHasCppFiles = true;
                     }
@@ -520,11 +513,7 @@ internal bool SourceFileCounterDirectoryIterator(const String FullPath, const St
 
                 if (!Data->bHasCppFiles)
                 {
-                    // is cpp header?
-                    if (String_EndsWith(RelativePath, S(".hh"), false) ||
-                        String_EndsWith(RelativePath, S(".hpp"), false) ||
-                        String_EndsWith(RelativePath, S(".hxx"), false) ||
-                        String_EndsWith(RelativePath, S(".h++"), false))
+                    if (IsCppHeader(Extension))
                     {
                         Data->bHasCppFiles = true;
                     }
@@ -817,11 +806,19 @@ bool LogStringList_WordWrapped(LinearAllocator Scratch, const String Name, const
 {
     StringList History = {0};
     u32 ParentCount = 0;
-    bool bLogged = false;
+
+    u32 Rows = 0, Cols = 0;
+    Platform_GetTerminalDimensions(&Rows, &Cols);
+    Cols = Clamp(Cols, 30, 1000);
+
+    StringLocal(LogBuffer, 8192);
+
+    String_Append(&LogBuffer, Name);
 
     for each_str_list (List)
     {
         StringList ValueList = String_SplitIntoList(&Scratch, It.String, ' ', true);
+
         u32 Count = 0;
         u32 Spaces = 0;
         u32 Index = 0;
@@ -831,34 +828,30 @@ bool LogStringList_WordWrapped(LinearAllocator Scratch, const String Name, const
 
         for each_str_list_it (v, ValueList)
         {
-            u32 Rows = 0, Cols = 0;
-            Platform_GetTerminalDimensions(&Rows, &Cols);
-            Cols = Clamp(Cols, 30, 1000);
             if (v.String.Length + ParentCount + Spaces > (u32)((f32)Cols/1.5f))
             {
                 StringList** Next = &History.Next;
                 while (*Next)
                 {
                     const String Slice = String_EatSpacesFromEnd((*Next)->String);
-                    LOG_INLINE("%S ", Slice);
+                    String_Append(&LogBuffer, Slice);
+                    String_AppendSpace(&LogBuffer);
+                    //LOG_INLINE("%S ", Slice);
 
                     Next = &(*Next)->Next;
                 }
 
                 History = (StringList){0};
 
-                LOG_LINE_BREAK();
+                //LOG_LINE_BREAK();
+                String_AppendNewline(&LogBuffer);
 
                 String NameCopy = String_Reserve(&Scratch, Name.Length);
-                String_Copy(&NameCopy, Name);
                 NameCopy.Length = Name.Length;
-                for (u32 i = 0; i < Name.Length; i++)
-                {
-                    NameCopy.Data[i] = ' ';
-                }
+                String_Fill(&NameCopy, ' ');
 
-                // i could put this in that loop, but logging is relatively slowww, so just do it once
-                LOG_INLINE("%S", NameCopy);
+                //LOG_INLINE("%S", NameCopy);
+                String_Append(&LogBuffer, NameCopy);
 
                 Count = 0;
                 ParentCount = 0;
@@ -890,7 +883,9 @@ bool LogStringList_WordWrapped(LinearAllocator Scratch, const String Name, const
             while (*Next)
             {
                 const String Slice = String_EatSpacesFromEnd((*Next)->String);
-                LOG_INLINE("%S ", Slice);
+                //LOG_INLINE("%S ", Slice);
+                String_Append(&LogBuffer, Slice);
+                String_AppendSpace(&LogBuffer);
 
                 Next = &(*Next)->Next;
             }
@@ -898,7 +893,13 @@ bool LogStringList_WordWrapped(LinearAllocator Scratch, const String Name, const
             History = (StringList){0};
         }
 
-        bLogged = true;
+        //bLogged = true;
+    }
+
+    bool bLogged = LogBuffer.Length > 0;
+    if (bLogged)
+    {
+        LOG_INLINE("%S\n", LogBuffer);
     }
 
     return bLogged;
@@ -921,8 +922,6 @@ internal void LogNameValuePair(LinearAllocator Scratch, const String Name, const
 
 internal void LogBuildVariable(LinearAllocator Scratch, TArray(FileVariable) VariablesDB, const String Name, const String DisplayName, const bool bWordWrap)
 {
-    LOG_INLINE("%S", DisplayName);
-
     StringList List = GetVariableValueList(&Scratch, VariablesDB, Name);
 
     if (bWordWrap)
@@ -931,28 +930,36 @@ internal void LogBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Var
     }
     else
     {
+        StringLocal(LogBuffer, 8192);
+        String_Append(&LogBuffer, DisplayName);
+        //LOG_INLINE("%S", DisplayName);
         for each_str_list (List)
         {
             if (String_IsValid(It.String))
             {
-                LOG_INLINE("%S", It.String);
+                //LOG_INLINE("%S", It.String);
+                String_Append(&LogBuffer, It.String);
             }
+        }
+
+        if (LogBuffer.Length > 0)
+        {
+            LOG_INLINE("%S\n", LogBuffer);
         }
     }
 
-    LOG_LINE_BREAK();
+    //LOG_LINE_BREAK();
 }
 
 bool LogString_WordWrapped(LinearAllocator Scratch, const String Name, const String Value, const bool bAddNewLine)
 {
     if (Value.Length > 0)
     {
-        LOG_INLINE("%S", Name);
+        //LOG_INLINE("%S", Name);
 
         const StringList l = {Value, NULL};
         if (LogStringList_WordWrapped(Scratch, Name, l))
         {
-            LOG_LINE_BREAK();
             if (bAddNewLine) LOG_LINE_BREAK();
             return true;
         }
@@ -7323,57 +7330,87 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
     if (bQuietBuild) Logging_Enable();
 
+    StringLocal(LogTimingBuffer, 512);
     StringLocal(TimeString, 32);
 
     Clock_GetElapsedTime_ToString(&CompileClock, true, &TimeString);
-    LOG("\nCompile     time: %S", TimeString);
+    String_Append(&LogTimingBuffer, S("\nCompile     time: "));
+    String_Append(&LogTimingBuffer, TimeString);
+    String_AppendNewline(&LogTimingBuffer);
 
+    //String_Concat(&LogTimingBuffer, S("\nCompile     time: "), TimeString, S("\n"));
+
+    // TODO: compress into function
     if (LinkClock.StartTime > 0)
     {
         Clock_GetElapsedTime_ToString(&LinkClock, true, &TimeString);
-        LOG("Link        time: %S", TimeString);
+        //LOG("Link        time: %S", TimeString);
+        String_Append(&LogTimingBuffer, S("Link        time: "));
+        String_Append(&LogTimingBuffer, TimeString);
+        String_AppendNewline(&LogTimingBuffer);
     }
 
     if (IconClock.StartTime > 0)
     {
         Clock_GetElapsedTime_ToString(&IconClock, true, &TimeString);
-        LOG("Icon        time: %S", TimeString);
+        //LOG("Icon        time: %S", TimeString);
+        String_Append(&LogTimingBuffer, S("Icon        time: "));
+        String_Append(&LogTimingBuffer, TimeString);
+        String_AppendNewline(&LogTimingBuffer);
     }
 
     if (ResourceCompileClock.StartTime > 0)
     {
         Clock_GetElapsedTime_ToString(&ResourceCompileClock, true, &TimeString);
-        LOG("Resource    time: %S", TimeString);
+        //LOG("Resource    time: %S", TimeString);
+        String_Append(&LogTimingBuffer, S("Resource    time: "));
+        String_Append(&LogTimingBuffer, TimeString);
+        String_AppendNewline(&LogTimingBuffer);
     }
 
     if (BundleCompileClock.StartTime > 0)
     {
         Clock_GetElapsedTime_ToString(&BundleCompileClock, true, &TimeString);
-        LOG("Bundle      time: %S", TimeString);
+        //LOG("Bundle      time: %S", TimeString);
+        String_Append(&LogTimingBuffer, S("Bundle      time: "));
+        String_Append(&LogTimingBuffer, TimeString);
+        String_AppendNewline(&LogTimingBuffer);
     }
 
     if (bFoundBuildFile)
     {
         Clock_GetElapsedTime_ToString(&BuildFileParseClock, true, &TimeString);
-        LOG("Build parse time: %S", TimeString);
+        //LOG("Build parse time: %S", TimeString);
+        String_Append(&LogTimingBuffer, S("Build parse time: "));
+        String_Append(&LogTimingBuffer, TimeString);
+        String_AppendNewline(&LogTimingBuffer);
     }
 
     if (MSVCInitClock.StartTime > 0)
     {
         Clock_GetElapsedTime_ToString(&MSVCInitClock, true, &TimeString);
-        LOG("MSVC init   time: %S", TimeString);
+        //LOG("MSVC init   time: %S", TimeString);
+        String_Append(&LogTimingBuffer, S("MSVC Init   time: "));
+        String_Append(&LogTimingBuffer, TimeString);
+        String_AppendNewline(&LogTimingBuffer);
     }
 
     if (DependencyBuildClock.ElapsedTime > 0)
     {
         Clock_GetElapsedTime_ToString(&DependencyBuildClock, true, &TimeString);
-        LOG("Dependency  time: %S", TimeString);
+        //LOG("Dependency  time: %S", TimeString);
+        String_Append(&LogTimingBuffer, S("Dependency  time: "));
+        String_Append(&LogTimingBuffer, TimeString);
+        String_AppendNewline(&LogTimingBuffer);
     }
 
     if (ExternalClock.ElapsedTime > 0)
     {
         Clock_GetElapsedTime_ToString(&ExternalClock, true, &TimeString);
-        LOG("External    time: %S", TimeString);
+        //LOG("External    time: %S", TimeString);
+        String_Append(&LogTimingBuffer, S("External    time: "));
+        String_Append(&LogTimingBuffer, TimeString);
+        String_AppendNewline(&LogTimingBuffer);
     }
 
     // calculate the overhead time
@@ -7391,18 +7428,24 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     OverheadClock.ElapsedTime = BuildRuntime.ElapsedTime - TotalElapsedTime;
 
     Clock_GetElapsedTime_ToString(&OverheadClock, true, &TimeString);
-    LOG("Overhead    time: %S", TimeString);
+    //LOG("Overhead    time: %S", TimeString);
+    String_Append(&LogTimingBuffer, S("Overhead    time: "));
+    String_Append(&LogTimingBuffer, TimeString);
+    String_AppendNewline(&LogTimingBuffer);
 
     Clock_GetElapsedTime_ToString(&BuildRuntime, true, &TimeString);
-    LOG("Total build time: %S", TimeString);
+    //LOG("Total build time: %S\n", TimeString);
+    String_Append(&LogTimingBuffer, S("Total build time: "));
+    String_Append(&LogTimingBuffer, TimeString);
+    String_AppendNewline(&LogTimingBuffer);
+
+    LOG("%S", LogTimingBuffer);
 
     StringLocal(OutputPath, MAX_PATH_LENGTH);
     String_AppendChar(&OutputPath, '"');
     String_Append(&OutputPath, BuildBaseDirectory);
     String_Append(&OutputPath, AssemblyNameWithExt);
     String_AppendChar(&OutputPath, '"');
-
-    LOG_LINE_BREAK();
 
     if (AssemblyType == AssemblyType_CompilerObject)
     {

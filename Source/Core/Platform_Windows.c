@@ -51,7 +51,7 @@ void GSAPI __security_check_cookie(_In_ uintptr_t _StackCookie)
 PRAGMA_ENABLE_WARNINGS
 */
 
-typedef enum WinConsoleForegroundColors
+ENUM(WinConsoleForegroundColors)
 {
     FG_BLACK = 0,
     FG_BLUE = 1,
@@ -69,9 +69,9 @@ typedef enum WinConsoleForegroundColors
     FG_LIGHTMAGENTA = 13,
     FG_YELLOW = 14,
     FG_WHITE = 15
-} WinConsoleForegroundColors;
+};
 
-typedef enum WinConsoleBackgroundColor
+ENUM(WinConsoleForegroundColors)
 {
     BG_NAVYBLUE = 16,
     BG_GREEN = 32,
@@ -88,7 +88,7 @@ typedef enum WinConsoleBackgroundColor
     BG_MAGENTA = 208,
     BG_YELLOW = 224,
     BG_WHITE = 240
-} WinConsoleBackgroundColor;
+};
 
 C_LINKAGE_BEGIN
 int _fltused = 0;
@@ -410,7 +410,12 @@ void Platform_ConsoleWrite_CustomLength(const char* Message, u32 Length, u8 Colo
     DWORD OutputHandle = STD_ERROR_HANDLE;// bIsError ? STD_ERROR_HANDLE : STD_OUTPUT_HANDLE;
     HANDLE ConsoleHandle = GetStdHandle(OutputHandle);
 
-    SetConsoleTextAttribute(ConsoleHandle, GConsoleColorLevels[Color]);
+    // SetConsoleTextAttribute is slow, so only call it when the color changes
+    const u8 ConsoleColor = GConsoleColorLevels[Color];
+    if (ConsoleColor != CONSOLE_INFO_COLOR) // Regular white color
+    {
+        SetConsoleTextAttribute(ConsoleHandle, ConsoleColor);
+    }
 
     bool bIgnoreNewLine = Color == 4 && Message[Length-1] == '\n';
     if (UNLIKELY(bIgnoreNewLine))
@@ -422,8 +427,12 @@ void Platform_ConsoleWrite_CustomLength(const char* Message, u32 Length, u8 Colo
 
     WriteConsole(ConsoleHandle, Message, (DWORD)Length, NULL, 0);
 
-    // Reset back to white
-    SetConsoleTextAttribute(ConsoleHandle, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
+    // SetConsoleTextAttribute is slow, so only call it when the color changes
+    if (ConsoleColor != CONSOLE_INFO_COLOR) // Regular white color
+    {
+        // Reset back to white
+        SetConsoleTextAttribute(ConsoleHandle, CONSOLE_INFO_COLOR);
+    }
 
     if (UNLIKELY(bIgnoreNewLine))
         WriteConsole(ConsoleHandle, "\n", 1, NULL, 0);

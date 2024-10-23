@@ -80,7 +80,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
 
     LoopStart:
 
-        ENSURE(Line.Capacity == LINE_BUFFER_SIZE-1); // sanity check to make sure no-one is modifying the line buffer
+        ENSURE(Line.Capacity == LINE_BUFFER_SIZE); // sanity check to make sure no-one is modifying the line buffer
 
         // TODO: allow whitespace in single line error messages
         if (bInMultiLineErrorMessage)
