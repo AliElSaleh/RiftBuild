@@ -285,10 +285,10 @@ static struct
    "75767778798081828384858687888990919293949596979899"
 };
 
-STBSP__PUBLICDEF void STB_SPRINTF_DECORATE(set_separators)(char pcomma, char pperiod)
+STBSP__PUBLICDEF void STB_SPRINTF_DECORATE(set_separators)(char comma, char period)
 {
-   stbsp__period = pperiod;
-   stbsp__comma = pcomma;
+   stbsp__period = period;
+   stbsp__comma = comma;
 }
 
 #define STBSP__LEFTJUST 1
@@ -1852,7 +1852,7 @@ static stbsp__int32 stbsp__real_to_str(char const **start, stbsp__uint32 *len, c
    e = 0;
    for (;;) {
       stbsp__uint32 n;
-      char *o = out - 8;
+      const char *o = out - 8;
       // do the conversion in chunks of U32s (avoid most 64-bit divides, worth it, constant denomiators be damned)
       if (bits >= 100000000) {
          n = (stbsp__uint32)(bits % 100000000);

@@ -1773,6 +1773,7 @@ internal bool CheckForBuildVariableOverrides(TArray(FileVariable) VariablesDB, T
                 NewOverride.Name = VarToOverride;
                 NewOverride.Value = o.Value;
                 NewOverride.bHasSpecial = false;
+                NewOverride.SpecialData = String_Null();
 
                 Internal_AddOrUpdateBuildVariable(VariablesDB, NewOverride);
                 Internal_AddOrUpdateBuildVariable(ExpandedVariablesDB, NewOverride);
@@ -4726,7 +4727,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     StringList BlacklistDirArray = String_SplitIntoList(Arena, ExcludedSourceDir, ' ', true);
 
     // any custom source files?
-    StringList CustomExtensionsList = StringList_Null();
+    StringList CustomExtensionsList;
     {
         StringLocal(SourceFileExtensions, 128);
         for each_str_list (WhitelistArray)
@@ -8742,7 +8743,7 @@ u32 RunApplication(const StringArray Arguments)
     const bool bLaunchedFromDesktop = StringArray_Contains(Arguments, S("--from-desktop"), false);
     if (Platform_GetConsoleProcessCount() == 1 || bLaunchedFromDesktop)
     {
-        LOG_INLINE_WARNING("\nLaunched outside an existing terminal, pausing until user exit.\nPress any key to exit ... ");
+        LOG_INLINE_WARNING("\nLaunched outside an existing terminal, suspending until user exit.\nPress any key to exit ... ");
 
         Platform_BeginNonBlockingMode();
         while (1)

@@ -1,5 +1,5 @@
 SharedIncludeFlags               Source/Core Source/Libraries/Vendor
-if linux      SharedIncludeFlags Source/Libraries/Linux
+if linux SharedIncludeFlags      Source/Libraries/Linux
 
 SharedDefines                    NO_PROFILING _NO_CRT_STDIO_INLINE
 if warn_leaks SharedDefines      WARN_MEMLEAKS

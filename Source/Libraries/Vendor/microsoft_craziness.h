@@ -218,7 +218,7 @@ struct Version_Data {
     wchar_t *best_name;
 };
 
-bool os_file_exists(wchar_t *name) {
+bool os_file_exists(const wchar_t *name) {
     // @Robustness: What flags do we really want to check here?
     
     auto attrib = GetFileAttributesW(name);
@@ -228,7 +228,7 @@ bool os_file_exists(wchar_t *name) {
     return true;
 }
 
-inline static size_t wide_str_len(wchar_t* s)
+inline static size_t wide_str_len(const wchar_t* s)
 {
     size_t len = 0;
     while (*s++)
@@ -239,7 +239,7 @@ inline static size_t wide_str_len(wchar_t* s)
     return len;
 }
 
-wchar_t *concat(wchar_t *a, wchar_t *b, wchar_t *c = nullptr, wchar_t *d = nullptr) {
+wchar_t *concat(const wchar_t *a, const wchar_t *b, const wchar_t *c = nullptr, const wchar_t *d = nullptr) {
     // Concatenate up to 4 wide strings together. Allocated with malloc.
     // If you don't like that, use a programming language that actually
     // helps you with using custom allocators. Or just edit the code.
@@ -266,7 +266,7 @@ wchar_t *concat(wchar_t *a, wchar_t *b, wchar_t *c = nullptr, wchar_t *d = nullp
 }
 
 typedef void (*Visit_Proc_W)(wchar_t *short_name, wchar_t *full_name, Version_Data *data);
-bool visit_files_w(wchar_t *dir_name, Version_Data *data, Visit_Proc_W proc) {
+bool visit_files_w(const wchar_t *dir_name, Version_Data *data, Visit_Proc_W proc) {
 
     // Visit everything in one folder (non-recursively). If it's a directory
     // that doesn't start with ".", call the visit proc on it. The visit proc
@@ -296,7 +296,7 @@ bool visit_files_w(wchar_t *dir_name, Version_Data *data, Visit_Proc_W proc) {
     return true;
 }
 
-wchar_t *read_from_the_registry(HKEY key, wchar_t *value_name) {
+wchar_t *read_from_the_registry(HKEY key, const wchar_t *value_name) {
     // Returns NULL if read failed.
     // Otherwise returns a wide string allocated via 'malloc'.
     
@@ -343,7 +343,7 @@ wchar_t *read_from_the_registry(HKEY key, wchar_t *value_name) {
     return value;
 }
 
-void win10_best(wchar_t *short_name, wchar_t *full_name, Version_Data *data) {
+void win10_best(const wchar_t *short_name, const wchar_t *full_name, Version_Data *data) {
     // Find the Windows 10 subdirectory with the highest version number.
     
     //int i0, i1, i2, i3;
@@ -411,7 +411,7 @@ void win10_best(wchar_t *short_name, wchar_t *full_name, Version_Data *data) {
     }
 }
 
-void win8_best(wchar_t *short_name, wchar_t *full_name, Version_Data *data) {
+void win8_best(const wchar_t *short_name, const wchar_t *full_name, Version_Data *data) {
     // Find the Windows 8 subdirectory with the highest version number.
 
     //int i0, i1;

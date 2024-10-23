@@ -29,6 +29,7 @@
 //#include <psapi.h>
 //#include <Shlobj.h>
 
+/*
 PRAGMA_DISABLE_MISSING_PROTOTYPES_WARNING
 
 #if defined(_M_IX86)
@@ -48,6 +49,7 @@ void GSAPI __security_check_cookie(_In_ uintptr_t _StackCookie)
 }
 
 PRAGMA_ENABLE_WARNINGS
+*/
 
 typedef enum WinConsoleForegroundColors
 {
@@ -929,6 +931,8 @@ bool Filesystem_OpenDirectory_Ex(const String FilePath, FileHandle* OutHandle)
         return false;
     }
 
+    if (NEVER(OutHandle == NULL)) return false;
+
     HANDLE File = CreateFile(FilePath.Data, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_FLAG_BACKUP_SEMANTICS, NULL);
 
     if (File == INVALID_HANDLE_VALUE)
@@ -940,10 +944,7 @@ bool Filesystem_OpenDirectory_Ex(const String FilePath, FileHandle* OutHandle)
         return false;
     }
 
-    if (OutHandle)
-    {
-        OutHandle->Data = File;
-    }
+    OutHandle->Data = File;
 
     return true;
 }
@@ -2117,6 +2118,7 @@ PlatformVersion Platform_GetVersion(void)
     return Result;
 }
 
+/*
 PRAGMA_DISABLE_MISSING_PROTOTYPES_WARNING
 
 FORCENOINLINE BOOL __cdecl _DllMainCRTStartup(HANDLE hDllHandle, DWORD dwReason, LPVOID lpreserved)
@@ -2142,5 +2144,6 @@ void ___chkstk_ms(void)
 }
 
 PRAGMA_ENABLE_WARNINGS
+*/
 
 #endif // PLATFORM_WINDOWS

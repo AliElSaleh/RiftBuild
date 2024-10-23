@@ -916,7 +916,10 @@ bool IsHeader(const String Extension)
             String_IsEqual(Extension, S(".h++"), false) ||
             String_IsEqual(Extension, S(".inc"), false) ||
             String_IsEqual(Extension, S(".inl"), false) ||
-            String_IsEqual(Extension, S(".ipp"), false);
+            String_IsEqual(Extension, S(".ipp"), false) ||
+            String_IsEqual(Extension, S(".ixx"), false) ||
+            String_IsEqual(Extension, S(".tpp"), false) ||
+            String_IsEqual(Extension, S(".txx"), false);
 }
 
 
@@ -1606,7 +1609,7 @@ internal void Internal_ParseAndLogLinkerOutput_MSVC(String StdOutData)
                             {
                                 Trimmed = StrShiftF(Trimmed, 6);
                             }
-                            
+
                             if (String_StartsWith(Trimmed, S("error LNK"), true))
                             {
                                 ColonIndex = 0;
