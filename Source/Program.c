@@ -8749,7 +8749,7 @@ u32 RunApplication(const StringArray Arguments)
         while (1)
         {
             Platform_Sleep(10);
-            if (Platform_AnyKeyPressed())
+            if (Platform_IsWindowFocused() && Platform_AnyKeyPressed())
             {
                 break;
             }

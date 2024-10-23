@@ -1442,4 +1442,8 @@ WINBASEAPI BOOL       WINAPI SetCurrentDirectoryA(LPCTSTR lpPathName);
 WINBASEAPI BOOL       WINAPI GetVersionExA(LPOSVERSIONINFOA lpVersionInformation);
 WINBASEAPI BOOL       WINAPI GetVersionExW(LPOSVERSIONINFOW lpVersionInformation);
 WINBASEAPI LONG       WINAPI RtlGetVersion(PRTL_OSVERSIONINFOW lpVersionInformation); 
+WINBASEAPI HWND       WINAPI GetForegroundWindow(void);
+WINBASEAPI HWND       WINAPI GetFocus(void);
+WINBASEAPI HWND       WINAPI GetActiveWindow(void);
+WINBASEAPI DWORD      WINAPI GetWindowThreadProcessId(HWND hWnd, LPDWORD lpdwProcessId);
 #endif

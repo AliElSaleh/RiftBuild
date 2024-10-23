@@ -1971,23 +1971,15 @@ void Platform_ExitCriticalSection(PlatformCriticalSection CriticalSection)
 // implement our own kbhit since we're not linking against the standard library
 internal bool kbhit(void)
 {
-    i32 i = 7; // start from 0x07. the first 6 are mouse keys
-
     // Run through all key scancodes from 7 to 255
-    while (1)
+    // start from 0x07. the first 6 are mouse keys
+    for (i32 i = 7; i < 255; i++)
     {
         i32 State = GetAsyncKeyState(i);
         if (State & 0x01)
         {
             // a key has been pressed
             return true;
-        }
-
-        i++; 
-
-        if (i >= 255)
-        {
-            i = 7;
         }
     }
 
@@ -2116,6 +2108,26 @@ PlatformVersion Platform_GetVersion(void)
     Result.Patch = Info.dwBuildNumber;
 
     return Result;
+}
+
+bool Platform_IsWindowFocused(void)
+{
+    HWND ForegroundWindow = GetForegroundWindow();
+    if (ForegroundWindow == NULL)
+    {
+        return false;
+    }
+
+    DWORD ThisProcessID = GetCurrentProcessId();
+    DWORD ForegroundProcessID = 0;
+    DWORD Result = GetWindowThreadProcessId(ForegroundWindow, &ForegroundProcessID);
+    if (Result == 0 || ForegroundProcessID == 0)
+    {
+        return false;
+    }
+    
+    bool bSame = ThisProcessID == ForegroundProcessID;
+    return bSame;
 }
 
 /*

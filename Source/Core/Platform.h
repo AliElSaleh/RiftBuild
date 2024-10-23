@@ -313,7 +313,9 @@ RIFT_API bool Platform_GetCpuBrandName(String* OutName);
 RIFT_API bool Platform_GetFullCpuName(String* OutName);
 RIFT_API CpuInfo Platform_QueryCPUInfo(void);
 
-RIFT_API PlatformVersion Platform_GetVersion(void);
 // TODO: kernel version
+RIFT_API PlatformVersion Platform_GetVersion(void);
+
+RIFT_API bool Platform_IsWindowFocused(void);
 
 #endif // _PLATFORM_H_
