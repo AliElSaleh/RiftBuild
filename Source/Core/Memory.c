@@ -236,24 +236,24 @@ void MemFree(void* Block, EMemoryTag Tag)
     Platform_ExitCriticalSection(GCriticalSection);
 }
 
-void* MemSet(void* Destination, i32 Value, usize Size)
+void MemSet(void* Destination, i32 Value, usize Size)
 {
-    return Platform_MemSet(Destination, Value, Size);
+    Platform_MemSet(Destination, Value, Size);
 }
 
-void* MemZero(void* Block, usize Size)
+void MemZero(void* Block, usize Size)
 {
-    return Platform_MemZero(Block, Size);
+    Platform_MemZero(Block, Size);
 }
 
-void* MemCopy(void* restrict Destination, const void* restrict Source, usize Size)
+void MemCopy(void* restrict Destination, const void* restrict Source, usize Size)
 {
-    return Platform_MemCopy(Destination, Source, Size);
+    Platform_MemCopy(Destination, Source, Size);
 }
 
-void* MemMove(void* restrict Destination, const void* restrict Source, usize Size)
+void MemMove(void* restrict Destination, const void* restrict Source, usize Size)
 {
-    return Platform_MemMove(Destination, Source, Size);
+    Platform_MemMove(Destination, Source, Size);
 }
 
 bool MemEqual(const void* Block1, const void* Block2, usize Size)

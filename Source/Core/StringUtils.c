@@ -419,9 +419,6 @@ bool String16_IsEqual(const String16 StringA, const String16 StringB, bool bCase
 
 void String_Copy(String* Dest, const String Source)
 {
-    if (UNLIKELY(Source.Length == 0))
-        return;
-
     u32 NumToCopy = Dest->Capacity == 0 ? Source.Length : Min(Dest->Capacity, Source.Length);
     MemCopy(Dest->Data, Source.Data, NumToCopy);
     Dest->Length = NumToCopy;
@@ -430,9 +427,6 @@ void String_Copy(String* Dest, const String Source)
 
 void String_CopyN(String* Dest, const String Source, u32 Length)
 {
-    if (UNLIKELY(Source.Length == 0))
-        return;
-
     u32 NumToCopy = Dest->Capacity == 0 ? Min(Source.Length, Length) : Min(Dest->Capacity, Min(Source.Length, Length));
     MemCopy(Dest->Data, Source.Data, NumToCopy);
     Dest->Length = NumToCopy;
@@ -508,10 +502,7 @@ void String_AppendPathSeparator_Checked(String* Dest)
 
 ECompareResult String_CompareVersion(const String VersionA, const String VersionB)
 {
-    if (VersionA.Length == 0 || VersionB.Length == 0)
-    {
-        return CompareResult_None;
-    }
+    if (VersionA.Length == 0 || VersionB.Length == 0) return CompareResult_None;
 
     // compare each version separated by '.' or '-'
 
@@ -569,8 +560,8 @@ ECompareResult String_CompareVersion(const String VersionA, const String Version
         const String SubVersionB = StrSlice(StrShiftF(VersionB, ThisOffsetB).Data, IndexB);
 
         u64 A = 0, B = 0;
-        String_ToU64(SubVersionA, &A);
-        String_ToU64(SubVersionB, &B);
+        (void)String_ToU64(SubVersionA, &A);
+        (void)String_ToU64(SubVersionB, &B);
 
         VersionArrayA[VersionIndexA] = A;
         VersionArrayB[VersionIndexB] = B;
@@ -605,31 +596,25 @@ ECompareResult String_CompareVersion(const String VersionA, const String Version
             break;
         }
 
-        //if (VersionArrayA[i] < VersionArrayB[i])
-        //{
-            Result = CompareResult_Less;
-            break;
-        //}
+        Result = CompareResult_Less;
+        break;
     }
 
     return Result;
 }
 
-i32 String_Format(String* Dest, const String Format, u32 Capacity, ...)
+void String_Format(String* Dest, const String Format, u32 Capacity, ...)
 {
     va_list Args;
     va_start(Args, Capacity);
     i32 Written = stbsp_vsnprintf(Dest->Data, (i32)Capacity, Format.Data, Args);
     Dest->Length = (u32)Written;
     va_end(Args);
-
-    return Written;
 }
 
-u32 String_FormatV(String* Dest, const String Format, u32 Capacity, void* VAList)
+void String_FormatV(String* Dest, const String Format, u32 Capacity, void* VAList)
 {
     Dest->Length = (u32)stbsp_vsnprintf(Dest->Data, (i32)Capacity, Format.Data, VAList);
-    return Dest->Length;
 }
 
 void StringInternal_BuildPath(String* Dest, const StringArray Array)
@@ -668,13 +653,13 @@ void StringInternal_BuildPath(String* Dest, const StringArray Array)
         ParamModified = String_EatCharFromEnd(ParamModified, '"');
 
         String_Append(Dest, ParamModified);
-        String_EatPathSeparatorsInlineFromEnd(Dest);
+        (void)String_EatPathSeparatorsInlineFromEnd(Dest);
 
         if (Dest->Length > 0 && i != Array.Num-1)
             String_AppendPathSeparator(Dest);
     }
 
-    String_EatPathSeparatorsInlineFromEnd(Dest);
+    (void)String_EatPathSeparatorsInlineFromEnd(Dest);
     String_ConvertSlashToPlatformSlash(Dest);
 }
 
@@ -698,7 +683,7 @@ void StringInternal_BuildSeparator(String* Dest, char Separator, const StringArr
         }
 
         String_Append(Dest, String_EatChar(Param, Separator));
-        String_EatCharInlineFromEnd(Dest, Separator);
+        (void)String_EatCharInlineFromEnd(Dest, Separator);
 
         if (Dest->Length > 0 && i != Array.Num-1)
             String_AppendChar(Dest, Separator);
@@ -1760,10 +1745,10 @@ u32 String_CountPathSeparators(const String Str)
     return Count;
 }
 
-bool String_StripString(const String Str, const String Substring, String* OutStr)
+void String_StripString(const String Str, const String Substring, String* OutStr)
 {
-    if (!String_IsValid(Str)) return false;
-    if (NEVER(OutStr == NULL)) return false;
+    if (!String_IsValid(Str)) return;
+    if (NEVER(OutStr == NULL)) return;
 
     const u32 MaxLength = Min(OutStr->Capacity, Str.Length);
 
@@ -1773,6 +1758,7 @@ bool String_StripString(const String Str, const String Substring, String* OutStr
         {
             i += Substring.Length;
         }
+        else
         {
             OutStr->Data[OutStr->Length] = Str.Data[i];
             OutStr->Length++;
@@ -1780,14 +1766,12 @@ bool String_StripString(const String Str, const String Substring, String* OutStr
             i++;
         }
     }
-
-    return true;
 }
 
-bool String_StripChar(const String Str, char C, String* OutStr)
+void String_StripChar(const String Str, char C, String* OutStr)
 {
-    if (!String_IsValid(Str)) return false;
-    if (NEVER(OutStr == NULL)) return false;
+    if (!String_IsValid(Str)) return;
+    if (NEVER(OutStr == NULL)) return;
 
     const u32 MaxLength = Min(OutStr->Capacity, Str.Length);
 
@@ -1799,14 +1783,12 @@ bool String_StripChar(const String Str, char C, String* OutStr)
             OutStr->Length++;
         }
     }
-
-    return true;
 }
 
-bool String_StripWhitespace(const String Str, String* OutStr)
+void String_StripWhitespace(const String Str, String* OutStr)
 {
-    if (!String_IsValid(Str)) return false;
-    if (NEVER(OutStr == NULL)) return false;
+    if (!String_IsValid(Str)) return;
+    if (NEVER(OutStr == NULL)) return;
 
     const u32 MaxLength = Min(OutStr->Capacity, Str.Length);
 
@@ -1818,14 +1800,12 @@ bool String_StripWhitespace(const String Str, String* OutStr)
             OutStr->Length++;
         }
     }
-
-    return true;
 }
 
-bool String_StripNewline(const String Str, String* OutStr)
+void String_StripNewline(const String Str, String* OutStr)
 {
-    if (!String_IsValid(Str)) return false;
-    if (NEVER(OutStr == NULL)) return false;
+    if (!String_IsValid(Str)) return;
+    if (NEVER(OutStr == NULL)) return;
 
     const u32 MaxLength = Min(OutStr->Capacity, Str.Length);
 
@@ -1837,14 +1817,12 @@ bool String_StripNewline(const String Str, String* OutStr)
             OutStr->Length++;
         }
     }
-
-    return true;
 }
 
-bool String_StripDigit(const String Str, String* OutStr)
+void String_StripDigit(const String Str, String* OutStr)
 {
-    if (!String_IsValid(Str)) return false;
-    if (NEVER(OutStr == NULL)) return false;
+    if (!String_IsValid(Str)) return;
+    if (NEVER(OutStr == NULL)) return;
 
     const u32 MaxLength = Min(OutStr->Capacity, Str.Length);
 
@@ -1856,14 +1834,12 @@ bool String_StripDigit(const String Str, String* OutStr)
             OutStr->Length++;
         }
     }
-
-    return true;
 }
 
-bool String_StripSymbol(const String Str, String* OutStr)
+void String_StripSymbol(const String Str, String* OutStr)
 {
-    if (!String_IsValid(Str)) return false;
-    if (NEVER(OutStr == NULL)) return false;
+    if (!String_IsValid(Str)) return;
+    if (NEVER(OutStr == NULL)) return;
 
     const u32 MaxLength = Min(OutStr->Capacity, Str.Length);
 
@@ -1875,14 +1851,12 @@ bool String_StripSymbol(const String Str, String* OutStr)
             OutStr->Length++;
         }
     }
-
-    return true;
 }
 
-bool String_StripAlphabet(const String Str, String* OutStr)
+void String_StripAlphabet(const String Str, String* OutStr)
 {
-    if (!String_IsValid(Str)) return false;
-    if (NEVER(OutStr == NULL)) return false;
+    if (!String_IsValid(Str)) return;
+    if (NEVER(OutStr == NULL)) return;
 
     const u32 MaxLength = Min(OutStr->Capacity, Str.Length);
 
@@ -1894,8 +1868,6 @@ bool String_StripAlphabet(const String Str, String* OutStr)
             OutStr->Length++;
         }
     }
-
-    return true;
 }
 
 bool String_ToF32(const String Str, f32* OutFloat)

@@ -732,8 +732,8 @@ bool Filesystem_DoesPathHaveFileExtension(const String Path)
     }
 
     u32 LastDot = 0, LastSlash = 0;
-    String_IndexOfLastChar(Path, '.', &LastDot);
-    String_IndexOfLastPathSlash(Path, &LastSlash);
+    (void)String_IndexOfLastChar(Path, '.', &LastDot);
+    (void)String_IndexOfLastPathSlash(Path, &LastSlash);
 
     bool bSomeCharAfterDot = false;
     if (LastDot+1 < Path.Length)

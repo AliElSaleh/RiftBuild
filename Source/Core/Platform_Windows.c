@@ -131,7 +131,7 @@ void Platform_PreInitialize(void)
 {
     //__security_init_cookie();
 
-    Platform_GetClockFrequency();
+    //Platform_GetClockFrequency();
 
     i32 NumArgs = 0;
     wchar** ArgsW = CommandLineToArgvW(GetCommandLineW(), &NumArgs);
@@ -165,28 +165,23 @@ void Platform_PreInitialize(void)
 
 bool Platform_CreateMutex(PlatformMutex* OutMutex)
 {
-    HANDLE M = CreateMutexA(NULL, TRUE, NULL);
-    if (M == NULL)
-    {
-        return false;
-    }
+    if (NEVER(OutMutex == NULL)) return false;
 
-    if (GetLastError() == ERROR_ALREADY_EXISTS)
-    {
-        OutMutex->Handle = M;
-        OutMutex->Name = String_Null();
-        return false;
-    }
+    HANDLE M = CreateMutexA(NULL, TRUE, NULL);
+    if (M == NULL) return false;
 
     OutMutex->Handle = M;
     OutMutex->Name = String_Null();
-    return true;
+
+    bool bError = GetLastError() == ERROR_ALREADY_EXISTS;
+    return !bError;
 }
 
 bool Platform_CreateNamedMutex(const String Name, PlatformMutex* OutMutex)
 {
     if ((NEVER(Name.Length == 0)) || (NEVER(OutMutex == NULL)))
     {
+        // a name and mutex ref must be provided
         return false;
     }
 
@@ -194,34 +189,22 @@ bool Platform_CreateNamedMutex(const String Name, PlatformMutex* OutMutex)
     String ClampedName = StrShiftF(Name, Diff);
 
     HANDLE M = CreateMutexA(NULL, TRUE, ClampedName.Length == 0 ? NULL : ClampedName.Data);
-    if (M == NULL)
-    {
-        return false;
-    }
-
-    if (GetLastError() == ERROR_ALREADY_EXISTS)
-    {
-        OutMutex->Handle = M;
-        OutMutex->Name = ClampedName;
-        return false;
-    }
+    if (M == NULL) return false;
 
     OutMutex->Handle = M;
     OutMutex->Name = ClampedName;
-    return true;
+
+    bool bError = GetLastError() == ERROR_ALREADY_EXISTS;
+    return !bError;
 }
 
 bool Platform_ReleaseMutex(PlatformMutex* Mutex)
 {
-    BOOL bResult = ReleaseMutex(Mutex->Handle);
-    if (!bResult)
-    {
-        //LogLastError(S("Failed to release mutex"));
-        return false;
-    }
+    if (NEVER(Mutex == NULL)) return false;
 
+    BOOL bResult = ReleaseMutex(Mutex->Handle);
     CloseHandle(Mutex->Handle);
-    return true;
+    return bResult;
 }
 
 u32 Platform_GetConsoleProcessCount(void)
@@ -367,28 +350,24 @@ void Platform_MemFree(const void* Block)
     HeapFree(GetProcessHeap(), 0, (void*)Block);
 }
 
-void* Platform_MemZero(void* Block, usize Size)
+void Platform_MemZero(void* Block, usize Size)
 {
     RtlZeroMemory(Block, Size);
-    return Block;
 }
 
-void* Platform_MemCopy(void* restrict Dest, const void* restrict Source, usize Size)
+void Platform_MemCopy(void* restrict Dest, const void* restrict Source, usize Size)
 {
     RtlCopyMemory(Dest, Source, Size);
-    return Dest;
 }
 
-void* Platform_MemMove(void* restrict Dest, const void* restrict Source, usize Size)
+void Platform_MemMove(void* restrict Dest, const void* restrict Source, usize Size)
 {
     RtlMoveMemory(Dest, Source, Size);
-    return Dest;
 }
 
-void* Platform_MemSet(void* Dest, i32 Value, usize Size)
+void Platform_MemSet(void* Dest, i32 Value, usize Size)
 {
     RtlFillMemory(Dest, Size, (BYTE)Value);
-    return Dest;
 }
 
 bool Platform_SetWorkingDirectory(const String Path)
@@ -440,7 +419,7 @@ void Platform_ConsoleWrite_CustomLength(const char* Message, u32 Length, u8 Colo
 
 f64 Platform_GetAbsoluteTime(void)
 {
-    LARGE_INTEGER Frequency, Now;
+    LARGE_INTEGER Frequency = {0}, Now = {0};
 
     QueryPerformanceFrequency(&Frequency);
     QueryPerformanceCounter(&Now);
@@ -453,17 +432,17 @@ SystemTime Platform_GetSystemLocalTime(void)
     SYSTEMTIME SysTime = {0};
     GetLocalTime(&SysTime);
 
-    SystemTime EngineTime = {0};
-    EngineTime.Year = SysTime.wYear;
-    EngineTime.Month = SysTime.wMonth;
-    EngineTime.DayOfWeek = SysTime.wDayOfWeek;
-    EngineTime.Day = SysTime.wDay;
-    EngineTime.Hour = SysTime.wHour;
-    EngineTime.Minute = SysTime.wMinute;
-    EngineTime.Second = SysTime.wSecond;
-    EngineTime.Millisecond = SysTime.wMilliseconds;
+    SystemTime Result = {0};
+    Result.Year = SysTime.wYear;
+    Result.Month = SysTime.wMonth;
+    Result.DayOfWeek = SysTime.wDayOfWeek;
+    Result.Day = SysTime.wDay;
+    Result.Hour = SysTime.wHour;
+    Result.Minute = SysTime.wMinute;
+    Result.Second = SysTime.wSecond;
+    Result.Millisecond = SysTime.wMilliseconds;
 
-    return EngineTime;
+    return Result;
 }
 
 bool Platform_GetTimeZone(String* OutTimeZone)
@@ -474,13 +453,11 @@ bool Platform_GetTimeZone(String* OutTimeZone)
     if (Result == 1) // TIME_ZONE_ID_STANDARD
     {
         String16 StandardNameWide = CStr16(TimeZoneInfo.StandardName);
-        if (NEVER(StandardNameWide.Length > OutTimeZone->Capacity)) return false;
         String_ToNarrow(StandardNameWide, OutTimeZone);
     }
     else if (Result == 2) // TIME_ZONE_ID_DAYLIGHT
     {
         String16 DaylightNameWide = CStr16(TimeZoneInfo.DaylightName);
-        if (NEVER(DaylightNameWide.Length > OutTimeZone->Capacity)) return false;
         String_ToNarrow(DaylightNameWide, OutTimeZone);
     }
     
@@ -1565,10 +1542,10 @@ internal bool Internal_IterateDirectory(const String RootPath, const String Dire
             String_BuildPath(&FilePath, RealDirectoryPath, FileName);
 
             String FullPath = FilePath;
-            String_EatPathSeparatorsInline(&FullPath);
+            (void)String_EatPathSeparatorsInline(&FullPath);
 
             String RelativePath = StrShiftF(FilePath, RootPath.Length);
-            String_EatPathSeparatorsInline(&RelativePath);
+            (void)String_EatPathSeparatorsInline(&RelativePath);
 
             if (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
             {
@@ -1782,7 +1759,7 @@ bool Filesystem_Move(const String Source, const String Destination, bool bRename
     if (!bRename)
     {
         u32 LastSlash = 0;
-        String_IndexOfLastPathSlash(SourceCopy, &LastSlash);
+        (void)String_IndexOfLastPathSlash(SourceCopy, &LastSlash);
 
         const String FileName = StrShiftF(SourceCopy, LastSlash);
         if (!String_EndsWith(DestinationCopy, FileName, false))
@@ -1793,8 +1770,9 @@ bool Filesystem_Move(const String Source, const String Destination, bool bRename
         // TODO: allow source to be a direcotry and copy everything from there
 
         // try to create the directory if it doesn't exist
-        String_IndexOfLastPathSlash(DestinationCopy, &LastSlash);
-        Filesystem_OpenDirectory(StrSlice(DestinationCopy.Data, LastSlash));
+        LastSlash = 0;
+        bool bHasSlash = String_IndexOfLastPathSlash(DestinationCopy, &LastSlash);
+        Filesystem_OpenDirectory(bHasSlash ? StrSlice(DestinationCopy.Data, LastSlash) : DestinationCopy);
     }
 
     BOOL bResult = MoveFileEx(SourceCopy.Data, DestinationCopy.Data, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
@@ -2090,11 +2068,9 @@ void Platform_CloseHandle(PlatformHandle Handle)
 
 bool Platform_GetTerminalDimensions(u32* OutRows, u32* OutColumns)
 {
-    CONSOLE_SCREEN_BUFFER_INFO csbi;
-
+    CONSOLE_SCREEN_BUFFER_INFO csbi = {0};
     if (GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi) == 0)
     {
-        //LogLastError(S("Failed to get console screen buffer info"));
         return false;
     }
 

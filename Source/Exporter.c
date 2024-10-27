@@ -377,7 +377,7 @@ bool Export_IconRC(const BuildParams* Params, const String Path, const String Ic
     }
 
     u32 LastSlashIndex = 0;
-    String_IndexOfLastPathSlash(IconFilePath, &LastSlashIndex);
+    (void)String_IndexOfLastPathSlash(IconFilePath, &LastSlashIndex);
 
     if (!Filesystem_WriteLineFormatted(f, S("id ICON \"%S\""), NULL, StrShiftF(IconFilePath, LastSlashIndex == 0 ? 0 : LastSlashIndex+1)))
     {
@@ -473,7 +473,7 @@ bool Export_VersionRC(const BuildParams* Params, const String Path)
     }
 
     // remove trailing commas
-    String_EatCharInlineFromEnd(&VersionCommas, ',');
+    (void)String_EatCharInlineFromEnd(&VersionCommas, ',');
 
     // we must have at 4 parts otherwise llvm-rc will complain
     u32 NumCommas = String_CountChar(VersionCommas, ',');
@@ -486,7 +486,7 @@ bool Export_VersionRC(const BuildParams* Params, const String Path)
     }
 
     // remove trailing commas
-    String_EatCharInlineFromEnd(&VersionCommas, ',');
+    (void)String_EatCharInlineFromEnd(&VersionCommas, ',');
 
     STRUCT(FileFlagsEntry)
     {
@@ -543,9 +543,9 @@ bool Export_VersionRC(const BuildParams* Params, const String Path)
 
     // is major version at 0? if so, it's a pre-release build
     u32 FirstDot = 0;
-    String_IndexOfChar(Params->Version, '.', &FirstDot);
+    (void)String_IndexOfChar(Params->Version, '.', &FirstDot);
     u64 MajorVersionNumber = 0;
-    String_ToU64(FirstDot == 0 ? Params->Version : StrSlice(Params->Version.Data, FirstDot), &MajorVersionNumber);
+    (void)String_ToU64(FirstDot == 0 ? Params->Version : StrSlice(Params->Version.Data, FirstDot), &MajorVersionNumber);
 
     const FileFlagsEntry FileFlag = MajorVersionNumber == 0 ? FileFlags[1] : FileFlags[4];
     const FileFlagsEntry FileOS   = FileOSFlags[4];

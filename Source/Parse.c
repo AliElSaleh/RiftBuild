@@ -89,7 +89,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
             String Trimmed = String_EatSpacesFromEnd(String_EatSpaces(Line));
             if (Trimmed.Data[0] == '}')
             {
-                String_EatNewLinesInlineFromEnd(&ErrorMessage);
+                (void)String_EatNewLinesInlineFromEnd(&ErrorMessage);
 
                 Internal_AddVariable(Arena, VariablesDB, ErrorMessage_Name, ErrorMessage, String_Null(), false);
 
@@ -111,7 +111,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
             String Trimmed = String_EatSpacesFromEnd(String_EatSpaces(Line));
             if (Trimmed.Data[0] == '}')
             {
-                String_EatNewLinesInlineFromEnd(&HelpMessage);
+                (void)String_EatNewLinesInlineFromEnd(&HelpMessage);
 
                 Internal_AddVariable(Arena, VariablesDB, S(".help"), HelpMessage, String_Null(), false);
 
@@ -183,7 +183,12 @@ bool ParseBuildFile(LinearAllocator* Arena,
         if (bGoto)
         {
             u32 Colon = 0;
-            String_IndexOfChar(Trimmed, ':', &Colon);
+            bool bHasColon = String_IndexOfChar(Trimmed, ':', &Colon);
+            if (!bHasColon)
+            {
+                continue;
+            }
+
             if (!String_IsEqual(StrSlice(Trimmed.Data, Colon), GotoValue, false))
             {
                 continue;
@@ -215,7 +220,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
                             continue;
                     }
 
-                    String_IndexOfLastWhitespace(Else, &Space);
+                    (void)String_IndexOfLastWhitespace(Else, &Space);
                     String ElseIf = String_EatSpacesFromEnd(StrSlice(Else.Data, Space));
                     if (String_IsEqual(ElseIf, S("else if"), false))
                     {
@@ -224,7 +229,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
                         if (bIfFailed)
                         {
                             // extract just the if statement
-                            String_IndexOfFirstWhitespace(ElseOg, &Space);
+                            (void)String_IndexOfFirstWhitespace(ElseOg, &Space);
 
                             bIfFailed = false;
                             bInsideElse = false;
@@ -328,7 +333,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
         {
             u32 ExitCode = 0;
             u32 FirstSpace = 0;
-            String_IndexOfFirstWhitespace(VarValue, &FirstSpace);
+            (void)String_IndexOfFirstWhitespace(VarValue, &FirstSpace);
 
             const String a = FirstSpace == 0 ? VarValue : StrSlice(VarValue.Data, FirstSpace);
             if (String_ToU32(a, &ExitCode))
@@ -381,7 +386,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
             if (Trimmed.Data[0] == ']')
             {
                 bInsideSquareBrackets = false;
-                String_EatSpacesInlineFromEnd(LastValue);
+                (void)String_EatSpacesInlineFromEnd(LastValue);
                 continue;
             }
 
@@ -433,8 +438,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
         if (Trimmed.Data[0] == '"')
         {
             u32 LastQuoteIndex = 0;
-            String_IndexOfLastChar(Trimmed, '"', &LastQuoteIndex);
-            if (LastQuoteIndex == 0)
+            if (!String_IndexOfLastChar(Trimmed, '"', &LastQuoteIndex))
             {
                 LOG_ERROR("Missing closing \" for %S on line %hu in %S", Trimmed, LineNumber, BuildFilePath);
                 return false;
@@ -479,14 +483,14 @@ bool ParseBuildFile(LinearAllocator* Arena,
         if (String_IsEqual(VarName, S("if"), false) && bFoundSpace) // make sure this isnt a lone 'if'
         {
             u32 Index = 0;
-            String_IndexOfFirstWhitespace(VarValue, &Index);
+            (void)String_IndexOfFirstWhitespace(VarValue, &Index);
 
             if (String_IsFirst(VarValue, '"'))
             {
                 u32 LastQuote = 0;
                 if (String_IndexOfChar(StrShiftF(VarValue, 1), '"', &LastQuote))
                 {
-                    String_IndexOfFirstWhitespace(StrShiftF(VarValue, LastQuote), &Index);
+                    (void)String_IndexOfFirstWhitespace(StrShiftF(VarValue, LastQuote), &Index);
 
                     Index += LastQuote;
                 }
@@ -503,8 +507,8 @@ bool ParseBuildFile(LinearAllocator* Arena,
             else
                 Condition = VarValue;
 
-            String_EatCharInline(&Condition, '"');
-            String_EatCharInlineFromEnd(&Condition, '"');
+            (void)String_EatCharInline(&Condition, '"');
+            (void)String_EatCharInlineFromEnd(&Condition, '"');
 
             bool bConditionMet = false;
             String ConditionValuePtr = String_Null();
@@ -622,7 +626,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
 
             String ComparisonOperator = String_EatSpaces(StrSlice(VarValue.Data+Index, VarValue.Length-Index));
             u32 SecondWhitespaceIndex = 0;
-            String_IndexOfFirstWhitespace(ComparisonOperator, &SecondWhitespaceIndex);
+            (void)String_IndexOfFirstWhitespace(ComparisonOperator, &SecondWhitespaceIndex);
             ComparisonOperator = StrSlice(ComparisonOperator.Data, SecondWhitespaceIndex);
 
             if (!String_IsEqual(ComparisonOperator, S("!="), false)) // ignore !=
@@ -648,14 +652,14 @@ bool ParseBuildFile(LinearAllocator* Arena,
             String TestValue = String_EatSpaces(StrShiftF(VarValue, Index+1+SecondWhitespaceIndex));
 
             u32 ThirdWhitespaceIndex = 0;
-            String_IndexOfFirstWhitespace(TestValue, &ThirdWhitespaceIndex);
+            (void)String_IndexOfFirstWhitespace(TestValue, &ThirdWhitespaceIndex);
 
             if (String_IsFirst(TestValue, '"'))
             {
                 u32 LastQuote = 0;
                 if (String_IndexOfChar(StrShiftF(TestValue, 1), '"', &LastQuote))
                 {
-                    String_IndexOfFirstWhitespace(StrShiftF(TestValue, LastQuote), &ThirdWhitespaceIndex);
+                    (void)String_IndexOfFirstWhitespace(StrShiftF(TestValue, LastQuote), &ThirdWhitespaceIndex);
 
                     ThirdWhitespaceIndex += LastQuote;
                 }
@@ -663,8 +667,8 @@ bool ParseBuildFile(LinearAllocator* Arena,
 
             TestValue = StrSlice(TestValue.Data, ThirdWhitespaceIndex);
 
-            String_EatCharInline(&TestValue, '"');
-            String_EatCharInlineFromEnd(&TestValue, '"');
+            (void)String_EatCharInline(&TestValue, '"');
+            (void)String_EatCharInlineFromEnd(&TestValue, '"');
 
             if (Comparison != Cmp_None && ThirdWhitespaceIndex)
             {
@@ -891,8 +895,8 @@ bool ParseBuildFile(LinearAllocator* Arena,
             }
 
             String RestOfTheLine = StrShiftF(VarValue, Index);
-            String_EatSpacesInline(&RestOfTheLine);
-            String_EatSpacesInlineFromEnd(&RestOfTheLine);
+            (void)String_EatSpacesInline(&RestOfTheLine);
+            (void)String_EatSpacesInlineFromEnd(&RestOfTheLine);
 
             StringLocal(LineCopy, LINE_BUFFER_SIZE);
             String_Copy(&LineCopy, RestOfTheLine);
@@ -1100,8 +1104,8 @@ bool ParseBuildFile(LinearAllocator* Arena,
                 StringLocal(IncludePath, MAX_PATH_LENGTH);
                 Filesystem_GetFilePath(H, &IncludePath);
 
-                String_IndexOfLastPathSlash(IncludePath, &LastSlash);
-                const String Path = StrSlice(IncludePath.Data, LastSlash);
+                bool bHasSlash = String_IndexOfLastPathSlash(IncludePath, &LastSlash);
+                const String Path = bHasSlash ? StrSlice(IncludePath.Data, LastSlash) : IncludePath;
                 String_BuildPath(&IncludeFilePath, Path, VarValue);
             }
             else
@@ -1306,7 +1310,7 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
 
             if (Index == 0)
             {
-                String_IndexOfFirstWhitespace(StrVal, &Index);
+                (void)String_IndexOfFirstWhitespace(StrVal, &Index);
             }
 
             // find this variable
@@ -1581,7 +1585,7 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
                     {
                         if (Dest->Length > 0)
                         {
-                            String_EatSpacesInlineFromEnd(Dest);
+                            (void)String_EatSpacesInlineFromEnd(Dest);
                             String_AppendSpace(Dest);
                         }
                     }
@@ -1669,7 +1673,7 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
             }
 
             StdOutData.Length = Min((u32)BytesRead, StdOutData.Capacity);
-            String_EatNewLinesInlineFromEnd(&StdOutData);
+            (void)String_EatNewLinesInlineFromEnd(&StdOutData);
 
             String DestEnd = StrShiftF(*Dest, Dest->Length);
             u32 DestLengthBefore = Dest->Length;
@@ -1781,7 +1785,7 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
 
 End:
     //String_EatSpacesInline(Dest);
-    String_EatSpacesInlineFromEnd(Dest);
+    (void)String_EatSpacesInlineFromEnd(Dest);
 
     return true;
 }

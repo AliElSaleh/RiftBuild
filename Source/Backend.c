@@ -43,11 +43,17 @@ internal bool AsmSourceFileDirectoryIterator(const String FullPath, const String
                 }
             }
 
-            u32 LastDot = 0;
-            String_IndexOfLastChar(FileName, '.', &LastDot);
-
             StringLocal(FilePath, MAX_PATH_LENGTH);
-            String_Append(&FilePath, StrSlice(FileName.Data, LastDot));
+
+            u32 LastDot = 0;
+            if (String_IndexOfLastChar(FileName, '.', &LastDot))
+            {
+                String_Append(&FilePath, StrSlice(FileName.Data, LastDot));
+            }
+            else
+            {
+                String_Copy(&FilePath, FileName);
+            }
             
             // TODO: rework, hack for now
             if (String_IsEqual(Params->CompilerProgram, S("cl"), false))
@@ -136,9 +142,9 @@ bool SourceFileDirectoryIterator(const String FullPath, const String RelativePat
         }
 
         u32 DotIndex = 0;
-        String_IndexOfLastChar(FileName, '.', &DotIndex);
+        bool bHasExt = String_IndexOfLastChar(FileName, '.', &DotIndex);
 
-        const String Extension = StrShiftF(FileName, DotIndex);
+        const String Extension = bHasExt ? StrShiftF(FileName, DotIndex) : String_Null();
 
         if (String_IsEqual(Extension, S(".asm"), false) ||
             String_IsEqual(Extension, S(".rc"), false) ||
@@ -228,11 +234,11 @@ bool RC_Compile(const BuildParams* Params, const String FullRCPath, String* OutR
     const bool bWindres = String_IsEqual(Params->RCProgram, S("windres"), false);
 
     u32 LastDot = 0;
-    String_IndexOfLastChar(FullRCPath, '.', &LastDot);
+    bool bHasDot = String_IndexOfLastChar(FullRCPath, '.', &LastDot);
 
     StringLocal(ResPath, MAX_PATH_LENGTH);
     String_Append(&ResPath, S("\""));
-    String_Append(&ResPath, StrSlice(FullRCPath.Data, LastDot));
+    String_Append(&ResPath, bHasDot ? StrSlice(FullRCPath.Data, LastDot) : FullRCPath);
     String_Append(&ResPath, S(".res"));
     String_Append(&ResPath, S("\""));
 
@@ -284,9 +290,9 @@ internal bool Link_SourceFileDirectoryIterator(const String FullPath, const Stri
         LinkData* Data = UserData;
 
         u32 DotIndex = 0;
-        String_IndexOfLastChar(FileName, '.', &DotIndex);
+        bool bHasExt = String_IndexOfLastChar(FileName, '.', &DotIndex);
 
-        const String Extension = StrShiftF(FileName, DotIndex);
+        const String Extension = bHasExt ? StrShiftF(FileName, DotIndex) : String_Null();
 
         if (String_EndsWith(Extension, S(".manifest"), false))
         {
@@ -324,7 +330,7 @@ internal bool Link_SourceFileDirectoryIterator(const String FullPath, const Stri
                     
                     // TODO: really should use relative path here
                     u32 LastSlash = 0;
-                    String_IndexOfLastPathSlash(FullPath, &LastSlash);
+                    (void)String_IndexOfLastPathSlash(FullPath, &LastSlash);
 
                     StringLocal(FilePath, MAX_PATH_LENGTH);
                     String_Append(&FilePath, StrSlice(FileName.Data, DotIndex));
@@ -568,7 +574,7 @@ bool C_DoCompile(CompileData* Data, const String FullPath, const String Relative
         String_Append(&ObjectPath, Params->Extension);
 
         String_BuildSeparator(&CmdLine, ' ', Params->CompilerProgram, FullSourcePath, Params->CompilerFlags, Params->CompilerOutputFlag);
-        String_EatSpacesInlineFromEnd(&CmdLine);
+        (void)String_EatSpacesInlineFromEnd(&CmdLine);
         String_Append(&CmdLine, S(" \""));
         String_Append(&CmdLine, ObjectPath);
         String_Append(&CmdLine, S("\""));
@@ -576,7 +582,7 @@ bool C_DoCompile(CompileData* Data, const String FullPath, const String Relative
     else
     {
         String_BuildSeparator(&CmdLine, ' ', Params->CompilerProgram, S("-c"), FullSourcePath, Params->CompilerFlags, AdditionalPlatformFlags, Params->DefineFlags, Params->IncludeFlags);
-        String_EatSpacesInlineFromEnd(&CmdLine);
+        (void)String_EatSpacesInlineFromEnd(&CmdLine);
         String_Append(&CmdLine, S(" -o \""));
         String_Append(&CmdLine, ObjectPath);
         String_Append(&CmdLine, S("\""));
@@ -709,7 +715,7 @@ bool C_Link(const BuildParams* Params)
         String_Append(&CmdLine, S("\" "));
 
         String_BuildSeparator(&CmdLine, ' ',  Params->LinkerDefineFlags, Params->LinkerFlags, SharedFlag, RunPathLinkFlag, Params->Libraries, Params->LibraryDirectories, Params->bVerbose ? S("-v") : String_Null());
-        String_EatSpacesInlineFromEnd(&CmdLine);
+        (void)String_EatSpacesInlineFromEnd(&CmdLine);
 
         if (bQuietBuild) Logging_Enable();
 
@@ -793,7 +799,7 @@ bool C_Link(const BuildParams* Params)
         Filesystem_IterateDirectory_Ex(SourceDir, Link_SourceFileDirectoryIterator, true, &Data);
 
         String_BuildSeparator(&CmdLine, ' ', Params->VersionResFilePath);
-        String_EatSpacesInlineFromEnd(&CmdLine);
+        (void)String_EatSpacesInlineFromEnd(&CmdLine);
 
         if (bQuietBuild) Logging_Enable();
 
@@ -984,10 +990,10 @@ internal bool AsmSourceFileDirectoryIterator_MSVC(const String FullPath, const S
             }
 
             u32 LastDot = 0;
-            String_IndexOfLastChar(FileName, '.', &LastDot);
+            bool bHasDot = String_IndexOfLastChar(FileName, '.', &LastDot);
 
             StringLocal(FilePath, MAX_PATH_LENGTH);
-            String_Append(&FilePath, StrSlice(FileName.Data, LastDot));
+            String_Append(&FilePath, bHasDot ? StrSlice(FileName.Data, LastDot) : FileName);
             String_Append(&FilePath, S(".obj"));
 
             StringLocal(ObjectFilePath, MAX_PATH_LENGTH);
@@ -1009,7 +1015,7 @@ internal bool AsmSourceFileDirectoryIterator_MSVC(const String FullPath, const S
 
                 StringLocal(ObjectPath, MAX_PATH_LENGTH);
                 String_BuildPath(&ObjectPath, Params->IntermediateDirectory);
-                String_EatPathSeparatorsInlineFromEnd(&ObjectPath);
+                (void)String_EatPathSeparatorsInlineFromEnd(&ObjectPath);
 
                 String_Append(&CmdLine, ObjectPath);
                 String_Append(&CmdLine, S("\\\\\" "));
@@ -1059,9 +1065,9 @@ internal bool Link_SourceFileDirectoryIterator_MSVC(const String FullPath, const
         LinkData* Data = (LinkData*)UserData;
 
         u32 DotIndex = 0;
-        String_IndexOfLastChar(FileName, '.', &DotIndex);
+        bool bHasExt = String_IndexOfLastChar(FileName, '.', &DotIndex);
 
-        const String Extension = StrShiftF(FileName, DotIndex);
+        const String Extension = bHasExt ? StrShiftF(FileName, DotIndex) : String_Null();
 
         if (String_EndsWith(Extension, S(".manifest"), false))
         {
@@ -1088,7 +1094,7 @@ internal bool Link_SourceFileDirectoryIterator_MSVC(const String FullPath, const
                 StringLocal(ObjectPath, MAX_PATH_LENGTH);
 
                 u32 LastDot = 0;
-                String_IndexOfLastChar(FileName, '.', &LastDot);
+                bool bHasDot = String_IndexOfLastChar(FileName, '.', &LastDot);
 
                 if (String_EndsWith(RelativePath, S(".rc"), false))
                 {
@@ -1096,30 +1102,29 @@ internal bool Link_SourceFileDirectoryIterator_MSVC(const String FullPath, const
                         return true;
 
                     u32 LastSlash = 0;
-                    String_IndexOfLastPathSlash(FullPath, &LastSlash);
+                    bool bHasSlash = String_IndexOfLastPathSlash(FullPath, &LastSlash);
 
                     StringLocal(FilePath, MAX_PATH_LENGTH);
-                    String_Append(&FilePath, StrSlice(FileName.Data, LastDot));
+                    String_Append(&FilePath, bHasDot ? StrSlice(FileName.Data, LastDot) : FileName);
                     String_Append(&FilePath, S(".res"));
 
-                    const String Dir = StrSlice(FullPath.Data, LastSlash);
+                    const String Dir = bHasSlash ? StrSlice(FullPath.Data, LastSlash) : FullPath;
                     String_BuildPath(&ObjectPath, Dir, FilePath);
                 }
                 else
                 {
-
                     StringLocal(FilePath, MAX_PATH_LENGTH);
                     // todo: make asm behave the same
                     if (String_EndsWith(FileName, S(".asm"), false))
                     {
-                        String_IndexOfLastChar(FileName, '.', &LastDot);
-                        String_Append(&FilePath, StrSlice(FileName.Data, LastDot));
+                        bHasDot = String_IndexOfLastChar(FileName, '.', &LastDot);
+                        String_Append(&FilePath, bHasDot ? StrSlice(FileName.Data, LastDot) : FileName);
                     }
                     else
                     {
                         u32 LastPathDot = 0;
-                        String_IndexOfLastChar(RelativePath, '.', &LastPathDot);
-                        String_Append(&FilePath, StrSlice(RelativePath.Data, LastPathDot));
+                        bHasDot = String_IndexOfLastChar(RelativePath, '.', &LastPathDot);
+                        String_Append(&FilePath, bHasDot ? StrSlice(RelativePath.Data, LastPathDot) : RelativePath);
                     }
                     String_Append(&FilePath, S(".obj"));
 
@@ -1274,21 +1279,21 @@ bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String Relat
     String_Append(&CmdLine, S(" /nologo /c "));
 
     u32 LastSlash = 0;
-    String_IndexOfLastPathSlash(RelativePath, &LastSlash);
+    bool bHasSlash = String_IndexOfLastPathSlash(RelativePath, &LastSlash);
 
     u32 LastDot = 0;
-    String_IndexOfLastChar(RelativePath, '.', &LastDot);
+    bool bHasDot = String_IndexOfLastChar(RelativePath, '.', &LastDot);
 
     StringLocal(FilePath, MAX_PATH_LENGTH);
 
     if (Params->Type == AssemblyType_PCH)
     {
-        String_BuildPath(&FilePath, StrSlice(RelativePath.Data, LastSlash), Params->Assembly);
+        String_BuildPath(&FilePath, bHasSlash ? StrSlice(RelativePath.Data, LastSlash) : RelativePath, Params->Assembly);
         String_Append(&FilePath, S(".pch"));
     }
     else
     {
-        String_Append(&FilePath, StrSlice(RelativePath.Data, LastDot));
+        String_Append(&FilePath, bHasDot ? StrSlice(RelativePath.Data, LastDot) : RelativePath);
         String_Append(&FilePath, S(".obj"));
     }
 
@@ -1379,7 +1384,7 @@ bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String Relat
     String_AppendSpace(&CmdLine);
 
     String_BuildSeparator(&CmdLine, ' ', Params->CompilerFlags, Params->DefineFlags, Params->IncludeFlags);
-    String_EatSpacesInlineFromEnd(&CmdLine);
+    (void)String_EatSpacesInlineFromEnd(&CmdLine);
 
     if (Params->Type == AssemblyType_PCH)
     {
@@ -1445,7 +1450,7 @@ bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String Relat
 
     StringLocal(ObjectPath, MAX_PATH_LENGTH);
     String_BuildPath(&ObjectPath, Params->IntermediateDirectory, StrSlice(RelativePath.Data, LastSlash));
-    String_EatPathSeparatorsInlineFromEnd(&ObjectPath);
+    (void)String_EatPathSeparatorsInlineFromEnd(&ObjectPath);
 
     StringLocal(FullObjectPath, MAX_PATH_LENGTH);
     String_BuildPath(&FullObjectPath, Params->RootDirectory, ObjectPath);
@@ -1523,10 +1528,11 @@ internal void Internal_ParseAndLogLinkerOutput_MSVC(String StdOutData)
                         u32 ColonIndex = 0;
 
                         String Meta = StrShiftF(Trimmed, 8);
-                        String_IndexOfChar(Meta, ':', &ColonIndex);
-                        LOG_INLINE_WARNING("[WARNING] %S", StrSlice(Meta.Data, ColonIndex));
+                        bool bHasColon = String_IndexOfChar(Meta, ':', &ColonIndex);
+                        LOG_INLINE_WARNING("[WARNING] %S", bHasColon ? StrSlice(Meta.Data, ColonIndex) : Meta);
 
-                        String_IndexOfChar(Trimmed, ':', &ColonIndex);
+                        ColonIndex = 0;
+                        (void)String_IndexOfChar(Trimmed, ':', &ColonIndex);
                         String Message = StrShiftF(Trimmed, ColonIndex+1);
 
                         const String SymbolDefineWarningPhrases[] =
@@ -1585,10 +1591,11 @@ internal void Internal_ParseAndLogLinkerOutput_MSVC(String StdOutData)
                         u32 ColonIndex = 0;
                         u32 Blah = String_StartsWith(Trimmed, S("fatal error LNK"), true) ? 12 : 6;
                         String Meta = StrShiftF(Trimmed, Blah);
-                        String_IndexOfChar(Meta, ':', &ColonIndex);
-                        LOG_INLINE_ERROR("[ERROR] %S", StrSlice(Meta.Data, ColonIndex));
+                        bool bHasColon = String_IndexOfChar(Meta, ':', &ColonIndex);
+                        LOG_INLINE_ERROR("[ERROR] %S", bHasColon ? StrSlice(Meta.Data, ColonIndex) : Meta);
 
-                        String_IndexOfChar(Trimmed, ':', &ColonIndex);
+                        ColonIndex = 0;
+                        (void)String_IndexOfChar(Trimmed, ':', &ColonIndex);
                         String Message = StrShiftF(Trimmed, ColonIndex+1);
                         LOG(" |%S", Message);
                     }
@@ -1634,10 +1641,11 @@ internal void Internal_ParseAndLogLinkerOutput_MSVC(String StdOutData)
                             {
                                 ColonIndex = 0;
                                 String Meta = StrShiftF(Trimmed, 6);
-                                String_IndexOfChar(Meta, ':', &ColonIndex);
-                                LOG_INLINE_ERROR("[ERROR] %S", StrSlice(Meta.Data, ColonIndex));
+                                bool bHasColon = String_IndexOfChar(Meta, ':', &ColonIndex);
+                                LOG_INLINE_ERROR("[ERROR] %S", bHasColon ? StrSlice(Meta.Data, ColonIndex) : Meta);
 
-                                String_IndexOfChar(Trimmed, ':', &ColonIndex);
+                                ColonIndex = 0;
+                                (void)String_IndexOfChar(Trimmed, ':', &ColonIndex);
                                 String Message = StrShiftF(Trimmed, ColonIndex+1);
 
                                 u32 ReferencedIndex = 0;
@@ -1780,7 +1788,7 @@ bool MSVC_Link(const BuildParams* Params)
         LinkData Data = { Params, &CmdLine };
         Filesystem_IterateDirectory_Ex(SourceDir, Link_SourceFileDirectoryIterator_MSVC, true, &Data);
 
-        String_EatSpacesInlineFromEnd(&CmdLine);
+        (void)String_EatSpacesInlineFromEnd(&CmdLine);
 
         if (Params->PCHPath.Length > 0)
         {

@@ -49,10 +49,10 @@ RIFT_API void Memory_Shutdown(void);
 
 RIFT_API void* MemAlloc(usize Size, EMemoryTag Tag);// RETURN_NON_NULL;
 RIFT_API void  MemFree(void* Block, EMemoryTag Tag);
-RIFT_API void* MemSet(void* Destination, i32 Value, usize Size);
-RIFT_API void* MemZero(void* Block, usize Size);
-RIFT_API void* MemCopy(void* restrict Destination, const void* restrict Source, usize Size);
-RIFT_API void* MemMove(void* restrict Destination, const void* restrict Source, usize Size);
+RIFT_API void  MemSet(void* Destination, i32 Value, usize Size);
+RIFT_API void  MemZero(void* Block, usize Size);
+RIFT_API void  MemCopy(void* restrict Destination, const void* restrict Source, usize Size);
+RIFT_API void  MemMove(void* restrict Destination, const void* restrict Source, usize Size);
 RIFT_API bool  MemEqual(const void* Block1, const void* Block2, usize Size);
 
 RIFT_API LinearAllocator Memory_GetScratch(void);

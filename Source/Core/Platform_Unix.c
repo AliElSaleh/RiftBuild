@@ -153,9 +153,9 @@ void  Platform_MemFree(const void* Block)
     free((void*)Block);
 }
 
-void* Platform_MemZero(void* Block, usize Size)
+void Platform_MemZero(void* Block, usize Size)
 {
-    return memset(Block, 0, Size);
+    (void)memset(Block, 0, Size);
 }
 
 void* Platform_MemCopy(void* restrict Dest, const void* restrict Source, usize Size)
