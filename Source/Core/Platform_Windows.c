@@ -716,7 +716,7 @@ bool Filesystem_Open(const String FilePath, u32 Mode, FileHandle* OutHandle)
                     if (!bDirectoryCreated)
                     {
                         StringLocal(Prefix, 512);
-                        String_Format(&Prefix, S("Failed to create directory \"%S\""), Prefix.Capacity, BaseDirectory);
+                        String_Format(&Prefix, S("Failed to create directory \"%S\""), BaseDirectory);
                         LogLastError(Prefix);
 
                         return false;
@@ -733,7 +733,7 @@ bool Filesystem_Open(const String FilePath, u32 Mode, FileHandle* OutHandle)
     if (File == INVALID_HANDLE_VALUE)
     {
         StringLocal(Prefix, 512);
-        String_Format(&Prefix, S("Failed to open file \"%S\""), Prefix.Capacity, FilePath);
+        String_Format(&Prefix, S("Failed to open file \"%S\""), FilePath);
         LogLastError(Prefix);
 
         return false;
@@ -814,7 +814,7 @@ bool Filesystem_Open_MemoryMapped(const String FilePath, u32 Mode, FileHandle* O
         if (fm == NULL || fm == INVALID_HANDLE_VALUE)
         {
             StringLocal(Prefix, 512);
-            String_Format(&Prefix, S("Failed to create file mapping for \"%S\""), Prefix.Capacity, FilePath);
+            String_Format(&Prefix, S("Failed to create file mapping for \"%S\""), FilePath);
             LogLastError(Prefix);
             Filesystem_Close(OutHandle);
             return false;
@@ -892,7 +892,7 @@ bool Filesystem_OpenDirectory(const String FilePath)
                     if (!bDirectoryCreated)
                     {
                         StringLocal(Prefix, 512);
-                        String_Format(&Prefix, S("Failed to create directory \"%S\""), Prefix.Capacity, BaseDirectory);
+                        String_Format(&Prefix, S("Failed to create directory \"%S\""), BaseDirectory);
                         LogLastError(Prefix);
 
                         return false;
@@ -924,7 +924,7 @@ bool Filesystem_OpenDirectory_Ex(const String FilePath, FileHandle* OutHandle)
     if (File == INVALID_HANDLE_VALUE)
     {
         StringLocal(Prefix, 512);
-        String_Format(&Prefix, S("Failed to open directory \"%S\""), Prefix.Capacity, FilePath);
+        String_Format(&Prefix, S("Failed to open directory \"%S\""), FilePath);
         LogLastError(Prefix);
 
         return false;
@@ -1354,7 +1354,7 @@ bool Filesystem_Write(const FileHandle Handle, usize DataSize, const void* Data,
         StringLocal(Prefix, 2048);
         StringLocal(Path, MAX_PATH_LENGTH);
         Filesystem_GetFilePath(Handle, &Path);
-        String_Format(&Prefix, S("Failed to write to file \"%S\""), 2048, Path);
+        String_Format(&Prefix, S("Failed to write to file \"%S\""), Path);
         LogLastError(Prefix);
     }
 
@@ -1378,7 +1378,7 @@ bool Filesystem_WriteLine(const FileHandle Handle, const String Text, usize* Out
         StringLocal(Prefix, 2048);
         StringLocal(Path, MAX_PATH_LENGTH);
         Filesystem_GetFilePath(Handle, &Path);
-        String_Format(&Prefix, S("Failed to write line to file \"%S\""), 2048, Path);
+        String_Format(&Prefix, S("Failed to write line to file \"%S\""), Path);
         LogLastError(Prefix);
     }
 
@@ -1408,7 +1408,7 @@ bool Filesystem_WriteLineFormatted(const FileHandle Handle, const String Text, u
         StringLocal(Prefix, 2048);
         StringLocal(Path, MAX_PATH_LENGTH);
         Filesystem_GetFilePath(Handle, &Path);
-        String_Format(&Prefix, S("Failed to write line to file \"%S\""), 2048, Path);
+        String_Format(&Prefix, S("Failed to write line to file \"%S\""), Path);
         LogLastError(Prefix);
     }
 
@@ -1738,7 +1738,7 @@ bool Filesystem_Copy(const String Source, const String Destination)
     if (bResult == 0)
     {
         StringLocal(Msg, 512);
-        String_Format(&Msg, S("Failed to copy \"%S\" to \"%S\""), Msg.Capacity, Source, Destination);
+        String_Format(&Msg, S("Failed to copy \"%S\" to \"%S\""), Source, Destination);
         LogLastError(Msg);
         return false;
     }
@@ -1779,7 +1779,7 @@ bool Filesystem_Move(const String Source, const String Destination, bool bRename
     if (bResult == 0)
     {
         StringLocal(Msg, 512);
-        String_Format(&Msg, S("Failed to %S \"%S\" to \"%S\""), Msg.Capacity, bRename ? S("rename") : S("move"), Source, Destination);
+        String_Format(&Msg, S("Failed to %S \"%S\" to \"%S\""), bRename ? S("rename") : S("move"), Source, Destination);
         LogLastError(Msg);
         return false;
     }
@@ -1811,7 +1811,7 @@ PlatformHandle Platform_RunCommand(const String CmdLine, const String WorkingDir
     if (!CreateProcess(NULL, CmdLine.Data, NULL, NULL, TRUE, 0, Env, Dir, &StartupInfo, &ProcessInfo))
     {
         StringLocal(Prefix, Kibibytes(8));
-        String_Format(&Prefix, S("Failed to run command: \"%S\""), Prefix.Capacity, CmdLine);
+        String_Format(&Prefix, S("Failed to run command: \"%S\""), CmdLine);
         LogLastError(Prefix);
 
         return INVALID_HANDLE_VALUE;
@@ -1863,7 +1863,7 @@ PlatformHandle Platform_RunCommand_Ex(const String CmdLine, const String Working
     if (!CreateProcess(NULL, CmdLine.Data, NULL, NULL, TRUE, 0, NULL, Dir, &StartupInfo, &ProcessInfo))
     {
         StringLocal(Prefix, Kibibytes(8));
-        String_Format(&Prefix, S("Failed to run command: \"%S\""), Prefix.Capacity, CmdLine);
+        String_Format(&Prefix, S("Failed to run command: \"%S\""), CmdLine);
         LogLastError(Prefix);
 
         return INVALID_HANDLE_VALUE;

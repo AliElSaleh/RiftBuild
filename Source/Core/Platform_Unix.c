@@ -745,7 +745,7 @@ bool Platform_GetAccountName(String* OutName)
     if (result == NULL)
     {
         StringLocal(Message, 512);
-        String_Format(&Message, S("Failed to get user name"), Message.Capacity);
+        String_Format(&Message, S("Failed to get user name"));
         LogLastError(Message);
         return false;
     }
@@ -764,7 +764,7 @@ bool Platform_GetUserName(String* OutName)
     if (result == NULL)
     {
         StringLocal(Prefix, MAX_PATH_LENGTH);
-        String_Format(&Prefix, S("Failed to get user directory"), Prefix.Capacity);
+        String_Format(&Prefix, S("Failed to get user directory"));
         LogLastError(Prefix);
         return false;
     }
@@ -794,7 +794,7 @@ bool Platform_GetUserDirectory(String* OutDirectory)
     if (result == NULL)
     {
         StringLocal(Prefix, MAX_PATH_LENGTH);
-        String_Format(&Prefix, S("Failed to get user directory"), Prefix.Capacity);
+        String_Format(&Prefix, S("Failed to get user directory"));
         LogLastError(Prefix);
         return false;
     }
@@ -870,7 +870,7 @@ bool Filesystem_Open(const String FilePath, u32 Mode, FileHandle* OutHandle)
         }
 
         StringLocal(Message, MAX_PATH_LENGTH);
-        String_Format(&Message, S("Failed to open file %S -> \"%S\""), MAX_PATH_LENGTH, ModeString, FilePath);
+        String_Format(&Message, S("Failed to open file %S -> \"%S\""), ModeString, FilePath);
         LogLastError(Message);
         return false;
     }
@@ -947,7 +947,7 @@ bool Filesystem_Open_MemoryMapped(const String FilePath, u32 Mode, FileHandle* O
     if (Address == MAP_FAILED)
     {
         StringLocal(Prefix, 512);
-        String_Format(&Prefix, S("Failed to memory map file \"%S\""), Prefix.Capacity, FilePath);
+        String_Format(&Prefix, S("Failed to memory map file \"%S\""), FilePath);
         LogLastError(Prefix);
         return false;
     }
@@ -997,7 +997,7 @@ bool Filesystem_OpenDirectory(const String FilePath)
                     if (ErrorCode == -1)
                     {
                         StringLocal(Prefix, MAX_PATH_LENGTH);
-                        String_Format(&Prefix, S("Failed to open directory \"%S\""), Prefix.Capacity, BaseDirectory);
+                        String_Format(&Prefix, S("Failed to open directory \"%S\""), BaseDirectory);
                         LogLastError(Prefix);
                         return false;
                     }
@@ -1038,7 +1038,7 @@ bool Filesystem_Close(FileHandle* Handle)
             Filesystem_GetFilePath(*Handle, &Path);
 
             StringLocal(Prefix, 512);
-            String_Format(&Prefix, S("Failed to unmap memory for file \"%S\""), Prefix.Capacity, Path);
+            String_Format(&Prefix, S("Failed to unmap memory for file \"%S\""), Path);
             LogLastError(Prefix);
             bFailedUnmap = true;
         }
@@ -1063,7 +1063,7 @@ bool Filesystem_Seek(const FileHandle Handle, isize Offset)
         Filesystem_GetFilePath(Handle, &Path);
 
         StringLocal(Prefix, 512);
-        String_Format(&Prefix, S("Seek failed for \"%S\""), Prefix.Capacity, Path);
+        String_Format(&Prefix, S("Seek failed for \"%S\""), Path);
         LogLastError(Prefix);
         return false;
     }
@@ -1080,7 +1080,7 @@ bool Filesystem_SeekFromBeginning(const FileHandle Handle, usize Offset)
         Filesystem_GetFilePath(Handle, &Path);
 
         StringLocal(Prefix, 512);
-        String_Format(&Prefix, S("SeekFromBeginning failed for \"%S\""), Prefix.Capacity, Path);
+        String_Format(&Prefix, S("SeekFromBeginning failed for \"%S\""), Path);
         LogLastError(Prefix);
         return false;
     }
@@ -1097,7 +1097,7 @@ bool Filesystem_SeekFromEnd(const FileHandle Handle, usize Offset)
         Filesystem_GetFilePath(Handle, &Path);
 
         StringLocal(Prefix, 512);
-        String_Format(&Prefix, S("SeekFromEnd failed for \"%S\""), Prefix.Capacity, Path);
+        String_Format(&Prefix, S("SeekFromEnd failed for \"%S\""), Path);
         LogLastError(Prefix);
         return false;
     }
@@ -1114,7 +1114,7 @@ bool Filesystem_SeekToBeginning(const FileHandle Handle)
         Filesystem_GetFilePath(Handle, &Path);
 
         StringLocal(Prefix, 512);
-        String_Format(&Prefix, S("SeekToBeginning failed for \"%S\""), Prefix.Capacity, Path);
+        String_Format(&Prefix, S("SeekToBeginning failed for \"%S\""), Path);
         LogLastError(Prefix);
         return false;
     }
@@ -1131,7 +1131,7 @@ bool Filesystem_SeekToEnd(const FileHandle Handle)
         Filesystem_GetFilePath(Handle, &Path);
 
         StringLocal(Prefix, 512);
-        String_Format(&Prefix, S("SeekToEnd failed for \"%S\""), Prefix.Capacity, Path);
+        String_Format(&Prefix, S("SeekToEnd failed for \"%S\""), Path);
         LogLastError(Prefix);
         return false;
     }
@@ -1154,7 +1154,7 @@ usize Filesystem_GetLastWriteTime(const String FilePath)
     if (ErrorCode == -1)
     {
         StringLocal(Prefix, MAX_PATH_LENGTH);
-        String_Format(&Prefix, S("Failed to retrieve last write time for file \"%S\""), Prefix.Capacity, FilePath);
+        String_Format(&Prefix, S("Failed to retrieve last write time for file \"%S\""), FilePath);
         LogLastError(Prefix);
         return 0;
     }
@@ -1172,7 +1172,7 @@ usize Filesystem_GetLastAccessTime(const String FilePath)
     if (ErrorCode == -1)
     {
         StringLocal(Prefix, MAX_PATH_LENGTH);
-        String_Format(&Prefix, S("Failed to retrieve last access time for file \"%S\""), Prefix.Capacity, FilePath);
+        String_Format(&Prefix, S("Failed to retrieve last access time for file \"%S\""), FilePath);
         LogLastError(Prefix);
         return 0;
     }
@@ -1209,7 +1209,7 @@ usize Filesystem_GetCreationTime(const String FilePath)
     if (ErrorCode == -1)
     {
         StringLocal(Prefix, MAX_PATH_LENGTH);
-        String_Format(&Prefix, S("Failed to retrieve creation time for file \"%S\""), Prefix.Capacity, FilePath);
+        String_Format(&Prefix, S("Failed to retrieve creation time for file \"%S\""), FilePath);
         LogLastError(Prefix);
         return 0;
     }
@@ -1264,7 +1264,7 @@ bool Filesystem_ReadPipe(PlatformPipe Handle, usize DataSize, void* OutData, usi
     if (BytesRead < 0)
     {
         StringLocal(Prefix, MAX_PATH_LENGTH);
-        String_Format(&Prefix, S("Failed to read pipe from handle -> Read: %i | Write: %i"), Prefix.Capacity, Handle[0], Handle[1]);
+        String_Format(&Prefix, S("Failed to read pipe from handle -> Read: %i | Write: %i"), Handle[0], Handle[1]);
         LogLastError(Prefix);
         return false;
     }
@@ -1286,7 +1286,7 @@ bool Filesystem_Read(const FileHandle Handle, usize DataSize, void* OutData, usi
         Filesystem_GetFilePath(Handle, &Path);
 
         StringLocal(Prefix, MAX_PATH_LENGTH);
-        String_Format(&Prefix, S("Failed to read file \"%S\""), Prefix.Capacity, Path);
+        String_Format(&Prefix, S("Failed to read file \"%S\""), Path);
         LogLastError(Prefix);
         return false;
     }
@@ -1314,7 +1314,7 @@ bool Filesystem_ReadEntireFile(const FileHandle Handle, void* OutData, usize* Ou
         Filesystem_GetFilePath(Handle, &Path);
 
         StringLocal(Prefix, MAX_PATH_LENGTH);
-        String_Format(&Prefix, S("Failed to entire read file \"%S\""), Prefix.Capacity, Path);
+        String_Format(&Prefix, S("Failed to entire read file \"%S\""), Path);
         LogLastError(Prefix);
         return false;
     }
@@ -1349,7 +1349,7 @@ bool Filesystem_ReadLine(const FileHandle Handle, String* LineBuffer)
         Filesystem_GetFilePath(Handle, &Path);
 
         StringLocal(Prefix, MAX_PATH_LENGTH);
-        String_Format(&Prefix, S("Failed to read line for file \"%S\""), Prefix.Capacity, Path);
+        String_Format(&Prefix, S("Failed to read line for file \"%S\""), Path);
         LogLastError(Prefix);
         return false;
     }
@@ -1416,7 +1416,7 @@ bool Filesystem_Write(const FileHandle Handle, usize DataSize, const void* Data,
         Filesystem_GetFilePath(Handle, &Path);
 
         StringLocal(Prefix, MAX_PATH_LENGTH);
-        String_Format(&Prefix, S("Failed to write to file \"%S\""), Prefix.Capacity, Path);
+        String_Format(&Prefix, S("Failed to write to file \"%S\""), Path);
         LogLastError(Prefix);
         return false;
     }
@@ -1440,7 +1440,7 @@ bool Filesystem_WriteLine(const FileHandle Handle, const String Text, usize* Out
         Filesystem_GetFilePath(Handle, &Path);
 
         StringLocal(Prefix, MAX_PATH_LENGTH);
-        String_Format(&Prefix, S("Failed to write line to file \"%S\""), Prefix.Capacity, Path);
+        String_Format(&Prefix, S("Failed to write line to file \"%S\""), Path);
         LogLastError(Prefix);
         return false;
     }
@@ -1470,7 +1470,7 @@ bool Filesystem_WriteLineFormatted(const FileHandle Handle, const String Text, u
         Filesystem_GetFilePath(Handle, &Path);
 
         StringLocal(Prefix, MAX_PATH_LENGTH);
-        String_Format(&Prefix, S("Failed to write line to file \"%S\""), Prefix.Capacity, Path);
+        String_Format(&Prefix, S("Failed to write line to file \"%S\""), Path);
         LogLastError(Prefix);
         return false;
     }

@@ -144,7 +144,7 @@ bool Platform_CreateNamedMutex(const String Name, PlatformMutex* OutMutex)
     if (fd == -1)
     {
         StringLocal(Prefix, 512);
-        String_Format(&Prefix, S("Failed to temporary lock file %S"), Prefix.Capacity, Temp);
+        String_Format(&Prefix, S("Failed to temporary lock file %S"), Temp);
         LogLastError(Prefix);
         return false;
     }
@@ -188,7 +188,7 @@ bool Platform_ReleaseMutex(PlatformMutex* Mutex)
         if (sem_close(Mutex->Handle) == -1)
         {
             StringLocal(Prefix, 512);
-            String_Format(&Prefix, S("Failed to release mutex %S"), Prefix.Capacity, Mutex->Name);
+            String_Format(&Prefix, S("Failed to release mutex %S"), Mutex->Name);
             LogLastError(Prefix);
             return false;
         }

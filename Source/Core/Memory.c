@@ -197,7 +197,7 @@ void* MemAlloc(usize Size, EMemoryTag Tag)
 
     /*
     StringLocal(Blah, 128);
-    String_Format(&Blah, S("%lluB / %lluB\n"), 128, GEngineAllocator.Allocated, GEngineAllocator.TotalSize);
+    String_Format(&Blah, S("%lluB / %lluB\n"), GEngineAllocator.Allocated, GEngineAllocator.TotalSize);
     Platform_ConsoleWrite_CustomLength(Blah.Data, Blah.Length, 0, false);
     */
 

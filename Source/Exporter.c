@@ -590,7 +590,6 @@ bool Export_VersionRC(const BuildParams* Params, const String Path)
                                 "    END\n"
                                 "END\n"
                                 ),
-                                FileData.Capacity,
                                 VersionCommas, VersionCommas,
                                 FileFlag.HexValue, FileFlag.Name,
                                 FileOS.HexValue, FileOS.Name,

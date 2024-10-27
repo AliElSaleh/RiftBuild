@@ -759,24 +759,27 @@ internal bool EnforceCopyright(CompileData* Data, const String FullPath, const S
     u32 LineNum = 0;
     bool bSuccess = false;
     FileHandle f = FileHandle_Null();
-    Filesystem_Open(FullPath, FileMode_Read, &f);
-    StringLocal(Line, 4096);
-    while (Filesystem_ReadLine(f, &Line))
+    if (Filesystem_Open(FullPath, FileMode_Read, &f))
     {
-        LineNum++;
-        if (LineNum < AuxData->FromLine)
-            continue;
-
-        if (LineNum > AuxData->ToLine)
-            break;
-
-        if (String_Contains(Line, AuxData->Content, false))
+        StringLocal(Line, 4096);
+        while (Filesystem_ReadLine(f, &Line))
         {
-            bSuccess = true;
-            break;
+            LineNum++;
+            if (LineNum < AuxData->FromLine)
+                continue;
+
+            if (LineNum > AuxData->ToLine)
+                break;
+
+            if (String_Contains(Line, AuxData->Content, false))
+            {
+                bSuccess = true;
+                break;
+            }
         }
+
+        Filesystem_Close(&f);
     }
-    Filesystem_Close(&f);
 
     AuxData->bSuccess = bSuccess;
 
@@ -785,13 +788,13 @@ internal bool EnforceCopyright(CompileData* Data, const String FullPath, const S
         StringLocal(LineInfo, 32);
         if (AuxData->FromLine == AuxData->ToLine)
         {
-            String_Format(&LineInfo, S("line %u"), LineInfo.Capacity, AuxData->FromLine);
+            String_Format(&LineInfo, S("line %u"), AuxData->FromLine);
         }
         else
         {
             bool bEnd = AuxData->ToLine == UINT32_MAX;
-            if (bEnd)  String_Format(&LineInfo, S("lines %u - End Of File"), LineInfo.Capacity, AuxData->FromLine);
-            if (!bEnd) String_Format(&LineInfo, S("lines %u - %u"), LineInfo.Capacity, AuxData->FromLine, AuxData->ToLine);
+            if (bEnd)  String_Format(&LineInfo, S("lines %u - End Of File"), AuxData->FromLine);
+            if (!bEnd) String_Format(&LineInfo, S("lines %u - %u"), AuxData->FromLine, AuxData->ToLine);
         }
 
         LOG_ERROR("Source file \"%S\" does not contain the required copyright notice on %S", RelativePath, LineInfo);
@@ -2525,60 +2528,60 @@ internal u32 BuildTarget(LinearAllocator* Arena,
     }
 
     StringLocal(TimeStamp, 64);
-    String_Format(&TimeStamp, S("%hu-%.2hu-%.2hu %.2hu:%.2hu:%.2hu [%S]"), TimeStamp.Capacity, TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second, TimeZone);
+    String_Format(&TimeStamp, S("%hu-%.2hu-%.2hu %.2hu:%.2hu:%.2hu [%S]"), TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second, TimeZone);
 
     {
         StringLocal(TimeStampVar, 64);
-        String_Format(&TimeStampVar, S("%hu-%.2hu-%.2hu %.2hu:%.2hu:%.2hu"), TimeStamp.Capacity, TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
+        String_Format(&TimeStampVar, S("%hu-%.2hu-%.2hu %.2hu:%.2hu:%.2hu"), TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
         String a = String_Create(Arena, TimeStampVar);
         AddCmdOption(&CmdOptionsDB, S("_Timestamp"), a);
 
         // add another for time zone information
-        String_Format(&TimeStampVar, S("%hu-%.2hu-%.2hu %.2hu:%.2hu:%.2hu [%S]"), TimeStamp.Capacity, TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second, TimeZone);
+        String_Format(&TimeStampVar, S("%hu-%.2hu-%.2hu %.2hu:%.2hu:%.2hu [%S]"), TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second, TimeZone);
         a = String_Create(Arena, TimeStampVar);
         AddCmdOption(&CmdOptionsDB, S("_Timestamp.Zone"), a);
 
-        String_Format(&TimeStampVar, S("%hu%.2hu%.2hu%.2hu%.2hu%.2hu"), TimeStamp.Capacity, TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
+        String_Format(&TimeStampVar, S("%hu%.2hu%.2hu%.2hu%.2hu%.2hu"), TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
         a = String_Create(Arena, TimeStampVar);
         AddCmdOption(&CmdOptionsDB, S("_Timestamp.NoSep"), a);
 
-        String_Format(&TimeStampVar, S("%hu-%.2hu-%.2hu"), TimeStamp.Capacity, TimeNow.Year, TimeNow.Month, TimeNow.Day);
+        String_Format(&TimeStampVar, S("%hu-%.2hu-%.2hu"), TimeNow.Year, TimeNow.Month, TimeNow.Day);
         a = String_Create(Arena, TimeStampVar);
         AddCmdOption(&CmdOptionsDB, S("_Date"), a);
 
-        String_Format(&TimeStampVar, S("%hu"), TimeStamp.Capacity, TimeNow.Year);
+        String_Format(&TimeStampVar, S("%hu"), TimeNow.Year);
         a = String_Create(Arena, TimeStampVar);
         AddCmdOption(&CmdOptionsDB, S("_Date.Year"), a);
-        String_Format(&TimeStampVar, S("%.2hu"), TimeStamp.Capacity, TimeNow.Month);
+        String_Format(&TimeStampVar, S("%.2hu"), TimeNow.Month);
         a = String_Create(Arena, TimeStampVar);
         AddCmdOption(&CmdOptionsDB, S("_Date.Month"), a);
-        String_Format(&TimeStampVar, S("%.2hu"), TimeStamp.Capacity, TimeNow.Day);
+        String_Format(&TimeStampVar, S("%.2hu"), TimeNow.Day);
         a = String_Create(Arena, TimeStampVar);
         AddCmdOption(&CmdOptionsDB, S("_Date.Day"), a);
         // TODO: month name and day name, week number 0-52, day of week 0-6, day number 0-365
 
-        String_Format(&TimeStampVar, S("%hu%.2hu%.2hu"), TimeStamp.Capacity, TimeNow.Year, TimeNow.Month, TimeNow.Day);
+        String_Format(&TimeStampVar, S("%hu%.2hu%.2hu"), TimeNow.Year, TimeNow.Month, TimeNow.Day);
         a = String_Create(Arena, TimeStampVar);
         AddCmdOption(&CmdOptionsDB, S("_Date.NoSep"), a);
 
-        String_Format(&TimeStampVar, S("%.2hu:%.2hu:%.2hu"), TimeStamp.Capacity, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
+        String_Format(&TimeStampVar, S("%.2hu:%.2hu:%.2hu"), TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
         a = String_Create(Arena, TimeStampVar);
         AddCmdOption(&CmdOptionsDB, S("_Time"), a);
 
-        String_Format(&TimeStampVar, S("%.2hu"), TimeStamp.Capacity, TimeNow.Hour);
+        String_Format(&TimeStampVar, S("%.2hu"), TimeNow.Hour);
         a = String_Create(Arena, TimeStampVar);
         AddCmdOption(&CmdOptionsDB, S("_Time.Hour"), a);
-        String_Format(&TimeStampVar, S("%.2hu"), TimeStamp.Capacity, TimeNow.Minute);
+        String_Format(&TimeStampVar, S("%.2hu"), TimeNow.Minute);
         a = String_Create(Arena, TimeStampVar);
         AddCmdOption(&CmdOptionsDB, S("_Time.Minute"), a);
-        String_Format(&TimeStampVar, S("%.2hu"), TimeStamp.Capacity, TimeNow.Second);
+        String_Format(&TimeStampVar, S("%.2hu"), TimeNow.Second);
         a = String_Create(Arena, TimeStampVar);
         AddCmdOption(&CmdOptionsDB, S("_Time.Second"), a);
-        String_Format(&TimeStampVar, S("%.3hu"), TimeStamp.Capacity, TimeNow.Millisecond);
+        String_Format(&TimeStampVar, S("%.3hu"), TimeNow.Millisecond);
         a = String_Create(Arena, TimeStampVar);
         AddCmdOption(&CmdOptionsDB, S("_Time.Millisecond"), a);
 
-        String_Format(&TimeStampVar, S("%.2hu%.2hu%.2hu"), TimeStamp.Capacity, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
+        String_Format(&TimeStampVar, S("%.2hu%.2hu%.2hu"), TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
         a = String_Create(Arena, TimeStampVar);
         AddCmdOption(&CmdOptionsDB, S("_Time.NoSep"), a);
     }
@@ -2819,7 +2822,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
                     {
                         StringLocal(VersionDefineString, 256);
-                        String_Format(&VersionDefineString, S("%S_VERSION_STRING=\\\"%S\\\""), VersionDefineString.Capacity, AssemblyNameUpper, ExpandedVar);
+                        String_Format(&VersionDefineString, S("%S_VERSION_STRING=\\\"%S\\\""), AssemblyNameUpper, ExpandedVar);
 
                         FileVariable Var;
                         Var.Name = S("Defines");
@@ -2846,16 +2849,16 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                                 if (i < 3)
                                 {
                                     if (bContainsNonDigit)
-                                        String_Format(&VersionDefine, S("%S_%S_VERSION=\\\"%S\\\""), VersionDefine.Capacity, AssemblyNameUpper, VersionLevels[i], *v);
+                                        String_Format(&VersionDefine, S("%S_%S_VERSION=\\\"%S\\\""), AssemblyNameUpper, VersionLevels[i], *v);
                                     else
-                                        String_Format(&VersionDefine, S("%S_%S_VERSION=%S"), VersionDefine.Capacity, AssemblyNameUpper, VersionLevels[i], *v);
+                                        String_Format(&VersionDefine, S("%S_%S_VERSION=%S"), AssemblyNameUpper, VersionLevels[i], *v);
                                 }
                                 else
                                 {
                                     if (bContainsNonDigit)
-                                        String_Format(&VersionDefine, S("%S_EXTRA_VERSION_%hhu=\\\"%S\\\""), VersionDefine.Capacity, AssemblyNameUpper, i-3, *v);
+                                        String_Format(&VersionDefine, S("%S_EXTRA_VERSION_%hhu=\\\"%S\\\""), AssemblyNameUpper, i-3, *v);
                                     else
-                                        String_Format(&VersionDefine, S("%S_EXTRA_VERSION_%hhu=%S"), VersionDefine.Capacity, AssemblyNameUpper, i-3, *v);
+                                        String_Format(&VersionDefine, S("%S_EXTRA_VERSION_%hhu=%S"), AssemblyNameUpper, i-3, *v);
                                 }
 
                                 // TODO: wrap into function
@@ -2876,9 +2879,9 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                         StringLocal(VersionDefine, 256);
 
                         if (bContainsNonDigit)
-                            String_Format(&VersionDefine, S("%S_VERSION=\\\"%S\\\""), VersionDefine.Capacity, AssemblyNameUpper, ExpandedVar);
+                            String_Format(&VersionDefine, S("%S_VERSION=\\\"%S\\\""), AssemblyNameUpper, ExpandedVar);
                         else
-                            String_Format(&VersionDefine, S("%S_VERSION=%S"), VersionDefine.Capacity, AssemblyNameUpper, ExpandedVar);
+                            String_Format(&VersionDefine, S("%S_VERSION=%S"), AssemblyNameUpper, ExpandedVar);
 
                         FileVariable Var;
                         Var.Name = S("Defines");
@@ -3889,7 +3892,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             {
                 PlatformVersion OSVersion = Platform_GetVersion();
                 StringLocal(VersionString, 32);
-                String_Format(&VersionString, S("%u.%u.%u"), VersionString.Capacity, OSVersion.Major, OSVersion.Minor, OSVersion.Patch);
+                String_Format(&VersionString, S("%u.%u.%u"), OSVersion.Major, OSVersion.Minor, OSVersion.Patch);
                 ECompareResult Result = String_CompareVersion(VersionString, AssertPlatformVersion);
                 if (Result == CompareResult_Less)
                 {
@@ -5668,7 +5671,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             };
 
             StringLocal(ExtInfo, 32);
-            String_Format(&ExtInfo, S(" (%S)"), 32, Extension_Og);
+            String_Format(&ExtInfo, S(" (%S)"), Extension_Og);
 
             LOG("    Type:                 %S%S", AssemblyTypeStringTable[AssemblyType], Extension_Og.Length == 0 ? S("") : ExtInfo);
 
@@ -6667,7 +6670,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             for (u8 i = 0; i < 6; i++)
             {
                 StringLocal(CmdLine, 2048);
-                String_Format(&CmdLine, S("sips -z %u %u \"%S\" --out \"%S/icon_%ux%u.png\" > /dev/null"), CmdLine.Capacity, Size, Size, IconFilePath, IconsetPath, Size, Size);
+                String_Format(&CmdLine, S("sips -z %u %u \"%S\" --out \"%S/icon_%ux%u.png\" > /dev/null"), Size, Size, IconFilePath, IconsetPath, Size, Size);
                 if (bVerboseLog) LOG("    %S", CmdLine);
 
                 Size *= 2;
@@ -6690,7 +6693,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             String_BuildPath(&IcnsPath, WorkingPath, IntermediateDirectory, IcnsName);
 
             StringLocal(CmdLine, 2048);
-            String_Format(&CmdLine, S("iconutil -c icns -o \"%S\" \"%S\""), CmdLine.Capacity, IcnsPath, IconsetPath);
+            String_Format(&CmdLine, S("iconutil -c icns -o \"%S\" \"%S\""), IcnsPath, IconsetPath);
             if (bVerboseLog) LOG("    %S", CmdLine);
             PlatformHandle H = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
             ExitCode = Platform_WaitForProcessAndGetExitCode(H);
@@ -6850,7 +6853,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
 
             // Step 2 ----------------
             StringLocal(CmdLine, 2048);
-            String_Format(&CmdLine, S("chmod +x \"%S\""), CmdLine.Capacity, TempPath);
+            String_Format(&CmdLine, S("chmod +x \"%S\""), TempPath);
             if (bVerboseLog) LOG("    %S", CmdLine);
             Platform_RunCommand(CmdLine, WorkingPath, String_Null());
             String_Empty(&TempPath);
@@ -6992,9 +6995,9 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             {
                 StringLocal(ExecCmd, 4096);
                 #if PLATFORM_NET_BSD
-                String_Format(&ExecCmd, S("sh -c 'cd \"$(realpath -q \"$0\"/ || dirname \"$1\")\" && %S --from-desktop' %%U"), ExecCmd.Capacity, AssemblyPath);
+                String_Format(&ExecCmd, S("sh -c 'cd \"$(realpath -q \"$0\"/ || dirname \"$1\")\" && %S --from-desktop' %%U"), AssemblyPath);
                 #else
-                String_Format(&ExecCmd, S("sh -c 'cd \"$(realpath -q \"$0\"/ || dirname \"$0\")\" && %S --from-desktop' %%U"), ExecCmd.Capacity, AssemblyPath);
+                String_Format(&ExecCmd, S("sh -c 'cd \"$(realpath -q \"$0\"/ || dirname \"$0\")\" && %S --from-desktop' %%U"), AssemblyPath);
                 #endif
 
                 StringLocal(FileData, 4096);
@@ -7008,7 +7011,6 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                         "Terminal=true\n"
                         "Type=Application\n"
                         "StartupNotify=false\n"),
-                        4096, 
                         TimeStamp,
                         TitleName.Length == 0 ? AssemblyName : TitleName,
                         AssemblyPath,
@@ -7075,7 +7077,6 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                         "      <generic-icon name=\"%S\"/>\n"
                         "    </mime-type>\n"
                         "  </mime-info>\n"),
-                        4096,
                         AssemblyName, Description, TitleName.Length == 0 ? AssemblyName : TitleName,
                         AssemblyName, IconName
                         #elif PLATFORM_LINUX_KDE || PLATFORM_BSD
@@ -7088,7 +7089,6 @@ internal u32 BuildTarget(LinearAllocator* Arena,
                         "      <icon name=\"%S\"/>\n"
                         "    </mime-type>\n"
                         "  </mime-info>\n"),
-                        4096,
                         AssemblyName, Description, TitleName.Length == 0 ? AssemblyName : TitleName,
                         AssemblyName, IconFilePath
                         #endif
@@ -8196,13 +8196,13 @@ internal void InitInternalVars(LinearAllocator* Arena)
     String OSVersionStringMinor = String_Reserve(Arena, 8);
     String OSVersionStringPatch = String_Reserve(Arena, 8);
 
-    String_Format(&OSVersionString, S("%u.%u.%u"),    OSVersionString.Capacity, OSVersion.Major, OSVersion.Minor, OSVersion.Patch);
+    String_Format(&OSVersionString, S("%u.%u.%u"),    OSVersion.Major, OSVersion.Minor, OSVersion.Patch);
     AddInternalVariable(S("_Platform.Version"),       OSVersionString);
-    String_Format(&OSVersionStringMajor, S("%u"),     OSVersionString.Capacity, OSVersion.Major);
+    String_Format(&OSVersionStringMajor, S("%u"),     OSVersion.Major);
     AddInternalVariable(S("_Platform.Version.Major"), OSVersionStringMajor);
-    String_Format(&OSVersionStringMinor, S("%u"),     OSVersionString.Capacity, OSVersion.Minor);
+    String_Format(&OSVersionStringMinor, S("%u"),     OSVersion.Minor);
     AddInternalVariable(S("_Platform.Version.Minor"), OSVersionStringMinor);
-    String_Format(&OSVersionStringPatch, S("%u"),     OSVersionString.Capacity, OSVersion.Patch);
+    String_Format(&OSVersionStringPatch, S("%u"),     OSVersion.Patch);
     AddInternalVariable(S("_Platform.Version.Patch"), OSVersionStringPatch);
 
     // TODO _Ram
@@ -8582,7 +8582,7 @@ internal void InitInternalVars(LinearAllocator* Arena)
     //AddInternalVariable(S("_CPUExtensions"), S(""));
 
     StringLocal(CacheLineSize, 8);
-    String_Format(&CacheLineSize, S("%u"), CacheLineSize.Capacity, Platform_GetCpuCacheLineSize());
+    String_Format(&CacheLineSize, S("%u"), Platform_GetCpuCacheLineSize());
     AddInternalVariable(S("_CacheLineSize"), String_Create(Arena, CacheLineSize));
 
     // todo: check if these are on bsd as well. maybe linux?

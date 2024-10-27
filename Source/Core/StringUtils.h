@@ -88,8 +88,7 @@ RIFT_API void StringInternal_Concat(String* Dest, const StringArray Array);
 RIFT_API void StringInternal_BuildSeparator(String* Dest, char Separator, const StringArray Array);
 RIFT_API void StringInternal_BuildPath(String* Dest, const StringArray Array);
 
-RIFT_API void String_Format(String* Dest, const String Format, u32 Capacity, ...);//todo: remove maxlength
-RIFT_API void String_Format_Ex(String* Dest, const String Format, u32 Capacity, ...);
+RIFT_API void String_Format(String* Dest, const String Format, ...);
 RIFT_API void String_FormatV(String* Dest, const String Format, u32 Capacity, void* VAList);
 
 RIFT_API void String_Empty(String* Str);

@@ -603,11 +603,11 @@ ECompareResult String_CompareVersion(const String VersionA, const String Version
     return Result;
 }
 
-void String_Format(String* Dest, const String Format, u32 Capacity, ...)
+void String_Format(String* Dest, const String Format, ...)
 {
     va_list Args;
-    va_start(Args, Capacity);
-    i32 Written = stbsp_vsnprintf(Dest->Data, (i32)Capacity, Format.Data, Args);
+    va_start(Args, Format);
+    i32 Written = stbsp_vsnprintf(Dest->Data, (i32)Dest->Capacity, Format.Data, Args);
     Dest->Length = (u32)Written;
     va_end(Args);
 }

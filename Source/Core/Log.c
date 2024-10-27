@@ -59,10 +59,10 @@ internal bool Internal_TryOpenLogFile(void)
     SystemTime TimeNow = Platform_GetSystemLocalTime();
     
     StringLocal(TimeStampBuffer, 128);
-    String_Format(&TimeStampBuffer, S("%hu-%.2hu-%.2hu-%.2hu.%.2hu.%.2hu"), 128, TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
+    String_Format(&TimeStampBuffer, S("%hu-%.2hu-%.2hu-%.2hu.%.2hu.%.2hu"), TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
     
     StringLocal(LogFileName, 512);
-    String_Format(&LogFileName, S("RiftBuild-%S.log"), 512, TimeStampBuffer);
+    String_Format(&LogFileName, S("RiftBuild-%S.log"), TimeStampBuffer);
 
     bool bSuccess = true;
     LinearAllocator Scratch = GLoggingMemoryAllocator;
@@ -75,7 +75,7 @@ internal bool Internal_TryOpenLogFile(void)
             bSuccess = false;
 
             StringLocal(FormattedMessage, 256);
-            String_Format(&FormattedMessage, S("Failed to open %S file for writing\n"), 256, GLoggingSystemState->LogFileName);
+            String_Format(&FormattedMessage, S("Failed to open %S file for writing\n"), GLoggingSystemState->LogFileName);
             Platform_ConsoleWrite_CustomLength(FormattedMessage.Data, FormattedMessage.Length, LOG_TYPE_ERROR, true);
         }
     }
@@ -93,7 +93,7 @@ internal void Internal_WriteToLogFile(const char* Text, u32 Length)
     if (!Filesystem_WriteLine(GLoggingSystemState->LogFileHandle, StrSlice(Text, Length), &Written))
     {
         StringLocal(FormattedMessage, 256);
-        String_Format(&FormattedMessage, S("Failed to write to %S"), 256, GLoggingSystemState->LogFileName);
+        String_Format(&FormattedMessage, S("Failed to write to %S"), GLoggingSystemState->LogFileName);
         Platform_ConsoleWrite_CustomLength(FormattedMessage.Data, FormattedMessage.Length, LOG_TYPE_ERROR, true);
     }
 }
@@ -192,7 +192,7 @@ void LogMessage(u8 LogType, const String LogCat, const String Text, ...)
     SystemTime TimeNow = Platform_GetSystemLocalTime();
 
     StringLocal(TimeStamp, 64);
-    String_Format(&TimeStamp, S("%hu-%.2hu-%.2hu %.2hu:%.2hu:%.2hu "), 64, TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
+    String_Format(&TimeStamp, S("%hu-%.2hu-%.2hu %.2hu:%.2hu:%.2hu "), TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
 
     va_list Args;
     va_start(Args, Text);

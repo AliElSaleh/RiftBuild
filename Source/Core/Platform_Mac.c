@@ -105,7 +105,7 @@ bool Platform_CreateNamedMutex(const String Name, PlatformMutex* OutMutex)
     if (fd == -1)
     {
         StringLocal(Prefix, 512);
-        String_Format(&Prefix, S("Failed to temporary lock file %S"), Prefix.Capacity, Temp);
+        String_Format(&Prefix, S("Failed to temporary lock file %S"), Temp);
         LogLastError(Prefix);
         return false;
     }
@@ -201,7 +201,7 @@ bool Filesystem_GetFilePath(const FileHandle Handle, String* OutPath)
     if (fcntl(fileno(Handle.Data), F_GETPATH, Path) == -1)
     {
         StringLocal(Prefix, MAX_PATH_LENGTH);
-        String_Format(&Prefix, S("Failed to retrieve file path for file handle"), Prefix.Capacity);
+        String_Format(&Prefix, S("Failed to retrieve file path for file handle"));
         LogLastError(Prefix);
         return false;
     }
