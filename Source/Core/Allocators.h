@@ -28,11 +28,11 @@ STRUCT(LinearAllocator_Scratch)
 RIFT_API void LinearAllocator_Create(usize TotalSize, void* Memory, LinearAllocator* OutAllocator);
 RIFT_API void LinearAllocator_Destroy(LinearAllocator* Allocator);
 
-RIFT_API void* LinearAllocator_Allocate(LinearAllocator* Allocator, usize Size);
-RIFT_API void* LinearAllocator_AllocateAll(LinearAllocator* Allocator);
+RIFT_API NO_DISCARD void* LinearAllocator_Allocate(LinearAllocator* Allocator, usize Size);
+RIFT_API NO_DISCARD void* LinearAllocator_AllocateAll(LinearAllocator* Allocator);
 RIFT_API void LinearAllocator_FreeAll(LinearAllocator* Allocator, bool bZeroMemory);
 
-RIFT_API void* LinearAllocator_MemoryHead(LinearAllocator* Allocator);
+RIFT_API NO_DISCARD void* LinearAllocator_MemoryHead(LinearAllocator* Allocator);
 RIFT_API void LinearAllocator_Reset(LinearAllocator* Allocator, usize Position);
 
 
@@ -67,12 +67,12 @@ STRUCT(FreeListAllocator)
 RIFT_API void FreeListAllocator_Create(FreeListAllocator* OutAllocator, usize TotalSize, void* Memory);
 RIFT_API void FreeListAllocator_Destroy(FreeListAllocator* Allocator);
 
-RIFT_API void* FreeListAllocator_Allocate(FreeListAllocator* Allocator, usize Size, usize* OutBytesAllocated);
+RIFT_API NO_DISCARD void* FreeListAllocator_Allocate(FreeListAllocator* Allocator, usize Size, usize* OutBytesAllocated);
 RIFT_API void FreeListAllocator_Free(FreeListAllocator* Allocator, void* Memory, usize* OutBytesFreed);
 
 RIFT_API void FreeListAllocator_FreeAll(FreeListAllocator* Allocator);
 
 RIFT_API usize FreeListAllocator_Offset(FreeListAllocator* Allocator, void* Memory);
-RIFT_API void* FreeListAllocator_MemoryFromOffset(FreeListAllocator* Allocator, usize Offset);
+RIFT_API NO_DISCARD void* FreeListAllocator_MemoryFromOffset(FreeListAllocator* Allocator, usize Offset);
 
 #endif // _ALLOCATORS_H_

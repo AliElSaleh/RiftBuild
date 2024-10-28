@@ -110,9 +110,9 @@
 
 #define UNIMPLEMENTED                                  Platform_ConsoleWrite(FUNCTION_NAME, 4, true); Platform_ConsoleWrite(" not implemented!\n", 4, true); _Crash_
 
-RIFT_API bool Logging_Initialize(void* Memory, bool bOpenFile);
+RIFT_API NO_DISCARD bool Logging_Initialize(void* Memory, bool bOpenFile);
 RIFT_API void Logging_Shutdown(void);
-RIFT_API usize  Logging_GetMemoryRequirement(void);
+RIFT_API NO_DISCARD usize Logging_GetMemoryRequirement(void);
 
 RIFT_API void Logging_Enable(void);
 RIFT_API void Logging_Disable(void);

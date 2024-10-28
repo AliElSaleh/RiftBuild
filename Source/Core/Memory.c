@@ -376,13 +376,22 @@ void LinearAllocator_Create(usize TotalSize, void* Memory, LinearAllocator* OutA
 
 void LinearAllocator_Destroy(LinearAllocator* Allocator)
 {
-    #if RIFT_ASAN
-    __asan_unpoison_memory_region(Allocator->Memory, Allocator->TotalSize);
-    #endif
-
-    if (Allocator->bOwnsMemory && IsValid(Allocator->Memory))
+    if (IsValid(Allocator->Memory))
     {
-        MemFree(Allocator->Memory, MemoryTag_LinearAllocator);
+        if (Allocator->bOwnsMemory)
+        {
+            #if RIFT_ASAN
+            __asan_unpoison_memory_region(Allocator->Memory, Allocator->TotalSize);
+            #endif
+
+            MemFree(Allocator->Memory, MemoryTag_LinearAllocator);
+        }
+        else
+        {
+            #if RIFT_ASAN
+            __asan_poison_memory_region(Allocator->Memory, Allocator->TotalSize);
+            #endif
+        }
     }
 
     Allocator->Memory = NULL;

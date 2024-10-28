@@ -607,14 +607,17 @@ void String_Format(String* Dest, const String Format, ...)
 {
     va_list Args;
     va_start(Args, Format);
-    i32 Written = stbsp_vsnprintf(Dest->Data, (i32)Dest->Capacity, Format.Data, Args);
-    Dest->Length = (u32)Written;
+    const i32 NewCap = (i32)Clamp(Dest->Capacity, 0, INT32_MAX); 
+    const i32 Written = stbsp_vsnprintf(Dest->Data, NewCap, Format.Data, Args);
+    Dest->Length = (u32)Clamp(Written, 0, INT32_MAX);
     va_end(Args);
 }
 
 void String_FormatV(String* Dest, const String Format, u32 Capacity, void* VAList)
 {
-    Dest->Length = (u32)stbsp_vsnprintf(Dest->Data, (i32)Capacity, Format.Data, VAList);
+    const i32 NewCap = (i32)Clamp(Capacity, 0, INT32_MAX); 
+    const i32 Written = stbsp_vsnprintf(Dest->Data, NewCap, Format.Data, VAList);
+    Dest->Length = (u32)Clamp(Written, 0, INT32_MAX);
 }
 
 void StringInternal_BuildPath(String* Dest, const StringArray Array)
@@ -628,7 +631,8 @@ void StringInternal_BuildPath(String* Dest, const StringArray Array)
             continue;
         }
 
-        if (Param.Length == 1 && Param.Data[0] == '.') // '.' paths are ignored since they're kinda redundant to be in the path anyway
+        // '.' paths are ignored since they're kinda redundant to be in the path anyway
+        if (Param.Length == 1 && Param.Data[0] == '.')
         {
             continue;
         }

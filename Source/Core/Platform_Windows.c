@@ -160,7 +160,7 @@ void Platform_PreInitialize(void)
         GArgV[i-1].Capacity = Len;
     }
 
-    LocalFree(ArgsW);
+    (void)LocalFree(ArgsW);
 }
 
 bool Platform_CreateMutex(PlatformMutex* OutMutex)
@@ -203,7 +203,11 @@ bool Platform_ReleaseMutex(PlatformMutex* Mutex)
     if (NEVER(Mutex == NULL)) return false;
 
     BOOL bResult = ReleaseMutex(Mutex->Handle);
-    CloseHandle(Mutex->Handle);
+    if (bResult)
+    {
+        bResult = CloseHandle(Mutex->Handle);
+    }
+
     return bResult;
 }
 
@@ -229,9 +233,9 @@ StringArray Platform_GetCommandLineArgs(void)
 
 f64 Platform_GetClockFrequency(void)
 {
-    LARGE_INTEGER Frequency;
-    QueryPerformanceFrequency(&Frequency);
-    const f64 ClockFrequency = 1.0/(f64)Frequency.QuadPart;
+    LARGE_INTEGER Frequency = {0};
+    BOOL bSuccess = QueryPerformanceFrequency(&Frequency);
+    const f64 ClockFrequency = bSuccess ? 1.0/(f64)Frequency.QuadPart : 0.0;
     return ClockFrequency;
 }
 
@@ -347,7 +351,7 @@ void* Platform_MemReAlloc(const void* Block, usize Size)
 
 void Platform_MemFree(const void* Block)
 {
-    HeapFree(GetProcessHeap(), 0, (void*)Block);
+    (void)HeapFree(GetProcessHeap(), 0, (void*)Block);
 }
 
 void Platform_MemZero(void* Block, usize Size)
@@ -393,7 +397,7 @@ void Platform_ConsoleWrite_CustomLength(const char* Message, u32 Length, u8 Colo
     const u8 ConsoleColor = GConsoleColorLevels[Color];
     if (ConsoleColor != CONSOLE_INFO_COLOR) // Regular white color
     {
-        SetConsoleTextAttribute(ConsoleHandle, ConsoleColor);
+        (void)SetConsoleTextAttribute(ConsoleHandle, ConsoleColor);
     }
 
     bool bIgnoreNewLine = Color == 4 && Message[Length-1] == '\n';
@@ -404,27 +408,31 @@ void Platform_ConsoleWrite_CustomLength(const char* Message, u32 Length, u8 Colo
     OutputDebugString(Message);
     #endif
 
-    WriteConsole(ConsoleHandle, Message, (DWORD)Length, NULL, 0);
+    (void)WriteConsole(ConsoleHandle, Message, (DWORD)Length, NULL, 0);
 
     // SetConsoleTextAttribute is slow, so only call it when the color changes
     if (ConsoleColor != CONSOLE_INFO_COLOR) // Regular white color
     {
         // Reset back to white
-        SetConsoleTextAttribute(ConsoleHandle, CONSOLE_INFO_COLOR);
+        (void)SetConsoleTextAttribute(ConsoleHandle, CONSOLE_INFO_COLOR);
     }
 
     if (UNLIKELY(bIgnoreNewLine))
-        WriteConsole(ConsoleHandle, "\n", 1, NULL, 0);
+    {
+        (void)WriteConsole(ConsoleHandle, "\n", 1, NULL, 0);
+    }
 }
 
 f64 Platform_GetAbsoluteTime(void)
 {
     LARGE_INTEGER Frequency = {0}, Now = {0};
 
-    QueryPerformanceFrequency(&Frequency);
-    QueryPerformanceCounter(&Now);
+    BOOL bSuccess = QueryPerformanceFrequency(&Frequency);
+    if (bSuccess)
+        bSuccess = QueryPerformanceCounter(&Now);
 
-    return (f64)Now.QuadPart * (1.0/(f64)Frequency.QuadPart);
+    f64 Result = bSuccess ? (f64)Now.QuadPart * (1.0/(f64)Frequency.QuadPart) : 0.0;
+    return Result;
 }
 
 SystemTime Platform_GetSystemLocalTime(void)
@@ -468,18 +476,24 @@ void Platform_Sleep(f64 ms)
 {
     if (ms > 0)
     {
-        LARGE_INTEGER Frequency, Now;
-        QueryPerformanceCounter(&Now);
-        QueryPerformanceFrequency(&Frequency);
+        LARGE_INTEGER Frequency = {0}, Now = {0};
+        BOOL bSuccess = QueryPerformanceCounter(&Now);
+        if (bSuccess)
+            bSuccess = QueryPerformanceFrequency(&Frequency);
 
-        f64 Start = (f64)Now.QuadPart * (1.0/(f64)Frequency.QuadPart);
-        f64 Target = ms/1000.0;
-
-        while (1)
+        if (bSuccess)
         {
-            QueryPerformanceCounter(&Now);
-            if ((((f64)Now.QuadPart * (1.0/(f64)Frequency.QuadPart)) - Start) >= Target)
-                break;
+            f64 Start = (f64)Now.QuadPart * (1.0/(f64)Frequency.QuadPart);
+            f64 Target = ms/1000.0;
+
+            while (1)
+            {
+                (void)QueryPerformanceCounter(&Now);
+                if ((((f64)Now.QuadPart * (1.0/(f64)Frequency.QuadPart)) - Start) >= Target)
+                {
+                    break;
+                }
+            }
         }
     }
 }
@@ -633,7 +647,7 @@ u32 Platform_GetNumLogicalProcessors(void)
 Uuid UUID_Generate(void)
 {
     uuid_t id = {0};
-    UuidCreate(&id);
+    (void)UuidCreate(&id);
 
     return *(Uuid*)&id;
 }
@@ -648,15 +662,18 @@ void UUID_ToString(Uuid ID, String* OutString)
     // @Speed: Make our own uuid to string converter and not use windows heap allocating string
 
     RPC_CSTR str = {0};
-    UuidToString((uuid_t*)&ID, &str);
-    String_Copy(OutString, StrSlice((char*)str, GUID_LENGTH-1));
-    RpcStringFree(&str);
+    RPC_STATUS Status = UuidToString((uuid_t*)&ID, &str);
+    if (Status == RPC_S_OK)
+    {
+        String_Copy(OutString, StrSlice((char*)str, GUID_LENGTH-1));
+        (void)RpcStringFree(&str);
+    }
 }
 
 Uuid UUID_FromString(const String IDString)
 {
     uuid_t id = {0};
-    UuidFromString((const RPC_CSTR)IDString.Data, &id);
+    (void)UuidFromString((const RPC_CSTR)IDString.Data, &id);
 
     return *(Uuid*)&id;
 }
@@ -759,15 +776,10 @@ bool Filesystem_NewFile(const String FilePath)
 
 bool Filesystem_DeleteFile(String FilePath)
 {
-    //StringLocal(Copy, MAX_PATH);
-    //String_Copy(&Copy, FilePath);
-    // figured it be better to just overwrite one character to 0 instead of copying the entire string
-
-    // sigh... if only windows used length delimited strings...
-    //char Temp = FilePath.Data[FilePath.Length];
-    //FilePath.Data[FilePath.Length] = 0;
-    i32 Result = DeleteFile(FilePath.Data) != 0;
-    //FilePath.Data[FilePath.Length] = Temp;
+    StringLocal(Copy, MAX_PATH);
+    String_Copy(&Copy, FilePath);
+    
+    i32 Result = DeleteFile(Copy.Data) != 0;
 
     return Result != 0;
 }
@@ -785,7 +797,10 @@ bool Filesystem_Open_MemoryMapped(const String FilePath, u32 Mode, FileHandle* O
 
     if (!IsValidFileHandle(*OutHandle))
     {
-        Filesystem_Open(FilePath, Mode, OutHandle);
+        if (!Filesystem_Open(FilePath, Mode, OutHandle))
+        {
+            return false;
+        }
     }
 
     if (IsValidFileHandle(*OutHandle))
@@ -822,9 +837,6 @@ bool Filesystem_Open_MemoryMapped(const String FilePath, u32 Mode, FileHandle* O
 
         OutHandle->Data2 = fm;
 
-        LARGE_INTEGER FileSize;
-        GetFileSizeEx(OutHandle->Data, &FileSize);
-
         DWORD OpenStyle;
         if ((Mode & FileMode_Read) != 0 && (Mode & FileMode_Write) != 0)
         {
@@ -844,6 +856,9 @@ bool Filesystem_Open_MemoryMapped(const String FilePath, u32 Mode, FileHandle* O
             Filesystem_Close(OutHandle);
             return false;
         }
+
+        LARGE_INTEGER FileSize = {0};
+        (void)GetFileSizeEx(OutHandle->Data, &FileSize);
 
         if (OutSize)
             *OutSize = (usize)FileSize.QuadPart;
@@ -935,10 +950,10 @@ bool Filesystem_OpenDirectory_Ex(const String FilePath, FileHandle* OutHandle)
     return true;
 }
 
-bool Filesystem_Close(FileHandle* Handle)
+void Filesystem_Close(FileHandle* Handle)
 {
     if (NEVER(Handle == NULL))
-        return false;
+        return;
 
     if (Handle->Data2)
         CloseHandle(Handle->Data2);
@@ -947,10 +962,7 @@ bool Filesystem_Close(FileHandle* Handle)
     {
         CloseHandle(Handle->Data);
         *Handle = FileHandle_Null();
-        return true;
     }
-
-    return false;
 }
 
 bool Filesystem_Seek(const FileHandle Handle, isize Offset)
@@ -1004,7 +1016,7 @@ usize Filesystem_GetLastWriteTime(const String FilePath)
     FILETIME FileTimeStamp = {0};
     if (Filesystem_Open(FilePath, FileMode_Read, &f))
     {
-        GetFileTime(f.Data, NULL, NULL, &FileTimeStamp);
+        (void)GetFileTime(f.Data, NULL, NULL, &FileTimeStamp);
         Filesystem_Close(&f);
     }
 
@@ -1021,7 +1033,7 @@ usize Filesystem_GetLastAccessTime(const String FilePath)
     FILETIME FileTimeStamp = {0};
     if (Filesystem_Open(FilePath, FileMode_Read, &f))
     {
-        GetFileTime(f.Data, NULL, &FileTimeStamp, NULL);
+        (void)GetFileTime(f.Data, NULL, &FileTimeStamp, NULL);
         Filesystem_Close(&f);
     }
 
@@ -1038,7 +1050,7 @@ usize Filesystem_GetCreationTime(const String FilePath)
     FILETIME FileTimeStamp = {0};
     if (Filesystem_Open(FilePath, FileMode_Read, &f))
     {
-        GetFileTime(f.Data, &FileTimeStamp, NULL, NULL);
+        (void)GetFileTime(f.Data, &FileTimeStamp, NULL, NULL);
         Filesystem_Close(&f);
     }
 
@@ -1060,7 +1072,7 @@ FileTimeData Filesystem_GetFileTime(const String FilePath)
         FILETIME LastAccessTime = {0};
         FILETIME LastWriteTime = {0};
 
-        GetFileTime(f.Data, &CreationTime, &LastAccessTime, &LastWriteTime);
+        (void)GetFileTime(f.Data, &CreationTime, &LastAccessTime, &LastWriteTime);
         Filesystem_Close(&f);
 
         Time.CreationTime = (((ULONGLONG)CreationTime.dwHighDateTime) << 32) + CreationTime.dwLowDateTime;
@@ -1074,7 +1086,7 @@ FileTimeData Filesystem_GetFileTime(const String FilePath)
 usize Filesystem_GetLastWriteTimeH(const FileHandle Handle)
 {
     FILETIME FileTimeStamp = {0};
-    GetFileTime(Handle.Data, NULL, NULL, &FileTimeStamp);
+    (void)GetFileTime(Handle.Data, NULL, NULL, &FileTimeStamp);
 
     ULONGLONG a = (((ULONGLONG)FileTimeStamp.dwHighDateTime) << 32) + FileTimeStamp.dwLowDateTime;
     return (usize)a;
@@ -1083,7 +1095,7 @@ usize Filesystem_GetLastWriteTimeH(const FileHandle Handle)
 usize Filesystem_GetLastAccessTimeH(const FileHandle Handle)
 {
     FILETIME FileTimeStamp = {0};
-    GetFileTime(Handle.Data, NULL, &FileTimeStamp, NULL);
+    (void)GetFileTime(Handle.Data, NULL, &FileTimeStamp, NULL);
 
     ULONGLONG a = (((ULONGLONG)FileTimeStamp.dwHighDateTime) << 32) + FileTimeStamp.dwLowDateTime;
     return (usize)a;
@@ -1092,7 +1104,7 @@ usize Filesystem_GetLastAccessTimeH(const FileHandle Handle)
 usize Filesystem_GetCreationTimeH(const FileHandle Handle)
 {
     FILETIME FileTimeStamp = {0};
-    GetFileTime(Handle.Data, &FileTimeStamp, NULL, NULL);
+    (void)GetFileTime(Handle.Data, &FileTimeStamp, NULL, NULL);
 
     ULONGLONG a = (((ULONGLONG)FileTimeStamp.dwHighDateTime) << 32) + FileTimeStamp.dwLowDateTime;
     return (usize)a;
@@ -1105,7 +1117,7 @@ FileTimeData Filesystem_GetFileTimeH(const FileHandle Handle)
     FILETIME CreationTime = {0};
     FILETIME LastAccessTime = {0};
     FILETIME LastWriteTime = {0};
-    GetFileTime(Handle.Data, &CreationTime, &LastAccessTime, &LastWriteTime);
+    (void)GetFileTime(Handle.Data, &CreationTime, &LastAccessTime, &LastWriteTime);
 
     Time.CreationTime = (((ULONGLONG)CreationTime.dwHighDateTime) << 32) + CreationTime.dwLowDateTime;
     Time.LastAccessTime = (((ULONGLONG)LastAccessTime.dwHighDateTime) << 32) + LastAccessTime.dwLowDateTime;
@@ -1151,7 +1163,8 @@ bool Filesystem_ReadEntireFile(const FileHandle Handle, void* OutData, usize* Ou
     if (!Filesystem_GetFileSize(Handle, &Size))
         return false;
 
-    Filesystem_SeekToBeginning(Handle);
+    if (!Filesystem_SeekToBeginning(Handle))
+        return false;
 
     DWORD BytesRead = 0;
     BOOL Result = ReadFile(Handle.Data, OutData, (DWORD)Size, &BytesRead, NULL);
@@ -1170,13 +1183,21 @@ bool Filesystem_ReadLine(const FileHandle Handle, String* LineBuffer)
 
     DWORD CurrentPosition = SetFilePointer(Handle.Data, 0, NULL, FILE_CURRENT);
 
-    LARGE_INTEGER FileSize;
-    GetFileSizeEx(Handle.Data, &FileSize);
+    LARGE_INTEGER FileSize = {0};
+    if (!GetFileSizeEx(Handle.Data, &FileSize))
+    {
+        return false;
+    }
+
     usize Size = (usize)FileSize.QuadPart;
+    if (Size == 0)
+    {
+        return false;
+    }
 
     if (CurrentPosition >= Size)
     {
-        Filesystem_SeekToBeginning(Handle);
+        (void)Filesystem_SeekToBeginning(Handle);
         return false;
     }
 
@@ -1232,7 +1253,7 @@ bool Filesystem_ReadLine(const FileHandle Handle, String* LineBuffer)
         String_Empty(LineBuffer);
     }
 
-    SetFilePointer(Handle.Data, (i32)(CurrentPosition + FilePointerOffset), NULL, FILE_BEGIN);
+    (void)SetFilePointer(Handle.Data, (i32)(CurrentPosition + FilePointerOffset), NULL, FILE_BEGIN);
 
     return true;
 }
@@ -1341,7 +1362,8 @@ bool Filesystem_Write(const FileHandle Handle, usize DataSize, const void* Data,
     if (NEVER(!IsValidFileHandle(Handle))) return false;
     if (DataSize == 0) return false;
 
-    Filesystem_SeekToBeginning(Handle);
+    if (!Filesystem_SeekToBeginning(Handle))
+        return false;
 
     DWORD BytesWritten = 0;
     BOOL bResult = WriteFile(Handle.Data, Data, (DWORD)DataSize, &BytesWritten, NULL);
@@ -1353,7 +1375,7 @@ bool Filesystem_Write(const FileHandle Handle, usize DataSize, const void* Data,
     {
         StringLocal(Prefix, 2048);
         StringLocal(Path, MAX_PATH_LENGTH);
-        Filesystem_GetFilePath(Handle, &Path);
+        (void)Filesystem_GetFilePath(Handle, &Path);
         String_Format(&Prefix, S("Failed to write to file \"%S\""), Path);
         LogLastError(Prefix);
     }
@@ -1365,21 +1387,23 @@ bool Filesystem_WriteLine(const FileHandle Handle, const String Text, usize* Out
 {
     if (NEVER(!IsValidFileHandle(Handle))) return false;
 
-    Filesystem_SeekToEnd(Handle);
+    bool bResult = Filesystem_SeekToEnd(Handle);
 
-    DWORD BytesWritten = 0;
-    BOOL bResult = WriteFile(Handle.Data, Text.Data, (DWORD)Text.Length, &BytesWritten, NULL);
-
-    if (OutBytesWritten)
-        *OutBytesWritten = BytesWritten;
-
-    if (!bResult)
+    if (bResult)
     {
-        StringLocal(Prefix, 2048);
-        StringLocal(Path, MAX_PATH_LENGTH);
-        Filesystem_GetFilePath(Handle, &Path);
-        String_Format(&Prefix, S("Failed to write line to file \"%S\""), Path);
-        LogLastError(Prefix);
+        DWORD BytesWritten = 0;
+        bResult = WriteFile(Handle.Data, Text.Data, (DWORD)Text.Length, &BytesWritten, NULL);
+
+        if (OutBytesWritten) *OutBytesWritten = BytesWritten;
+
+        if (!bResult)
+        {
+            StringLocal(Prefix, 2048);
+            StringLocal(Path, MAX_PATH_LENGTH);
+            (void)Filesystem_GetFilePath(Handle, &Path);
+            String_Format(&Prefix, S("Failed to write line to file \"%S\""), Path);
+            LogLastError(Prefix);
+        }
     }
 
     return bResult;
@@ -1389,27 +1413,28 @@ bool Filesystem_WriteLineFormatted(const FileHandle Handle, const String Text, u
 {
     if (NEVER(!IsValidFileHandle(Handle))) return false;
 
-    Filesystem_SeekToEnd(Handle);
-
-    va_list Args;
-    va_start(Args, OutBytesWritten);
-    StringLocal(Buffer, 32768);
-    String_FormatV(&Buffer, Text, 32768, Args);
-    va_end(Args);
-
-    DWORD BytesWritten = 0;
-    BOOL bResult = WriteFile(Handle.Data, Buffer.Data, (DWORD)Buffer.Length, &BytesWritten, NULL);
-
-    if (OutBytesWritten)
-        *OutBytesWritten = BytesWritten;
-
-    if (!bResult)
+    bool bResult = Filesystem_SeekToEnd(Handle);
+    if (bResult)
     {
-        StringLocal(Prefix, 2048);
-        StringLocal(Path, MAX_PATH_LENGTH);
-        Filesystem_GetFilePath(Handle, &Path);
-        String_Format(&Prefix, S("Failed to write line to file \"%S\""), Path);
-        LogLastError(Prefix);
+        va_list Args;
+        va_start(Args, OutBytesWritten);
+        StringLocal(Buffer, 32768);
+        String_FormatV(&Buffer, Text, Buffer.Capacity, Args);
+        va_end(Args);
+
+        DWORD BytesWritten = 0;
+        bResult = WriteFile(Handle.Data, Buffer.Data, (DWORD)Buffer.Length, &BytesWritten, NULL);
+
+        if (OutBytesWritten) *OutBytesWritten = BytesWritten;
+
+        if (!bResult)
+        {
+            StringLocal(Prefix, 2048);
+            StringLocal(Path, MAX_PATH_LENGTH);
+            (void)Filesystem_GetFilePath(Handle, &Path);
+            String_Format(&Prefix, S("Failed to write line to file \"%S\""), Path);
+            LogLastError(Prefix);
+        }
     }
 
     return bResult;
@@ -1438,34 +1463,29 @@ bool Filesystem_DoesDirectoryExist(const String FilePath)
 
 bool Filesystem_GetFilePath(const FileHandle File, String* OutPath)
 {
-    if (!IsValidFileHandle(File))
+    if (!IsValidFileHandle(File)) return false;
+
+    const u32 MaxCap = Min(OutPath->Capacity, MAX_PATH);
+    const u32 Length = GetFinalPathNameByHandle(File.Data, OutPath->Data, MaxCap, FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
+    const bool bSuccess = Length > 0;
+
+    if (bSuccess)
     {
-        return false;
+        OutPath->Length = Length;
+        *OutPath = StrShiftF(*OutPath, 4); // ignore //?/
     }
 
-    u32 Length = GetFinalPathNameByHandle(File.Data, OutPath->Data, MAX_PATH, FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
-    if (Length == 0)
-    {
-        LogLastError(S("Filesystem_GetFilePath failed"));
-        return false;
-    }
-
-    OutPath->Length = Length;
-    *OutPath = StrShiftF(*OutPath, 4); // ignore //?/
-    return true;
+    return bSuccess;
 }
 
 bool Filesystem_GetFileSize(const FileHandle File, usize* OutSize)
 {
-    if (IsValidFileHandle(File))
-    {
-        LARGE_INTEGER FileSize;
-        BOOL Result = GetFileSizeEx(File.Data, &FileSize);
-        *OutSize = (usize)FileSize.QuadPart;
-        return Result;
-    }
+    if (!IsValidFileHandle(File)) return false;
 
-    return false;
+    LARGE_INTEGER FileSize = {0};
+    BOOL Result = GetFileSizeEx(File.Data, &FileSize);
+    *OutSize = (usize)FileSize.QuadPart;
+    return Result;
 }
 
 bool Filesystem_IsFile(const String Path)
@@ -1625,7 +1645,7 @@ bool Filesystem_DeleteFiles(const String FilePath, const String Wildcard, bool b
 
                 if (bRecursive)
                 {
-                    Filesystem_DeleteFiles(SubPath, Wildcard, true);
+                    (void)Filesystem_DeleteFiles(SubPath, Wildcard, true);
                 }
             }
             else
@@ -1674,14 +1694,14 @@ bool Filesystem_DeleteDirectory(const String DirectoryPath)
                 StringLocal(SubPath, MAX_PATH_LENGTH);
                 String_BuildPath(&SubPath, DirectoryPath, FileName);
 
-                Filesystem_DeleteDirectory(SubPath);
+                (void)Filesystem_DeleteDirectory(SubPath);
             }
             else
             {
                 StringLocal(FullPath, MAX_PATH_LENGTH);
                 String_BuildPath(&FullPath, DirectoryPath, FileName);
 
-                DeleteFile(FullPath.Data);
+                (void)DeleteFile(FullPath.Data);
             }
         }
         while (FindNextFile(hFind, &fd));
@@ -1707,7 +1727,7 @@ bool Filesystem_Copy(const String Source, const String Destination)
     u32 LastSlash = 0;
     if (String_IndexOfLastPathSlash(DestinationCopy, &LastSlash))
     {
-        Filesystem_OpenDirectory(StrSlice(DestinationCopy.Data, LastSlash));
+        (void)Filesystem_OpenDirectory(StrSlice(DestinationCopy.Data, LastSlash));
     }
 
     /*
@@ -1731,7 +1751,7 @@ bool Filesystem_Copy(const String Source, const String Destination)
     // otherwise the copy will fail if the file already exists at the destination
     if (Filesystem_DoesFileExist(DestinationCopy))
     {
-        SetFileAttributes(DestinationCopy.Data, (u32)GetFileAttributes(DestinationCopy.Data) & (u32)~FILE_ATTRIBUTE_READONLY);
+        (void)SetFileAttributes(DestinationCopy.Data, (u32)GetFileAttributes(DestinationCopy.Data) & (u32)~FILE_ATTRIBUTE_READONLY);
     }
 
     BOOL bResult = CopyFileEx(SourceCopy.Data, DestinationCopy.Data, NULL, NULL, NULL, COPY_FILE_NO_BUFFERING);
@@ -1772,7 +1792,7 @@ bool Filesystem_Move(const String Source, const String Destination, bool bRename
         // try to create the directory if it doesn't exist
         LastSlash = 0;
         bool bHasSlash = String_IndexOfLastPathSlash(DestinationCopy, &LastSlash);
-        Filesystem_OpenDirectory(bHasSlash ? StrSlice(DestinationCopy.Data, LastSlash) : DestinationCopy);
+        (void)Filesystem_OpenDirectory(bHasSlash ? StrSlice(DestinationCopy.Data, LastSlash) : DestinationCopy);
     }
 
     BOOL bResult = MoveFileEx(SourceCopy.Data, DestinationCopy.Data, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
@@ -2031,7 +2051,7 @@ u32 Platform_WaitForProcessAndGetExitCode(PlatformHandle Handle)
 {
     if (NEVER(!Platform_IsValidHandle(Handle))) return 0;
 
-    WaitForSingleObject(Handle, INFINITE);
+    (void)WaitForSingleObject(Handle, INFINITE);
 
     DWORD ExitCode = 0;
     if (!GetExitCodeProcess(Handle, &ExitCode))
@@ -2053,7 +2073,7 @@ void Platform_WaitForHandle(PlatformHandle Handle, i32 Milliseconds)
     if (NEVER(!Platform_IsValidHandle(Handle))) return;
 
     i32 Time = Milliseconds <= 0 ? (i32)INFINITE : Milliseconds;
-    WaitForSingleObject(Handle, (u32)Time);
+    (void)WaitForSingleObject(Handle, (u32)Time);
 }
 
 void Platform_CloseHandle(PlatformHandle Handle)

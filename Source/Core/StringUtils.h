@@ -221,7 +221,7 @@ RIFT_API void EatSymbols_Backwards(char** Str);
 
 
 // inline implementations
-FORCEINLINE static String StrSlice(const char* Data, u32 Len)
+FORCEINLINE NO_DISCARD static String StrSlice(const char* Data, u32 Len)
 {
     String Result;
     Result.Data     = (char*)Data;
@@ -231,7 +231,7 @@ FORCEINLINE static String StrSlice(const char* Data, u32 Len)
     return Result;
 }
 
-FORCEINLINE static String StrShiftF(const String s, u32 Offset)
+FORCEINLINE NO_DISCARD static String StrShiftF(const String s, u32 Offset)
 {
     const u32 MinLength   = Min(Offset, s.Length);
     const u32 MinCapacity = Min(Offset, s.Capacity);

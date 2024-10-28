@@ -59,16 +59,16 @@ enum
 #define SArray_Num(Array)                             CONCAT(Array, _Count)
 #define SArray_Add(Array, Value)                      do { if (CONCAT(Array, _Count) < SArray_Capacity(Array)) { Array[CONCAT(Array, _Count)] = Value; CONCAT(Array, _Count)++; }} while (0)
 
-RIFT_API void* _ArrayCreate(usize Num, usize Stride);
-RIFT_API void* _ArrayCreateStatic(void* Memory, usize Num, usize Stride);
+RIFT_API NO_DISCARD void* _ArrayCreate(usize Num, usize Stride);
+RIFT_API NO_DISCARD void* _ArrayCreateStatic(void* Memory, usize Num, usize Stride);
 RIFT_API void  _ArrayDestroy(void* Array);
-RIFT_API usize _ArrayCalculateMemRequirement(usize Num, usize Stride);
+RIFT_API NO_DISCARD usize _ArrayCalculateMemRequirement(usize Num, usize Stride);
 
 RIFT_API void  _ArrayAdd(void* Array, const void* ValuePtr);
 RIFT_API void  _ArrayInsertAt(void* Array, const void* ValuePtr, usize Index);
 RIFT_API void  _ArrayRemoveLast(void* Array, void* ValuePtr);
 RIFT_API void  _ArrayRemoveAt(void* Array, void* ValuePtr, usize Index);
 
-RIFT_API void* Array_Null(void);
+RIFT_API NO_DISCARD void* Array_Null(void);
 
 #endif // _ARRAY_H_

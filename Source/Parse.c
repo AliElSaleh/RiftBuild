@@ -1102,11 +1102,12 @@ bool ParseBuildFile(LinearAllocator* Arena,
             {
                 u32 LastSlash = 0;
                 StringLocal(IncludePath, MAX_PATH_LENGTH);
-                Filesystem_GetFilePath(H, &IncludePath);
-
-                bool bHasSlash = String_IndexOfLastPathSlash(IncludePath, &LastSlash);
-                const String Path = bHasSlash ? StrSlice(IncludePath.Data, LastSlash) : IncludePath;
-                String_BuildPath(&IncludeFilePath, Path, VarValue);
+                if (Filesystem_GetFilePath(H, &IncludePath))
+                {
+                    bool bHasSlash = String_IndexOfLastPathSlash(IncludePath, &LastSlash);
+                    const String Path = bHasSlash ? StrSlice(IncludePath.Data, LastSlash) : IncludePath;
+                    String_BuildPath(&IncludeFilePath, Path, VarValue);
+                }
             }
             else
             {
@@ -1120,7 +1121,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
             }
 
             String_ConvertSlashToPlatformSlash(&ExpandedPath);
-            Filesystem_ConvertRelativeToAbsolutePath(&ExpandedPath);
+            (void)Filesystem_ConvertRelativeToAbsolutePath(&ExpandedPath);
 
             if (!Filesystem_DoesFileExist(ExpandedPath))
             {
@@ -1146,9 +1147,9 @@ bool ParseBuildFile(LinearAllocator* Arena,
             }
 
             usize Size = 0;
-            Filesystem_GetFileSize(IncludeFileHandle, &Size);
+            bool bResult = Filesystem_GetFileSize(IncludeFileHandle, &Size);
 
-            if (Size == 0)
+            if (!bResult || Size == 0)
             {
                 #ifndef HOOD
                 LOG_WARNING("Include file \"%S\" has a size of 0. Skipping...", ExpandedPath);
@@ -1159,67 +1160,68 @@ bool ParseBuildFile(LinearAllocator* Arena,
             else
             {
                 StringLocal(IncludePath, MAX_PATH_LENGTH);
-                Filesystem_GetFilePath(IncludeFileHandle, &IncludePath);
-
-                if (Includes)
+                if (Filesystem_GetFilePath(IncludeFileHandle, &IncludePath))
                 {
-                    bool bError = false;
-                    for each_str_list (*Includes)
+                    if (Includes)
                     {
-                        if (String_IsEqual(IncludePath, It.String, false))
-                        {
-                            LOG_ERROR("\"%S\" is including itself\n", IncludePath);
-                            bError = true;
-                            break;
-                        }
-                    }
-
-                    if (bError)
-                    {
-                        LOG("  Include hierarchy for %S", BuildFilePath);
-                        LOG_INLINE("     ");
-                        u8 i = 0;
+                        bool bError = false;
                         for each_str_list (*Includes)
                         {
-                            LOG("%S", It.String);
-
-                            for (u8 Level = 0; Level < i; Level++)
-                                LOG_INLINE("   ");
-                            
-                            LOG_INLINE("     |- ");
-
-                            i++;
+                            if (String_IsEqual(IncludePath, It.String, false))
+                            {
+                                LOG_ERROR("\"%S\" is including itself\n", IncludePath);
+                                bError = true;
+                                break;
+                            }
                         }
 
-                        LOG("%S <--", IncludeFilePath);
+                        if (bError)
+                        {
+                            LOG("  Include hierarchy for %S", BuildFilePath);
+                            LOG_INLINE("     ");
+                            u8 i = 0;
+                            for each_str_list (*Includes)
+                            {
+                                LOG("%S", It.String);
 
+                                for (u8 Level = 0; Level < i; Level++)
+                                    LOG_INLINE("   ");
+                                
+                                LOG_INLINE("     |- ");
+
+                                i++;
+                            }
+
+                            LOG("%S <--", IncludeFilePath);
+
+                            return false;
+                        }
+                    }
+
+                    // detect circular includes
+                    StringList Entry;
+                    Entry.String = IncludePath;
+                    Entry.Next = NULL;
+
+                    StringList** Next = &Includes;
+                    while (*Next)
+                    {
+                        Next = &(*Next)->Next;
+                    }
+
+                    *Next = &Entry;
+
+                    Array_Add(IncludeFiles, IncludeFileHandle);
+
+                    if (!ParseBuildFile(Arena, IncludeFileHandle, BuildFilePath, WorkingDirectory,
+                                        VariablesDB, ExpandedVariablesDB, CmdOptionsDB, Messages,
+                                        IncludeFiles, ReturnCode, true, Includes, bIsAssemblyExe))
+                    {
                         return false;
                     }
+
+                    *Next = NULL;
                 }
-
-                // detect circular includes
-                StringList Entry;
-                Entry.String = IncludePath;
-                Entry.Next = NULL;
-
-                StringList** Next = &Includes;
-                while (*Next)
-                {
-                    Next = &(*Next)->Next;
-                }
-
-                *Next = &Entry;
-
-                Array_Add(IncludeFiles, IncludeFileHandle);
-
-                if (!ParseBuildFile(Arena, IncludeFileHandle, BuildFilePath, WorkingDirectory,
-                                    VariablesDB, ExpandedVariablesDB, CmdOptionsDB, Messages,
-                                    IncludeFiles, ReturnCode, true, Includes, bIsAssemblyExe))
-                {
-                    return false;
-                }
-
-                *Next = NULL;
             }
         }
 

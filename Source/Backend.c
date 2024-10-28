@@ -617,7 +617,7 @@ bool C_DoCompile(CompileData* Data, const String FullPath, const String Relative
         return true;
     }
 
-    Filesystem_NewFile(ObjectPath);
+    (void)Filesystem_NewFile(ObjectPath);
 
     if (bQuietBuild) Logging_Enable();
 
@@ -1309,7 +1309,7 @@ bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String Relat
         //String_BuildPath(&ObjectFilePath, Params->RootDirectory, Params->IntermediateDirectory, FilePath);
     }
 
-    Filesystem_ConvertRelativeToAbsolutePath(&ObjectFilePath);
+    (void)Filesystem_ConvertRelativeToAbsolutePath(&ObjectFilePath);
 
     //String FinalFullPath     = FullPath;
     String FinalRelativePath = RelativePath;
@@ -1351,7 +1351,7 @@ bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String Relat
                 FileHandle f = FileHandle_Null();
                 if (Filesystem_Open(PchSourceFile, FileMode_Write, &f))
                 {
-                    Filesystem_WriteLineFormatted(f, S("#include \"%S\"\n"), NULL, RelativePath);
+                    (void)Filesystem_WriteLineFormatted(f, S("#include \"%S\"\n"), NULL, RelativePath);
                     Filesystem_Close(&f);
                 }
             }
@@ -1454,9 +1454,12 @@ bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String Relat
 
     StringLocal(FullObjectPath, MAX_PATH_LENGTH);
     String_BuildPath(&FullObjectPath, Params->RootDirectory, ObjectPath);
-    Filesystem_ConvertRelativeToAbsolutePath(&FullObjectPath);
+    (void)Filesystem_ConvertRelativeToAbsolutePath(&FullObjectPath);
 
-    Filesystem_OpenDirectory(FullObjectPath);
+    if (!Filesystem_OpenDirectory(FullObjectPath))
+    {
+        return false;
+    }
 
     if (ObjectPath.Length > 0)
     {

@@ -9,11 +9,11 @@ struct EngineGlobals;
 
 RIFT_API void InitializeGlobals(void* Memory, usize Size);
 
-RIFT_API struct String String_Null(void);
-RIFT_API struct StringArray StringArray_Null(void);
-RIFT_API struct StringList StringList_Null(void);
+RIFT_API NO_DISCARD struct String String_Null(void);
+RIFT_API NO_DISCARD struct StringArray StringArray_Null(void);
+RIFT_API NO_DISCARD struct StringList StringList_Null(void);
 
-RIFT_API struct EngineGlobals Globals_Get(void);
+RIFT_API NO_DISCARD struct EngineGlobals Globals_Get(void);
 
 void Globals_AssertNullString(void);
 void Globals_AssertNullStringArray(void);

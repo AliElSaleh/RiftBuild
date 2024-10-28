@@ -44,21 +44,21 @@ STRUCT(MemoryRange)
     usize Size;
 };
 
-RIFT_API bool Memory_Initialize(void* Memory, usize MemSize, void* ScratchMemory, usize ScratchSize);
-RIFT_API void Memory_Shutdown(void);
+RIFT_API NO_DISCARD bool Memory_Initialize(void* Memory, usize MemSize, void* ScratchMemory, usize ScratchSize);
+RIFT_API            void Memory_Shutdown(void);
 
-RIFT_API void* MemAlloc(usize Size, EMemoryTag Tag);// RETURN_NON_NULL;
-RIFT_API void  MemFree(void* Block, EMemoryTag Tag);
-RIFT_API void  MemSet(void* Destination, i32 Value, usize Size);
-RIFT_API void  MemZero(void* Block, usize Size);
-RIFT_API void  MemCopy(void* restrict Destination, const void* restrict Source, usize Size);
-RIFT_API void  MemMove(void* restrict Destination, const void* restrict Source, usize Size);
-RIFT_API bool  MemEqual(const void* Block1, const void* Block2, usize Size);
+RIFT_API NO_DISCARD void* MemAlloc(usize Size, EMemoryTag Tag);// RETURN_NON_NULL;
+RIFT_API            void  MemFree(void* Block, EMemoryTag Tag);
+RIFT_API            void  MemSet(void* Destination, i32 Value, usize Size);
+RIFT_API            void  MemZero(void* Block, usize Size);
+RIFT_API            void  MemCopy(void* restrict Destination, const void* restrict Source, usize Size);
+RIFT_API            void  MemMove(void* restrict Destination, const void* restrict Source, usize Size);
+RIFT_API NO_DISCARD bool  MemEqual(const void* Block1, const void* Block2, usize Size);
 
-RIFT_API LinearAllocator Memory_GetScratch(void);
-RIFT_API usize Memory_GetEngineMemoryRemaining(void);
+RIFT_API NO_DISCARD LinearAllocator Memory_GetScratch(void);
+RIFT_API NO_DISCARD usize Memory_GetEngineMemoryRemaining(void);
 
-RIFT_API bool IsValid(const void* Memory);
-RIFT_API bool IsValidSlow(const void* Memory);
+RIFT_API NO_DISCARD bool IsValid(const void* Memory);
+RIFT_API NO_DISCARD bool IsValidSlow(const void* Memory);
 
 #endif // _MEMORY_H_

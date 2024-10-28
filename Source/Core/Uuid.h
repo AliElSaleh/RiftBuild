@@ -15,11 +15,9 @@ STRUCT(Uuid)
     u8 Data4[8];
 };
 
-RIFT_API Uuid UUID_Generate(void);
-
-RIFT_API bool UUID_IsEqual(Uuid First, Uuid Second);
-
+RIFT_API NO_DISCARD Uuid UUID_Generate(void);
+RIFT_API NO_DISCARD bool UUID_IsEqual(Uuid First, Uuid Second);
+RIFT_API NO_DISCARD Uuid UUID_FromString(const String IDString);
 RIFT_API void UUID_ToString(Uuid ID, String* OutString);
-RIFT_API Uuid UUID_FromString(const String IDString);
 
 #endif // _UUID_H_

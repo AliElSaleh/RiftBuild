@@ -80,9 +80,9 @@ typedef void VoidFunc(void);
 #define DBL_MAX_10_EXP   308  // max decimal exponent
 #define DBL_MAX_EXP      1024 // max binary exponent
 
-#define Clamp(Value, Min, Max) ((Value) < (Min)) ? (Min) : ((Value) < (Max)) ? (Value) : (Max)
-#define ClampMin(Value, Min) ((Value) < (Min)) ? (Min) : (Value)
-#define ClampMax(Value, Max) ((Value) > (Max)) ? (Max) : (Value)
+#define Clamp(Value, Min, Max) (((Value) < (Min)) ? (Min) : ((Value) < (Max)) ? (Value) : (Max))
+#define ClampMin(Value, Min)   (((Value) < (Min)) ? (Min) : (Value))
+#define ClampMax(Value, Max)   (((Value) > (Max)) ? (Max) : (Value))
 
 #define Min(A, B) ((A) < (B) ? (A) : (B))
 #define Max(A, B) ((A) > (B) ? (A) : (B))
