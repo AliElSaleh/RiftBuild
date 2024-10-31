@@ -6,27 +6,18 @@
 #endif
 
 #ifdef NO_ASSERT
-    #define ASSERT(Expression)
     #define ASSERT_MSG(Expression, Text, ...)
-    #define ENSURE(Expression)               
     #define ENSURE_MSG(Expression, Text, ...)
 #else
+    // TODO: simplify
     #ifdef NO_LOG
-        #define ASSERT(Expression) do { if (Expression) {} else { DEBUG_BREAK(); _Crash_; } } while (0)
-        #define ENSURE(Expression) do { if (Expression) {} else { DEBUG_BREAK(); } } while (0)
-    #else
-        #define ASSERT(Expression) do { if (Expression) {} else { DEBUG_BREAK(); _Crash_; } } while (0)
-        #define ENSURE(Expression) do { if (Expression) {} else { DEBUG_BREAK(); } } while (0)
-    #endif
-
-    #ifdef NO_LOG
-        #define ASSERT_MSG(Expression, Text, ...) do { if (Expression) {} else { DEBUG_BREAK(); _Crash_; } } while (0)
-        #define ENSURE_MSG(Expression, Text, ...) do { if (Expression) {} else { DEBUG_BREAK(); } } while (0)
+        #define ASSERT_MSG(Expression, Text, ...) ASSERT(Expression)
+        #define ENSURE_MSG(Expression, Text, ...) ENSURE(Expression)
     #else
         #define ASSERT_MSG(Expression, Text, ...) do { if (Expression) {} else { LOG_DEBUG_T(LOG_TYPE_FATAL, "Assert Failed: '" STRINGIZE(Expression) "'" "\n" Text, ##__VA_ARGS__); DEBUG_BREAK();  _Crash_; } } while (0)
-        #define ENSURE_MSG(Expression, Text, ...) do { if (Expression) {} else { LOG_DEBUG_T(LOG_TYPE_FATAL, "Assert Failed: '" STRINGIZE(Expression) "'" "\n" Text, ##__VA_ARGS__); DEBUG_BREAK(); } } while (0)
+        #define ENSURE_MSG(Expression, Text, ...) do { if (Expression) {} else { LOG_DEBUG_T(LOG_TYPE_FATAL, "Ensure Failed: '" STRINGIZE(Expression) "'" "\n" Text, ##__VA_ARGS__); DEBUG_BREAK(); } } while (0)
     #endif
-#endif // NO_ASSERT
+#endif
 
 #ifdef NO_LOG
 #define LOG_CAT(LogCategory, Text, ...)
@@ -37,7 +28,7 @@
 #define LOG_CAT_FATAL(LogCategory, Text, ...)
 
 #define LOG(Text, ...)
-#define LOG_MUTE(....)
+#define LOG_MUTE(...)
 #define LOG_INFO(Text, ...)
 #define LOG_SUCCESS(Text, ...)
 #define LOG_WARNING(Text, ...)

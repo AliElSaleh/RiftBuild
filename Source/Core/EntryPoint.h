@@ -7,9 +7,6 @@
 #include "Log.h"
 #endif
 
-global usize GEngineMemoryAmount;
-global usize GEngineScratchAmount;
-
 PRAGMA_DISABLE_MISSING_PROTOTYPES_WARNING
 
 #ifndef RIFT_STATIC
@@ -34,6 +31,9 @@ int main(i32 ArgC, char* ArgV[], char* ArgEnv[])
 void EntryPoint(void)
 #endif
 {
+    global usize GEngineMemoryAmount;
+    global usize GEngineScratchAmount;
+
     #if !PLATFORM_WINDOWS && USE_MAIN
     pre_main(ArgC, ArgV, ArgEnv);
     #endif

@@ -9,7 +9,6 @@
 #include "Globals.h"
 #include "Uuid.h"
 #include "Filesystem.h"
-#include "Log.h"
 
 #if PLATFORM_LINUX
 #define _XOPEN_SOURCE 700
@@ -52,7 +51,11 @@ internal void LogLastError(const String Prefix)
     StringLocal(Message, 4096);
     String_Copy(&Message, CStr(strerror(errno)));
 
-    LOG_ERROR("%S\n        errno %i\n        Reason: %S\n", Prefix, errno, Message);
+    //LOG_ERROR("%S\n        errno %i\n        Reason: %S\n", Prefix, errno, Message);
+
+    StringLocal(FormattedMessage, 4096);
+    String_Format(&FormattedMessage, S("%S\n        Error Code: %i\n        Reason: %S"), Prefix, errno, Message);
+    Platform_ConsoleWrite_CustomLength(FormattedMessage.Data, FormattedMessage.Length, 3, true);
 }
 #else
 #define LogLastError(...)
@@ -840,7 +843,8 @@ bool Filesystem_Open(const String FilePath, u32 Mode, FileHandle* OutHandle)
     }
     else
     {
-        LOG_WARNING("Invalid mode passed (%u) while trying to open file \"%S\"", Mode, FilePath);
+        // TODO
+        //LOG_WARNING("Invalid mode passed (%u) while trying to open file \"%S\"", Mode, FilePath);
         return false;
     }
 

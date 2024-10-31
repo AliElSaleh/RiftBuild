@@ -15,7 +15,6 @@ STRUCT(EngineGlobals)
 {
     TArray(void) NullArray;
     struct FileHandle NullFileHandle;
-    Clock NullClock;
     String NullString;
     StringArray NullStringArray;
     StringList NullStringList;
@@ -40,12 +39,6 @@ internal void InitGlobals(EngineGlobals* G)
         Handle.Data = LinearAllocator_Allocate(&GlobalsAllocator, 8);
         Handle.Data2 = NULL;
         G->NullFileHandle = Handle;
-    }
-
-    // Clock
-    {
-        Clock c = {0};
-        G->NullClock = c;
     }
 
     // String

@@ -408,10 +408,9 @@ void* LinearAllocator_Allocate(LinearAllocator* Allocator, usize Size)
     
     void* Block = ((u8*)Allocator->Memory) + Allocator->Allocated;
 
-    const usize Alignment = 3;
-
     if (Allocator->bAlignMemory)
     {
+        const usize Alignment = 3;
         Allocator->Allocated += ((Size + Alignment) & ~Alignment); // @Enhancement: Make more robust if the memory given was unaligned to begin with
     }
     else
@@ -842,7 +841,7 @@ void* _ArrayCreate(usize Num, usize Stride)
     return (void*)(NewArray + ArrayField_Count);
 }
 
-usize _ArrayCalculateMemRequirement(usize Num, usize Stride)
+usize Array_CalculateMemRequirement(usize Num, usize Stride)
 {
     usize HeaderSize = ArrayField_Count * sizeof(usize);
     usize Alignment = 3;
@@ -863,7 +862,7 @@ void* _ArrayCreateStatic(void* Memory, usize Num, usize Stride)
     return (void*)(NewArray + ArrayField_Count);
 }
 
-void _ArrayDestroy(void* Array)
+void Array_Destroy(void* Array)
 {
     usize* Header = (usize*)Array - ArrayField_Count;
     
@@ -881,13 +880,15 @@ internal void* _ArrayResize(void* Array)
     {
         usize Num = Array_Num(Array);
         usize Stride = Array_Stride(Array);
+
+        #define ARRAY_RESIZE_FACTOR 2
         
         void* NewArray = _ArrayCreate(Array_Capacity(Array) * ARRAY_RESIZE_FACTOR, Stride);
 
         MemCopy(NewArray, Array, Num * Stride);
 
         _ArrayFieldSet(Array, ArrayField_Num, Num);
-        _ArrayDestroy(Array);
+        Array_Destroy(Array);
         
         return NewArray;
     }
@@ -968,7 +969,7 @@ void _ArrayInsertAt(void* Array, const void* ValuePtr, usize Index)
     _ArrayFieldSet(Array, ArrayField_Num, Num+1);
 }
 
-void _ArrayRemoveLast(void* Array, void* ValuePtr)
+void Array_RemoveLast(void* Array, void* ValuePtr)
 {
     usize Num = Array_Num(Array);
     usize Stride = Array_Stride(Array);
@@ -981,7 +982,7 @@ void _ArrayRemoveLast(void* Array, void* ValuePtr)
     _ArrayFieldSet(Array, ArrayField_Num, Num-1);
 }
 
-void _ArrayRemoveAt(void* Array, void* ValuePtr, usize Index)
+void Array_RemoveAt(void* Array, void* ValuePtr, usize Index)
 {
     usize Num = Array_Num(Array);
     usize Stride = Array_Stride(Array);

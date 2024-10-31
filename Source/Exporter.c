@@ -8,7 +8,7 @@
 #include "Globals.h"
 #endif
 
-bool bHasWrittenJSON = false;
+static bool bHasWrittenJSON = false;
 
 STRUCT(ExportData)
 {

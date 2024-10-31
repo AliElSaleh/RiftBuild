@@ -5,14 +5,6 @@
 #include "EngineTypes.h"
 #endif
 
-#ifdef _DEBUG
-#define TIME_SCOPE_SLOW(name, code) { Clock CONCAT(c, __LINE__); Clock_Start(&CONCAT(c, __LINE__)); code Clock_Tick(&CONCAT(c, __LINE__)); char ElapsedTimeString[16] = { 0 }; Time_ToString(CONCAT(c, __LINE__).ElapsedTime, true, ElapsedTimeString); LOG_INFO(name " took: %s", ElapsedTimeString); }
-#define TIME_SCOPE(name, code) { Logging_Disable(); Clock CONCAT(c, __LINE__); Clock_Start(&CONCAT(c, __LINE__)); code Clock_Tick(&CONCAT(c, __LINE__)); Logging_Enable(); StringLocal(ElapsedTimeString, 16); Time_ToString(CONCAT(c, __LINE__).ElapsedTime, true, &ElapsedTimeString); LOG_INFO(name " took: %s", ElapsedTimeString.Data); }
-#else
-#define TIME_SCOPE_SLOW(name, code) code;
-#define TIME_SCOPE(name, code) code;
-#endif
-
 STRUCT(Clock)
 {
 	f64 StartTime;

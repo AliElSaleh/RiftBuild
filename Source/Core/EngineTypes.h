@@ -163,15 +163,15 @@ STRUCT(StringList)
 #define StringLocal(Name, n) 	            char  MACRO_VAR(CONCAT(Buffer_, Name))[n+1] = {0}; String   Name; Name.Data = MACRO_VAR(CONCAT(Buffer_, Name)); Name.Length = 0; Name.Capacity = (n)
 #define String16Local(Name, n) 	            wchar MACRO_VAR(CONCAT(Buffer_, Name))[n+1] = {0}; String16 Name; Name.Data = MACRO_VAR(CONCAT(Buffer_, Name)), Name.Length = 0, Name.Capacity = (n)
 
-#define CStr(s)                             (String)         {.Data = (char* )(s), .Length = String_GetLength(s),       .Capacity = 0}
-#define CStrEx(s, n)                        (String)         {.Data = (char* )(s), .Length = String_GetLength_Ex(s, n), .Capacity = 0}
-#define CStrView(s)                         (const String)   {.Data = (char* )(s), .Length = String_GetLength(s),       .Capacity = 0}
-#define CStr16(s)                           (String16)       {.Data = (wchar*)(s), .Length = String16_GetLength((wchar*)(s)),     .Capacity = 0}
-#define CStr16View(s)                       (const String16) {.Data = (wchar*)(s), .Length = String16_GetLength(s),     .Capacity = 0}
+#define CStr(s)                             (String)         {.Data = (char* )(s),     .Length = String_GetLength(s),             .Capacity = 0}
+#define CStrEx(s, n)                        (String)         {.Data = (char* )(s),     .Length = String_GetLength_Ex(s, n),       .Capacity = 0}
+#define CStrView(s)                         (const String)   {.Data = (char* )(s),     .Length = String_GetLength(s),             .Capacity = 0}
+#define CStr16(s)                           (String16)       {.Data = (wchar*)(s),     .Length = String16_GetLength((wchar*)(s)), .Capacity = 0}
+#define CStr16View(s)                       (const String16) {.Data = (wchar*)(s),     .Length = String16_GetLength(s),           .Capacity = 0}
 
-#define S(s)                                (const String)   {.Data = (char* )((s)), .Length = sizeof((s))-1, .Capacity = sizeof((s))-1}
-#define SC(s)                                                {.Data = (char* )((s)), .Length = sizeof((s))-1, .Capacity = sizeof((s))-1}
-#define S16(s)                              (const String16) {.Data = (wchar*)((s)), .Length = sizeof((s))-1, .Capacity = sizeof((s))-1}
+#define S(s)                                (const String)   {.Data = (char* )(s),     .Length = sizeof((s))-1, .Capacity = sizeof((s))-1}
+#define SC(s)                                                {.Data = (char* )(s),     .Length = sizeof((s))-1, .Capacity = sizeof((s))-1}
+#define S16(s)                              (const String16) {.Data = (wchar*)(s),     .Length = sizeof((s))-1, .Capacity = sizeof((s))-1}
 
 #define StrMake(s)                          (String)         {.Data = (s).Data,        .Length = (s).Length, .Capacity = (s).Capacity}
 #define StrView(s)                          (const String)   {.Data = (char*)(s).Data, .Length = (s).Length, .Capacity = (s).Capacity}
@@ -490,14 +490,12 @@ STRUCT(StringList)
     #define NEVER(Expression)  Expression
 #endif
 
-#if PLATFORM_WINDOWS
-typedef void* PlatformHandle;
-typedef void* PlatformCriticalSection;
-typedef void* PlatformPipe[2];
+#ifdef NO_ASSERT
+    #define ASSERT(Expression)
+    #define ENSURE(Expression)               
 #else
-typedef i32 PlatformHandle;
-typedef i32 PlatformPipe[2];
-typedef void* PlatformCriticalSection;
+    #define ASSERT(Expression, ...) do { if (Expression) {} else { ##__VA_ARGS__; DEBUG_BREAK(); _Crash_; } } while (0)
+    #define ENSURE(Expression, ...) do { if (Expression) {} else { ##__VA_ARGS__; DEBUG_BREAK(); } } while (0)
 #endif
 
 #define STATIC_ASSERT(e, Msg) typedef char MACRO_VAR(__C_ASSERT__)[(e) ? 1 : -1]
@@ -526,6 +524,16 @@ STATIC_ASSERT(sizeof(i32)   == 4, "Expected size of i32 to be 4 bytes.");
 STATIC_ASSERT(sizeof(i64)   == 8, "Expected size of i64 to be 8 bytes.");
 STATIC_ASSERT(sizeof(f32)   == 4, "Expected size of f32 to be 4 bytes.");
 STATIC_ASSERT(sizeof(f64)   == 8, "Expected size of f64 to be 8 bytes.");
+
+#if PLATFORM_WINDOWS
+typedef void* PlatformHandle;
+typedef void* PlatformCriticalSection;
+typedef void* PlatformPipe[2];
+#else
+typedef i32 PlatformHandle;
+typedef i32 PlatformPipe[2];
+typedef void* PlatformCriticalSection;
+#endif
 
 #if PLATFORM_64_BIT
 STATIC_ASSERT(sizeof(void*) == 8, "Expected size of a pointer to be 8 bytes.");

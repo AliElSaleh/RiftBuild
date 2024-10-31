@@ -20,14 +20,16 @@ usize GEngineScratchAmount = Kibibytes(8);
 #endif
 
 TArray(InternalVariable) InternalVariablesDB = NULL;
-FileVariable FileVariable_Empty = {0};
 bool bQuietBuild = false;
 bool bNoWordWrapLogging = false;
-bool bSingleThread = false;
-bool bIsRebuild = false;
-bool bIsClean = false;
-bool bVerboseLog = false;
-bool bHelp = false;
+
+static FileVariable FileVariable_Empty = {0};
+static bool bSingleThread = false;
+static bool bIsRebuild = false;
+static bool bIsClean = false;
+static bool bVerboseLog = false;
+
+static bool bHelp = false;
 
 STRUCT(BuildFileDirectoryIteratorData)
 {
@@ -8193,7 +8195,7 @@ internal void InitInternalVars(LinearAllocator* Arena)
     // TODO: _POSIX = "version"
 
     // store riftbuild version
-    AddInternalVariable(S("_Version"), S(RIFTBUILD_VERSION_STRING));
+    AddInternalVariable(S("_Version"),       S(RIFTBUILD_VERSION_STRING));
     AddInternalVariable(S("_Version.Major"), S(STRINGIZE(RIFTBUILD_MAJOR_VERSION)));
     AddInternalVariable(S("_Version.Minor"), S(STRINGIZE(RIFTBUILD_MINOR_VERSION)));
     AddInternalVariable(S("_Version.Patch"), S(STRINGIZE(RIFTBUILD_PATCH_VERSION)));

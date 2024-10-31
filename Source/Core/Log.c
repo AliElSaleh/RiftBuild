@@ -28,8 +28,6 @@ STRUCT(LoggingSystemState)
     bool bDisabled;
     bool bCrashOnFatal;
     bool bEnableOnError;
-    bool bAlive;
-    bool bReady;
     bool bLogTimestamp;
     bool bLogCategory;
     bool bLogType;
@@ -37,8 +35,6 @@ STRUCT(LoggingSystemState)
 
     PlatformCriticalSection CriticalSection;
 };
-
-static const String LogTypeString[6] = {SC("[INFO] "), SC("[SUCCESS] "), SC("[WARNING] "), SC("[ERROR] "), SC("[FATAL] "), SC("")};
 
 static LoggingSystemState* GLoggingSystemState = NULL;
 static LinearAllocator GLoggingMemoryAllocator = {0};
@@ -75,7 +71,7 @@ internal bool Internal_TryOpenLogFile(void)
             bSuccess = false;
 
             StringLocal(FormattedMessage, 256);
-            String_Format(&FormattedMessage, S("Failed to open %S file for writing\n"), GLoggingSystemState->LogFileName);
+            String_Format(&FormattedMessage, S("Failed to open \"%S\" file for writing\n"), GLoggingSystemState->LogFileName);
             Platform_ConsoleWrite_CustomLength(FormattedMessage.Data, FormattedMessage.Length, LOG_TYPE_ERROR, true);
         }
     }
@@ -109,7 +105,6 @@ bool Logging_Initialize(void* Memory, bool bOpenFile)
     GLoggingSystemState->bLogCategory = true;
     GLoggingSystemState->bLogType = true;
     GLoggingSystemState->bCrashOnFatal = true;
-    GLoggingSystemState->bAlive = true;
     GLoggingSystemState->bLogToFile = bOpenFile;
 
     GLoggingSystemState->CriticalSection = LinearAllocator_Allocate(&GLoggingMemoryAllocator, Platform_GetCriticalSectionMemoryRequirement());
@@ -120,9 +115,6 @@ bool Logging_Initialize(void* Memory, bool bOpenFile)
 
 void Logging_Shutdown(void)
 {
-    GLoggingSystemState->bAlive = false;
-    GLoggingSystemState->bReady = false;
-
     Platform_DeleteCriticalSection(GLoggingSystemState->CriticalSection);
     
     Filesystem_Close(&GLoggingSystemState->LogFileHandle);
@@ -223,6 +215,7 @@ void LogMessage(u8 LogType, const String LogCat, const String Text, ...)
 
     if (GLoggingSystemState->bLogType)
     {
+        static const String LogTypeString[6] = {SC("[INFO] "), SC("[SUCCESS] "), SC("[WARNING] "), SC("[ERROR] "), SC("[FATAL] "), SC("")};
         String_Append(&LogPrefix, LogTypeString[LogType]);
     }
 

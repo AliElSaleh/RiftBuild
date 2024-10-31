@@ -8,7 +8,6 @@
 
 #ifndef UNITY_BUILD
 #include "Globals.h"
-#include "Log.h"
 
 #include "Uuid.h"
 #include "Filesystem.h"
@@ -103,9 +102,6 @@ C_LINKAGE_END
 
 #define WM_FILE_WATCHER (WM_USER+1)
 
-// INFO, SUCCESS, WARNING, ERROR, FATAL, NONE, MUTE
-static u8 GConsoleColorLevels[7] = { CONSOLE_INFO_COLOR, CONSOLE_SUCCESS_COLOR, CONSOLE_WARNING_COLOR, CONSOLE_ERROR_COLOR, CONSOLE_FATAL_COLOR, CONSOLE_INFO_COLOR, CONSOLE_MUTE_COLOR };
-
 static char ArgumentBuffer[128][512] = {0};
 
 static String GArgV[128] = {0};
@@ -121,7 +117,9 @@ internal void LogLastError(const String Prefix)
                             (LPTSTR)&Message, sizeof(TCHAR)*4095,
                             NULL);
 
-    LOG_ERROR("%S\n        Error Code: %i\n        Reason: %S", Prefix, Code, StrSlice(Message, Len));
+    StringLocal(FormattedMessage, 4096);
+    String_Format(&FormattedMessage, S("%S\n        Error Code: %i\n        Reason: %S"), Prefix, Code, StrSlice(Message, Len));
+    Platform_ConsoleWrite_CustomLength(FormattedMessage.Data, FormattedMessage.Length, 3, true);
 }
 #else
 #define LogLastError(...)
@@ -393,6 +391,8 @@ void Platform_ConsoleWrite_CustomLength(const char* Message, u32 Length, u8 Colo
     DWORD OutputHandle = STD_ERROR_HANDLE;// bIsError ? STD_ERROR_HANDLE : STD_OUTPUT_HANDLE;
     HANDLE ConsoleHandle = GetStdHandle(OutputHandle);
 
+    static u8 GConsoleColorLevels[7] = { CONSOLE_INFO_COLOR, CONSOLE_SUCCESS_COLOR, CONSOLE_WARNING_COLOR, CONSOLE_ERROR_COLOR, CONSOLE_FATAL_COLOR, CONSOLE_INFO_COLOR, CONSOLE_MUTE_COLOR };
+
     // SetConsoleTextAttribute is slow, so only call it when the color changes
     const u8 ConsoleColor = GConsoleColorLevels[Color];
     if (ConsoleColor != CONSOLE_INFO_COLOR) // Regular white color
@@ -440,14 +440,14 @@ SystemTime Platform_GetSystemLocalTime(void)
     SYSTEMTIME SysTime = {0};
     GetLocalTime(&SysTime);
 
-    SystemTime Result = {0};
-    Result.Year = SysTime.wYear;
-    Result.Month = SysTime.wMonth;
-    Result.DayOfWeek = SysTime.wDayOfWeek;
-    Result.Day = SysTime.wDay;
-    Result.Hour = SysTime.wHour;
-    Result.Minute = SysTime.wMinute;
-    Result.Second = SysTime.wSecond;
+    SystemTime Result  = {0};
+    Result.Year        = SysTime.wYear;
+    Result.Month       = SysTime.wMonth;
+    Result.DayOfWeek   = SysTime.wDayOfWeek;
+    Result.Day         = SysTime.wDay;
+    Result.Hour        = SysTime.wHour;
+    Result.Minute      = SysTime.wMinute;
+    Result.Second      = SysTime.wSecond;
     Result.Millisecond = SysTime.wMilliseconds;
 
     return Result;
@@ -703,7 +703,8 @@ bool Filesystem_Open(const String FilePath, u32 Mode, FileHandle* OutHandle)
     }
     else
     {
-        LOG_ERROR("Invalid mode passed (%u) while trying to open file: %S", Mode, FilePath);
+        // Invalid mode passed (%u) while trying to open file: %S", Mode, FilePath
+        ENSURE(0);
         return false;
     }
 
@@ -821,7 +822,8 @@ bool Filesystem_Open_MemoryMapped(const String FilePath, u32 Mode, FileHandle* O
         else
         {
             Filesystem_Close(OutHandle);
-            LOG_ERROR("Invalid mode passed (%u) while trying to map view file: %S", Mode, FilePath);
+            //LOG_ERROR("Invalid mode passed (%u) while trying to map view file: %S", Mode, FilePath);
+            ENSURE(0);
             return false;
         }
 
@@ -852,8 +854,9 @@ bool Filesystem_Open_MemoryMapped(const String FilePath, u32 Mode, FileHandle* O
         }
         else
         {
-            LOG_ERROR("Invalid mode passed (%u) while trying to map view file: %S", Mode, FilePath);
+            //LOG_ERROR("Invalid mode passed (%u) while trying to map view file: %S", Mode, FilePath);
             Filesystem_Close(OutHandle);
+            ENSURE(0);
             return false;
         }
 
@@ -1369,15 +1372,8 @@ bool Filesystem_Write(const FileHandle Handle, usize DataSize, const void* Data,
     BOOL bResult = WriteFile(Handle.Data, Data, (DWORD)DataSize, &BytesWritten, NULL);
 
     if (OutBytesWritten)
-        *OutBytesWritten = BytesWritten;
-
-    if (!bResult)
     {
-        StringLocal(Prefix, 2048);
-        StringLocal(Path, MAX_PATH_LENGTH);
-        (void)Filesystem_GetFilePath(Handle, &Path);
-        String_Format(&Prefix, S("Failed to write to file \"%S\""), Path);
-        LogLastError(Prefix);
+        *OutBytesWritten = BytesWritten;
     }
 
     return bResult;
@@ -1394,15 +1390,9 @@ bool Filesystem_WriteLine(const FileHandle Handle, const String Text, usize* Out
         DWORD BytesWritten = 0;
         bResult = WriteFile(Handle.Data, Text.Data, (DWORD)Text.Length, &BytesWritten, NULL);
 
-        if (OutBytesWritten) *OutBytesWritten = BytesWritten;
-
-        if (!bResult)
+        if (OutBytesWritten)
         {
-            StringLocal(Prefix, 2048);
-            StringLocal(Path, MAX_PATH_LENGTH);
-            (void)Filesystem_GetFilePath(Handle, &Path);
-            String_Format(&Prefix, S("Failed to write line to file \"%S\""), Path);
-            LogLastError(Prefix);
+            *OutBytesWritten = BytesWritten;
         }
     }
 
@@ -1425,15 +1415,9 @@ bool Filesystem_WriteLineFormatted(const FileHandle Handle, const String Text, u
         DWORD BytesWritten = 0;
         bResult = WriteFile(Handle.Data, Buffer.Data, (DWORD)Buffer.Length, &BytesWritten, NULL);
 
-        if (OutBytesWritten) *OutBytesWritten = BytesWritten;
-
-        if (!bResult)
+        if (OutBytesWritten)
         {
-            StringLocal(Prefix, 2048);
-            StringLocal(Path, MAX_PATH_LENGTH);
-            (void)Filesystem_GetFilePath(Handle, &Path);
-            String_Format(&Prefix, S("Failed to write line to file \"%S\""), Path);
-            LogLastError(Prefix);
+            *OutBytesWritten = BytesWritten;
         }
     }
 

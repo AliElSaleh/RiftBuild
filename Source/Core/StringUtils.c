@@ -1923,7 +1923,7 @@ bool String_ToF32(const String Str, f32* OutFloat)
             {
                 DecimalPlaces++;
                 f32 PowResult = 10.0f;
-                for (u8 i = 1; i < (u8)DecimalPlaces; i++)
+                for (u8 i = 1; i < DecimalPlaces; i++)
                 {
                     PowResult *= 10.0f;
                 }
@@ -2188,7 +2188,7 @@ bool String_ToU32(const String Str, u32* OutInt)
                 return false;
             }
 
-            Num = (u32)(Num * 10 + (u32)Digit);
+            Num = (Num * 10 + (u32)Digit);
         }
         else
         {
@@ -2245,7 +2245,7 @@ bool String_ToU64(const String Str, u64* OutInt)
                 return false;
             }
 
-            Num = (u64)(Num * 10 + (u64)Digit);
+            Num = (Num * 10 + (u64)Digit);
         }
         else
         {

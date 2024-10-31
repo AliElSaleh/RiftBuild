@@ -21,15 +21,8 @@ STRUCT(InternalVariable)
 };
 
 global TArray(InternalVariable) InternalVariablesDB;
-global FileVariable FileVariable_Empty;
-global bool bHasWrittenJSON;
 global bool bQuietBuild;
 global bool bNoWordWrapLogging;
-global bool bSingleThread;
-global bool bIsRebuild;
-global bool bIsClean;
-global bool bVerboseLog;
-global bool bHelp;
 
 STRUCT(SourceFileData)
 {
@@ -218,9 +211,7 @@ bool MSVC_Link(const BuildParams* Params);
 bool C_Compile(const BuildParams* Params, u32* OutNumCompiled);
 bool C_Link(const BuildParams* Params);
 
-#if PLATFORM_WINDOWS
 bool RC_Compile(const BuildParams* Params, const String FullRCPath, String* OutResPath);
-#endif
 
 bool IsSource(const String Extension);
 bool IsCppSource(const String Extension);
@@ -298,10 +289,8 @@ bool Export_License_TheUnlicense(const String Path);
 
 bool SourceFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData);
 
-#if PLATFORM_WINDOWS
 global LinearAllocator GMSVCFindAllocator;
 void* MSVC_Find_Allocate(usize Size);
 void MSVC_Find_Release(void* Memory);
-#endif
 
 #endif // _BACKEND_H_

@@ -224,9 +224,11 @@ internal bool ResourceFileDirectoryIterator(const String FullPath, const String 
 
     return true;
 }
+#endif
 
 bool RC_Compile(const BuildParams* Params, const String FullRCPath, String* OutResPath)
 {
+    #if PLATFORM_WINDOWS
     StringLocal(CmdLine, 1024);
     String_Append(&CmdLine, Params->RCProgram);
     String_Append(&CmdLine, Params->RCProgramFlags);
@@ -275,8 +277,10 @@ bool RC_Compile(const BuildParams* Params, const String FullRCPath, String* OutR
     }
 
     return true;
+    #else
+    return false;
+    #endif
 }
-#endif
 
 internal bool Link_SourceFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
@@ -958,6 +962,8 @@ bool IsCppHeader(const String Extension)
 
 // TODO: dont call vcvarsall.bat every time, pass the lib and include directories to the compiler instead
 
+LinearAllocator GMSVCFindAllocator = {0};
+
 #if PLATFORM_WINDOWS
 
 /// TODO: if multithreaded and more than on soruce file. use /MP and call cl.exe only once
@@ -1566,10 +1572,10 @@ internal void Internal_ParseAndLogLinkerOutput_MSVC(String StdOutData)
                                     u32 QuestionIndex = 0;
                                     if (String_IndexOfSubstring(SecondPart, S("(?"), true, &QuestionIndex))
                                     {
-                                        LOG_INLINE("%S", StrSlice(SecondPart.Data, QuestionIndex));
+                                        LOG_INLINE("%S\n\n", StrSlice(SecondPart.Data, QuestionIndex));
                                         //LOG_MUTE("%S\n", StrShiftF(SecondPart, QuestionIndex));
-                                        LOG_LINE_BREAK();
-                                        LOG_LINE_BREAK();
+                                        //LOG_LINE_BREAK();
+                                        //LOG_LINE_BREAK();
                                     }
                                     else
                                     {
@@ -1607,11 +1613,8 @@ internal void Internal_ParseAndLogLinkerOutput_MSVC(String StdOutData)
                         LOG("%S", Trimmed);
                     }
                 }
-                else if (String_StartsWith(Line, S("Creating library "), true))
-                {
-                    LOG("\n%S", Line);
-                }
-                else if (String_EndsWith(Line, S(" unresolved externals"), true))
+                else if (String_StartsWith(Line, S("Creating library "), true) ||
+                         String_EndsWith(Line, S(" unresolved externals"), true))
                 {
                     LOG("\n%S", Line);
                 }
@@ -1958,8 +1961,6 @@ bool MSVC_Link(const BuildParams* Params)
     return true;
 }
 
-LinearAllocator GMSVCFindAllocator = {0};
-
 void* MSVC_Find_Allocate(usize Size)
 {
     return LinearAllocator_Allocate(&GMSVCFindAllocator, Size);
@@ -1973,4 +1974,6 @@ void MSVC_Find_Release(void* Memory)
 #else
 bool MSVC_Compile(UNUSED const BuildParams* Params, UNUSED u32* OutNumCompiled) { return true; }
 bool MSVC_Link(UNUSED const BuildParams* Params) { return true; }
+void* MSVC_Find_Allocate(usize Size) { return NULL; }
+void MSVC_Find_Release(void* Memory) {}
 #endif // PLATFORM_WINDOWS

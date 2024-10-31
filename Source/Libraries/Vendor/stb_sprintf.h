@@ -628,7 +628,7 @@ STBSP__PUBLICDEF int STB_SPRINTF_DECORATE(vsprintfcb)(STBSP_SPRINTFCB *callback,
          if (S.Data == 0 || S.Length == 0)
              s = (char*)"null";
          else
-             s = (char*)S.Data;
+             s = S.Data;
 
          l = S.Length;
          lead[0] = 0;
