@@ -102,13 +102,13 @@ C_LINKAGE_END
 
 #define WM_FILE_WATCHER (WM_USER+1)
 
-static char ArgumentBuffer[128][512] = {0};
+static u8 ArgumentBuffer[128][512] = {0};
 
 static String GArgV[128] = {0};
 static i32 GArgC = 0;
 
 #ifndef NO_LOG 
-internal void LogLastError(const String Prefix)
+static void LogLastError(const String Prefix)
 {
     TCHAR Message[4096] = {0};
     DWORD Code = GetLastError();
@@ -118,8 +118,8 @@ internal void LogLastError(const String Prefix)
                             NULL);
 
     StringLocal(FormattedMessage, 4096);
-    String_Format(&FormattedMessage, S("%S\n        Error Code: %i\n        Reason: %S"), Prefix, Code, StrSlice(Message, Len));
-    Platform_ConsoleWrite_CustomLength(FormattedMessage.Data, FormattedMessage.Length, 3, true);
+    String_Format(&FormattedMessage, S("%S\n        Error Code: %i\n        Reason: %S"), Prefix, Code, StrSlice((uchar*)Message, Len));
+    Platform_ConsoleWrite_CustomLength((char*)FormattedMessage.Data, FormattedMessage.Length, 3, true);
 }
 #else
 #define LogLastError(...)
@@ -145,12 +145,12 @@ void Platform_PreInitialize(void)
 
     for (i32 i = 1; i < NumArgs; i++)
     {
-        char* Buffer = ArgumentBuffer[(i-1)]; // &ArgumentBuffer[(i-1)*1024];
+        u8* Buffer = ArgumentBuffer[(i-1)]; // &ArgumentBuffer[(i-1)*1024];
 
         register u32 Len = 0;
         while (Len < 512 && ArgsW[i][Len] != 0) // arbitrary max length of 512
         {
-            Buffer[Len] = (char)ArgsW[i][Len];
+            Buffer[Len] = (uchar)ArgsW[i][Len];
             Len++; 
         }
 
@@ -186,7 +186,7 @@ bool Platform_CreateNamedMutex(const String Name, PlatformMutex* OutMutex)
     u32 Diff = Name.Length > 255 ? Name.Length - 255 : 0; // clamp to 255 characters
     String ClampedName = StrShiftF(Name, Diff);
 
-    HANDLE M = CreateMutexA(NULL, TRUE, ClampedName.Length == 0 ? NULL : ClampedName.Data);
+    HANDLE M = CreateMutexA(NULL, TRUE, ClampedName.Length == 0 ? NULL : (char*)ClampedName.Data);
     if (M == NULL) return false;
 
     OutMutex->Handle = M;
@@ -377,7 +377,7 @@ bool Platform_SetWorkingDirectory(const String Path)
     StringLocal(Copy, MAX_PATH_LENGTH);
     String_Copy(&Copy, Path);
 
-    BOOL bResult = SetCurrentDirectoryA(Copy.Data);
+    BOOL bResult = SetCurrentDirectoryA((char*)Copy.Data);
     return bResult;
 }
 
@@ -510,9 +510,9 @@ u64 Platform_GetMainThreadID(void)
 
 bool Platform_GetAccountName(String* OutName)
 {
-    char UserName[256] = {0};
+    u8 UserName[256] = {0};
     DWORD Size = 255;
-    BOOL bResult = GetUserName(UserName, &Size);
+    BOOL bResult = GetUserName((char*)UserName, &Size);
     if (!bResult)
     {
         LogLastError(S("Failed to get the current user name"));
@@ -572,7 +572,7 @@ bool Platform_GetCurrentProcessName(String* OutName)
     {
         if (FileName[i] == '\\')
         {
-            String_Copy(OutName, StrSlice(&FileName[i+1], Len-i-1));
+            String_Copy(OutName, StrSlice((uchar*)&FileName[i+1], Len-i-1));
             break;
         }
     }
@@ -587,7 +587,7 @@ u64 Platform_GetCurrentProcessID(void)
 
 void Platform_GetWorkingDirectory(String* OutPath)
 {
-    u32 Len = GetCurrentDirectory(OutPath->Capacity, OutPath->Data);
+    u32 Len = GetCurrentDirectory(OutPath->Capacity, (char*)OutPath->Data);
     OutPath->Length = Len;
 }
 
@@ -609,7 +609,7 @@ bool Platform_GetEnvironmentVariableValue(String Name, String* OutVariable)
     StringLocal(NameCopy, 128); // we copy the name because the passed in Name could have had its length altered but not the data, so create a copy with a null terminator at the length so windows gets the correct string
     String_Copy(&NameCopy, Name);
 
-    DWORD Len = GetEnvironmentVariable(NameCopy.Data, OutVariable->Data, OutVariable->Capacity);
+    DWORD Len = GetEnvironmentVariable((char*)NameCopy.Data, (char*)OutVariable->Data, OutVariable->Capacity);
     OutVariable->Length = Len;
 
     return Len != 0;
@@ -624,7 +624,7 @@ bool Platform_SetEnvironmentVariableValue(String Name, String Value)
     StringLocal(ValueCopy, 4096);
     String_Copy(&ValueCopy, Value);
 
-    BOOL bSuccess = SetEnvironmentVariable(NameCopy.Data, ValueCopy.Data);
+    BOOL bSuccess = SetEnvironmentVariable((char*)NameCopy.Data, (char*)ValueCopy.Data);
     return bSuccess;
 }
 
@@ -633,7 +633,7 @@ bool Platform_DoesEnvironmentVariableExist(String Name)
     StringLocal(NameCopy, 128); // we copy the name because the passed in Name could have had its length altered but not the data, so create a copy with a null terminator at the length so windows gets the correct string
     String_Copy(&NameCopy, Name);
 
-    DWORD Len = GetEnvironmentVariable(NameCopy.Data, NULL, 0);
+    DWORD Len = GetEnvironmentVariable((char*)NameCopy.Data, NULL, 0);
     return Len != 0;
 }
 
@@ -665,7 +665,7 @@ void UUID_ToString(Uuid ID, String* OutString)
     RPC_STATUS Status = UuidToString((uuid_t*)&ID, &str);
     if (Status == RPC_S_OK)
     {
-        String_Copy(OutString, StrSlice((char*)str, GUID_LENGTH-1));
+        String_Copy(OutString, StrSlice((uchar*)str, GUID_LENGTH-1));
         (void)RpcStringFree(&str);
     }
 }
@@ -729,7 +729,7 @@ bool Filesystem_Open(const String FilePath, u32 Mode, FileHandle* OutHandle)
                 BOOL bDirectoryCreated = Filesystem_DoesDirectoryExist(BaseDirectory);
                 if (!bDirectoryCreated)
                 {
-                    bDirectoryCreated = CreateDirectory(BaseDirectory.Data, NULL);
+                    bDirectoryCreated = CreateDirectory((char*)BaseDirectory.Data, NULL);
 
                     if (!bDirectoryCreated)
                     {
@@ -747,7 +747,7 @@ bool Filesystem_Open(const String FilePath, u32 Mode, FileHandle* OutHandle)
     }
     while (bFoundPathSeparator);
 
-    HANDLE File = CreateFile(FilePath.Data, OpenStyle, ShareStyle, NULL, Disposition, FILE_ATTRIBUTE_NORMAL, NULL);
+    HANDLE File = CreateFile((char*)FilePath.Data, OpenStyle, ShareStyle, NULL, Disposition, FILE_ATTRIBUTE_NORMAL, NULL);
     if (File == INVALID_HANDLE_VALUE)
     {
         StringLocal(Prefix, 512);
@@ -780,7 +780,7 @@ bool Filesystem_DeleteFile(String FilePath)
     StringLocal(Copy, MAX_PATH);
     String_Copy(&Copy, FilePath);
     
-    i32 Result = DeleteFile(Copy.Data) != 0;
+    i32 Result = DeleteFile((char*)Copy.Data) != 0;
 
     return Result != 0;
 }
@@ -905,7 +905,7 @@ bool Filesystem_OpenDirectory(const String FilePath)
                 BOOL bDirectoryCreated = Filesystem_DoesDirectoryExist(BaseDirectory);
                 if (!bDirectoryCreated)
                 {
-                    bDirectoryCreated = CreateDirectory(BaseDirectory.Data, NULL);
+                    bDirectoryCreated = CreateDirectory((char*)BaseDirectory.Data, NULL);
 
                     if (!bDirectoryCreated)
                     {
@@ -937,7 +937,7 @@ bool Filesystem_OpenDirectory_Ex(const String FilePath, FileHandle* OutHandle)
 
     if (NEVER(OutHandle == NULL)) return false;
 
-    HANDLE File = CreateFile(FilePath.Data, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_FLAG_BACKUP_SEMANTICS, NULL);
+    HANDLE File = CreateFile((char*)FilePath.Data, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_FLAG_BACKUP_SEMANTICS, NULL);
 
     if (File == INVALID_HANDLE_VALUE)
     {
@@ -1204,7 +1204,7 @@ bool Filesystem_ReadLine(const FileHandle Handle, String* LineBuffer)
         return false;
     }
 
-    char TempBuffer[8192] = {0};
+    u8 TempBuffer[8192] = {0};
     DWORD BytesRead = 0;
     if (!ReadFile(Handle.Data, TempBuffer, 8192, &BytesRead, NULL))
     {
@@ -1431,7 +1431,7 @@ bool Filesystem_DoesFileExist(const String FilePath)
     StringLocal(Copy, MAX_PATH);
     String_Copy(&Copy, FilePath);
 
-    return PathFileExists(Copy.Data);
+    return PathFileExists((char*)Copy.Data);
 }
 
 bool Filesystem_DoesDirectoryExist(const String FilePath)
@@ -1441,7 +1441,7 @@ bool Filesystem_DoesDirectoryExist(const String FilePath)
     StringLocal(Copy, MAX_PATH);
     String_Copy(&Copy, FilePath);
 
-    DWORD Attrib = GetFileAttributes(Copy.Data);
+    DWORD Attrib = GetFileAttributes((char*)Copy.Data);
     return (Attrib != INVALID_FILE_ATTRIBUTES && (Attrib & FILE_ATTRIBUTE_DIRECTORY));
 }
 
@@ -1450,7 +1450,7 @@ bool Filesystem_GetFilePath(const FileHandle File, String* OutPath)
     if (!IsValidFileHandle(File)) return false;
 
     const u32 MaxCap = Min(OutPath->Capacity, MAX_PATH);
-    const u32 Length = GetFinalPathNameByHandle(File.Data, OutPath->Data, MaxCap, FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
+    const u32 Length = GetFinalPathNameByHandle(File.Data, (char*)OutPath->Data, MaxCap, FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
     const bool bSuccess = Length > 0;
 
     if (bSuccess)
@@ -1474,13 +1474,13 @@ bool Filesystem_GetFileSize(const FileHandle File, usize* OutSize)
 
 bool Filesystem_IsFile(const String Path)
 {
-    DWORD Attrib = GetFileAttributes(Path.Data);
+    DWORD Attrib = GetFileAttributes((char*)Path.Data);
     return (Attrib != INVALID_FILE_ATTRIBUTES && (Attrib & FILE_ATTRIBUTE_NORMAL));
 }
 
 bool Filesystem_IsDirectory(const String Path)
 {
-    DWORD Attrib = GetFileAttributes(Path.Data);
+    DWORD Attrib = GetFileAttributes((char*)Path.Data);
     return (Attrib != INVALID_FILE_ATTRIBUTES && (Attrib & FILE_ATTRIBUTE_DIRECTORY));
 }
 
@@ -1512,12 +1512,12 @@ bool Filesystem_ConvertRelativeToAbsolutePath(String* OutFullPath)
     StringLocal(Copy, MAX_PATH);
     String_Copy(&Copy, *OutFullPath);
 
-    bool bResult = PathCanonicalize(OutFullPath->Data, Copy.Data);
-    OutFullPath->Length = String_GetLength_Ex(OutFullPath->Data, MAX_PATH);
+    bool bResult = PathCanonicalize((char*)OutFullPath->Data, (char*)Copy.Data);
+    OutFullPath->Length = String_GetLength_Ex((char*)OutFullPath->Data, MAX_PATH);
     return bResult;
 }
 
-internal bool Internal_IterateDirectory(const String RootPath, const String DirectoryPath, DirectoryIterator Callback, bool bRecursive, void* UserData)
+static bool Internal_IterateDirectory(const String RootPath, const String DirectoryPath, DirectoryIterator Callback, bool bRecursive, void* UserData)
 {
     const String RealDirectoryPath = DirectoryPath.Length == 0 ? S(".") : DirectoryPath;
 
@@ -1526,7 +1526,7 @@ internal bool Internal_IterateDirectory(const String RootPath, const String Dire
     String_Append(&Temp, S("\\*"));
 
     WIN32_FIND_DATA ffd = {0};
-    HANDLE Find = FindFirstFile(Temp.Data, &ffd);
+    HANDLE Find = FindFirstFile((char*)Temp.Data, &ffd);
 
     if (Find != INVALID_HANDLE_VALUE)
     {
@@ -1606,7 +1606,7 @@ bool Filesystem_DeleteFiles(const String FilePath, const String Wildcard, bool b
     StringLocal(WildcardPath, MAX_PATH_LENGTH);
     String_BuildPath(&WildcardPath, FilePath, Wildcard);
 
-    HANDLE hFind = FindFirstFile(WildcardPath.Data, &fd);
+    HANDLE hFind = FindFirstFile((char*)WildcardPath.Data, &fd);
 
     bool bAnyFilesDeleted = false;
 
@@ -1637,7 +1637,7 @@ bool Filesystem_DeleteFiles(const String FilePath, const String Wildcard, bool b
                 StringLocal(FullPath, MAX_PATH_LENGTH);
                 String_BuildPath(&FullPath, FilePath, FileName);
 
-                i32 Result = DeleteFile(FullPath.Data);
+                i32 Result = DeleteFile((char*)FullPath.Data);
                 if (Result != 0)
                 {
                     bAnyFilesDeleted = true;
@@ -1659,7 +1659,7 @@ bool Filesystem_DeleteDirectory(const String DirectoryPath)
     StringLocal(WildcardPath, MAX_PATH_LENGTH);
     String_BuildPath(&WildcardPath, DirectoryPath, S("*"));
 
-    HANDLE hFind = FindFirstFile(WildcardPath.Data, &fd);
+    HANDLE hFind = FindFirstFile((char*)WildcardPath.Data, &fd);
 
     if (hFind != INVALID_HANDLE_VALUE)
     {
@@ -1685,7 +1685,7 @@ bool Filesystem_DeleteDirectory(const String DirectoryPath)
                 StringLocal(FullPath, MAX_PATH_LENGTH);
                 String_BuildPath(&FullPath, DirectoryPath, FileName);
 
-                (void)DeleteFile(FullPath.Data);
+                (void)DeleteFile((char*)FullPath.Data);
             }
         }
         while (FindNextFile(hFind, &fd));
@@ -1693,7 +1693,7 @@ bool Filesystem_DeleteDirectory(const String DirectoryPath)
         FindClose(hFind);
     }
 
-    bool bResult = RemoveDirectory(DirectoryPath.Data);
+    bool bResult = RemoveDirectory((char*)DirectoryPath.Data);
 
     return bResult;
 }
@@ -1735,10 +1735,10 @@ bool Filesystem_Copy(const String Source, const String Destination)
     // otherwise the copy will fail if the file already exists at the destination
     if (Filesystem_DoesFileExist(DestinationCopy))
     {
-        (void)SetFileAttributes(DestinationCopy.Data, (u32)GetFileAttributes(DestinationCopy.Data) & (u32)~FILE_ATTRIBUTE_READONLY);
+        (void)SetFileAttributes((char*)DestinationCopy.Data, (u32)GetFileAttributes((char*)DestinationCopy.Data) & (u32)~FILE_ATTRIBUTE_READONLY);
     }
 
-    BOOL bResult = CopyFileEx(SourceCopy.Data, DestinationCopy.Data, NULL, NULL, NULL, COPY_FILE_NO_BUFFERING);
+    BOOL bResult = CopyFileEx((char*)SourceCopy.Data, (char*)DestinationCopy.Data, NULL, NULL, NULL, COPY_FILE_NO_BUFFERING);
     if (bResult == 0)
     {
         StringLocal(Msg, 512);
@@ -1779,7 +1779,7 @@ bool Filesystem_Move(const String Source, const String Destination, bool bRename
         (void)Filesystem_OpenDirectory(bHasSlash ? StrSlice(DestinationCopy.Data, LastSlash) : DestinationCopy);
     }
 
-    BOOL bResult = MoveFileEx(SourceCopy.Data, DestinationCopy.Data, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
+    BOOL bResult = MoveFileEx((char*)SourceCopy.Data, (char*)DestinationCopy.Data, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
     if (bResult == 0)
     {
         StringLocal(Msg, 512);
@@ -1794,7 +1794,7 @@ bool Filesystem_Move(const String Source, const String Destination, bool bRename
 bool Filesystem_ArePathsCommon(String PathA, String PathB)
 {
     StringLocal(CommonPath, MAX_PATH);
-    i32 Len = PathCommonPrefix(PathA.Data, PathB.Data, CommonPath.Data);
+    i32 Len = PathCommonPrefix((char*)PathA.Data, (char*)PathB.Data, (char*)CommonPath.Data);
     CommonPath.Length = (u32)Len;
 
     return String_IsEqual(CommonPath, PathA, false);
@@ -1810,9 +1810,9 @@ PlatformHandle Platform_RunCommand(const String CmdLine, const String WorkingDir
     StringLocal(Copy, MAX_PATH_LENGTH);
     String_Copy(&Copy, WorkingDirectory);
 
-    const char* Dir = Copy.Length > 0 ? Copy.Data : NULL;
-    void* Env = EnvBlock.Length == 0 ? NULL : EnvBlock.Data;
-    if (!CreateProcess(NULL, CmdLine.Data, NULL, NULL, TRUE, 0, Env, Dir, &StartupInfo, &ProcessInfo))
+    const char* Dir = Copy.Length > 0 ? (char*)Copy.Data : NULL;
+    void* Env = EnvBlock.Length == 0 ? NULL : (char*)EnvBlock.Data;
+    if (!CreateProcess(NULL, (char*)CmdLine.Data, NULL, NULL, TRUE, 0, Env, Dir, &StartupInfo, &ProcessInfo))
     {
         StringLocal(Prefix, Kibibytes(8));
         String_Format(&Prefix, S("Failed to run command: \"%S\""), CmdLine);
@@ -1862,9 +1862,9 @@ PlatformHandle Platform_RunCommand_Ex(const String CmdLine, const String Working
 
     StringLocal(Copy, MAX_PATH_LENGTH);
     String_Copy(&Copy, WorkingDirectory);
-    const char* Dir = Copy.Length > 0 ? Copy.Data : NULL;
+    const char* Dir = Copy.Length > 0 ? (char*)Copy.Data : NULL;
 
-    if (!CreateProcess(NULL, CmdLine.Data, NULL, NULL, TRUE, 0, NULL, Dir, &StartupInfo, &ProcessInfo))
+    if (!CreateProcess(NULL, (char*)CmdLine.Data, NULL, NULL, TRUE, 0, NULL, Dir, &StartupInfo, &ProcessInfo))
     {
         StringLocal(Prefix, Kibibytes(8));
         String_Format(&Prefix, S("Failed to run command: \"%S\""), CmdLine);
@@ -1914,10 +1914,10 @@ bool Platform_FindFile_Ex(String FileName, String ExtensionWithDot, String* OutF
 
     const char* Ext = NULL;
     if (ExtensionWithDot.Length > 1)
-        Ext = ExtensionWithDot.Data;
+        Ext = (char*)ExtensionWithDot.Data;
 
-    char FullPath[MAX_PATH] = {0};
-    DWORD Len = SearchPath(NULL, FileNameCopy.Data, Ext, MAX_PATH, FullPath, NULL);
+    u8 FullPath[MAX_PATH] = {0};
+    DWORD Len = SearchPath(NULL, (char*)FileNameCopy.Data, Ext, MAX_PATH, (char*)FullPath, NULL);
     if (Len == 0)
         return false;
 
@@ -1960,7 +1960,7 @@ void Platform_ExitCriticalSection(PlatformCriticalSection CriticalSection)
 }
 
 // implement our own kbhit since we're not linking against the standard library
-internal bool kbhit(void)
+static bool kbhit(void)
 {
     // Run through all key scancodes from 7 to 255
     // start from 0x07. the first 6 are mouse keys

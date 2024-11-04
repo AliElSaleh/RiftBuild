@@ -5,28 +5,6 @@
 #include "EngineTypes.h"
 #endif
 
-#if PLATFORM_WINDOWS
-    #define MAX_PATH_LENGTH 260
-    #define MAX_PATH_LENGTH_EX 32767
-    #define PATH_SEPARATOR '\\'
-#elif PLATFORM_LINUX
-    #define MAX_PATH_LENGTH 4096
-    #define MAX_PATH_LENGTH_EX 4096
-    #define PATH_SEPARATOR '/'
-#elif PLATFORM_APPLE // todo: subdivide into mac, ios
-    #define MAX_PATH_LENGTH 1024
-    #define MAX_PATH_LENGTH_EX 1024
-    #define PATH_SEPARATOR '/'
-#elif PLATFORM_BSD
-    #define MAX_PATH_LENGTH 1024
-    #define MAX_PATH_LENGTH_EX 1024
-    #define PATH_SEPARATOR '/'
-#else
-    #define MAX_PATH_LENGTH 1024
-    #define MAX_PATH_LENGTH_EX 1024
-    #define PATH_SEPARATOR '/'
-#endif
-
 STRUCT(FileHandle)
 {
     void* Data;

@@ -46,7 +46,7 @@
 #include <stdarg.h>
 
 #ifndef NO_LOG 
-internal void LogLastError(const String Prefix)
+static void LogLastError(const String Prefix)
 {
     StringLocal(Message, 4096);
     String_Copy(&Message, CStr(strerror(errno)));
@@ -187,7 +187,7 @@ bool Platform_MemEqual(const void* Block1, const void* Block2, usize Size)
 #define NB_DISABLE 1
 #define NB_ENABLE  0
 
-internal void nonblock(int state)
+static void nonblock(int state)
 {
     struct termios ttystate = {0};
 
@@ -211,7 +211,7 @@ internal void nonblock(int state)
     tcsetattr(STDIN_FILENO, TCSANOW, &ttystate);
 }
 
-internal i32 kbhit(void)
+static i32 kbhit(void)
 {
     struct timeval tv;
     fd_set fds;
@@ -1578,7 +1578,7 @@ bool Filesystem_ConvertRelativeToAbsolutePath(String* OutFullPath)
     return true;
 }
 
-internal bool Internal_IterateDirectory(const String BasePath, const String DirectoryPath, DirectoryIterator Callback, bool bRecursive, void* UserData)
+static bool Internal_IterateDirectory(const String BasePath, const String DirectoryPath, DirectoryIterator Callback, bool bRecursive, void* UserData)
 {
     const String RealBasePath = BasePath.Length == 0 ? S(".") : BasePath;
     

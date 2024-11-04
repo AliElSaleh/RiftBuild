@@ -23,7 +23,7 @@ STRUCT(LoggingSystemState)
 
     String LogFileName;
 
-    char Buffer[MAX_LOG_MSG_LENGTH];
+    u8 Buffer[MAX_LOG_MSG_LENGTH];
 
     bool bDisabled;
     bool bCrashOnFatal;
@@ -40,7 +40,7 @@ static LoggingSystemState* GLoggingSystemState = NULL;
 static LinearAllocator GLoggingMemoryAllocator = {0};
 static void* GLoggingSystemMemory = NULL;
 
-internal bool Internal_TryOpenLogFile(void)
+static bool Internal_TryOpenLogFile(void)
 {
     if (!GLoggingSystemState->bLogToFile) return false;
 
@@ -72,7 +72,7 @@ internal bool Internal_TryOpenLogFile(void)
 
             StringLocal(FormattedMessage, 256);
             String_Format(&FormattedMessage, S("Failed to open \"%S\" file for writing\n"), GLoggingSystemState->LogFileName);
-            Platform_ConsoleWrite_CustomLength(FormattedMessage.Data, FormattedMessage.Length, LOG_TYPE_ERROR, true);
+            Platform_ConsoleWrite_CustomLength((char*)FormattedMessage.Data, FormattedMessage.Length, LOG_TYPE_ERROR, true);
         }
     }
     LinearAllocator_Reset(&Scratch, GLoggingMemoryAllocator.Allocated);
@@ -80,17 +80,17 @@ internal bool Internal_TryOpenLogFile(void)
     return bSuccess;
 }
 
-internal void Internal_WriteToLogFile(const char* Text, u32 Length)
+static void Internal_WriteToLogFile(const String Text)
 {
     if (!Internal_TryOpenLogFile()) return;
-    if (UNLIKELY(Length == 0)) return;
+    if (UNLIKELY(Text.Length == 0)) return;
 
     usize Written = 0;
-    if (!Filesystem_WriteLine(GLoggingSystemState->LogFileHandle, StrSlice(Text, Length), &Written))
+    if (!Filesystem_WriteLine(GLoggingSystemState->LogFileHandle, Text, &Written))
     {
         StringLocal(FormattedMessage, 256);
         String_Format(&FormattedMessage, S("Failed to write to %S"), GLoggingSystemState->LogFileName);
-        Platform_ConsoleWrite_CustomLength(FormattedMessage.Data, FormattedMessage.Length, LOG_TYPE_ERROR, true);
+        Platform_ConsoleWrite_CustomLength((char*)FormattedMessage.Data, FormattedMessage.Length, LOG_TYPE_ERROR, true);
     }
 }
 
@@ -179,7 +179,9 @@ void LogMessage(u8 LogType, const String LogCat, const String Text, ...)
 {
     bool bIsErrorMessage = (LogType == LOG_TYPE_ERROR || LogType == LOG_TYPE_FATAL);
     if (UNLIKELY(GLoggingSystemState->bDisabled) && !(GLoggingSystemState->bEnableOnError && bIsErrorMessage))
+    {
         return;
+    }
 
     SystemTime TimeNow = Platform_GetSystemLocalTime();
 
@@ -222,9 +224,9 @@ void LogMessage(u8 LogType, const String LogCat, const String Text, ...)
     LinearAllocator Scratch = GLoggingMemoryAllocator;
     String FinalMsg = String_Join(&Scratch, StrArray(TrimmedNewLines, LogPrefix, TrimmedFmt));
 
-    Platform_ConsoleWrite_CustomLength(FinalMsg.Data, FinalMsg.Length, LogType, LogType > LOG_TYPE_WARNING);
+    Platform_ConsoleWrite_CustomLength((char*)FinalMsg.Data, FinalMsg.Length, LogType, LogType > LOG_TYPE_WARNING);
 
-    Internal_WriteToLogFile(FinalMsg.Data, FinalMsg.Length);
+    Internal_WriteToLogFile(FinalMsg);
 
     LinearAllocator_Reset(&Scratch, GLoggingMemoryAllocator.Allocated);
 }
@@ -233,7 +235,9 @@ void LogDirectMessage(u8 LogType, const String Text, ...)
 {
     bool bIsErrorMessage = (LogType == LOG_TYPE_ERROR || LogType == LOG_TYPE_FATAL);
     if (UNLIKELY(GLoggingSystemState->bDisabled) && !(GLoggingSystemState->bEnableOnError && bIsErrorMessage))
+    {
         return;
+    }
 
     va_list Args;
     va_start(Args, Text);
@@ -242,18 +246,21 @@ void LogDirectMessage(u8 LogType, const String Text, ...)
     va_end(Args);
 
     GLoggingSystemState->Buffer[Buffer.Length+1] = 0;
-    Platform_ConsoleWrite_CustomLength(GLoggingSystemState->Buffer, Buffer.Length, LogType, LogType > LOG_TYPE_WARNING);
+    Platform_ConsoleWrite_CustomLength((char*)GLoggingSystemState->Buffer, Buffer.Length, LogType, LogType > LOG_TYPE_WARNING);
 
-    Internal_WriteToLogFile(GLoggingSystemState->Buffer, Buffer.Length);
+    Internal_WriteToLogFile(StrSlice(GLoggingSystemState->Buffer, Buffer.Length));
 }
 
 void LogLineBreak(void)
 {
     if (UNLIKELY(GLoggingSystemState->bDisabled))
+    {
         return;
+    }
 
-    Platform_ConsoleWrite_CustomLength("\n", 1, LOG_TYPE_INFO, false);
-    Internal_WriteToLogFile("\n", 1);
+    const String NewLine = S("\n");
+
+    Platform_ConsoleWrite_CustomLength((char*)NewLine.Data, NewLine.Length, LOG_TYPE_INFO, false);
+    Internal_WriteToLogFile(NewLine);
 }
-
 #endif

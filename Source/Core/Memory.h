@@ -58,7 +58,6 @@ RIFT_API NO_DISCARD bool  MemEqual(const void* Block1, const void* Block2, usize
 RIFT_API NO_DISCARD LinearAllocator Memory_GetScratch(void);
 RIFT_API NO_DISCARD usize Memory_GetEngineMemoryRemaining(void);
 
-RIFT_API NO_DISCARD bool IsValid(const void* Memory);
 RIFT_API NO_DISCARD bool IsValidSlow(const void* Memory);
 
 #endif // _MEMORY_H_

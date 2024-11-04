@@ -20,7 +20,7 @@
 // Parser rules notes:
 // only alphanumeric key names are allowed, but we can have . and underscore anywhere
 
-internal void Internal_AddVariable(LinearAllocator* Arena,
+static void Internal_AddVariable(LinearAllocator* Arena,
                                    TArray(FileVariable) VariablesDB,
                                    const String Name,
                                    const String Value,
@@ -51,9 +51,11 @@ bool ParseBuildFile(LinearAllocator* Arena,
                     StringList* Includes,
                     bool bIsAssemblyExe)
 {
-    if (ReturnCode) *ReturnCode = 0;
+    if (ReturnCode)
+    {
+        *ReturnCode = 0;
+    }
 
-    
     StringLocal(Line, LINE_BUFFER_SIZE);
 
     bool bInsideIf = false;
@@ -455,7 +457,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
             String MsgString = StrSlice(Trimmed.Data+1, LastQuoteIndex-1);
             for (u32 i = 0; i < MsgString.Length; i++)
             {
-                char C = MsgString.Data[i];
+                u8 C = MsgString.Data[i];
                 if (C == '%')
                 {
                     const String Arg = StringArray_GetStringFromIndex(MsgArgsList, ArgIndex);
@@ -639,15 +641,15 @@ bool ParseBuildFile(LinearAllocator* Arena,
 
             Comparison = Cmp_None;
 
-            if      (String_IsEqual(ComparisonOperator, S("=="), false))          Comparison = Cmp_Equal;
-            else if (String_IsEqual(ComparisonOperator, S("!="), false))          Comparison = Cmp_NotEqual;
-            else if (String_IsEqual(ComparisonOperator, S(">="), false))          Comparison = Cmp_GreaterThanOrEqual;
-            else if (String_IsEqual(ComparisonOperator, S("<="), false))          Comparison = Cmp_LessThanOrEqual;
-            else if (String_IsEqual(ComparisonOperator, S(">"), false))           Comparison = Cmp_GreaterThan;
-            else if (String_IsEqual(ComparisonOperator, S("<"), false))           Comparison = Cmp_LessThan;
-            else if (String_IsEqual(ComparisonOperator, S("starts_with"), false)) Comparison = Cmp_StartsWith;
-            else if (String_IsEqual(ComparisonOperator, S("ends_with"), false))   Comparison = Cmp_EndsWith;
-            else if (String_IsEqual(ComparisonOperator, S("contains"), false))    Comparison = Cmp_Contains;
+            if      (String_IsEqual(ComparisonOperator, S("=="), false))          { Comparison = Cmp_Equal; }
+            else if (String_IsEqual(ComparisonOperator, S("!="), false))          { Comparison = Cmp_NotEqual; }
+            else if (String_IsEqual(ComparisonOperator, S(">="), false))          { Comparison = Cmp_GreaterThanOrEqual; }
+            else if (String_IsEqual(ComparisonOperator, S("<="), false))          { Comparison = Cmp_LessThanOrEqual; }
+            else if (String_IsEqual(ComparisonOperator, S(">"), false))           { Comparison = Cmp_GreaterThan; }
+            else if (String_IsEqual(ComparisonOperator, S("<"), false))           { Comparison = Cmp_LessThan; }
+            else if (String_IsEqual(ComparisonOperator, S("starts_with"), false)) { Comparison = Cmp_StartsWith; }
+            else if (String_IsEqual(ComparisonOperator, S("ends_with"), false))   { Comparison = Cmp_EndsWith; }
+            else if (String_IsEqual(ComparisonOperator, S("contains"), false))    { Comparison = Cmp_Contains; }
 
             String TestValue = String_EatSpaces(StrShiftF(VarValue, Index+1+SecondWhitespaceIndex));
 
@@ -1263,10 +1265,10 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
         Offset = 1;
 
         String StrVal = StrSlice(Value.Data+i, Value.Length-i);
-        char C = Value.Data[i];
+        u8 C = Value.Data[i];
 
-        if (bInsideQuote  && C == '"') bInsideQuote = false;
-        if (!bInsideQuote && C == '"') bInsideQuote = true;
+        if (bInsideQuote  && C == '"') { bInsideQuote = false; }
+        if (!bInsideQuote && C == '"') { bInsideQuote = true; }
 
         if (!bInsideQuote && C == '#') // a comment. disgard everything and exit
         {
@@ -1306,7 +1308,6 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
                 if (String_IndexOfChar(StrVal, ')', &Index))
                 {
                     Offset++;
-                    //bIsEnclosed = true;
                 }
             }
 
@@ -1483,6 +1484,10 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
                             return false;
                         }
                     }
+                    else
+                    {
+                        // no action is required
+                    }
                 }
             }
 
@@ -1592,9 +1597,6 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
                         }
                     }
 
-                    //String DestEnd = StrShiftF(*Dest, Dest->Length);
-                    //u32 DestLengthBefore = Dest->Length;
-
                     String TempDest = String_Reserve(&Scratch, Dest->Capacity);
                     if (!ExpandBuildVariable(Scratch, VariablesDB, CmdOptionsDB, &TempDest, Slice, Var.Value, Root, WorkingDirectory, bLowerStrings, bIsAssemblyExe))
                     {
@@ -1605,12 +1607,6 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
                     if (bWantsToUpper) String_ToUpper(&TempDest);
                     
                     String_Append(Dest, TempDest);
-
-                    /*
-                    DestEnd.Length = Dest->Length - DestLengthBefore;
-                    if (bWantsToLower) String_ToLower(&DestEnd);
-                    if (bWantsToUpper) String_ToUpper(&DestEnd);
-                    */
 
                     if (Var.Value.Length > 0)
                         NumEntries++;
@@ -1771,10 +1767,12 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
                         {
                             if (Dest->Length > 0)
                             {
-                                char LastChar = Dest->Data[Dest->Length-1];
+                                u8 LastChar = Dest->Data[Dest->Length-1];
                                 bool bHasPathSep = LastChar == '/' || LastChar == '\\';
                                 if (bHasPathSep)
+                                {
                                     continue;
+                                }
                             }
                         }
                     }

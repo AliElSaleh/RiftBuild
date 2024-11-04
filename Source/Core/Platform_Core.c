@@ -53,7 +53,7 @@ static read_only String GX86ExtensionsTable_EDX_Lvl7[] =
 };
 */
 
-internal void cpuid(int info[4], int infoType, int subtype)
+static void cpuid(i32 info[4], i32 infoType, i32 subtype)
 {
     #if COMPILER_MSVC
     __cpuidex(info, infoType, subtype);
@@ -71,13 +71,13 @@ RIFT_API u32 Platform_GetCpuCacheLineSize(void)
 
 bool Platform_GetCpuBrandName(String* OutName)
 {
-    int info[4] = {0};
+    i32 info[4] = {0};
     cpuid(info, 0, 0);
 
     char vendor[13] = {0};
-    ((int*)vendor)[0] = info[1];
-    ((int*)vendor)[1] = info[3];
-    ((int*)vendor)[2] = info[2];
+    ((i32*)vendor)[0] = info[1];
+    ((i32*)vendor)[1] = info[3];
+    ((i32*)vendor)[2] = info[2];
     vendor[12] = '\0';
 
     String_Copy(OutName, CStrEx(vendor, 12));
@@ -89,18 +89,18 @@ CpuInfo Platform_QueryCPUInfo(void)
 {
     CpuInfo Result = {0};
 
-    int info[4] = {0};
+    i32 info[4] = {0};
 
     // basic CPUID information
     cpuid(info, 0, 0);
     
-    int MaxSupportedIDs = info[0];
+    i32 MaxSupportedIDs = info[0];
 
     // vendor string
     char vendor[13] = {0};
-    ((int*)vendor)[0] = info[1];
-    ((int*)vendor)[1] = info[3];
-    ((int*)vendor)[2] = info[2];
+    ((i32*)vendor)[0] = info[1];
+    ((i32*)vendor)[1] = info[3];
+    ((i32*)vendor)[2] = info[2];
     vendor[12] = '\0';
 
     const String CpuVendor = CStrEx(vendor, 32);
@@ -122,8 +122,8 @@ CpuInfo Platform_QueryCPUInfo(void)
     // EBX: Additional Information (e.g., Brand Index, CLFLUSH line size)
     // ECX: Feature Flags
     // EDX: Feature Flags
-    int ecx = info[2];
-    int edx = info[3];
+    i32 ecx = info[2];
+    i32 edx = info[3];
 
     Result.MMX           = (edx & (1 << 23)) ? 1 : 0;
     Result.SSE           = (edx & (1 << 25)) ? 1 : 0;
@@ -205,7 +205,7 @@ CpuInfo Platform_QueryCPUInfo(void)
     {
         cpuid(info, 7, 0);
 
-        const int ebx = info[1];
+        const i32 ebx = info[1];
         Result.AVX2             = (ebx & (1 << 5))  ? 1 : 0;
         Result.BMI1             = (ebx & (1 << 3))  ? 1 : 0;
         Result.TZCNT            = (ebx & (1 << 3))  ? 1 : 0;
@@ -298,7 +298,7 @@ CpuInfo Platform_QueryCPUInfo(void)
 #include <sys/types.h>
 #include <sys/sysctl.h>
 
-internal inline bool IsSysAttributeSet(const char* Name)
+static inline bool IsSysAttributeSet(const char* Name)
 {
     i64 Ret = 0;
     size_t Size = sizeof(i64);
@@ -617,7 +617,7 @@ f64 Time_AutoConvert(f64 Seconds)
 void Time_ToString(f64 Seconds, bool bAutoConvertTimeUnit, String* OutString)
 {
     f64 TimeAdjusted;
-    char TimeUnit[4] = {0};
+    u8 TimeUnit[4] = {0};
 
     TimeAdjusted = Seconds;
     TimeUnit[0] = 's';
@@ -665,7 +665,7 @@ void Time_ToString(f64 Seconds, bool bAutoConvertTimeUnit, String* OutString)
 void Time_ToStringEx(f64 Seconds, bool bAutoConvertTimeUnit, String* OutString, const String Format)
 {
     f64 TimeAdjusted;
-    char TimeUnit[4] = {0};
+    u8 TimeUnit[4] = {0};
 
     TimeAdjusted = Seconds;
     TimeUnit[0] = 's';
@@ -718,7 +718,7 @@ void Clock_PrintElapsedTime(const Clock* C, bool bAutoConvertTimeUnit)
     StringLocal(Time, 64);
     Clock_GetElapsedTime_ToString(C, bAutoConvertTimeUnit, &Time);
 
-    Platform_ConsoleWrite_CustomLength(Time.Data, Time.Length, 0, false);
+    Platform_ConsoleWrite_CustomLength((char*)Time.Data, Time.Length, 0, false);
     Platform_ConsoleWrite_CustomLength("\n", 1, 0, false);
 }
 
@@ -738,7 +738,7 @@ bool Filesystem_DoesPathHaveFileExtension(const String Path)
     bool bSomeCharAfterDot = false;
     if (LastDot+1 < Path.Length)
     {
-        char C = Path.Data[LastDot+1];
+        u8 C = Path.Data[LastDot+1];
         bSomeCharAfterDot = IsAlphabet(C) || IsDigit(C);
     }
 

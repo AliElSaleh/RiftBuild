@@ -17,7 +17,7 @@
 
 bool C_DoCompile(CompileData* Data, const String FullPath, const String RelativePath);
 
-internal bool AsmSourceFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
+static bool AsmSourceFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
     if (FileSize > 0)
     {
@@ -176,7 +176,7 @@ bool SourceFileDirectoryIterator(const String FullPath, const String RelativePat
 }
 
 #if PLATFORM_WINDOWS
-internal bool ResourceFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
+static bool ResourceFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
     if (FileSize > 0)
     {
@@ -282,7 +282,7 @@ bool RC_Compile(const BuildParams* Params, const String FullRCPath, String* OutR
     #endif
 }
 
-internal bool Link_SourceFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
+static bool Link_SourceFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
     if (FileSize > 0)
     {
@@ -970,7 +970,7 @@ LinearAllocator GMSVCFindAllocator = {0};
 
 bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String RelativePath);
 
-internal bool AsmSourceFileDirectoryIterator_MSVC(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
+static bool AsmSourceFileDirectoryIterator_MSVC(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
     if (FileSize > 0)
     {
@@ -1059,7 +1059,7 @@ internal bool AsmSourceFileDirectoryIterator_MSVC(const String FullPath, const S
     return true;
 }
 
-internal bool Link_SourceFileDirectoryIterator_MSVC(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
+static bool Link_SourceFileDirectoryIterator_MSVC(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
     if (FileSize > 0)
     {
@@ -1504,7 +1504,7 @@ bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String Relat
     return true;
 }
 
-internal void Internal_ParseAndLogLinkerOutput_MSVC(String StdOutData)
+static void Internal_ParseAndLogLinkerOutput_MSVC(String StdOutData)
 {
     if (StdOutData.Length == 0) return;
 
@@ -1724,7 +1724,7 @@ internal void Internal_ParseAndLogLinkerOutput_MSVC(String StdOutData)
     }
 }
 
-internal void Internal_ProcessLinkerOutput_MSVC(PlatformPipe StdOutHandle)
+static void Internal_ProcessLinkerOutput_MSVC(PlatformPipe StdOutHandle)
 {
     Platform_CloseHandle(StdOutHandle[1]);
 

@@ -17,6 +17,7 @@ typedef signed long long     i64;
 typedef float                f32;
 typedef double               f64;
 
+typedef unsigned char        uchar;
 typedef unsigned short       wchar;
 
 // forward declare
@@ -95,7 +96,7 @@ typedef void VoidFunc(void);
 #define __NARG_I_(...) __ARG_N(__VA_ARGS__)
 #define __NARG__(...)  __NARG_I_(__VA_ARGS__,__RSEQ_N())
 
-#define BITS_PER_LONG (8*sizeof(long))
+#define BITS_PER_LONG (8*sizeof(i64))
 #define OFF(x) ((x)%BITS_PER_LONG)
 #define BIT(x) (1UL<<OFF(x))
 
@@ -126,7 +127,7 @@ typedef void VoidFunc(void);
 
 STRUCT(String)
 {
-    char* Data;
+    uchar* Data;
     u32   Length;
     u32   Capacity;
 };
@@ -158,24 +159,24 @@ STRUCT(StringList)
 #define each_str_list_i(Index, List)        (StringList It = List; (It).String.Data != NULL || (It).Next != NULL; (It) = StringList_Iterate_Next(It), (++Index))
 #define each_str_list_it(Element, List)     (StringList (Element) = List; (Element).String.Data != NULL || (Element).Next != NULL; (Element) = StringList_Iterate_Next(Element))
 
-#define StringN(n)  		                struct { char Data[n]; u32 Length; u32 Capacity; }
+#define StringN(n)  		                struct { uchar Data[n]; u32 Length; u32 Capacity; }
 
-#define StringLocal(Name, n) 	            char  MACRO_VAR(CONCAT(Buffer_, Name))[n+1] = {0}; String   Name; Name.Data = MACRO_VAR(CONCAT(Buffer_, Name)); Name.Length = 0; Name.Capacity = (n)
-#define String16Local(Name, n) 	            wchar MACRO_VAR(CONCAT(Buffer_, Name))[n+1] = {0}; String16 Name; Name.Data = MACRO_VAR(CONCAT(Buffer_, Name)), Name.Length = 0, Name.Capacity = (n)
+#define StringLocal(Name, n) 	            u8    MACRO_VAR(CONCAT(Buffer_, Name))[n+1] = {0}; String   Name; Name.Data = (uchar*)MACRO_VAR(CONCAT(Buffer_, Name)); Name.Length = 0; Name.Capacity = (n)
+#define String16Local(Name, n) 	            wchar MACRO_VAR(CONCAT(Buffer_, Name))[n+1] = {0}; String16 Name; Name.Data = (uchar*)MACRO_VAR(CONCAT(Buffer_, Name)), Name.Length = 0, Name.Capacity = (n)
 
-#define CStr(s)                             (String)         {.Data = (char* )(s),     .Length = String_GetLength(s),             .Capacity = 0}
-#define CStrEx(s, n)                        (String)         {.Data = (char* )(s),     .Length = String_GetLength_Ex(s, n),       .Capacity = 0}
-#define CStrView(s)                         (const String)   {.Data = (char* )(s),     .Length = String_GetLength(s),             .Capacity = 0}
-#define CStr16(s)                           (String16)       {.Data = (wchar*)(s),     .Length = String16_GetLength((wchar*)(s)), .Capacity = 0}
-#define CStr16View(s)                       (const String16) {.Data = (wchar*)(s),     .Length = String16_GetLength(s),           .Capacity = 0}
+#define CStr(s)                             (String)         {.Data = (uchar*)(s),      .Length = String_GetLength(s),             .Capacity = 0}
+#define CStrEx(s, n)                        (String)         {.Data = (uchar*)(s),      .Length = String_GetLength_Ex(s, n),       .Capacity = 0}
+#define CStrView(s)                         (const String)   {.Data = (uchar*)(s),      .Length = String_GetLength(s),             .Capacity = 0}
+#define CStr16(s)                           (String16)       {.Data = (wchar*)(s),      .Length = String16_GetLength((wchar*)(s)), .Capacity = 0}
+#define CStr16View(s)                       (const String16) {.Data = (wchar*)(s),      .Length = String16_GetLength(s),           .Capacity = 0}
 
-#define S(s)                                (const String)   {.Data = (char* )(s),     .Length = sizeof((s))-1, .Capacity = sizeof((s))-1}
-#define SC(s)                                                {.Data = (char* )(s),     .Length = sizeof((s))-1, .Capacity = sizeof((s))-1}
-#define S16(s)                              (const String16) {.Data = (wchar*)(s),     .Length = sizeof((s))-1, .Capacity = sizeof((s))-1}
+#define S(s)                                (const String)   {.Data = (uchar*)(s),      .Length = sizeof((s))-1, .Capacity = sizeof((s))-1}
+#define SC(s)                                                {.Data = (uchar*)(s),      .Length = sizeof((s))-1, .Capacity = sizeof((s))-1}
+#define S16(s)                              (const String16) {.Data = (wchar*)(s),      .Length = sizeof((s))-1, .Capacity = sizeof((s))-1}
 
-#define StrMake(s)                          (String)         {.Data = (s).Data,        .Length = (s).Length, .Capacity = (s).Capacity}
-#define StrView(s)                          (const String)   {.Data = (char*)(s).Data, .Length = (s).Length, .Capacity = (s).Capacity}
-#define Str16Slice(s, Len)                  (String16)       {.Data = (wchar*)(s),     .Length = Len,        .Capacity = Len}
+#define StrMake(s)                          (String)         {.Data = (s).Data,         .Length = (s).Length, .Capacity = (s).Capacity}
+#define StrView(s)                          (const String)   {.Data = (uchar*)(s).Data, .Length = (s).Length, .Capacity = (s).Capacity}
+#define Str16Slice(s, Len)                  (String16)       {.Data = (wchar*)(s),      .Length = Len,        .Capacity = Len}
 
 #define StrArray(...)                       (StringArray)    {.List = ((String[]){__VA_ARGS__}), .Num = SArray_Capacity(((String[]){__VA_ARGS__}))}
 
@@ -209,7 +210,7 @@ STRUCT(StringList)
 #define TMap(KeyType, ValueType) Map
 
 #define global extern
-#define internal static
+//#define internal static
 #define thread_local _Thread_local
 
 #define FUNCTION_NAME __func__
@@ -475,8 +476,8 @@ STRUCT(StringList)
     PRAGMA_DISABLE_WARNING("GCC diagnostic ignored \"-Wunused-function\"")
     #endif
 
-    FORCEINLINE internal bool __always__(bool bCondition) { if (!bCondition) { DEBUG_BREAK(); } return bCondition; }
-    FORCEINLINE internal bool __never__(bool bCondition)  { if (bCondition)  { DEBUG_BREAK(); } return bCondition; }
+    FORCEINLINE static bool __always__(bool bCondition) { if (!bCondition) { DEBUG_BREAK(); } return bCondition; }
+    FORCEINLINE static bool __never__(bool bCondition)  { if (bCondition)  { DEBUG_BREAK(); } return bCondition; }
 
     #if COMPILER_CLANG || COMPILER_GCC
     PRAGMA_ENABLE_WARNINGS
@@ -498,7 +499,7 @@ STRUCT(StringList)
     #define ENSURE(Expression, ...) do { if (Expression) {} else { ##__VA_ARGS__; DEBUG_BREAK(); } } while (0)
 #endif
 
-#define STATIC_ASSERT(e, Msg) typedef char MACRO_VAR(__C_ASSERT__)[(e) ? 1 : -1]
+#define STATIC_ASSERT(e, Msg) typedef uchar MACRO_VAR(__C_ASSERT__)[(e) ? 1 : -1]
 
 // drop support for typeof because of MSVC :(
 /*
@@ -553,6 +554,28 @@ typedef i32 isize;
 typedef u32 usize;
 
 #define USIZE_MAX UINT32_MAX
+#endif // PLATFORM_64_BIT
+
+#if PLATFORM_WINDOWS
+    #define MAX_PATH_LENGTH 260
+    #define MAX_PATH_LENGTH_EX 32767
+    #define PATH_SEPARATOR '\\'
+#elif PLATFORM_LINUX
+    #define MAX_PATH_LENGTH 4096
+    #define MAX_PATH_LENGTH_EX 4096
+    #define PATH_SEPARATOR '/'
+#elif PLATFORM_APPLE // todo: subdivide into mac, ios
+    #define MAX_PATH_LENGTH 1024
+    #define MAX_PATH_LENGTH_EX 1024
+    #define PATH_SEPARATOR '/'
+#elif PLATFORM_BSD
+    #define MAX_PATH_LENGTH 1024
+    #define MAX_PATH_LENGTH_EX 1024
+    #define PATH_SEPARATOR '/'
+#else
+    #define MAX_PATH_LENGTH 1024
+    #define MAX_PATH_LENGTH_EX 1024
+    #define PATH_SEPARATOR '/'
 #endif
 
 #endif // _ENGINE_TYPES_H_

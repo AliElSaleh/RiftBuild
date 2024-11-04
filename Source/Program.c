@@ -44,12 +44,12 @@ STRUCT(BuildFileDirectoryIteratorData)
     StringArray Arguments;
 };
 
-internal bool IsBuildFile(const String FilePath)
+static bool IsBuildFile(const String FilePath)
 {
     return String_EndsWith(FilePath, S(".build"), false);
 }
 
-internal bool IsBuildBatchFile(const String FilePath)
+static bool IsBuildBatchFile(const String FilePath)
 {
     return String_EndsWith(FilePath, S(".buildbatch"), false);
 }
@@ -154,7 +154,7 @@ String* GetVariableValue_Ref(TArray(FileVariable) Variables, const String Name)
     return NULL;
 }
 
-internal void PrefixVariables(String* Dest, String VariableValue, const String Prefix, bool bWrapWithQuotes)
+static void PrefixVariables(String* Dest, String VariableValue, const String Prefix, bool bWrapWithQuotes)
 {
     bool bInsideQuote = false;
     bool bSawSpace = false;
@@ -183,7 +183,7 @@ internal void PrefixVariables(String* Dest, String VariableValue, const String P
 
     for (u32 i = 0; i < VariableValue.Length; i++)
     {
-        char C = VariableValue.Data[i];
+        u8 C = VariableValue.Data[i];
 
         // ignore trailing space
         if (IsWhitespace(C) && i == VariableValue.Length-1)
@@ -255,11 +255,11 @@ internal void PrefixVariables(String* Dest, String VariableValue, const String P
     }
 }
 
-internal void SuffixVariables(String* Dest, String VariableValue, const String Suffix)
+static void SuffixVariables(String* Dest, String VariableValue, const String Suffix)
 {
     for (u32 i = 0; i < VariableValue.Length; i++)
     {
-        char C = VariableValue.Data[i];
+        u8 C = VariableValue.Data[i];
 
         bool bSawSpace;
         if (C == ' ')
@@ -310,7 +310,7 @@ bool ExtensionHas(LinearAllocator Scratch, const String ExtensionString, const S
 }
 */
 
-internal bool VariableHasSpecial(TArray(FileVariable) VariablesDB, const String Name)
+static bool VariableHasSpecial(TArray(FileVariable) VariablesDB, const String Name)
 {
     for each (FileVariable, Var, VariablesDB)
     {
@@ -369,7 +369,7 @@ bool LogCustomErrorMessage(TArray(FileVariable) VariablesDB, const String Contex
     return bLogged;
 }
 
-internal bool IconFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
+static bool IconFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
     if (FileSize > 0)
     {
@@ -442,7 +442,7 @@ internal bool IconFileDirectoryIterator(const String FullPath, const String Rela
     return true;
 }
 
-internal bool SourceFileCounterDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
+static bool SourceFileCounterDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
     if (FileSize > 0)
     {
@@ -534,7 +534,7 @@ internal bool SourceFileCounterDirectoryIterator(const String FullPath, const St
     return true;
 }
 
-internal bool HeaderFileRebuildCheckDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
+static bool HeaderFileRebuildCheckDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
     if (FileSize > 0)
     {
@@ -580,7 +580,7 @@ internal bool HeaderFileRebuildCheckDirectoryIterator(const String FullPath, con
     return true;
 }
 
-internal bool BuildFileDirectoryIterator_Args(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
+static bool BuildFileDirectoryIterator_Args(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
     if (FileSize > 0)
     {
@@ -622,7 +622,7 @@ internal bool BuildFileDirectoryIterator_Args(const String FullPath, const Strin
 }
 
 /*
-internal bool LibraryDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
+static bool LibraryDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
     struct _blah_
     {
@@ -672,7 +672,7 @@ internal bool LibraryDirectoryIterator(const String FullPath, const String Relat
 }
 */
 
-internal bool MultipleBuildFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
+static bool MultipleBuildFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
     if (IsBuildFile(FileName))
     {
@@ -684,7 +684,7 @@ internal bool MultipleBuildFileDirectoryIterator(const String FullPath, const St
     return true;
 }
 
-internal bool BuildFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
+static bool BuildFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
     if (FileSize > 0)
     {
@@ -731,7 +731,7 @@ internal bool BuildFileDirectoryIterator(const String FullPath, const String Rel
     return true;
 }
 
-internal bool PathFlagDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
+static bool PathFlagDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
     if (NEVER(UserData == NULL)) return false;
 
@@ -754,7 +754,7 @@ internal bool PathFlagDirectoryIterator(const String FullPath, const String Rela
     return true;
 }
 
-internal bool EnforceCopyright(CompileData* Data, const String FullPath, const String RelativePath)
+static bool EnforceCopyright(CompileData* Data, const String FullPath, const String RelativePath)
 {
     struct { bool bSuccess; String Content; u32 FromLine; u32 ToLine; } * AuxData = Data->AdditionalData;
 
@@ -910,7 +910,7 @@ bool LogStringList_WordWrapped(LinearAllocator Scratch, const String Name, const
     return bLogged;
 }
 
-internal void LogNameValuePair(LinearAllocator Scratch, const String Name, const String Value, const bool bWordWrap)
+static void LogNameValuePair(LinearAllocator Scratch, const String Name, const String Value, const bool bWordWrap)
 {
     if (Value.Length > 0)
     {
@@ -925,7 +925,7 @@ internal void LogNameValuePair(LinearAllocator Scratch, const String Name, const
     }
 }
 
-internal void LogBuildVariable(LinearAllocator Scratch, TArray(FileVariable) VariablesDB, const String Name, const String DisplayName, const bool bWordWrap)
+static void LogBuildVariable(LinearAllocator Scratch, TArray(FileVariable) VariablesDB, const String Name, const String DisplayName, const bool bWordWrap)
 {
     StringList List = GetVariableValueList(&Scratch, VariablesDB, Name);
 
@@ -973,7 +973,7 @@ bool LogString_WordWrapped(LinearAllocator Scratch, const String Name, const Str
     return false;
 }
 
-internal void ListVariables(LinearAllocator Arena, const String Name, TArray(FileVariable) ExpandedVariablesDB) 
+static void ListVariables(LinearAllocator Arena, const String Name, TArray(FileVariable) ExpandedVariablesDB) 
 {
     const String Exclusions[] =
     {
@@ -1043,7 +1043,7 @@ internal void ListVariables(LinearAllocator Arena, const String Name, TArray(Fil
     }
 }
 
-internal bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String Name, const String Value, bool bHasSpecial, u32* ExitCode)
+static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String Name, const String Value, bool bHasSpecial, u32* ExitCode)
 {
     if (!String_IsValid(Value))
         return true;
@@ -1532,7 +1532,7 @@ internal bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const Stri
     return true;
 }
 
-internal void Internal_RemoveBuildVariable(TArray(FileVariable) VariablesDB, const String Name)
+static void Internal_RemoveBuildVariable(TArray(FileVariable) VariablesDB, const String Name)
 {
     u32 i = 0;
     for each_i (i, FileVariable, Var, VariablesDB)
@@ -1545,13 +1545,13 @@ internal void Internal_RemoveBuildVariable(TArray(FileVariable) VariablesDB, con
     }
 }
 
-internal void Internal_AddOrUpdateBuildVariable(TArray(FileVariable) VariablesDB, FileVariable Expanded)
+static void Internal_AddOrUpdateBuildVariable(TArray(FileVariable) VariablesDB, FileVariable Expanded)
 {
     Internal_RemoveBuildVariable(VariablesDB, Expanded.Name);
     Array_Add(VariablesDB, Expanded);
 }
 
-internal void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const FileHandle BuildFileHandle, TArray(FileVariable) VariablesDB, TArray(FileVariable) ExpandedVariablesDB)
+static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const FileHandle BuildFileHandle, TArray(FileVariable) VariablesDB, TArray(FileVariable) ExpandedVariablesDB)
 {
     if (!DoesBuildVarExist(VariablesDB, S("Assembly")))
     {
@@ -1734,7 +1734,7 @@ internal void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const Fi
     }
 }
 
-internal void AddCmdOption(TArray(CmdOption)* CmdOptionsDB, const String Name, const String Value)
+static void AddCmdOption(TArray(CmdOption)* CmdOptionsDB, const String Name, const String Value)
 {
     CmdOption c;
     c.Name = Name;
@@ -1744,7 +1744,7 @@ internal void AddCmdOption(TArray(CmdOption)* CmdOptionsDB, const String Name, c
     Array_Add(*CmdOptionsDB, c);
 }
 
-internal void AddInternalVariable(const String Name, const String Value)
+static void AddInternalVariable(const String Name, const String Value)
 {
     InternalVariable c;
     c.Name = Name;
@@ -1753,7 +1753,7 @@ internal void AddInternalVariable(const String Name, const String Value)
     Array_Add(InternalVariablesDB, c);
 }
 
-internal bool CheckForBuildVariableOverrides(TArray(FileVariable) VariablesDB, TArray(FileVariable) ExpandedVariablesDB, TArray(CmdOption) CmdOptionsDB)
+static bool CheckForBuildVariableOverrides(TArray(FileVariable) VariablesDB, TArray(FileVariable) ExpandedVariablesDB, TArray(CmdOption) CmdOptionsDB)
 {
     bool bAnyOverriden = false;
 
@@ -1891,7 +1891,7 @@ void LogRegularEnvVarTutorialSteps(void)
     #endif
 }
 
-internal bool BuildFilesIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
+static bool BuildFilesIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
     if (FileSize > 0)
     {
@@ -1911,7 +1911,7 @@ internal bool BuildFilesIterator(const String FullPath, const String RelativePat
     return true;
 }
 
-internal void PrintUsage(const String WorkingDirectory)
+static void PrintUsage(const String WorkingDirectory)
 {
     LOG_INLINE_WARNING("Usage\n");
     LOG("   riftbuild");
@@ -2191,7 +2191,7 @@ bool FilterSourceFile(const String WorkingDirectory, const String SourceDirector
     return false;
 }
 
-internal void ExpandPathFlags(LinearAllocator Scratch, String* Dest, const String Flags, const String FlagPrefix, bool bWrapWithQuotes)
+static void ExpandPathFlags(LinearAllocator Scratch, String* Dest, const String Flags, const String FlagPrefix, bool bWrapWithQuotes)
 {
     // expand include flags with * and ** wildcards
     StringLocal(WildcardFlags, 4096);
@@ -2249,7 +2249,7 @@ internal void ExpandPathFlags(LinearAllocator Scratch, String* Dest, const Strin
     PrefixVariables(Dest, NonWildcardFlags, FlagPrefix, bWrapWithQuotes);
 }
 
-internal void Internal_RunAssembly(LinearAllocator Scratch, const String WorkingPath, const String BuildDirectory, const String AssemblyNameWithExt, const String ArgString)
+static void Internal_RunAssembly(LinearAllocator Scratch, const String WorkingPath, const String BuildDirectory, const String AssemblyNameWithExt, const String ArgString)
 {
     u32 PipeIndex = 0;
     bool bFound = String_IndexOfChar(ArgString, '|', &PipeIndex);
@@ -2346,7 +2346,7 @@ internal void Internal_RunAssembly(LinearAllocator Scratch, const String Working
     }
 }
 
-internal u32 BuildTarget(LinearAllocator* Arena,
+static u32 BuildTarget(LinearAllocator* Arena,
                         const FileHandle BuildFileHandle, PlatformMutex* BuildMutex,
                         const String WorkingPath, const StringArray Parameters, const String CameFromBuildFile,
                         i8 BuildFileIndex, i8 RootPathIndex)
@@ -4336,7 +4336,7 @@ internal u32 BuildTarget(LinearAllocator* Arena,
             */
 
             LinearAllocator NewArena = {0};
-            char ArenaMemory[Mebibytes(1)] = {0};
+            i8 ArenaMemory[Mebibytes(1)] = {0};
             LinearAllocator_Create(Mebibytes(1), ArenaMemory, &NewArena);
 
             StringList List = String_SplitIntoList(&NewArena, SpecifiedParams, ' ', true);
@@ -7584,16 +7584,16 @@ End:
     return 0;
 }
 
-internal void LogDividerLine(void)
+static void LogDividerLine(void)
 {
-    if (bQuietBuild) Logging_Enable();
+    if (bQuietBuild) { Logging_Enable(); }
 
     LOG_LINE_BREAK();
 
     u32 Rows = 0, Cols = 0;
     if (Platform_GetTerminalDimensions(&Rows, &Cols))
     {
-        char Separator[256] = {0};
+        u8 Separator[256] = {0};
         for (i32 i = 0; i < Min((i32)(Cols-1), 255); i++)
         {
             Separator[i] = '=';
@@ -7603,10 +7603,10 @@ internal void LogDividerLine(void)
         LOG("%S\n", StrSlice(Separator, Len));
     }
 
-    if (bQuietBuild) Logging_Disable();
+    if (bQuietBuild) { Logging_Disable(); }
 }
 
-internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments, const String BaseDirectory)
+static u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments, const String BaseDirectory)
 {
     if (NEVER(Arena == NULL)) return 1;
 
@@ -8182,13 +8182,13 @@ internal u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments, cons
     return ExitCode;
 }
 
-internal void InitInternalVars(LinearAllocator* Arena)
+static void InitInternalVars(LinearAllocator* Arena)
 {
     const u32 MaxInternalVars = 256;
     const u32 MaxSize = MaxInternalVars * sizeof(InternalVariable); // 8192 bytes
     InternalVariablesDB = _ArrayCreateStatic(LinearAllocator_Allocate(Arena, MaxSize), MaxInternalVars, sizeof(InternalVariable));
 
-    // store internal options. like platform, native os .lib's, etc..
+    // store static options. like platform, native os .lib's, etc..
     AddInternalVariable(S(PLATFORM_STRING), S(""));
 
     // TODO: POSIX
@@ -8795,10 +8795,17 @@ u32 RunApplication(const StringArray Arguments)
     Platform_GetWorkingDirectory(&WorkingDirectory);
 
     LinearAllocator ProgramArena = {0};
-    char ProgramMemory[Mebibytes(1)] = {0};
+    i8 ProgramMemory[Mebibytes(1)] = {0};
     LinearAllocator_Create(Mebibytes(1), ProgramMemory, &ProgramArena);
 
     InitInternalVars(&ProgramArena);
+
+    StringLocal(Test, 23);
+    String_Append(&Test, S(""));
+    String_AppendChar(&Test, 'z');
+    String_Append(&Test, S("Hello, World!aaaa3aaaaaaaaaaaaaaaaaaaaaaaaaafjfjiaaaaaaaaaaaaaaaaaaaaaaaajdiwaaaaaaaaaaaaaaa"));
+    String_AppendChar(&Test, 'z');
+    LOG("Test: %S\n", Test);
 
     u32 ExitCode = RiftBuild(&ProgramArena, Arguments, WorkingDirectory);
 

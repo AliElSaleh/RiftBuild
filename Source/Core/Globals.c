@@ -13,26 +13,22 @@
 
 STRUCT(EngineGlobals)
 {
-    TArray(void) NullArray;
     struct FileHandle NullFileHandle;
     String NullString;
     StringArray NullStringArray;
     StringList NullStringList;
 };
 
-internal LinearAllocator GlobalsAllocator = {0};
-internal EngineGlobals   GGlobals = {0};
+static LinearAllocator GlobalsAllocator = {0};
+static EngineGlobals   GGlobals = {0};
 
-internal void InitGlobals(EngineGlobals* G)
+static void InitGlobals(EngineGlobals* G)
 {
-    // Array
+    if (NEVER(G == NULL))
     {
-        usize* Array = (usize*)LinearAllocator_Allocate(&GlobalsAllocator, 64);
-        Array[0] = 1;
-        Array[2] = 8;
-        G->NullArray = &Array[4];
+        return;
     }
-
+    
     // File Handle 
     {
         FileHandle Handle = {0};
@@ -81,10 +77,14 @@ void InitializeGlobals(void* Memory, usize Size)
 
 bool IsValidFileHandle(const FileHandle Handle)
 {
+    bool bValid = Handle.Data != NULL;
+
     if (Handle.Data == GGlobals.NullFileHandle.Data)
-        return false;
+    {
+        bValid = false;
+    }
     
-    return IsValid(Handle.Data);
+    return bValid;
 }
 
 String String_Null(void)
@@ -124,17 +124,14 @@ StringList StringList_Null(void)
     return GGlobals.NullStringList;
 }
 
-void* Array_Null(void)
-{
-    return GGlobals.NullArray;
-}
-
 FileHandle FileHandle_Null(void)
 {
     return GGlobals.NullFileHandle;
 }
 
-EngineGlobals Globals_Get(void)
+/*
+EngineGlobals Globals(void)
 {
     return GGlobals;
 }
+*/

@@ -10,10 +10,10 @@
 #include "StringUtils.h"
 #endif
 
-internal FreeListAllocator GEngineAllocator = { 0 };
-internal LinearAllocator GEngineScratchAllocator = { 0 };
-internal void* GEngineMemory = NULL;
-internal void* GGlobalsMemory = NULL;
+static FreeListAllocator GEngineAllocator = { 0 };
+static LinearAllocator GEngineScratchAllocator = { 0 };
+static void* GEngineMemory = NULL;
+static void* GGlobalsMemory = NULL;
 
 static PlatformCriticalSection GCriticalSection = NULL;
 
@@ -28,8 +28,8 @@ const char* __asan_default_options(void)
 #endif
 
 #ifdef RIFT_DEBUG_MEMORY
-internal void* GEngineMemory_Debug = NULL;
-internal FreeListAllocator GEngineAllocator_Debug = { 0 };
+static void* GEngineMemory_Debug = NULL;
+static FreeListAllocator GEngineAllocator_Debug = { 0 };
 static PlatformCriticalSection GCriticalSection_Debug = NULL;
 #endif
 
@@ -311,20 +311,21 @@ usize MemoryUtils_CalculatePaddingWithHeader(usize Ptr, usize Alignment, usize H
     return Padding;
 }
 
-bool IsValid(const void* Memory)
-{
-    return Memory != NULL;// && Memory != MemoryDump();
-}
-
 bool IsValidSlow(const void* Memory)
 {
+    bool bValid = true;
+
     if (Memory == NULL)
-        return false;
+    {
+        bValid = false;
+    }
     
     if (Memory < GEngineMemory)
-        return false;
+    {
+        bValid = false;
+    }
     
-    return true;
+    return bValid;
 }
 
 usize GetAligned(usize Operand, usize Granularity)
@@ -357,7 +358,7 @@ void LinearAllocator_Create(usize TotalSize, void* Memory, LinearAllocator* OutA
     
     OutAllocator->TotalSize = TotalSize;
     OutAllocator->Allocated = 0;
-    OutAllocator->bOwnsMemory = !IsValid(Memory);
+    OutAllocator->bOwnsMemory = !Memory;
     OutAllocator->bAlignMemory = true;
 
     if (Memory)
@@ -376,7 +377,7 @@ void LinearAllocator_Create(usize TotalSize, void* Memory, LinearAllocator* OutA
 
 void LinearAllocator_Destroy(LinearAllocator* Allocator)
 {
-    if (IsValid(Allocator->Memory))
+    if (Allocator->Memory)
     {
         if (Allocator->bOwnsMemory)
         {
@@ -510,7 +511,7 @@ void LinearAllocator_ReleaseScratch(LinearAllocator_Scratch* Scratch)
 
 #define DEFAULT_FREE_LIST_ALLOCATOR_ALIGNMENT 64
 
-internal FreeListAllocator_Node* Internal_FindFirstFit(FreeListAllocator* Allocator, usize Size, usize* OutPadding, FreeListAllocator_Node** OutPrevNode)
+static FreeListAllocator_Node* Internal_FindFirstFit(FreeListAllocator* Allocator, usize Size, usize* OutPadding, FreeListAllocator_Node** OutPrevNode)
 {
     ASSERT(Allocator->Head != NULL);
     
@@ -546,9 +547,9 @@ internal FreeListAllocator_Node* Internal_FindFirstFit(FreeListAllocator* Alloca
     return Node;
 }
 
-internal void Internal_FreeListAllocator_NodeRemove(FreeListAllocator_Node** HeadPtr, FreeListAllocator_Node* PrevNode, FreeListAllocator_Node* DelNode)
+static void Internal_FreeListAllocator_NodeRemove(FreeListAllocator_Node** HeadPtr, FreeListAllocator_Node* PrevNode, FreeListAllocator_Node* DelNode)
 {
-    if (!IsValid(PrevNode))
+    if (!PrevNode)
     {
         *HeadPtr = DelNode->Next;
     }
@@ -558,7 +559,7 @@ internal void Internal_FreeListAllocator_NodeRemove(FreeListAllocator_Node** Hea
     }
 }
 
-internal void Internal_FreeListAllocator_Coalesce(FreeListAllocator* Allocator, FreeListAllocator_Node* PrevNode, FreeListAllocator_Node* FreeNode)
+static void Internal_FreeListAllocator_Coalesce(FreeListAllocator* Allocator, FreeListAllocator_Node* PrevNode, FreeListAllocator_Node* FreeNode)
 {
     if (FreeNode->Next)
     {
@@ -676,7 +677,7 @@ void* FreeListAllocator_Allocate(FreeListAllocator* Allocator, usize Size, usize
         FreeListAllocator_Node* NewFreeNode = (FreeListAllocator_Node*)((u8*)Node + RequiredSpace);
         NewFreeNode->BlockSize = Remaining;
 
-        if (!IsValid(Node->Next))
+        if (!Node->Next)
         {
             Node->Next = NewFreeNode;
             NewFreeNode->Next = NULL;
@@ -692,7 +693,7 @@ void* FreeListAllocator_Allocate(FreeListAllocator* Allocator, usize Size, usize
         #endif
     }
 
-    if (!IsValid(PrevNode))	
+    if (!PrevNode)	
     {
         Allocator->Head = Node->Next;
     }
@@ -718,7 +719,7 @@ void FreeListAllocator_Free(FreeListAllocator* Allocator, void* Memory, usize* O
     if (OutBytesFreed)
         *OutBytesFreed = 0;
     
-    if (!IsValid(Memory))
+    if (!Memory)
         return;
 
     FreeListAllocator_Header* Header = (FreeListAllocator_Header*)((u8*)Memory - sizeof(FreeListAllocator_Header));
@@ -786,7 +787,7 @@ void FreeListAllocator_Free(FreeListAllocator* Allocator, void* Memory, usize* O
             }
             else
             {
-                if (!IsValid(PrevNode->Next))
+                if (!PrevNode->Next)
                 {
                     PrevNode->Next = FreeNode;
                     FreeNode->Next = NULL;
@@ -872,7 +873,7 @@ void Array_Destroy(void* Array)
     }
 }
 
-internal void* _ArrayResize(void* Array)
+static void* _ArrayResize(void* Array)
 {
     const usize* Header = (usize*)Array - ArrayField_Count;
 

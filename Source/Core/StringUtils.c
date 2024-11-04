@@ -13,115 +13,112 @@
 
 bool String_IsValid(const String Str)
 {
-    if (!Str.Data || Str.Data[0] == 0 || Str.Length == 0)
+    bool bValid = true;
+    if (!Str.Data || Str.Data[0] == 0 || Str.Length == 0 || Str.Data == String_Null().Data)
     {
-        return false;
+        bValid = false;
     }
 
-    if (Str.Data == String_Null().Data)
-    {
-        return false;
-    }
-
-    return true;
+    return bValid;
 }
 
 bool StringArray_IsValid(const StringArray Str)
 {
+    bool bValid = true;
     if (!Str.List || Str.Num == 0 || Str.List == StringArray_Null().List)
     {
-        return false;
+        bValid = false;
     }
 
-    return true;
+    return bValid;
 }
 
 bool StringList_IsValid(const StringList Str)
 {
+    bool bValid = true;
     if (!Str.Next || Str.Next == StringList_Null().Next || !String_IsValid(Str.String))
     {
-        return false;
+        bValid = false;
     }
 
-    return true;
+    return bValid;
 }
 
 String String_Create(LinearAllocator* Arena, const String Source)
 {
-    if (Source.Length == 0 || Arena->Allocated + Source.Length+1 > Arena->TotalSize)
+    String str = String_Null();
+    bool bValid = Source.Length > 0 && (Arena->Allocated + Source.Length+1 < Arena->TotalSize);
+    if (bValid)
     {
-        return String_Null();
+        str.Data = LinearAllocator_Allocate(Arena, Source.Length+1);
+        MemCopy(str.Data, Source.Data, Source.Length);
+        str.Data[Source.Length] = 0;
+        str.Length = Source.Length;
+        str.Capacity = Source.Length;
     }
 
-    String str;
-    str.Data = LinearAllocator_Allocate(Arena, Source.Length+1);
-    MemCopy(str.Data, Source.Data, Source.Length);
-    str.Data[Source.Length] = 0;
-    str.Length = Source.Length;
-    str.Capacity = Source.Length;
     return str;
 }
 
 String String_Duplicate(LinearAllocator* Arena, const String Source)
 {
-    if (Source.Length == 0 || Arena->Allocated + Source.Length+1 > Arena->TotalSize)
+    String str = String_Null();
+    bool bValid = Source.Length > 0 && (Arena->Allocated + Source.Length+1 < Arena->TotalSize);
+    if (bValid)
     {
-        return String_Null();
+        str.Data = LinearAllocator_Allocate(Arena, Source.Length+1);
+        MemCopy(str.Data, Source.Data, Source.Length);
+        str.Data[Source.Length] = 0;
+        str.Length = Source.Length;
+        str.Capacity = Source.Length;
     }
 
-    String str;
-    str.Data = LinearAllocator_Allocate(Arena, Source.Length+1);
-    MemCopy(str.Data, Source.Data, Source.Length);
-    str.Data[Source.Length] = 0;
-    str.Length = Source.Length;
-    str.Capacity = Source.Length;
     return str;
 }
 
 String String_Reserve(LinearAllocator* Arena, u32 Capacity)
 {
-    if (Arena->Allocated + Capacity > Arena->TotalSize)
+    String str = String_Null();
+    bool bValid = Arena->Allocated + Capacity < Arena->TotalSize;
+    if (bValid)
     {
-        return String_Null();
+        str.Data = LinearAllocator_Allocate(Arena, Capacity+1);
+        str.Length = 0;
+        str.Capacity = Capacity;
     }
 
-    String str;
-    str.Data = LinearAllocator_Allocate(Arena, Capacity+1);
-    str.Length = 0;
-    str.Capacity = Capacity;
     return str;
 }
 
 String String_ReserveAndCopy(LinearAllocator* Arena, u32 Capacity, const String Source)
 {
-    if (Arena->Allocated + Capacity > Arena->TotalSize)
+    String str = String_Null();
+    bool bValid = Arena->Allocated + Capacity < Arena->TotalSize;
+    if (bValid)
     {
-        return String_Null();
+        str.Data = LinearAllocator_Allocate(Arena, Capacity+1);
+        if (Source.Length) { MemCopy(str.Data, Source.Data, Source.Length); }
+        str.Data[Source.Length] = 0;
+        str.Length = Source.Length;
+        str.Capacity = Capacity;
     }
 
-    String str;
-    str.Data = LinearAllocator_Allocate(Arena, Capacity+1);
-    if (Source.Length) MemCopy(str.Data, Source.Data, Source.Length);
-    str.Data[Source.Length] = 0;
-    str.Length = Source.Length;
-    str.Capacity = Capacity;
     return str;
 }
 
 StringArray String_CreateArray(LinearAllocator* Arena, const StringArray Array)
 {
-    if (Arena->Allocated + sizeof(String) * Array.Num > Arena->TotalSize)
+    StringArray Result = StringArray_Null();
+    bool bValid = (Arena->Allocated + (sizeof(String) * Array.Num)) < Arena->TotalSize;
+    if (bValid)
     {
-        return StringArray_Null();
-    }
-
-    StringArray Result = {0};
-    Result.Num = Array.Num;
-    Result.List = LinearAllocator_Allocate(Arena, sizeof(String) * Array.Num);
-    
-    for (u32 i = 0; i < Array.Num; i++)
-    {
-        Result.List[i] = String_Create(Arena, Array.List[i]);
+        Result.Num = Array.Num;
+        Result.List = LinearAllocator_Allocate(Arena, sizeof(String) * Array.Num);
+        
+        for (u32 i = 0; i < Array.Num; i++)
+        {
+            Result.List[i] = String_Create(Arena, Array.List[i]);
+        }
     }
     
     return Result;
@@ -129,32 +126,31 @@ StringArray String_CreateArray(LinearAllocator* Arena, const StringArray Array)
 
 String String_Join(LinearAllocator* Arena, const StringArray Array)
 {
-    String JoinedStr;
-    
     u32 TotalSize = 0;
     for (u32 i = 0; i < Array.Num; i++)
     {
         TotalSize += Array.List[i].Length;
     }
 
-    if (Arena->Allocated + TotalSize+1 > Arena->TotalSize)
-    {
-        return String_Null();
-    }
-    
-    JoinedStr.Length = TotalSize;
-    JoinedStr.Data = LinearAllocator_Allocate(Arena, TotalSize+1);
-    JoinedStr.Capacity = TotalSize;
+    String JoinedStr = String_Null();
 
-    u32 NumCopied = 0;
-    for (u32 i = 0; i < Array.Num; i++)
+    bool bValid = Arena->Allocated + TotalSize+1 < Arena->TotalSize;
+    if (bValid)
     {
-        const String* Str = &Array.List[i];
-        u32 Len = Str->Length;
-        if (LIKELY(Len > 0))
+        JoinedStr.Data = LinearAllocator_Allocate(Arena, TotalSize+1);
+        JoinedStr.Length = TotalSize;
+        JoinedStr.Capacity = TotalSize;
+
+        u32 NumCopied = 0;
+        for (u32 i = 0; i < Array.Num; i++)
         {
-            MemCopy(&JoinedStr.Data[NumCopied], Str->Data, Len);
-            NumCopied += Len;
+            const String* Str = &Array.List[i];
+            u32 Len = Str->Length;
+            if (LIKELY(Len > 0))
+            {
+                MemCopy(&JoinedStr.Data[NumCopied], Str->Data, Len);
+                NumCopied += Len;
+            }
         }
     }
     
@@ -180,7 +176,9 @@ void String_ConcatArray(String* Dest, const StringArray Array, u32 MaxSize)
         u32 Len = Str->Length;
 
         if (Dest->Length + Len > MaxSize)
-            return;
+        {
+            break;
+        }
 
         if (LIKELY(Len > 0))
         {
@@ -192,104 +190,176 @@ void String_ConcatArray(String* Dest, const StringArray Array, u32 MaxSize)
 
 bool String_IsEqual(const String StringA, const String StringB, bool bCaseSensitive)
 {
-    if (UNLIKELY(StringA.Length == 0 && StringB.Length == 0))
-    {
-        return true;
-    }
+    bool bSameLength = StringA.Length == StringB.Length;
+    bool bMatch = bSameLength;
 
-    u32 Length = StringA.Length;
-    if (Length != StringB.Length)
-        return false;
-    
-    if (bCaseSensitive)
+    if (bMatch)
     {
-        for (u32 i = 0; i < Length; i++)
+        u32 Length = StringA.Length;
+
+        if (bCaseSensitive)
         {
-            if (StringA.Data[i] != StringB.Data[i])
+            for (u32 i = 0; i < Length; i++)
             {
-                return false;
+                i32 A = (i32)StringA.Data[i];
+                i32 B = (i32)StringB.Data[i];
+
+                if (A != B)
+                {
+                    bMatch = false;
+                    break;
+                }
             }
         }
-        
-        return true;
+        else
+        {
+            for (u32 i = 0; i < Length; i++)
+            {
+                i32 A = (i32)StringA.Data[i];
+                i32 B = (i32)StringB.Data[i];
+                
+                if (A >= 'A' && A <= 'Z')
+                {
+                    A += 32;
+                }
+
+                if (B >= 'A' && B <= 'Z')
+                {
+                    B += 32;
+                }
+            
+                if (A != B)
+                {
+                    bMatch = false;
+                    break;
+                }
+            }
+        }
     }
 
-    for (u32 i = 0; i < Length; i++)
-    {
-        i32 A = (i32)StringA.Data[i];
-        i32 B = (i32)StringB.Data[i];
-        
-        if ((A >= 'A' && A <= 'Z'))
-        {
-            A += 32;
-        }
-
-        if ((B >= 'A' && B <= 'Z'))
-        {
-            B += 32;
-        }
-    
-        if (A != B)
-        {
-            return false;
-        }
-    }
-
-    return true;
+    return bMatch;
 }
+
+bool String16_IsEqual(const String16 StringA, const String16 StringB, bool bCaseSensitive)
+{
+    bool bSameLength = StringA.Length == StringB.Length;
+    bool bMatch = bSameLength;
+
+    if (bMatch)
+    {
+        u32 Length = StringA.Length;
+
+        if (bCaseSensitive)
+        {
+            for (u32 i = 0; i < Length; i++)
+            {
+                i32 A = (i32)StringA.Data[i];
+                i32 B = (i32)StringB.Data[i];
+
+                if (A != B)
+                {
+                    bMatch = false;
+                    break;
+                }
+            }
+        }
+        else
+        {
+            for (u32 i = 0; i < Length; i++)
+            {
+                i32 A = (i32)StringA.Data[i];
+                i32 B = (i32)StringB.Data[i];
+                
+                if (A >= 'A' && A <= 'Z')
+                {
+                    A += 32;
+                }
+
+                if (B >= 'A' && B <= 'Z')
+                {
+                    B += 32;
+                }
+            
+                if (A != B)
+                {
+                    bMatch = false;
+                    break;
+                }
+            }
+        }
+    }
+
+    return bMatch;
+}
+
 
 bool String_IsInteger32(const String Str)
 {
-    if (Str.Length > 10) return false; // not a valid 32-bit integer
-    if (Str.Length == 0) return false;
+    bool bValid = Str.Length > 0 && Str.Length <= 10; // >10 is not a valid 32-bit integer
 
-    for (u32 i = 0; i < Str.Length; i++)
+    if (bValid)
     {
-        if (!IsDigit(Str.Data[i]))
+        for (u32 i = 0; i < Str.Length; i++)
         {
-            return false;
+            if (!IsDigit(Str.Data[i]))
+            {
+                bValid = false;
+                break;
+            }
         }
     }
 
-    return true;
+    return bValid;
 }
 
 bool String_IsInteger(const String Str)
 {
-    if (Str.Length == 0) return false;
+    bool bValid = Str.Length > 0;
 
     for (u32 i = 0; i < Str.Length; i++)
     {
         if (!IsDigit(Str.Data[i]))
         {
-            return false;
+            bValid = false;
+            break;
         }
     }
 
-    return true;
+    return bValid;
 }
 
 bool String_IsFloat(const String Str)
 {
-    if (Str.Length == 0) return false;
+    bool bValid = Str.Length > 0;
 
-    bool bHasDot = false;
-    for (u32 i = 0; i < Str.Length; i++)
+    if (bValid)
     {
-        if (Str.Data[i] == '.')
+        bool bHasDot = false;
+        for (u32 i = 0; i < Str.Length; i++)
         {
-            if (bHasDot) // already have a dot, means it's not a valid float
-                return false;
+            if (!IsDigit(Str.Data[i]))
+            {
+                bool bShouldBreak = true;
+                if (Str.Data[i] == '.' && !bHasDot)
+                {
+                    bShouldBreak = false;
+                    bHasDot = true;
+                }
 
-            bHasDot = true;
-        }
-        else if (!IsDigit(Str.Data[i]))
-        {
-            return false;
+                if (bShouldBreak)
+                { 
+                    bValid = false;
+                    break;
+                }
+            }
+            else
+            {
+                // no action required
+            }
         }
     }
 
-    return true;
+    return bValid;
 }
 
 bool String_IsNumeric(const String Str)
@@ -299,122 +369,97 @@ bool String_IsNumeric(const String Str)
 
 bool String_Contains(const String Str, const String SubString, bool bCaseSensitive)
 {
+    bool bContains = false;
+
     for (u32 i = 0; i < Str.Length; i++)
     {
         if (Str.Length - i < SubString.Length)
-            return false;
+        {
+            bContains = false;
+            break;
+        }
 
         const String S = StrShiftF(Str, i);
         if (String_IsEqual(StrSlice(S.Data, SubString.Length), SubString, bCaseSensitive))
         {
-            return true;
+            bContains = true;
+            break;
         }
     }
 
-    return false;
+    return bContains;
 }
 
 bool String_ContainsPathSeparators(const String Str)
 {
+    bool bContains = false;
+
     for (u32 i = 0; i < Str.Length; i++)
     {
         if (Str.Data[i] == '/' || Str.Data[i] == '\\')
         {
-            return true;
+            bContains = true;
+            break;
         }
     }
 
-    return false;
+    return bContains;
 }
 
 bool String_ContainsDigits(const String Str)
 {
+    bool bContains = false;
+
     for (u32 i = 0; i < Str.Length; i++)
     {
         if (IsDigit(Str.Data[i]))
         {
-            return true;
+            bContains = true;
+            break;
         }
     }
 
-    return false;
+    return bContains;
 }
 
 bool String_ContainsNonDigits(const String Str)
 {
+    bool bContains = false;
+
     for (u32 i = 0; i < Str.Length; i++)
     {
         if (!IsDigit(Str.Data[i]))
         {
-            return true;
+            bContains = true;
+            break;
         }
     }
 
-    return false;
+    return bContains;
 }
 
 bool String_StartsWith(const String Str, const String SubString, bool bCaseSensitive)
 {
-    if (Str.Length < SubString.Length || SubString.Length == 0)
-        return false;
+    bool bSuccess = Str.Length >= SubString.Length && SubString.Length > 0;
+    if (bSuccess)
+    {
+        const String Slice = StrSlice(Str.Data, SubString.Length);
+        bSuccess = String_IsEqual(Slice, SubString, bCaseSensitive);
+    }
 
-    return String_IsEqual(StrSlice(Str.Data, SubString.Length), SubString, bCaseSensitive);
+    return bSuccess;
 }
 
 bool String_EndsWith(const String Str, const String SubString, bool bCaseSensitive)
 {
-    if (Str.Length < SubString.Length || SubString.Length == 0)
-        return false;
-
-    return String_IsEqual(StrShiftF(Str, Str.Length - SubString.Length), SubString, bCaseSensitive);
-}
-
-bool String16_IsEqual(const String16 StringA, const String16 StringB, bool bCaseSensitive)
-{
-    if (UNLIKELY(StringA.Length == 0 && StringB.Length == 0))
+    bool bSuccess = Str.Length >= SubString.Length && SubString.Length > 0;
+    if (bSuccess)
     {
-        return true;
+        const String Slice = StrShiftF(Str, Str.Length - SubString.Length);
+        bSuccess = String_IsEqual(Slice, SubString, bCaseSensitive);
     }
 
-    u64 Length = StringA.Length;
-    if (Length != StringB.Length)
-        return false;
-    
-    if (bCaseSensitive)
-    {
-        for (u64 i = 0; i < Length; i++)
-        {
-            if (StringA.Data[i] != StringB.Data[i])
-            {
-                return false;
-            }
-        }
-        
-        return true;
-    }
-
-    for (u64 i = 0; i < Length; i++)
-    {
-        i32 A = (i32)StringA.Data[i];
-        i32 B = (i32)StringB.Data[i];
-        
-        if ((A >= L'A' && A <= L'Z'))
-        {
-            A += 32;
-        }
-
-        if ((B >= L'A' && B <= L'Z'))
-        {
-            B += 32;
-        }
-    
-        if (A != B)
-        {
-            return false;
-        }
-    }
-
-    return true;
+    return bSuccess;
 }
 
 void String_Copy(String* Dest, const String Source)
@@ -443,22 +488,19 @@ void StringInternal_Concat(String* Dest, const StringArray Array)
 
 void String_Append(String* Dest, const String Source)
 {
-    if (Dest->Length + Source.Length > Dest->Capacity || Source.Length == 0)
-        return;
-
     u32 NumToCopy = Min(Dest->Capacity, Source.Length);
+    NumToCopy = Min(Dest->Capacity - Dest->Length, NumToCopy);
     MemCopy(&Dest->Data[Dest->Length], Source.Data, NumToCopy);
     Dest->Length += NumToCopy;
     Dest->Data[Dest->Length] = 0;
 }
 
-void String_AppendChar(String* Dest, const char Source)
+void String_AppendChar(String* Dest, const u8 Source)
 {
-    if (Dest->Length + 1 > Dest->Capacity || Dest->Capacity == 0)
-        return;
-
-    Dest->Data[Dest->Length] = Source;
-    Dest->Length += 1;
+    u32 NumToCopy = Min(Dest->Capacity, 1);
+    NumToCopy = Min(Dest->Capacity - Dest->Length, NumToCopy);
+    MemCopy(&Dest->Data[Dest->Length], &Source, NumToCopy);
+    Dest->Length += NumToCopy;
     Dest->Data[Dest->Length] = 0;
 }
 
@@ -479,30 +521,22 @@ void String_AppendNewline(String* Dest)
 
 void String_AppendPathSeparator(String* Dest)
 {
-#if PLATFORM_WINDOWS
-    String_AppendChar(Dest, '\\');
-#else
-    String_AppendChar(Dest, '/');
-#endif
+    String_AppendChar(Dest, PATH_SEPARATOR);
 }
 
 void String_AppendPathSeparator_Checked(String* Dest)
 {
-    char LastChar = Dest->Data[Dest->Length-1];
+    u8 LastChar = Dest->Data[Dest->Length-1];
     bool bHasPathSep = LastChar == '/' || LastChar == '\\';
-    if (bHasPathSep)
-        return;
-
-#if PLATFORM_WINDOWS
-    String_AppendChar(Dest, '\\');
-#else
-    String_AppendChar(Dest, '/');
-#endif
+    if (!bHasPathSep)
+    {
+        String_AppendChar(Dest, PATH_SEPARATOR);
+    }
 }
 
 ECompareResult String_CompareVersion(const String VersionA, const String VersionB)
 {
-    if (VersionA.Length == 0 || VersionB.Length == 0) return CompareResult_None;
+    if (VersionA.Length == 0 || VersionB.Length == 0) { return CompareResult_None; }
 
     // compare each version separated by '.' or '-'
 
@@ -605,10 +639,10 @@ ECompareResult String_CompareVersion(const String VersionA, const String Version
 
 void String_Format(String* Dest, const String Format, ...)
 {
-    va_list Args;
+    va_list Args = {0};
     va_start(Args, Format);
     const i32 NewCap = (i32)Clamp(Dest->Capacity, 0, INT32_MAX); 
-    const i32 Written = stbsp_vsnprintf(Dest->Data, NewCap, Format.Data, Args);
+    const i32 Written = stbsp_vsnprintf((char*)Dest->Data, NewCap, (char*)Format.Data, Args);
     Dest->Length = (u32)Clamp(Written, 0, INT32_MAX);
     va_end(Args);
 }
@@ -616,7 +650,7 @@ void String_Format(String* Dest, const String Format, ...)
 void String_FormatV(String* Dest, const String Format, u32 Capacity, void* VAList)
 {
     const i32 NewCap = (i32)Clamp(Capacity, 0, INT32_MAX); 
-    const i32 Written = stbsp_vsnprintf(Dest->Data, NewCap, Format.Data, VAList);
+    const i32 Written = stbsp_vsnprintf((char*)Dest->Data, NewCap, (char*)Format.Data, VAList);
     Dest->Length = (u32)Clamp(Written, 0, INT32_MAX);
 }
 
@@ -639,7 +673,7 @@ void StringInternal_BuildPath(String* Dest, const StringArray Array)
 
         if (Dest->Length > 0)
         {
-            char LastChar = Dest->Data[Dest->Length-1];
+            u8 LastChar = Dest->Data[Dest->Length-1];
             bool bHasPathSeparator = LastChar == '/' || LastChar == '\\';
             if (!bHasPathSeparator)
                 String_AppendPathSeparator(Dest);
@@ -667,7 +701,7 @@ void StringInternal_BuildPath(String* Dest, const StringArray Array)
     String_ConvertSlashToPlatformSlash(Dest);
 }
 
-void StringInternal_BuildSeparator(String* Dest, char Separator, const StringArray Array)
+void StringInternal_BuildSeparator(String* Dest, u8 Separator, const StringArray Array)
 {
     for (u8 i = 0; i < Array.Num; i++)
     {
@@ -680,10 +714,12 @@ void StringInternal_BuildSeparator(String* Dest, char Separator, const StringArr
 
         if (Dest->Length > 0)
         {
-            char LastChar = Dest->Data[Dest->Length-1];
+            u8 LastChar = Dest->Data[Dest->Length-1];
             bool bHasSeparator = LastChar == Separator;
             if (!bHasSeparator)
+            {
                 String_AppendChar(Dest, Separator);
+            }
         }
 
         String_Append(Dest, String_EatChar(Param, Separator));
@@ -711,7 +747,7 @@ void String_Zero(String* Str)
     }
 }
 
-void String_Fill(String* Str, char C)
+void String_Fill(String* Str, u8 C)
 {
     if (Str->Length > 0)
     {
@@ -751,7 +787,7 @@ void String_ToNarrow(const String16 FromString, String* ToString)
     u32 MinLength = Min(FromString.Length, ToString->Capacity);
     for (u32 i = 0; i < MinLength; i++)
     {
-        ToString->Data[i] = (char)FromString.Data[i];
+        ToString->Data[i] = (uchar)FromString.Data[i];
     }
 
     ToString->Length = MinLength;
@@ -802,7 +838,6 @@ String String_EatSpaces(String Str)
     }
 
     return StrShiftF(Str, i);
-    //return StrCompC(Str.Data + i, Str.Length - i, Str.Capacity);
 }
 
 String String_EatNewLines(String Str)
@@ -817,7 +852,6 @@ String String_EatNewLines(String Str)
     }
 
     return StrShiftF(Str, i);
-    //return StrCompC(Str.Data + i, Str.Length - i, Str.Capacity);
 }
 
 bool String_EatSpacesInline(String* Str)
@@ -837,7 +871,7 @@ bool String_EatSpacesInline(String* Str)
     return i > 0;
 }
 
-bool String_ReplaceCharInline(String* Str, char Char, char ReplaceChar)
+bool String_ReplaceCharInline(String* Str, u8 Char, u8 ReplaceChar)
 {
     bool bAnyChange = false;
     for (u32 i = 0; i < Str->Length; i++)
@@ -852,7 +886,7 @@ bool String_ReplaceCharInline(String* Str, char Char, char ReplaceChar)
     return bAnyChange;
 }
 
-bool String_ReplaceNonAlphaNumericCharInline(String* Str, char ReplaceChar)
+bool String_ReplaceNonAlphaNumericCharInline(String* Str, u8 ReplaceChar)
 {
     bool bAnyChange = false;
     for (u32 i = 0; i < Str->Length; i++)
@@ -904,7 +938,7 @@ bool String_CollapseMatching(String* Dest, const String A, const String B, bool 
     return bAnyChange;
 }
 
-String String_EatChar(String Str, char Char)
+String String_EatChar(String Str, u8 Char)
 {
     u32 i = 0;
     for (; i < Str.Length; i++)
@@ -916,7 +950,6 @@ String String_EatChar(String Str, char Char)
     }
 
     return StrShiftF(Str, i);
-    //return StrCompC(Str.Data + i, Str.Length - i, Str.Capacity);
 }
 
 String String_EatPathSeparatorsFromEnd(String Str)
@@ -940,7 +973,6 @@ String String_EatPathSeparatorsFromEnd(String Str)
     }
 
     return StrSlice(Str.Data, i);
-    //return StrCompC(Str.Data, i, Str.Capacity);
 }
 
 String String_EatPathSeparators(String Str)
@@ -958,7 +990,7 @@ String String_EatPathSeparators(String Str)
     //return StrCompC(Str.Data + i, Str.Length - i, Str.Capacity);
 }
 
-bool String_EatCharInline(String* Str, char Char)
+bool String_EatCharInline(String* Str, u8 Char)
 {
     u32 i = 0;
     for (; i < Str->Length; i++)
@@ -975,7 +1007,7 @@ bool String_EatCharInline(String* Str, char Char)
     return i > 0;
 }
 
-bool String_EatCharInline_Single(String* Str, char Char)
+bool String_EatCharInline_Single(String* Str, u8 Char)
 {
     if (Str->Data[0] == Char)
     {
@@ -1004,7 +1036,7 @@ bool String_EatPathSeparatorsInline(String* Str)
     return i > 0;
 }
 
-String String_EatCharFromEnd(String Str, char Char)
+String String_EatCharFromEnd(String Str, u8 Char)
 {
     if (Str.Length == 0 || Str.Data[Str.Length-1] != Char)
         return Str;
@@ -1025,10 +1057,9 @@ String String_EatCharFromEnd(String Str, char Char)
     }
 
     return StrSlice(Str.Data, i);
-    //return StrCompC(Str.Data, i, Str.Capacity);
 }
 
-bool String_EatCharInlineFromEnd(String* Str, char Char)
+bool String_EatCharInlineFromEnd(String* Str, u8 Char)
 {
     if (Str->Length == 0 || Str->Data[Str->Length-1] != Char)
         return false;
@@ -1195,7 +1226,7 @@ bool String_EatPathSeparatorsInlineFromEnd(String* Str)
     return bAnyChange;
 }
 
-String String_ScanUntil(const String* Str, char Char)
+String String_ScanUntil(const String* Str, u8 Char)
 {
     u32 NewLength = 0;
     for (u32 i = 0; i < Str->Length; i++)
@@ -1213,18 +1244,18 @@ String String_ScanUntil(const String* Str, char Char)
 void CString_ToLower(char* Str)
 {
     char* p = Str;
-    for (; *p; ++p) *p = ToLower(*p);
+    for (; *p; ++p) *p = (char)ToLower((uchar)*p);
 }
 
 void CString_ToUpper(char* Str)
 {
     char* p = Str;
-    for (; *p; ++p) *p = ToUpper(*p);
+    for (; *p; ++p) *p = (char)ToUpper((uchar)*p);
 }
 
 void CString_ToWide(const char* FromString, wchar* ToString)
 {
-    u64 Len = String_GetLength(FromString);
+    u64 Len = String_GetLength((char*)FromString);
     for (u64 i = 0; i < Len; i++)
     {
         ToString[i] = (wchar)FromString[i];
@@ -1242,7 +1273,7 @@ void CString_ToNarrow(const wchar* FromString, char* ToString)
 
 u32 CString_Copy(char* Dest, const char* Source)
 {
-    u32 Len = String_GetLength(Source)+1;
+    u32 Len = String_GetLength((char*)Source)+1;
     MemCopy(Dest, Source, Len);
     return Len;
 }
@@ -1341,12 +1372,12 @@ i32 CString_FormatV(char* Dest, const char* Format, u32 MaxLength, void* VAList)
 }
 
 
-void CString_ToBytes(const char* Data, u32 Length, u8* OutBytes)
+void CString_ToBytes(const char* Data, u32 Length, char* OutBytes)
 {
     MemCopy(OutBytes, Data, Length);
 }
 
-void CString_FromBytes(const u8* Data, u32 Length, char* OutCharacters)
+void CString_FromBytes(const char* Data, u32 Length, char* OutCharacters)
 {
     MemCopy(OutCharacters, Data, Length);
 }
@@ -1423,7 +1454,7 @@ bool CString_ToBool(const char* Str)
     return String_IsEqual(CStrView(Str), S("1"), false) || String_IsEqual(CStrView(Str), S("true"), false);
 }
 
-bool String_IndexOfChar(const String Str, char C, u32* OutIndex)
+bool String_IndexOfChar(const String Str, u8 C, u32* OutIndex)
 {
     for (u32 i = 0; i < Str.Length; ++i)
     {
@@ -1439,7 +1470,7 @@ bool String_IndexOfChar(const String Str, char C, u32* OutIndex)
     return false;
 }
 
-bool String_IsFirst(const String Str, char C)
+bool String_IsFirst(const String Str, u8 C)
 {
     if (Str.Length == 0)
         return false;
@@ -1447,7 +1478,7 @@ bool String_IsFirst(const String Str, char C)
     return Str.Data[0] == C;
 }
 
-bool String_IsLast(const String Str, char C)
+bool String_IsLast(const String Str, u8 C)
 {
     if (Str.Length == 0)
         return false;
@@ -1455,7 +1486,7 @@ bool String_IsLast(const String Str, char C)
     return Str.Data[Str.Length-1] == C;
 }
 
-bool String_IndexOfLastChar(const String Str, char C, u32* OutIndex)
+bool String_IndexOfLastChar(const String Str, u8 C, u32* OutIndex)
 {
     if (Str.Length == 0)
     {
@@ -1611,7 +1642,7 @@ bool String_SanitizeQuotes(String* Dest, const String Source)
     bool bHasQuote = false;
     for (u32 i = 0; i < Source.Length; i++)
     {
-        const char c = Source.Data[i];
+        const u8 c = Source.Data[i];
         if (c == '"' && bHasQuote)
         {
             // ignore all subsequent quotes
@@ -1645,16 +1676,16 @@ bool String_SanitizePath(String* Dest, const String Source)
         bAnyChange = true;
 
         #if PLATFORM_WINDOWS
-        char C = Source.Data[i] == '/' ? '\\' : Source.Data[i]; 
+        u8 C = Source.Data[i] == '/' ? '\\' : Source.Data[i]; 
         #else
-        char C = Source.Data[i] == '\\' ? '/' : Source.Data[i]; 
+        u8 C = Source.Data[i] == '\\' ? '/' : Source.Data[i]; 
         #endif
 
         if (C == '/' || C == '\\')
         {
             if (Dest->Length > 0)
             {
-                char LastChar = Dest->Data[Dest->Length-1];
+                u8 LastChar = Dest->Data[Dest->Length-1];
                 bool bHasPathSep = LastChar == '/' || LastChar == '\\';
                 if (bHasPathSep)
                     continue;
@@ -1683,16 +1714,16 @@ bool String_SanitizePathAndWrap(String* Dest, const String Source)
         bAnyChange = true;
 
         #if PLATFORM_WINDOWS
-        char C = Source.Data[i] == '/' ? '\\' : Source.Data[i]; 
+        u8 C = Source.Data[i] == '/' ? '\\' : Source.Data[i]; 
         #else
-        char C = Source.Data[i] == '\\' ? '/' : Source.Data[i]; 
+        u8 C = Source.Data[i] == '\\' ? '/' : Source.Data[i]; 
         #endif
 
         if (C == '/' || C == '\\')
         {
             if (Dest->Length > 0)
             {
-                char LastChar = Dest->Data[Dest->Length-1];
+                u8 LastChar = Dest->Data[Dest->Length-1];
                 bool bHasPathSep = LastChar == '/' || LastChar == '\\';
                 if (bHasPathSep)
                     continue;
@@ -1707,7 +1738,7 @@ bool String_SanitizePathAndWrap(String* Dest, const String Source)
     return bAnyChange;
 }
 
-u32 String_CountChar(const String Str, char C)
+u32 String_CountChar(const String Str, u8 C)
 {
     u32 Count = 0;
     for (u32 i = 0; i < Str.Length; i++)
@@ -1772,7 +1803,7 @@ void String_StripString(const String Str, const String Substring, String* OutStr
     }
 }
 
-void String_StripChar(const String Str, char C, String* OutStr)
+void String_StripChar(const String Str, u8 C, String* OutStr)
 {
     if (!String_IsValid(Str)) return;
     if (NEVER(OutStr == NULL)) return;
@@ -1900,7 +1931,7 @@ bool String_ToF32(const String Str, f32* OutFloat)
     f32 Num = 0;
     bool bDecimalFound = false;
     u8 DecimalPlaces = 0;
-    char c = Str.Data[Index];
+    u8 c = Str.Data[Index];
     if (!IsDigit(c))
     {
         *OutFloat = 0;
@@ -1979,7 +2010,7 @@ bool String_ToF64(const String Str, f64* OutFloat)
     f64 Num = 0;
     bool bDecimalFound = false;
     u64 DecimalPlaces = 0;
-    char c = Str.Data[Index];
+    u8 c = Str.Data[Index];
     if (!IsDigit(c))
     {
         *OutFloat = 0;
@@ -2055,7 +2086,7 @@ bool String_ToU8(const String Str, u8* OutInt)
         return false;
 
     u8 Num = 0;
-    char c = Str.Data[Index];
+    u8 c = Str.Data[Index];
     if (!IsDigit(c))
     {
         *OutInt = 0;
@@ -2112,7 +2143,7 @@ bool String_ToU16(const String Str, u16* OutInt)
         return false;
 
     u16 Num = 0;
-    char c = Str.Data[Index];
+    u8 c = Str.Data[Index];
     if (!IsDigit(c))
     {
         *OutInt = 0;
@@ -2169,7 +2200,7 @@ bool String_ToU32(const String Str, u32* OutInt)
         return false;
 
     u32 Num = 0;
-    char c = Str.Data[Index];
+    u8 c = Str.Data[Index];
     if (!IsDigit(c))
     {
         *OutInt = 0;
@@ -2226,7 +2257,7 @@ bool String_ToU64(const String Str, u64* OutInt)
         return false;
 
     u64 Num = 0;
-    char c = Str.Data[Index];
+    u8 c = Str.Data[Index];
     if (!IsDigit(c))
     {
         *OutInt = 0;
@@ -2287,7 +2318,7 @@ bool String_ToI8(const String Str, i8* OutInt)
         return false;
 
     i8 Num = 0;
-    char c = Str.Data[Index];
+    u8 c = Str.Data[Index];
     if (!IsDigit(c))
     {
         *OutInt = 0;
@@ -2348,7 +2379,7 @@ bool String_ToI16(const String Str, i16* OutInt)
         return false;
 
     i16 Num = 0;
-    char c = Str.Data[Index];
+    u8 c = Str.Data[Index];
     if (!IsDigit(c))
     {
         *OutInt = 0;
@@ -2404,7 +2435,7 @@ bool String_ToI32(const String Str, i32* OutInt)
         return false;
 
     i32 Num = 0;
-    char c = Str.Data[Index];
+    u8 c = Str.Data[Index];
     if (!IsDigit(c))
     {
         *OutInt = 0;
@@ -2457,7 +2488,7 @@ bool String_ToI64(const String Str, i64* OutInt)
     }
 
     i64 Num = 0;
-    char c = Str.Data[Index];
+    u8 c = Str.Data[Index];
     if (!IsDigit(c))
     {
         *OutInt = 0;
@@ -2551,7 +2582,7 @@ bool StringArray_Contains(const StringArray InArray, const String SubString, boo
 // the problem is that we want to separate one long collection of paths into an array of paths,
 // but we cant just do a simple split on the space character because some paths have spaces in them,
 // so we need to be able to detect when a space is inside of a " " and ignore it. sigh...
-StringList String_SplitIntoList(LinearAllocator* Arena, const String Value, char Delimiter, bool bHandleQuotes)
+StringList String_SplitIntoList(LinearAllocator* Arena, const String Value, u8 Delimiter, bool bHandleQuotes)
 {
     StringList List = {0};
     List.Next = NULL;
@@ -2564,7 +2595,7 @@ StringList String_SplitIntoList(LinearAllocator* Arena, const String Value, char
         u32 CurrentLength = 0;
         for (u32 i = 0; i < Value.Length+1; i++)
         {
-            char C = i < Value.Length ? Value.Data[i] : 0;
+            u8 C = i < Value.Length ? Value.Data[i] : 0;
 
             bool bLastChar = i == Value.Length-1;
             if (C == Delimiter || bLastChar)
@@ -2628,7 +2659,7 @@ StringArray String_SplitIntoArray(LinearAllocator* Arena, const String Str, cons
     return (StringArray){0};
 }
 
-StringArray String_ParseIntoArray(LinearAllocator* Arena, const String Str, char Delimiter, u32 StartingIndex, u32 MaxCount)
+StringArray String_ParseIntoArray(LinearAllocator* Arena, const String Str, u8 Delimiter, u32 StartingIndex, u32 MaxCount)
 {
     StringArray StrArray = {0};
 
@@ -2680,7 +2711,7 @@ StringArray String_ParseIntoArray(LinearAllocator* Arena, const String Str, char
     return StrArray;
 }
 
-StringArray String_ParseIntoArray_IntoExistingBuffer(String* ArrayBuffer, const String Str, char Delimiter, u32 StartingIndex, u32 MaxCount)
+StringArray String_ParseIntoArray_IntoExistingBuffer(String* ArrayBuffer, const String Str, u8 Delimiter, u32 StartingIndex, u32 MaxCount)
 {
     StringArray StrArray = {0};
 
@@ -2792,7 +2823,7 @@ String StringList_GetStringFromIndex(StringList List, u32 Index)
 
 u32 String_GetLength(const char *Str)
 {
-    char* Start = (char*)Str;
+    register char* Start = (char*)Str;
     while (*Start != 0)
     {
         Start++;
@@ -2803,8 +2834,7 @@ u32 String_GetLength(const char *Str)
 
 u32 String_GetLength_Ex(const char* Str, u32 MaxLength)
 {
-    u32 Len = 0;
-
+    register u32 Len = 0;
     while (Len < MaxLength && Str[Len] != 0)
     {
         Len++;
@@ -2815,8 +2845,7 @@ u32 String_GetLength_Ex(const char* Str, u32 MaxLength)
 
 u32 String16_GetLength(const wchar* Str)
 {
-    u32 Len = 0;
-
+    register u32 Len = 0;
     while (Str[Len] != 0)
     {
         Len++;
@@ -2827,8 +2856,7 @@ u32 String16_GetLength(const wchar* Str)
 
 u32 String16_GetLength_Ex(const wchar* Str, u32 MaxLength)
 {
-    u32 Len = 0;
-
+    register u32 Len = 0;
     while (Len < MaxLength && Str[Len] != 0)
     {
         Len++;
@@ -2837,37 +2865,37 @@ u32 String16_GetLength_Ex(const wchar* Str, u32 MaxLength)
     return Len;
 }
 
-bool IsAlphabet(char Char)
+bool IsAlphabet(u8 Char)
 {
 	return ((Char >= 'A' && Char <= 'Z') || (Char >= 'a' && Char <= 'z'));
 }
 
-bool IsAlphabetUpper(char Char)
+bool IsAlphabetUpper(u8 Char)
 {
 	return Char >= 'A' && Char <= 'Z';
 }
 
-bool IsAlphabetLower(char Char)
+bool IsAlphabetLower(u8 Char)
 {
 	return Char >= 'a' && Char <= 'z';
 }
 
-bool IsDigit(char Char)
+bool IsDigit(u8 Char)
 {
 	return Char >= '0' && Char <= '9';
 }
 
-bool IsWhitespace(char Char)
+bool IsWhitespace(u8 Char)
 {
 	return Char == ' ' || Char == '\r' || Char == '\t' || Char == '\f' || Char == '\v' || Char == '\n';
 }
 
-bool IsNewline(char Char)
+bool IsNewline(u8 Char)
 {
 	return Char == '\r' || Char == '\f' || Char == '\n';
 }
 
-bool IsSymbol(char Char)
+bool IsSymbol(u8 Char)
 {
 	return Char == '(' || Char == ')' || Char == '{' || Char == '}' ||
 			Char == '!' || Char == '@' || Char == '#' || Char == '$' ||
@@ -2875,27 +2903,27 @@ bool IsSymbol(char Char)
 			Char == '+' || Char == '=';
 }
 
-char ToUpper(char Char)
+u8 ToUpper(u8 Char)
 {
-	return Char >= 'a' && Char <= 'z' ? (char)(Char - 32) : Char;
+	return Char >= 'a' && Char <= 'z' ? (u8)(Char - 32) : Char;
 }
 
-char ToLower(char Char)
+u8 ToLower(u8 Char)
 {
-	return Char >= 'A' && Char <= 'Z' ? (char)(Char + 32) : Char;
+	return Char >= 'A' && Char <= 'Z' ? (u8)(Char + 32) : Char;
 }
 
-char ToForwardSlash(char Char)
+u8 ToForwardSlash(u8 Char)
 {
 	return Char == '\\' ? '/' : Char;
 }
 
-char ToBackSlash(char Char)
+u8 ToBackSlash(u8 Char)
 {
 	return Char == '/' ? '\\' : Char;
 }
 
-void EatSpaces(char** Str)
+void EatSpaces(u8** Str)
 {
     if (!(Str == NULL || *Str == NULL || *(*Str) == 0))
     {
@@ -2906,7 +2934,7 @@ void EatSpaces(char** Str)
     }
 }
 
-void EatSpaces_Backwards(char** Str)
+void EatSpaces_Backwards(u8** Str)
 {
     if (!(Str == NULL || *Str == NULL || *(*Str) == 0))
     {
@@ -2917,12 +2945,12 @@ void EatSpaces_Backwards(char** Str)
     }
 }
 
-void EatBraces(char** Str)
+void EatBraces(u8** Str)
 {
     if (!(Str == NULL || *Str == NULL || *(*Str) == 0))
     {
-        char* S = *Str;
-        char c = *S;
+        u8* S = *Str;
+        u8 c = *S;
         while (c > 0 && (c == '{' || c == '}'))
         {
             S++;
@@ -2931,12 +2959,12 @@ void EatBraces(char** Str)
     }
 }
 
-void EatBraces_Backwards(char** Str)
+void EatBraces_Backwards(u8** Str)
 {
     if (!(Str == NULL || *Str == NULL || *(*Str) == 0))
     {
-        char* S = *Str;
-        char c = *S;
+        u8* S = *Str;
+        u8 c = *S;
         while (c > 0 && (c == '{' || c == '}'))
         {
             S--;
@@ -2945,12 +2973,12 @@ void EatBraces_Backwards(char** Str)
     }
 }
 
-void EatParenthesis(char** Str)
+void EatParenthesis(u8** Str)
 {
     if (!(Str == NULL || *Str == NULL || *(*Str) == 0))
     {
-        char* S = *Str;
-        char c = *S;
+        u8* S = *Str;
+        u8 c = *S;
         while (c > 0 && (c == '(' || c == ')'))
         {
             S++;
@@ -2959,12 +2987,12 @@ void EatParenthesis(char** Str)
     }
 }
 
-void EatParenthesis_Backwards(char** Str)
+void EatParenthesis_Backwards(u8** Str)
 {
     if (!(Str == NULL || *Str == NULL || *(*Str) == 0))
     {
-        char* S = *Str;
-        char c = *S;
+        u8* S = *Str;
+        u8 c = *S;
         while (c > 0 && (c == '(' || c == ')'))
         {
             S--;
@@ -2973,12 +3001,12 @@ void EatParenthesis_Backwards(char** Str)
     }
 }
 
-void EatSymbols(char** Str)
+void EatSymbols(u8** Str)
 {
     if (!(Str == NULL || *Str == NULL || *(*Str) == 0))
     {
-        char* S = *Str;
-        char c = *S;
+        u8* S = *Str;
+        u8 c = *S;
         while (c > 0 &&
             (c == '(' || c == ')' || c == '{' || c == '}' ||
 			c == '!' || c == '@' || c == '#' || c == '$' ||
@@ -2991,12 +3019,12 @@ void EatSymbols(char** Str)
     }
 }
 
-void EatSymbols_Backwards(char** Str)
+void EatSymbols_Backwards(u8** Str)
 {
     if (!(Str == NULL || *Str == NULL || *(*Str) == 0))
     {
-        char* S = *Str;
-        char c = *S;
+        u8* S = *Str;
+        u8 c = *S;
         while (c > 0 &&
             (c == '(' || c == ')' || c == '{' || c == '}' ||
 			c == '!' || c == '@' || c == '#' || c == '$' ||

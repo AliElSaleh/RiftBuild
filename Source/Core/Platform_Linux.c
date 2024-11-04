@@ -63,7 +63,7 @@ PRAGMA_ENABLE_WARNINGS
 extern int fileno (FILE *__stream) __THROW __wur;
 
 #ifndef NO_LOG 
-internal void LogLastError(const String Prefix)
+static void LogLastError(const String Prefix)
 {
     StringLocal(Message, 4096);
     String_Copy(&Message, CStr(strerror(errno)));
@@ -90,7 +90,7 @@ bool Platform_CreateMutex(PlatformMutex* OutMutex)
     return true;
 }
 
-internal bool Internal_TryLockFile(int fd, pid_t* OutPID)
+static bool Internal_TryLockFile(int fd, pid_t* OutPID)
 {
     struct flock lock = {0};
     lock.l_type       = F_WRLCK;  // Write lock (exclusive)
@@ -113,7 +113,7 @@ internal bool Internal_TryLockFile(int fd, pid_t* OutPID)
     return true;
 }
 
-internal bool Internal_TryUnlockFile(i32 fd)
+static bool Internal_TryUnlockFile(i32 fd)
 {
     struct flock lock = {0};
     lock.l_type       = F_UNLCK;

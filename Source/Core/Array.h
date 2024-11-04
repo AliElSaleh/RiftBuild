@@ -62,6 +62,4 @@ RIFT_API void  _ArrayInsertAt(void* Array, const void* ValuePtr, usize Index);
 RIFT_API void  Array_RemoveLast(void* Array, void* ValuePtr);
 RIFT_API void  Array_RemoveAt(void* Array, void* ValuePtr, usize Index);
 
-RIFT_API NO_DISCARD void* Array_Null(void);
-
 #endif // _ARRAY_H_
