@@ -16,6 +16,7 @@ ENUM(ECompareResult)
 // C String Helpers
 // ----------------------------------
 
+/*
 RIFT_API u32   CString_Copy(char* Dest, const char* Source);
 RIFT_API u32   CString_CopyN(char* Dest, const char* Source, u32 Length);
 RIFT_API void  CString_ToBytes(const char* Data, u32 Length, char* OutBytes);
@@ -33,6 +34,7 @@ RIFT_API void  CString_ToNarrow(const wchar* FromString, char* ToString);
 RIFT_API u32   CString_ScanUntil(const char* Str, char Char);
 RIFT_API void  CString_SubString(char* Dest, const char* Source, u32 Start, u32 Length);
 RIFT_API bool  CString_IndexOfChar(const char* Str, char C, u32* OutIndex);
+*/
 
 // String Helpers
 // ----------------------------------

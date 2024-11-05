@@ -8800,13 +8800,6 @@ u32 RunApplication(const StringArray Arguments)
 
     InitInternalVars(&ProgramArena);
 
-    StringLocal(Test, 23);
-    String_Append(&Test, S(""));
-    String_AppendChar(&Test, 'z');
-    String_Append(&Test, S("Hello, World!aaaa3aaaaaaaaaaaaaaaaaaaaaaaaaafjfjiaaaaaaaaaaaaaaaaaaaaaaaajdiwaaaaaaaaaaaaaaa"));
-    String_AppendChar(&Test, 'z');
-    LOG("Test: %S\n", Test);
-
     u32 ExitCode = RiftBuild(&ProgramArena, Arguments, WorkingDirectory);
 
     #if !PLATFORM_MAC

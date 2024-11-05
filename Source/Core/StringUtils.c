@@ -370,19 +370,24 @@ bool String_IsNumeric(const String Str)
 bool String_Contains(const String Str, const String SubString, bool bCaseSensitive)
 {
     bool bContains = false;
+    bool bValid = SubString.Length > 0 && SubString.Length <= Str.Length;
 
-    for (u32 i = 0; i < Str.Length; i++)
+    for (u32 i = 0; bValid && i < Str.Length; i++)
     {
-        if (Str.Length - i < SubString.Length)
+        bool bShouldBreak = Str.Length - i < SubString.Length;
+        if (!bShouldBreak)
         {
-            bContains = false;
-            break;
+            const String Offset = StrShiftF(Str, i);
+            const String Slice = StrSlice(Offset.Data, SubString.Length);
+            if (String_IsEqual(Slice, SubString, bCaseSensitive))
+            {
+                bContains = true;
+                bShouldBreak = true;
+            }
         }
 
-        const String S = StrShiftF(Str, i);
-        if (String_IsEqual(StrSlice(S.Data, SubString.Length), SubString, bCaseSensitive))
+        if (bShouldBreak)
         {
-            bContains = true;
             break;
         }
     }
@@ -542,10 +547,12 @@ ECompareResult String_CompareVersion(const String VersionA, const String Version
 
     ECompareResult Result = CompareResult_None;
 
-    u64 VersionArrayA[32];
-    u64 VersionArrayB[32];
-    for (u8 i = 0; i < 32; i++) VersionArrayA[i] = UINT64_MAX;
-    for (u8 i = 0; i < 32; i++) VersionArrayB[i] = UINT64_MAX;
+    #define MAX_VERSIONS 32
+
+    u64 VersionArrayA[MAX_VERSIONS];
+    u64 VersionArrayB[MAX_VERSIONS];
+    for (u8 i = 0; i < MAX_VERSIONS; i++) { VersionArrayA[i] = UINT64_MAX; }
+    for (u8 i = 0; i < MAX_VERSIONS; i++) { VersionArrayB[i] = UINT64_MAX; }
 
     u8 VersionIndexA = 0, VersionIndexB = 0;
 
@@ -606,32 +613,44 @@ ECompareResult String_CompareVersion(const String VersionA, const String Version
         OffsetA++;
         OffsetB++;
 
-        if (VersionIndexA >= 32 || VersionIndexB >= 32)
+        if (VersionIndexA >= MAX_VERSIONS || VersionIndexB >= MAX_VERSIONS)
+        {
             break;
+        }
 
         if (OffsetA > VersionA.Length-1 || OffsetB > VersionB.Length-1)
+        {
             break;
+        }
     }
 
-    for (u8 i = 0; i < 32; i++)
+    for (u8 i = 0; i < MAX_VERSIONS; i++)
     {
-        if (VersionArrayA[i] == UINT64_MAX || VersionArrayB[i] == UINT64_MAX)
-            break;
-
-        if (VersionArrayA[i] == VersionArrayB[i])
+        bool bShouldBreak = VersionArrayA[i] == UINT64_MAX || VersionArrayB[i] == UINT64_MAX;
+        if (!bShouldBreak)
         {
-            Result = CompareResult_Equal;
-            continue;
+            if (VersionArrayA[i] == VersionArrayB[i])
+            {
+                Result = CompareResult_Equal;
+                continue;
+            }
+
+            if (VersionArrayA[i] > VersionArrayB[i])
+            {
+                Result = CompareResult_Greater;
+            }
+            else
+            {
+                Result = CompareResult_Less;
+            }
+
+            bShouldBreak = true;
         }
 
-        if (VersionArrayA[i] > VersionArrayB[i])
+        if (bShouldBreak)
         {
-            Result = CompareResult_Greater;
             break;
         }
-
-        Result = CompareResult_Less;
-        break;
     }
 
     return Result;
@@ -676,7 +695,9 @@ void StringInternal_BuildPath(String* Dest, const StringArray Array)
             u8 LastChar = Dest->Data[Dest->Length-1];
             bool bHasPathSeparator = LastChar == '/' || LastChar == '\\';
             if (!bHasPathSeparator)
+            {
                 String_AppendPathSeparator(Dest);
+            }
         }
 
         #if PLATFORM_WINDOWS
@@ -694,7 +715,9 @@ void StringInternal_BuildPath(String* Dest, const StringArray Array)
         (void)String_EatPathSeparatorsInlineFromEnd(Dest);
 
         if (Dest->Length > 0 && i != Array.Num-1)
+        {
             String_AppendPathSeparator(Dest);
+        }
     }
 
     (void)String_EatPathSeparatorsInlineFromEnd(Dest);
@@ -722,11 +745,14 @@ void StringInternal_BuildSeparator(String* Dest, u8 Separator, const StringArray
             }
         }
 
-        String_Append(Dest, String_EatChar(Param, Separator));
+        const String Trimmed = String_EatChar(Param, Separator);
+        String_Append(Dest, Trimmed);
         (void)String_EatCharInlineFromEnd(Dest, Separator);
 
         if (Dest->Length > 0 && i != Array.Num-1)
+        {
             String_AppendChar(Dest, Separator);
+        }
     }
 }
 
@@ -903,33 +929,35 @@ bool String_ReplaceNonAlphaNumericCharInline(String* Str, u8 ReplaceChar)
 
 bool String_CollapseMatching(String* Dest, const String A, const String B, bool bCaseSensitive)
 {
-    const String* LongestString = A.Length > B.Length ? &A : &B;
-    const String* ShortestString = A.Length > B.Length ? &B : &A;
+    const String LongestString  = A.Length > B.Length ? A : B;
+    const String ShortestString = A.Length > B.Length ? B : A;
 
     bool bAnyChange = false;
-    for (u32 i = 0; i < LongestString->Length; i++)
+    for (u32 i = 0; i < LongestString.Length; i++)
     {
-        if (i == ShortestString->Length)
+        bool bShouldBreak = i == ShortestString.Length;
+        if (!bShouldBreak)
         {
-            // append the remaining
-            String_Append(Dest, StrShiftF(*LongestString, i));
-            bAnyChange = true;
-            break;
+            i32 C1 = (i32)A.Data[i];
+            i32 C2 = (i32)B.Data[i];
+        
+            if (!bCaseSensitive)
+            {
+                if (C1 >= 'A' && C1 <= 'Z') { C1 += 32; }
+                if (C2 >= 'A' && C2 <= 'Z') { C2 += 32; }
+            }
+
+            if (C1 != C2)
+            {
+                bShouldBreak = true;
+            }
         }
 
-        i32 C1 = (i32)A.Data[i];
-        i32 C2 = (i32)B.Data[i];
-    
-        if (!bCaseSensitive)
-        {
-            if ((C1 >= 'A' && C1 <= 'Z')) C1 += 32;
-            if ((C2 >= 'A' && C2 <= 'Z')) C2 += 32;
-        }
-
-        if (C1 != C2)
+        if (bShouldBreak)
         {
             // append the remaining
-            String_Append(Dest, StrShiftF(*LongestString, i));
+            const String Trimmed = StrShiftF(LongestString, i);
+            String_Append(Dest, Trimmed);
             bAnyChange = true;
             break;
         }
@@ -954,11 +982,8 @@ String String_EatChar(String Str, u8 Char)
 
 String String_EatPathSeparatorsFromEnd(String Str)
 {
-    if (Str.Length == 0 || (Str.Data[Str.Length-1] != '/' && Str.Data[Str.Length-1] != '\\'))
-        return Str;
-
-    u32 i = Str.Length-1;
-    for (; i > 0; i--)
+    i32 i = ((i32)Str.Length)-1;
+    for (; i >= 0; i--)
     {
         if (Str.Data[i] != '/' && Str.Data[i] != '\\')
         {
@@ -967,12 +992,13 @@ String String_EatPathSeparatorsFromEnd(String Str)
         }
     }
 
-    if (i == 0 && (Str.Data[0] != '/' && Str.Data[0] != '\\'))
+    String Result = String_Null();
+    if (i > 0)
     {
-        i++;
+        Result = StrSlice(Str.Data, (u32)i);
     }
 
-    return StrSlice(Str.Data, i);
+    return Result;
 }
 
 String String_EatPathSeparators(String Str)
@@ -987,7 +1013,6 @@ String String_EatPathSeparators(String Str)
     }
 
     return StrShiftF(Str, i);
-    //return StrCompC(Str.Data + i, Str.Length - i, Str.Capacity);
 }
 
 bool String_EatCharInline(String* Str, u8 Char)
@@ -1009,14 +1034,15 @@ bool String_EatCharInline(String* Str, u8 Char)
 
 bool String_EatCharInline_Single(String* Str, u8 Char)
 {
+    bool bSuccess = false;
     if (Str->Data[0] == Char)
     {
         Str->Data++;
         Str->Length--;
-        return true;
+        bSuccess = true;
     }
 
-    return false;
+    return bSuccess;
 }
 
 bool String_EatPathSeparatorsInline(String* Str)
@@ -1038,11 +1064,8 @@ bool String_EatPathSeparatorsInline(String* Str)
 
 String String_EatCharFromEnd(String Str, u8 Char)
 {
-    if (Str.Length == 0 || Str.Data[Str.Length-1] != Char)
-        return Str;
-
-    u32 i = Str.Length-1;
-    for (; i > 0; i--)
+    i32 i = ((i32)Str.Length)-1;
+    for (; i >= 0; i--)
     {
         if (Str.Data[i] != Char)
         {
@@ -1051,21 +1074,19 @@ String String_EatCharFromEnd(String Str, u8 Char)
         }
     }
 
-    if (i == 0 && Str.Data[0] != Char)
+    String Result = String_Null();
+    if (i > 0)
     {
-        i++;
+        Result = StrSlice(Str.Data, (u32)i);
     }
 
-    return StrSlice(Str.Data, i);
+    return Result;
 }
 
 bool String_EatCharInlineFromEnd(String* Str, u8 Char)
 {
-    if (Str->Length == 0 || Str->Data[Str->Length-1] != Char)
-        return false;
-
-    u32 i = Str->Length-1;
-    for (; i > 0; i--)
+    i32 i = ((i32)Str->Length)-1;
+    for (; i >= 0; i--)
     {
         if (Str->Data[i] != Char)
         {
@@ -1073,25 +1094,17 @@ bool String_EatCharInlineFromEnd(String* Str, u8 Char)
             break;
         }
     }
-
-    if (i == 0 && Str->Data[0] != Char)
-    {
-        i++;
-    }
-
-    bool bAnyChange = i < Str->Length;
-    Str->Length = i;
+    
+    bool bAnyChange = i >= 0 && (u32)i < Str->Length;
+    Str->Length = i >= 0 ? (u32)i : 0;
 
     return bAnyChange;
 }
 
 String String_EatSpacesFromEnd(String Str)
 {
-    if (Str.Length == 0 || !IsWhitespace(Str.Data[Str.Length-1]))
-        return Str;
-
-    u32 i = Str.Length-1;
-    for (; i > 0; i--)
+    i32 i = ((i32)Str.Length)-1;
+    for (; i >= 0; i--)
     {
         if (!IsWhitespace(Str.Data[i]))
         {
@@ -1100,22 +1113,19 @@ String String_EatSpacesFromEnd(String Str)
         }
     }
 
-    if (i == 0 && !IsWhitespace(Str.Data[0]))
+    String Result = String_Null();
+    if (i > 0)
     {
-        i++;
+        Result = StrSlice(Str.Data, (u32)i);
     }
 
-    return StrSlice(Str.Data, i);
-    //return StrCompC(Str.Data, i, Str.Capacity);
+    return Result;
 }
 
 String String_EatNewLinesFromEnd(String Str)
 {
-    if (Str.Length == 0 || !IsNewline(Str.Data[Str.Length-1]))
-        return Str;
-
-    u32 i = Str.Length-1;
-    for (; i > 0; i--)
+    i32 i = ((i32)Str.Length)-1;
+    for (; i >= 0; i--)
     {
         if (!IsNewline(Str.Data[i]))
         {
@@ -1124,22 +1134,19 @@ String String_EatNewLinesFromEnd(String Str)
         }
     }
 
-    if (i == 0 && !IsNewline(Str.Data[0]))
+    String Result = String_Null();
+    if (i > 0)
     {
-        i++;
+        Result = StrSlice(Str.Data, (u32)i);
     }
 
-    return StrSlice(Str.Data, i);
-    //return StrCompC(Str.Data, i, Str.Capacity);
+    return Result;
 }
 
 bool String_EatSpacesInlineFromEnd(String* Str)
 {
-    if (Str->Length == 0 || !IsWhitespace(Str->Data[Str->Length-1]))
-        return false;
-
-    u32 i = Str->Length-1;
-    for (; i > 0; i--)
+    i32 i = ((i32)Str->Length)-1;
+    for (; i >= 0; i--)
     {
         if (!IsWhitespace(Str->Data[i]))
         {
@@ -1147,14 +1154,10 @@ bool String_EatSpacesInlineFromEnd(String* Str)
             break;
         }
     }
+    
+    bool bAnyChange = i >= 0 && (u32)i < Str->Length;
+    Str->Length = i >= 0 ? (u32)i : 0;
 
-    if (i == 0 && !IsWhitespace(Str->Data[0]))
-    {
-        i++;
-    }
-
-    bool bAnyChange = i < Str->Length;
-    Str->Length = i;
     return bAnyChange;
 }
 
@@ -1177,11 +1180,8 @@ bool String_EatNewLinesInline(String* Str)
 
 bool String_EatNewLinesInlineFromEnd(String* Str)
 {
-    if (Str->Length == 0 || !IsNewline(Str->Data[Str->Length-1]))
-        return false;
-
-    u32 i = Str->Length-1;
-    for (; i > 0; i--)
+    i32 i = ((i32)Str->Length)-1;
+    for (; i >= 0; i--)
     {
         if (!IsNewline(Str->Data[i]))
         {
@@ -1189,24 +1189,17 @@ bool String_EatNewLinesInlineFromEnd(String* Str)
             break;
         }
     }
+    
+    bool bAnyChange = i >= 0 && (u32)i < Str->Length;
+    Str->Length = i >= 0 ? (u32)i : 0;
 
-    if (i == 0 && !IsNewline(Str->Data[0]))
-    {
-        i++;
-    }
-
-    bool bAnyChange = i < Str->Length;
-    Str->Length = i;
     return bAnyChange;
 }
 
 bool String_EatPathSeparatorsInlineFromEnd(String* Str)
 {
-    if (Str->Length == 0 || (Str->Data[Str->Length-1] != '/' && Str->Data[Str->Length-1] != '\\'))
-        return false;
-
-    u32 i = Str->Length-1;
-    for (; i > 0; i--)
+    i32 i = ((i32)Str->Length)-1;
+    for (; i >= 0; i--)
     {
         if (Str->Data[i] != '/' && Str->Data[i] != '\\')
         {
@@ -1214,14 +1207,9 @@ bool String_EatPathSeparatorsInlineFromEnd(String* Str)
             break;
         }
     }
-
-    if (i == 0 && (Str->Data[0] != '/' && Str->Data[0] != '\\'))
-    {
-        i++;
-    }
-
-    bool bAnyChange = i < Str->Length;
-    Str->Length = i;
+    
+    bool bAnyChange = i >= 0 && (u32)i < Str->Length;
+    Str->Length = i >= 0 ? (u32)i : 0;
 
     return bAnyChange;
 }
@@ -1238,19 +1226,25 @@ String String_ScanUntil(const String* Str, u8 Char)
         }
     }
 
-    return (String){ .Data = Str->Data, .Length = NewLength, .Capacity = Str->Capacity };
+    String Result = (String){ .Data = Str->Data, .Length = NewLength, .Capacity = Str->Capacity };
+    return Result;
 }
 
+/*
 void CString_ToLower(char* Str)
 {
-    char* p = Str;
-    for (; *p; ++p) *p = (char)ToLower((uchar)*p);
+    for (char* p = Str; *p; ++p)
+    {
+        *p = (char)ToLower((uchar)*p);
+    }
 }
 
 void CString_ToUpper(char* Str)
 {
-    char* p = Str;
-    for (; *p; ++p) *p = (char)ToUpper((uchar)*p);
+    for (char* p = Str; *p; ++p)
+    {
+        *p = (char)ToUpper((uchar)*p);
+    }
 }
 
 void CString_ToWide(const char* FromString, wchar* ToString)
@@ -1371,7 +1365,6 @@ i32 CString_FormatV(char* Dest, const char* Format, u32 MaxLength, void* VAList)
     return stbsp_vsnprintf(Dest, (i32)MaxLength, Format, VAList);
 }
 
-
 void CString_ToBytes(const char* Data, u32 Length, char* OutBytes)
 {
     MemCopy(OutBytes, Data, Length);
@@ -1453,185 +1446,183 @@ bool CString_ToBool(const char* Str)
 {
     return String_IsEqual(CStrView(Str), S("1"), false) || String_IsEqual(CStrView(Str), S("true"), false);
 }
+*/
 
 bool String_IndexOfChar(const String Str, u8 C, u32* OutIndex)
 {
+    bool bFound = false;
     for (u32 i = 0; i < Str.Length; ++i)
     {
         if (Str.Data[i] == C)
         {
             if (OutIndex)
+            {
                 *OutIndex = i;
+            }
 
-            return true;
+            bFound = true;
+            break;
         }
     }
     
-    return false;
+    return bFound;
 }
 
 bool String_IsFirst(const String Str, u8 C)
 {
-    if (Str.Length == 0)
-        return false;
-
-    return Str.Data[0] == C;
+    bool bIsFirst = Str.Length > 0 ? Str.Data[0] == C : false;
+    return bIsFirst;
 }
 
 bool String_IsLast(const String Str, u8 C)
 {
-    if (Str.Length == 0)
-        return false;
-
-    return Str.Data[Str.Length-1] == C;
+    bool bIsLast = Str.Length > 0 ? Str.Data[Str.Length-1] == C : false;
+    return bIsLast;
 }
 
 bool String_IndexOfLastChar(const String Str, u8 C, u32* OutIndex)
 {
-    if (Str.Length == 0)
-    {
-        return false;
-    }
-
-    for (u32 i = Str.Length-1; i > 0; i--)
+    bool bFound = false;
+    for (i32 i = ((i32)Str.Length)-1; i >= 0; i--)
     {
         if (Str.Data[i] == C)
         {
             if (OutIndex)
-                *OutIndex = i;
+            {
+                *OutIndex = (u32)i;
+            }
 
-            return true;
+            bFound = true;
+            break;
         }
     }
 
-    if (Str.Data[0] == C)
-    {
-        if (OutIndex)
-            *OutIndex = 0;
-
-        return true;
-    }
-    
-    return false;
+    return bFound;
 }
 
 bool String_IndexOfFirstPathSlash(const String Str, u32* OutIndex)
 {
+    bool bFound = false;
     for (u32 i = 0; i < Str.Length; ++i)
     {
         if (Str.Data[i] == '/' || Str.Data[i] == '\\')
         {
             if (OutIndex)
-                *OutIndex = i;
+            {
+                *OutIndex = (u32)i;
+            }
 
-            return true;
+            bFound = true;
+            break;
         }
     }
     
-    return false;
+    return bFound;
 }
 
 bool String_IndexOfLastPathSlash(const String Str, u32* OutIndex)
 {
-    if (Str.Length == 0)
-    {
-        return false;
-    }
-
-    for (u32 i = Str.Length-1; i > 0; i--)
+    bool bFound = false;
+    for (i32 i = ((i32)Str.Length)-1; i >= 0; i--)
     {
         if (Str.Data[i] == '/' || Str.Data[i] == '\\')
         {
             if (OutIndex)
-                *OutIndex = i;
+            {
+                *OutIndex = (u32)i;
+            }
 
-            return true;
+            bFound = true;
+            break;
         }
     }
 
-    return false;
+    return bFound;
 }
 
 bool String_IndexOfFirstWhitespace(const String Str, u32* OutIndex)
 {
+    bool bFound = false;
     for (u32 i = 0; i < Str.Length; ++i)
     {
         if (IsWhitespace(Str.Data[i]))
         {
             if (OutIndex)
+            {
                 *OutIndex = i;
+            }
 
-            return true;
+            bFound = true;
+            break;
         }
     }
     
-    return false;
+    return bFound;
 }
 
 bool String_IndexOfLastWhitespace(const String Str, u32* OutIndex)
 {
-    if (Str.Length == 0)
-    {
-        return false;
-    }
-
-    for (u32 i = Str.Length-1; i > 0; i--)
+    bool bFound = false;
+    for (i32 i = ((i32)Str.Length)-1; i >= 0; i--)
     {
         if (IsWhitespace(Str.Data[i]))
         {
             if (OutIndex)
-                *OutIndex = i;
+            {
+                *OutIndex = (u32)i;
+            }
 
-            return true;
+            bFound = true;
+            break;
         }
     }
 
-    if (IsWhitespace(Str.Data[0]))
-    {
-        if (OutIndex)
-            *OutIndex = 0;
-
-        return true;
-    }
-    
-    return false;
+    return bFound;
 }
 
 bool String_IndexOfFirstNewline(const String Str, u32* OutIndex)
 {
+    bool bFound = false;
     for (u32 i = 0; i < Str.Length; ++i)
     {
         if (IsNewline(Str.Data[i]))
         {
             if (OutIndex)
+            {
                 *OutIndex = i;
-
-            return true;
+            }
+            
+            bFound = true;
+            break;
         }
     }
     
-    return false;
+    return bFound;
 }
 
 bool String_IndexOfSubstring(const String Str, const String Substring, bool bCaseSensitive, u32* OutIndex)
 {
-    if (Str.Length == 0 || Substring.Length == 0)
-    {
-        return false;
-    }
+    bool bFound = false;
 
-    for (u32 i = 0; i < Str.Length; ++i)
+    if (Substring.Length > 0)
     {
-        if (String_IsEqual(StrSlice(Str.Data + i, Substring.Length), Substring, bCaseSensitive))
+        for (u32 i = 0; i < Str.Length; ++i)
         {
-            if (OutIndex)
-                *OutIndex = i;
+            const String Slice = StrSlice(Str.Data + i, Substring.Length);
+            if (String_IsEqual(Slice, Substring, bCaseSensitive))
+            {
+                if (OutIndex)
+                {
+                    *OutIndex = i;
+                }
 
-            return true;
+                bFound = true;
+                break;
+            }
         }
     }
-    
-    return false;
+
+    return bFound;
 }
 
 // transforms paths with " in them to paths without them
@@ -1671,7 +1662,9 @@ bool String_SanitizePath(String* Dest, const String Source)
     for (u32 i = 0; i < Source.Length; i++)
     {
         if (Source.Data[i] == '"')
+        {
             continue;
+        }
         
         bAnyChange = true;
 
@@ -1688,7 +1681,9 @@ bool String_SanitizePath(String* Dest, const String Source)
                 u8 LastChar = Dest->Data[Dest->Length-1];
                 bool bHasPathSep = LastChar == '/' || LastChar == '\\';
                 if (bHasPathSep)
+                {
                     continue;
+                }
             }
         }
 
@@ -1700,40 +1695,45 @@ bool String_SanitizePath(String* Dest, const String Source)
 
 bool String_SanitizePathAndWrap(String* Dest, const String Source)
 {
-    if (Source.Length == 0)
-        return false;
-
-    String_AppendChar(Dest, '"');
-
     bool bAnyChange = false;
-    for (u32 i = 0; i < Source.Length; i++)
+
+    if (Source.Length > 0)
     {
-        if (Source.Data[i] == '"')
-            continue;
+        String_AppendChar(Dest, '"');
 
-        bAnyChange = true;
-
-        #if PLATFORM_WINDOWS
-        u8 C = Source.Data[i] == '/' ? '\\' : Source.Data[i]; 
-        #else
-        u8 C = Source.Data[i] == '\\' ? '/' : Source.Data[i]; 
-        #endif
-
-        if (C == '/' || C == '\\')
+        for (u32 i = 0; i < Source.Length; i++)
         {
-            if (Dest->Length > 0)
+            if (Source.Data[i] == '"')
             {
-                u8 LastChar = Dest->Data[Dest->Length-1];
-                bool bHasPathSep = LastChar == '/' || LastChar == '\\';
-                if (bHasPathSep)
-                    continue;
+                continue;
             }
+
+            bAnyChange = true;
+
+            #if PLATFORM_WINDOWS
+            u8 C = Source.Data[i] == '/' ? '\\' : Source.Data[i]; 
+            #else
+            u8 C = Source.Data[i] == '\\' ? '/' : Source.Data[i]; 
+            #endif
+
+            if (C == '/' || C == '\\')
+            {
+                if (Dest->Length > 0)
+                {
+                    u8 LastChar = Dest->Data[Dest->Length-1];
+                    bool bHasPathSep = LastChar == '/' || LastChar == '\\';
+                    if (bHasPathSep)
+                    {
+                        continue;
+                    }
+                }
+            }
+
+            String_AppendChar(Dest, C);
         }
 
-        String_AppendChar(Dest, C);
+        String_AppendChar(Dest, '"');
     }
-
-    String_AppendChar(Dest, '"');
 
     return bAnyChange;
 }
@@ -1782,9 +1782,6 @@ u32 String_CountPathSeparators(const String Str)
 
 void String_StripString(const String Str, const String Substring, String* OutStr)
 {
-    if (!String_IsValid(Str)) return;
-    if (NEVER(OutStr == NULL)) return;
-
     const u32 MaxLength = Min(OutStr->Capacity, Str.Length);
 
     for (u32 i = 0; i < MaxLength;)
@@ -1805,9 +1802,6 @@ void String_StripString(const String Str, const String Substring, String* OutStr
 
 void String_StripChar(const String Str, u8 C, String* OutStr)
 {
-    if (!String_IsValid(Str)) return;
-    if (NEVER(OutStr == NULL)) return;
-
     const u32 MaxLength = Min(OutStr->Capacity, Str.Length);
 
     for (u32 i = 0; i < MaxLength; i++)
@@ -1822,9 +1816,6 @@ void String_StripChar(const String Str, u8 C, String* OutStr)
 
 void String_StripWhitespace(const String Str, String* OutStr)
 {
-    if (!String_IsValid(Str)) return;
-    if (NEVER(OutStr == NULL)) return;
-
     const u32 MaxLength = Min(OutStr->Capacity, Str.Length);
 
     for (u32 i = 0; i < MaxLength; i++)
@@ -1839,9 +1830,6 @@ void String_StripWhitespace(const String Str, String* OutStr)
 
 void String_StripNewline(const String Str, String* OutStr)
 {
-    if (!String_IsValid(Str)) return;
-    if (NEVER(OutStr == NULL)) return;
-
     const u32 MaxLength = Min(OutStr->Capacity, Str.Length);
 
     for (u32 i = 0; i < MaxLength; i++)
@@ -1856,9 +1844,6 @@ void String_StripNewline(const String Str, String* OutStr)
 
 void String_StripDigit(const String Str, String* OutStr)
 {
-    if (!String_IsValid(Str)) return;
-    if (NEVER(OutStr == NULL)) return;
-
     const u32 MaxLength = Min(OutStr->Capacity, Str.Length);
 
     for (u32 i = 0; i < MaxLength; i++)
@@ -1873,9 +1858,6 @@ void String_StripDigit(const String Str, String* OutStr)
 
 void String_StripSymbol(const String Str, String* OutStr)
 {
-    if (!String_IsValid(Str)) return;
-    if (NEVER(OutStr == NULL)) return;
-
     const u32 MaxLength = Min(OutStr->Capacity, Str.Length);
 
     for (u32 i = 0; i < MaxLength; i++)
@@ -1890,9 +1872,6 @@ void String_StripSymbol(const String Str, String* OutStr)
 
 void String_StripAlphabet(const String Str, String* OutStr)
 {
-    if (!String_IsValid(Str)) return;
-    if (NEVER(OutStr == NULL)) return;
-
     const u32 MaxLength = Min(OutStr->Capacity, Str.Length);
 
     for (u32 i = 0; i < MaxLength; i++)
@@ -1907,81 +1886,91 @@ void String_StripAlphabet(const String Str, String* OutStr)
 
 bool String_ToF32(const String Str, f32* OutFloat)
 {
-    if (!String_IsValid(Str))
-    {
-        return false;
-    }
+    bool bSuccess = false;
 
-    u64 Index = 0;
-
+    u32 Index = 0;
     i8 Sign = 1;
-    if (Str.Data[0] == '-')
-    {
-        Sign = -1;
-        Index++;
-    }
-    else if (Str.Data[0] == '+')
-    {
-        Index++;
-    }
 
-    if (Index >= Str.Length)
-        return false;
-
-    f32 Num = 0;
-    bool bDecimalFound = false;
-    u8 DecimalPlaces = 0;
-    u8 c = Str.Data[Index];
-    if (!IsDigit(c))
+    if (Str.Length > 0)
     {
-        *OutFloat = 0;
-        return false;
-    }
-
-    while (Index < Str.Length)
-    {
-        if (IsDigit(c))
+        if (Str.Data[0] == '-')
         {
-            i32 Digit = c - '0';
-
-            if ((FLT_MAX - (f32)Digit) / 10 < Num)
-            {
-                *OutFloat = 0;
-                return false;
-            }
-
-            if (bDecimalFound)
-            {
-                DecimalPlaces++;
-                f32 PowResult = 10.0f;
-                for (u8 i = 1; i < DecimalPlaces; i++)
-                {
-                    PowResult *= 10.0f;
-                }
-
-                Num = Num + (f32)Digit / PowResult; //Pow(10.0f, (f32)DecimalPlaces);
-            }
-            else
-            {
-                Num = Num * 10.0f + (f32)Digit;
-            }
+            Sign = -1;
+            Index++;
         }
-        else if (c == '.')
+        else if (Str.Data[0] == '+')
         {
-            bDecimalFound = true;
+            Index++;
         }
         else
         {
-            *OutFloat = Num * (f32)Sign;
-            return true;
+            // no action required
         }
-
-        Index++;
-        c = Str.Data[Index];
     }
 
-    *OutFloat = Num * Sign;
-    return true;
+    if (Index < Str.Length)
+    {
+        f32 Num = 0;
+        bool bDecimalFound = false;
+        u8 DecimalPlaces = 0;
+
+        while (Index < Str.Length)
+        {
+            bool bShouldBreak = false;
+
+            u8 c = Str.Data[Index];
+            if (IsDigit(c))
+            {
+                i32 Digit = c - '0';
+
+                if ((FLT_MAX - (f32)Digit) / 10 < Num)
+                {
+                    Num = 0;
+                    bSuccess = false;
+                    bShouldBreak = true;
+                }
+                else
+                {
+                    if (bDecimalFound)
+                    {
+                        DecimalPlaces++;
+                        f32 PowResult = 10.0f;
+                        for (u8 i = 1; i < DecimalPlaces; i++)
+                        {
+                            PowResult *= 10.0f;
+                        }
+
+                        Num = Num + (f32)Digit / PowResult;
+                    }
+                    else
+                    {
+                        Num = Num * 10.0f + (f32)Digit;
+                    }
+                }
+            }
+            else if (c == '.')
+            {
+                bDecimalFound = true;
+            }
+            else
+            {
+                bSuccess = true;
+                bShouldBreak = true;
+            }
+
+            if (bShouldBreak)
+            {
+                break;
+            }
+
+            Index++;
+            c = Str.Data[Index];
+        }
+
+        *OutFloat = Num * (f32)Sign;
+    }
+
+    return bSuccess;
 }
 
 bool String_ToF64(const String Str, f64* OutFloat)

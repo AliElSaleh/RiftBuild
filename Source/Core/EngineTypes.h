@@ -67,9 +67,9 @@ typedef void VoidFunc(void);
 #define INT32_MAX        2147483647
 #define INT64_MAX        9223372036854775807
 
-#define UINT8_MAX        255
-#define UINT16_MAX       65535
-#define UINT32_MAX       4294967295
+#define UINT8_MAX        255U
+#define UINT16_MAX       65535U
+#define UINT32_MAX       4294967295U
 #define UINT64_MAX       0xFFFFFFFFFFFFFFFF //18446744073709551615
 
 // Stolen from <float.h>
