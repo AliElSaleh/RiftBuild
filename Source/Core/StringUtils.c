@@ -1908,65 +1908,72 @@ bool String_ToF32(const String Str, f32* OutFloat)
         }
     }
 
-    if (Index < Str.Length)
+    f32 Num = 0.0f;
+    bool bDecimalFound = false;
+    u8 DecimalPlaces = 0;
+
+    while (Index < Str.Length)
     {
-        f32 Num = 0;
-        bool bDecimalFound = false;
-        u8 DecimalPlaces = 0;
+        bool bShouldBreak = false;
 
-        while (Index < Str.Length)
+        u8 c = Str.Data[Index];
+        if (IsDigit(c))
         {
-            bool bShouldBreak = false;
+            i32 Digit = c - '0';
 
-            u8 c = Str.Data[Index];
-            if (IsDigit(c))
+            if ((FLT_MAX - (f32)Digit) / 10 < Num)
             {
-                i32 Digit = c - '0';
-
-                if ((FLT_MAX - (f32)Digit) / 10 < Num)
-                {
-                    Num = 0;
-                    bSuccess = false;
-                    bShouldBreak = true;
-                }
-                else
-                {
-                    if (bDecimalFound)
-                    {
-                        DecimalPlaces++;
-                        f32 PowResult = 10.0f;
-                        for (u8 i = 1; i < DecimalPlaces; i++)
-                        {
-                            PowResult *= 10.0f;
-                        }
-
-                        Num = Num + (f32)Digit / PowResult;
-                    }
-                    else
-                    {
-                        Num = Num * 10.0f + (f32)Digit;
-                    }
-                }
-            }
-            else if (c == '.')
-            {
-                bDecimalFound = true;
+                Num = 0;
+                bSuccess = false;
+                bShouldBreak = true;
             }
             else
             {
-                bSuccess = true;
+                if (bDecimalFound)
+                {
+                    DecimalPlaces++;
+                    f32 PowResult = 10.0f;
+                    for (u8 i = 1; i < DecimalPlaces; i++)
+                    {
+                        PowResult *= 10.0f;
+                    }
+
+                    Num = Num + (f32)Digit / PowResult;
+                }
+                else
+                {
+                    Num = Num * 10.0f + (f32)Digit;
+                }
+            }
+        }
+        else if (c == '.')
+        {
+            if (bDecimalFound)
+            {
+                Num = 0;
+                bSuccess = false;
                 bShouldBreak = true;
             }
 
-            if (bShouldBreak)
-            {
-                break;
-            }
-
-            Index++;
-            c = Str.Data[Index];
+            bDecimalFound = true;
+        }
+        else
+        {
+            bSuccess = true;
+            bShouldBreak = true;
         }
 
+        if (bShouldBreak)
+        {
+            break;
+        }
+
+        Index++;
+        c = Str.Data[Index];
+    }
+
+    if (OutFloat)
+    {
         *OutFloat = Num * (f32)Sign;
     }
 
@@ -1975,541 +1982,400 @@ bool String_ToF32(const String Str, f32* OutFloat)
 
 bool String_ToF64(const String Str, f64* OutFloat)
 {
-    if (!String_IsValid(Str))
-    {
-        return false;
-    }
+    bool bSuccess = false;
 
     u64 Index = 0;
-
     i8 Sign = 1;
-    if (Str.Data[0] == '-')
-    {
-        Sign = -1;
-        Index++;
-    }
-    else if (Str.Data[0] == '+')
-    {
-        Index++;
-    }
 
-    if (Index >= Str.Length)
-        return false;
+    if (Str.Length > 0)
+    {
+        if (Str.Data[0] == '-')
+        {
+            Sign = -1;
+            Index++;
+        }
+        else if (Str.Data[0] == '+')
+        {
+            Index++;
+        }
+        else
+        {
+            // no action required
+        }
+    }
 
     f64 Num = 0;
     bool bDecimalFound = false;
     u64 DecimalPlaces = 0;
-    u8 c = Str.Data[Index];
-    if (!IsDigit(c))
-    {
-        *OutFloat = 0;
-        return false;
-    }
 
-    while (c != 0)
+    while (Index < Str.Length)
     {
+        bool bShouldBreak = false;
+
+        u8 c = Str.Data[Index];
         if (IsDigit(c))
         {
             i32 Digit = c - '0';
 
             if ((DBL_MAX - (f64)Digit) / 10.0 < Num)
             {
-                *OutFloat = 0;
-                return false;
-            }
-
-            if (bDecimalFound)
-            {
-                DecimalPlaces++;
-
-                f64 PowResult = 10.0;
-                for (u8 i = 1; i < (u8)DecimalPlaces; i++)
-                {
-                    PowResult *= 10.0;
-                }
-
-                Num = Num + (f64)Digit / PowResult; //Powd(10.0, (f64)DecimalPlaces);
+                Num = 0;
+                bSuccess = false;
+                bShouldBreak = true;
             }
             else
             {
-                Num = Num * 10.0 + Digit;
+                if (bDecimalFound)
+                {
+                    DecimalPlaces++;
+
+                    f64 PowResult = 10.0;
+                    for (u8 i = 1; i < (u8)DecimalPlaces; i++)
+                    {
+                        PowResult *= 10.0;
+                    }
+
+                    Num = Num + (f64)Digit / PowResult;
+                }
+                else
+                {
+                    Num = Num * 10.0 + Digit;
+                }
             }
         }
         else if (c == '.')
         {
+            if (bDecimalFound)
+            {
+                Num = 0;
+                bSuccess = false;
+                bShouldBreak = true;
+            }
+
             bDecimalFound = true;
         }
         else
         {
-            *OutFloat = Num * Sign;
-            return true;
+            bSuccess = true;
+            bShouldBreak = true;
+        }
+
+        if (bShouldBreak)
+        {
+            break;
         }
 
         Index++;
         c = Str.Data[Index];
     }
 
-    *OutFloat = Num * Sign;
-    return true;
+    if (OutFloat)
+    {
+        *OutFloat = Num * Sign;
+    }
+
+    return bSuccess;
+}
+
+// IntType
+// 0 - u8
+// 1 - u16
+// 2 - u32
+// 3 - u64
+static bool Internal_String_ToUnsignedInt(const String Str, u64* OutInt, u8 IntType)
+{
+    bool bSuccess = false;
+    bool bNegative = false;
+    
+    u8 Index = 0;
+    u64 Num = 0;
+
+    u64 MaxIntValue = UINT64_MAX;
+    switch (IntType)
+    {
+        case 0:  MaxIntValue = UINT8_MAX; break;
+        case 1:  MaxIntValue = UINT16_MAX; break;
+        case 2:  MaxIntValue = UINT32_MAX; break;
+        default: break;
+    }
+
+    if (Str.Data[0] == '+')
+    {
+        Index++;
+    }
+    else if (Str.Data[0] == '-')
+    {
+        Index++;
+        bNegative = true;
+    }
+    else
+    {
+        // no action required
+    }
+
+    while (Index < Str.Length)
+    {
+        bool bShouldBreak = false;
+
+        u8 c = Str.Data[Index];
+        if (IsDigit(c))
+        {
+            i32 Digit = c - '0';
+
+            bool bOutOfRange = (MaxIntValue - (u8)Digit) / 10 < Num;
+            if (bOutOfRange)
+            {
+                Num = 0;
+                bSuccess = false;
+                bShouldBreak = true;
+            }
+            else
+            {
+                Num = (Num * 10 + (u8)Digit);
+            }
+        }
+        else
+        {
+            bSuccess = true;
+            bShouldBreak = true;
+        }
+
+        if (bShouldBreak)
+        {
+            break;
+        }
+
+        Index++;
+        c = Str.Data[Index];
+    }
+
+    if (OutInt)
+    {
+        *OutInt = Num;
+
+        if (bNegative)
+        {
+            *OutInt = Num > 0 ? MaxIntValue - Num : 0;
+        }
+    }
+
+    return bSuccess;
+}
+
+// IntType
+// 0 - i8
+// 1 - i16
+// 2 - i32
+// 3 - i64
+static bool Internal_String_ToSignedInt(const String Str, i64* OutInt, u8 IntType)
+{
+    bool bSuccess = false;
+    
+    u8 Index = 0;
+    i8 Sign = 1;
+    i64 Num = 0;
+
+    i64 MaxIntValue = INT64_MAX;
+    switch (IntType)
+    {
+        case 0:  MaxIntValue = INT8_MAX; break;
+        case 1:  MaxIntValue = INT16_MAX; break;
+        case 2:  MaxIntValue = INT32_MAX; break;
+        default: break;
+    }
+
+    if (Str.Data[0] == '+')
+    {
+        Index++;
+    }
+    else if (Str.Data[0] == '-')
+    {
+        Index++;
+        Sign = -1;
+    }
+    else
+    {
+        // no action required
+    }
+
+    while (Index < Str.Length)
+    {
+        bool bShouldBreak = false;
+
+        u8 c = Str.Data[Index];
+        if (IsDigit(c))
+        {
+            i32 Digit = c - '0';
+
+            bool bOutOfRange = (MaxIntValue - Digit) / 10 < Num;
+            if (bOutOfRange)
+            {
+                Num = 0;
+                bSuccess = false;
+                bShouldBreak = true;
+            }
+            else
+            {
+                Num = Num * 10 + Digit;
+            }
+        }
+        else
+        {
+            bSuccess = true;
+            bShouldBreak = true;
+        }
+
+        if (bShouldBreak)
+        {
+            break;
+        }
+
+        Index++;
+        c = Str.Data[Index];
+    }
+
+    if (OutInt)
+    {
+        *OutInt = Num * Sign;
+    }
+
+    return bSuccess;
 }
 
 bool String_ToU8(const String Str, u8* OutInt)
 {
     // 0-255
-    
-    if (!String_IsValid(Str) || Str.Length > 3)
+
+    u64 Num = 0;
+    bool bSuccess = Internal_String_ToUnsignedInt(Str, &Num, 0);
+    if (bSuccess)
     {
-        return false;
-    }
-
-    u64 Index = 0;
-
-    if (Str.Data[0] == '-' || Str.Data[0] == '+')
-    {
-        Index++;
-        if (Str.Data[0] == '-')
-            return false;
-    }
-
-    if (Index >= Str.Length)
-        return false;
-
-    u8 Num = 0;
-    u8 c = Str.Data[Index];
-    if (!IsDigit(c))
-    {
-        *OutInt = 0;
-        return false;
-    }
-
-    while (Index < Str.Length)
-    {
-        if (IsDigit(c))
+        if (OutInt)
         {
-            i32 Digit = c - '0';
-
-            if ((UINT8_MAX - (u8)Digit) / 10 < Num)
-            {
-                *OutInt = 0;
-                return false;
-            }
-
-            Num = (u8)(Num * 10 + Digit);
+            *OutInt = (u8)Num;
         }
-        else
-        {
-            *OutInt = Num;
-            return true;
-        }
-
-        Index++;
-        c = Str.Data[Index];
     }
 
-    *OutInt = Num;
-    return true;
+    return bSuccess;
 }
 
 bool String_ToU16(const String Str, u16* OutInt)
 {
     // 0-65535
-    
-    if (!String_IsValid(Str) || Str.Length > 5)
+
+    u64 Num = 0;
+    bool bSuccess = Internal_String_ToUnsignedInt(Str, &Num, 1);
+    if (bSuccess)
     {
-        return false;
-    }
-
-    u64 Index = 0;
-
-    if (Str.Data[0] == '-' || Str.Data[0] == '+')
-    {
-        Index++;
-        if (Str.Data[0] == '-')
-            return false;
-    }
-
-    if (Index >= Str.Length)
-        return false;
-
-    u16 Num = 0;
-    u8 c = Str.Data[Index];
-    if (!IsDigit(c))
-    {
-        *OutInt = 0;
-        return false;
-    }
-
-    while (Index < Str.Length)
-    {
-        if (IsDigit(c))
+        if (OutInt)
         {
-            i32 Digit = c - '0';
-
-            if ((UINT16_MAX - (u16)Digit) / 10 < Num)
-            {
-                *OutInt = 0;
-                return false;
-            }
-
-            Num = (u16)(Num * 10 + Digit);
+            *OutInt = (u16)Num;
         }
-        else
-        {
-            *OutInt = Num;
-            return true;
-        }
-
-        Index++;
-        c = Str.Data[Index];
     }
 
-    *OutInt = Num;
-    return true;
+    return bSuccess;
 }
 
 bool String_ToU32(const String Str, u32* OutInt)
 {
     // 0-4294967295
-    
-    if (!String_IsValid(Str))
+
+    u64 Num = 0;
+    bool bSuccess = Internal_String_ToUnsignedInt(Str, &Num, 2);
+    if (bSuccess)
     {
-        return false;
-    }
-
-    u64 Index = 0;
-
-    if (Str.Data[0] == '-' || Str.Data[0] == '+')
-    {
-        Index++;
-        if (Str.Data[0] == '-')
-            return false;
-    }
-
-    if (Index >= Str.Length)
-        return false;
-
-    u32 Num = 0;
-    u8 c = Str.Data[Index];
-    if (!IsDigit(c))
-    {
-        *OutInt = 0;
-        return false;
-    }
-
-    while (Index < Str.Length)
-    {
-        if (IsDigit(c))
+        if (OutInt)
         {
-            i32 Digit = c - '0';
-
-            if ((UINT32_MAX - (u32)Digit) / 10 < Num)
-            {
-                *OutInt = 0;
-                return false;
-            }
-
-            Num = (Num * 10 + (u32)Digit);
+            *OutInt = (u32)Num;
         }
-        else
-        {
-            *OutInt = Num;
-            return true;
-        }
-
-        Index++;
-        c = Str.Data[Index];
     }
 
-    *OutInt = Num;
-    return true;
+    return bSuccess;
 }
 
 bool String_ToU64(const String Str, u64* OutInt)
 {
     // 0-18446744073709551615
 
-    if (!String_IsValid(Str))
-    {
-        return false;
-    }
-    
-    u64 Index = 0;
-
-    if (Str.Data[0] == '-' || Str.Data[0] == '+')
-    {
-        Index++;
-        if (Str.Data[0] == '-')
-            return false;
-    }
-
-    if (Index >= Str.Length)
-        return false;
-
     u64 Num = 0;
-    u8 c = Str.Data[Index];
-    if (!IsDigit(c))
+    bool bSuccess = Internal_String_ToUnsignedInt(Str, &Num, 3);
+    if (bSuccess)
     {
-        *OutInt = 0;
-        return false;
-    }
-
-    while (Index < Str.Length)
-    {
-        if (IsDigit(c))
-        {
-            i32 Digit = c - '0';
-
-            if ((UINT64_MAX - (u64)Digit) / 10 < Num)
-            {
-                *OutInt = 0;
-                return false;
-            }
-
-            Num = (Num * 10 + (u64)Digit);
-        }
-        else
+        if (OutInt)
         {
             *OutInt = Num;
-            return true;
         }
-
-        Index++;
-        c = Str.Data[Index];
     }
 
-    *OutInt = Num;
-    return true;
+    return bSuccess;
 }
 
 bool String_ToI8(const String Str, i8* OutInt)
 {
     // -127-127
 
-    if (!String_IsValid(Str))
+    i64 Num = 0;
+    bool bSuccess = Internal_String_ToSignedInt(Str, &Num, 0);
+    if (bSuccess)
     {
-        return false;
-    }
-    
-    u64 Index = 0;
-
-    i8 Sign = 1;
-    if (Str.Data[0] == '-')
-    {
-        Sign = -1;
-        Index++;
-    }
-    else if (Str.Data[0] == '+')
-    {
-        Index++;
-    }
-
-    if (Index >= Str.Length)
-        return false;
-
-    i8 Num = 0;
-    u8 c = Str.Data[Index];
-    if (!IsDigit(c))
-    {
-        *OutInt = 0;
-        return false;
-    }
-
-    while (Index < Str.Length)
-    {
-        if (IsDigit(c))
+        if (OutInt)
         {
-            i32 Digit = c - '0';
-
-            if ((INT8_MAX - (i8)Digit) / 10 < Num)
-            {
-                *OutInt = 0;
-                return false;
-            }
-
-            Num = (i8)(Num * 10 + Digit);
+            *OutInt = (i8)Num;
         }
-        else
-        {
-            *OutInt = (i8)(Num * Sign);
-            return true;
-        }
-
-        Index++;
-        c = Str.Data[Index];
     }
 
-    *OutInt = (i8)(Num * Sign);
-    return true;
+    return bSuccess;
 }
 
 bool String_ToI16(const String Str, i16* OutInt)
 {
     // -32767-32767
 
-    if (!String_IsValid(Str))
+    i64 Num = 0;
+    bool bSuccess = Internal_String_ToSignedInt(Str, &Num, 1);
+    if (bSuccess)
     {
-        return false;
-    }
-    
-    u64 Index = 0;
-
-    i8 Sign = 1;
-    if (Str.Data[0] == '-')
-    {
-        Sign = -1;
-        Index++;
-    }
-    else if (Str.Data[0] == '+')
-    {
-        Index++;
-    }
-
-    if (Index >= Str.Length)
-        return false;
-
-    i16 Num = 0;
-    u8 c = Str.Data[Index];
-    if (!IsDigit(c))
-    {
-        *OutInt = 0;
-        return false;
-    }
-
-    while (Index < Str.Length)
-    {
-        if (IsDigit(c))
+        if (OutInt)
         {
-            i32 Digit = c - '0';
-
-            if ((INT16_MAX - (i16)Digit) / 10 < Num)
-            {
-                *OutInt = 0;
-                return false;
-            }
-
-            Num = (i16)(Num * 10 + Digit);
+            *OutInt = (i16)Num;
         }
-        else
-        {
-            *OutInt = (i16)(Num * Sign);
-            return true;
-        }
-
-        Index++;
-        c = Str.Data[Index];
     }
 
-    *OutInt = (i16)(Num * Sign);
-    return true;
+    return bSuccess;
 }
 
 bool String_ToI32(const String Str, i32* OutInt)
 {
     // -2147483648-2147483647
-    
-    u64 Index = 0;
 
-    i8 Sign = 1;
-    if (Str.Data[0] == '-')
+    i64 Num = 0;
+    bool bSuccess = Internal_String_ToSignedInt(Str, &Num, 2);
+    if (bSuccess)
     {
-        Sign = -1;
-        Index++;
-    }
-    else if (Str.Data[0] == '+')
-    {
-        Index++;
-    }
-
-    if (Index >= Str.Length)
-        return false;
-
-    i32 Num = 0;
-    u8 c = Str.Data[Index];
-    if (!IsDigit(c))
-    {
-        *OutInt = 0;
-        return false;
-    }
-
-    while (Index < Str.Length)
-    {
-        if (IsDigit(c))
+        if (OutInt)
         {
-            i32 Digit = c - '0';
-
-            if ((INT32_MAX - Digit) / 10 < Num)
-            {
-                *OutInt = 0;
-                return false;
-            }
-
-            Num = Num * 10 + Digit;
+            *OutInt = (i32)Num;
         }
-        else
-        {
-            *OutInt = Num * Sign;
-            return true;
-        }
-
-        Index++;
-        c = Str.Data[Index];
     }
 
-    *OutInt = Num * Sign;
-    return true;
+    return bSuccess;
 }
 
 bool String_ToI64(const String Str, i64* OutInt)
 {
     // -9223372036854775807-9223372036854775807
-    
-    u64 Index = 0;
-
-    i8 Sign = 1;
-    if (Str.Data[0] == '-')
-    {
-        Sign = -1;
-        Index++;
-    }
-    else if (Str.Data[0] == '+')
-    {
-        Index++;
-    }
 
     i64 Num = 0;
-    u8 c = Str.Data[Index];
-    if (!IsDigit(c))
+    bool bSuccess = Internal_String_ToSignedInt(Str, &Num, 3);
+    if (bSuccess)
     {
-        *OutInt = 0;
-        return false;
+        if (OutInt)
+        {
+            *OutInt = Num;
+        }
     }
 
-    while (Index < Str.Length)
-    {
-        if (IsDigit(c))
-        {
-            i64 Digit = c - '0';
-
-            if ((INT64_MAX - Digit) / 10 < Num)
-            {
-                *OutInt = 0;
-                return false;
-            }
-
-            Num = Num * 10 + Digit;
-        }
-        else
-        {
-            *OutInt = Num * Sign;
-            return true;
-        }
-
-        Index++;
-        c = Str.Data[Index];
-    }
-
-    *OutInt = Num * Sign;
-    return true;
+    return bSuccess;
 }
 
 bool String_ToBool(const String Str)
@@ -2519,15 +2385,18 @@ bool String_ToBool(const String Str)
 
 String* StringArray_Iterate_Next(StringArray *InArray)
 {
-    if (InArray->IterIndex >= InArray->Num)
+    String* Current = NULL;
+
+    if (InArray->IterIndex < InArray->Num)
+    {
+        Current = &InArray->List[InArray->IterIndex];
+        InArray->IterCurrent = Current;
+        InArray->IterIndex++;
+    }
+    else
     {
         InArray->IterCurrent = NULL;
-        return NULL;
     }
-
-    String* Current = &InArray->List[InArray->IterIndex];
-    InArray->IterCurrent = Current;
-    InArray->IterIndex++;
 
     return Current;
 }
@@ -2539,33 +2408,39 @@ String* StringArray_Iterate_Begin(StringArray* InArray)
     return StringArray_Iterate_Next(InArray);
 }
 
-StringList StringList_Iterate_Begin(StringList InList)
+bool StringList_Iterate_Check(StringList InList)
 {
-    return InList;
+    bool bValid = InList.String.Data != NULL || InList.Next != NULL;
+    return bValid;
 }
 
 StringList StringList_Iterate_Next(StringList InList)
 {
-    if (InList.Next == NULL || InList.Next == StringList_Null().Next)
+    StringList Next = {0};
+
+    bool bValid = !(InList.Next == NULL || InList.Next == StringList_Null().Next);
+    if (bValid)
     {
-        StringList Empty = { 0 };
-        return Empty;
+        Next = *InList.Next;
     }
 
-    return *InList.Next;
+    return Next;
 }
 
 bool StringArray_Contains(const StringArray InArray, const String SubString, bool bCaseSensitive)
 {
-    for (u8 i = 0; i < InArray.Num; i++)
+    bool bContains = false;
+
+    for (u32 i = 0; i < InArray.Num; i++)
     {
         if (String_IsEqual(InArray.List[i], SubString, bCaseSensitive))
         {
-            return true;
+            bContains = true;
+            break;
         }
     }
 
-    return false;
+    return bContains;
 }
 
 // the problem is that we want to separate one long collection of paths into an array of paths,
@@ -2650,7 +2525,7 @@ StringArray String_SplitIntoArray(LinearAllocator* Arena, const String Str, cons
 
 StringArray String_ParseIntoArray(LinearAllocator* Arena, const String Str, u8 Delimiter, u32 StartingIndex, u32 MaxCount)
 {
-    StringArray StrArray = {0};
+    StringArray StrArray = StringArray_Null();
 
     u32 Num = 0;
 
@@ -2662,88 +2537,42 @@ StringArray String_ParseIntoArray(LinearAllocator* Arena, const String Str, u8 D
         }
     }
 
-    if (Num == 0)
-        return StrArray;
-
-    Num = Min(Num, MaxCount);
-    StrArray.List = LinearAllocator_Allocate(Arena, sizeof(String) * Num);
-    StrArray.Num = Num;
-
-    u32 Offset = StartingIndex;
-    u32 ListIndex = 0;
-    for (u32 i = StartingIndex; i < Str.Length; i++)
+    if (Num > 0)
     {
-        if (ListIndex >= Num)
-            break;
+        Num = Min(Num, MaxCount);
+        StrArray.List = LinearAllocator_Allocate(Arena, sizeof(String) * Num);
+        StrArray.Num = Num;
 
-        if (Str.Data[i] == Delimiter && i != Str.Length-1)
+        u32 Offset = StartingIndex;
+        u32 ListIndex = 0;
+        for (u32 i = StartingIndex; i < Str.Length; i++)
         {
-            u32 Length = i-Offset;
-            StrArray.List[ListIndex].Data = LinearAllocator_Allocate(Arena, Length+1);
-            MemCopy(StrArray.List[ListIndex].Data, &Str.Data[Offset], Length);
-            StrArray.List[ListIndex].Data[Length] = 0;
-            StrArray.List[ListIndex].Length = Length;
-            StrArray.List[ListIndex].Capacity = Length;
+            if (ListIndex >= Num)
+            {
+                break;
+            }
 
-            Offset = i+1;
-            ListIndex++;
+            if (Str.Data[i] == Delimiter && i != Str.Length-1)
+            {
+                u32 Length = i-Offset;
+                StrArray.List[ListIndex].Data = LinearAllocator_Allocate(Arena, Length+1);
+                MemCopy(StrArray.List[ListIndex].Data, &Str.Data[Offset], Length);
+                StrArray.List[ListIndex].Data[Length] = 0;
+                StrArray.List[ListIndex].Length = Length;
+                StrArray.List[ListIndex].Capacity = Length;
+
+                Offset = i+1;
+                ListIndex++;
+            }
         }
+
+        u32 Length = Str.Length-Offset;
+        StrArray.List[ListIndex].Data = LinearAllocator_Allocate(Arena, Length+1);
+        MemCopy(StrArray.List[ListIndex].Data, &Str.Data[Offset], Length);
+        StrArray.List[ListIndex].Data[Length] = 0;
+        StrArray.List[ListIndex].Length = Length;
+        StrArray.List[ListIndex].Capacity = Length;
     }
-
-    u32 Length = Str.Length-Offset;
-    StrArray.List[ListIndex].Data = LinearAllocator_Allocate(Arena, Length+1);
-    MemCopy(StrArray.List[ListIndex].Data, &Str.Data[Offset], Length);
-    StrArray.List[ListIndex].Data[Length] = 0;
-    StrArray.List[ListIndex].Length = Length;
-    StrArray.List[ListIndex].Capacity = Length;
-
-    return StrArray;
-}
-
-StringArray String_ParseIntoArray_IntoExistingBuffer(String* ArrayBuffer, const String Str, u8 Delimiter, u32 StartingIndex, u32 MaxCount)
-{
-    StringArray StrArray = {0};
-
-    u32 Num = 0;
-
-    for (u32 i = StartingIndex; i < Str.Length; i++)
-    {
-        if (Str.Data[i] == Delimiter || i == Str.Length-1)
-        {
-            Num++;
-        }
-    }
-
-    if (Num == 0)
-        return StrArray;
-
-    Num = Min(Num, MaxCount);
-    StrArray.List = ArrayBuffer;
-    StrArray.Num = Num;
-
-    u32 Offset = StartingIndex;
-    u32 ListIndex = 0;
-    for (u32 i = StartingIndex; i < Str.Length; i++)
-    {
-        if (ListIndex >= Num)
-            return StrArray;
-
-        if (Str.Data[i] == Delimiter && i != Str.Length-1)
-        {
-            u32 Length = i-Offset;
-            MemCopy(StrArray.List[ListIndex].Data, &Str.Data[Offset], Length);
-            StrArray.List[ListIndex].Data[Length] = 0;
-            StrArray.List[ListIndex].Length = Length;
-
-            Offset = i+1;
-            ListIndex++;
-        }
-    }
-
-    u32 Length = Str.Length-Offset;
-    MemCopy(StrArray.List[ListIndex].Data, &Str.Data[Offset], Length);
-    StrArray.List[ListIndex].Data[Length] = 0;
-    StrArray.List[ListIndex].Length = Length;
 
     return StrArray;
 }
@@ -2751,6 +2580,8 @@ StringArray String_ParseIntoArray_IntoExistingBuffer(String* ArrayBuffer, const 
 bool StringArray_Find(StringArray Array, const String Source, u32* FoundIndex)
 {
     u32 Index = 0;
+    bool bFound = false;
+
     for each_str_i (Index, s, Array)
     {
         if (String_IsEqual(*s, Source, true))
@@ -2760,28 +2591,36 @@ bool StringArray_Find(StringArray Array, const String Source, u32* FoundIndex)
                 *FoundIndex = Index;
             }
 
-            return true;
+            bFound = true;
+            break;
         }
     }
 
-    return false;
+    return bFound;
 }
 
 String StringArray_GetStringFromIndex(StringArray Array, u32 Index)
 {
+    String Result = String_Null();
+
     u32 i = 0;
     for each_str_i (i, s, Array)
     {
         if (i == Index)
-            return *s;
+        {
+            Result = *s;
+            break;
+        }
     }
 
-    return String_Null();
+    return Result;
 }
 
 bool StringList_Find(StringList List, const String Source, u32* FoundIndex)
 {
     u32 Index = 0;
+    bool bFound = false;
+
     for each_str_list_i (Index, List)
     {
         if (String_IsEqual(It.String, Source, true))
@@ -2791,40 +2630,46 @@ bool StringList_Find(StringList List, const String Source, u32* FoundIndex)
                 *FoundIndex = Index;
             }
 
-            return true;
+            bFound = true;
+            break;
         }
     }
 
-    return false;
+    return bFound;
 }
 
 String StringList_GetStringFromIndex(StringList List, u32 Index)
 {
+    String Result = String_Null();
+
     u32 i = 0;
     for each_str_list_i (i, List)
     {
         if (i == Index)
-            return It.String;
+        {
+            Result = It.String;
+            break;
+        }
     }
 
-    return String_Null();
+    return Result;
 }
 
 u32 String_GetLength(const char *Str)
 {
-    register char* Start = (char*)Str;
-    while (*Start != 0)
+    register u32 Len = 0;
+    while (Str[Len])
     {
-        Start++;
+        Len++;
     }
 
-    return (u32)(Start-Str);
+    return Len;
 }
 
 u32 String_GetLength_Ex(const char* Str, u32 MaxLength)
 {
     register u32 Len = 0;
-    while (Len < MaxLength && Str[Len] != 0)
+    while (Len < MaxLength && Str[Len])
     {
         Len++;
     }
@@ -2835,7 +2680,7 @@ u32 String_GetLength_Ex(const char* Str, u32 MaxLength)
 u32 String16_GetLength(const wchar* Str)
 {
     register u32 Len = 0;
-    while (Str[Len] != 0)
+    while (Str[Len])
     {
         Len++;
     }
@@ -2846,7 +2691,7 @@ u32 String16_GetLength(const wchar* Str)
 u32 String16_GetLength_Ex(const wchar* Str, u32 MaxLength)
 {
     register u32 Len = 0;
-    while (Len < MaxLength && Str[Len] != 0)
+    while (Len < MaxLength && Str[Len])
     {
         Len++;
     }
@@ -2912,6 +2757,7 @@ u8 ToBackSlash(u8 Char)
 	return Char == '/' ? '\\' : Char;
 }
 
+/*
 void EatSpaces(u8** Str)
 {
     if (!(Str == NULL || *Str == NULL || *(*Str) == 0))
@@ -3025,3 +2871,4 @@ void EatSymbols_Backwards(u8** Str)
         }
     }
 }
+*/

@@ -8184,6 +8184,8 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments, const 
 
 static void InitInternalVars(LinearAllocator* Arena)
 {
+    ENSURE_NO_REENTRY();
+
     const u32 MaxInternalVars = 256;
     const u32 MaxSize = MaxInternalVars * sizeof(InternalVariable); // 8192 bytes
     InternalVariablesDB = _ArrayCreateStatic(LinearAllocator_Allocate(Arena, MaxSize), MaxInternalVars, sizeof(InternalVariable));
@@ -8755,6 +8757,8 @@ static void InitInternalVars(LinearAllocator* Arena)
 
 u32 RunApplication(const StringArray Arguments)
 {
+    ENSURE_NO_REENTRY();
+
     Logging_ToggleLogFile(false);
     Logging_ToggleLogTimeStamp(false);
     Logging_ToggleLogCategory(false);

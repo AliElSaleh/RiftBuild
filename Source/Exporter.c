@@ -652,7 +652,7 @@ bool Export_License_BSD2(const BuildParams* Params, const String Path)
     bool bSuccess = false;
     if (Filesystem_Open(Path, FileMode_Write, &f))
     {
-        static const String Text = S("BSD 3-Clause License\n\
+        static const String Text = SC("BSD 3-Clause License\n\
         \n\
         %S\n\
         \n\
@@ -692,7 +692,7 @@ bool Export_License_BSD3(const BuildParams* Params, const String Path)
     bool bSuccess = false;
     if (Filesystem_Open(Path, FileMode_Write, &f))
     {
-        static const String Text = S("BSD 3-Clause License\n\
+        static const String Text = SC("BSD 3-Clause License\n\
         \n\
         %S\n\
         \n\
@@ -736,7 +736,7 @@ bool Export_License_MIT(const BuildParams* Params, const String Path)
     bool bSuccess = false;
     if (Filesystem_Open(Path, FileMode_Write, &f))
     {
-        static const String Text = S("\
+        static const String Text = SC("\
         MIT License\n\
         \n\
         %S\n\
@@ -774,7 +774,7 @@ bool Export_License_DoWhatTheFuckYouWantTo(const BuildParams* Params, const Stri
     bool bSuccess = false;
     if (Filesystem_Open(Path, FileMode_Write, &f))
     {
-        static const String Text = S("\
+        static const String Text = SC("\
                 DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE\n\
                     Version 2, December 2004\n\
         \n\
@@ -804,7 +804,7 @@ bool Export_License_TheUnlicense(const String Path)
     bool bSuccess = false;
     if (Filesystem_Open(Path, FileMode_Write, &f))
     {
-        static const String Text = S("\
+        static const String Text = SC("\
         This is free and unencumbered software released into the public domain.\n\
         \n\
         Anyone is free to copy, modify, publish, use, compile, sell, or\n\

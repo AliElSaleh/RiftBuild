@@ -2,23 +2,23 @@
 #define _ENGINE_TYPES_H_
 
 // Unsigned integer types
-typedef unsigned char        u8;
-typedef unsigned short       u16;
-typedef unsigned int         u32;
-typedef unsigned long long   u64;
+typedef unsigned char      u8;
+typedef unsigned short     u16;
+typedef unsigned int       u32;
+typedef unsigned long long u64;
 
 // Signed integer types
-typedef signed char          i8;
-typedef signed short         i16;
-typedef signed int           i32;
-typedef signed long long     i64;
+typedef signed char        i8;
+typedef signed short       i16;
+typedef signed int         i32;
+typedef signed long long   i64;
 
 // Floating-point types
-typedef float                f32;
-typedef double               f64;
+typedef float              f32;
+typedef double             f64;
 
-typedef unsigned char        uchar;
-typedef unsigned short       wchar;
+typedef unsigned char      uchar;
+typedef unsigned short     wchar;
 
 // forward declare
 typedef struct LinearAllocator LinearAllocator;
@@ -55,7 +55,7 @@ typedef void VoidFunc(void);
 #define NULL ((void*)0)
 #endif
 
-#define _Crash_ do { int* volatile _ = (int*)1; *_ = 69; } while (0)
+#define _Crash_ do { i32* volatile _ = (i32*)1; *_ = 69; } while (0)
 //#define _Crash_ do { *(volatile char*)1 = 69; } while (0)
 
 #define INT8_MIN         -127
@@ -154,10 +154,10 @@ STRUCT(StringList)
 };
 
 #define each_str(Element, Array)            (const String* (Element) = StringArray_Iterate_Begin(&(Array)); (Element) != NULL; (Element) = StringArray_Iterate_Next(&(Array)))
-#define each_str_i(Index, Element, Array)   (const String* (Element) = StringArray_Iterate_Begin(&(Array)); (Element) != NULL; (Element) = StringArray_Iterate_Next(&(Array)), (++Index))
-#define each_str_list(List)                 (StringList It = List; (It).String.Data != NULL || (It).Next != NULL; (It) = StringList_Iterate_Next(It))
-#define each_str_list_i(Index, List)        (StringList It = List; (It).String.Data != NULL || (It).Next != NULL; (It) = StringList_Iterate_Next(It), (++Index))
-#define each_str_list_it(Element, List)     (StringList (Element) = List; (Element).String.Data != NULL || (Element).Next != NULL; (Element) = StringList_Iterate_Next(Element))
+#define each_str_i(Index, Element, Array)   (const String* (Element) = StringArray_Iterate_Begin(&(Array)); (Element) != NULL; (Element) = StringArray_Iterate_Next(&(Array)), Index++)
+#define each_str_list(List)                 (StringList It = List; StringList_Iterate_Check(It); (It) = StringList_Iterate_Next(It))
+#define each_str_list_i(Index, List)        (StringList It = List; StringList_Iterate_Check(It); (It) = StringList_Iterate_Next(It), Index++)
+#define each_str_list_it(Element, List)     (StringList (Element) = List; StringList_Iterate_Check(Element); (Element) = StringList_Iterate_Next(Element))
 
 #define StringN(n)  		                struct { uchar Data[n]; u32 Length; u32 Capacity; }
 
@@ -359,7 +359,7 @@ STRUCT(StringList)
 
 // VS Code is retarded
 #ifndef __FILE_NAME__
-#define __FILE_NAME__ ""
+#define __FILE_NAME__ __FILE__
 #endif
 
 #define FILELINE __FILE__ " | Line: " STRINGIZE(__LINE__)
@@ -493,7 +493,7 @@ STRUCT(StringList)
 
 #ifdef NO_ASSERT
     #define ASSERT(Expression)
-    #define ENSURE(Expression)               
+    #define ENSURE(Expression)
 #else
     #define ASSERT(Expression, ...) do { if (Expression) {} else { ##__VA_ARGS__; DEBUG_BREAK(); _Crash_; } } while (0)
     #define ENSURE(Expression, ...) do { if (Expression) {} else { ##__VA_ARGS__; DEBUG_BREAK(); } } while (0)

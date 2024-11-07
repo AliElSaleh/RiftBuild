@@ -51,7 +51,7 @@ bool Memory_Initialize(void* Memory, usize MemSize, void* ScratchMemory, usize S
         LinearAllocator_Create(ScratchSize, ScratchMemory, &GEngineScratchAllocator);
 
     GGlobalsMemory = FreeListAllocator_Allocate(&GEngineAllocator, Kilobytes(16), NULL);
-    InitializeGlobals(GGlobalsMemory, Kilobytes(16));
+    Globals_Init(GGlobalsMemory, Kilobytes(16));
 
     GCriticalSection = FreeListAllocator_Allocate(&GEngineAllocator, Platform_GetCriticalSectionMemoryRequirement(), NULL);
     Platform_InitializeCriticalSection(GCriticalSection);

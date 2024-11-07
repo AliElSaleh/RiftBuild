@@ -8,6 +8,7 @@
 #include "Filesystem.h"
 #include "Clock.h"
 #include "Memory.h"
+#include "Platform.h"
 #include "Log.h"
 #endif
 
@@ -22,12 +23,9 @@ STRUCT(EngineGlobals)
 static LinearAllocator GlobalsAllocator = {0};
 static EngineGlobals   GGlobals = {0};
 
-static void InitGlobals(EngineGlobals* G)
+static void Internal_InitGlobals(EngineGlobals* G)
 {
-    if (NEVER(G == NULL))
-    {
-        return;
-    }
+    ENSURE_NO_REENTRY();
     
     // File Handle 
     {
@@ -68,11 +66,13 @@ static void InitGlobals(EngineGlobals* G)
     }
 }
 
-void InitializeGlobals(void* Memory, usize Size)
+void Globals_Init(void* Memory, usize Size)
 {
+    ENSURE_NO_REENTRY();
+    
     LinearAllocator_Create(Size, Memory, &GlobalsAllocator);
 
-    InitGlobals(&GGlobals);
+    Internal_InitGlobals(&GGlobals);
 }
 
 bool IsValidFileHandle(const FileHandle Handle)
@@ -91,9 +91,9 @@ String String_Null(void)
 {
     #ifdef DEVELOPER
     // GGlobals.NullString was somehow modified... you broke it somewhere in user code, fix it
-    ASSERT_MSG(GGlobals.NullString.Data[0]  == 0,   "You have modified GGlobals.NullString.Data, further code relying on this will result in undefined behaviour, investigate where this was modified to fix and ensure this doesnt happen going forward");
-    ASSERT_MSG(GGlobals.NullString.Length   == 0,   "You have modified GGlobals.NullString.Length, further code relying on this will result in undefined behaviour, investigate where this was modified to fix and ensure this doesnt happen going forward");
-    ASSERT_MSG(GGlobals.NullString.Capacity == 255, "You have modified GGlobals.NullString.Capacity, further code relying on this will result in undefined behaviour, investigate where this was modified to fix and ensure this doesnt happen going forward");
+    ASSERT(GGlobals.NullString.Data[0]  == 0);
+    ASSERT(GGlobals.NullString.Length   == 0);
+    ASSERT(GGlobals.NullString.Capacity == 255);
     #endif
     
     return GGlobals.NullString;
@@ -103,9 +103,9 @@ StringArray StringArray_Null(void)
 {
     #ifdef DEVELOPER
     // GGlobals.NullStringArray was somehow modified... you broke it somewhere in user code, fix it
-    ASSERT_MSG(GGlobals.NullStringArray.Num          == 0,    "You have modified GGlobals.NullStringArray.Num, further code relying on this will result in undefined behaviour, investigate where this was modified to fix and ensure this doesnt happen going forward");
-    ASSERT_MSG(GGlobals.NullStringArray.IterIndex    == 0,    "You have modified GGlobals.NullStringArray.IterIndex, further code relying on this will result in undefined behaviour, investigate where this was modified to fix and ensure this doesnt happen going forward");
-    ASSERT_MSG(GGlobals.NullStringArray.IterCurrent  == NULL, "You have modified GGlobals.NullStringArray.IterCurrent, further code relying on this will result in undefined behaviour, investigate where this was modified to fix and ensure this doesnt happen going forward");
+    ASSERT(GGlobals.NullStringArray.Num          == 0);
+    ASSERT(GGlobals.NullStringArray.IterIndex    == 0);
+    ASSERT(GGlobals.NullStringArray.IterCurrent  == NULL);
     #endif
 
     return GGlobals.NullStringArray;
@@ -115,10 +115,10 @@ StringList StringList_Null(void)
 {
     #ifdef DEVELOPER
     // GGlobals.NullStringList was somehow modified... you broke it somewhere in user code, fix it
-    ASSERT_MSG(GGlobals.NullStringList.Next            == &GGlobals.NullStringList, "You have modified GGlobals.NullStringList.Next, further code relying on this will result in undefined behaviour, investigate where this was modified to fix and ensure this doesnt happen going forward");
-    ASSERT_MSG(GGlobals.NullStringList.String.Data[0]  == 0,                        "You have modified GGlobals.NullStringList.String.Data, further code relying on this will result in undefined behaviour, investigate where this was modified to fix and ensure this doesnt happen going forward");
-    ASSERT_MSG(GGlobals.NullStringList.String.Length   == 0,                        "You have modified GGlobals.NullStringList.String.Length, further code relying on this will result in undefined behaviour, investigate where this was modified to fix and ensure this doesnt happen going forward");
-    ASSERT_MSG(GGlobals.NullStringList.String.Capacity == 255,                      "You have modified GGlobals.NullStringList.String.Capacity, further code relying on this will result in undefined behaviour, investigate where this was modified to fix and ensure this doesnt happen going forward");
+    ASSERT(GGlobals.NullStringList.Next            == &GGlobals.NullStringList);
+    ASSERT(GGlobals.NullStringList.String.Data[0]  == 0);
+    ASSERT(GGlobals.NullStringList.String.Length   == 0);
+    ASSERT(GGlobals.NullStringList.String.Capacity == 255);
     #endif
 
     return GGlobals.NullStringList;
@@ -126,6 +126,12 @@ StringList StringList_Null(void)
 
 FileHandle FileHandle_Null(void)
 {
+    #ifdef DEVELOPER
+    // GGlobals.NullFileHandle was somehow modified... you broke it somewhere in user code, fix it
+    ASSERT(GGlobals.NullFileHandle.Data  != NULL);
+    ASSERT(GGlobals.NullFileHandle.Data2 == NULL);
+    #endif
+
     return GGlobals.NullFileHandle;
 }
 
