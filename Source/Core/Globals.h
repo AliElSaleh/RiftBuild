@@ -1,5 +1,5 @@
-#ifndef _GLOBALS_H_
-#define _GLOBALS_H_
+#ifndef GLOBALS_H
+#define GLOBALS_H
 
 #ifndef UNITY_BUILD
 #include "EngineTypes.h"
@@ -19,4 +19,4 @@ void Globals_AssertNullString(void);
 void Globals_AssertNullStringArray(void);
 void Globals_AssertNullStringList(void);
 
-#endif // _GLOBALS_H_
+#endif // GLOBALS_H

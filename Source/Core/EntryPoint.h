@@ -1,5 +1,5 @@
-#ifndef _ENTRY_POINT_H_
-#define _ENTRY_POINT_H_
+#ifndef ENTRY_POINT_H
+#define ENTRY_POINT_H
 
 #ifndef UNITY_BUILD
 #include "Platform.h"
@@ -129,4 +129,4 @@ Shutdown_Lvl0:
 
 PRAGMA_ENABLE_WARNINGS
 
-#endif // _ENTRY_POINT_H_
+#endif // ENTRY_POINT_H

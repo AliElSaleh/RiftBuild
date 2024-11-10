@@ -246,12 +246,12 @@ void MemZero(void* Block, usize Size)
     Platform_MemZero(Block, Size);
 }
 
-void MemCopy(void* restrict Destination, const void* restrict Source, usize Size)
+void MemCopy(void* Destination, const void* Source, usize Size)
 {
     Platform_MemCopy(Destination, Source, Size);
 }
 
-void MemMove(void* restrict Destination, const void* restrict Source, usize Size)
+void MemMove(void* Destination, const void* Source, usize Size)
 {
     Platform_MemMove(Destination, Source, Size);
 }

@@ -1,5 +1,5 @@
-#ifndef _PLATFORM_H_
-#define _PLATFORM_H_
+#ifndef PLATFORM_H
+#define PLATFORM_H
 
 #ifndef UNITY_BUILD
 #include "EngineTypes.h"
@@ -238,8 +238,8 @@ RIFT_API NO_DISCARD void* Platform_MemAllocZero(usize Size);
 RIFT_API NO_DISCARD void* Platform_MemReAlloc(const void* Block, usize Size);
 RIFT_API            void  Platform_MemFree(const void* Block);
 RIFT_API            void  Platform_MemZero(void* Block, usize Size);
-RIFT_API            void  Platform_MemCopy(void* restrict Dest, const void* restrict Source, usize Size);
-RIFT_API            void  Platform_MemMove(void* restrict Dest, const void* restrict Source, usize Size);
+RIFT_API            void  Platform_MemCopy(void* Dest, const void* Source, usize Size);
+RIFT_API            void  Platform_MemMove(void* Dest, const void* Source, usize Size);
 RIFT_API            void  Platform_MemSet(void* Dest, i32 Value, usize Size);
 RIFT_API NO_DISCARD bool  Platform_MemEqual(const void* Block1, const void* Block2, usize Size);
 
@@ -315,4 +315,4 @@ RIFT_API NO_DISCARD PlatformVersion Platform_GetVersion(void);
 
 RIFT_API NO_DISCARD bool Platform_IsWindowFocused(void);
 
-#endif // _PLATFORM_H_
+#endif // PLATFORM_H

@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2024 Ali El Saleh 
+// Copyright (c) 2024 Ali El Saleh 
 
 #ifndef NO_LOG
 
@@ -38,66 +38,64 @@ STRUCT(LoggingSystemState)
 
 static LoggingSystemState* GLoggingSystemState = NULL;
 static LinearAllocator GLoggingMemoryAllocator = {0};
-static void* GLoggingSystemMemory = NULL;
 
 static bool Internal_TryOpenLogFile(void)
 {
-    if (!GLoggingSystemState->bLogToFile) return false;
+    bool bSuccess = GLoggingSystemState->bLogToFile;
 
-    if (GLoggingSystemState->LogFileHandle.Data != NULL)
+    if (bSuccess)
     {
-        // already open
-        return true;
-    }
-
-    GLoggingSystemState->LogFileName.Data = LinearAllocator_Allocate(&GLoggingMemoryAllocator, sizeof(char) * 256);
-
-    SystemTime TimeNow = Platform_GetSystemLocalTime();
-    
-    StringLocal(TimeStampBuffer, 128);
-    String_Format(&TimeStampBuffer, S("%hu-%.2hu-%.2hu-%.2hu.%.2hu.%.2hu"), TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
-    
-    StringLocal(LogFileName, 512);
-    String_Format(&LogFileName, S("RiftBuild-%S.log"), TimeStampBuffer);
-
-    bool bSuccess = true;
-    LinearAllocator Scratch = GLoggingMemoryAllocator;
-    {
-        String FullPath = String_Join(&Scratch, StrArray(S("Logs/"), LogFileName));
-        String_Copy(&GLoggingSystemState->LogFileName, FullPath);
-        
-        if (!Filesystem_Open(GLoggingSystemState->LogFileName, FileMode_Write, &GLoggingSystemState->LogFileHandle))
+        if (GLoggingSystemState->LogFileHandle.Data == NULL)
         {
-            bSuccess = false;
+            GLoggingSystemState->LogFileName = String_Reserve(&GLoggingMemoryAllocator, 255);
 
-            StringLocal(FormattedMessage, 256);
-            String_Format(&FormattedMessage, S("Failed to open \"%S\" file for writing\n"), GLoggingSystemState->LogFileName);
-            Platform_ConsoleWrite_CustomLength((char*)FormattedMessage.Data, FormattedMessage.Length, LOG_TYPE_ERROR, true);
+            SystemTime TimeNow = Platform_GetSystemLocalTime();
+            
+            StringLocal(TimeStampBuffer, 128);
+            String_Format(&TimeStampBuffer, S("%hu-%.2hu-%.2hu-%.2hu.%.2hu.%.2hu"), TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
+            
+            StringLocal(LogFileName, 512);
+            String_Format(&LogFileName, S("RiftBuild-%S.log"), TimeStampBuffer);
+
+            LinearAllocator Scratch = GLoggingMemoryAllocator;
+            {
+                String FullPath = String_Join(&Scratch, StrArray(S("Logs/"), LogFileName));
+                String_Copy(&GLoggingSystemState->LogFileName, FullPath);
+                
+                if (!Filesystem_Open(GLoggingSystemState->LogFileName, FileMode_Write, &GLoggingSystemState->LogFileHandle))
+                {
+                    bSuccess = false;
+
+                    StringLocal(FormattedMessage, 256);
+                    String_Format(&FormattedMessage, S("Failed to open \"%S\" file for writing\n"), GLoggingSystemState->LogFileName);
+                    Platform_ConsoleWrite_CustomLength((char*)FormattedMessage.Data, FormattedMessage.Length, LOG_TYPE_ERROR, true);
+                }
+            }
+            LinearAllocator_Reset(&Scratch, GLoggingMemoryAllocator.Allocated);
         }
     }
-    LinearAllocator_Reset(&Scratch, GLoggingMemoryAllocator.Allocated);
 
     return bSuccess;
 }
 
 static void Internal_WriteToLogFile(const String Text)
 {
-    if (!Internal_TryOpenLogFile()) return;
-    if (UNLIKELY(Text.Length == 0)) return;
-
-    usize Written = 0;
-    if (!Filesystem_WriteLine(GLoggingSystemState->LogFileHandle, Text, &Written))
+    if (Internal_TryOpenLogFile())
     {
-        StringLocal(FormattedMessage, 256);
-        String_Format(&FormattedMessage, S("Failed to write to %S"), GLoggingSystemState->LogFileName);
-        Platform_ConsoleWrite_CustomLength((char*)FormattedMessage.Data, FormattedMessage.Length, LOG_TYPE_ERROR, true);
+        usize Written = 0;
+        if (!Filesystem_WriteLine(GLoggingSystemState->LogFileHandle, Text, &Written))
+        {
+            StringLocal(FormattedMessage, 256);
+            String_Format(&FormattedMessage, S("Failed to write to %S"), GLoggingSystemState->LogFileName);
+            Platform_ConsoleWrite_CustomLength((char*)FormattedMessage.Data, FormattedMessage.Length, LOG_TYPE_ERROR, true);
+        }
     }
 }
 
 bool Logging_Initialize(void* Memory, bool bOpenFile)
 {
-    GLoggingSystemMemory = Memory;
-    LinearAllocator_Create(Logging_GetMemoryRequirement(), GLoggingSystemMemory, &GLoggingMemoryAllocator);
+    usize Amount = Logging_GetMemoryRequirement();
+    LinearAllocator_Create(Amount, Memory, &GLoggingMemoryAllocator);
     
     GLoggingSystemState = LinearAllocator_Allocate(&GLoggingMemoryAllocator, sizeof(LoggingSystemState));
     GLoggingSystemState->bDisabled = false;
@@ -118,6 +116,8 @@ void Logging_Shutdown(void)
     Platform_DeleteCriticalSection(GLoggingSystemState->CriticalSection);
     
     Filesystem_Close(&GLoggingSystemState->LogFileHandle);
+
+    LinearAllocator_Destroy(&GLoggingMemoryAllocator);
     
     GLoggingSystemState = NULL;
 }
@@ -178,89 +178,92 @@ bool Logging_ShouldCrashOnFatal(void)
 void LogMessage(u8 LogType, const String LogCat, const String Text, ...)
 {
     bool bIsErrorMessage = (LogType == LOG_TYPE_ERROR || LogType == LOG_TYPE_FATAL);
-    if (UNLIKELY(GLoggingSystemState->bDisabled) && !(GLoggingSystemState->bEnableOnError && bIsErrorMessage))
+    bool bDisabled = UNLIKELY(GLoggingSystemState->bDisabled) && !(GLoggingSystemState->bEnableOnError && bIsErrorMessage);
+    if (!bDisabled)
     {
-        return;
+        va_list Args = {0};
+        va_start(Args, Text);
+        String Buffer = {.Data = GLoggingSystemState->Buffer, .Length = 0, .Capacity = MAX_LOG_MSG_LENGTH };
+        String_FormatV(&Buffer, Text, MAX_LOG_MSG_LENGTH, Args);
+        va_end(Args);
+
+        String_AppendChar(&Buffer, '\n');
+
+        String TrimmedFmt = String_EatChar(Buffer, '\n');
+        String TrimmedNewLines = StrSlice(Buffer.Data, Buffer.Length - TrimmedFmt.Length);
+
+        // -------------------
+
+        StringLocal(LogPrefix, 128);
+        {
+            //if (GLoggingSystemState->bComfyMode)
+            //{
+                //String_Append(&LogPrefix, S(" "));
+            //}
+
+            if (GLoggingSystemState->bLogTimestamp)
+            {
+                SystemTime TimeNow = Platform_GetSystemLocalTime();
+                StringLocal(TimeStamp, 64);
+                String_Format(&TimeStamp, S("%hu-%.2hu-%.2hu %.2hu:%.2hu:%.2hu "), TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
+                String_Append(&LogPrefix, TimeStamp);
+            }
+
+            if (GLoggingSystemState->bLogCategory)
+            {
+                String_Append(&LogPrefix, S("["));
+                String_Append(&LogPrefix, LogCat);
+                String_Append(&LogPrefix, S("] "));
+            }
+
+            if (GLoggingSystemState->bLogType)
+            {
+                static const String LogTypeString[6] = {SC("[INFO] "), SC("[SUCCESS] "), SC("[WARNING] "), SC("[ERROR] "), SC("[FATAL] "), SC("")};
+                String_Append(&LogPrefix, LogTypeString[LogType]);
+            }
+        }
+
+        // -------------------
+
+        LinearAllocator Scratch = GLoggingMemoryAllocator;
+        {
+            String FinalMsg = String_Join(&Scratch, StrArray(TrimmedNewLines, LogPrefix, TrimmedFmt));
+
+            Platform_ConsoleWrite_CustomLength((char*)FinalMsg.Data, FinalMsg.Length, LogType, LogType > LOG_TYPE_WARNING);
+            Internal_WriteToLogFile(FinalMsg);
+        }
+        LinearAllocator_Reset(&Scratch, GLoggingMemoryAllocator.Allocated);
     }
-
-    SystemTime TimeNow = Platform_GetSystemLocalTime();
-
-    StringLocal(TimeStamp, 64);
-    String_Format(&TimeStamp, S("%hu-%.2hu-%.2hu %.2hu:%.2hu:%.2hu "), TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
-
-    va_list Args;
-    va_start(Args, Text);
-    String Buffer = {.Data = GLoggingSystemState->Buffer, .Length = 0 };
-    String_FormatV(&Buffer, Text, MAX_LOG_MSG_LENGTH, Args);
-    va_end(Args);
-
-    Buffer.Data[Buffer.Length] = '\n';
-
-    String FormattedText = { .Length = Buffer.Length+1, .Data = Buffer.Data };
-    String TrimmedFmt = String_EatChar(FormattedText, '\n');
-    String TrimmedNewLines = StrSlice(FormattedText.Data, (u32)(TrimmedFmt.Data - FormattedText.Data));
-
-    StringLocal(LogPrefix, 512);
-
-    //if (GLoggingSystemState->bComfyMode)
-        //String_Append(&LogPrefix, S(" "));
-
-    if (GLoggingSystemState->bLogTimestamp)
-        String_Append(&LogPrefix, TimeStamp);
-
-    if (GLoggingSystemState->bLogCategory)
-    {
-        String_Append(&LogPrefix, S("["));
-        String_Append(&LogPrefix, LogCat);
-        String_Append(&LogPrefix, S("] "));
-    }
-
-    if (GLoggingSystemState->bLogType)
-    {
-        static const String LogTypeString[6] = {SC("[INFO] "), SC("[SUCCESS] "), SC("[WARNING] "), SC("[ERROR] "), SC("[FATAL] "), SC("")};
-        String_Append(&LogPrefix, LogTypeString[LogType]);
-    }
-
-    LinearAllocator Scratch = GLoggingMemoryAllocator;
-    String FinalMsg = String_Join(&Scratch, StrArray(TrimmedNewLines, LogPrefix, TrimmedFmt));
-
-    Platform_ConsoleWrite_CustomLength((char*)FinalMsg.Data, FinalMsg.Length, LogType, LogType > LOG_TYPE_WARNING);
-
-    Internal_WriteToLogFile(FinalMsg);
-
-    LinearAllocator_Reset(&Scratch, GLoggingMemoryAllocator.Allocated);
 }
 
 void LogDirectMessage(u8 LogType, const String Text, ...)
 {
     bool bIsErrorMessage = (LogType == LOG_TYPE_ERROR || LogType == LOG_TYPE_FATAL);
-    if (UNLIKELY(GLoggingSystemState->bDisabled) && !(GLoggingSystemState->bEnableOnError && bIsErrorMessage))
+    bool bDisabled = UNLIKELY(GLoggingSystemState->bDisabled) && !(GLoggingSystemState->bEnableOnError && bIsErrorMessage);
+    if (!bDisabled)
     {
-        return;
+        va_list Args = {0};
+        va_start(Args, Text);
+        String Buffer = {.Data = GLoggingSystemState->Buffer, .Length = 0 };
+        String_FormatV(&Buffer, Text, MAX_LOG_MSG_LENGTH, Args);
+        va_end(Args);
+
+        GLoggingSystemState->Buffer[Buffer.Length+1] = 0;
+        Platform_ConsoleWrite_CustomLength((char*)GLoggingSystemState->Buffer, Buffer.Length, LogType, LogType > LOG_TYPE_WARNING);
+
+        Internal_WriteToLogFile(StrSlice(GLoggingSystemState->Buffer, Buffer.Length));
     }
-
-    va_list Args;
-    va_start(Args, Text);
-    String Buffer = {.Data = GLoggingSystemState->Buffer, .Length = 0 };
-    String_FormatV(&Buffer, Text, MAX_LOG_MSG_LENGTH, Args);
-    va_end(Args);
-
-    GLoggingSystemState->Buffer[Buffer.Length+1] = 0;
-    Platform_ConsoleWrite_CustomLength((char*)GLoggingSystemState->Buffer, Buffer.Length, LogType, LogType > LOG_TYPE_WARNING);
-
-    Internal_WriteToLogFile(StrSlice(GLoggingSystemState->Buffer, Buffer.Length));
 }
 
 void LogLineBreak(void)
 {
-    if (UNLIKELY(GLoggingSystemState->bDisabled))
+    bool bDisabled = UNLIKELY(GLoggingSystemState->bDisabled);
+    if (!bDisabled)
     {
-        return;
+        const String NewLine = S("\n");
+
+        Platform_ConsoleWrite_CustomLength((char*)NewLine.Data, NewLine.Length, LOG_TYPE_INFO, false);
+        Internal_WriteToLogFile(NewLine);
     }
-
-    const String NewLine = S("\n");
-
-    Platform_ConsoleWrite_CustomLength((char*)NewLine.Data, NewLine.Length, LOG_TYPE_INFO, false);
-    Internal_WriteToLogFile(NewLine);
 }
 #endif

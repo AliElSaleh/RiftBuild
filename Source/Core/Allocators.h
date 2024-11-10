@@ -1,5 +1,5 @@
-#ifndef _ALLOCATORS_H_
-#define _ALLOCATORS_H_
+#ifndef ALLOCATORS_H
+#define ALLOCATORS_H
 
 #ifndef UNITY_BUILD
 #include "EngineTypes.h"
@@ -75,4 +75,4 @@ RIFT_API void FreeListAllocator_FreeAll(FreeListAllocator* Allocator);
 RIFT_API usize FreeListAllocator_Offset(FreeListAllocator* Allocator, void* Memory);
 RIFT_API NO_DISCARD void* FreeListAllocator_MemoryFromOffset(FreeListAllocator* Allocator, usize Offset);
 
-#endif // _ALLOCATORS_H_
+#endif // ALLOCATORS_H

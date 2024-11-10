@@ -357,12 +357,12 @@ void Platform_MemZero(void* Block, usize Size)
     RtlZeroMemory(Block, Size);
 }
 
-void Platform_MemCopy(void* restrict Dest, const void* restrict Source, usize Size)
+void Platform_MemCopy(void* Dest, const void* Source, usize Size)
 {
     RtlCopyMemory(Dest, Source, Size);
 }
 
-void Platform_MemMove(void* restrict Dest, const void* restrict Source, usize Size)
+void Platform_MemMove(void* Dest, const void* Source, usize Size)
 {
     RtlMoveMemory(Dest, Source, Size);
 }
@@ -678,7 +678,7 @@ Uuid UUID_FromString(const String IDString)
     return *(Uuid*)&id;
 }
 
-bool Filesystem_Open(const String FilePath, u32 Mode, FileHandle* OutHandle)
+bool Filesystem_Open(const String FilePath, EFileMode Mode, FileHandle* OutHandle)
 {
     DWORD OpenStyle;
     DWORD ShareStyle;
@@ -785,7 +785,7 @@ bool Filesystem_DeleteFile(String FilePath)
     return Result != 0;
 }
 
-bool Filesystem_Open_MemoryMapped(const String FilePath, u32 Mode, FileHandle* OutHandle, u8** OutData, usize* OutSize)
+bool Filesystem_Open_MemoryMapped(const String FilePath, EFileMode Mode, FileHandle* OutHandle, u8** OutData, usize* OutSize)
 {
     if (OutSize)
         *OutSize = 0;
@@ -1368,6 +1368,8 @@ bool Filesystem_Write(const FileHandle Handle, usize DataSize, const void* Data,
     if (!Filesystem_SeekToBeginning(Handle))
         return false;
 
+    // TODO: handle zero length
+
     DWORD BytesWritten = 0;
     BOOL bResult = WriteFile(Handle.Data, Data, (DWORD)DataSize, &BytesWritten, NULL);
 
@@ -1385,6 +1387,7 @@ bool Filesystem_WriteLine(const FileHandle Handle, const String Text, usize* Out
 
     bool bResult = Filesystem_SeekToEnd(Handle);
 
+    // TODO: handle zero length
     if (bResult)
     {
         DWORD BytesWritten = 0;
@@ -1402,6 +1405,8 @@ bool Filesystem_WriteLine(const FileHandle Handle, const String Text, usize* Out
 bool Filesystem_WriteLineFormatted(const FileHandle Handle, const String Text, usize* OutBytesWritten, ...)
 {
     if (NEVER(!IsValidFileHandle(Handle))) return false;
+
+    // TODO: handle zero length
 
     bool bResult = Filesystem_SeekToEnd(Handle);
     if (bResult)

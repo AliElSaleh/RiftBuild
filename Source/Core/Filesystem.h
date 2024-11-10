@@ -1,5 +1,5 @@
-#ifndef _FILESYSTEM_H_
-#define _FILESYSTEM_H_
+#ifndef FILESYSTEM_H
+#define FILESYSTEM_H
 
 #ifndef UNITY_BUILD
 #include "EngineTypes.h"
@@ -34,10 +34,10 @@ STRUCT(FileTimeData)
 
 typedef bool (*DirectoryIterator)(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData);
 
-RIFT_API NO_DISCARD bool Filesystem_Open(const String FilePath, u32 Mode, FileHandle* OutHandle);
+RIFT_API NO_DISCARD bool Filesystem_Open(const String FilePath, EFileMode Mode, FileHandle* OutHandle);
 RIFT_API NO_DISCARD bool Filesystem_NewFile(const String FilePath);
 RIFT_API NO_DISCARD bool Filesystem_DeleteFile(String FilePath);
-RIFT_API NO_DISCARD bool Filesystem_Open_MemoryMapped(const String FilePath, u32 Mode, FileHandle* OutHandle, u8** OutData, usize* OutSize);
+RIFT_API NO_DISCARD bool Filesystem_Open_MemoryMapped(const String FilePath, EFileMode Mode, FileHandle* OutHandle, u8** OutData, usize* OutSize);
 RIFT_API NO_DISCARD bool Filesystem_OpenDirectory(const String FilePath);
 RIFT_API NO_DISCARD bool Filesystem_OpenDirectory_Ex(const String FilePath, FileHandle* OutHandle);
 RIFT_API            void Filesystem_Close(FileHandle* Handle);
@@ -104,4 +104,4 @@ RIFT_API NO_DISCARD bool IsValidFileHandle(const FileHandle Handle);
 
 RIFT_API NO_DISCARD FileHandle FileHandle_Null(void);
 
-#endif // _FILESYSTEM_H_
+#endif // FILESYSTEM_H

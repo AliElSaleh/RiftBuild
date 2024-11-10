@@ -1,5 +1,5 @@
-#ifndef _MEMORY_H_
-#define _MEMORY_H_
+#ifndef MEMORY_H
+#define MEMORY_H
 
 #ifndef UNITY_BUILD
 #include "EngineTypes.h"
@@ -47,12 +47,12 @@ STRUCT(MemoryRange)
 RIFT_API NO_DISCARD bool Memory_Initialize(void* Memory, usize MemSize, void* ScratchMemory, usize ScratchSize);
 RIFT_API            void Memory_Shutdown(void);
 
-RIFT_API NO_DISCARD void* MemAlloc(usize Size, EMemoryTag Tag);// RETURN_NON_NULL;
+RIFT_API NO_DISCARD void* MemAlloc(usize Size, EMemoryTag Tag);
 RIFT_API            void  MemFree(void* Block, EMemoryTag Tag);
 RIFT_API            void  MemSet(void* Destination, i32 Value, usize Size);
 RIFT_API            void  MemZero(void* Block, usize Size);
-RIFT_API            void  MemCopy(void* restrict Destination, const void* restrict Source, usize Size);
-RIFT_API            void  MemMove(void* restrict Destination, const void* restrict Source, usize Size);
+RIFT_API            void  MemCopy(void* Destination, const void* Source, usize Size);
+RIFT_API            void  MemMove(void* Destination, const void* Source, usize Size);
 RIFT_API NO_DISCARD bool  MemEqual(const void* Block1, const void* Block2, usize Size);
 
 RIFT_API NO_DISCARD LinearAllocator Memory_GetScratch(void);
@@ -60,4 +60,4 @@ RIFT_API NO_DISCARD usize Memory_GetEngineMemoryRemaining(void);
 
 RIFT_API NO_DISCARD bool IsValidSlow(const void* Memory);
 
-#endif // _MEMORY_H_
+#endif // MEMORY_H

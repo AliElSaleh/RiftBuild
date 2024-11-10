@@ -1,5 +1,5 @@
-#ifndef _ARRAY_H_
-#define _ARRAY_H_
+#ifndef ARRAY_H
+#define ARRAY_H
 
 #ifndef UNITY_BUILD
 #include "EngineTypes.h"
@@ -62,4 +62,4 @@ RIFT_API void  _ArrayInsertAt(void* Array, const void* ValuePtr, usize Index);
 RIFT_API void  Array_RemoveLast(void* Array, void* ValuePtr);
 RIFT_API void  Array_RemoveAt(void* Array, void* ValuePtr, usize Index);
 
-#endif // _ARRAY_H_
+#endif // ARRAY_H

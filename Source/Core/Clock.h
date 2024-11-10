@@ -1,5 +1,5 @@
-#ifndef _CLOCK_H_
-#define _CLOCK_H_
+#ifndef CLOCK_H
+#define CLOCK_H
 
 #ifndef UNITY_BUILD
 #include "EngineTypes.h"
@@ -30,4 +30,4 @@ RIFT_API NO_DISCARD f64 Time_AutoConvert(f64 Seconds);
 RIFT_API void Time_ToString(f64 Seconds, bool bAutoConvertTimeUnit, String* OutString);
 RIFT_API void Time_ToStringEx(f64 Seconds, bool bAutoConvertTimeUnit, String* OutString, const String Format);
 
-#endif // _CLOCK_H_
+#endif // CLOCK_H

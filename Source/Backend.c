@@ -90,13 +90,13 @@ static bool AsmSourceFileDirectoryIterator(const String FullPath, const String R
                 String_Append(&CmdLine, ObjectPath);
                 String_Append(&CmdLine, S("\""));
 
-                if (Params->bVerbose) LOG("    CMD: %S", CmdLine);
+                if (Params->bVerbose) { LOG("    CMD: %S", CmdLine); }
 
                 LOG("Assembling %S", FullPath);
 
                 // todo: parallelize this
                 PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
-                if (!Platform_IsValidHandle(H)) return false;
+                if (!Platform_IsValidHandle(H)) { return false; }
                 const u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
                 if (ExitCode != 0)
                 {
@@ -133,12 +133,21 @@ bool SourceFileDirectoryIterator(const String FullPath, const String RelativePat
         if (String_IndexOfFirstPathSlash(RelativePath, NULL))
         {
             if (RelativePath.Length == Data->Params->IntermediateBaseDirectory.Length)
+            {
                 if (String_StartsWith(RelativePath, Data->Params->IntermediateDirectory, false))
+                {
+
                     return true;
+                }
+            }
 
             if (RelativePath.Length == Data->Params->BuildDirectory.Length)
+            {
                 if (String_StartsWith(RelativePath, Data->Params->BuildDirectory, false))
+                {
                     return true;
+                }
+            }
         }
 
         u32 DotIndex = 0;
@@ -191,18 +200,28 @@ static bool ResourceFileDirectoryIterator(const String FullPath, const String Re
         if (String_IndexOfFirstPathSlash(RelativePath, NULL))
         {
             if (RelativePath.Length == Data->Params->IntermediateBaseDirectory.Length)
+            {
                 if (String_StartsWith(RelativePath, Data->Params->IntermediateDirectory, false))
+                {
                     return true;
+                }
+            }
 
             if (RelativePath.Length == Data->Params->BuildDirectory.Length)
+            {
                 if (String_StartsWith(RelativePath, Data->Params->BuildDirectory, false))
+                {
                     return true;
+                }
+            }
         }
 
         if (String_EndsWith(FileName, S(".rc"), false))
         {
             if (String_EndsWith(RelativePath, S("icon.rc"), false))
+            {
                 return true;
+            }
 
             if (FilterSourceFile(Data->Params->RootDirectory, Data->Params->SourceDirectory,
                                 FullPath, RelativePath,
@@ -228,6 +247,8 @@ static bool ResourceFileDirectoryIterator(const String FullPath, const String Re
 
 bool RC_Compile(const BuildParams* Params, const String FullRCPath, String* OutResPath)
 {
+    bool bSuccess = true;
+
     #if PLATFORM_WINDOWS
     StringLocal(CmdLine, 1024);
     String_Append(&CmdLine, Params->RCProgram);
@@ -266,20 +287,18 @@ bool RC_Compile(const BuildParams* Params, const String FullRCPath, String* OutR
 
     LOG("Compiling resource %S", FullRCPath);
     
-    if (Params->bVerbose) LOG("    %S", CmdLine);
+    if (Params->bVerbose) { LOG("    %S", CmdLine); }
 
     PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
-    if (!Platform_IsValidHandle(H)) return false;
+    if (!Platform_IsValidHandle(H)) { return false; }
     u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
     if (ExitCode != 0)
     {
-        return false;
+        bSuccess = false;
     }
-
-    return true;
-    #else
-    return false;
     #endif
+
+    return bSuccess;
 }
 
 static bool Link_SourceFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
@@ -330,7 +349,9 @@ static bool Link_SourceFileDirectoryIterator(const String FullPath, const String
                 if (String_EndsWith(RelativePath, S(".rc"), false))
                 {
                     if (String_EndsWith(RelativePath, S("icon.rc"), false))
+                    {
                         return true;
+                    }
                     
                     // TODO: really should use relative path here
                     u32 LastSlash = 0;
@@ -371,7 +392,7 @@ bool C_Compile(const BuildParams* Params, u32* OutNumCompiled)
     // compile all .asm files first
     {
         CompileData UserData = { NULL, Params, OutNumCompiled, 0, true, NULL };
-        Filesystem_IterateDirectory_Ex(SourceDir, AsmSourceFileDirectoryIterator, true, &UserData);
+        Filesystem_IterateDirectory_Ex(SourceDir, &AsmSourceFileDirectoryIterator, true, &UserData);
         if (!UserData.bSuccess)
         {
             return false;
@@ -380,8 +401,8 @@ bool C_Compile(const BuildParams* Params, u32* OutNumCompiled)
 
     // compile all .c/c++ files
     {
-        CompileData UserData = { C_DoCompile, Params, OutNumCompiled, 0, true, NULL };
-        Filesystem_IterateDirectory_Ex(SourceDir, SourceFileDirectoryIterator, true, &UserData);
+        CompileData UserData = { &C_DoCompile, Params, OutNumCompiled, 0, true, NULL };
+        Filesystem_IterateDirectory_Ex(SourceDir, &SourceFileDirectoryIterator, true, &UserData);
         if (!UserData.bSuccess)
         {
             return false;
@@ -390,7 +411,7 @@ bool C_Compile(const BuildParams* Params, u32* OutNumCompiled)
 
     if (*OutNumCompiled == 0)
     {
-        if (bQuietBuild) Logging_Enable();
+        if (bQuietBuild) { Logging_Enable(); }
 
         #ifndef HOOD
         LOG("\nNothing to compile - source files unchanged since last build");
@@ -398,7 +419,7 @@ bool C_Compile(const BuildParams* Params, u32* OutNumCompiled)
         LOG("\nno work to do homie");
         #endif
 
-        if (bQuietBuild) Logging_Disable();
+        if (bQuietBuild) { Logging_Disable(); }
 
         return true;
     }
@@ -424,7 +445,7 @@ bool C_Compile(const BuildParams* Params, u32* OutNumCompiled)
     if (Params->bHasRCProgram)
     {
         CompileData RcUserData = { NULL, Params, OutNumCompiled, 0, true, NULL };
-        Filesystem_IterateDirectory_Ex(SourceDir, ResourceFileDirectoryIterator, true, &RcUserData);
+        Filesystem_IterateDirectory_Ex(SourceDir, &ResourceFileDirectoryIterator, true, &RcUserData);
         if (!RcUserData.bSuccess)
         {
             return false;
@@ -496,14 +517,18 @@ bool C_DoCompile(CompileData* Data, const String FullPath, const String Relative
     if (Params->Type == AssemblyType_PCH)
     {
         if (!Params->bDumpObjFilesInOneDirectory)
+        {
             String_Append(&FilePath, RelativePath);
+        }
         
         String_Append(&FilePath, S(".gch"));
     }
     else
     {
         if (!Params->bDumpObjFilesInOneDirectory)
+        {
             String_Append(&FilePath, RelativePath);
+        }
 
         String_Append(&FilePath, S(".o"));
     }
@@ -539,6 +564,10 @@ bool C_DoCompile(CompileData* Data, const String FullPath, const String Relative
     else if (Params->Type == AssemblyType_Executable)
     {
         AdditionalPlatformFlags = S("-fPIE");
+    }
+    else
+    {
+        // no action required
     }
     #endif
 

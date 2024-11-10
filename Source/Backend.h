@@ -1,5 +1,5 @@
-#ifndef _BACKEND_H_
-#define _BACKEND_H_
+#ifndef BACKEND_H
+#define BACKEND_H
 
 #ifndef UNITY_BUILD
 #include "EngineTypes.h"

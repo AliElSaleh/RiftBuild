@@ -1,5 +1,5 @@
-#ifndef _UUID_H_
-#define _UUID_H_
+#ifndef UUID_H
+#define UUID_H
 
 #ifndef UNITY_BUILD
 #include "EngineTypes.h"
@@ -20,4 +20,4 @@ RIFT_API NO_DISCARD bool UUID_IsEqual(Uuid First, Uuid Second);
 RIFT_API NO_DISCARD Uuid UUID_FromString(const String IDString);
 RIFT_API void UUID_ToString(Uuid ID, String* OutString);
 
-#endif // _UUID_H_
+#endif // UUID_H

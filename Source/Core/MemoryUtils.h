@@ -1,5 +1,5 @@
-#ifndef _MEMORYUTILS_H
-#define _MEMORYUTILS_H
+#ifndef MEMORYUTILS_H
+#define MEMORYUTILS_H
 
 #ifndef UNITY_BUILD
 #include "Memory.h"
@@ -9,4 +9,4 @@ usize MemoryUtils_CalculatePaddingWithHeader(usize Ptr, usize Alignment, usize H
 usize GetAligned(usize Operand, usize Granularity);
 MemoryRange GetAlignedRange(usize Offset, usize Size, usize Granularity);
 
-#endif // _MEMORYUTILS_H
+#endif // MEMORYUTILS_H

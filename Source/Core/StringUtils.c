@@ -314,7 +314,7 @@ bool String_IsInteger32(const String Str)
 
 bool String_IsInteger(const String Str)
 {
-    bool bValid = Str.Length > 0;
+    bool bValid = Str.Length > 0 && Str.Length <= 20; // >20 is not a valid 64-bit integer
 
     for (u32 i = 0; i < Str.Length; i++)
     {

@@ -1,5 +1,5 @@
-#ifndef _STRINGUTILS_H_
-#define _STRINGUTILS_H_
+#ifndef STRINGUTILS_H
+#define STRINGUTILS_H
 
 #ifndef UNITY_BUILD
 #include "EngineTypes.h"
@@ -31,6 +31,7 @@ RIFT_API void  CString_ToLower(char* Str);
 RIFT_API void  CString_ToUpper(char* Str);
 RIFT_API void  CString_ToWide(const char* FromString, wchar* ToString);
 RIFT_API void  CString_ToNarrow(const wchar* FromString, char* ToString);
+RIFT_API bool  CString_ToBool(const char* Str);
 RIFT_API u32   CString_ScanUntil(const char* Str, char Char);
 RIFT_API void  CString_SubString(char* Dest, const char* Source, u32 Start, u32 Length);
 RIFT_API bool  CString_IndexOfChar(const char* Str, char C, u32* OutIndex);
@@ -82,9 +83,9 @@ RIFT_API NO_DISCARD ECompareResult String_CompareVersion(const String VersionA, 
 RIFT_API void String_Zero(String* Str);
 RIFT_API void String_Fill(String* Str, u8 C);
 
-#define String_Concat(Dest, ...)               do { String __SArgs__[] = {__VA_ARGS__}; StringArray __TempArray__ = {0}; __TempArray__.List = __SArgs__; __TempArray__.Num = SArray_Capacity(__SArgs__); StringInternal_Concat(Dest, __TempArray__); } while (0)
-#define String_BuildSeparator(Dest, Char, ...) do { String __SArgs__[] = {__VA_ARGS__}; StringArray __TempArray__ = {0}; __TempArray__.List = __SArgs__; __TempArray__.Num = SArray_Capacity(__SArgs__); StringInternal_BuildSeparator(Dest, Char, __TempArray__); } while (0)
-#define String_BuildPath(Dest, ...)            do { String __SArgs__[] = {__VA_ARGS__}; StringArray __TempArray__ = {0}; __TempArray__.List = __SArgs__; __TempArray__.Num = SArray_Capacity(__SArgs__); StringInternal_BuildPath(Dest, __TempArray__); } while (0)
+#define String_Concat(Dest, ...)               do { String MACRO_VAR(SArgs)[] = {__VA_ARGS__}; StringArray MACRO_VAR(TempArray) = {0}; MACRO_VAR(TempArray).List = MACRO_VAR(SArgs); MACRO_VAR(TempArray).Num = SArray_Capacity(MACRO_VAR(SArgs)); StringInternal_Concat(Dest, MACRO_VAR(TempArray)); } while (0)
+#define String_BuildSeparator(Dest, Char, ...) do { String MACRO_VAR(SArgs)[] = {__VA_ARGS__}; StringArray MACRO_VAR(TempArray) = {0}; MACRO_VAR(TempArray).List = MACRO_VAR(SArgs); MACRO_VAR(TempArray).Num = SArray_Capacity(MACRO_VAR(SArgs)); StringInternal_BuildSeparator(Dest, Char, MACRO_VAR(TempArray)); } while (0)
+#define String_BuildPath(Dest, ...)            do { String MACRO_VAR(SArgs)[] = {__VA_ARGS__}; StringArray MACRO_VAR(TempArray) = {0}; MACRO_VAR(TempArray).List = MACRO_VAR(SArgs); MACRO_VAR(TempArray).Num = SArray_Capacity(MACRO_VAR(SArgs)); StringInternal_BuildPath(Dest, MACRO_VAR(TempArray)); } while (0)
 
 RIFT_API void StringInternal_Concat(String* Dest, const StringArray Array);
 RIFT_API void StringInternal_BuildSeparator(String* Dest, u8 Separator, const StringArray Array);
@@ -191,7 +192,6 @@ RIFT_API NO_DISCARD bool String_ToI16(const String Str, i16* OutInt);
 RIFT_API NO_DISCARD bool String_ToI32(const String Str, i32* OutInt);
 RIFT_API NO_DISCARD bool String_ToI64(const String Str, i64* OutInt);
 
-RIFT_API NO_DISCARD bool CString_ToBool(const char* Str);
 RIFT_API NO_DISCARD bool String_ToBool(const String Str);
 
 RIFT_API NO_DISCARD u32 String_GetLength(const char* Str);
@@ -212,6 +212,7 @@ RIFT_API NO_DISCARD u8 ToForwardSlash(u8 Char);
 RIFT_API NO_DISCARD u8 ToBackSlash(u8 Char);
 
 // TODO: possibly delete all these functions below
+/*
 RIFT_API void EatSpaces(u8** Str);
 RIFT_API void EatSpaces_Backwards(u8** Str);
 RIFT_API void EatBraces(u8** Str);
@@ -220,13 +221,14 @@ RIFT_API void EatParenthesis(u8** Str);
 RIFT_API void EatParenthesis_Backwards(u8** Str);
 RIFT_API void EatSymbols(u8** Str);
 RIFT_API void EatSymbols_Backwards(u8** Str);
+*/
 
 
 // inline implementations
-FORCEINLINE NO_DISCARD static String StrSlice(const uchar* Data, u32 Len)
+FORCEINLINE NO_DISCARD static String StrSlice(uchar* Data, u32 Len)
 {
     String Result;
-    Result.Data     = (uchar*)Data;
+    Result.Data     = Data;
     Result.Length   = Len;
     Result.Capacity = Len;
 
@@ -246,4 +248,4 @@ FORCEINLINE NO_DISCARD static String StrShiftF(const String s, u32 Offset)
     return Result;
 }
 
-#endif // _STRINGUTILS_H_
+#endif // STRINGUTILS_H

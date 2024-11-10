@@ -1,5 +1,5 @@
-#ifndef _WIN32TYPES_H_
-#define _WIN32TYPES_H_
+#ifndef WIN32TYPES_H
+#define WIN32TYPES_H
 
 // Because including windows header files doubles our compile times
 // if we manually add the parts we need we speed up our compile times by at least 2x
@@ -1448,4 +1448,5 @@ WINBASEAPI NO_DISCARD HWND       WINAPI GetForegroundWindow(void);
 WINBASEAPI NO_DISCARD HWND       WINAPI GetFocus(void);
 WINBASEAPI NO_DISCARD HWND       WINAPI GetActiveWindow(void);
 WINBASEAPI NO_DISCARD DWORD      WINAPI GetWindowThreadProcessId(HWND hWnd, LPDWORD lpdwProcessId);
-#endif
+
+#endif // WIN32TYPES_H

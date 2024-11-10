@@ -1,5 +1,5 @@
-﻿#ifndef _LOG_H_
-#define _LOG_H_
+#ifndef LOG_H
+#define LOG_H
 
 #ifndef UNITY_BUILD
 #include "EngineTypes.h"
@@ -100,7 +100,7 @@
 #define LOG_UINT(Int)                                  LOG(#Int    ": %u", (u32)Int)
 #define LOG_FLOAT(Float)                               LOG(#Float  ": %f", (f64)Float)
 #define LOG_BOOL(Bool)                                 LOG(#Bool   ": %S", ((Bool) ? S("true") : S("false")))
-#define LOG_STRING(String)                             LOG(#String ": %S", String)
+#define LOG_STRING(Str)                                LOG(#Str    ": %S", Str)
 
 #define UNIMPLEMENTED                                  Platform_ConsoleWrite(FUNCTION_NAME, 4, true); Platform_ConsoleWrite(" not implemented!\n", 4, true); _Crash_
 
@@ -125,4 +125,4 @@ RIFT_API void LogDirectMessage(u8 LogType, const struct String Text, ...);
 RIFT_API void LogLineBreak(void);
 #endif // NO_LOG
 
-#endif // _LOG_H_
+#endif // LOG_H

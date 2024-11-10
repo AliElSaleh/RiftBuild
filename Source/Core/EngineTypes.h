@@ -1,5 +1,5 @@
-#ifndef _ENGINE_TYPES_H_
-#define _ENGINE_TYPES_H_
+#ifndef ENGINE_TYPES_H
+#define ENGINE_TYPES_H
 
 // Unsigned integer types
 typedef unsigned char      u8;
@@ -578,4 +578,4 @@ typedef u32 usize;
     #define PATH_SEPARATOR '/'
 #endif
 
-#endif // _ENGINE_TYPES_H_
+#endif // ENGINE_TYPES_H
