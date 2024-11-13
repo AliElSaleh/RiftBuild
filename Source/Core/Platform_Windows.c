@@ -163,16 +163,22 @@ void Platform_PreInitialize(void)
 
 bool Platform_CreateMutex(PlatformMutex* OutMutex)
 {
-    if (NEVER(OutMutex == NULL)) return false;
+    bool bSuccess = false;
 
-    HANDLE M = CreateMutexA(NULL, TRUE, NULL);
-    if (M == NULL) return false;
+    if (ALWAYS(OutMutex != NULL))
+    {
+        HANDLE M = CreateMutexA(NULL, TRUE, NULL);
+        if (M)
+        {
+            OutMutex->Handle = M;
+            OutMutex->Name = String_Null();
 
-    OutMutex->Handle = M;
-    OutMutex->Name = String_Null();
+            bool bError = GetLastError() == ERROR_ALREADY_EXISTS;
+            bSuccess = !bError;
+        }
+    }
 
-    bool bError = GetLastError() == ERROR_ALREADY_EXISTS;
-    return !bError;
+    return bSuccess;
 }
 
 bool Platform_CreateNamedMutex(const String Name, PlatformMutex* OutMutex)

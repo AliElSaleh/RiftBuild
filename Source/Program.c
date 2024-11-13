@@ -8188,7 +8188,7 @@ static void InitInternalVars(LinearAllocator* Arena)
 
     const u32 MaxInternalVars = 256;
     const u32 MaxSize = MaxInternalVars * sizeof(InternalVariable); // 8192 bytes
-    InternalVariablesDB = _ArrayCreateStatic(LinearAllocator_Allocate(Arena, MaxSize), MaxInternalVars, sizeof(InternalVariable));
+    InternalVariablesDB = Internal_ArrayCreateStatic(LinearAllocator_Allocate(Arena, MaxSize), MaxInternalVars, sizeof(InternalVariable));
 
     // store static options. like platform, native os .lib's, etc..
     AddInternalVariable(S(PLATFORM_STRING), S(""));

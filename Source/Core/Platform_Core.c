@@ -590,28 +590,30 @@ f64 Clock_GetElapsedTime_Nanoseconds(const Clock* C)
 
 f64 Time_AutoConvert(f64 Seconds)
 {
+    f64 FinalTime = 0.0;
+
     // Nanosecond detection
     // less than 1us and greater than 1ns
     if (Seconds >= 0.000000001 && Seconds < 0.000001)
     {
-        return Seconds * 1000000000.0;
+        FinalTime = Seconds * 1000000000.0;
     }
 
     // Microsecond detection
     // less than 1ms and greater than 1us
     if (Seconds >= 0.000001 && Seconds < 0.001)
     {
-        return Seconds * 1000000.0;
+        FinalTime = Seconds * 1000000.0;
     }
 
     // Millisecond detection
     // greater than 1ms and less than 1s
     if (Seconds >= 0.001 && Seconds < 1.0)
     {
-        return Seconds * 1000.0;
+        FinalTime = Seconds * 1000.0;
     }
     
-    return Seconds;
+    return FinalTime;
 }
 
 void Time_ToString(f64 Seconds, bool bAutoConvertTimeUnit, String* OutString)

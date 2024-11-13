@@ -652,7 +652,7 @@ bool C_DoCompile(CompileData* Data, const String FullPath, const String Relative
 
     (void)Filesystem_NewFile(ObjectPath);
 
-    if (bQuietBuild) Logging_Enable();
+    if (bQuietBuild) { Logging_Enable(); }
 
     #ifndef HOOD
     LOG("[%i/%i] Compiling %S", Data->Index, Params->NumSources, FullPath);
@@ -660,7 +660,7 @@ bool C_DoCompile(CompileData* Data, const String FullPath, const String Relative
     LOG("compil'n %i o' %i %S", Data->Index, Params->NumSources, FullPath);
     #endif
 
-    if (bQuietBuild) Logging_Disable();
+    if (bQuietBuild) { Logging_Disable(); }
 
     if (Params->bVerbose)
     {
@@ -673,7 +673,7 @@ bool C_DoCompile(CompileData* Data, const String FullPath, const String Relative
     //PlatformPipe StdOutPipe = {0};
     //PlatformHandle Handle = Platform_RunCommand_Ex(CmdLine, Params->RootDirectory, &StdOutPipe);
     PlatformHandle Handle = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
-    if (!Platform_IsValidHandle(Handle)) return false;
+    if (!Platform_IsValidHandle(Handle)) { return false; }
     //Platform_CloseHandle(StdOutPipe[1]);
     Array_Add(Processes, Handle);
     //Array_Add(Pipes, StdOutPipe);
@@ -701,7 +701,7 @@ bool C_DoCompile(CompileData* Data, const String FullPath, const String Relative
 
 bool C_Link(const BuildParams* Params)
 {
-    if (NEVER(Params == NULL)) return false;
+    if (NEVER(Params == NULL)) { return false; }
 
     if (Params->Type == AssemblyType_PCH)
     {
@@ -718,7 +718,7 @@ bool C_Link(const BuildParams* Params)
         String_AppendChar(&CmdLine, ' ');
 
         LinkData Data = { Params, &CmdLine };
-        Filesystem_IterateDirectory_Ex(SourceDir, Link_SourceFileDirectoryIterator, true, &Data);
+        Filesystem_IterateDirectory_Ex(SourceDir, &Link_SourceFileDirectoryIterator, true, &Data);
 
         String_BuildSeparator(&CmdLine, ' ',  Params->IconResFilePath, Params->VersionResFilePath, S(" -o \" "));
 
@@ -750,7 +750,7 @@ bool C_Link(const BuildParams* Params)
         String_BuildSeparator(&CmdLine, ' ',  Params->LinkerDefineFlags, Params->LinkerFlags, SharedFlag, RunPathLinkFlag, Params->Libraries, Params->LibraryDirectories, Params->bVerbose ? S("-v") : String_Null());
         (void)String_EatSpacesInlineFromEnd(&CmdLine);
 
-        if (bQuietBuild) Logging_Enable();
+        if (bQuietBuild) { Logging_Enable(); }
 
         #ifndef HOOD
         LOG("\nLinking %S", Params->AssemblyWithExt);
@@ -758,7 +758,7 @@ bool C_Link(const BuildParams* Params)
         LOG("\nlink'n it up: %S", Params->AssemblyWithExt);
         #endif
 
-        if (bQuietBuild) Logging_Disable();
+        if (bQuietBuild) { Logging_Disable(); }
 
         if (Params->bVerbose)
         {
@@ -773,7 +773,7 @@ bool C_Link(const BuildParams* Params)
         }
 
         PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
-        if (!Platform_IsValidHandle(H)) return false;
+        if (!Platform_IsValidHandle(H)) { return false; }
         const u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
         if (ExitCode != 0)
         {
@@ -817,7 +817,9 @@ bool C_Link(const BuildParams* Params)
         String_Append(&LibFile, Params->Assembly);
 
         if (Params->Type == AssemblyType_Library)
+        {
             String_Append(&LibFile, S("S"));
+        }
 
         #if PLATFORM_WINDOWS
         String_Append(&LibFile, S(".lib"));
@@ -829,12 +831,12 @@ bool C_Link(const BuildParams* Params)
         String_Append(&CmdLine, S("\" "));
 
         LinkData Data = { Params, &CmdLine };
-        Filesystem_IterateDirectory_Ex(SourceDir, Link_SourceFileDirectoryIterator, true, &Data);
+        Filesystem_IterateDirectory_Ex(SourceDir, &Link_SourceFileDirectoryIterator, true, &Data);
 
         String_BuildSeparator(&CmdLine, ' ', Params->VersionResFilePath);
         (void)String_EatSpacesInlineFromEnd(&CmdLine);
 
-        if (bQuietBuild) Logging_Enable();
+        if (bQuietBuild) { Logging_Enable(); }
 
         #ifndef HOOD
         LOG("\nLinking %S [static]", LibFile);
@@ -842,7 +844,7 @@ bool C_Link(const BuildParams* Params)
         LOG("\nstatic link'n it up: %S", LibFile);
         #endif
 
-        if (bQuietBuild) Logging_Disable();
+        if (bQuietBuild) { Logging_Disable(); }
         
         if (Params->bVerbose)
         {
@@ -857,7 +859,7 @@ bool C_Link(const BuildParams* Params)
         }
 
         PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
-        if (!Platform_IsValidHandle(H)) return false;
+        if (!Platform_IsValidHandle(H)) { return false; }
         u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
         if (ExitCode != 0)
         {
@@ -894,7 +896,7 @@ bool C_Link(const BuildParams* Params)
             String_Append(&CmdLine, S(".dll\""));
 
             PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
-            if (!Platform_IsValidHandle(H)) return false;
+            if (!Platform_IsValidHandle(H)) { return false; }
             u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
             if (ExitCode != 0)
             {
@@ -1062,11 +1064,11 @@ static bool AsmSourceFileDirectoryIterator_MSVC(const String FullPath, const Str
 
                 String_Append(&CmdLine, Params->IncludeFlags);
 
-                if (Params->bVerbose) LOG("    CMD: %S", CmdLine);
+                if (Params->bVerbose) { LOG("    CMD: %S", CmdLine); }
 
                 // todo: parallelize this
                 PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
-                if (!Platform_IsValidHandle(H)) return false;
+                if (!Platform_IsValidHandle(H)) { return false; }
                 const u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
                 if (ExitCode != 0)
                 {
@@ -1134,7 +1136,9 @@ static bool Link_SourceFileDirectoryIterator_MSVC(const String FullPath, const S
                 if (String_EndsWith(RelativePath, S(".rc"), false))
                 {
                     if (String_EndsWith(RelativePath, S("icon.rc"), false))
+                    {
                         return true;
+                    }
 
                     u32 LastSlash = 0;
                     bool bHasSlash = String_IndexOfLastPathSlash(FullPath, &LastSlash);
@@ -1179,7 +1183,7 @@ static bool Link_SourceFileDirectoryIterator_MSVC(const String FullPath, const S
 
 bool MSVC_Compile(const BuildParams* Params, u32* OutNumCompiled)
 {
-    if (NEVER(Params == NULL)) return false;
+    if (NEVER(Params == NULL)) { return false; }
 
     StringLocal(SourceDir, MAX_PATH_LENGTH);
     String_BuildPath(&SourceDir, Params->RootDirectory, Params->SourceDirectory);
@@ -1190,7 +1194,7 @@ bool MSVC_Compile(const BuildParams* Params, u32* OutNumCompiled)
         // TODO: rework, ugly
         bool bMASM = String_IsEqual(Params->AsmProgram, S("ml"), false) ||
                      String_IsEqual(Params->AsmProgram, S("ml64"), false);
-        Filesystem_IterateDirectory_Ex(SourceDir, bMASM ? AsmSourceFileDirectoryIterator_MSVC : AsmSourceFileDirectoryIterator, true, &UserData);
+        Filesystem_IterateDirectory_Ex(SourceDir, bMASM ? &AsmSourceFileDirectoryIterator_MSVC : &AsmSourceFileDirectoryIterator, true, &UserData);
         if (!UserData.bSuccess)
         {
             return false;
@@ -1199,8 +1203,8 @@ bool MSVC_Compile(const BuildParams* Params, u32* OutNumCompiled)
 
     // compile all .c files
     {
-        CompileData UserData = { MSVC_DoCompile, Params, OutNumCompiled, 0, true, NULL };
-        Filesystem_IterateDirectory_Ex(SourceDir, SourceFileDirectoryIterator, true, &UserData);
+        CompileData UserData = { &MSVC_DoCompile, Params, OutNumCompiled, 0, true, NULL };
+        Filesystem_IterateDirectory_Ex(SourceDir, &SourceFileDirectoryIterator, true, &UserData);
         if (!UserData.bSuccess)
         {
             return false;
@@ -1209,7 +1213,7 @@ bool MSVC_Compile(const BuildParams* Params, u32* OutNumCompiled)
 
     if (*OutNumCompiled == 0)
     {
-        if (bQuietBuild) Logging_Enable();
+        if (bQuietBuild) { Logging_Enable(); }
 
         #ifndef HOOD
         LOG("\nNothing to compile - source files unchanged since last build");
@@ -1217,7 +1221,7 @@ bool MSVC_Compile(const BuildParams* Params, u32* OutNumCompiled)
         LOG("\nno work to do homie");
         #endif
 
-        if (bQuietBuild) Logging_Disable();
+        if (bQuietBuild) { Logging_Disable(); }
 
         return true;
     }
@@ -1241,7 +1245,7 @@ bool MSVC_Compile(const BuildParams* Params, u32* OutNumCompiled)
     if (Params->bHasRCProgram)
     {
         CompileData RcUserData = { NULL, Params, OutNumCompiled, 0, true, NULL };
-        Filesystem_IterateDirectory_Ex(SourceDir, ResourceFileDirectoryIterator, true, &RcUserData);
+        Filesystem_IterateDirectory_Ex(SourceDir, &ResourceFileDirectoryIterator, true, &RcUserData);
         if (!RcUserData.bSuccess)
         {
             return false;
@@ -1503,12 +1507,14 @@ bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String Relat
         String_Append(&CmdLine, S("\\\\\""));
     }
 
-    if (bQuietBuild) Logging_Enable();
+    if (bQuietBuild) { Logging_Enable(); }
 
     if (Params->bShouldWaitPerCompileProcess)
+    {
         LOG("[%i/%i] Compiling %S", Data->Index, Params->NumSources, FullPath);
+    }
 
-    if (bQuietBuild) Logging_Disable();
+    if (bQuietBuild) { Logging_Disable(); }
 
     if (Params->bVerbose)
     {
@@ -1516,7 +1522,7 @@ bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String Relat
     }
 
     PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
-    if (!Platform_IsValidHandle(H)) return false;
+    if (!Platform_IsValidHandle(H)) { return false; }
     Array_Add(Processes, H);
     (*Data->NumCompiled)++;
 
@@ -1535,7 +1541,7 @@ bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String Relat
 
 static void Internal_ParseAndLogLinkerOutput_MSVC(String StdOutData)
 {
-    if (StdOutData.Length == 0) return;
+    if (StdOutData.Length == 0) { return; }
 
     String LastObjFile = String_Null();
 
@@ -1587,10 +1593,15 @@ static void Internal_ParseAndLogLinkerOutput_MSVC(String StdOutData)
                             if (String_IndexOfSubstring(TempLine, SymbolDefineWarningPhrases[i], true, &Index))
                             {
                                 String FirstPart = StrSlice(TempLine.Data, Index);
+
                                 if (i == 0)
+                                {
                                     LOG_INLINE(" |%S\n                        ", FirstPart);
+                                }
                                 else
+                                {
                                     LOG_INLINE("%S\n                        ", FirstPart);
+                                }
 
                                 String SecondPart = StrShiftF(TempLine, Index);
                                 TempLine = SecondPart;
@@ -1615,9 +1626,13 @@ static void Internal_ParseAndLogLinkerOutput_MSVC(String StdOutData)
                             else
                             {
                                 if (i == 0)
+                                {
                                     LOG(" |%S", TempLine);
+                                }
                                 else
+                                {
                                     LOG("%S", TempLine);
+                                }
 
                                 break;
                             }
@@ -1790,7 +1805,7 @@ static void Internal_ProcessLinkerOutput_MSVC(PlatformPipe StdOutHandle)
 
 bool MSVC_Link(const BuildParams* Params)
 {
-    if (NEVER(Params == NULL)) return false;
+    if (NEVER(Params == NULL)) { return false; }
 
     if (Params->Type == AssemblyType_PCH)
     {
@@ -1813,15 +1828,19 @@ bool MSVC_Link(const BuildParams* Params)
     if (bIsExe || bIsDLL)
     {
         String_Append(&CmdLine, S("link"));
+
         if (bIsDLL)
+        {
             String_Append(&CmdLine, S(" /dll"));
+        }
+
         String_Append(&CmdLine, S(" /nologo "));
 
         String_BuildSeparator(&CmdLine, ' ', Params->LinkerDefineFlags, Params->LinkerFlags, Params->IconResFilePath, Params->VersionResFilePath, Params->Libraries, Params->LibraryDirectories); //, AllObjFiles);
         String_AppendSpace(&CmdLine);
 
         LinkData Data = { Params, &CmdLine };
-        Filesystem_IterateDirectory_Ex(SourceDir, Link_SourceFileDirectoryIterator_MSVC, true, &Data);
+        Filesystem_IterateDirectory_Ex(SourceDir, &Link_SourceFileDirectoryIterator_MSVC, true, &Data);
 
         (void)String_EatSpacesInlineFromEnd(&CmdLine);
 
@@ -1855,11 +1874,11 @@ bool MSVC_Link(const BuildParams* Params)
 
         String_Concat(&CmdLine, S(" /OUT:\""), BuildPath, Params->AssemblyWithExt, S("\"")); // make this first then the flags?
 
-        if (bQuietBuild) Logging_Enable();
+        if (bQuietBuild) { Logging_Enable(); }
 
         LOG("\nLinking %S", Params->AssemblyWithExt);
 
-        if (bQuietBuild) Logging_Disable();
+        if (bQuietBuild) { Logging_Disable(); }
 
         if (Params->bVerbose)
         {
@@ -1882,7 +1901,7 @@ bool MSVC_Link(const BuildParams* Params)
 
         PlatformPipe StdOutHandle = {0};
         PlatformHandle Handle = Platform_RunCommand_Ex(CmdLine, Params->RootDirectory, &StdOutHandle);
-        if (!Platform_IsValidHandle(Handle)) return false;
+        if (!Platform_IsValidHandle(Handle)) { return false; }
 
         Internal_ProcessLinkerOutput_MSVC(StdOutHandle);
 
@@ -1909,7 +1928,7 @@ bool MSVC_Link(const BuildParams* Params)
         String_AppendSpace(&CmdLine);
 
         LinkData Data = { Params, &CmdLine };
-        Filesystem_IterateDirectory_Ex(SourceDir, Link_SourceFileDirectoryIterator_MSVC, true, &Data);
+        Filesystem_IterateDirectory_Ex(SourceDir, &Link_SourceFileDirectoryIterator_MSVC, true, &Data);
 
         String_Append(&CmdLine, S("/OUT:\""));
         String_Append(&CmdLine, BuildPath);
@@ -1918,18 +1937,20 @@ bool MSVC_Link(const BuildParams* Params)
         String_Append(&LibFile, Params->Assembly);
 
         if (Params->Type == AssemblyType_Library)
+        {
             String_Append(&LibFile, S("S"));
+        }
         
         String_Append(&LibFile, S(".lib"));
 
         String_Append(&CmdLine, LibFile);
         String_AppendChar(&CmdLine, '"');
 
-        if (bQuietBuild) Logging_Enable();
+        if (bQuietBuild) { Logging_Enable(); }
 
         LOG("\nLinking %S [static]", LibFile);
 
-        if (bQuietBuild) Logging_Disable();
+        if (bQuietBuild) { Logging_Disable(); }
 
         if (Params->bVerbose)
         {
@@ -1944,7 +1965,7 @@ bool MSVC_Link(const BuildParams* Params)
         }
 
         PlatformHandle Handle = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
-        if (!Platform_IsValidHandle(Handle)) return false;
+        if (!Platform_IsValidHandle(Handle)) { return false; }
         u32 ExitCode = Platform_WaitForProcessAndGetExitCode(Handle);
         if (ExitCode != 0)
         {
@@ -1973,7 +1994,7 @@ bool MSVC_Link(const BuildParams* Params)
         String_Append(&CmdLine, S(".dll\""));
 
         PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
-        if (!Platform_IsValidHandle(H)) return false;
+        if (!Platform_IsValidHandle(H)) { return false; }
         u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
 
         if (ExitCode != 0)

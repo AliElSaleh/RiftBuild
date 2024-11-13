@@ -555,7 +555,6 @@ ECompareResult String_CompareVersion(const String VersionA, const String Version
     for (u8 i = 0; i < MAX_VERSIONS; i++) { VersionArrayB[i] = UINT64_MAX; }
 
     u8 VersionIndexA = 0, VersionIndexB = 0;
-
     u32 OffsetA = 0, OffsetB = 0;
 
     while (1)
@@ -2701,60 +2700,60 @@ u32 String16_GetLength_Ex(const wchar* Str, u32 MaxLength)
 
 bool IsAlphabet(u8 Char)
 {
-	return ((Char >= 'A' && Char <= 'Z') || (Char >= 'a' && Char <= 'z'));
+    return ((Char >= 'A' && Char <= 'Z') || (Char >= 'a' && Char <= 'z'));
 }
 
 bool IsAlphabetUpper(u8 Char)
 {
-	return Char >= 'A' && Char <= 'Z';
+    return Char >= 'A' && Char <= 'Z';
 }
 
 bool IsAlphabetLower(u8 Char)
 {
-	return Char >= 'a' && Char <= 'z';
+    return Char >= 'a' && Char <= 'z';
 }
 
 bool IsDigit(u8 Char)
 {
-	return Char >= '0' && Char <= '9';
+    return Char >= '0' && Char <= '9';
 }
 
 bool IsWhitespace(u8 Char)
 {
-	return Char == ' ' || Char == '\r' || Char == '\t' || Char == '\f' || Char == '\v' || Char == '\n';
+    return Char == ' ' || Char == '\r' || Char == '\t' || Char == '\f' || Char == '\v' || Char == '\n';
 }
 
 bool IsNewline(u8 Char)
 {
-	return Char == '\r' || Char == '\f' || Char == '\n';
+    return Char == '\r' || Char == '\f' || Char == '\n';
 }
 
 bool IsSymbol(u8 Char)
 {
-	return Char == '(' || Char == ')' || Char == '{' || Char == '}' ||
-			Char == '!' || Char == '@' || Char == '#' || Char == '$' ||
-			Char == '%' || Char == '^' || Char == '&' || Char == '*' ||
-			Char == '+' || Char == '=';
+    return Char == '(' || Char == ')' || Char == '{' || Char == '}' ||
+           Char == '!' || Char == '@' || Char == '#' || Char == '$' ||
+           Char == '%' || Char == '^' || Char == '&' || Char == '*' ||
+           Char == '+' || Char == '=';
 }
 
 u8 ToUpper(u8 Char)
 {
-	return Char >= 'a' && Char <= 'z' ? (u8)(Char - 32) : Char;
+    return Char >= 'a' && Char <= 'z' ? (u8)(Char - 32) : Char;
 }
 
 u8 ToLower(u8 Char)
 {
-	return Char >= 'A' && Char <= 'Z' ? (u8)(Char + 32) : Char;
+    return Char >= 'A' && Char <= 'Z' ? (u8)(Char + 32) : Char;
 }
 
 u8 ToForwardSlash(u8 Char)
 {
-	return Char == '\\' ? '/' : Char;
+    return Char == '\\' ? '/' : Char;
 }
 
 u8 ToBackSlash(u8 Char)
 {
-	return Char == '/' ? '\\' : Char;
+    return Char == '/' ? '\\' : Char;
 }
 
 /*
@@ -2844,9 +2843,9 @@ void EatSymbols(u8** Str)
         u8 c = *S;
         while (c > 0 &&
             (c == '(' || c == ')' || c == '{' || c == '}' ||
-			c == '!' || c == '@' || c == '#' || c == '$' ||
-			c == '%' || c == '^' || c == '&' || c == '*' ||
-			c == '+' || c == '='))
+            c == '!' || c == '@' || c == '#' || c == '$' ||
+            c == '%' || c == '^' || c == '&' || c == '*' ||
+            c == '+' || c == '='))
         {
             S++;
             c = *S;
@@ -2862,9 +2861,9 @@ void EatSymbols_Backwards(u8** Str)
         u8 c = *S;
         while (c > 0 &&
             (c == '(' || c == ')' || c == '{' || c == '}' ||
-			c == '!' || c == '@' || c == '#' || c == '$' ||
-			c == '%' || c == '^' || c == '&' || c == '*' ||
-			c == '+' || c == '='))
+            c == '!' || c == '@' || c == '#' || c == '$' ||
+            c == '%' || c == '^' || c == '&' || c == '*' ||
+            c == '+' || c == '='))
         {
             S--;
             c = *S;
