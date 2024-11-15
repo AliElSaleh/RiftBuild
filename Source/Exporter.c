@@ -2,13 +2,12 @@
 
 #ifndef UNITY_BUILD
 #include "Backend.h"
-#include "Allocators.h"
-#include "StringUtils.h"
-#include "Array.h"
-#include "Globals.h"
-#endif
 
-static bool bHasWrittenJSON = false;
+#include "Core/Allocators.h"
+#include "Core/StringUtils.h"
+#include "Core/Array.h"
+#include "Core/Globals.h"
+#endif
 
 STRUCT(ExportData)
 {
@@ -24,24 +23,31 @@ static void WriteFlags(LinearAllocator Scratch, const FileHandle File, const Str
     if (List.Num > 0)
     {
         if (bOneLine)
+        {
             Filesystem_WriteLine(File, S(", "), NULL);
+        }
         else
+        {
             Filesystem_WriteLine(File, S(",\n"), NULL);
+        }
     }
 
     for each_str_i (i, Flag, List)
     {
         StringLocal(FlagCopy, 4096);
         String_Copy(&FlagCopy, *Flag);
+
         if (bConvertSlashes)
+        {
             String_BackSlashToForwardSlash(&FlagCopy);
+        }
 
         String Comma = i != List.Num-1 ? (bOneLine ? S(", ") : S(",\n")) : S("");
         Filesystem_WriteLineFormatted(File, S("%S\"%S\"%S"), NULL, bOneLine ? S("") : S("            "), FlagCopy, Comma);
     }
 }
 
-static bool GenCommandObject(CompileData* Data, const String FullPath, const String RelativePath)
+static bool Internal_GenCommandObject(CompileData* Data, const String FullPath, const String RelativePath)
 {
     const ExportData* Export = Data->AdditionalData;
     const BuildParams* Params = Data->Params;
@@ -58,6 +64,10 @@ static bool GenCommandObject(CompileData* Data, const String FullPath, const Str
     else if (Params->bIsAssemblyExe)
     {
         AdditionalPlatformFlags = S("-fPIE");
+    }
+    else
+    {
+        // no action required
     }
     #endif
 
@@ -94,26 +104,32 @@ bool Export_CompileCommands(const BuildParams* Params,
                            const String DefineFlags, const String UnDefineFlags,
                            const bool bIsLastBuild, const bool bKeepOneLine)
 {
-    if (NEVER(Params == NULL)) return false;
+    bool bSuccess = false;
 
-    FileHandle f = FileHandle_Null();
-    if (Filesystem_Open(S("compile_commands.json"), !bHasWrittenJSON ? FileMode_Write : FileMode_Read|FileMode_Write, &f))
+    if (ALWAYS(Params != NULL))
     {
-        if (!bHasWrittenJSON) Filesystem_WriteLine(f, S("[\n"), NULL);
+        static bool bHasWrittenJSON = false;
 
-        ExportData Data = { f, bIsLastBuild, bKeepOneLine };
-        CompileData UserData = { GenCommandObject, Params, NULL, 0, true, &Data};
-        Filesystem_IterateDirectory_Ex(Params->SourceDirectory, SourceFileDirectoryIterator, true, &UserData);
+        FileHandle f = FileHandle_Null();
+        EFileMode FileMode = !bHasWrittenJSON ? FileMode_Write : FileMode_Read|FileMode_Write;
+        if (Filesystem_Open(S("compile_commands.json"), FileMode, &f))
+        {
+            if (!bHasWrittenJSON) { Filesystem_WriteLine(f, S("[\n"), NULL); }
 
-        if (bIsLastBuild) Filesystem_WriteLine(f, S("]\n"), NULL);
+            ExportData Data = { f, bIsLastBuild, bKeepOneLine };
+            CompileData UserData = { &Internal_GenCommandObject, Params, NULL, 0, true, &Data};
+            Filesystem_IterateDirectory_Ex(Params->SourceDirectory, &SourceFileDirectoryIterator, true, &UserData);
 
-        bHasWrittenJSON = true;
+            if (bIsLastBuild) { Filesystem_WriteLine(f, S("]\n"), NULL); }
 
-        Filesystem_Close(&f);
-        return true;
+            bHasWrittenJSON = true;
+            bSuccess = true;
+
+            Filesystem_Close(&f);
+        }
     }
 
-    return false;
+    return bSuccess;
 }
 
 static void Internal_PlistWrite(LinearAllocator Scratch, const FileHandle f, const String Key, const String Value)
@@ -159,266 +175,303 @@ static void Internal_PlistWrite(LinearAllocator Scratch, const FileHandle f, con
 
 bool Export_InfoPlist(LinearAllocator Arena, const BuildParams* Params, const String Path, TArray(FileVariable) ExpandedVariablesDB, bool bRawMode)
 {
-    if (NEVER(Params == NULL)) return false;
-    if (NEVER(ExpandedVariablesDB == NULL)) return false;
+    if (NEVER(Params == NULL)) { return false; }
+    if (NEVER(ExpandedVariablesDB == NULL)) { return false; }
 
-    FileHandle f = {0};
-    if (!Filesystem_Open(Path, FileMode_Write, &f))
+    bool bSuccess = false;
+
+    FileHandle f = FileHandle_Null();
+    if (Filesystem_Open(Path, FileMode_Write, &f))
     {
-        return false;
-    }
+        Filesystem_WriteLine(f, S("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"), NULL);
+        Filesystem_WriteLine(f, S("<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"), NULL);
+        Filesystem_WriteLine(f, S("<plist version=\"1.0\">\n"), NULL);
+        Filesystem_WriteLine(f, S("<dict>\n"), NULL);
 
-    Filesystem_WriteLine(f, S("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"), NULL);
-    Filesystem_WriteLine(f, S("<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"), NULL);
-    Filesystem_WriteLine(f, S("<plist version=\"1.0\">\n"), NULL);
-    Filesystem_WriteLine(f, S("<dict>\n"), NULL);
-
-    if (bRawMode)
-    {
-        const String RawValue = GetVariableValue(ExpandedVariablesDB, S("Info.plist"));
-
-        if (RawValue.Length > 0)
+        if (bRawMode)
         {
-            Filesystem_WriteLine(f, RawValue, NULL);
-            Filesystem_WriteLine(f, S("\n"), NULL);
-        }
-    }
-    else
-    {
-        StringLocal(CompanyNameNoSpaces, 128);
-        String_StripWhitespace(Params->CompanyName, &CompanyNameNoSpaces);
+            const String RawValue = GetVariableValue(ExpandedVariablesDB, S("Info.plist"));
 
-        if (CompanyNameNoSpaces.Length == 0)
-        {
-            CompanyNameNoSpaces = S("Unknown");
-        }
-
-        const String DisplayName = Params->TitleName.Length == 0 ? Params->Assembly : Params->TitleName;
-        const String Version = Params->Version.Length == 0 ? S("1.0.0") : Params->Version;
-
-        StringLocal(BundleIdentifer, 128);
-        String_Append(&BundleIdentifer, S("com."));
-        String_Append(&BundleIdentifer, CompanyNameNoSpaces);
-        String_AppendChar(&BundleIdentifer, '.');
-        String_Append(&BundleIdentifer, Params->Assembly);
-
-        StringLocal(VersionLong, 128);
-        String_Append(&VersionLong, S("Version "));
-        String_Append(&VersionLong, Version);
-
-        STRUCT(BundleTableEntry)
-        {
-            String Key;
-            String Value;
-            bool bGiven;
-        };
-
-        BundleTableEntry BundleTable[12] = 
-        {
-            { .Key = S("CFBundleDevelopmentRegion"),     .Value = S("English"),        .bGiven = false },
-            { .Key = S("CFBundleDisplayName"),           .Value = DisplayName,         .bGiven = false },
-            { .Key = S("CFBundleExecutable"),            .Value = Params->Assembly,    .bGiven = false },
-            { .Key = S("CFBundleGetInfoString"),         .Value = Params->Description, .bGiven = false },
-            { .Key = S("CFBundleIconFile"),              .Value = Params->Assembly,    .bGiven = false },
-            { .Key = S("CFBundleIdentifier"),            .Value = BundleIdentifer,     .bGiven = false },
-            { .Key = S("CFBundleInfoDictionaryVersion"), .Value = S("6.0"),            .bGiven = false },
-            { .Key = S("CFBundleName"),                  .Value = Params->Assembly,    .bGiven = false },
-            { .Key = S("CFBundlePackageType"),           .Value = S("APPL"),           .bGiven = false },
-            { .Key = S("CFBundleShortVersionString"),    .Value = Version,             .bGiven = false },
-            { .Key = S("CFBundleSignature"),             .Value = Params->Assembly,    .bGiven = false },
-            { .Key = S("CFBundleVersion"),               .Value = VersionLong,         .bGiven = false }
-        };
-
-        for each (FileVariable, v, ExpandedVariablesDB)
-        {
-            if (String_StartsWith(v.Name, S("Info.plist::"), false))
+            if (RawValue.Length > 0)
             {
-                const String Key = StrShiftF(v.Name, 12);
+                Filesystem_WriteLine(f, RawValue, NULL);
+                Filesystem_WriteLine(f, S("\n"), NULL);
+            }
+        }
+        else
+        {
+            StringLocal(CompanyNameNoSpaces, 128);
+            String_StripWhitespace(Params->CompanyName, &CompanyNameNoSpaces);
 
-                // mark the key as "given" in the table
-                for (u8 i = 0; i < SArray_Capacity(BundleTable); i++)
+            if (CompanyNameNoSpaces.Length == 0)
+            {
+                CompanyNameNoSpaces = S("Unknown");
+            }
+
+            const String DisplayName = Params->TitleName.Length == 0 ? Params->Assembly : Params->TitleName;
+            const String Version = Params->Version.Length == 0 ? S("1.0.0") : Params->Version;
+
+            StringLocal(BundleIdentifer, 128);
+            String_Append(&BundleIdentifer, S("com."));
+            String_Append(&BundleIdentifer, CompanyNameNoSpaces);
+            String_AppendChar(&BundleIdentifer, '.');
+            String_Append(&BundleIdentifer, Params->Assembly);
+
+            StringLocal(VersionLong, 128);
+            String_Append(&VersionLong, S("Version "));
+            String_Append(&VersionLong, Version);
+
+            STRUCT(BundleTableEntry)
+            {
+                String Key;
+                String Value;
+                bool bGiven;
+            };
+
+            BundleTableEntry BundleTable[12] = 
+            {
+                { .Key = S("CFBundleDevelopmentRegion"),     .Value = S("English"),        .bGiven = false },
+                { .Key = S("CFBundleDisplayName"),           .Value = DisplayName,         .bGiven = false },
+                { .Key = S("CFBundleExecutable"),            .Value = Params->Assembly,    .bGiven = false },
+                { .Key = S("CFBundleGetInfoString"),         .Value = Params->Description, .bGiven = false },
+                { .Key = S("CFBundleIconFile"),              .Value = Params->Assembly,    .bGiven = false },
+                { .Key = S("CFBundleIdentifier"),            .Value = BundleIdentifer,     .bGiven = false },
+                { .Key = S("CFBundleInfoDictionaryVersion"), .Value = S("6.0"),            .bGiven = false },
+                { .Key = S("CFBundleName"),                  .Value = Params->Assembly,    .bGiven = false },
+                { .Key = S("CFBundlePackageType"),           .Value = S("APPL"),           .bGiven = false },
+                { .Key = S("CFBundleShortVersionString"),    .Value = Version,             .bGiven = false },
+                { .Key = S("CFBundleSignature"),             .Value = Params->Assembly,    .bGiven = false },
+                { .Key = S("CFBundleVersion"),               .Value = VersionLong,         .bGiven = false }
+            };
+
+            for each (FileVariable, v, ExpandedVariablesDB)
+            {
+                if (String_StartsWith(v.Name, S("Info.plist::"), false))
                 {
-                    if (String_IsEqual(BundleTable[i].Key, Key, false))
+                    const String Key = StrShiftF(v.Name, 12);
+
+                    // mark the key as "given" in the table
+                    for (u8 i = 0; i < SArray_Capacity(BundleTable); i++)
                     {
-                        BundleTable[i].bGiven = true;
-                        break;
+                        if (String_IsEqual(BundleTable[i].Key, Key, false))
+                        {
+                            BundleTable[i].bGiven = true;
+                            break;
+                        }
                     }
+
+                    Internal_PlistWrite(Arena, f, Key, v.Value);
                 }
-
-                Internal_PlistWrite(Arena, f, Key, v.Value);
             }
-        }
 
-        for (u8 i = 0; i < SArray_Capacity(BundleTable); i++)
-        {
-            if (!BundleTable[i].bGiven)
+            for (u8 i = 0; i < SArray_Capacity(BundleTable); i++)
             {
-                Internal_PlistWrite(Arena, f, BundleTable[i].Key, BundleTable[i].Value);
+                if (!BundleTable[i].bGiven)
+                {
+                    Internal_PlistWrite(Arena, f, BundleTable[i].Key, BundleTable[i].Value);
+                }
             }
         }
+
+        Filesystem_WriteLine(f, S("</dict>\n"), NULL);
+        Filesystem_WriteLine(f, S("</plist>\n"), NULL);
+
+        Filesystem_Close(&f);
+
+        bSuccess = true;
     }
 
-
-    Filesystem_WriteLine(f, S("</dict>\n"), NULL);
-    Filesystem_WriteLine(f, S("</plist>\n"), NULL);
-
-    Filesystem_Close(&f);
-
-    return true;
+    return bSuccess;
 }
 
 bool Export_VersionPlist(LinearAllocator Arena, const BuildParams* Params, const String Path, TArray(FileVariable) ExpandedVariablesDB, bool bRawMode)
 {
-    if (NEVER(Params == NULL)) return false;
-    if (NEVER(ExpandedVariablesDB == NULL)) return false;
+    if (NEVER(Params == NULL)) { return false; }
+    if (NEVER(ExpandedVariablesDB == NULL)) { return false; }
+
+    bool bSuccess = false;
 
     FileHandle f = {0};
-    if (!Filesystem_Open(Path, FileMode_Write, &f))
+    if (Filesystem_Open(Path, FileMode_Write, &f))
     {
-        return false;
-    }
+        Filesystem_WriteLine(f, S("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"), NULL);
+        Filesystem_WriteLine(f, S("<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"), NULL);
+        Filesystem_WriteLine(f, S("<plist version=\"1.0\">\n"), NULL);
+        Filesystem_WriteLine(f, S("<dict>\n"), NULL);
 
-    Filesystem_WriteLine(f, S("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"), NULL);
-    Filesystem_WriteLine(f, S("<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"), NULL);
-    Filesystem_WriteLine(f, S("<plist version=\"1.0\">\n"), NULL);
-    Filesystem_WriteLine(f, S("<dict>\n"), NULL);
-
-    if (bRawMode)
-    {
-        const String RawValue = GetVariableValue(ExpandedVariablesDB, S("Version.plist"));
-
-        if (RawValue.Length > 0)
+        if (bRawMode)
         {
-            Filesystem_WriteLine(f, RawValue, NULL);
-            Filesystem_WriteLine(f, S("\n"), NULL);
-        }
-    }
-    else
-    {
-        STRUCT(BundleTableEntry)
-        {
-            String Key;
-            String Value;
-            bool bGiven;
-        };
+            const String RawValue = GetVariableValue(ExpandedVariablesDB, S("Version.plist"));
 
-        const String DisplayName = Params->TitleName.Length == 0 ? Params->Assembly : Params->TitleName;
-        const String Version = Params->Version.Length == 0 ? S("1.0.0") : Params->Version;
-
-        BundleTableEntry BundleTable[4] = 
-        {
-            { .Key = S("BuildVersion"),                  .Value = S("1"),      .bGiven = false },
-            { .Key = S("CFBundleShortVersionString"),    .Value = Version,     .bGiven = false },
-            { .Key = S("CFBundleVersion"),               .Value = Version,     .bGiven = false },
-            { .Key = S("ProjectName"),                   .Value = DisplayName, .bGiven = false }
-        };
-
-        for each (FileVariable, v, ExpandedVariablesDB)
-        {
-            if (String_StartsWith(v.Name, S("Version.plist::"), false))
+            if (RawValue.Length > 0)
             {
-                const String Key = StrShiftF(v.Name, 15);
+                Filesystem_WriteLine(f, RawValue, NULL);
+                Filesystem_WriteLine(f, S("\n"), NULL);
+            }
+        }
+        else
+        {
+            STRUCT(BundleTableEntry)
+            {
+                String Key;
+                String Value;
+                bool bGiven;
+            };
 
-                // mark the key as "given" in the table
-                for (u8 i = 0; i < SArray_Capacity(BundleTable); i++)
+            const String DisplayName = Params->TitleName.Length == 0 ? Params->Assembly : Params->TitleName;
+            const String Version     = Params->Version.Length == 0 ? S("1.0.0") : Params->Version;
+
+            BundleTableEntry BundleTable[4] = 
+            {
+                [0] = { .Key = S("BuildVersion"),                  .Value = S("1"),      .bGiven = false },
+                [1] = { .Key = S("CFBundleShortVersionString"),    .Value = Version,     .bGiven = false },
+                [2] = { .Key = S("CFBundleVersion"),               .Value = Version,     .bGiven = false },
+                [3] = { .Key = S("ProjectName"),                   .Value = DisplayName, .bGiven = false }
+            };
+
+            for each (FileVariable, v, ExpandedVariablesDB)
+            {
+                if (String_StartsWith(v.Name, S("Version.plist::"), false))
                 {
-                    if (String_IsEqual(BundleTable[i].Key, Key, false))
+                    const String Key = StrShiftF(v.Name, 15);
+
+                    // mark the key as "given" in the table
+                    for (u8 i = 0; i < SArray_Capacity(BundleTable); i++)
                     {
-                        BundleTable[i].bGiven = true;
-                        break;
+                        if (String_IsEqual(BundleTable[i].Key, Key, false))
+                        {
+                            BundleTable[i].bGiven = true;
+                            break;
+                        }
                     }
+
+                    Internal_PlistWrite(Arena, f, Key, v.Value);
                 }
-
-                Internal_PlistWrite(Arena, f, Key, v.Value);
             }
-        }
 
-        for (u8 i = 0; i < SArray_Capacity(BundleTable); i++)
-        {
-            if (!BundleTable[i].bGiven)
+            for (u8 i = 0; i < SArray_Capacity(BundleTable); i++)
             {
-                Internal_PlistWrite(Arena, f, BundleTable[i].Key, BundleTable[i].Value);
+                if (!BundleTable[i].bGiven)
+                {
+                    Internal_PlistWrite(Arena, f, BundleTable[i].Key, BundleTable[i].Value);
+                }
             }
         }
-    }
 
-    Filesystem_WriteLine(f, S("</dict>\n"), NULL);
-    Filesystem_WriteLine(f, S("</plist>\n"), NULL);
+        Filesystem_WriteLine(f, S("</dict>\n"), NULL);
+        Filesystem_WriteLine(f, S("</plist>\n"), NULL);
 
-    Filesystem_Close(&f);
-
-    return true;
-}
-
-bool Export_PkgInfo(const BuildParams* Params, const String Path)
-{
-    if (NEVER(Params == NULL)) return false;
-
-    FileHandle f = {0};
-    if (!Filesystem_Open(Path, FileMode_Write, &f))
-    {
-        return false;
-    }
-
-    Filesystem_WriteLineFormatted(f, S("APPL%S"), NULL, Params->Assembly);
-    Filesystem_Close(&f);
-
-    return true;
-}
-
-bool Export_IconRC(const BuildParams* Params, const String Path, const String IconFilePath)
-{
-    if (NEVER(Params == NULL)) return false;
-
-    FileHandle f = {0};
-    if (!Filesystem_Open(Path, FileMode_Write, &f))
-    {
-        return false;
-    }
-
-    u32 LastSlashIndex = 0;
-    (void)String_IndexOfLastPathSlash(IconFilePath, &LastSlashIndex);
-
-    if (!Filesystem_WriteLineFormatted(f, S("id ICON \"%S\""), NULL, StrShiftF(IconFilePath, LastSlashIndex == 0 ? 0 : LastSlashIndex+1)))
-    {
         Filesystem_Close(&f);
-        return false;
+
+        bSuccess = true;
     }
 
-    Filesystem_Close(&f);
+    return bSuccess;
+}
 
-    return true;
+bool Export_PkgInfo(const String AssemblyName, const String Path)
+{
+    bool bSuccess = false;
+
+    FileHandle f = FileHandle_Null();
+    if (Filesystem_Open(Path, FileMode_Write, &f))
+    {
+        Filesystem_WriteLineFormatted(f, S("APPL%S"), NULL, AssemblyName);
+        Filesystem_Close(&f);
+        bSuccess = true;
+    }
+
+    return bSuccess;
+}
+
+bool Export_IconRC(const String Path, const String IconFilePath)
+{
+    bool bSuccess = false;
+
+    FileHandle f = FileHandle_Null();
+    if (Filesystem_Open(Path, FileMode_Write, &f))
+    {
+        u32 LastSlashIndex = 0;
+        (void)String_IndexOfLastPathSlash(IconFilePath, &LastSlashIndex);
+
+        // TODO: think about error handling across all write line functions
+        Filesystem_WriteLineFormatted(f, S("id ICON \"%S\""), NULL, StrShiftF(IconFilePath, LastSlashIndex == 0 ? 0 : LastSlashIndex+1));
+        Filesystem_Close(&f);
+        bSuccess = true;
+    }
+
+    return bSuccess;
 }
 
 bool Export_VersionRC(const BuildParams* Params, const String Path)
 {
-    if (NEVER(Params == NULL)) return false;
+    if (NEVER(Params == NULL)) { return false; }
+
+    bool bSuccess = false;
 
     FileHandle VersionRCFile = {0};
-    if (!Filesystem_Open(Path, FileMode_Write, &VersionRCFile))
+    if (Filesystem_Open(Path, FileMode_Write, &VersionRCFile))
     {
-        return false;
-    }
+        StringLocal(AssemblyWithExt, 256);
+        String_Append(&AssemblyWithExt, Params->Assembly);
+        String_Append(&AssemblyWithExt, Params->Extension);
 
-    StringLocal(AssemblyWithExt, 256);
-    String_Append(&AssemblyWithExt, Params->Assembly);
-    String_Append(&AssemblyWithExt, Params->Extension);
+        // .rc files can only have 4 version numbers. sigh...
+        StringLocal(VersionCommas, 128);
 
-    // .rc files can only have 4 version numbers. sigh...
-    StringLocal(VersionCommas, 128);
-
-    u8 NumParts = 0;
-    StringLocal(VersionDigit, 6);
-    for (u8 i = 0; i < Params->Version.Length; i++)
-    {
-        if (Params->Version.Data[i] == '.' ||
-            Params->Version.Data[i] == '-' ||
-            Params->Version.Data[i] == '_' ||
-            Params->Version.Data[i] == ',')
+        u8 NumParts = 0;
+        StringLocal(VersionDigit, 6);
+        for (u8 i = 0; i < Params->Version.Length; i++)
         {
-            if (NumParts == 3)
-                break;
+            if (Params->Version.Data[i] == '.' ||
+                Params->Version.Data[i] == '-' ||
+                Params->Version.Data[i] == '_' ||
+                Params->Version.Data[i] == ',')
+            {
+                if (NumParts == 3)
+                {
+                    break;
+                }
 
+                u64 VersionNumber = 0;
+                if (String_ToU64(VersionDigit, &VersionNumber))
+                {
+                    if (VersionNumber > UINT16_MAX)
+                    {
+                        String_Append(&VersionCommas, S("65535"));
+                    }
+                    else
+                    {
+                        String_Append(&VersionCommas, VersionDigit);
+                    }
+                }
+
+                String_Empty(&VersionDigit);
+
+                // if previous character was a comma, meaning we didnt find any digits, add '0'
+                if (VersionCommas.Length == 0 || 
+                    String_IsLast(VersionCommas, ','))
+                {
+                    String_AppendChar(&VersionCommas, '0');
+                }
+
+                String_AppendChar(&VersionCommas, ',');
+
+                NumParts++;
+            }
+            else
+            {
+                if (!IsDigit(Params->Version.Data[i]))
+                {
+                    continue;
+                }
+
+                String_AppendChar(&VersionDigit, Params->Version.Data[i]);
+            }
+        }
+
+        if (VersionDigit.Length > 0)
+        {
             u64 VersionNumber = 0;
             if (String_ToU64(VersionDigit, &VersionNumber))
             {
@@ -433,175 +486,144 @@ bool Export_VersionRC(const BuildParams* Params, const String Path)
             }
 
             String_Empty(&VersionDigit);
+        }
 
-            // if previous character was a comma, meaning we didnt find any digits, add '0'
-            if (VersionCommas.Length == 0 || 
-                String_IsLast(VersionCommas, ','))
+        // remove trailing commas
+        (void)String_EatCharInlineFromEnd(&VersionCommas, ',');
+
+        // we must have at 4 parts otherwise llvm-rc will complain
+        u32 NumCommas = String_CountChar(VersionCommas, ',');
+        if (NumCommas < 3)
+        {
+            for (u8 i = 0; i < 3-NumCommas; i++)
             {
-                String_AppendChar(&VersionCommas, '0');
+                String_Append(&VersionCommas, S(",0"));
             }
+        }
 
-            String_AppendChar(&VersionCommas, ',');
+        // remove trailing commas
+        (void)String_EatCharInlineFromEnd(&VersionCommas, ',');
 
-            NumParts++;
+        STRUCT(FileFlagsEntry)
+        {
+            u32 HexValue;
+            String Name;
+        };
+
+        const FileFlagsEntry FileFlags[6] = 
+        {
+            { .HexValue = 0x1,  .Name = S("VS_FF_DEBUG") },
+            { .HexValue = 0x2,  .Name = S("VS_FF_PRERELEASE") },
+            { .HexValue = 0x4,  .Name = S("VS_FF_PATCHED") },
+            { .HexValue = 0x8,  .Name = S("VS_FF_PRIVATEBUILD") },
+            { .HexValue = 0x10, .Name = S("VS_FF_INFOINFERRED") },
+            { .HexValue = 0x20, .Name = S("VS_FF_SPECIALBUILD") }
+        };
+
+        const FileFlagsEntry FileOSFlags[5] = 
+        {
+            { .HexValue = 0x00, .Name = S("VOS__BASE") },
+            { .HexValue = 0x01, .Name = S("VOS__WINDOWS16") },
+            { .HexValue = 0x02, .Name = S("VOS__PM16") },
+            { .HexValue = 0x03, .Name = S("VOS__PM32") },
+            { .HexValue = 0x04, .Name = S("VOS__WINDOWS32") }
+        };
+
+        const FileFlagsEntry FileTypeFlags[7] = 
+        {
+            { .HexValue = 0x00, .Name = S("VFT_UNKNOWN") },
+            { .HexValue = 0x01, .Name = S("VFT_APP") },
+            { .HexValue = 0x02, .Name = S("VFT_DLL") },
+            { .HexValue = 0x03, .Name = S("VFT_DRV") },
+            { .HexValue = 0x04, .Name = S("VFT_FONT") },
+            { .HexValue = 0x05, .Name = S("VFT_VXD") },
+            { .HexValue = 0x07, .Name = S("VFT_STATIC_LIB") }
+        };
+
+        FileFlagsEntry FileType = FileTypeFlags[0];
+
+        // todo: use params->type, so this can export on non-windows platforms
+        if (String_IsEqual(Params->Extension, S(".exe"), false) || 
+            String_IsEqual(Params->Extension, S(".com"), false))
+        {
+            FileType = FileTypeFlags[1];
+        }
+        else if (String_IsEqual(Params->Extension, S(".dll"), false))
+        {
+            FileType = FileTypeFlags[2];
+        }
+        else if (String_IsEqual(Params->Extension, S(".lib"), false))
+        {
+            FileType = FileTypeFlags[6];
         }
         else
         {
-            if (!IsDigit(Params->Version.Data[i]))
-                continue;
-
-            String_AppendChar(&VersionDigit, Params->Version.Data[i]);
-        }
-    }
-
-    if (VersionDigit.Length > 0)
-    {
-        u64 VersionNumber = 0;
-        if (String_ToU64(VersionDigit, &VersionNumber))
-        {
-            if (VersionNumber > UINT16_MAX)
-            {
-                String_Append(&VersionCommas, S("65535"));
-            }
-            else
-            {
-                String_Append(&VersionCommas, VersionDigit);
-            }
+            // no action required
         }
 
-        String_Empty(&VersionDigit);
+        // is major version at 0? if so, it's a pre-release build
+        u32 FirstDot = 0;
+        (void)String_IndexOfChar(Params->Version, '.', &FirstDot);
+        u64 MajorVersionNumber = 0;
+        (void)String_ToU64(FirstDot == 0 ? Params->Version : StrSlice(Params->Version.Data, FirstDot), &MajorVersionNumber);
+
+        const FileFlagsEntry FileFlag = MajorVersionNumber == 0 ? FileFlags[1] : FileFlags[4];
+        const FileFlagsEntry FileOS   = FileOSFlags[4];
+
+        StringLocal(FileData, 2048);
+        String_Format(&FileData, S("1 VERSIONINFO\n"
+                                    "FILEVERSION      %S  // this can only have 4 parts\n"
+                                    "PRODUCTVERSION   %S  // same here\n\n"
+
+                                    // TODO: check for this specific define
+                                    /*
+                                    "#ifdef _DEBUG\n"
+                                    "FILEFLAGS        %X  // %S\n"
+                                    "#else\n"
+                                    "FILEFLAGS        %X  // %S\n"
+                                    "#endif\n"
+                                    */
+                                    "FILEFLAGS        %X  // %S\n"
+                                    "FILEOS           %X  // %S\n"
+                                    "FILETYPE         %X  // %S\n"
+                                    "FILESUBTYPE      0  // VFT2_UNKNOWN\n\n"
+
+                                    "BEGIN\n"
+                                    "    BLOCK \"StringFileInfo\"\n"
+                                    "    BEGIN\n"
+                                    "        BLOCK \"040904E4\"\n"
+                                    "        BEGIN\n"
+                                    "            VALUE \"CompanyName\",      \"%S\"\n"
+                                    "            VALUE \"FileDescription\",  \"%S\"\n"
+                                    "            VALUE \"FileVersion\",      \"%S\"\n"
+                                    "            VALUE \"LegalCopyright\",   \"%S\"\n"
+                                    "            VALUE \"OriginalFilename\", \"%S\"\n"
+                                    "            VALUE \"InternalName\",     \"%S\"\n"
+                                    "            VALUE \"ProductName\",      \"%S\"\n"
+                                    "            VALUE \"ProductVersion\",   \"%S\"\n"
+                                    "        END\n"
+                                    "    END\n\n"
+
+                                    "    BLOCK \"VarFileInfo\"\n"
+                                    "    BEGIN\n"
+                                    "        VALUE \"Translation\", 0x409, 1252\n"
+                                    "    END\n"
+                                    "END\n"
+                                    ),
+                                    VersionCommas, VersionCommas,
+                                    FileFlag.HexValue, FileFlag.Name,
+                                    FileOS.HexValue, FileOS.Name,
+                                    FileType.HexValue, FileType.Name,
+                                    Params->CompanyName, 
+                                    Params->Description, Params->Version, Params->Copyright,
+                                    AssemblyWithExt, Params->InternalName, Params->TitleName, Params->Version);
+
+        Filesystem_Write(VersionRCFile, FileData.Length, FileData.Data, NULL);
+        Filesystem_Close(&VersionRCFile);
+        bSuccess = true;
     }
 
-    // remove trailing commas
-    (void)String_EatCharInlineFromEnd(&VersionCommas, ',');
-
-    // we must have at 4 parts otherwise llvm-rc will complain
-    u32 NumCommas = String_CountChar(VersionCommas, ',');
-    if (NumCommas < 3)
-    {
-        for (u8 i = 0; i < 3-NumCommas; i++)
-        {
-            String_Append(&VersionCommas, S(",0"));
-        }
-    }
-
-    // remove trailing commas
-    (void)String_EatCharInlineFromEnd(&VersionCommas, ',');
-
-    STRUCT(FileFlagsEntry)
-    {
-        u32 HexValue;
-        String Name;
-    };
-
-    const FileFlagsEntry FileFlags[] = 
-    {
-        { .HexValue = 0x1,  .Name = S("VS_FF_DEBUG") },
-        { .HexValue = 0x2,  .Name = S("VS_FF_PRERELEASE") },
-        { .HexValue = 0x4,  .Name = S("VS_FF_PATCHED") },
-        { .HexValue = 0x8,  .Name = S("VS_FF_PRIVATEBUILD") },
-        { .HexValue = 0x10, .Name = S("VS_FF_INFOINFERRED") },
-        { .HexValue = 0x20, .Name = S("VS_FF_SPECIALBUILD") }
-    };
-
-    const FileFlagsEntry FileOSFlags[] = 
-    {
-        { .HexValue = 0x00, .Name = S("VOS__BASE") },
-        { .HexValue = 0x01, .Name = S("VOS__WINDOWS16") },
-        { .HexValue = 0x02, .Name = S("VOS__PM16") },
-        { .HexValue = 0x03, .Name = S("VOS__PM32") },
-        { .HexValue = 0x04, .Name = S("VOS__WINDOWS32") }
-    };
-
-    const FileFlagsEntry FileTypeFlags[] = 
-    {
-        { .HexValue = 0x00, .Name = S("VFT_UNKNOWN") },
-        { .HexValue = 0x01, .Name = S("VFT_APP") },
-        { .HexValue = 0x02, .Name = S("VFT_DLL") },
-        { .HexValue = 0x03, .Name = S("VFT_DRV") },
-        { .HexValue = 0x04, .Name = S("VFT_FONT") },
-        { .HexValue = 0x05, .Name = S("VFT_VXD") },
-        { .HexValue = 0x07, .Name = S("VFT_STATIC_LIB") }
-    };
-
-    FileFlagsEntry FileType = FileTypeFlags[0];
-
-    // todo: use params->type, so this can export on non-windows platforms
-    if (String_IsEqual(Params->Extension, S(".exe"), false) || 
-        String_IsEqual(Params->Extension, S(".com"), false))
-    {
-        FileType = FileTypeFlags[1];
-    }
-    else if (String_IsEqual(Params->Extension, S(".dll"), false))
-    {
-        FileType = FileTypeFlags[2];
-    }
-    else if (String_IsEqual(Params->Extension, S(".lib"), false))
-    {
-        FileType = FileTypeFlags[6];
-    }
-
-    // is major version at 0? if so, it's a pre-release build
-    u32 FirstDot = 0;
-    (void)String_IndexOfChar(Params->Version, '.', &FirstDot);
-    u64 MajorVersionNumber = 0;
-    (void)String_ToU64(FirstDot == 0 ? Params->Version : StrSlice(Params->Version.Data, FirstDot), &MajorVersionNumber);
-
-    const FileFlagsEntry FileFlag = MajorVersionNumber == 0 ? FileFlags[1] : FileFlags[4];
-    const FileFlagsEntry FileOS   = FileOSFlags[4];
-
-    StringLocal(FileData, 2048);
-    String_Format(&FileData, S("1 VERSIONINFO\n"
-                                "FILEVERSION      %S  // this can only have 4 parts\n"
-                                "PRODUCTVERSION   %S  // same here\n\n"
-
-                                // TODO: check for this specific define
-                                /*
-                                "#ifdef _DEBUG\n"
-                                "FILEFLAGS        %X  // %S\n"
-                                "#else\n"
-                                "FILEFLAGS        %X  // %S\n"
-                                "#endif\n"
-                                */
-                                "FILEFLAGS        %X  // %S\n"
-                                "FILEOS           %X  // %S\n"
-                                "FILETYPE         %X  // %S\n"
-                                "FILESUBTYPE      0  // VFT2_UNKNOWN\n\n"
-
-                                "BEGIN\n"
-                                "    BLOCK \"StringFileInfo\"\n"
-                                "    BEGIN\n"
-                                "        BLOCK \"040904E4\"\n"
-                                "        BEGIN\n"
-                                "            VALUE \"CompanyName\",      \"%S\"\n"
-                                "            VALUE \"FileDescription\",  \"%S\"\n"
-                                "            VALUE \"FileVersion\",      \"%S\"\n"
-                                "            VALUE \"LegalCopyright\",   \"%S\"\n"
-                                "            VALUE \"OriginalFilename\", \"%S\"\n"
-                                "            VALUE \"InternalName\",     \"%S\"\n"
-                                "            VALUE \"ProductName\",      \"%S\"\n"
-                                "            VALUE \"ProductVersion\",   \"%S\"\n"
-                                "        END\n"
-                                "    END\n\n"
-
-                                "    BLOCK \"VarFileInfo\"\n"
-                                "    BEGIN\n"
-                                "        VALUE \"Translation\", 0x409, 1252\n"
-                                "    END\n"
-                                "END\n"
-                                ),
-                                VersionCommas, VersionCommas,
-                                FileFlag.HexValue, FileFlag.Name,
-                                FileOS.HexValue, FileOS.Name,
-                                FileType.HexValue, FileType.Name,
-                                Params->CompanyName, 
-                                Params->Description, Params->Version, Params->Copyright,
-                                AssemblyWithExt, Params->InternalName, Params->TitleName, Params->Version);
-
-    Filesystem_Write(VersionRCFile, FileData.Length, FileData.Data, NULL);
-    Filesystem_Close(&VersionRCFile);
-
-    return true;
+    return bSuccess;
 }
 
 // -----------------------------------------------------------
@@ -648,7 +670,7 @@ bool GenerateSolutionFile(const String ProjectName, const String ProjectPath)
 
 bool Export_License_BSD2(const BuildParams* Params, const String Path)
 {
-    FileHandle f = {0};
+    FileHandle f = FileHandle_Null();
     bool bSuccess = false;
     if (Filesystem_Open(Path, FileMode_Write, &f))
     {
@@ -688,7 +710,7 @@ bool Export_License_BSD2(const BuildParams* Params, const String Path)
 
 bool Export_License_BSD3(const BuildParams* Params, const String Path)
 {
-    FileHandle f = {0};
+    FileHandle f = FileHandle_Null();
     bool bSuccess = false;
     if (Filesystem_Open(Path, FileMode_Write, &f))
     {
@@ -732,7 +754,8 @@ bool Export_License_BSD3(const BuildParams* Params, const String Path)
 
 bool Export_License_MIT(const BuildParams* Params, const String Path)
 {
-    FileHandle f = {0};
+    FileHandle f = FileHandle_Null();
+
     bool bSuccess = false;
     if (Filesystem_Open(Path, FileMode_Write, &f))
     {
@@ -770,7 +793,7 @@ bool Export_License_MIT(const BuildParams* Params, const String Path)
 
 bool Export_License_DoWhatTheFuckYouWantTo(const BuildParams* Params, const String Path)
 {
-    FileHandle f = {0};
+    FileHandle f = FileHandle_Null();
     bool bSuccess = false;
     if (Filesystem_Open(Path, FileMode_Write, &f))
     {
@@ -800,7 +823,7 @@ bool Export_License_DoWhatTheFuckYouWantTo(const BuildParams* Params, const Stri
 
 bool Export_License_TheUnlicense(const String Path)
 {
-    FileHandle f = {0};
+    FileHandle f = FileHandle_Null();
     bool bSuccess = false;
     if (Filesystem_Open(Path, FileMode_Write, &f))
     {

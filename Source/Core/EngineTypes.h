@@ -154,9 +154,9 @@ STRUCT(StringList)
 };
 
 #define each_str(Element, Array)            (const String* (Element) = StringArray_Iterate_Begin(&(Array)); (Element) != NULL; (Element) = StringArray_Iterate_Next(&(Array)))
-#define each_str_i(Index, Element, Array)   (const String* (Element) = StringArray_Iterate_Begin(&(Array)); (Element) != NULL; (Element) = StringArray_Iterate_Next(&(Array)), Index++)
+#define each_str_i(Index, Element, Array)   (const String* (Element) = StringArray_Iterate_Begin(&(Array)); (Element) != NULL; (Element) = StringArray_Iterate_Next(&(Array)), Index+=1)
 #define each_str_list(List)                 (StringList It = List; StringList_Iterate_Check(It); (It) = StringList_Iterate_Next(It))
-#define each_str_list_i(Index, List)        (StringList It = List; StringList_Iterate_Check(It); (It) = StringList_Iterate_Next(It), Index++)
+#define each_str_list_i(Index, List)        (StringList It = List; StringList_Iterate_Check(It); (It) = StringList_Iterate_Next(It), Index+=1)
 #define each_str_list_it(Element, List)     (StringList (Element) = List; StringList_Iterate_Check(Element); (Element) = StringList_Iterate_Next(Element))
 
 #define StringN(n)  		                struct { uchar Data[n]; u32 Length; u32 Capacity; }
@@ -190,11 +190,11 @@ STRUCT(StringList)
 //#define each(Element, Array)          (typeof((Array)[0])* CONCAT(Element, _) = &(Array)[0], Element = *CONCAT(Element, _); CONCAT(Element, _) <= &(Array)[Array_Num((Array))-1]; CONCAT(Element, _)++, Element = *CONCAT(Element, _))
 //#define each_i(Index, Element, Array) (typeof((Array)[0])* CONCAT(Element, _) = &(Array)[0], Element = *CONCAT(Element, _); CONCAT(Element, _) <= &(Array)[Array_Num((Array))-1]; CONCAT(Element, _)++, Element = *CONCAT(Element, _), ++(Index))
 
-#define each(Type, Element, Array)          (Type* CONCAT(Element, _) = (Type*)&(Array)[0], Element = *CONCAT(Element, _); CONCAT(Element, _) <= &(Array)[Array_Num((Array))-1]; CONCAT(Element, _)++, Element = *CONCAT(Element, _))
-#define each_i(Index, Type, Element, Array) (Type* CONCAT(Element, _) = (Type*)&(Array)[0], Element = *CONCAT(Element, _); CONCAT(Element, _) <= &(Array)[Array_Num((Array))-1]; CONCAT(Element, _)++, Element = *CONCAT(Element, _), ++(Index))
+#define each(Type, Element, Array)          (Type* CONCAT(Element, _) = (Type*)&(Array)[0], Element = *CONCAT(Element, _); CONCAT(Element, _) <= &(Array)[Array_Num((Array))-1]; CONCAT(Element, _)+=1, Element = *CONCAT(Element, _))
+#define each_i(Index, Type, Element, Array) (Type* CONCAT(Element, _) = (Type*)&(Array)[0], Element = *CONCAT(Element, _); CONCAT(Element, _) <= &(Array)[Array_Num((Array))-1]; CONCAT(Element, _)+=1, Element = *CONCAT(Element, _), (Index)+=1)
 
-#define each_static(Type, Element, Array)        (Type* CONCAT(Element, _) = (Type*)&(Array)[0], Element = *CONCAT(Element, _); CONCAT(Element, _) <= &(Array)[SArray_Capacity((Array))-1]; CONCAT(Element, _)++, Element = *CONCAT(Element, _))
-#define each_static_i(Index, Type, Element, Array) (Type* CONCAT(Element, _) = (Type*)&(Array)[0], Element = *CONCAT(Element, _); CONCAT(Element, _) <= &(Array)[SArray_Capacity((Array))-1]; CONCAT(Element, _)++, Element = *CONCAT(Element, _), ++(Index))
+#define each_static(Type, Element, Array)        (Type* CONCAT(Element, _) = (Type*)&(Array)[0], Element = *CONCAT(Element, _); CONCAT(Element, _) <= &(Array)[SArray_Capacity((Array))-1]; CONCAT(Element, _)+=1, Element = *CONCAT(Element, _))
+#define each_static_i(Index, Type, Element, Array) (Type* CONCAT(Element, _) = (Type*)&(Array)[0], Element = *CONCAT(Element, _); CONCAT(Element, _) <= &(Array)[SArray_Capacity((Array))-1]; CONCAT(Element, _)+=1, Element = *CONCAT(Element, _), (Index)+=1)
 
 #define For(Array) for each (It, Array)
 #define ForEach(It, Array) for each (It, Array)
@@ -462,7 +462,7 @@ STRUCT(StringList)
 
     #define FORCEINLINE    __forceinline 
     #define FORCENOINLINE  __declspec(noinline)
-    #define read_only      __declspec(allocate(".roglob"))
+    #define read_only      __declspec(allocate(".rdata"))
 
     #define DEBUG_BREAK __debugbreak
 #endif

@@ -2,8 +2,8 @@
 #define BACKEND_H
 
 #ifndef UNITY_BUILD
-#include "EngineTypes.h"
-#include "Filesystem.h"
+#include "Core/EngineTypes.h"
+#include "Core/Filesystem.h"
 #endif
 
 STRUCT(FileVariable)
@@ -222,8 +222,6 @@ bool IsCppHeader(const String Extension);
 
 // Util functions --------------------
 
-bool ExtensionHas(LinearAllocator Scratch, const String ExtensionString, const String Ext);
-
 bool DoesCmdVarExist(TArray(CmdOption) CmdOptionsDB, const String Name);
 bool DoesBuildVarExist(TArray(FileVariable) VariablesDB, const String Name);
 
@@ -277,9 +275,9 @@ bool Export_CompileCommands(const BuildParams* Params,
 
 bool Export_InfoPlist(LinearAllocator Arena, const BuildParams* Params, const String Path, TArray(FileVariable) ExpandedVariablesDB, bool bRawMode);
 bool Export_VersionPlist(LinearAllocator Arena, const BuildParams* Params, const String Path, TArray(FileVariable) ExpandedVariablesDB, bool bRawMode);
-bool Export_PkgInfo(const BuildParams* Params, const String Path);
+bool Export_PkgInfo(const String AssemblyName, const String Path);
 bool Export_VersionRC(const BuildParams* Params, const String Path);
-bool Export_IconRC(const BuildParams* Params, const String Path, const String IconFilePath);
+bool Export_IconRC(const String Path, const String IconFilePath);
 
 bool Export_License_BSD2(const BuildParams* Params, const String Path);
 bool Export_License_BSD3(const BuildParams* Params, const String Path);

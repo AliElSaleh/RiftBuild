@@ -1,15 +1,15 @@
 // Copyright (c) 2024 Ali El Saleh
 
+#ifndef UNITY_BUILD
 #include "Backend.h"
 
-#ifndef UNITY_BUILD
-#include "Globals.h"
-#include "Allocators.h"
-#include "Array.h"
-#include "StringUtils.h"
-#include "Filesystem.h"
-#include "Platform.h"
-#include "Log.h"
+#include "Core/Globals.h"
+#include "Core/Allocators.h"
+#include "Core/Array.h"
+#include "Core/StringUtils.h"
+#include "Core/Filesystem.h"
+#include "Core/Platform.h"
+#include "Core/Log.h"
 #endif
 
 // TODO: wrap all compiler path strings in quotes

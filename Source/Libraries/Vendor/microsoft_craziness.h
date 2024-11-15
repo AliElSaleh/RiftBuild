@@ -47,11 +47,11 @@
 // Here is the API you need to know about:
 //
 
-#include "EngineTypes.h"
+#include "Core/EngineTypes.h"
 
 C_LINKAGE_BEGIN
-#include "Filesystem.h"
-#include "StringUtils.h"
+#include "Core/Filesystem.h"
+#include "Core/StringUtils.h"
 
 typedef struct Find_Result Find_Result;
 struct Find_Result {

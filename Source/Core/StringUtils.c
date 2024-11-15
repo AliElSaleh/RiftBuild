@@ -9,7 +9,7 @@
 #endif
 
 #define STB_SPRINTF_IMPLEMENTATION
-#include "stb_sprintf.h"
+#include "Libraries/Vendor/stb_sprintf.h"
 
 bool String_IsValid(const String Str)
 {
@@ -1968,7 +1968,6 @@ bool String_ToF32(const String Str, f32* OutFloat)
         }
 
         Index++;
-        c = Str.Data[Index];
     }
 
     if (OutFloat)
@@ -2065,7 +2064,6 @@ bool String_ToF64(const String Str, f64* OutFloat)
         }
 
         Index++;
-        c = Str.Data[Index];
     }
 
     if (OutFloat)
@@ -2145,7 +2143,6 @@ static bool Internal_String_ToUnsignedInt(const String Str, u64* OutInt, u8 IntT
         }
 
         Index++;
-        c = Str.Data[Index];
     }
 
     if (OutInt)
@@ -2230,7 +2227,6 @@ static bool Internal_String_ToSignedInt(const String Str, i64* OutInt, u8 IntTyp
         }
 
         Index++;
-        c = Str.Data[Index];
     }
 
     if (OutInt)

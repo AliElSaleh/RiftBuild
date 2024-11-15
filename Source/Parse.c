@@ -2,12 +2,13 @@
 
 #ifndef UNITY_BUILD
 #include "Backend.h"
-#include "Allocators.h"
-#include "Platform.h"
-#include "StringUtils.h"
-#include "Array.h"
-#include "Globals.h"
-#include "Log.h"
+
+#include "Core/Allocators.h"
+#include "Core/Platform.h"
+#include "Core/StringUtils.h"
+#include "Core/Array.h"
+#include "Core/Globals.h"
+#include "Core/Log.h"
 #endif
 
 // todo: when appending values, use linked list?
@@ -219,7 +220,9 @@ bool ParseBuildFile(LinearAllocator* Arena,
                         bSeenElse = true;
                         bInsideElse = true;
                         if (bIfFailed)
+                        {
                             continue;
+                        }
                     }
 
                     (void)String_IndexOfLastWhitespace(Else, &Space);
@@ -257,7 +260,9 @@ bool ParseBuildFile(LinearAllocator* Arena,
             else
             {
                 if (bSeenElse)
+                {
                     continue;
+                }
 
                 if (Trimmed.Data[0] != '}' && bInsideElse)
                 {
@@ -350,7 +355,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
                     LOG("Exiting with code %i", ExitCode);
                 }
 
-                if (ReturnCode) *ReturnCode = ExitCode;
+                if (ReturnCode) { *ReturnCode = ExitCode; }
 
                 return ExitCode == 0;
             }
@@ -364,7 +369,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
                 LOG("Exiting...");
             }
 
-            if (ReturnCode) *ReturnCode = ExitCode;
+            if (ReturnCode) { *ReturnCode = ExitCode; }
 
             return ExitCode == 0;
         }
@@ -505,9 +510,13 @@ bool ParseBuildFile(LinearAllocator* Arena,
 
             String Condition;
             if (Index > 0)
+            {
                 Condition = StrSlice(VarValue.Data, Index);
+            }
             else
+            {
                 Condition = VarValue;
+            }
 
             (void)String_EatCharInline(&Condition, '"');
             (void)String_EatCharInlineFromEnd(&Condition, '"');
@@ -639,8 +648,6 @@ bool ParseBuildFile(LinearAllocator* Arena,
                 }
             }
 
-            Comparison = Cmp_None;
-
             if      (String_IsEqual(ComparisonOperator, S("=="), false))          { Comparison = Cmp_Equal; }
             else if (String_IsEqual(ComparisonOperator, S("!="), false))          { Comparison = Cmp_NotEqual; }
             else if (String_IsEqual(ComparisonOperator, S(">="), false))          { Comparison = Cmp_GreaterThanOrEqual; }
@@ -650,6 +657,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
             else if (String_IsEqual(ComparisonOperator, S("starts_with"), false)) { Comparison = Cmp_StartsWith; }
             else if (String_IsEqual(ComparisonOperator, S("ends_with"), false))   { Comparison = Cmp_EndsWith; }
             else if (String_IsEqual(ComparisonOperator, S("contains"), false))    { Comparison = Cmp_Contains; }
+            else                                                                  { Comparison = Cmp_None; }
 
             String TestValue = String_EatSpaces(StrShiftF(VarValue, Index+1+SecondWhitespaceIndex));
 
@@ -680,8 +688,8 @@ bool ParseBuildFile(LinearAllocator* Arena,
             i64 LeftInt = 0, RightInt = 0;
             switch (Comparison)
             {
-                default:
-                case Cmp_None: break;
+                case Cmp_None:
+                break;
 
                 case Cmp_Equal:
                 {
@@ -889,6 +897,9 @@ bool ParseBuildFile(LinearAllocator* Arena,
                     }
                 }
                 break;
+
+                default:
+                break;
             }
 
             if (bIsNot)
@@ -996,7 +1007,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
             }
         }
 
-        const String Keywords[] =
+        const String Keywords[8] =
         {
             S("include"),
             S("switch"),
@@ -1187,7 +1198,9 @@ bool ParseBuildFile(LinearAllocator* Arena,
                                 LOG("%S", It.String);
 
                                 for (u8 Level = 0; Level < i; Level++)
+                                {
                                     LOG_INLINE("   ");
+                                }
                                 
                                 LOG_INLINE("     |- ");
 
@@ -1297,9 +1310,9 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
             StrVal = StrShiftF(StrVal, 1);
             
             bWantsToLower = String_EatCharInline_Single(&StrVal, '-');
-            if (bWantsToLower) Offset++;
+            if (bWantsToLower) { Offset++; }
             bWantsToUpper = String_EatCharInline_Single(&StrVal, '^');
-            if (bWantsToUpper) Offset++;
+            if (bWantsToUpper) { Offset++; }
 
             if (String_EatCharInline(&StrVal, '('))
             {
@@ -1494,10 +1507,11 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
             if (String_IsValid(VarValue))
             {
                 // if the first letter is capitalized, then also make the first letter of the value capitalized. revert back when done
-                //bool bWasValueLower = IsAlphabetLower(VarValue.Data[0]);
                 bool bIsVarUpper = IsAlphabetUpper(Slice.Data[0]);
                 if (bIsVarUpper)
+                {
                     VarValue.Data[0] = ToUpper(VarValue.Data[0]);
+                }
 
                 String DestEnd = StrShiftF(*Dest, Dest->Length);
                 u32 DestLengthBefore = Dest->Length;
@@ -1508,18 +1522,17 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
                 }
 
                 DestEnd.Length = Dest->Length - DestLengthBefore;
-                if (bWantsToLower) String_ToLower(&DestEnd);
-                if (bWantsToUpper) String_ToUpper(&DestEnd);
-
-                //if (bIsVarUpper && bWasValueLower)
-                    //VarValue.Data[0] = ToLower(VarValue.Data[0]);
+                if (bWantsToLower) { String_ToLower(&DestEnd); }
+                if (bWantsToUpper) { String_ToUpper(&DestEnd); }
             }
             else
             {
                 if (!bEqualsToSomething)
                 {
                     if (bHasNot)
+                    {
                         bFoundCmd = !bFoundCmd;
+                    }
 
                     // the output of a found empty % cmd depends on the context...
                     // if we're inside certain keywords (like "Depends") then expand to nothing if we didnt find a value
@@ -1531,8 +1544,11 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
 
                     if (bExpandToNothing)
                     {
-                        if (bFoundCmd) // but if it was mentioned, just paste the name in
+                        // but if it was mentioned, just paste the name in
+                        if (bFoundCmd)
+                        {
                             String_Append(Dest, Slice);
+                        }
                     }
                     else
                     {
@@ -1544,8 +1560,8 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
                                 String_Append(Dest, Slice);
                                 DestEnd.Length = Slice.Length;
 
-                                if (bWantsToLower) String_ToLower(&DestEnd);
-                                if (bWantsToUpper) String_ToUpper(&DestEnd);
+                                if (bWantsToLower) { String_ToLower(&DestEnd); }
+                                if (bWantsToUpper) { String_ToUpper(&DestEnd); }
                             }
                         }
                         else
@@ -1553,8 +1569,6 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
                             bool bIsNative = Slice.Data[0] == '_';
                             if (!bIsNative)
                             {
-                                //LOG("%S", Slice);
-
                                 String_AppendChar(Dest, bFoundCmd ? '1' : '0');
                             }
                         }
@@ -1603,13 +1617,15 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
                         return false;
                     }
 
-                    if (bWantsToLower) String_ToLower(&TempDest);
-                    if (bWantsToUpper) String_ToUpper(&TempDest);
+                    if (bWantsToLower) { String_ToLower(&TempDest); }
+                    if (bWantsToUpper) { String_ToUpper(&TempDest); }
                     
                     String_Append(Dest, TempDest);
 
                     if (Var.Value.Length > 0)
+                    {
                         NumEntries++;
+                    }
                 }
             }
         }
@@ -1640,8 +1656,8 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
             }
 
             DestEnd.Length = Dest->Length - DestLengthBefore;
-            if (bWantsToLower) String_ToLower(&DestEnd);
-            if (bWantsToUpper) String_ToUpper(&DestEnd);
+            if (bWantsToLower) { String_ToLower(&DestEnd); }
+            if (bWantsToUpper) { String_ToUpper(&DestEnd); }
         }
         else if (C == '!' && Slice.Length > 0) // run custom shell commands and append the output of the command to Dest
         {
@@ -1655,11 +1671,9 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
             String_Append(&CmdLine, Slice);
             #endif
 
-            //LOG("CMD: %S", Slice);
-
             PlatformPipe StdOutHandle = {0};
             PlatformHandle ShellCmd = Platform_RunCommand_Ex(CmdLine, WorkingDirectory, &StdOutHandle);
-            if (!Platform_IsValidHandle(ShellCmd)) return false;
+            if (!Platform_IsValidHandle(ShellCmd)) { return false; }
             Platform_WaitForHandle(ShellCmd, -1);
 
             StringLocal(StdOutData, 8192);
@@ -1679,8 +1693,8 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
             String_Append(Dest, StdOutData);
             DestEnd.Length = Dest->Length - DestLengthBefore;
 
-            if (bWantsToLower) String_ToLower(&DestEnd);
-            if (bWantsToUpper) String_ToUpper(&DestEnd);
+            if (bWantsToLower) { String_ToLower(&DestEnd); }
+            if (bWantsToUpper) { String_ToUpper(&DestEnd); }
 
             Platform_CloseHandle(StdOutHandle[0]);
             Platform_CloseHandle(StdOutHandle[1]);
@@ -1722,7 +1736,7 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
 
                 if (C == '/' || C == '\\')
                 {
-                    const String KeysToCareAbout[] = 
+                    const String KeysToCareAbout[14] = 
                     {
                         S("SourceDirectory"),
                         S("BuildDirectory"),
@@ -1784,7 +1798,6 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
     }
 
 End:
-    //String_EatSpacesInline(Dest);
     (void)String_EatSpacesInlineFromEnd(Dest);
 
     return true;
