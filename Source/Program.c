@@ -2,9 +2,6 @@
 
 #include "Core/EntryPoint.h"
 
-usize GEngineMemoryAmount  = Kibibytes(128);
-usize GEngineScratchAmount = Kibibytes(8);
-
 #ifndef UNITY_BUILD
 #include "Backend.h"
 
@@ -19,6 +16,9 @@ usize GEngineScratchAmount = Kibibytes(8);
 #if PLATFORM_WINDOWS
 #include "Libraries/Vendor/microsoft_craziness.h"
 #endif
+
+usize GEngineMemoryAmount  = Kibibytes(128);
+usize GEngineScratchAmount = Kibibytes(8);
 
 TArray(InternalVariable) InternalVariablesDB = NULL;
 bool bQuietBuild = false;
@@ -377,6 +377,9 @@ bool LogCustomErrorMessage(TArray(FileVariable) VariablesDB, const String Contex
 
 static bool IconFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
+    UNUSED_PARAM(RelativePath);
+    UNUSED_PARAM(bIsDirectory);
+
     if (FileSize > 0)
     {
         struct Data
@@ -450,6 +453,8 @@ static bool IconFileDirectoryIterator(const String FullPath, const String Relati
 
 static bool SourceFileCounterDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
+    UNUSED_PARAM(bIsDirectory);
+
     if (FileSize > 0)
     {
         if (String_StartsWith(FileName, S("__"), false))
@@ -548,6 +553,9 @@ static bool SourceFileCounterDirectoryIterator(const String FullPath, const Stri
 
 static bool HeaderFileRebuildCheckDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
+    UNUSED_PARAM(RelativePath);
+    UNUSED_PARAM(bIsDirectory);
+
     if (FileSize > 0)
     {
         u32 DotIndex = 0;
@@ -594,6 +602,9 @@ static bool HeaderFileRebuildCheckDirectoryIterator(const String FullPath, const
 
 static bool BuildFileDirectoryIterator_Args(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
+    UNUSED_PARAM(RelativePath);
+    UNUSED_PARAM(bIsDirectory);
+
     if (FileSize > 0)
     {
         BuildFileDirectoryIteratorData* Data = UserData;
@@ -686,6 +697,11 @@ static bool LibraryDirectoryIterator(const String FullPath, const String Relativ
 
 static bool MultipleBuildFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
+    UNUSED_PARAM(FullPath);
+    UNUSED_PARAM(FileSize);
+    UNUSED_PARAM(bIsDirectory);
+    UNUSED_PARAM(UserData);
+
     if (IsBuildFile(FileName))
     {
         static u8 i = 0;
@@ -698,6 +714,9 @@ static bool MultipleBuildFileDirectoryIterator(const String FullPath, const Stri
 
 static bool BuildFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
+    UNUSED_PARAM(RelativePath);
+    UNUSED_PARAM(bIsDirectory);
+    
     if (FileSize > 0)
     {
         BuildFileDirectoryIteratorData* Data = UserData;
@@ -747,6 +766,10 @@ static bool BuildFileDirectoryIterator(const String FullPath, const String Relat
 
 static bool PathFlagDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
+    UNUSED_PARAM(FullPath);
+    UNUSED_PARAM(FileName);
+    UNUSED_PARAM(FileSize);
+
     if (NEVER(UserData == NULL)) { return false; }
 
     if (bIsDirectory)
@@ -838,7 +861,6 @@ bool LogStringList_WordWrapped(LinearAllocator Scratch, const String Name, const
     Cols = Clamp(Cols, 30, 1000);
 
     StringLocal(LogBuffer, 8192);
-
     String_Append(&LogBuffer, Name);
 
     for each_str_list (List)
@@ -933,7 +955,7 @@ static void LogNameValuePair(LinearAllocator Scratch, const String Name, const S
     {
         if (bWordWrap)
         {
-            LogString_WordWrapped(Scratch, Name, Value, true);
+            (void)LogString_WordWrapped(Scratch, Name, Value, true);
         }
         else
         {
@@ -948,7 +970,7 @@ static void LogBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Varia
 
     if (bWordWrap)
     {
-        LogStringList_WordWrapped(Scratch, DisplayName, List);
+        (void)LogStringList_WordWrapped(Scratch, DisplayName, List);
     }
     else
     {
@@ -969,21 +991,16 @@ static void LogBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Varia
     }
 }
 
-bool LogString_WordWrapped(LinearAllocator Scratch, const String Name, const String Value, const bool bAddNewLine)
+void LogString_WordWrapped(LinearAllocator Scratch, const String Name, const String Value, const bool bAddNewLine)
 {
-    bool bSuccess = false;
-
     if (Value.Length > 0)
     {
         const StringList l = {Value, NULL};
         if (LogStringList_WordWrapped(Scratch, Name, l))
         {
             if (bAddNewLine) { LOG_LINE_BREAK(); }
-            bSuccess = true;
         }
     }
-
-    return bSuccess;
 }
 
 static void ListVariables(LinearAllocator Arena, const String Name, TArray(FileVariable) ExpandedVariablesDB) 
@@ -1923,6 +1940,11 @@ void LogRegularEnvVarTutorialSteps(void)
 
 static bool BuildFilesIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
+    UNUSED_PARAM(FullPath);
+    UNUSED_PARAM(FileName);
+    UNUSED_PARAM(bIsDirectory);
+    UNUSED_PARAM(UserData);
+
     if (FileSize > 0)
     {
         if (IsBuildFile(RelativePath) || IsBuildBatchFile(RelativePath))
@@ -2972,8 +2994,6 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 continue;
             }
 
-            StringLocal(ExpandedVar, 8192);
-
             const String Exclusions[14] =
             {
                 S("AssertProgramExists"),
@@ -3003,6 +3023,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 }
             }
 
+            StringLocal(ExpandedVar, 8192);
+
             if (!bIsExcludedFromMultiVarDeclarations)
             {
                 bool bAlreadyExpanded = GetVariableValue(ExpandedVariablesDB, v.Name).Length > 0;
@@ -3021,7 +3043,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
                     }
 
                     if (ExpandedVar.Length > 0)
+                    {
                         String_AppendSpace(&ExpandedVar);
+                    }
                 }
             }
             else
@@ -3253,6 +3277,10 @@ static u32 BuildTarget(LinearAllocator* Arena,
                     CompilerVersionComparisonType = Cmp_Equal;
                     SymbolLength = 1;
                 }
+                else
+                {
+                    // no action required
+                }
 
                 RequireCompilerVersion = String_EatSpacesFromEnd(String_EatSpaces(StrShiftF(V, SymbolLength)));
             }
@@ -3286,7 +3314,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
         u32 Index = 0;
         (void)String_IndexOfFirstWhitespace(Extension, &Index);
         if (Index > 0)
+        {
             Extension.Length = Index;
+        }
     }
 
     bool bIsAssemblyExe = Type.Length == 0 && Extension.Length == 0;
@@ -3437,7 +3467,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
     if (Extension.Length > 0)
     {
         if (Extension.Data[0] != '.')
+        {
             String_AppendChar(&AssemblyNameWithExt, '.');
+        }
 
         String_Append(&AssemblyNameWithExt, Extension);
     }
@@ -4513,6 +4545,10 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
                 return 1;
             }
+            else
+            {
+                // no action required
+            }
 
             // TODO: postdepend.
 
@@ -4911,7 +4947,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
     if (NumSources == 0)
     {
-        if (bQuietBuild) Logging_Enable();
+        if (bQuietBuild) { Logging_Enable(); }
 
         #ifndef HOOD
         LOG("Nothing to compile");
@@ -6292,7 +6328,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
                     FromLine = Max(1, FromLine);
                     ToLine   = Max(1, ToLine);
-                    if (!bHasTo) ToLine = UINT32_MAX; // end of file
+                    if (!bHasTo) { ToLine = UINT32_MAX; } // end of file
 
                     if (FromLine > ToLine)
                     {
@@ -6762,25 +6798,27 @@ static u32 BuildTarget(LinearAllocator* Arena,
         // todo: delete old .app directory if we happen to change the assembly name between builds
 
         if (Filesystem_DoesDirectoryExist(AppBundlePath))
+        {
             Filesystem_DeleteDirectory(AppBundlePath);
+        }
 
         bSuccess = Filesystem_OpenDirectory(AppBundlePath);
-        if (!bSuccess) goto BundleDirectoryError;
+        if (!bSuccess) { goto BundleDirectoryError; }
 
         StringLocal(TempPath, MAX_PATH_LENGTH);
         String_BuildPath(&TempPath, AppBundlePath, S("Contents"));
         bSuccess = Filesystem_OpenDirectory(TempPath);
-        if (!bSuccess) goto BundleDirectoryError;
+        if (!bSuccess) { goto BundleDirectoryError; }
         String_Empty(&TempPath);
 
         String_BuildPath(&TempPath, AppBundlePath, S("Contents/MacOS"));
         bSuccess = Filesystem_OpenDirectory(TempPath);
-        if (!bSuccess) goto BundleDirectoryError;
+        if (!bSuccess) { goto BundleDirectoryError; }
         String_Empty(&TempPath);
 
         String_BuildPath(&TempPath, AppBundlePath, S("Contents/Resources"));
         bSuccess = Filesystem_OpenDirectory(TempPath);
-        if (!bSuccess) goto BundleDirectoryError;
+        if (!bSuccess) { goto BundleDirectoryError; }
         String_Empty(&TempPath);
 
         String_BuildPath(&TempPath, AppBundlePath, S("Contents/Frameworks"));
@@ -6804,7 +6842,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
             String_BuildPath(&IconsetPath, WorkingPath, IntermediateDirectory, IconsetName);
 
             if (Filesystem_DoesDirectoryExist(IconsetPath))
+            {
                 Filesystem_DeleteDirectory(IconsetPath);
+            }
 
             bSuccess = Filesystem_OpenDirectory(IconsetPath);
             if (!bSuccess)
@@ -6819,7 +6859,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
             {
                 StringLocal(CmdLine, 2048);
                 String_Format(&CmdLine, S("sips -z %u %u \"%S\" --out \"%S/icon_%ux%u.png\" > /dev/null"), Size, Size, IconFilePath, IconsetPath, Size, Size);
-                if (bVerboseLog) LOG("    %S", CmdLine);
+                if (bVerboseLog) { LOG("    %S", CmdLine); }
 
                 Size *= 2;
 
@@ -6842,7 +6882,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
             StringLocal(CmdLine, 2048);
             String_Format(&CmdLine, S("iconutil -c icns -o \"%S\" \"%S\""), IcnsPath, IconsetPath);
-            if (bVerboseLog) LOG("    %S", CmdLine);
+            if (bVerboseLog) { LOG("    %S", CmdLine); }
             PlatformHandle H = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
             ExitCode = Platform_WaitForProcessAndGetExitCode(H);
             if (ExitCode != 0)
@@ -6853,7 +6893,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
             String_BuildPath(&TempPath, AppBundlePath, S("Contents/Resources"), IcnsName);
             bSuccess = Filesystem_Copy(IcnsPath, TempPath);
-            if (!bSuccess) goto CopyError;
+            if (!bSuccess) { goto CopyError; }
             String_Empty(&TempPath);
         }
 
@@ -6884,7 +6924,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
             String_BuildPath(&ResourcePath, WorkingPath, IntermediateDirectory, S("Info.plist"));
 
             // generate Info.plist
-            if (bVerboseLog) LOG("    Generating %S", ResourcePath);
+            if (bVerboseLog) { LOG("    Generating %S", ResourcePath); }
 
             if (!ExportInfoPlist(*Arena, &p, ResourcePath, ExpandedVariablesDB, DoesBuildVarExist(ExpandedVariablesDB, S("Info.plist"))))
             {
@@ -6894,7 +6934,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
         String_BuildPath(&TempPath, AppBundlePath, S("Contents/Info.plist"));
         bSuccess = Filesystem_Copy(ResourcePath, TempPath);
-        if (!bSuccess) goto CopyError;
+        if (!bSuccess) { goto CopyError; }
         String_Empty(&TempPath);
         String_Empty(&ResourcePath);
 
@@ -6916,7 +6956,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
             // generate version.plist
 
-            if (bVerboseLog) LOG("    Generating %S", ResourcePath);
+            if (bVerboseLog) { LOG("    Generating %S", ResourcePath); }
 
             if (!ExportVersionPlist(*Arena, &p, ResourcePath, ExpandedVariablesDB, DoesBuildVarExist(ExpandedVariablesDB, S("Version.plist"))))
             {
@@ -6926,7 +6966,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
         String_BuildPath(&TempPath, AppBundlePath, S("Contents/Version.plist"));
         bSuccess = Filesystem_Copy(ResourcePath, TempPath);
-        if (!bSuccess) goto CopyError;
+        if (!bSuccess) { goto CopyError; }
         String_Empty(&TempPath);
         String_Empty(&ResourcePath);
 
@@ -6948,7 +6988,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
             // generate PkgInfo
 
-            if (bVerboseLog) LOG("    Generating %S", ResourcePath);
+            if (bVerboseLog) { LOG("    Generating %S", ResourcePath); }
 
             if (!ExportPkgInfo(&p, ResourcePath))
             {
@@ -6958,7 +6998,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
         String_BuildPath(&TempPath, AppBundlePath, S("Contents/PkgInfo"));
         bSuccess = Filesystem_Copy(ResourcePath, TempPath);
-        if (!bSuccess) goto CopyError;
+        if (!bSuccess) { goto CopyError; }
         String_Empty(&TempPath);
         String_Empty(&ResourcePath);
 
@@ -6982,7 +7022,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
             // Step 1 ----------------
             String_BuildPath(&TempPath, AppBundlePath, S("Contents/MacOS"), AssemblyName);
 
-            if (bVerboseLog) LOG("    Generating terminal script %S", TempPath);
+            if (bVerboseLog) { LOG("    Generating terminal script %S", TempPath); }
 
             FileHandle f = {0};
             if (!Filesystem_Open(TempPath, FileMode_Write, &f))
@@ -7002,23 +7042,23 @@ static u32 BuildTarget(LinearAllocator* Arena,
             // Step 2 ----------------
             StringLocal(CmdLine, 2048);
             String_Format(&CmdLine, S("chmod +x \"%S\""), TempPath);
-            if (bVerboseLog) LOG("    %S", CmdLine);
+            if (bVerboseLog) { LOG("    %S", CmdLine); }
             Platform_RunCommand(CmdLine, WorkingPath, String_Null());
             String_Empty(&TempPath);
 
             // Step 3 ----------------
             String_BuildPath(&TempPath, AppBundlePath, S("Contents/MacOS"), NewAssemblyName);
-            if (bVerboseLog) LOG("    Copying binary executable %S", TempPath);
+            if (bVerboseLog) { LOG("    Copying binary executable %S", TempPath); }
             bSuccess = Filesystem_Copy(AssemblyPath, TempPath);
-            if (!bSuccess) goto CopyError;
+            if (!bSuccess) { goto CopyError; }
             String_Empty(&TempPath);
         }
         else
         {
             String_BuildPath(&TempPath, AppBundlePath, S("Contents/MacOS"), AssemblyNameWithExt);
-            if (bVerboseLog) LOG("    Copying binary executable %S", TempPath);
+            if (bVerboseLog) { LOG("    Copying binary executable %S", TempPath); }
             bSuccess = Filesystem_Copy(AssemblyPath, TempPath);
-            if (!bSuccess) goto CopyError;
+            if (!bSuccess) { goto CopyError; }
             String_Empty(&TempPath);
         }
 
@@ -7058,7 +7098,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
             String_BuildSeparator(&CmdLine, ' ', S("derez -only icns"), IconFilePath, S(">"), RsrcFilePath);
 
-            if (bVerboseLog) LOG("    %S", CmdLine);
+            if (bVerboseLog) { LOG("    %S", CmdLine); }
 
             PlatformHandle h = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
             u32 ExitCode = Platform_WaitForProcessAndGetExitCode(h);
@@ -7073,7 +7113,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
             // Step 2 ------------------
             String_BuildSeparator(&CmdLine, ' ', S("rez -append"), RsrcFilePath, S("-o"), AssemblyPath);
 
-            if (bVerboseLog) LOG("    %S", CmdLine);
+            if (bVerboseLog) { LOG("    %S", CmdLine); }
 
             h = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
             ExitCode = Platform_WaitForProcessAndGetExitCode(h);
@@ -7088,7 +7128,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
             // Step 3 ------------------
             String_BuildSeparator(&CmdLine, ' ', S("SetFile -a C"), AssemblyPath);
 
-            if (bVerboseLog) LOG("    %S", CmdLine);
+            if (bVerboseLog) { LOG("    %S", CmdLine); }
 
             h = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
             ExitCode = Platform_WaitForProcessAndGetExitCode(h);
@@ -7129,7 +7169,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 StringLocal(LocalAppsDirectory, MAX_PATH_LENGTH);
                 String_BuildPath(&LocalAppsDirectory, UserDirectory, S(".local/share/applications"));
                 if (!Filesystem_OpenDirectory(LocalAppsDirectory))
+                {
                     return 1;
+                }
 
                 String_BuildPath(&DotDesktopFilePath, UserDirectory, S(".local/share/applications/"), DesktopFileName);
             }
@@ -7165,7 +7207,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                         ExecCmd,
                         IconFilePath);
 
-                if (bVerboseLog) LOG("    Writing %S ...", DotDesktopFilePath);
+                if (bVerboseLog) { LOG("    Writing %S ...", DotDesktopFilePath); }
 
                 Filesystem_Write(f, FileData.Length, FileData.Data, NULL);
                 Filesystem_Close(&f);
@@ -7193,7 +7235,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
                     StringLocal(MimeDirectory, MAX_PATH_LENGTH);
                     String_BuildPath(&MimeDirectory, UserDirectory, S(".local/share/mime/packages"));
                     if (!Filesystem_OpenDirectory(MimeDirectory))
+                    {
                         return 1;
+                    }
 
                     String_BuildPath(&XmlFilePath, UserDirectory, S(".local/share/mime/packages"), XmlFileName);
                 }
@@ -7242,7 +7286,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                         #endif
                     );
 
-                    if (bVerboseLog) LOG("    Writing %S ...", XmlFilePath);
+                    if (bVerboseLog) { LOG("    Writing %S ...", XmlFilePath); }
 
                     Filesystem_Write(f, FileData.Length, FileData.Data, NULL);
                     Filesystem_Close(&f);
@@ -7259,7 +7303,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                     {
                         String_Append(&CmdLine, S("xdg-mime install --mode user "));
                         String_Append(&CmdLine, XmlFilePath);
-                        if (bVerboseLog) LOG("    %S", CmdLine);
+                        if (bVerboseLog) { LOG("    %S", CmdLine); }
 
                         H = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
                         ExitCode = Platform_WaitForProcessAndGetExitCode(H);
@@ -7283,7 +7327,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                         String_Append(&CmdLine, IconFilePath);
                         String_AppendSpace(&CmdLine);
                         String_Append(&CmdLine, AssemblyName);
-                        if (bVerboseLog) LOG("    %S", CmdLine);
+                        if (bVerboseLog) { LOG("    %S", CmdLine); }
 
                         H = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
                         ExitCode = Platform_WaitForProcessAndGetExitCode(H);
@@ -7305,7 +7349,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                     if (Platform_FindProgram(S("update-desktop-database")))
                     {
                         String_Copy(&CmdLine, S("update-desktop-database ~/.local/share/applications"));
-                        if (bVerboseLog) LOG("    %S", CmdLine);
+                        if (bVerboseLog) { LOG("    %S", CmdLine); }
 
                         H = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
                         ExitCode = Platform_WaitForProcessAndGetExitCode(H);
@@ -7324,7 +7368,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                     if (Platform_FindProgram(S("update-mime-database")))
                     {
                         String_Copy(&CmdLine, S("update-mime-database ~/.local/share/mime"));
-                        if (bVerboseLog) LOG("    %S", CmdLine);
+                        if (bVerboseLog) { LOG("    %S", CmdLine); }
 
                         H = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
                         ExitCode = Platform_WaitForProcessAndGetExitCode(H);
@@ -7403,7 +7447,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
             StringLocal(MimeDirectory, MAX_PATH_LENGTH);
             String_BuildPath(&MimeDirectory, UserDirectory, S(".local/share/mime/packages"));
             if (!Filesystem_OpenDirectory(MimeDirectory))
+            {
                 return 1;
+            }
 
             String_BuildPath(&XmlFilePath, UserDirectory, S(".local/share/mime/packages"), XmlFileName);
 
@@ -7412,7 +7458,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
             StringLocal(LocalAppsDirectory, MAX_PATH_LENGTH);
             String_BuildPath(&LocalAppsDirectory, UserDirectory, S(".local/share/applications"));
             if (!Filesystem_OpenDirectory(LocalAppsDirectory))
+            {
                 return 1;
+            }
 
             String_BuildPath(&DotDesktopFilePath, UserDirectory, S(".local/share/applications/"), DesktopFileName);
         }
@@ -7431,13 +7479,13 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
             if (bHaveXml)
             {
-                if (bVerboseLog) LOG("    Deleting %S ...", XmlFilePath);
+                if (bVerboseLog) { LOG("    Deleting %S ...", XmlFilePath); }
                 Filesystem_DeleteFile(XmlFilePath);
             }
 
             if (bHaveDotDesktop)
             {
-                if (bVerboseLog) LOG("    Deleting %S ...", DotDesktopFilePath);
+                if (bVerboseLog) { LOG("    Deleting %S ...", DotDesktopFilePath); }
                 Filesystem_DeleteFile(DotDesktopFilePath);
             }
 
@@ -7448,7 +7496,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 if (Platform_FindProgram(S("update-desktop-database")))
                 {
                     String_Copy(&CmdLine, S("update-desktop-database ~/.local/share/applications"));
-                    if (bVerboseLog) LOG("    %S", CmdLine);
+                    if (bVerboseLog) { LOG("    %S", CmdLine); }
 
                     PlatformHandle H = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
                     (void)Platform_WaitForProcessAndGetExitCode(H);
@@ -7463,7 +7511,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 if (Platform_FindProgram(S("update-mime-database")))
                 {
                     String_Copy(&CmdLine, S("update-mime-database ~/.local/share/mime"));
-                    if (bVerboseLog) LOG("    %S", CmdLine);
+                    if (bVerboseLog) { LOG("    %S", CmdLine); }
 
                     PlatformHandle H = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
                     (void)Platform_WaitForProcessAndGetExitCode(H);
@@ -7701,7 +7749,7 @@ End:
         }
     }
 
-    if (bQuietBuild) Logging_Disable();
+    if (bQuietBuild) { Logging_Disable(); }
 
     if (String_IsValid(CameFromBuildFile) && NumCompiled > 0)
     {
@@ -8551,82 +8599,81 @@ static void InitInternalVars(LinearAllocator* Arena)
     AddInternalVariable(S("i686"), S("1"));
     #endif
 
-    #define AddInstruction(Instruction) AddInternalVariable(S("_" #Instruction), CPUInfo.Instruction ? One : Zero)
+    //#define AddInstruction(Instruction) AddInternalVariable(S("_" #Instruction), CPUInfo.Instruction ? One : Zero)
 
     // x86
     if (CPUInfo.x86 || CPUInfo.x64)
     {
-        AddInternalVariable(S("_MMX"),             CPUInfo.MMX             ? One : Zero);
-        AddInternalVariable(S("_SSE"),             CPUInfo.SSE             ? One : Zero);
-        AddInternalVariable(S("_SSE2"),            CPUInfo.SSE2            ? One : Zero);
-        AddInternalVariable(S("_SSE3"),            CPUInfo.SSE3            ? One : Zero);
-        AddInternalVariable(S("_SSSE3"),           CPUInfo.SSSE3           ? One : Zero);
-        AddInternalVariable(S("_SSE4"),            CPUInfo.SSE4            ? One : Zero);
-        AddInternalVariable(S("_SSE4.1"),          CPUInfo.SSE41           ? One : Zero);
-        AddInternalVariable(S("_SSE4.2"),          CPUInfo.SSE42           ? One : Zero);
-        AddInternalVariable(S("_AES"),             CPUInfo.AES             ? One : Zero);
-        AddInternalVariable(S("_FMA3"),            CPUInfo.FMA3            ? One : Zero);
-        AddInternalVariable(S("_AVX"),             CPUInfo.AVX             ? One : Zero);
-        AddInternalVariable(S("_AVX2"),            CPUInfo.AVX2            ? One : Zero);
-        AddInternalVariable(S("_F16C"),            CPUInfo.F16C            ? One : Zero);
-        AddInternalVariable(S("_BMI1"),            CPUInfo.BMI1            ? One : Zero);
-        AddInternalVariable(S("_BMI2"),            CPUInfo.BMI2            ? One : Zero);
-        AddInternalVariable(S("_LZCNT"),           CPUInfo.LZCNT           ? One : Zero);
-        AddInternalVariable(S("_TZCNT"),           CPUInfo.TZCNT           ? One : Zero);
-        AddInternalVariable(S("_ADX"),             CPUInfo.ADX             ? One : Zero);
-        AddInternalVariable(S("_MPX"),             CPUInfo.MPX             ? One : Zero);
-        AddInternalVariable(S("_SHA"),             CPUInfo.SHA             ? One : Zero);
-        AddInternalVariable(S("_RDRAND"),          CPUInfo.RDRAND          ? One : Zero);
-        AddInternalVariable(S("_PCLMULQDQ"),       CPUInfo.PCLMULQDQ       ? One : Zero);
-        AddInternalVariable(S("_DTES64"),          CPUInfo.DTES64          ? One : Zero);
-        AddInternalVariable(S("_MONITOR"),         CPUInfo.MONITOR         ? One : Zero);
-        AddInternalVariable(S("_DSCPL"),           CPUInfo.DSCPL           ? One : Zero);
-        AddInternalVariable(S("_VMX"),             CPUInfo.VMX             ? One : Zero);
-        AddInternalVariable(S("_SMX"),             CPUInfo.SMX             ? One : Zero);
-        AddInternalVariable(S("_EIST"),            CPUInfo.EIST            ? One : Zero);
-        AddInternalVariable(S("_TM2"),             CPUInfo.TM2             ? One : Zero);
-        AddInternalVariable(S("_CNXTID"),          CPUInfo.CNXTID          ? One : Zero);
-        AddInternalVariable(S("_SDBG"),            CPUInfo.SDBG            ? One : Zero);
-        AddInternalVariable(S("_CX16"),            CPUInfo.CX16            ? One : Zero);
-        AddInternalVariable(S("_XTPR"),            CPUInfo.XTPR            ? One : Zero);
-        AddInternalVariable(S("_PDCM"),            CPUInfo.PDCM            ? One : Zero);
-        AddInternalVariable(S("_PCID"),            CPUInfo.PCID            ? One : Zero);
-        AddInternalVariable(S("_DCA"),             CPUInfo.DCA             ? One : Zero);
-        AddInternalVariable(S("_X2APIC"),          CPUInfo.X2APIC          ? One : Zero);
-        AddInternalVariable(S("_MOVBE"),           CPUInfo.MOVBE           ? One : Zero);
-        AddInternalVariable(S("_POPCNT"),          CPUInfo.POPCNT          ? One : Zero);
-        AddInternalVariable(S("_TSCDEADLINE"),     CPUInfo.TSCDEADLINE     ? One : Zero);
-        AddInternalVariable(S("_XSAVE"),           CPUInfo.XSAVE           ? One : Zero);
-        AddInternalVariable(S("_OSXSAVE"),         CPUInfo.OSXSAVE         ? One : Zero);
-        AddInternalVariable(S("_HYPERVISOR"),      CPUInfo.HYPERVISOR      ? One : Zero);
+        AddInternalVariable(S("_MMX"),             CPUInfo.MMX                ? One : Zero);
+        AddInternalVariable(S("_SSE"),             CPUInfo.SSE                ? One : Zero);
+        AddInternalVariable(S("_SSE2"),            CPUInfo.SSE2               ? One : Zero);
+        AddInternalVariable(S("_SSE3"),            CPUInfo.SSE3               ? One : Zero);
+        AddInternalVariable(S("_SSSE3"),           CPUInfo.SSSE3              ? One : Zero);
+        AddInternalVariable(S("_SSE4"),            CPUInfo.SSE4               ? One : Zero);
+        AddInternalVariable(S("_SSE4.1"),          CPUInfo.SSE41              ? One : Zero);
+        AddInternalVariable(S("_SSE4.2"),          CPUInfo.SSE42              ? One : Zero);
+        AddInternalVariable(S("_AES"),             CPUInfo.AES                ? One : Zero);
+        AddInternalVariable(S("_FMA3"),            CPUInfo.FMA3               ? One : Zero);
+        AddInternalVariable(S("_AVX"),             CPUInfo.AVX                ? One : Zero);
+        AddInternalVariable(S("_AVX2"),            CPUInfo.AVX2               ? One : Zero);
+        AddInternalVariable(S("_F16C"),            CPUInfo.F16C               ? One : Zero);
+        AddInternalVariable(S("_BMI1"),            CPUInfo.BMI1               ? One : Zero);
+        AddInternalVariable(S("_BMI2"),            CPUInfo.BMI2               ? One : Zero);
+        AddInternalVariable(S("_LZCNT"),           CPUInfo.LZCNT              ? One : Zero);
+        AddInternalVariable(S("_TZCNT"),           CPUInfo.TZCNT              ? One : Zero);
+        AddInternalVariable(S("_ADX"),             CPUInfo.ADX                ? One : Zero);
+        AddInternalVariable(S("_MPX"),             CPUInfo.MPX                ? One : Zero);
+        AddInternalVariable(S("_SHA"),             CPUInfo.SHA                ? One : Zero);
+        AddInternalVariable(S("_RDRAND"),          CPUInfo.RDRAND             ? One : Zero);
+        AddInternalVariable(S("_PCLMULQDQ"),       CPUInfo.PCLMULQDQ          ? One : Zero);
+        AddInternalVariable(S("_DTES64"),          CPUInfo.DTES64             ? One : Zero);
+        AddInternalVariable(S("_MONITOR"),         CPUInfo.MONITOR            ? One : Zero);
+        AddInternalVariable(S("_DSCPL"),           CPUInfo.DSCPL              ? One : Zero);
+        AddInternalVariable(S("_VMX"),             CPUInfo.VMX                ? One : Zero);
+        AddInternalVariable(S("_SMX"),             CPUInfo.SMX                ? One : Zero);
+        AddInternalVariable(S("_EIST"),            CPUInfo.EIST               ? One : Zero);
+        AddInternalVariable(S("_TM2"),             CPUInfo.TM2                ? One : Zero);
+        AddInternalVariable(S("_CNXTID"),          CPUInfo.CNXTID             ? One : Zero);
+        AddInternalVariable(S("_SDBG"),            CPUInfo.SDBG               ? One : Zero);
+        AddInternalVariable(S("_CX16"),            CPUInfo.CX16               ? One : Zero);
+        AddInternalVariable(S("_XTPR"),            CPUInfo.XTPR               ? One : Zero);
+        AddInternalVariable(S("_PDCM"),            CPUInfo.PDCM               ? One : Zero);
+        AddInternalVariable(S("_PCID"),            CPUInfo.PCID               ? One : Zero);
+        AddInternalVariable(S("_DCA"),             CPUInfo.DCA                ? One : Zero);
+        AddInternalVariable(S("_X2APIC"),          CPUInfo.X2APIC             ? One : Zero);
+        AddInternalVariable(S("_MOVBE"),           CPUInfo.MOVBE              ? One : Zero);
+        AddInternalVariable(S("_POPCNT"),          CPUInfo.POPCNT             ? One : Zero);
+        AddInternalVariable(S("_TSCDEADLINE"),     CPUInfo.TSCDEADLINE        ? One : Zero);
+        AddInternalVariable(S("_XSAVE"),           CPUInfo.XSAVE              ? One : Zero);
+        AddInternalVariable(S("_OSXSAVE"),         CPUInfo.OSXSAVE            ? One : Zero);
+        AddInternalVariable(S("_HYPERVISOR"),      CPUInfo.HYPERVISOR         ? One : Zero);
 
-
-        AddInstruction(FPU);
-        AddInstruction(VME);
-        AddInstruction(DE);
-        AddInstruction(PSE);
-        AddInstruction(TSC);
-        AddInstruction(MSR);
-        AddInstruction(PAE);
-        AddInstruction(MCE);
-        AddInstruction(CX8);
-        AddInstruction(APIC);
-        AddInstruction(SEP);
-        AddInstruction(MTRR);
-        AddInstruction(PGE);
-        AddInstruction(MCA);
-        AddInstruction(CMOV);
-        AddInstruction(PAT);
-        AddInstruction(PSE36);
-        AddInstruction(PSN);
-        AddInstruction(CLFLUSH);
-        AddInstruction(DS);
-        AddInstruction(ACPI);
-        AddInstruction(FXSR);
-        AddInstruction(SS);
-        AddInstruction(HTT);
-        AddInstruction(TM);
-        AddInstruction(PBE);
+        AddInternalVariable(S("_FPU"),             CPUInfo.FPU                ? One : Zero);
+        AddInternalVariable(S("_VME"),             CPUInfo.VME                ? One : Zero);
+        AddInternalVariable(S("_DE"),              CPUInfo.DE                 ? One : Zero);
+        AddInternalVariable(S("_PSE"),             CPUInfo.PSE                ? One : Zero);
+        AddInternalVariable(S("_TSC"),             CPUInfo.TSC                ? One : Zero);
+        AddInternalVariable(S("_MSR"),             CPUInfo.MSR                ? One : Zero);
+        AddInternalVariable(S("_PAE"),             CPUInfo.PAE                ? One : Zero);
+        AddInternalVariable(S("_MCE"),             CPUInfo.MCE                ? One : Zero);
+        AddInternalVariable(S("_CX8"),             CPUInfo.CX8                ? One : Zero);
+        AddInternalVariable(S("_APIC"),            CPUInfo.APIC               ? One : Zero);
+        AddInternalVariable(S("_SEP"),             CPUInfo.SEP                ? One : Zero);
+        AddInternalVariable(S("_MTRR"),            CPUInfo.MTRR               ? One : Zero);
+        AddInternalVariable(S("_PGE"),             CPUInfo.PGE                ? One : Zero);
+        AddInternalVariable(S("_MCA"),             CPUInfo.MCA                ? One : Zero);
+        AddInternalVariable(S("_CMOV"),            CPUInfo.CMOV               ? One : Zero);
+        AddInternalVariable(S("_PAT"),             CPUInfo.PAT                ? One : Zero);
+        AddInternalVariable(S("_PSE36"),           CPUInfo.PSE36              ? One : Zero);
+        AddInternalVariable(S("_PSN"),             CPUInfo.PSN                ? One : Zero);
+        AddInternalVariable(S("_CLFLUSH"),         CPUInfo.CLFLUSH            ? One : Zero);
+        AddInternalVariable(S("_DS"),              CPUInfo.DS                 ? One : Zero);
+        AddInternalVariable(S("_ACPI"),            CPUInfo.ACPI               ? One : Zero);
+        AddInternalVariable(S("_FXSR"),            CPUInfo.FXSR               ? One : Zero);
+        AddInternalVariable(S("_SS"),              CPUInfo.SS                 ? One : Zero);
+        AddInternalVariable(S("_HTT"),             CPUInfo.HTT                ? One : Zero);
+        AddInternalVariable(S("_TM"),              CPUInfo.TM                 ? One : Zero);
+        AddInternalVariable(S("_PBE"),             CPUInfo.PBE                ? One : Zero);
 
         AddInternalVariable(S("_RDSEED"),           CPUInfo.RDSEED            ? One : Zero);
         AddInternalVariable(S("_PREFETCHWT1"),      CPUInfo.PREFETCHWT1       ? One : Zero);

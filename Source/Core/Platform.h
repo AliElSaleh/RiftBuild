@@ -20,8 +20,8 @@ STRUCT(SystemTime)
 STRUCT(PlatformMutex)
 {
     void* Handle;
-    i32 ID;
     String Name;
+    i32 ID;
 };
 
 STRUCT(CpuInfo)

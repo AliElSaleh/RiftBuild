@@ -213,6 +213,8 @@ STRUCT(StringList)
 //#define internal static
 #define thread_local _Thread_local
 
+#define UNUSED_PARAM(Param) (void)Param
+
 #define FUNCTION_NAME __func__
 
 // Platform detection
@@ -430,7 +432,7 @@ STRUCT(StringList)
     #define FORCENOINLINE
     #define read_only      __attribute__((section(".rdata")))
 
-    #define DEBUG_BREAK __builtin_trap
+    #define DEBUG_BREAK()  __builtin_trap()
 
 #elif COMPILER_MSVC
     #define PRAGMA_DISABLE_WARNINGS   __pragma(warning(push))
@@ -464,8 +466,8 @@ STRUCT(StringList)
     #define FORCENOINLINE  __declspec(noinline)
     #define read_only      __declspec(allocate(".rdata"))
 
-    #define DEBUG_BREAK __debugbreak
-#endif
+    #define DEBUG_BREAK() (__nop(), __debugbreak())
+#endif 
 
 #if DEVELOPER
     #if COMPILER_CLANG

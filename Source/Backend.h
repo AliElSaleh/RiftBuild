@@ -237,7 +237,7 @@ bool FilterSourceFile(const String WorkingDirectory, const String SourceDirector
                       StringList WhitelistDirectories, StringList BlacklistDirectories);
 
 bool LogStringList_WordWrapped(LinearAllocator Scratch, const String Name, const StringList List);
-bool LogString_WordWrapped    (LinearAllocator Scratch, const String Name, const String Value, const bool bAddNewLine);
+void LogString_WordWrapped    (LinearAllocator Scratch, const String Name, const String Value, const bool bAddNewLine);
 
 bool LogCustomErrorMessage(TArray(FileVariable) VariablesDB, const String Context, const String Key, const bool bLineBreak);
 
