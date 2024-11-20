@@ -21,7 +21,7 @@ STRUCT(PlatformMutex)
 {
     void* Handle;
     String Name;
-    i32 ID;
+    i64 ID;
 };
 
 STRUCT(CpuInfo)

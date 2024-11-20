@@ -12,8 +12,11 @@
 STRUCT(ExportData)
 {
     FileHandle File;
+
     bool bIsLastBuild;
     bool bKeepOneLine;
+
+    u8 Padding[6];
 };
 
 static void WriteFlags(LinearAllocator Scratch, const FileHandle File, const String Flags, bool bConvertSlashes, bool bOneLine)
@@ -49,6 +52,8 @@ static void WriteFlags(LinearAllocator Scratch, const FileHandle File, const Str
 
 static bool Internal_GenCommandObject(CompileData* Data, const String FullPath, const String RelativePath)
 {
+    UNUSED_PARAM(FullPath);
+
     const ExportData* Export = Data->AdditionalData;
     const BuildParams* Params = Data->Params;
 
@@ -99,10 +104,7 @@ static bool Internal_GenCommandObject(CompileData* Data, const String FullPath, 
     return true;
 }
 
-bool Export_CompileCommands(const BuildParams* Params,
-                           const String CompileFlags, const String IncludeFlags,
-                           const String DefineFlags, const String UnDefineFlags,
-                           const bool bIsLastBuild, const bool bKeepOneLine)
+bool Export_CompileCommands(const BuildParams* Params, const bool bIsLastBuild, const bool bKeepOneLine)
 {
     bool bSuccess = false;
 
@@ -116,7 +118,11 @@ bool Export_CompileCommands(const BuildParams* Params,
         {
             if (!bHasWrittenJSON) { Filesystem_WriteLine(f, S("[\n"), NULL); }
 
-            ExportData Data = { f, bIsLastBuild, bKeepOneLine };
+            ExportData Data = {0};
+            Data.File = f;
+            Data.bIsLastBuild = bIsLastBuild;
+            Data.bKeepOneLine = bKeepOneLine;
+
             CompileData UserData = { &Internal_GenCommandObject, Params, NULL, 0, true, &Data};
             Filesystem_IterateDirectory_Ex(Params->SourceDirectory, &SourceFileDirectoryIterator, true, &UserData);
 
@@ -225,7 +231,7 @@ bool Export_InfoPlist(LinearAllocator Arena, const BuildParams* Params, const St
             {
                 String Key;
                 String Value;
-                bool bGiven;
+                b64    bGiven;
             };
 
             BundleTableEntry BundleTable[12] = 
@@ -315,7 +321,7 @@ bool Export_VersionPlist(LinearAllocator Arena, const BuildParams* Params, const
             {
                 String Key;
                 String Value;
-                bool bGiven;
+                b64    bGiven;
             };
 
             const String DisplayName = Params->TitleName.Length == 0 ? Params->Assembly : Params->TitleName;
@@ -507,6 +513,7 @@ bool Export_VersionRC(const BuildParams* Params, const String Path)
         STRUCT(FileFlagsEntry)
         {
             u32 HexValue;
+            u32 Padding1;
             String Name;
         };
 

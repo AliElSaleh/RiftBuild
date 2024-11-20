@@ -4,6 +4,8 @@
 // Because including windows header files doubles our compile times
 // if we manually add the parts we need we speed up our compile times by at least 2x
 
+PRAGMA_DISABLE_PADDING_WARNINGS
+
 #ifdef  _WIN64
 typedef unsigned long long size_t;
 #else
@@ -1149,6 +1151,8 @@ typedef struct tagMSG {
     DWORD       lPrivate;
 #endif
 } MSG, *PMSG, *NPMSG, *LPMSG;
+
+PRAGMA_ENABLE_WARNINGS
 
 #define MAKELANGID(p, s)    ((((WORD)(s)) << 10) | (WORD)(p))
 #define PRIMARYLANGID(lgid) ((WORD)(lgid) & 0x3ff)

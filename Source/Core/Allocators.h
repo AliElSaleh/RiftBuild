@@ -7,12 +7,13 @@
 
 STRUCT(LinearAllocator)
 {
+    void* Memory;
+
     usize TotalSize;
     usize Allocated;
-    bool bOwnsMemory;
-    bool bAlignMemory;
-    
-    void* Memory;
+
+    b32 bOwnsMemory;
+    b32 bAlignMemory;
 };
 
 /*

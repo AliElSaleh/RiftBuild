@@ -8,7 +8,9 @@ if asan       SharedDefines      RIFT_ASAN
 
 if cl goto msvc
 
-WarningFlags                     -Wall -Wextra -Wshadow -Wconversion -Wmissing-prototypes -Wunused -Wuninitialized -Werror
+# try this later
+# -Weverything
+WarningFlags                     -Wall -Wextra -Wshadow -Wconversion -Wmissing-prototypes -Wunused -Wuninitialized -Wswitch-enum -Werror
 WarningFlagsDisabled             -Wno-typedef-redefinition -Wno-unused-parameter -Wno-unused-variable -Wno-gnu-zero-variadic-macro-arguments -Wno-incompatible-library-redeclaration
 if !gcc WarningFlags             -Wpedantic
 if mac  WarningFlagsDisabled     -Wno-nonportable-include-path
@@ -36,9 +38,18 @@ if 32        SharedLinkerFlags   -m32
 .stop
 
 msvc:
-SharedCompilerFlags              /Wall /W4 /WX /wd4100 /wd4164 /TC /GS- /Gs999999999 /EHs- /analyze /analyze:stacksize 8000000
+
+# todo remove /wd5045
+# explantation of the disabled warnings:
+#   - /wd4100
+#   - /wd4164
+#   - /wd4668
+#   - /wd5045
+#   - /wd4711 | function 'function' selected for inline expansion
+
+SharedCompilerFlags              /Wall /W4 /WX /wd4100 /wd4164 /wd4668 /wd5045 /wd4711 /TC /GS- /Gs999999999 /EHs- #/analyze /analyze:stacksize 8000000
 SharedLinkerFlags                /SAFESEH:NO
-if debug SharedCompilerFlags     /MTd /Od /Zi /RTC1 /FS /Fd"$(BuildDirectory)\$(Assembly).pdb"
+if debug SharedCompilerFlags     /MTd /Od /Zi /FS /Fd"$(BuildDirectory)\$(Assembly).pdb"
 if debug SharedLinkerFlags       /DEBUG
 if !debug SharedCompilerFlags    /MT /O2
 if 32 SharedCompilerFlags        /d2noftol3

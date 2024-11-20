@@ -32,6 +32,7 @@ STRUCT(LoggingSystemState)
     bool bLogCategory;
     bool bLogType;
     bool bLogToFile;
+    bool bPadding1;
 
     PlatformCriticalSection CriticalSection;
 };

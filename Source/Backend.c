@@ -19,6 +19,8 @@ bool C_DoCompile(CompileData* Data, const String FullPath, const String Relative
 
 static bool AsmSourceFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
+    UNUSED_PARAM(bIsDirectory);
+
     if (FileSize > 0)
     {
         if (String_StartsWith(FileName, S("__"), false))
@@ -120,6 +122,8 @@ static bool AsmSourceFileDirectoryIterator(const String FullPath, const String R
 
 bool SourceFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
+    UNUSED_PARAM(bIsDirectory);
+
     if (FileSize > 0)
     {
         if (String_StartsWith(FileName, S("__"), false))
@@ -187,6 +191,8 @@ bool SourceFileDirectoryIterator(const String FullPath, const String RelativePat
 #if PLATFORM_WINDOWS
 static bool ResourceFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
+    UNUSED_PARAM(bIsDirectory);
+
     if (FileSize > 0)
     {
         if (String_StartsWith(FileName, S("__"), false))
@@ -303,6 +309,8 @@ bool RC_Compile(const BuildParams* Params, const String FullRCPath, String* OutR
 
 static bool Link_SourceFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
+    UNUSED_PARAM(bIsDirectory);
+
     if (FileSize > 0)
     {
         if (String_StartsWith(FileName, S("__"), false))
@@ -677,7 +685,7 @@ bool C_DoCompile(CompileData* Data, const String FullPath, const String Relative
     //Platform_CloseHandle(StdOutPipe[1]);
     Array_Add(Processes, Handle);
     //Array_Add(Pipes, StdOutPipe);
-    (*Data->NumCompiled)++;
+    (*Data->NumCompiled) += 1;
 
     if (Params->bShouldWaitPerCompileProcess)
     {
@@ -1003,6 +1011,8 @@ bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String Relat
 
 static bool AsmSourceFileDirectoryIterator_MSVC(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
+    UNUSED_PARAM(bIsDirectory);
+
     if (FileSize > 0)
     {
         if (String_StartsWith(FileName, S("__"), false))
@@ -1092,6 +1102,8 @@ static bool AsmSourceFileDirectoryIterator_MSVC(const String FullPath, const Str
 
 static bool Link_SourceFileDirectoryIterator_MSVC(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
+    UNUSED_PARAM(bIsDirectory);
+
     if (FileSize > 0)
     {
         if (String_StartsWith(FileName, S("__"), false))
@@ -1099,7 +1111,7 @@ static bool Link_SourceFileDirectoryIterator_MSVC(const String FullPath, const S
             return true;
         }
 
-        LinkData* Data = (LinkData*)UserData;
+        LinkData* Data = UserData;
 
         u32 DotIndex = 0;
         bool bHasExt = String_IndexOfLastChar(FileName, '.', &DotIndex);
@@ -1524,7 +1536,7 @@ bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String Relat
     PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
     if (!Platform_IsValidHandle(H)) { return false; }
     Array_Add(Processes, H);
-    (*Data->NumCompiled)++;
+    (*Data->NumCompiled) += 1;
 
     if (Params->bShouldWaitPerCompileProcess)
     {
@@ -1541,13 +1553,18 @@ bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String Relat
 
 static void Internal_ParseAndLogLinkerOutput_MSVC(String StdOutData)
 {
-    if (StdOutData.Length == 0) { return; }
+    //if (StdOutData.Length == 0) { return; }
 
     String LastObjFile = String_Null();
 
     u32 Offset = 0;
-    while (Offset < StdOutData.Length)
+    while (1)
     {
+        if (Offset >= StdOutData.Length)
+        {
+            break;
+        }
+    
         String PipeDataSlice = StrShiftF(StdOutData, Offset);
 
         u32 NewLineIndex = 0;
@@ -2018,6 +2035,8 @@ void* MSVC_Find_Allocate(usize Size)
 
 void MSVC_Find_Release(void* Memory)
 {
+    UNUSED_PARAM(Memory);
+
     // don't free anything
 }
 

@@ -53,6 +53,10 @@ static read_only String GX86ExtensionsTable_EDX_Lvl7[] =
 };
 */
 
+#if COMPILER_MSVC
+extern void __cpuidex(i32 cpuInfo[4], i32 function_id, i32 subfunction_id);
+#endif
+
 static void cpuid(i32 info[4], i32 infoType, i32 subtype)
 {
     #if COMPILER_MSVC

@@ -34,15 +34,25 @@ static bool bHelp = false;
 
 STRUCT(BuildFileDirectoryIteratorData)
 {
+    String* Name;
+    String* Path;
+    StringArray Arguments;
     bool bFoundBuildFile;
     bool bNoBuildFileSpecifiedInCmd;
     bool bSearchOnlyBuildBatch;
     i8 BuildFileIndex;
     i8 RootPathIndex;
     u8 NumBuildFilesFound;
-    String* Name;
-    String* Path;
-    StringArray Arguments;
+    u8 Padding1[2];
+};
+
+STRUCT(CopyrightEnforceInfo)
+{
+    String Content;
+    u32 FromLine;
+    u32 ToLine;
+    bool bSuccess;
+    u8 Padding[7];
 };
 
 static bool IsBuildFile(const String FilePath)
@@ -387,6 +397,7 @@ static bool IconFileDirectoryIterator(const String FullPath, const String Relati
             TArray(FileVariable) ExpandedVarsArray;
             String* IconFilePath;
             bool bSuccess;
+            u8 Padding[7];
         };
 
         struct Data* D = UserData;
@@ -793,7 +804,8 @@ static bool PathFlagDirectoryIterator(const String FullPath, const String Relati
 
 static bool EnforceCopyright(CompileData* Data, const String FullPath, const String RelativePath)
 {
-    struct { bool bSuccess; String Content; u32 FromLine; u32 ToLine; } * AuxData = Data->AdditionalData;
+    CopyrightEnforceInfo* AuxData = Data->AdditionalData;
+    //struct { bool bSuccess; u8 Padding[7]; String Content; u32 FromLine; u32 ToLine; } * AuxData = Data->AdditionalData;
 
     u32 LineNum = 0;
     bool bSuccess = false;
@@ -824,6 +836,8 @@ static bool EnforceCopyright(CompileData* Data, const String FullPath, const Str
 
         Filesystem_Close(&f);
     }
+
+    // TODO: if failed to open file, skip checking this file
 
     AuxData->bSuccess = bSuccess;
 
@@ -4937,7 +4951,24 @@ static u32 BuildTarget(LinearAllocator* Arena,
     */
 
     StringLocal(FirstSourceFileName, 256);
-    SourceCountData CountData = { 0, 0, 0, 0, &FirstSourceFileName, WorkingPath, SourceDirectory, IntermediateBaseDirectory, IntermediateDirectory, BuildDirectory, WhitelistArray, BlacklistArray, WhitelistDirArray, BlacklistDirArray, CustomExtensionsList, false, AssemblyType == AssemblyType_PCH};
+    SourceCountData CountData = {0}; // { 0, 0, 0, 0, &FirstSourceFileName, WorkingPath, SourceDirectory, IntermediateBaseDirectory, IntermediateDirectory, BuildDirectory, WhitelistArray, BlacklistArray, WhitelistDirArray, BlacklistDirArray, CustomExtensionsList, false, AssemblyType == AssemblyType_PCH};
+    CountData.NumSources                  = 0;
+    CountData.NumAsmSources               = 0;
+    CountData.NumHeaders                  = 0;
+    CountData.NumRcSources                = 0;
+    CountData.FirstSourceFileName         = &FirstSourceFileName;
+    CountData.WorkingDirectory            = WorkingPath;
+    CountData.SourceDirectory             = SourceDirectory;
+    CountData.IntermediateBaseDirectory   = IntermediateBaseDirectory;
+    CountData.IntermediateDirectory       = IntermediateDirectory;
+    CountData.BuildDirectory              = BuildDirectory;
+    CountData.WhitelistArray              = WhitelistArray;
+    CountData.BlacklistArray              = BlacklistArray;
+    CountData.WhitelistDirArray           = WhitelistDirArray;
+    CountData.BlacklistDirArray           = BlacklistDirArray;
+    CountData.CustomSourceExtensions      = CustomExtensionsList;
+    CountData.bHasCppFiles                = false;
+    CountData.bIsPCHBuild                 = AssemblyType == AssemblyType_PCH;
 
     Filesystem_IterateDirectory_Ex(SourceDir, &SourceFileCounterDirectoryIterator, true, &CountData);
 
@@ -6116,7 +6147,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                         Clock c;
                         Clock_Start(&c);
 
-                        if (!Export_CompileCommands(&p, ExpandedCompilerFlags, ExpandedIncludeFlags, ExpandedDefineFlags, ExpandedUnDefineFlags, bLast, bGenCompileCommandsJSONOneLine))
+                        if (!Export_CompileCommands(&p, bLast, bGenCompileCommandsJSONOneLine))
                         {
                             return 1;
                         }
@@ -6343,7 +6374,13 @@ static u32 BuildTarget(LinearAllocator* Arena,
                     ToLine = FromLine;
                 }
 
-                struct { bool bSuccess; String Content; u32 FromLine; u32 ToLine; } AuxData = { true, CopyrightVar.Value, FromLine, ToLine };
+                CopyrightEnforceInfo AuxData = {0};
+                AuxData.Content = CopyrightVar.Value;
+                AuxData.FromLine = FromLine;
+                AuxData.ToLine = ToLine;
+                AuxData.bSuccess = true;
+                
+                //struct { bool bSuccess; u8 Padding[7]; String Content; u32 FromLine; u32 ToLine; } AuxData = { true, CopyrightVar.Value, FromLine, ToLine };
                 CompileData UserData = { &EnforceCopyright, &p, NULL, 0, true, &AuxData };
                 Filesystem_IterateDirectory_Ex(SourceDir, &SourceFileDirectoryIterator, true, &UserData);
 
@@ -6434,9 +6471,13 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 TArray(FileVariable) ExpandedVarsArray;
                 String* IconFilePath;
                 bool bSuccess;
+                u8 Padding[7];
             };
 
-            struct Data d = {ExpandedVariablesDB, &IconFilePath, false};
+            struct Data d = {0};
+            d.ExpandedVarsArray = ExpandedVariablesDB;
+            d.IconFilePath = &IconFilePath;
+            d.bSuccess = false;
 
             String SearchPath = WorkingPath;
             if (LastSlashIndex && !Filesystem_IsPathRelative(Icon))

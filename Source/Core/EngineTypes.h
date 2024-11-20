@@ -17,13 +17,20 @@ typedef signed long long   i64;
 typedef float              f32;
 typedef double             f64;
 
+// Char types
 typedef unsigned char      uchar;
 typedef unsigned short     wchar;
 
-// forward declare
-typedef struct LinearAllocator LinearAllocator;
+// Bool types
+typedef u8                 b8;
+typedef u16                b16;
+typedef u32                b32;
+typedef u64                b64;
 
 typedef void VoidFunc(void);
+
+// forward declare
+typedef struct LinearAllocator LinearAllocator;
 
 #ifdef __cplusplus
 #define LANG_CPP 1
@@ -402,6 +409,9 @@ STRUCT(StringList)
                 PRAGMA_DISABLE_WARNINGS \
                 PRAGMA_DISABLE_WARNING("clang diagnostic ignored \"-Wmissing-prototypes\"")
 
+    #define PRAGMA_DISABLE_PADDING_WARNINGS \
+                PRAGMA_DISABLE_WARNINGS
+
     #elif COMPILER_GCC
         #define PRAGMA_DISABLE_WARNINGS _Pragma("GCC diagnostic push")
         #define PRAGMA_ENABLE_WARNINGS  _Pragma("GCC diagnostic pop")
@@ -413,6 +423,9 @@ STRUCT(StringList)
         #define PRAGMA_DISABLE_MISSING_PROTOTYPES_WARNING \
                 PRAGMA_DISABLE_WARNINGS \
                 PRAGMA_DISABLE_WARNING("GCC diagnostic ignored \"-Wmissing-prototypes\"")
+
+        #define PRAGMA_DISABLE_PADDING_WARNINGS \
+                    PRAGMA_DISABLE_WARNINGS
     #endif
 
     #define DEPRECATED       __attribute__((__deprecated__))
@@ -449,6 +462,10 @@ STRUCT(StringList)
 
     #define PRAGMA_DISABLE_MISSING_PROTOTYPES_WARNING PRAGMA_DISABLE_WARNINGS
 
+    #define PRAGMA_DISABLE_PADDING_WARNINGS \
+        PRAGMA_DISABLE_WARNINGS \
+        PRAGMA_DISABLE_WARNING(4820)
+
     #define DEPRECATED       __declspec(deprecated)
     #define UNUSED           
     #define CONST_ATTRIB     
@@ -465,6 +482,8 @@ STRUCT(StringList)
     #define FORCEINLINE    __forceinline 
     #define FORCENOINLINE  __declspec(noinline)
     #define read_only      __declspec(allocate(".rdata"))
+
+    extern void __nop(void);
 
     #define DEBUG_BREAK() (__nop(), __debugbreak())
 #endif 

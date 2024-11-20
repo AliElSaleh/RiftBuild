@@ -56,6 +56,7 @@ C_LINKAGE_BEGIN
 typedef struct Find_Result Find_Result;
 struct Find_Result {
     int windows_sdk_version;   // Zero if no Windows SDK found.
+    int padding;
 
     wchar* windows_sdk_root;
     wchar* windows_sdk_um_library_path;

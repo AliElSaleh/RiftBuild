@@ -753,11 +753,14 @@ bool Filesystem_Open(const String FilePath, EFileMode Mode, FileHandle* OutHandl
     }
     while (bFoundPathSeparator);
 
-    HANDLE File = CreateFile((char*)FilePath.Data, OpenStyle, ShareStyle, NULL, Disposition, FILE_ATTRIBUTE_NORMAL, NULL);
+    StringLocal(PathCopy, MAX_PATH);
+    String_Copy(&PathCopy, FilePath);
+    
+    HANDLE File = CreateFile((char*)PathCopy.Data, OpenStyle, ShareStyle, NULL, Disposition, FILE_ATTRIBUTE_NORMAL, NULL);
     if (File == INVALID_HANDLE_VALUE)
     {
         StringLocal(Prefix, 512);
-        String_Format(&Prefix, S("Failed to open file \"%S\""), FilePath);
+        String_Format(&Prefix, S("Failed to open file \"%S\""), PathCopy);
         LogLastError(Prefix);
 
         return false;
@@ -943,12 +946,15 @@ bool Filesystem_OpenDirectory_Ex(const String FilePath, FileHandle* OutHandle)
 
     if (NEVER(OutHandle == NULL)) return false;
 
-    HANDLE File = CreateFile((char*)FilePath.Data, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_FLAG_BACKUP_SEMANTICS, NULL);
+    StringLocal(PathCopy, MAX_PATH);
+    String_Copy(&PathCopy, FilePath);
+    
+    HANDLE File = CreateFile((char*)PathCopy.Data, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_FLAG_BACKUP_SEMANTICS, NULL);
 
     if (File == INVALID_HANDLE_VALUE)
     {
         StringLocal(Prefix, 512);
-        String_Format(&Prefix, S("Failed to open directory \"%S\""), FilePath);
+        String_Format(&Prefix, S("Failed to open directory \"%S\""), PathCopy);
         LogLastError(Prefix);
 
         return false;

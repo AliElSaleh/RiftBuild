@@ -9,7 +9,7 @@ STRUCT(FileHandle)
 {
     void* Data;
     void* Data2;
-    bool bBypassSizeCheck; // TODO: move this out of here and make an "option" struct for file handles
+    b64   bBypassSizeCheck; // TODO: move this out of here and make an "option" struct for file handles
 #if PLATFORM_OPEN_BSD
     // OpenBSD does not a have a way to get the path of a file descriptor
     // as it is not a part of their design philosophy. This is a workaround.

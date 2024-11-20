@@ -22,6 +22,17 @@ bool String_IsValid(const String Str)
     return bValid;
 }
 
+bool String_IsDataValid(const String Str)
+{
+    bool bValid = true;
+    if (!Str.Data || Str.Data[0] == 0 || Str.Data == String_Null().Data)
+    {
+        bValid = false;
+    }
+
+    return bValid;
+}
+
 bool StringArray_IsValid(const StringArray Str)
 {
     bool bValid = true;
@@ -483,14 +494,6 @@ void String_CopyN(String* Dest, const String Source, u32 Length)
     Dest->Data[NumToCopy] = 0;
 }
 
-void StringInternal_Concat(String* Dest, const StringArray Array)
-{
-    for (u8 i = 0; i < Array.Num; i++)
-    {
-        String_Append(Dest, Array.List[i]);
-    }
-}
-
 void String_Append(String* Dest, const String Source)
 {
     u32 NumToCopy = Min(Dest->Capacity, Source.Length);
@@ -659,7 +662,7 @@ void String_Format(String* Dest, const String Format, ...)
 {
     va_list Args = {0};
     va_start(Args, Format);
-    const i32 NewCap = (i32)Clamp(Dest->Capacity, 0, INT32_MAX); 
+    const i32 NewCap = (i32)Min(Dest->Capacity, INT32_MAX); 
     const i32 Written = stbsp_vsnprintf((char*)Dest->Data, NewCap, (char*)Format.Data, Args);
     Dest->Length = (u32)Clamp(Written, 0, INT32_MAX);
     va_end(Args);
@@ -667,9 +670,24 @@ void String_Format(String* Dest, const String Format, ...)
 
 void String_FormatV(String* Dest, const String Format, u32 Capacity, void* VAList)
 {
-    const i32 NewCap = (i32)Clamp(Capacity, 0, INT32_MAX); 
+    const i32 NewCap = (i32)Min(Capacity, INT32_MAX); 
     const i32 Written = stbsp_vsnprintf((char*)Dest->Data, NewCap, (char*)Format.Data, VAList);
     Dest->Length = (u32)Clamp(Written, 0, INT32_MAX);
+}
+
+void StringInternal_Concat(String* Dest, const StringArray Array)
+{
+    for (u8 i = 0; i < Array.Num; i++)
+    {
+        const String Source = Array.List[i];
+
+        if (!String_IsDataValid(Source))
+        {
+            break;
+        }
+
+        String_Append(Dest, Source);
+    }
 }
 
 void StringInternal_BuildPath(String* Dest, const StringArray Array)
@@ -715,7 +733,10 @@ void StringInternal_BuildPath(String* Dest, const StringArray Array)
 
         if (Dest->Length > 0 && i != Array.Num-1)
         {
-            String_AppendPathSeparator(Dest);
+            if (String_IsValid(Array.List[i+1])) // make sure the next element is valid
+            {
+                String_AppendPathSeparator(Dest);
+            }
         }
     }
 
@@ -750,7 +771,10 @@ void StringInternal_BuildSeparator(String* Dest, u8 Separator, const StringArray
 
         if (Dest->Length > 0 && i != Array.Num-1)
         {
-            String_AppendChar(Dest, Separator);
+            if (String_IsValid(Array.List[i+1])) // make sure the next element is valid
+            {
+                String_AppendChar(Dest, Separator);
+            }
         }
     }
 }
@@ -1883,6 +1907,7 @@ void String_StripAlphabet(const String Str, String* OutStr)
     }
 }
 
+// TODO: de-duplicate ToFloat code into one func
 bool String_ToF32(const String Str, f32* OutFloat)
 {
     bool bSuccess = false;
@@ -1943,6 +1968,8 @@ bool String_ToF32(const String Str, f32* OutFloat)
                 {
                     Num = Num * 10.0f + (f32)Digit;
                 }
+
+                bSuccess = true;
             }
         }
         else if (c == '.')
@@ -2039,6 +2066,8 @@ bool String_ToF64(const String Str, f64* OutFloat)
                 {
                     Num = Num * 10.0 + Digit;
                 }
+
+                bSuccess = true;
             }
         }
         else if (c == '.')
@@ -2129,6 +2158,7 @@ static bool Internal_String_ToUnsignedInt(const String Str, u64* OutInt, u8 IntT
             else
             {
                 Num = (Num * 10 + (u8)Digit);
+                bSuccess = true;
             }
         }
         else
@@ -2213,6 +2243,7 @@ static bool Internal_String_ToSignedInt(const String Str, i64* OutInt, u8 IntTyp
             else
             {
                 Num = Num * 10 + Digit;
+                bSuccess = true;
             }
         }
         else

@@ -40,6 +40,7 @@ RIFT_API bool  CString_IndexOfChar(const char* Str, char C, u32* OutIndex);
 // String Helpers
 // ----------------------------------
 RIFT_API NO_DISCARD bool String_IsValid(const String Str);
+RIFT_API NO_DISCARD bool String_IsDataValid(const String Str);
 RIFT_API NO_DISCARD bool StringArray_IsValid(const StringArray Str);
 RIFT_API NO_DISCARD bool StringList_IsValid(const StringList Str);
 
@@ -83,9 +84,9 @@ RIFT_API NO_DISCARD ECompareResult String_CompareVersion(const String VersionA, 
 RIFT_API void String_Zero(String* Str);
 RIFT_API void String_Fill(String* Str, u8 C);
 
-#define String_Concat(Dest, ...)               do { String MACRO_VAR(SArgs)[] = {__VA_ARGS__}; StringArray MACRO_VAR(TempArray) = {0}; MACRO_VAR(TempArray).List = MACRO_VAR(SArgs); MACRO_VAR(TempArray).Num = SArray_Capacity(MACRO_VAR(SArgs)); StringInternal_Concat(Dest, MACRO_VAR(TempArray)); } while (0)
-#define String_BuildSeparator(Dest, Char, ...) do { String MACRO_VAR(SArgs)[] = {__VA_ARGS__}; StringArray MACRO_VAR(TempArray) = {0}; MACRO_VAR(TempArray).List = MACRO_VAR(SArgs); MACRO_VAR(TempArray).Num = SArray_Capacity(MACRO_VAR(SArgs)); StringInternal_BuildSeparator(Dest, Char, MACRO_VAR(TempArray)); } while (0)
-#define String_BuildPath(Dest, ...)            do { String MACRO_VAR(SArgs)[] = {__VA_ARGS__}; StringArray MACRO_VAR(TempArray) = {0}; MACRO_VAR(TempArray).List = MACRO_VAR(SArgs); MACRO_VAR(TempArray).Num = SArray_Capacity(MACRO_VAR(SArgs)); StringInternal_BuildPath(Dest, MACRO_VAR(TempArray)); } while (0)
+#define String_Concat(Dest, ...)               do { String MACRO_VAR(SArgs)[32] = {__VA_ARGS__}; StringArray MACRO_VAR(TempArray) = {0}; MACRO_VAR(TempArray).List = MACRO_VAR(SArgs); MACRO_VAR(TempArray).Num = SArray_Capacity(MACRO_VAR(SArgs)); StringInternal_Concat(Dest, MACRO_VAR(TempArray)); } while (0)
+#define String_BuildSeparator(Dest, Char, ...) do { String MACRO_VAR(SArgs)[32] = {__VA_ARGS__}; StringArray MACRO_VAR(TempArray) = {0}; MACRO_VAR(TempArray).List = MACRO_VAR(SArgs); MACRO_VAR(TempArray).Num = SArray_Capacity(MACRO_VAR(SArgs)); StringInternal_BuildSeparator(Dest, Char, MACRO_VAR(TempArray)); } while (0)
+#define String_BuildPath(Dest, ...)            do { String MACRO_VAR(SArgs)[32] = {__VA_ARGS__}; StringArray MACRO_VAR(TempArray) = {0}; MACRO_VAR(TempArray).List = MACRO_VAR(SArgs); MACRO_VAR(TempArray).Num = SArray_Capacity(MACRO_VAR(SArgs)); StringInternal_BuildPath(Dest, MACRO_VAR(TempArray)); } while (0)
 
 RIFT_API void StringInternal_Concat(String* Dest, const StringArray Array);
 RIFT_API void StringInternal_BuildSeparator(String* Dest, u8 Separator, const StringArray Array);

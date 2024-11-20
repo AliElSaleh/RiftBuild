@@ -12,6 +12,7 @@ STRUCT(FileVariable)
     String Value;
     String SpecialData;
     bool   bHasSpecial;
+    u8     Padding[7];
 };
 
 STRUCT(InternalVariable)
@@ -49,13 +50,15 @@ STRUCT(SourceCountData)
     StringList CustomSourceExtensions;
     bool bHasCppFiles;
     bool bIsPCHBuild;
+    u8 Padding[6];
 };
 
 STRUCT(CmdOption)
 {
     String Name;
     String Value;
-    bool bEqualsToSomething;
+    bool   bEqualsToSomething;
+    u8     Padding[7];
 };
 
 ENUM(EAssemblyType)
@@ -164,8 +167,6 @@ STRUCT(BuildParams)
     StringList BlacklistFiles, BlacklistDirectories;
     StringList SourceFileExtensions;
 
-    EAssemblyType Type;
-
     LinearAllocator* Arena;
 
     TArray(PlatformHandle)* Processes;
@@ -174,6 +175,8 @@ STRUCT(BuildParams)
     u32 NumSources;
     u32 NumHeaders;
     u32 NumRcSources;
+
+    EAssemblyType Type;
 
     u8 MaxCompilersAtOnce;
     u8 MaxErrors;
@@ -184,6 +187,10 @@ STRUCT(BuildParams)
     bool bVerbose;
     bool bHasCppFiles;
     bool bDumpObjFilesInOneDirectory;
+
+    bool bPadding1;
+    bool bPadding2;
+    bool bPadding3;
 };
 
 STRUCT(CompileData)
@@ -193,7 +200,7 @@ STRUCT(CompileData)
     const BuildParams* Params;
     u32* NumCompiled;
     u32 Index;
-    bool bSuccess;
+    b32 bSuccess;
 
     void* AdditionalData;
 };
@@ -267,12 +274,7 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
 
 // Export functions --------------------
 
-bool Export_CompileCommands(const BuildParams* Params,
-                           const String CompileFlags, const String IncludeFlags,
-                           const String DefineFlags, const String UnDefineFlags,
-                           const bool bIsLastBuild, const bool bKeepOneLine);
-
-
+bool Export_CompileCommands(const BuildParams* Params, const bool bIsLastBuild, const bool bKeepOneLine);
 bool Export_InfoPlist(LinearAllocator Arena, const BuildParams* Params, const String Path, TArray(FileVariable) ExpandedVariablesDB, bool bRawMode);
 bool Export_VersionPlist(LinearAllocator Arena, const BuildParams* Params, const String Path, TArray(FileVariable) ExpandedVariablesDB, bool bRawMode);
 bool Export_PkgInfo(const String AssemblyName, const String Path);

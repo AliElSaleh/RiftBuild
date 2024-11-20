@@ -275,7 +275,7 @@ static char stbsp__comma = ',';
 static struct
 {
    short temp; // force next field to be 2-byte aligned
-   char pair[201];
+   char pair[202];
 } stbsp__digitpair =
 {
   0,
