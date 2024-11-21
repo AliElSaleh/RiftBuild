@@ -1111,7 +1111,7 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String
         #endif
 
         #ifndef HOOD
-        LOG("CMD: %S", Cmd);
+        LOG(" > %S", Cmd);
         #else
         LOG("da cmd: %S", Cmd);
         #endif
@@ -1192,7 +1192,7 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String
 
         bool bIgnoreErrors = String_EndsWith(Name, S("_Copy"), false);
 
-        LOG("Copy: %S", Cmd);
+        LOG(" > Copy: %S", Cmd);
 
         if (!Filesystem_Copy(FullSourcePath, FullDestPath) && !bIgnoreErrors)
         {
@@ -1203,6 +1203,16 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String
             *ExitCode = 1;
             return false;
         }
+    }
+    else if (String_EndsWith(Name, S("Wait"), false) ||
+             String_EndsWith(Name, S("Sleep"), false))
+    {
+        u32 Milliseconds = 0;
+        (void)String_ToU32(Value, &Milliseconds);
+
+        LOG(" > Sleeping for %ums ...", Milliseconds);
+
+        Platform_Sleep(Milliseconds);
     }
     else if (String_EndsWith(Name, S("Move"), false) ||
              String_EndsWith(Name, S("Rename"), false))
@@ -1220,11 +1230,11 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String
         bool bIsRename = String_EndsWith(Name, S("Rename"), false);
         if (bIsRename)
         {
-            LOG("Rename: %S", Cmd);
+            LOG(" > Rename: %S", Cmd);
         }
         else
         {
-            LOG("Move: %S", Cmd);
+            LOG(" > Move: %S", Cmd);
         }
 
         // only move if dest does not exist
@@ -1303,7 +1313,7 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String
     {
         const String Cmd = Value;
 
-        LOG("Delete: %S", Cmd);
+        LOG(" > Delete: %S", Cmd);
 
         // todo: make sure we only delete stuff relative to the working directory
 
@@ -1364,7 +1374,7 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String
     {
         const String Cmd = Value;
 
-        LOG("New File: %S", Cmd);
+        LOG(" > New File: %S", Cmd);
 
         bool bIgnoreErrors = String_EndsWith(Name, S("_NewFile"), false);
 
@@ -1386,7 +1396,7 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String
     {
         const String Cmd = Value;
 
-        LOG("New Directory: %S", Cmd);
+        LOG(" > New Directory: %S", Cmd);
 
         bool bIgnoreErrors = String_EndsWith(Name, S("_NewDirectory"), false) ||
                              String_EndsWith(Name, S("_NewDir"), false);
@@ -1442,7 +1452,7 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String
             String_BuildPath(&FinalDestinationPath, FileName);
         }
 
-        LOG("Download: %S\n -> Destination: %S", URL, FinalDestinationPath);
+        LOG(" > Download: %S\n -> Destination: %S", URL, FinalDestinationPath);
 
         if (Filesystem_DoesFileExist(FinalDestinationPath))
         {
@@ -1501,7 +1511,7 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String
         UNIMPLEMENTED;
         #endif
 
-        LOG("Unzip: %S\n -> Destination: %S", ZipFilePath, FinalDestinationPath);
+        LOG(" > Unzip: %S\n -> Destination: %S", ZipFilePath, FinalDestinationPath);
 
         if (bVerboseLog) { LOG("    %S", CmdLine); }
 
@@ -1567,7 +1577,7 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String
         UNIMPLEMENTED;
         #endif
 
-        LOG("Zip: %S\n -> Destination: %S", FilePath, FinalDestinationPath);
+        LOG(" > Zip: %S\n -> Destination: %S", FilePath, FinalDestinationPath);
 
         if (bVerboseLog) { LOG("    %S", CmdLine); }
 
@@ -4315,9 +4325,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
     if (NumPreDependCmds > 0 && !bIsClean)
     {
         #ifndef HOOD
-        LOG("Running pre depend commands...\n");
+        LOG("PreDepend:");
         #else
-        LOG("cool mang, gonna run some pre depend cmds...\n");
+        LOG("cool mang, gonna run some pre depend cmds...");
         #endif
 
         // run pre build commands (if specified)
@@ -4591,7 +4601,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     if (NumPreBuildCmds > 0 && !bIsClean)
     {
         #ifndef HOOD
-        LOG("Running pre build commands...");
+        LOG("PreBuild:");
         #else
         LOG("cool mang, gonna run some pre build cmds...");
         #endif
@@ -6413,7 +6423,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     if (NumPreCompileCmds > 0 && !bIsClean)
     {
         #ifndef HOOD
-        LOG("Running pre compile commands...");
+        LOG("PreCompile:");
         #else
         LOG("cool mang, gonna run some pre compile cmds...");
         #endif
@@ -6686,7 +6696,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     if (NumPostCompileCmds > 0 && !bIsClean)
     {
         #ifndef HOOD
-        LOG("\nRunning post compile commands...");
+        LOG("\nPostCompile:");
         #else
         LOG("cool mang, gonna run some post compile cmds...");
         #endif
@@ -6727,9 +6737,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
         if (NumPreLinkCmds > 0 && !bIsClean)
         {
             #ifndef HOOD
-            LOG("Running pre link commands...");
+            LOG("\nPreLink:");
             #else
-            LOG("cool mang, gonna run some pre link cmds...");
+            LOG("\ncool mang, gonna run some pre link cmds...");
             #endif
 
             f64 ElapsedSoFar = ExternalClock.ElapsedTime;
@@ -6756,8 +6766,6 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
             Clock_Tick(&ExternalClock);
             ExternalClock.ElapsedTime += ElapsedSoFar;
-
-            LOG_LINE_BREAK();
         }
 
         if (String_IsEqual(CompilerProgram, S("cl"), false) ||
@@ -6783,7 +6791,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
         if (NumPostLinkCmds > 0 && !bIsClean)
         {
             #ifndef HOOD
-            LOG("\nRunning post link commands...");
+            LOG("\nPostLink:");
             #else
             LOG("cool mang, gonna run some pre link cmds...");
             #endif
@@ -7732,7 +7740,7 @@ PostBuild:
         LOG_LINE_BREAK();
 
         #ifndef HOOD
-        LOG("Running post build commands...");
+        LOG("PostBuild:");
         #else
         LOG("cool mang, gonna run some post build cmds...");
         #endif
@@ -8437,9 +8445,9 @@ static void InitInternalVars(LinearAllocator* Arena)
 
     // store riftbuild version
     AddInternalVariable(S("_Version"),       S(RIFTBUILD_VERSION_STRING));
-    AddInternalVariable(S("_Version.Major"), S(STRINGIZE(RIFTBUILD_MAJOR_VERSION)));
-    AddInternalVariable(S("_Version.Minor"), S(STRINGIZE(RIFTBUILD_MINOR_VERSION)));
-    AddInternalVariable(S("_Version.Patch"), S(STRINGIZE(RIFTBUILD_PATCH_VERSION)));
+    AddInternalVariable(S("_Version.Major"), S(STRINGIFY(RIFTBUILD_MAJOR_VERSION)));
+    AddInternalVariable(S("_Version.Minor"), S(STRINGIFY(RIFTBUILD_MINOR_VERSION)));
+    AddInternalVariable(S("_Version.Patch"), S(STRINGIFY(RIFTBUILD_PATCH_VERSION)));
 
     const PlatformVersion OSVersion = Platform_GetVersion();
     String OSVersionString = String_Reserve(Arena, 24);

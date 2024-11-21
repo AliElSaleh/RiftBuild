@@ -268,8 +268,9 @@ PRAGMA_DISABLE_WARNINGS
 void* memset(void *dst, int c, SIZE_T len)
 {
     register volatile u8* dp = dst;
+    register SIZE_T length = len;
 
-    while (len--)
+    while (length--)
     {
         *dp++ = (u8)c;
     }
@@ -281,8 +282,9 @@ void* memcpy(void* restrict dst, const void* restrict src, SIZE_T len)
 {
     register volatile u8* dp = dst;
     register const u8* sp = src;
+    register SIZE_T length = len;
 
-    while (len--)
+    while (length--)
     {
         *dp++ = *sp++;
     }

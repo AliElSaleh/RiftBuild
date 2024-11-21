@@ -103,9 +103,10 @@ typedef struct LinearAllocator LinearAllocator;
 #define __NARG_I_(...) __ARG_N(__VA_ARGS__)
 #define __NARG__(...)  __NARG_I_(__VA_ARGS__,__RSEQ_N())
 
-#define BITS_PER_LONG (8*sizeof(i64))
-#define OFF(x) ((x)%BITS_PER_LONG)
-#define BIT(x) (1UL<<OFF(x))
+#define BITS_PER_LONG (8 * sizeof(u64))
+//#define BIT(x)        (1UL << ((x) % BITS_PER_LONG))
+#define BIT(x)        (1UL << x##UL)
+
 
 #define Kilobytes(x) ((x)*(usize)1000)
 #define Megabytes(x) (Kilobytes(x)*(usize)1000)
@@ -117,8 +118,8 @@ typedef struct LinearAllocator LinearAllocator;
 
 #define SArray_Capacity(Array) sizeof((Array)) / sizeof((Array)[0])
 
-#define STRINGIZE_DETAIL(x) #x
-#define STRINGIZE(x) STRINGIZE_DETAIL(x)
+#define STRINGIFY_INNER(x) #x
+#define STRINGIFY(x) STRINGIFY_INNER(x)
 
 #define CONCAT_INNER(a, b) a##b
 #define CONCAT(a, b) CONCAT_INNER(a, b)
@@ -371,7 +372,7 @@ STRUCT(StringList)
 #define __FILE_NAME__ __FILE__
 #endif
 
-#define FILELINE __FILE__ " | Line: " STRINGIZE(__LINE__)
+#define FILELINE __FILE__ " | Line: " STRINGIFY(__LINE__)
 
 // Export and Import
 #ifndef RIFT_STATIC

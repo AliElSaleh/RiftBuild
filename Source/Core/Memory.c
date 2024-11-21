@@ -892,7 +892,7 @@ void Internal_ArrayAdd(void* Array, const void* ValuePtr)
     }
     
     usize Addr = (usize)Array;
-    Addr += (Num * Stride); // go to end of array
+    Addr += Num * Stride; // go to end of array
 
     MemCopy((void*)Addr, ValuePtr, Stride);
 

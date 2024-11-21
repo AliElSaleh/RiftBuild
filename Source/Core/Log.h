@@ -16,8 +16,8 @@
         #define ENSURE_MSG(Expression, Text, ...) ENSURE(Expression)
         #define ENSURE_NO_REENTRY() do { static bool MACRO_VAR(bBeenHere) = false; if (MACRO_VAR(bBeenHere)) { DEBUG_BREAK(); } MACRO_VAR(bBeenHere) = true; } while (0)
     #else
-        #define ASSERT_MSG(Expression, Text, ...) do { if (Expression) {} else { LOG_DEBUG_T(LOG_TYPE_FATAL, "Assert Failed: '" STRINGIZE(Expression) "'" "\n" Text, ##__VA_ARGS__); DEBUG_BREAK();  _Crash_; } } while (0)
-        #define ENSURE_MSG(Expression, Text, ...) do { if (Expression) {} else { LOG_DEBUG_T(LOG_TYPE_FATAL, "Ensure Failed: '" STRINGIZE(Expression) "'" "\n" Text, ##__VA_ARGS__); DEBUG_BREAK(); } } while (0)
+        #define ASSERT_MSG(Expression, Text, ...) do { if (Expression) {} else { LOG_DEBUG_T(LOG_TYPE_FATAL, "Assert Failed: '" STRINGIFY(Expression) "'" "\n" Text, ##__VA_ARGS__); DEBUG_BREAK();  _Crash_; } } while (0)
+        #define ENSURE_MSG(Expression, Text, ...) do { if (Expression) {} else { LOG_DEBUG_T(LOG_TYPE_FATAL, "Ensure Failed: '" STRINGIFY(Expression) "'" "\n" Text, ##__VA_ARGS__); DEBUG_BREAK(); } } while (0)
         #define ENSURE_NO_REENTRY() { static bool MACRO_VAR(bBeenHere) = false; if (MACRO_VAR(bBeenHere)) { static StringLocal(MACRO_VAR(ReentryErrorMsg), 512); String_Format(&MACRO_VAR(ReentryErrorMsg), S("Ensure No Re-Entry Failed: %s(%s) was called more than once!\n"), __func__, FILELINE); Platform_ConsoleWrite((char*)MACRO_VAR(ReentryErrorMsg).Data, 4, true); DEBUG_BREAK(); } MACRO_VAR(bBeenHere) = true; }
     #endif
 #endif
@@ -96,11 +96,11 @@
 #define LOG_INLINE_WARNING(Text, ...)                  LogDirectMessage(LOG_TYPE_WARNING, S(Text), ##__VA_ARGS__)
 #define LOG_INLINE_ERROR(Text, ...)                    LogDirectMessage(LOG_TYPE_ERROR,   S(Text), ##__VA_ARGS__)
 
-#define LOG_INT(Int)                                   LOG(#Int    ": %i", (i32)Int)
-#define LOG_UINT(Int)                                  LOG(#Int    ": %u", (u32)Int)
-#define LOG_FLOAT(Float)                               LOG(#Float  ": %f", (f64)Float)
-#define LOG_BOOL(Bool)                                 LOG(#Bool   ": %S", ((Bool) ? S("true") : S("false")))
-#define LOG_STRING(Str)                                LOG(#Str    ": %S", Str)
+#define LOG_INT(Int)                                   LOG(STRINGIFY(Int)    ": %i", (i32)Int)
+#define LOG_UINT(Int)                                  LOG(STRINGIFY(Int)    ": %u", (u32)Int)
+#define LOG_FLOAT(Float)                               LOG(STRINGIFY(Float)  ": %f", (f64)Float)
+#define LOG_BOOL(Bool)                                 LOG(STRINGIFY(Bool)   ": %S", ((Bool) ? S("true") : S("false")))
+#define LOG_STRING(Str)                                LOG(STRINGIFY(Str)    ": %S", Str)
 
 #define UNIMPLEMENTED                                  Platform_ConsoleWrite(FUNCTION_NAME, 4, true); Platform_ConsoleWrite(" not implemented!\n", 4, true); _Crash_
 

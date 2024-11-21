@@ -10,6 +10,7 @@
 #endif
 
 #if __CPU_X86 || __CPU_X64
+
 #if !COMPILER_MSVC
 #include <cpuid.h>
 #endif
@@ -126,72 +127,72 @@ CpuInfo Platform_QueryCPUInfo(void)
     // EBX: Additional Information (e.g., Brand Index, CLFLUSH line size)
     // ECX: Feature Flags
     // EDX: Feature Flags
-    i32 ecx = info[2];
-    i32 edx = info[3];
+    u32 ecx = (u32)info[2];
+    u32 edx = (u32)info[3];
 
-    Result.MMX           = (edx & (1 << 23)) ? 1 : 0;
-    Result.SSE           = (edx & (1 << 25)) ? 1 : 0;
-    Result.SSE2          = (edx & (1 << 26)) ? 1 : 0;
-    Result.SSE3          = (ecx & (1 << 0))  ? 1 : 0;
-    Result.SSSE3         = (ecx & (1 << 9))  ? 1 : 0;
-    Result.SSE4          = (ecx & (1 << 19)) ? 1 : 0;
-    Result.SSE41         = (ecx & (1 << 19)) ? 1 : 0;
-    Result.SSE42         = (ecx & (1 << 20)) ? 1 : 0;
-    Result.AES           = (ecx & (1 << 25)) ? 1 : 0;
-    Result.AVX           = (ecx & (1 << 28)) ? 1 : 0;
-    Result.F16C          = (ecx & (1 << 29)) ? 1 : 0;
-    Result.FMA           = (ecx & (1 << 12)) ? 1 : 0;
-    Result.FMA3          = (ecx & (1 << 12)) ? 1 : 0;
-    Result.RDRAND        = (ecx & (1 << 30)) ? 1 : 0;
-    Result.PCLMULQDQ     = (ecx & (1 << 1))  ? 1 : 0;
-    Result.DTES64        = (ecx & (1 << 2))  ? 1 : 0;
-    Result.MONITOR       = (ecx & (1 << 3))  ? 1 : 0;
-    Result.DSCPL         = (ecx & (1 << 4))  ? 1 : 0;
-    Result.VMX           = (ecx & (1 << 5))  ? 1 : 0;
-    Result.SMX           = (ecx & (1 << 6))  ? 1 : 0;
-    Result.EIST          = (ecx & (1 << 7))  ? 1 : 0;
-    Result.TM2           = (ecx & (1 << 8))  ? 1 : 0;
-    Result.CNXTID        = (ecx & (1 << 10)) ? 1 : 0;
-    Result.SDBG          = (ecx & (1 << 11)) ? 1 : 0;
-    Result.CX16          = (ecx & (1 << 13)) ? 1 : 0;
-    Result.XTPR          = (ecx & (1 << 14)) ? 1 : 0;
-    Result.PDCM          = (ecx & (1 << 15)) ? 1 : 0;
-    Result.PCID          = (ecx & (1 << 17)) ? 1 : 0;
-    Result.DCA           = (ecx & (1 << 18)) ? 1 : 0;
-    Result.X2APIC        = (ecx & (1 << 21)) ? 1 : 0;
-    Result.MOVBE         = (ecx & (1 << 22)) ? 1 : 0;
-    Result.POPCNT        = (ecx & (1 << 23)) ? 1 : 0;
-    Result.TSCDEADLINE   = (ecx & (1 << 24)) ? 1 : 0;
-    Result.XSAVE         = (ecx & (1 << 26)) ? 1 : 0;
-    Result.OSXSAVE       = (ecx & (1 << 27)) ? 1 : 0;
-    Result.HYPERVISOR    = (ecx & (1 << 31)) ? 1 : 0;
+    Result.MMX           = (edx & BIT(23)) ? 1 : 0;
+    Result.SSE           = (edx & BIT(25)) ? 1 : 0;
+    Result.SSE2          = (edx & BIT(26)) ? 1 : 0;
+    Result.SSE3          = (ecx & BIT(0))  ? 1 : 0;
+    Result.SSSE3         = (ecx & BIT(9))  ? 1 : 0;
+    Result.SSE4          = (ecx & BIT(19)) ? 1 : 0;
+    Result.SSE41         = (ecx & BIT(19)) ? 1 : 0;
+    Result.SSE42         = (ecx & BIT(20)) ? 1 : 0;
+    Result.AES           = (ecx & BIT(25)) ? 1 : 0;
+    Result.AVX           = (ecx & BIT(28)) ? 1 : 0;
+    Result.F16C          = (ecx & BIT(29)) ? 1 : 0;
+    Result.FMA           = (ecx & BIT(12)) ? 1 : 0;
+    Result.FMA3          = (ecx & BIT(12)) ? 1 : 0;
+    Result.RDRAND        = (ecx & BIT(30)) ? 1 : 0;
+    Result.PCLMULQDQ     = (ecx & BIT(1))  ? 1 : 0;
+    Result.DTES64        = (ecx & BIT(2))  ? 1 : 0;
+    Result.MONITOR       = (ecx & BIT(3))  ? 1 : 0;
+    Result.DSCPL         = (ecx & BIT(4))  ? 1 : 0;
+    Result.VMX           = (ecx & BIT(5))  ? 1 : 0;
+    Result.SMX           = (ecx & BIT(6))  ? 1 : 0;
+    Result.EIST          = (ecx & BIT(7))  ? 1 : 0;
+    Result.TM2           = (ecx & BIT(8))  ? 1 : 0;
+    Result.CNXTID        = (ecx & BIT(10)) ? 1 : 0;
+    Result.SDBG          = (ecx & BIT(11)) ? 1 : 0;
+    Result.CX16          = (ecx & BIT(13)) ? 1 : 0;
+    Result.XTPR          = (ecx & BIT(14)) ? 1 : 0;
+    Result.PDCM          = (ecx & BIT(15)) ? 1 : 0;
+    Result.PCID          = (ecx & BIT(17)) ? 1 : 0;
+    Result.DCA           = (ecx & BIT(18)) ? 1 : 0;
+    Result.X2APIC        = (ecx & BIT(21)) ? 1 : 0;
+    Result.MOVBE         = (ecx & BIT(22)) ? 1 : 0;
+    Result.POPCNT        = (ecx & BIT(23)) ? 1 : 0;
+    Result.TSCDEADLINE   = (ecx & BIT(24)) ? 1 : 0;
+    Result.XSAVE         = (ecx & BIT(26)) ? 1 : 0;
+    Result.OSXSAVE       = (ecx & BIT(27)) ? 1 : 0;
+    Result.HYPERVISOR    = (ecx & BIT(31)) ? 1 : 0;
 
-    Result.FPU           = (edx & (1 << 0))  ? 1 : 0;
-    Result.VME           = (edx & (1 << 1))  ? 1 : 0;
-    Result.DE            = (edx & (1 << 2))  ? 1 : 0;
-    Result.PSE           = (edx & (1 << 3))  ? 1 : 0;
-    Result.TSC           = (edx & (1 << 4))  ? 1 : 0;
-    Result.MSR           = (edx & (1 << 5))  ? 1 : 0;
-    Result.PAE           = (edx & (1 << 6))  ? 1 : 0;
-    Result.MCE           = (edx & (1 << 7))  ? 1 : 0;
-    Result.CX8           = (edx & (1 << 8))  ? 1 : 0;
-    Result.APIC          = (edx & (1 << 9))  ? 1 : 0;
-    Result.SEP           = (edx & (1 << 11)) ? 1 : 0;
-    Result.MTRR          = (edx & (1 << 12)) ? 1 : 0;
-    Result.PGE           = (edx & (1 << 13)) ? 1 : 0;
-    Result.MCA           = (edx & (1 << 14)) ? 1 : 0;
-    Result.CMOV          = (edx & (1 << 15)) ? 1 : 0;
-    Result.PAT           = (edx & (1 << 16)) ? 1 : 0;
-    Result.PSE36         = (edx & (1 << 17)) ? 1 : 0;
-    Result.PSN           = (edx & (1 << 18)) ? 1 : 0;
-    Result.CLFLUSH       = (edx & (1 << 19)) ? 1 : 0;
-    Result.DS            = (edx & (1 << 21)) ? 1 : 0;
-    Result.ACPI          = (edx & (1 << 22)) ? 1 : 0;
-    Result.FXSR          = (edx & (1 << 24)) ? 1 : 0;
-    Result.SS            = (edx & (1 << 27)) ? 1 : 0;
-    Result.HTT           = (edx & (1 << 28)) ? 1 : 0;
-    Result.TM            = (edx & (1 << 29)) ? 1 : 0;
-    Result.PBE           = (edx & (1 << 31)) ? 1 : 0;
+    Result.FPU           = (edx & BIT(0))  ? 1 : 0;
+    Result.VME           = (edx & BIT(1))  ? 1 : 0;
+    Result.DE            = (edx & BIT(2))  ? 1 : 0;
+    Result.PSE           = (edx & BIT(3))  ? 1 : 0;
+    Result.TSC           = (edx & BIT(4))  ? 1 : 0;
+    Result.MSR           = (edx & BIT(5))  ? 1 : 0;
+    Result.PAE           = (edx & BIT(6))  ? 1 : 0;
+    Result.MCE           = (edx & BIT(7))  ? 1 : 0;
+    Result.CX8           = (edx & BIT(8))  ? 1 : 0;
+    Result.APIC          = (edx & BIT(9))  ? 1 : 0;
+    Result.SEP           = (edx & BIT(11)) ? 1 : 0;
+    Result.MTRR          = (edx & BIT(12)) ? 1 : 0;
+    Result.PGE           = (edx & BIT(13)) ? 1 : 0;
+    Result.MCA           = (edx & BIT(14)) ? 1 : 0;
+    Result.CMOV          = (edx & BIT(15)) ? 1 : 0;
+    Result.PAT           = (edx & BIT(16)) ? 1 : 0;
+    Result.PSE36         = (edx & BIT(17)) ? 1 : 0;
+    Result.PSN           = (edx & BIT(18)) ? 1 : 0;
+    Result.CLFLUSH       = (edx & BIT(19)) ? 1 : 0;
+    Result.DS            = (edx & BIT(21)) ? 1 : 0;
+    Result.ACPI          = (edx & BIT(22)) ? 1 : 0;
+    Result.FXSR          = (edx & BIT(24)) ? 1 : 0;
+    Result.SS            = (edx & BIT(27)) ? 1 : 0;
+    Result.HTT           = (edx & BIT(28)) ? 1 : 0;
+    Result.TM            = (edx & BIT(29)) ? 1 : 0;
+    Result.PBE           = (edx & BIT(31)) ? 1 : 0;
 
 
     // TODO: test all these holy moly
@@ -209,84 +210,84 @@ CpuInfo Platform_QueryCPUInfo(void)
     {
         cpuid(info, 7, 0);
 
-        const i32 ebx = info[1];
-        Result.AVX2             = (ebx & (1 << 5))  ? 1 : 0;
-        Result.BMI1             = (ebx & (1 << 3))  ? 1 : 0;
-        Result.TZCNT            = (ebx & (1 << 3))  ? 1 : 0;
-        Result.BMI2             = (ebx & (1 << 8))  ? 1 : 0;
-        Result.ADX              = (ebx & (1 << 19)) ? 1 : 0;
-        Result.MPX              = (ebx & (1 << 14)) ? 1 : 0;
-        Result.SHA              = (ebx & (1 << 29)) ? 1 : 0;
-        Result.RDSEED           = (ebx & (1 << 18)) ? 1 : 0;
-        Result.RDPID            = (ebx & (1 << 23)) ? 1 : 0;
-        Result.AVX512F          = (ebx & (1 << 16)) ? 1 : 0;
-        Result.AVX512DQ         = (ebx & (1 << 17)) ? 1 : 0;
-        Result.AVX512IFMA       = (ebx & (1 << 21)) ? 1 : 0;
-        Result.AVX512PF         = (ebx & (1 << 26)) ? 1 : 0;
-        Result.AVX512ER         = (ebx & (1 << 27)) ? 1 : 0;
-        Result.AVX512CD         = (ebx & (1 << 28)) ? 1 : 0;
-        Result.AVX512BW         = (ebx & (1 << 30)) ? 1 : 0;
-        Result.AVX512VL         = (ebx & (1 << 31)) ? 1 : 0;
-        Result.AVX512           = (ebx & (1 << 16)) || (ebx & (1 << 17)) ||
-                                  (ebx & (1 << 21)) || (ebx & (1 << 26)) ||
-                                  (ebx & (1 << 27)) || (ebx & (1 << 28)) ||
-                                  (ebx & (1 << 30)) || (ebx & (1 << 31)) ? 1 : 0;
-        Result.FSGSBASE         = (ebx & (1 << 0))  ? 1 : 0;
-        Result.TSCADJUST        = (ebx & (1 << 1))  ? 1 : 0;
-        Result.SGX              = (ebx & (1 << 2))  ? 1 : 0;
-        Result.HLE              = (ebx & (1 << 4))  ? 1 : 0;
-        Result.FDP_EXCEPTN_ONLY = (ebx & (1 << 6))  ? 1 : 0;
-        Result.SMEP             = (ebx & (1 << 7))  ? 1 : 0;
-        Result.ERMS             = (ebx & (1 << 9))  ? 1 : 0;
-        Result.INVPCID          = (ebx & (1 << 10)) ? 1 : 0;
-        Result.RTM              = (ebx & (1 << 11)) ? 1 : 0;
-        Result.PQM              = (ebx & (1 << 12)) ? 1 : 0;
-        Result.FPU_DEPR         = (ebx & (1 << 13)) ? 1 : 0;
-        Result.PQE              = (ebx & (1 << 15)) ? 1 : 0;
-        Result.SMAP             = (ebx & (1 << 20)) ? 1 : 0;
-        Result.PCOMMIT          = (ebx & (1 << 22)) ? 1 : 0;
-        Result.CLFLUSHOPT       = (ebx & (1 << 23)) ? 1 : 0;
-        Result.CLWB             = (ebx & (1 << 24)) ? 1 : 0;
-        Result.INTELPT          = (ebx & (1 << 25)) ? 1 : 0;
+        const u32 ebx = (u32)info[1];
+        Result.AVX2             = (ebx & BIT(5))  ? 1 : 0;
+        Result.BMI1             = (ebx & BIT(3))  ? 1 : 0;
+        Result.TZCNT            = (ebx & BIT(3))  ? 1 : 0;
+        Result.BMI2             = (ebx & BIT(8))  ? 1 : 0;
+        Result.ADX              = (ebx & BIT(19)) ? 1 : 0;
+        Result.MPX              = (ebx & BIT(14)) ? 1 : 0;
+        Result.SHA              = (ebx & BIT(29)) ? 1 : 0;
+        Result.RDSEED           = (ebx & BIT(18)) ? 1 : 0;
+        Result.RDPID            = (ebx & BIT(23)) ? 1 : 0;
+        Result.AVX512F          = (ebx & BIT(16)) ? 1 : 0;
+        Result.AVX512DQ         = (ebx & BIT(17)) ? 1 : 0;
+        Result.AVX512IFMA       = (ebx & BIT(21)) ? 1 : 0;
+        Result.AVX512PF         = (ebx & BIT(26)) ? 1 : 0;
+        Result.AVX512ER         = (ebx & BIT(27)) ? 1 : 0;
+        Result.AVX512CD         = (ebx & BIT(28)) ? 1 : 0;
+        Result.AVX512BW         = (ebx & BIT(30)) ? 1 : 0;
+        Result.AVX512VL         = (ebx & BIT(31)) ? 1 : 0;
+        Result.AVX512           = (ebx & BIT(16)) || (ebx & BIT(17)) ||
+                                  (ebx & BIT(21)) || (ebx & BIT(26)) ||
+                                  (ebx & BIT(27)) || (ebx & BIT(28)) ||
+                                  (ebx & BIT(30)) || (ebx & BIT(31)) ? 1 : 0;
+        Result.FSGSBASE         = (ebx & BIT(0))  ? 1 : 0;
+        Result.TSCADJUST        = (ebx & BIT(1))  ? 1 : 0;
+        Result.SGX              = (ebx & BIT(2))  ? 1 : 0;
+        Result.HLE              = (ebx & BIT(4))  ? 1 : 0;
+        Result.FDP_EXCEPTN_ONLY = (ebx & BIT(6))  ? 1 : 0;
+        Result.SMEP             = (ebx & BIT(7))  ? 1 : 0;
+        Result.ERMS             = (ebx & BIT(9))  ? 1 : 0;
+        Result.INVPCID          = (ebx & BIT(10)) ? 1 : 0;
+        Result.RTM              = (ebx & BIT(11)) ? 1 : 0;
+        Result.PQM              = (ebx & BIT(12)) ? 1 : 0;
+        Result.FPU_DEPR         = (ebx & BIT(13)) ? 1 : 0;
+        Result.PQE              = (ebx & BIT(15)) ? 1 : 0;
+        Result.SMAP             = (ebx & BIT(20)) ? 1 : 0;
+        Result.PCOMMIT          = (ebx & BIT(22)) ? 1 : 0;
+        Result.CLFLUSHOPT       = (ebx & BIT(23)) ? 1 : 0;
+        Result.CLWB             = (ebx & BIT(24)) ? 1 : 0;
+        Result.INTELPT          = (ebx & BIT(25)) ? 1 : 0;
 
-        ecx = info[2];
-        Result.PREFETCHWT1      = (ecx & (1 << 0))  ? 1 : 0;
-        Result.AVX512VBMI       = (ecx & (1 << 1))  ? 1 : 0;
-        Result.AVX512VBMI2      = (ecx & (1 << 6))  ? 1 : 0;
-        Result.AVX512VPCLMUL    = (ecx & (1 << 10)) ? 1 : 0;
-        Result.AVX512VNNI       = (ecx & (1 << 11)) ? 1 : 0;
-        Result.AVX512BITALG     = (ecx & (1 << 12)) ? 1 : 0;
-        Result.AVX512VPOPCNTDQ  = (ecx & (1 << 14)) ? 1 : 0;
-        Result.GFNI             = (ecx & (1 << 8))  ? 1 : 0;
-        Result.VAES             = (ecx & (1 << 9))  ? 1 : 0;
-        Result.UMIP             = (ecx & (1 << 2))  ? 1 : 0;
-        Result.PKU              = (ecx & (1 << 3))  ? 1 : 0;
-        Result.OSPKE            = (ecx & (1 << 4))  ? 1 : 0;
-        Result.WAITPKG          = (ecx & (1 << 5))  ? 1 : 0;
-        Result.CET_SS           = (ecx & (1 << 7))  ? 1 : 0;
-        Result.VPCLMULQDQ       = (ecx & (1 << 10)) ? 1 : 0;
-        Result.TME              = (ecx & (1 << 13)) ? 1 : 0;
-        Result.LA57             = (ecx & (1 << 15)) ? 1 : 0;
-        Result.KL               = (ecx & (1 << 24)) ? 1 : 0;
-        Result.CLDEMOTE         = (ecx & (1 << 25)) ? 1 : 0;
-        Result.MOVDIRI          = (ecx & (1 << 26)) ? 1 : 0;
-        Result.MOVDIR64B        = (ecx & (1 << 27)) ? 1 : 0;
-        Result.ENQCMD           = (ecx & (1 << 28)) ? 1 : 0;
-        Result.SGXLC            = (ecx & (1 << 30)) ? 1 : 0;
-        Result.BUSLOCKDETECT    = (ecx & (1 << 31)) ? 1 : 0;
+        ecx = (u32)info[2];
+        Result.PREFETCHWT1      = (ecx & BIT(0))  ? 1 : 0;
+        Result.AVX512VBMI       = (ecx & BIT(1))  ? 1 : 0;
+        Result.AVX512VBMI2      = (ecx & BIT(6))  ? 1 : 0;
+        Result.AVX512VPCLMUL    = (ecx & BIT(10)) ? 1 : 0;
+        Result.AVX512VNNI       = (ecx & BIT(11)) ? 1 : 0;
+        Result.AVX512BITALG     = (ecx & BIT(12)) ? 1 : 0;
+        Result.AVX512VPOPCNTDQ  = (ecx & BIT(14)) ? 1 : 0;
+        Result.GFNI             = (ecx & BIT(8))  ? 1 : 0;
+        Result.VAES             = (ecx & BIT(9))  ? 1 : 0;
+        Result.UMIP             = (ecx & BIT(2))  ? 1 : 0;
+        Result.PKU              = (ecx & BIT(3))  ? 1 : 0;
+        Result.OSPKE            = (ecx & BIT(4))  ? 1 : 0;
+        Result.WAITPKG          = (ecx & BIT(5))  ? 1 : 0;
+        Result.CET_SS           = (ecx & BIT(7))  ? 1 : 0;
+        Result.VPCLMULQDQ       = (ecx & BIT(10)) ? 1 : 0;
+        Result.TME              = (ecx & BIT(13)) ? 1 : 0;
+        Result.LA57             = (ecx & BIT(15)) ? 1 : 0;
+        Result.KL               = (ecx & BIT(24)) ? 1 : 0;
+        Result.CLDEMOTE         = (ecx & BIT(25)) ? 1 : 0;
+        Result.MOVDIRI          = (ecx & BIT(26)) ? 1 : 0;
+        Result.MOVDIR64B        = (ecx & BIT(27)) ? 1 : 0;
+        Result.ENQCMD           = (ecx & BIT(28)) ? 1 : 0;
+        Result.SGXLC            = (ecx & BIT(30)) ? 1 : 0;
+        Result.BUSLOCKDETECT    = (ecx & BIT(31)) ? 1 : 0;
 
-        edx = info[3];
-        Result.AVX5124VNNIW     = (edx & (1 << 2))  ? 1 : 0;
-        Result.AVX5124FMAPS     = (edx & (1 << 3))  ? 1 : 0;
+        edx = (u32)info[3];
+        Result.AVX5124VNNIW     = (edx & BIT(2))  ? 1 : 0;
+        Result.AVX5124FMAPS     = (edx & BIT(3))  ? 1 : 0;
 
         cpuid(info, 7, 1);
-        Result.AVX512BF16       = (info[0] & (1 << 5))  ? 1 : 0;
-        Result.AVX512FP16       = (info[1] & (1 << 23)) ? 1 : 0;
+        Result.AVX512BF16       = ((u32)info[0] & BIT(5))  ? 1 : 0;
+        Result.AVX512FP16       = ((u32)info[1] & BIT(23)) ? 1 : 0;
 
         PRAGMA_DISABLE_SIGN_CONVERSION_WARNING
 
-        cpuid(info, 0x80000001, 0);
-        Result.LZCNT           = (info[2] & (1 << 5))  ? 1 : 0;
+        cpuid(info, 0x80000001U, 0);
+        Result.LZCNT           = ((u32)info[2] & BIT(5))  ? 1 : 0;
         
         PRAGMA_ENABLE_WARNINGS
     }
@@ -559,12 +560,17 @@ void Clock_Tick(Clock* C)
 
 f64 Clock_GetElapsedTime(const Clock* C, bool bAutoConvertTimeUnit)
 {
+    f64 ElapsedTime;
     if (bAutoConvertTimeUnit)
     {
-        return Time_AutoConvert(C->ElapsedTime);
+        ElapsedTime = Time_AutoConvert(C->ElapsedTime);
+    }
+    else
+    {
+        ElapsedTime = C->ElapsedTime;
     }
     
-    return C->ElapsedTime;
+    return ElapsedTime;
 }
 
 void Clock_GetElapsedTime_ToString(const Clock* C, bool bAutoConvertTimeUnit, String* OutString)
@@ -730,13 +736,6 @@ void Clock_PrintElapsedTime(const Clock* C, bool bAutoConvertTimeUnit)
 
 bool Filesystem_DoesPathHaveFileExtension(const String Path)
 {
-    if (Path.Length < 2 ||
-        String_IsEqual(Path, S("."), false) ||
-        String_IsEqual(Path, S(".."), false))
-    {
-        return false;
-    }
-
     u32 LastDot = 0, LastSlash = 0;
     (void)String_IndexOfLastChar(Path, '.', &LastDot);
     (void)String_IndexOfLastPathSlash(Path, &LastSlash);
@@ -748,7 +747,9 @@ bool Filesystem_DoesPathHaveFileExtension(const String Path)
         bSomeCharAfterDot = IsAlphabet(C) || IsDigit(C);
     }
 
-    return LastDot > LastSlash && bSomeCharAfterDot;
+    bool bSuccess = LastDot > LastSlash && bSomeCharAfterDot;
+
+    return bSuccess;
 }
 
 String Filesystem_ExtractFileNameFromPath(const String Path, bool bIncludeExtension)
@@ -761,15 +762,13 @@ String Filesystem_ExtractFileNameFromPath(const String Path, bool bIncludeExtens
         FileName = StrShiftF(Path, LastSlash+1);
     }
 
-    if (bIncludeExtension)
+    if (!bIncludeExtension)
     {
-        return FileName;
-    }
-
-    u32 LastDot = 0;
-    if (String_IndexOfLastChar(FileName, '.', &LastDot))
-    {
-        FileName = StrSlice(FileName.Data, LastDot);
+        u32 LastDot = 0;
+        if (String_IndexOfLastChar(FileName, '.', &LastDot))
+        {
+            FileName = StrSlice(FileName.Data, LastDot);
+        }
     }
 
     return FileName;
