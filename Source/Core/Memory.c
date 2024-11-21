@@ -414,38 +414,6 @@ void* LinearAllocator_Allocate(LinearAllocator* Allocator, usize Size)
     return Block;
 }
 
-void* LinearAllocator_AllocateAll(LinearAllocator* Allocator)
-{
-    Allocator->Allocated = Allocator->TotalSize;
-
-    /*
-    #if RIFT_ASAN
-    __asan_unpoison_memory_region(Allocator->Memory, Allocator->TotalSize);
-    #endif
-    */
-
-    return Allocator->Memory;
-}
-
-void LinearAllocator_FreeAll(LinearAllocator* Allocator, bool bZeroMemory)
-{
-    if (Allocator->Allocated > 0)
-    {
-        Allocator->Allocated = 0;
-        
-        if (bZeroMemory)
-        {
-            MemZero(Allocator->Memory, Allocator->TotalSize);
-        }
-    }
-
-    /*
-    #if RIFT_ASAN
-    __asan_poison_memory_region(Allocator->Memory, Allocator->TotalSize);
-    #endif
-    */
-}
-
 void* LinearAllocator_MemoryHead(LinearAllocator* Allocator)
 {
     return ((u8*)Allocator->Memory) + Allocator->Allocated;
@@ -964,9 +932,9 @@ void Internal_ArrayInsertAt(void* Array, const void* ValuePtr, usize Index)
     // If not last element, snip out the entry and copy the rest outward
     if (Index != Num-1)
     {
-        void* Dest = (void*)(Addr + ((Index + 1) * Stride));
-        void* Src  = (void*)(Addr + (Index * Stride));
-        usize Len  = Stride * (Num - Index);
+        void* Dest       = (void*)(Addr + ((Index + 1) * Stride));
+        const void* Src  = (void*)(Addr + (Index * Stride));
+        usize Len        = Stride * (Num - Index);
 
         MemCopy(Dest, Src, Len);
     }
@@ -1010,10 +978,10 @@ void Array_RemoveAt(void* Array, void* ValuePtr, usize Index)
     // If not last element, snip out the entry and copy the rest inward
     if (Index != Num-1)
     {
-        volatile void* Dest = (void*)(Addr + (Index * Stride));
-        volatile void* Src  = (void*)(Addr + ((Index + 1) * Stride));
+        void* Dest       = (void*)(Addr + (Index * Stride));
+        const void* Src  = (void*)(Addr + ((Index + 1) * Stride));
 
-        MemMove((void*)Dest, (void*)Src, Stride * (Num - Index));		
+        MemMove(Dest, Src, Stride * (Num - Index));		
     }
 
     Array_FieldSet(Array, ArrayField_Num, Num-1);

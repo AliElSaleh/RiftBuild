@@ -108,7 +108,7 @@ bool Export_CompileCommands(const BuildParams* Params, const bool bIsLastBuild, 
 {
     bool bSuccess = false;
 
-    if (ALWAYS(Params != NULL))
+    if (Params != NULL)
     {
         static bool bHasWrittenJSON = false;
 

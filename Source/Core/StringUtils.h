@@ -184,11 +184,11 @@ RIFT_API NO_DISCARD String StringList_GetStringFromIndex(StringList List, u32 In
 RIFT_API NO_DISCARD bool String_ToF32(const String Str, f32* OutFloat);
 RIFT_API NO_DISCARD bool String_ToF64(const String Str, f64* OutFloat);
 
-RIFT_API NO_DISCARD bool String_ToU8 (const String Str, u8* OutInt);
+RIFT_API NO_DISCARD bool String_ToU8 (const String Str, u8*  OutInt);
 RIFT_API NO_DISCARD bool String_ToU16(const String Str, u16* OutInt);
 RIFT_API NO_DISCARD bool String_ToU32(const String Str, u32* OutInt);
 RIFT_API NO_DISCARD bool String_ToU64(const String Str, u64* OutInt);
-RIFT_API NO_DISCARD bool String_ToI8 (const String Str, i8* OutInt);
+RIFT_API NO_DISCARD bool String_ToI8 (const String Str, i8*  OutInt);
 RIFT_API NO_DISCARD bool String_ToI16(const String Str, i16* OutInt);
 RIFT_API NO_DISCARD bool String_ToI32(const String Str, i32* OutInt);
 RIFT_API NO_DISCARD bool String_ToI64(const String Str, i64* OutInt);

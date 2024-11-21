@@ -235,8 +235,8 @@ RIFT_API NO_DISCARD StringArray Platform_GetCommandLineArgs(void);
 
 RIFT_API NO_DISCARD void* Platform_MemAlloc(usize Size);
 RIFT_API NO_DISCARD void* Platform_MemAllocZero(usize Size);
-RIFT_API NO_DISCARD void* Platform_MemReAlloc(const void* Block, usize Size);
-RIFT_API            void  Platform_MemFree(const void* Block);
+RIFT_API NO_DISCARD void* Platform_MemReAlloc(void* Block, usize Size);
+RIFT_API            void  Platform_MemFree(void* Block);
 RIFT_API            void  Platform_MemZero(void* Block, usize Size);
 RIFT_API            void  Platform_MemCopy(void* Dest, const void* Source, usize Size);
 RIFT_API            void  Platform_MemMove(void* Dest, const void* Source, usize Size);

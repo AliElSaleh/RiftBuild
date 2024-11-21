@@ -31,8 +31,8 @@ int main(i32 ArgC, char* ArgV[], char* ArgEnv[])
 void EntryPoint(void)
 #endif
 {
-    global usize GEngineMemoryAmount;
-    global usize GEngineScratchAmount;
+    global const usize GEngineMemoryAmount;
+    global const usize GEngineScratchAmount;
 
     #if !PLATFORM_WINDOWS && USE_MAIN
     pre_main(ArgC, ArgV, ArgEnv);

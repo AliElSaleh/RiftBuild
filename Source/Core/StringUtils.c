@@ -25,7 +25,7 @@ bool String_IsValid(const String Str)
 bool String_IsDataValid(const String Str)
 {
     bool bValid = true;
-    if (!Str.Data || Str.Data[0] == 0 || Str.Data == String_Null().Data)
+    if (!Str.Data || Str.Data == String_Null().Data)
     {
         bValid = false;
     }
@@ -1532,7 +1532,7 @@ bool String_IndexOfFirstPathSlash(const String Str, u32* OutIndex)
         {
             if (OutIndex)
             {
-                *OutIndex = (u32)i;
+                *OutIndex = i;
             }
 
             bFound = true;

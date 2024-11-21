@@ -47,8 +47,8 @@ msvc:
 #   - /wd5045
 #   - /wd4711 | function 'function' selected for inline expansion
 
-SharedCompilerFlags              /Wall /W4 /WX /wd4100 /wd4164 /wd4668 /wd5045 /wd4711 /TC /GS- /Gs999999999 /EHs- #/analyze /analyze:stacksize 8000000
-SharedLinkerFlags                /SAFESEH:NO
+SharedCompilerFlags              /Wall /W4 /WX /wd4100 /wd4164 /wd4668 /wd5045 /wd4711 /TC /GS- /Gs999999999 /EHs- /analyze /analyze:stacksize 8000000
+SharedLinkerFlags                /SAFESEH:NO /INCREMENTAL:NO
 if debug SharedCompilerFlags     /MTd /Od /Zi /FS /Fd"$(BuildDirectory)\$(Assembly).pdb"
 if debug SharedLinkerFlags       /DEBUG
 if !debug SharedCompilerFlags    /MT /O2

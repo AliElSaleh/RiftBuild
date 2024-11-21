@@ -17,8 +17,8 @@
 #include "Libraries/Vendor/microsoft_craziness.h"
 #endif
 
-usize GEngineMemoryAmount  = Kibibytes(128);
-usize GEngineScratchAmount = Kibibytes(8);
+const usize GEngineMemoryAmount  = Kibibytes(128);
+const usize GEngineScratchAmount = Kibibytes(8);
 
 TArray(InternalVariable) InternalVariablesDB = NULL;
 bool bQuietBuild = false;
@@ -969,7 +969,7 @@ static void LogNameValuePair(LinearAllocator Scratch, const String Name, const S
     {
         if (bWordWrap)
         {
-            (void)LogString_WordWrapped(Scratch, Name, Value, true);
+            LogString_WordWrapped(Scratch, Name, Value, true);
         }
         else
         {
