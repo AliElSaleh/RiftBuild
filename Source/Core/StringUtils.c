@@ -486,7 +486,7 @@ void String_Copy(String* Dest, const String Source)
     Dest->Data[NumToCopy] = 0;
 }
 
-void String_CopyN(String* Dest, const String Source, u32 Length)
+void String_CopyN(String* Dest, const String Source, const u32 Length)
 {
     u32 NumToCopy = Dest->Capacity == 0 ? Min(Source.Length, Length) : Min(Dest->Capacity, Min(Source.Length, Length));
     MemCopy(Dest->Data, Source.Data, NumToCopy);

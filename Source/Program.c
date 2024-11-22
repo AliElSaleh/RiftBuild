@@ -739,7 +739,7 @@ static bool BuildFileDirectoryIterator(const String FullPath, const String Relat
 
             if (String_StartsWith(FileName, S("__"), false))
             {
-                if (Data->bNoBuildFileSpecifiedInCmd) // maybe people wanna explicity specify the build file if they type it in the command line, so dont ignore it
+                if (Data->bNoBuildFileSpecifiedInCmd) // maybe people wanna explicitly specify the build file if they type it in the command line, so don't ignore it
                 {
                     return true;
                 }
@@ -1987,6 +1987,32 @@ static bool BuildFilesIterator(const String FullPath, const String RelativePath,
     return true;
 }
 
+static void PrintAbout(const String WorkingDirectory)
+{
+    LOG_INLINE_WARNING("About\n");
+
+    String CompiledWith = String_Null();
+
+    #if COMPILER_MSVC
+    CompiledWith = S("MSVC " STRINGIFY(_MSC_FULL_VER));
+    #elif COMPILER_CLANG
+    CompiledWith = S("Clang " __clang_version__);
+    #elif COMPILER_GCC
+    CompiledWith = S("GCC " STRINGIFY(__GNUC__) "." STRINGIFY(__GNUC_MINOR__) "." STRINGIFY(__GNUC_PATCHLEVEL__));
+    #endif
+
+    SystemTime TimeNow = Platform_GetSystemLocalTime();
+
+    LOG("   A simpler build tool for C/C++, because fuck CMake.\n");
+    LOG("   Copyright (c) %hu Ali El Saleh", TimeNow.Year);
+    LOG("   Compiled with %S on %S", String_EatSpacesFromEnd(CompiledWith), S(__TIMESTAMP__));
+    LOG_LINE_BREAK();
+    LOG("   Repository Link: https://github.com/AliElSaleh/RiftBuild");
+    LOG("   Contact E-Mail:  elsaleh78@gmail.com");
+    LOG_LINE_BREAK();
+    LOG("   Submit a request, issue or bug report: https://github.com/AliElSaleh/RiftBuild/issues");
+}
+
 static void PrintUsage(const String WorkingDirectory)
 {
     LOG_INLINE_WARNING("Usage\n");
@@ -2002,15 +2028,25 @@ static void PrintUsage(const String WorkingDirectory)
     LOG_LINE_BREAK();
 
     // TODO: custom usage message from each build file
-    // TODO: custom descrption message for each build file
+    // TODO: custom description message for each build file
     // TODO: log the preset options as well
     // TODO: log command options
 
+    // TODO: unrelated to this func. consider supporting paths with spaces given on the cmd line without wrapping with quotes
+
+    // TODO: expand tutorial to general stuff like how to setup a simple project
+    // -t -> will display all the options and its breif description
+    // -t:env
+    // -t:pch
+    // -t:general
+    // -t:help
+
     LOG_INLINE_WARNING("Options\n");
     LOG("   -h, --help, /?, -?, ? : Display this help message");
-    LOG("   -v                    : Enable verbose logging");
-    LOG("   -q                    : Quiet mode. Disables logging but outputs necessary information, like errors");
-    LOG("   -t                    : Display a tutorial on how to set environment variables");
+    LOG("   -a, --about           : About this program");
+    LOG("   -v, --verbose         : Enable verbose logging");
+    LOG("   -q, --quiet           : Quiet mode. Disables logging but outputs necessary information, like errors");
+    LOG("   -t, --tutorial        : Display a tutorial on how to set environment variables");
     LOG("   help                  : Print out custom help message from the build file");
     LOG("   clean                 : Delete all intermediate and binary files");
     LOG("   rebuild               : Clean all and build");
@@ -2018,6 +2054,11 @@ static void PrintUsage(const String WorkingDirectory)
     LOG("   override              : Override a build variable");
     LOG("   export                : Generate a compile_commands.json, visual studio or xcode project");
     LOG("   preset                : Build with a preset of command line arguments");
+
+    LOG_LINE_BREAK();
+
+    LOG_INLINE_WARNING("Issue\n");
+    LOG("   Submit a request, issue or bug report: https://github.com/AliElSaleh/RiftBuild/issues");
 }
 
 // TODO: have a relook at this filter code
@@ -2543,7 +2584,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     ArrayLocal_Arena(PlatformHandle, Processes,           256, Arena); // 2048 bytes
     //ArrayLocal_Arena(PlatformPipe,   Pipes,               256, Arena); // 4096 bytes
 
-    // store custom command line options to be referenced inside of a .build file
+    // store custom command line options to be referenced inside a .build file
     for (u8 i = 0; i < Parameters.Num; i++)
     {
         const String Param = Parameters.List[i];
@@ -5567,7 +5608,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
             StringLocal(AssemblyPath, MAX_PATH_LENGTH);
             String_BuildPath(&AssemblyPath, WorkingPath, BuildDirectory, AssemblyNameWithExt);
 
-            u64 AssemblyFileTime = Filesystem_GetLastWriteTime(AssemblyPath);
+            usize AssemblyFileTime = Filesystem_GetLastWriteTime(AssemblyPath);
 
             if (AssemblyFileTime > 0)
             {
@@ -8009,6 +8050,18 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments, const 
         return 1;
     }
 
+    if (StringArray_Contains(Arguments, S("-a"), false) ||
+        StringArray_Contains(Arguments, S("--about"), false))
+    {
+        PrintAbout(WorkingDirectory);
+
+        #if !PLATFORM_WINDOWS
+        LOG_LINE_BREAK();
+        #endif
+
+        return 0;
+    }
+
     if (StringArray_Contains(Arguments, S("-h"), false) ||
         StringArray_Contains(Arguments, S("--help"), false) ||
         StringArray_Contains(Arguments, S("?"), false) ||
@@ -9059,7 +9112,7 @@ u32 RunApplication(const StringArray Arguments)
         LOG_INLINE_WARNING("\nLaunched outside an existing terminal, suspending until user exit.\nPress any key to exit ... ");
 
         Platform_BeginNonBlockingMode();
-        while (1)
+        while (true)
         {
             Platform_Sleep(10);
             if (Platform_IsWindowFocused() && Platform_AnyKeyPressed())

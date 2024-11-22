@@ -69,7 +69,7 @@ RIFT_API NO_DISCARD bool String_StartsWith(const String Str, const String SubStr
 RIFT_API NO_DISCARD bool String_EndsWith(const String Str, const String SubString, bool bCaseSensitive);
 
 RIFT_API void String_Copy(String* Dest, const String Source);
-RIFT_API void String_CopyN(String* Dest, const String Source, u32 Length);
+RIFT_API void String_CopyN(String* Dest, const String Source, const u32 Length);
 
 RIFT_API void String_Append(String* Dest, const String Source);
 RIFT_API void String_AppendChar(String* Dest, const u8 Source);

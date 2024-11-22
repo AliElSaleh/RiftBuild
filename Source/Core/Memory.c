@@ -8,12 +8,11 @@
 #include "Globals.h"
 #include "Log.h"
 #include "StringUtils.h"
+#include "Array.h"
 #endif
 
 static FreeListAllocator GEngineAllocator = { 0 };
 static LinearAllocator GEngineScratchAllocator = { 0 };
-static void* GEngineMemory = NULL;
-
 static PlatformCriticalSection GCriticalSection = NULL;
 
 #ifdef RIFT_ASAN
@@ -40,13 +39,11 @@ bool Memory_Initialize(void* Memory, usize MemSize, void* ScratchMemory, usize S
 {
     ENSURE_NO_REENTRY();
 
-    GEngineMemory = Memory;
-
     #ifdef RIFT_DEBUG_MEMORY
     GEngineMemory_Debug = DebugMemory;
     #endif
 
-    FreeListAllocator_Create(&GEngineAllocator, MemSize, GEngineMemory);
+    FreeListAllocator_Create(&GEngineAllocator, MemSize, Memory);
     
     if (ScratchSize > 0)
     {
@@ -270,7 +267,7 @@ bool MemEqual(const void* Block1, const void* Block2, usize Size)
 extern i32 memcmp(const void* s1, const void* s2, usize len);
 bool Platform_MemEqual(const void* Block1, const void* Block2, usize Size)
 {
-    return memcmp((void*)Block1, (void*)Block2, Size) == 0;
+    return memcmp(Block1, Block2, Size) == 0;
 }
 #endif
 
@@ -323,7 +320,11 @@ usize GetAligned(usize Operand, usize Granularity)
 
 MemoryRange GetAlignedRange(usize Offset, usize Size, usize Granularity)
 {
-    return (MemoryRange){GetAligned(Offset, Granularity), GetAligned(Size, Granularity)};
+    MemoryRange Result;
+    Result.Offset = GetAligned(Offset, Granularity);
+    Result.Size = GetAligned(Size, Granularity);
+    
+    return Result;
 }
 
 
@@ -621,63 +622,66 @@ void* FreeListAllocator_Allocate(FreeListAllocator* Allocator, usize Size, usize
     
     // todo: uncomment, after testing, think we still need this assert anyway
     //ASSERT_MSG(LIKELY(Node != NULL), "Out of memory");
+    void* Memory = NULL;
     if (UNLIKELY(Node == NULL))
     {
-        //LOG_ERROR("Out of memory! Further allocations will now point to the memory dump!");
         LOG_FATAL("Out of memory!");
-        return NULL;// MemoryDump(); // point to the memory dump to prevent NULL crashes
-    }
-    
-    usize AlignmentPadding = Padding - sizeof(FreeListAllocator_Header);
-    usize RequiredSpace = Size + Padding;
-    usize Remaining = Node->BlockSize - RequiredSpace;
-
-    #if RIFT_ASAN
-    __asan_unpoison_memory_region(Node, AlignmentPadding + sizeof(FreeListAllocator_Node) + RequiredSpace);
-    #endif
-
-    if (Remaining > 0)
-    {
-        FreeListAllocator_Node* NewFreeNode = (FreeListAllocator_Node*)((u8*)Node + RequiredSpace);
-        NewFreeNode->BlockSize = Remaining;
-
-        if (!Node->Next)
-        {
-            Node->Next = NewFreeNode;
-            NewFreeNode->Next = NULL;
-        }
-        else
-        {
-            NewFreeNode->Next = Node->Next;
-            Node->Next = NewFreeNode;
-        }
-
-        #if RIFT_ASAN
-        __asan_poison_memory_region(NewFreeNode, NewFreeNode->BlockSize);
-        #endif
-    }
-
-    if (!PrevNode)	
-    {
-        Allocator->Head = Node->Next;
     }
     else
     {
-        PrevNode->Next = Node->Next;
+        usize AlignmentPadding = Padding - sizeof(FreeListAllocator_Header);
+        usize RequiredSpace = Size + Padding;
+        usize Remaining = Node->BlockSize - RequiredSpace;
+
+        #if RIFT_ASAN
+        __asan_unpoison_memory_region(Node, AlignmentPadding + sizeof(FreeListAllocator_Node) + RequiredSpace);
+        #endif
+
+        if (Remaining > 0)
+        {
+            FreeListAllocator_Node* NewFreeNode = (FreeListAllocator_Node*)((u8*)Node + RequiredSpace);
+            NewFreeNode->BlockSize = Remaining;
+
+            if (!Node->Next)
+            {
+                Node->Next = NewFreeNode;
+                NewFreeNode->Next = NULL;
+            }
+            else
+            {
+                NewFreeNode->Next = Node->Next;
+                Node->Next = NewFreeNode;
+            }
+
+            #if RIFT_ASAN
+            __asan_poison_memory_region(NewFreeNode, NewFreeNode->BlockSize);
+            #endif
+        }
+
+        if (!PrevNode)	
+        {
+            Allocator->Head = Node->Next;
+        }
+        else
+        {
+            PrevNode->Next = Node->Next;
+        }
+        
+        FreeListAllocator_Header* Header = (FreeListAllocator_Header*)((u8*)Node + AlignmentPadding);
+        Header->BlockSize = RequiredSpace;
+        Header->AlignmentPadding = AlignmentPadding;
+        
+        Allocator->Allocated += RequiredSpace;
+        
+        if (OutBytesAllocated)
+        {
+            *OutBytesAllocated = RequiredSpace;
+        }
+        
+        Memory = (void*)((u8*)Header + sizeof(FreeListAllocator_Header));
     }
     
-    FreeListAllocator_Header* Header = (FreeListAllocator_Header*)((u8*)Node + AlignmentPadding);
-    Header->BlockSize = RequiredSpace;
-    Header->AlignmentPadding = AlignmentPadding;
-    
-    Allocator->Allocated += RequiredSpace;
-    
-    if (OutBytesAllocated)
-    {
-        *OutBytesAllocated = RequiredSpace;
-    }
-    
-    return (void*)((u8*)Header + sizeof(FreeListAllocator_Header));
+    return Memory;
 }
 
 void FreeListAllocator_Free(FreeListAllocator* Allocator, void* Memory, usize* OutBytesFreed)
@@ -687,104 +691,106 @@ void FreeListAllocator_Free(FreeListAllocator* Allocator, void* Memory, usize* O
         *OutBytesFreed = 0;
     }
     
-    if (!Memory)
+    if (Memory)
     {
-        return;
-    }
+        FreeListAllocator_Header* Header = (FreeListAllocator_Header*)((u8*)Memory - sizeof(FreeListAllocator_Header));
 
-    FreeListAllocator_Header* Header = (FreeListAllocator_Header*)((u8*)Memory - sizeof(FreeListAllocator_Header));
+        // Ensure that the memory passed in within this allocator's memory address range
+        // If this assertion fails, there is a problem with the memory passed in,
+        // as it falls outside the range of this allocator
+        ASSERT((u8*)Header >= (u8*)Allocator->Memory);
+        ASSERT((u8*)Header < (((u8*)Allocator->Memory) + Allocator->TotalSize));
 
-    // Ensure that the memory passed in within this allocator's memory address range
-    // If this assertion fails, there is a problem with the memory passed in,
-    // as it falls outside the range of this allocator
-    ASSERT((u8*)Header >= (u8*)Allocator->Memory);
-    ASSERT((u8*)Header < (((u8*)Allocator->Memory) + Allocator->TotalSize));
+        // zero the memory
+        usize Padding = MemoryUtils_CalculatePaddingWithHeader((usize)Header, DEFAULT_FREE_LIST_ALLOCATOR_ALIGNMENT, sizeof(FreeListAllocator_Header));
+        usize BlockSizeNoPadding = Header->BlockSize - Padding - Header->AlignmentPadding;
+        MemZero(Memory, BlockSizeNoPadding);
 
-    // zero the memory
-    usize Padding = MemoryUtils_CalculatePaddingWithHeader((usize)Header, DEFAULT_FREE_LIST_ALLOCATOR_ALIGNMENT, sizeof(FreeListAllocator_Header));
-    usize BlockSizeNoPadding = Header->BlockSize - Padding - Header->AlignmentPadding;
-    MemZero(Memory, BlockSizeNoPadding);
-
-    // Detect if the memory passed in was already freed
-    {
-        FreeListAllocator_Node* Node = Allocator->Head;
-
-        const FreeListAllocator_Node* FoundNode = NULL;
-        while (Node != NULL)
+        // Detect if the memory passed in was already freed
+        bool bAlreadyFreed = false;
         {
-            if (Node == (FreeListAllocator_Node*)Header)
-            {
-                FoundNode = Node;
-                break;
-            }
-            
-            Node = Node->Next;
-        }
+            FreeListAllocator_Node* Node = Allocator->Head;
 
-        //ASSERT_MSG(!FoundNode, "Double free");
-        if (FoundNode)
-        {
-            return;
-        }
-    }
-    
-    usize BlockSize = Header->BlockSize;
-    
-    if (OutBytesFreed)
-    {
-        *OutBytesFreed = BlockSize;
-    }
-    
-    FreeListAllocator_Node* FreeNode = (FreeListAllocator_Node*)Header;
-    FreeNode->BlockSize = Header->BlockSize + Header->AlignmentPadding;
-    FreeNode->Next = NULL;
-    
-    FreeListAllocator_Node* Node = Allocator->Head;
-    FreeListAllocator_Node* PrevNode = NULL;
-    
-    while (Node != NULL)
-    {
-        if (FreeNode < Node)
-        {
-            if (!PrevNode)
+            const FreeListAllocator_Node* FoundNode = NULL;
+            while (Node != NULL)
             {
-                if (Allocator->Head)
+                if (Node == (FreeListAllocator_Node*)Header)
                 {
-                    FreeNode->Next = Allocator->Head;
+                    FoundNode = Node;
+                    break;
                 }
-                else
-                {
-                    Allocator->Head = FreeNode;
-                }
+                
+                Node = Node->Next;
             }
-            else
+
+            //ASSERT_MSG(!FoundNode, "Double free");
+            if (FoundNode)
             {
-                if (!PrevNode->Next)
-                {
-                    PrevNode->Next = FreeNode;
-                    FreeNode->Next = NULL;
-                }
-                else
-                {
-                    FreeNode->Next = PrevNode->Next;
-                    PrevNode->Next = FreeNode;
-                }
+                bAlreadyFreed = true;
             }
-            
-            break;
         }
         
-        PrevNode = Node;
-        Node = Node->Next;
+        if (!bAlreadyFreed)
+        {
+            usize BlockSize = Header->BlockSize;
+            
+            if (OutBytesFreed)
+            {
+                *OutBytesFreed = BlockSize;
+            }
+            
+            FreeListAllocator_Node* FreeNode = (FreeListAllocator_Node*)Header;
+            FreeNode->BlockSize = Header->BlockSize + Header->AlignmentPadding;
+            FreeNode->Next = NULL;
+            
+            FreeListAllocator_Node* Node = Allocator->Head;
+            FreeListAllocator_Node* PrevNode = NULL;
+            
+            while (Node != NULL)
+            {
+                if (FreeNode < Node)
+                {
+                    if (!PrevNode)
+                    {
+                        if (Allocator->Head)
+                        {
+                            FreeNode->Next = Allocator->Head;
+                        }
+                        else
+                        {
+                            Allocator->Head = FreeNode;
+                        }
+                    }
+                    else
+                    {
+                        if (!PrevNode->Next)
+                        {
+                            PrevNode->Next = FreeNode;
+                            FreeNode->Next = NULL;
+                        }
+                        else
+                        {
+                            FreeNode->Next = PrevNode->Next;
+                            PrevNode->Next = FreeNode;
+                        }
+                    }
+                    
+                    break;
+                }
+                
+                PrevNode = Node;
+                Node = Node->Next;
+            }
+            
+            Allocator->Allocated -= BlockSize;
+
+            #if RIFT_ASAN
+            __asan_poison_memory_region(FreeNode, BlockSize);
+            #endif
+
+            Internal_FreeListAllocator_Coalesce(Allocator, PrevNode, FreeNode);
+        }
     }
-    
-    Allocator->Allocated -= BlockSize;
-
-    #if RIFT_ASAN
-    __asan_poison_memory_region(FreeNode, BlockSize);
-    #endif
-
-    Internal_FreeListAllocator_Coalesce(Allocator, PrevNode, FreeNode);
 }
 
 
@@ -794,10 +800,6 @@ void FreeListAllocator_Free(FreeListAllocator* Allocator, void* Memory, usize* O
 
 /////////////////////////////////////
 
-
-#ifndef UNITY_BUILD
-#include "Array.h"
-#endif
 
 void* Internal_ArrayCreate(usize Num, usize Stride)
 {

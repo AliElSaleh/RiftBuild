@@ -6,7 +6,6 @@
 #include "StringUtils.h"
 #include "Filesystem.h"
 #include "Globals.h"
-#include "Log.h"
 #endif
 
 #if __CPU_X86 || __CPU_X64

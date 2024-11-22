@@ -1798,10 +1798,14 @@ static void Internal_ProcessLinkerOutput_MSVC(PlatformPipe StdOutHandle)
 
         usize BytesRead = 0;
         if (!Filesystem_ReadPipe(StdOutHandle, PipeData.Capacity, PipeData.Data, &BytesRead))
+        {
             break;
+        }
         
         if (BytesRead == 0)
+        {
             break;
+        }
 
         PipeData.Length = Min((u32)BytesRead, StdOutData.Capacity);
 

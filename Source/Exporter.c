@@ -84,11 +84,15 @@ static bool Internal_GenCommandObject(CompileData* Data, const String FullPath, 
     String_BuildPath(&RelativePathCopy, Params->SourceDirectory, RelativePath);
     String_BackSlashToForwardSlash(&RelativePathCopy);
 
+    StringLocal(CompilerPathCopy, MAX_PATH_LENGTH);
+    String_Copy(&CompilerPathCopy, Params->CompilerPath);
+    String_BackSlashToForwardSlash(&CompilerPathCopy);
+
     Filesystem_WriteLine         (Export->File, S("    {\n"), NULL);
     Filesystem_WriteLineFormatted(Export->File, S("        \"directory\": \"%S\",\n"), NULL, RootDirectory);
     Filesystem_WriteLineFormatted(Export->File, S("        \"file\": \"%S\",\n"), NULL, RelativePathCopy);
     Filesystem_WriteLineFormatted(Export->File, S("        \"arguments\": [%S"), NULL, Export->bKeepOneLine ? S("") : S("\n"));
-    Filesystem_WriteLineFormatted(Export->File, S("%S\"-c\""), NULL, Export->bKeepOneLine ? S(" ") : S("            "));
+    Filesystem_WriteLineFormatted(Export->File, S("%S\"%S\", \"-c\""), NULL, Export->bKeepOneLine ? S(" ") : S("            "), CompilerPathCopy);
     
     WriteFlags(*Params->Arena, Export->File, Params->CompilerFlags, false, Export->bKeepOneLine);
     WriteFlags(*Params->Arena, Export->File, AdditionalPlatformFlags, false, Export->bKeepOneLine);
