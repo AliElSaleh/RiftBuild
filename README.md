@@ -52,7 +52,7 @@ You are wise to be skeptical of new tools.
 
 Below are forks of a few open-source projects that I've translated from CMake (and other build systems) to Rift Build. They can be built with just a single `riftbuild` call on the terminal at the project root directory.
 
-They work on Windows, Mac OS and Linux (where appropriate).
+They work on Windows, macOS and Linux (where appropriate).
 
 - [Jolt Physics](https://github.com/AliElSaleh/JoltPhysics)
 - [Refterm](https://github.com/AliElSaleh/refterm)
@@ -107,19 +107,19 @@ The guiding north star of RiftBuild, followed in design and implementation.
 
 ### Simplicity
 - No `.build` file is necessary to build simple C or C++ programs. Source files are all that is needed to build your program.
-- **No complicated syntax or language to learn**, anyone can immediately write a `.build` file without prerequisite knowledege or reading a documentation page.
+- **No complicated syntax or language to learn**, anyone can immediately write a `.build` file without prerequisite knowledge or reading a documentation page.
 
 ### Convenience
 - RiftBuild brings the lost joy of building C and C++ projects. It automatically finds tools on your system to do the job for you without having to remember esoteric command line arguments of various compilers and linkers.
-- Write once, build everywhere. RiftBuild is designed to be cross platform. No need to write build scripts for every operating system that you want to target.
-- Runs on all major operating systems: Windows, macOS, Linux (five major distros), FreeBSD, OpenBSD and NetBSD. Supporting x86 and ARM architectures for 32/64 bit systems.
+- Write once, build everywhere. RiftBuild is designed to be cross-platform. No need to write build scripts for every operating system that you want to target.
+- Runs on all major operating systems: Windows, macOS, Linux (five major distros), FreeBSD, OpenBSD and NetBSD. Supporting x86 and ARM architectures for 32/64-bit systems.
 
 ### Performance
 - RiftBuild is written in pure C, from scratch, with **zero** dynamic memory allocation, everything happens on the stack, therefore it is fast by default.
-- RiftBuild automatically utilizes all cores of the CPU for efficient compiliation. This means less time building and more time programming.
+- RiftBuild automatically utilizes all cores of the CPU for efficient compilation. This means less time building and more time programming.
 - RiftBuild should essentially only be a wrapper over the compiler and linker with a minimal amount of overhead, **always** in the order of milliseconds.
 
-[See why i made this here](#why-did-i-make-this)
+[See why I made this here](#why-did-i-make-this)
 
 ---
 
@@ -131,7 +131,7 @@ However, complex projects require some quality-of-life features, like referencin
 Let's go through each aspect.
 
 ### Variables
-A .build file is made up of key-value pairs. Before the first whitespace is the Key, anything after that is the Value. Keys are case insensitive.
+A .build file is made up of key-value pairs. Before the first whitespace is the Key, anything after that is the Value. Keys are case-insensitive.
 
 Note: keywords like `if`, `switch`, `goto`, etc are not considered variables.
 ```make
@@ -216,9 +216,9 @@ The fact that other build systems are unable to do this is fucking pathetic and 
 
 If no extension was specified, RiftBuild will automatically choose the correct extension based on the operating system. So that means you can have an icon.ico and icon.png in the same directory and the correct one will always be chosen.
 
-| Windows     | Linux       | Mac         | BSD        | 
-| ----------- | ----------- | ----------- | ---------- |
-| `.ico`      | `.png`      | `.png`      | `.png`     |
+| Windows | Linux  | Mac    | BSD    | 
+|---------|--------|--------|--------|
+| `.ico`  | `.png` | `.png` | `.png` |
 
 ---
 
@@ -248,9 +248,9 @@ It feels like with build systems, [there is no paradise that you can escape to](
 
 I hate CMake with every fiber of my being.
 
-I was trying to build my game engine using CMake (because that's what professionals should be doing right, i had previously used a .bat script). I ended up spending a few hours trying to figure out how to program in it correctly by googling and watching youtube tutorials. I eventually became depressed with how complicated it was and didn't want to proceed any further.
+I was trying to build my game engine using CMake (because that's what professionals should be doing right, I had previously used a .bat script). I ended up spending a few hours trying to figure out how to program in it correctly by googling and watching YouTube tutorials. I eventually became depressed with how complicated it was and didn't want to proceed any further.
 
-And yes, I've also tried alternative build systems like Meson, Ninja, Bazel, Premake, etc., and guess what, they were all shit, they were all too complicated and bloated for what should be (in my view) a straightforward process, so I spent one weekend developing the first iteration of my own build system. A perk of this system, is that you don't even need to write **_any_** .build script if your program is dead simple. This allows you to be productive much quicker so you spend **_zero_** time thinking about how you should build something and more time programming.
+And yes, I've also tried alternative build systems like Meson, Ninja, Bazel, Premake, etc., and guess what, they were all shit, they were all too complicated and bloated for what should be (in my view) a straightforward process, so I spent one weekend developing the first iteration of my own build system. A perk of this system, is that you don't even need to write **_any_** .build script if your program is dead simple. This allows you to be productive much quicker, so you spend **_zero_** time thinking about how you should build something and more time programming.
 
 Writing a build file **should** be so much simpler than whatever the fuck CMake has concocted, and I firmly believe that you shouldn't have to learn **another** language (or a DSL) to build your program. A simple declarative build file is understood by everyone, thus there is no need to learn any complicated syntax to successfully write one. You get to skip the `cmake ..`, `make`, `make install` dance bullshit and go straight to the compiler with just one command, `riftbuild`.
 
@@ -281,7 +281,7 @@ But still... you don't need to write a build file with riftbuild
 #### Bazel
 ![image](https://github.com/AliElSaleh/Rift-Build/assets/19608222/fe030f44-99dd-4e03-9fb0-2c3f190238fa)
 
-Bazel can't even work with paths that have spaces in them... like what?? Just wrap the path with `""`, am i missing something??
+Bazel can't even work with paths that have spaces in them... like what?? Just wrap the path with `""`, am I missing something??
 
 Rift Build can handle them just fine...
 
@@ -318,9 +318,9 @@ Icon app.ico
 
 [Link](https://mesonbuild.com/Windows-module.html#compile_resources)
 
-meson doesnt have a way to specify icons, so instead they give you this pile of shit
+meson doesn't have a way to specify icons, so instead they give you this pile of shit
 
-all this bullshit just to say you wanna compile an rc file... 🤦
+all this bullshit just to say you want to compile a rc file... 🤦
 
 with riftbuild, you don't need to say anything, they're treated as regular source files
 
@@ -337,7 +337,7 @@ ExcludedSourceFiles something.rc anotherone.rc
 
 [Link](https://stackoverflow.com/questions/54508521/adding-a-c-executable-icon-to-premake5-build-script)
 
-ooo yummy syntax celery 😋 look at me! i'm so smart! 🤓
+ooo yummy syntax celery 😋 look at me! I'm so smart! 🤓
 
 again, it's crazy how no-one can get this right...
 ```make
@@ -355,7 +355,7 @@ and depending on the compiler, it'll use the correct rc compiler. rc.exe for msv
 
 [Link](https://mesonbuild.com/Creating-OSX-packages.html#creating-an-app-bundle)
 
-meson does not support app bundling for mac os for some reason
+meson does not support app bundling for macOS for some reason
 
 we do, and it's not as hard as they claim it to be, they're just lazy.
 
