@@ -8,7 +8,7 @@
 #include "Globals.h"
 #endif
 
-#if __CPU_X86 || __CPU_X64
+#if CPU_X86 || CPU_X64
 
 #if !COMPILER_MSVC
 #include <cpuid.h>
@@ -70,7 +70,7 @@ static void cpuid(i32 info[4], i32 infoType, i32 subtype)
 RIFT_API u32 Platform_GetCpuCacheLineSize(void)
 {
     // todo: do this dynamically
-    return __CACHE_LINE_SIZE;
+    return CACHE_LINE_SIZE;
 }
 
 bool Platform_GetCpuBrandName(String* OutName)
@@ -113,10 +113,10 @@ CpuInfo Platform_QueryCPUInfo(void)
     Result.AMD   = String_Contains(CpuVendor, S("AMD"), false);
 
     // architecture
-    #if __CPU_X64
+    #if CPU_X64
         Result.x64 = 1;
         Result.x86 = 1;
-    #elif __CPU_X86
+    #elif CPU_X86
         Result.x86 = 1;
     #endif
 
@@ -294,7 +294,7 @@ CpuInfo Platform_QueryCPUInfo(void)
     return Result;
 }
 
-#elif __CPU_ARM || __CPU_ARM64
+#elif CPU_ARM || CPU_ARM64
 
 // TODO: linux and windows?
 
@@ -321,10 +321,10 @@ CpuInfo Platform_QueryCPUInfo(void)
     CpuInfo Result = {0};
 
     // architecture
-    #if __CPU_ARM64
+    #if CPU_ARM64
     Result.ARM64 = 1;
     Result.ARM   = 1;
-    #elif __CPU_ARM
+    #elif CPU_ARM
     Result.ARM = 1;
     #endif
 
@@ -389,7 +389,7 @@ CpuInfo Platform_QueryCPUInfo(void)
     return Result;
 }
 
-#elif __CPU_PPC || __CPU_PPC64
+#elif CPU_PPC || CPU_PPC64
 
 CpuInfo Platform_QueryCPUInfo(void)
 {

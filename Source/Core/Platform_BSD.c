@@ -315,14 +315,14 @@ u32 Platform_GetCpuCacheLineSize(void)
 {
 #if PLATFORM_OPEN_BSD
     // TODO: can't be bothered right now
-    return __CACHE_LINE_SIZE;
+    return CACHE_LINE_SIZE;
 #else
     i64 LineSize = 0;
     size_t Size = sizeof(LineSize);
     i32 Result = sysctlbyname("hw.cachelinesize", &LineSize, &Size, NULL, 0);
     if (Result == -1)
     {
-        return __CACHE_LINE_SIZE;
+        return CACHE_LINE_SIZE;
     }
 
     return (u32)LineSize;

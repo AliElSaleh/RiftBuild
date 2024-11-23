@@ -1572,7 +1572,7 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String
         
         #if PLATFORM_WINDOWS
         const bool bFilePathHasExtension = Filesystem_DoesPathHaveFileExtension(FilePath);
-        String_Concat(&CmdLine, S("powershell -Command \"Compress-Archive -Force -Path \"\"\""), FilePath, bFilePathHasExtension ? S("") : S("\\*"),  S("\"\"\" -DestinationPath \"\""), FinalDestinationPath, S("\"\"\""));
+        String_Concat(&CmdLine, S("powershell -Command \"Compress-Archive -Force -Path \"\"\""), FilePath, bFilePathHasExtension ? String_Null() : S("\\*"),  S("\"\"\" -DestinationPath \"\""), FinalDestinationPath, S("\"\"\""));
         #else
         UNIMPLEMENTED;
         #endif
@@ -1658,7 +1658,7 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const File
     const String Type = GetVariableValue(ExpandedVariablesDB, S("Type"));
     if (String_IsValid(Type))
     {
-        String Extension = S("");
+        String Extension = String_Null();
         
         FileVariable Expanded;
         Expanded.Name = S("Extension");
@@ -1707,9 +1707,9 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const File
             #if PLATFORM_WINDOWS
                 Extension = S(".exe");
             #elif PLATFORM_APPLE
-                Extension = S("");
+                Extension = String_Null();
             #else
-                Extension = S("");
+                Extension = String_Null();
             #endif
         }
         else if (String_IsEqual(Type, S("gch"), false))
@@ -1741,9 +1741,9 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const File
         #if PLATFORM_WINDOWS
             Expanded.Value = S(".exe");
         #elif PLATFORM_APPLE
-            Expanded.Value = S("");
+            Expanded.Value = String_Null();
         #else
-            Expanded.Value = S("");
+            Expanded.Value = String_Null();
         #endif
 
         Array_Add(VariablesDB, Expanded);
@@ -1754,7 +1754,7 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const File
     {
         FileVariable Expanded;
         Expanded.Name = S("Compiler");
-        Expanded.Value = S("");
+        Expanded.Value = String_Null();
         Expanded.bHasSpecial = false;
 
         Array_Add(VariablesDB, Expanded);
@@ -1798,7 +1798,7 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const File
     {
         FileVariable Expanded;
         Expanded.Name = S("SourceDirectory");
-        Expanded.Value = S("");
+        Expanded.Value = String_Null();
         Expanded.bHasSpecial = false;
 
         Array_Add(VariablesDB, Expanded);
@@ -3904,7 +3904,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                         if (CompilerVersionComparisonType == Cmp_GreaterThan)
                         {
                             Prefix = S("above");
-                            Extra = S("");
+                            Extra = String_Null();
                         }
                         else if (CompilerVersionComparisonType == Cmp_GreaterThanOrEqual)
                         {
@@ -3913,7 +3913,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                         else if (CompilerVersionComparisonType == Cmp_LessThan)
                         {
                             Prefix = S("below");
-                            Extra = S("");
+                            Extra = String_Null();
                         }
                         else if (CompilerVersionComparisonType == Cmp_LessThanOrEqual)
                         {
@@ -5656,7 +5656,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
             const String Exts[42] =
             {
-                S(""),
+                String_Null(),
                 S(".o"),
                 S(".obj"),
                 S(".lib"),
@@ -5704,7 +5704,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
             String Wildcard = S(".*");
             const String WildcardS = S("S.*");
             #else
-            String Wildcard = S("");
+            String Wildcard = String_Null();
             const String WildcardS = S("S");
             #endif
 
@@ -5854,7 +5854,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     // find the appropriate rc program
     #if PLATFORM_WINDOWS
     String RCProgram = S("windres");
-    String RCProgramFlags = S("");
+    String RCProgramFlags = String_Null();
     if (String_IsEqual(CompilerProgram, S("cl"), false))
     {
         RCProgram = S("rc");
@@ -5920,7 +5920,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
             StringLocal(ExtInfo, 32);
             String_Format(&ExtInfo, S(" (%S)"), Extension_Og);
 
-            LOG("    Type:                 %S%S", AssemblyTypeStringTable[AssemblyType], Extension_Og.Length == 0 ? S("") : ExtInfo);
+            LOG("    Type:                 %S%S", AssemblyTypeStringTable[AssemblyType], Extension_Og.Length == 0 ? String_Null() : ExtInfo);
 
             if (AssemblyType != AssemblyType_CompilerObject)
             {
@@ -8474,7 +8474,7 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments, const 
     }
 
     PlatformMutex BuildMutex = {0};
-    u32 ExitCode = BuildTarget(Arena, BuildFileHandle, &BuildMutex, WorkingDirectory, BuildArguments, S(""), BuildFileIndex, RootPathIndex);
+    u32 ExitCode = BuildTarget(Arena, BuildFileHandle, &BuildMutex, WorkingDirectory, BuildArguments, String_Null(), BuildFileIndex, RootPathIndex);
     if (BuildMutex.Handle) { (void)Platform_ReleaseMutex(&BuildMutex); }
 
     Filesystem_Close(&BuildFileHandle);
@@ -8491,7 +8491,7 @@ static void InitInternalVars(LinearAllocator* Arena)
     InternalVariablesDB = Internal_ArrayCreateStatic(LinearAllocator_Allocate(Arena, MaxSize), MaxInternalVars, sizeof(InternalVariable));
 
     // store static options. like platform, native os .lib's, etc..
-    AddInternalVariable(S(PLATFORM_STRING), S(""));
+    AddInternalVariable(S(PLATFORM_STRING), String_Null());
 
     // TODO: POSIX
     // TODO: _POSIX = "version"
@@ -8524,67 +8524,67 @@ static void InitInternalVars(LinearAllocator* Arena)
 
     #if PLATFORM_WINDOWS
     AddInternalVariable(S("_Platform"), S("Windows"));
-    AddInternalVariable(S("Windows"), S(""));
-    AddInternalVariable(S("Win32"), S(""));
+    AddInternalVariable(S("Windows"),   String_Null());
+    AddInternalVariable(S("Win32"),     String_Null());
     #if PLATFORM_64_BIT
-    AddInternalVariable(S("Win64"), S(""));
+    AddInternalVariable(S("Win64"),     String_Null());
     #endif
     #elif PLATFORM_MAC
     AddInternalVariable(S("_Platform"), S("macOS"));
-    AddInternalVariable(S("Apple"), S(""));
-    AddInternalVariable(S("Macintosh"), S(""));
-    AddInternalVariable(S("Mac"), S(""));
-    AddInternalVariable(S("macOS"), S(""));
-    AddInternalVariable(S("OSX"), S(""));
-    AddInternalVariable(S("Unix"), S(""));
+    AddInternalVariable(S("Apple"),     String_Null());
+    AddInternalVariable(S("Macintosh"), String_Null());
+    AddInternalVariable(S("Mac"),       String_Null());
+    AddInternalVariable(S("macOS"),     String_Null());
+    AddInternalVariable(S("OSX"),       String_Null());
+    AddInternalVariable(S("Unix"),      String_Null());
     #elif PLATFORM_LINUX
     AddInternalVariable(S("_Platform"), S("Linux"));
-    AddInternalVariable(S("Linux"), S(""));
-    AddInternalVariable(S("Unix"), S(""));
+    AddInternalVariable(S("Linux"),     String_Null());
+    AddInternalVariable(S("Unix"),      String_Null());
 
     // TODO: add more linux distros (look in /etc/os-release for distro name)
     /*
-    AddInternalVariable(S("_Distribution"), S(""));
-    AddInternalVariable(S("_Distro"), S(""));
-    AddInternalVariable(S("Arch"), S(""));
-    AddInternalVariable(S("Ubuntu"), S(""));
-    AddInternalVariable(S("Mint"), S(""));
-    AddInternalVariable(S("Debian"), S(""));
+    AddInternalVariable(S("_Distribution"), String_Null());
+    AddInternalVariable(S("_Distro"), String_Null());
+    AddInternalVariable(S("Arch"), String_Null());
+    AddInternalVariable(S("Ubuntu"), String_Null());
+    AddInternalVariable(S("Mint"), String_Null());
+    AddInternalVariable(S("Debian"), String_Null());
     */
 
     // dynamically add one from /etc/os-release or /usr/lib/os-release
-    //AddInternalVariable(, S(""));
+    //AddInternalVariable(, String_Null());
 
     #if PLATFORM_LINUX_GNOME
-    AddInternalVariable(S("GNOME"), S(""));
+    AddInternalVariable(S("GNOME"),               String_Null());
     AddInternalVariable(S("_DesktopEnvironment"), S("GNOME"));
-    AddInternalVariable(S("_DesktopEnv"), S("GNOME"));
-    AddInternalVariable(S("_DE"), S("GNOME"));
+    AddInternalVariable(S("_DesktopEnv"),         S("GNOME"));
+    AddInternalVariable(S("_DE"),                 S("GNOME"));
     #elif PLATFORM_LINUX_KDE
-    AddInternalVariable(S("KDE"), S(""));
+    AddInternalVariable(S("KDE"),                 String_Null());
     AddInternalVariable(S("_DesktopEnvironment"), S("KDE"));
-    AddInternalVariable(S("_DesktopEnv"), S("KDE"));
-    AddInternalVariable(S("_DE"), S("KDE"));
+    AddInternalVariable(S("_DesktopEnv"),         S("KDE"));
+    AddInternalVariable(S("_DE"),                 S("KDE"));
     #elif PLATFORM_LINUX_CINNAMON
-    AddInternalVariable(S("Cinnamon"), S(""));
+    AddInternalVariable(S("Cinnamon"),            String_Null());
     AddInternalVariable(S("_DesktopEnvironment"), S("Cinnamon"));
-    AddInternalVariable(S("_DesktopEnv"), S("Cinnamon"));
-    AddInternalVariable(S("_DE"), S("Cinnamon"));
+    AddInternalVariable(S("_DesktopEnv"),         S("Cinnamon"));
+    AddInternalVariable(S("_DE"),                 S("Cinnamon"));
     #endif
     
     #elif PLATFORM_BSD
     AddInternalVariable(S("_Platform"), S("BSD " PLATFORM_STRING));
-    AddInternalVariable(S("BSD"), S(""));
+    AddInternalVariable(S("BSD"),       String_Null());
     #else
     AddInternalVariable(S("_Platform"), S("Unix"));
-    AddInternalVariable(S("Unix"), S(""));
+    AddInternalVariable(S("Unix"),      String_Null());
     #endif
 
-    String Win32Libs = S("kernel32 user32 opengl32 shell32 gdi32 comdlg32 comctl32 ws2_32 ntdll winmm netapi32 ole32 advapi32 "
-                         "wldap32 crypt32 rpcrt4 shlwapi dbghelp bcrypt version imm32 cfgmgr32 setupapi oleaut32 "
-                         "uuid odbc32 odbccp32 delayimp userenv pathcch");
+    const String Win32Libs = S("kernel32 user32 opengl32 shell32 gdi32 comdlg32 comctl32 ws2_32 ntdll winmm netapi32 ole32 advapi32 "
+                               "wldap32 crypt32 rpcrt4 shlwapi dbghelp bcrypt version imm32 cfgmgr32 setupapi oleaut32 "
+                               "uuid odbc32 odbccp32 delayimp userenv pathcch");
 
-    String LinuxLibs = S("m");
+    const String LinuxLibs = S("m");
 
     AddInternalVariable(S("_Win32Libs"), Win32Libs);
     AddInternalVariable(S("_LinuxLibs"), LinuxLibs);
@@ -8599,14 +8599,13 @@ static void InitInternalVars(LinearAllocator* Arena)
     
     #if PLATFORM_64_BIT
     AddInternalVariable(S("_Bit"), S("64"));
-    AddInternalVariable(S("64-bit"), S(""));
+    AddInternalVariable(S("64-bit"), String_Null());
     #else
     AddInternalVariable(S("_Bit"), S("32"));
-    AddInternalVariable(S("32-bit"), S(""));
+    AddInternalVariable(S("32-bit"), String_Null());
     #endif
 
-    // TODO
-    const String One = S("1");
+    const String One  = S("1");
     const String Zero = S("0");
 
     Uuid ID = UUID_Generate();
@@ -8625,7 +8624,7 @@ static void InitInternalVars(LinearAllocator* Arena)
 
         (void)String_ReplaceCharInline(&CPU, ' ', '_');
         CpuBrandName = String_Create(Arena, CPU);
-        AddInternalVariable(CpuBrandName, S("1"));
+        AddInternalVariable(CpuBrandName, One);
     }
     else
     {
@@ -8645,7 +8644,7 @@ static void InitInternalVars(LinearAllocator* Arena)
         AddInternalVariable(S("_CPUVendor"), S("Intel"));
         AddInternalVariable(S("_CPU"), CpuFullName);
 
-        AddInternalVariable(S("Intel"), S("1"));
+        AddInternalVariable(S("Intel"), One);
     }
 
     if (CPUInfo.AMD)
@@ -8653,7 +8652,7 @@ static void InitInternalVars(LinearAllocator* Arena)
         AddInternalVariable(S("_CPUVendor"), S("AMD"));
         AddInternalVariable(S("_CPU"), CpuFullName);
 
-        AddInternalVariable(S("AMD"), S("1"));
+        AddInternalVariable(S("AMD"), One);
     }
 
     if (CPUInfo.Apple)
@@ -8662,43 +8661,43 @@ static void InitInternalVars(LinearAllocator* Arena)
         AddInternalVariable(S("_CPU"), CpuFullName);
     }
 
-    #if __CPU_X64
-    AddInternalVariable(S("x86"), S("1"));
-    AddInternalVariable(S("x86_64"), S("1"));
-    AddInternalVariable(S("x64"), S("1"));
-    #elif __CPU_X86
-    AddInternalVariable(S("x86"), S("1"));
-    #elif __CPU_ARM64
-    AddInternalVariable(S("ARM"), S("1"));
-    AddInternalVariable(S("ARM32"), S("1"));
-    AddInternalVariable(S("ARM64"), S("1"));
-    #elif __CPU_ARM
-    AddInternalVariable(S("ARM"), S("1"));
-    AddInternalVariable(S("ARM32"), S("1"));
-    #elif __CPU_PPC64
-    AddInternalVariable(S("PowerPC"), S("1"));
-    AddInternalVariable(S("PPC"), S("1"));
-    AddInternalVariable(S("PowerPC64"), S("1"));
-    AddInternalVariable(S("PPC64"), S("1"));
-    #elif __CPU_PPC
-    AddInternalVariable(S("PowerPC"), S("1"));
-    AddInternalVariable(S("PPC"), S("1"));
+    #if CPU_X64
+    AddInternalVariable(S("x86"),       One);
+    AddInternalVariable(S("x86_64"),    One);
+    AddInternalVariable(S("x64"),       One);
+    #elif CPU_X86
+    AddInternalVariable(S("x86"),       One);
+    #elif CPU_ARM64
+    AddInternalVariable(S("ARM"),       One);
+    AddInternalVariable(S("ARM32"),     One);
+    AddInternalVariable(S("ARM64"),     One);
+    #elif CPU_ARM
+    AddInternalVariable(S("ARM"),       One);
+    AddInternalVariable(S("ARM32"),     One);
+    #elif CPU_PPC64
+    AddInternalVariable(S("PowerPC"),   One);
+    AddInternalVariable(S("PPC"),       One);
+    AddInternalVariable(S("PowerPC64"), One);
+    AddInternalVariable(S("PPC64"),     One);
+    #elif CPU_PPC
+    AddInternalVariable(S("PowerPC"),   One);
+    AddInternalVariable(S("PPC"),       One);
     #endif
 
     #if defined(_M_IX86)
-    AddInternalVariable(S("iX86"), S("1"));
+    AddInternalVariable(S("iX86"), One);
     #endif
     #if defined(__i386__)
-    AddInternalVariable(S("i386"), S("1"));
+    AddInternalVariable(S("i386"), One);
     #endif
     #if defined(__i486__)
-    AddInternalVariable(S("i486"), S("1"));
+    AddInternalVariable(S("i486"), One);
     #endif
     #if defined(__i586__)
-    AddInternalVariable(S("i586"), S("1"));
+    AddInternalVariable(S("i586"), One);
     #endif
     #if defined(__i686__)
-    AddInternalVariable(S("i686"), S("1"));
+    AddInternalVariable(S("i686"), One);
     #endif
 
     //#define AddInstruction(Instruction) AddInternalVariable(S("_" #Instruction), CPUInfo.Instruction ? One : Zero)
@@ -8890,7 +8889,7 @@ static void InitInternalVars(LinearAllocator* Arena)
     }
 
     // todo: store all supported extensions
-    //AddInternalVariable(S("_CPUExtensions"), S(""));
+    //AddInternalVariable(S("_CPUExtensions"), String_Null());
 
     StringLocal(CacheLineSize, 8);
     String_Format(&CacheLineSize, S("%u"), Platform_GetCpuCacheLineSize());

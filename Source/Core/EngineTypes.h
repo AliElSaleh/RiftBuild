@@ -165,7 +165,7 @@ STRUCT(StringList)
 #define each_str_i(Index, Element, Array)   (const String* (Element) = StringArray_Iterate_Begin(&(Array)); (Element) != NULL; (Element) = StringArray_Iterate_Next(&(Array)), Index+=1)
 #define each_str_list(List)                 (StringList It = List; StringList_Iterate_Check(It); (It) = StringList_Iterate_Next(It))
 #define each_str_list_i(Index, List)        (StringList It = List; StringList_Iterate_Check(It); (It) = StringList_Iterate_Next(It), Index+=1)
-#define each_str_list_it(Element, List)     (StringList (Element) = List; StringList_Iterate_Check(Element); (Element) = StringList_Iterate_Next(Element))
+#define each_str_list_it(Element, List)     (StringList Element = List; StringList_Iterate_Check(Element); Element = StringList_Iterate_Next(Element))
 
 #define StringN(n)  		                struct { uchar Data[n]; u32 Length; u32 Capacity; }
 
@@ -178,9 +178,9 @@ STRUCT(StringList)
 #define CStr16(s)                           (String16)       {.Data = (wchar*)(s),      .Length = String16_GetLength((wchar*)(s)), .Capacity = 0}
 #define CStr16View(s)                       (const String16) {.Data = (wchar*)(s),      .Length = String16_GetLength(s),           .Capacity = 0}
 
-#define S(s)                                (const String)   {.Data = (uchar*)(s),      .Length = sizeof((s))-1, .Capacity = sizeof((s))-1}
-#define SC(s)                                                {.Data = (uchar*)(s),      .Length = sizeof((s))-1, .Capacity = sizeof((s))-1}
-#define S16(s)                              (const String16) {.Data = (wchar*)(s),      .Length = sizeof((s))-1, .Capacity = sizeof((s))-1}
+#define S(s)                                (const String)   {.Data = (uchar*)(s),      .Length = sizeof(s)-1, .Capacity = 0}
+#define SC(s)                                                {.Data = (uchar*)(s),      .Length = sizeof(s)-1, .Capacity = 0}
+#define S16(s)                              (const String16) {.Data = (wchar*)(s),      .Length = sizeof(s)-1, .Capacity = 0}
 
 #define StrMake(s)                          (String)         {.Data = (s).Data,         .Length = (s).Length, .Capacity = (s).Capacity}
 #define StrView(s)                          (const String)   {.Data = (uchar*)(s).Data, .Length = (s).Length, .Capacity = (s).Capacity}
@@ -309,11 +309,11 @@ STRUCT(StringList)
 // CPU arch detection
 // https://github.com/cpredef/predef/blob/master/Architectures.md
 #if defined(_M_IX86) || defined(_M_X64) || defined(__i386__) || defined(__x86_64__)
-    #define __CPU_X86 1
-    #define __CACHE_LINE_SIZE 64
+    #define CPU_X86 1
+    #define CACHE_LINE_SIZE 64
 
     #if defined(__x86_64__) || defined(_M_X64)
-        #define __CPU_X64 1
+        #define CPU_X64 1
         #define PLATFORM_64_BIT 1
         #define CPU_ARCHITECTURE_STRING "x64"
         #define CPU_ARCHITECTURE_STRING_EX "x64|x86"
@@ -324,11 +324,11 @@ STRUCT(StringList)
     #endif
 
 #elif defined(_M_PPC) || defined(__powerpc__) || defined(__powerpc64__)
-    #define __CPU_PPC 1
-    #define __CACHE_LINE_SIZE 128
+    #define CPU_PPC 1
+    #define CACHE_LINE_SIZE 128
 
     #if defined(__powerpc64__)
-        #define __CPU_PPC64 1
+        #define CPU_PPC64 1
         #define PLATFORM_64_BIT 1
         #define CPU_ARCHITECTURE_STRING_EX "ppc64"
         #define CPU_ARCHITECTURE_STRING_EX "powerpc|ppc|ppc64"
@@ -339,18 +339,19 @@ STRUCT(StringList)
     #endif 
 
 #elif defined(__arm__) || defined(__aarch64__) || defined(_M_ARM) || defined(_M_ARM64)
-    #define __CPU_ARM 1
+    #define CPU_ARM 1
+
     #if defined(__aarch64__) || defined(_M_ARM64)
-        #define __CPU_ARM64 1
+        #define CPU_ARM64 1
         #define CPU_ARCHITECTURE_STRING "arm64"
         #define CPU_ARCHITECTURE_STRING_EX "arm64|arm|aarch|aarch64"
         #define PLATFORM_64_BIT 1
-        #define __CACHE_LINE_SIZE 128
+        #define CACHE_LINE_SIZE 128
     #else
         #define CPU_ARCHITECTURE_STRING "arm"
         #define CPU_ARCHITECTURE_STRING_EX "arm|aarch"
         #define PLATFORM_32_BIT 1
-        #define __CACHE_LINE_SIZE 64
+        #define CACHE_LINE_SIZE 64
     #endif
 
 #else
@@ -359,8 +360,14 @@ STRUCT(StringList)
 
 #if defined(__clang__)
     #define COMPILER_CLANG 1
+    #if defined(_MSC_VER)
+    #define COMPILER_CLANG_MSVC 1
+    #endif
 #elif defined(__GNUC__) || defined(__gcc__)
     #define COMPILER_GCC 1
+    #if defined(_MSC_VER)
+    #define COMPILER_GCC_MSVC 1
+    #endif
 #elif defined(_MSC_VER)
     #define COMPILER_MSVC 1
 #else
@@ -393,7 +400,33 @@ STRUCT(StringList)
     #define RIFT_API extern
 #endif // RIFT_STATIC
 
-        
+#ifdef _MSC_VER
+#define MSVC_ATTRIBUTE(x) __declspec(x)
+#define MSVC_PRAGMA(x)    _Pragma(STRINGIFY(x))
+#else
+#define MSVC_ATTRIBUTE(x)
+#define MSVC_PRAGMA(x)
+#endif
+
+#ifdef __GNUC__
+#define GCC_ATTRIBUTE(x) __attribute__((x))
+#define GCC_PRAGMA(x)    _Pragma(STRINGIFY(x))
+#else
+#define GCC_ATTRIBUTE(x)
+#define GCC_PRAGMA(x)
+#endif
+
+#define read_only \
+    MSVC_ATTRIBUTE(allocate(".rdata$")) \
+    GCC_ATTRIBUTE(section(".rodata,\"l\",@progbits#"))
+
+// Usage:
+// 
+// MSVC_PRAGMA(section(".rdata$", read))
+// read_only i32 Data = 0;
+//
+
+
 #if COMPILER_CLANG || COMPILER_GCC
 
     #define PRAGMA_DISABLE_WARNING(x) _Pragma(x)
@@ -410,7 +443,7 @@ STRUCT(StringList)
                 PRAGMA_DISABLE_WARNINGS \
                 PRAGMA_DISABLE_WARNING("clang diagnostic ignored \"-Wmissing-prototypes\"")
 
-    #define PRAGMA_DISABLE_PADDING_WARNINGS \
+        #define PRAGMA_DISABLE_PADDING_WARNINGS \
                 PRAGMA_DISABLE_WARNINGS
 
     #elif COMPILER_GCC
@@ -426,7 +459,7 @@ STRUCT(StringList)
                 PRAGMA_DISABLE_WARNING("GCC diagnostic ignored \"-Wmissing-prototypes\"")
 
         #define PRAGMA_DISABLE_PADDING_WARNINGS \
-                    PRAGMA_DISABLE_WARNINGS
+                PRAGMA_DISABLE_WARNINGS
     #endif
 
     #define DEPRECATED       __attribute__((__deprecated__))
@@ -444,7 +477,6 @@ STRUCT(StringList)
 
     #define FORCEINLINE    __attribute__((always_inline)) inline
     #define FORCENOINLINE
-    #define read_only      __attribute__((section(".rdata")))
 
     #define DEBUG_BREAK()  __builtin_trap()
 
@@ -482,7 +514,6 @@ STRUCT(StringList)
 
     #define FORCEINLINE    __forceinline 
     #define FORCENOINLINE  __declspec(noinline)
-    #define read_only      __declspec(allocate(".rdata"))
 
     extern void __nop(void);
 
@@ -586,7 +617,7 @@ typedef u32 usize;
     #define MAX_PATH_LENGTH 4096
     #define MAX_PATH_LENGTH_EX 4096
     #define PATH_SEPARATOR '/'
-#elif PLATFORM_APPLE // todo: subdivide into mac, ios
+#elif PLATFORM_APPLE
     #define MAX_PATH_LENGTH 1024
     #define MAX_PATH_LENGTH_EX 1024
     #define PATH_SEPARATOR '/'
