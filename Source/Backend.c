@@ -1,4 +1,5 @@
 // Copyright (c) 2024 Ali El Saleh
+// Licensed under the BSD 3-Clause License. See the LICENSE file for details.
 
 #ifndef UNITY_BUILD
 #include "Backend.h"
@@ -614,7 +615,7 @@ bool C_DoCompile(CompileData* Data, const String FullPath, const String Relative
         String_Append(&ObjectPath, Params->AssemblyPostfix);
         String_Append(&ObjectPath, Params->Extension);
 
-        String_BuildSeparator(&CmdLine, ' ', Params->CompilerProgram, FullSourcePath, Params->CompilerFlags, Params->CompilerOutputFlag);
+        String_BuildSeparator(&CmdLine, ' ', Params->CompilerPath, FullSourcePath, Params->CompilerFlags, Params->CompilerOutputFlag);
         (void)String_EatSpacesInlineFromEnd(&CmdLine);
         String_Append(&CmdLine, S(" \""));
         String_Append(&CmdLine, ObjectPath);
@@ -622,7 +623,7 @@ bool C_DoCompile(CompileData* Data, const String FullPath, const String Relative
     }
     else
     {
-        String_BuildSeparator(&CmdLine, ' ', Params->CompilerProgram, S("-c"), FullSourcePath, Params->CompilerFlags, AdditionalPlatformFlags, Params->DefineFlags, Params->IncludeFlags);
+        String_BuildSeparator(&CmdLine, ' ', Params->CompilerPath, S("-c"), FullSourcePath, Params->CompilerFlags, AdditionalPlatformFlags, Params->DefineFlags, Params->IncludeFlags);
         (void)String_EatSpacesInlineFromEnd(&CmdLine);
         String_Append(&CmdLine, S(" -o \""));
         String_Append(&CmdLine, ObjectPath);
@@ -722,7 +723,7 @@ bool C_Link(const BuildParams* Params)
     if (Params->Type != AssemblyType_StaticLibrary)
     {
         StringLocal(CmdLine, UINT16_MAX);
-        String_Append(&CmdLine, Params->CompilerProgram);
+        String_Append(&CmdLine, Params->CompilerPath);
         String_AppendChar(&CmdLine, ' ');
 
         LinkData Data = { Params, &CmdLine };
@@ -1326,7 +1327,7 @@ bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String Relat
     Data->Index++;
     
     StringLocal(CmdLine, UINT16_MAX);
-    String_Append(&CmdLine, Params->CompilerProgram);
+    String_Append(&CmdLine, Params->CompilerPath);
     String_Append(&CmdLine, S(" /nologo /c "));
 
     u32 LastSlash = 0;

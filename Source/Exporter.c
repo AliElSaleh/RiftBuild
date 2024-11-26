@@ -1,4 +1,5 @@
 // Copyright (c) 2024 Ali El Saleh
+// Licensed under the BSD 3-Clause License. See the LICENSE file for details.
 
 #ifndef UNITY_BUILD
 #include "Backend.h"

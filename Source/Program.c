@@ -1,4 +1,5 @@
 // Copyright (c) 2024 Ali El Saleh
+// Licensed under the BSD 3-Clause License. See the LICENSE file for details.
 
 #include "Core/EntryPoint.h"
 
@@ -805,7 +806,6 @@ static bool PathFlagDirectoryIterator(const String FullPath, const String Relati
 static bool EnforceCopyright(CompileData* Data, const String FullPath, const String RelativePath)
 {
     CopyrightEnforceInfo* AuxData = Data->AdditionalData;
-    //struct { bool bSuccess; u8 Padding[7]; String Content; u32 FromLine; u32 ToLine; } * AuxData = Data->AdditionalData;
 
     u32 LineNum = 0;
     bool bSuccess = false;
@@ -5002,7 +5002,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     */
 
     StringLocal(FirstSourceFileName, 256);
-    SourceCountData CountData = {0}; // { 0, 0, 0, 0, &FirstSourceFileName, WorkingPath, SourceDirectory, IntermediateBaseDirectory, IntermediateDirectory, BuildDirectory, WhitelistArray, BlacklistArray, WhitelistDirArray, BlacklistDirArray, CustomExtensionsList, false, AssemblyType == AssemblyType_PCH};
+    SourceCountData CountData = {0};
     CountData.NumSources                  = 0;
     CountData.NumAsmSources               = 0;
     CountData.NumHeaders                  = 0;
@@ -6431,7 +6431,6 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 AuxData.ToLine = ToLine;
                 AuxData.bSuccess = true;
                 
-                //struct { bool bSuccess; u8 Padding[7]; String Content; u32 FromLine; u32 ToLine; } AuxData = { true, CopyrightVar.Value, FromLine, ToLine };
                 CompileData UserData = { &EnforceCopyright, &p, NULL, 0, true, &AuxData };
                 Filesystem_IterateDirectory_Ex(SourceDir, &SourceFileDirectoryIterator, true, &UserData);
 

@@ -1,4 +1,5 @@
 // Copyright (c) 2024 Ali El Saleh
+// Licensed under the BSD 3-Clause License. See the LICENSE file for details.
 
 #ifndef UNITY_BUILD
 #include "Platform.h"
@@ -1898,6 +1899,37 @@ PlatformHandle Platform_RunCommand(const String CmdLine, const String WorkingDir
     {
         StringLocal(Prefix, Kibibytes(8));
         String_Format(&Prefix, S("Failed to run command: \"%S\""), CmdLine);
+        LogLastError(Prefix);
+    }
+
+    return ProcessHandle;
+}
+
+PlatformHandle Platform_RunProcess(const String ProcessExePath, const String Parameters, const String WorkingDirectory, const String EnvBlock)
+{
+    PROCESS_INFORMATION ProcessInfo = {0};
+    STARTUPINFO StartupInfo = {0};
+    StartupInfo.cb = sizeof(StartupInfo);
+
+    // todo: verify parent env gets included
+    StringLocal(Copy, MAX_PATH_LENGTH);
+    String_Copy(&Copy, WorkingDirectory);
+
+    const char* Dir = Copy.Length > 0 ? (char*)Copy.Data : NULL;
+    void* Env = EnvBlock.Length == 0 ? NULL : (char*)EnvBlock.Data;
+
+    PlatformHandle ProcessHandle = INVALID_HANDLE_VALUE;
+    if (CreateProcess((char*)ProcessExePath.Data, (char*)Parameters.Data, NULL, NULL, TRUE, 0, Env, Dir, &StartupInfo, &ProcessInfo))
+    {
+        ProcessHandle = ProcessInfo.hProcess;
+
+        SetPriorityClass(ProcessInfo.hProcess, ABOVE_NORMAL_PRIORITY_CLASS);
+        CloseHandle(ProcessInfo.hThread);
+    }
+    else
+    {
+        StringLocal(Prefix, Kibibytes(8));
+        String_Format(&Prefix, S("Failed to run command: \"%S%S\""), ProcessExePath, Parameters);
         LogLastError(Prefix);
     }
 
