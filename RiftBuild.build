@@ -102,3 +102,9 @@ Libaries:bsd            pthread
 
 Libaries:bsd:x64|arm64:gcc something
 Libaries:bsd:x64      :gcc blah
+
+Linker.NoStd
+Linker.Target
+Linker.EntryPoint EntryPoint
+Linker.Subsystem  Console
+Linker.Stack      800000000

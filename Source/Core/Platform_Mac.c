@@ -102,7 +102,7 @@ bool Platform_CreateNamedMutex(const String Name, PlatformMutex* OutMutex)
     String_Append(&Temp, S("/tmp/lock_"));
     String_Append(&Temp, Name);
 
-    i32 fd = open(Temp.Data, O_CREAT | O_RDWR, 0666);
+    i32 fd = open((const char*)Temp.Data, O_CREAT | O_RDWR, 0666);
     if (fd == -1)
     {
         StringLocal(Prefix, 512);
@@ -275,9 +275,9 @@ PlatformVersion Platform_GetVersion(void)
     if (versionString)
     {
         StringLocal(Version, 32);
-        if (CFStringGetCString(versionString, Version.Data, Version.Capacity, kCFStringEncodingUTF8))
+        if (CFStringGetCString(versionString, (char*)Version.Data, Version.Capacity, kCFStringEncodingUTF8))
         {
-            sscanf(Version.Data, "%d.%d.%d", &Result.Major, &Result.Minor, &Result.Patch);
+            sscanf((const char*)Version.Data, "%d.%d.%d", &Result.Major, &Result.Minor, &Result.Patch);
         }
     }
 
@@ -296,8 +296,8 @@ Uuid UUID_Generate(void)
 
 bool UUID_IsEqual(Uuid First, Uuid Second)
 {
-    unsigned char* a = (unsigned char*)&First;
-    unsigned char* b = (unsigned char*)&Second;
+    u8* a = (u8*)&First;
+    u8* b = (u8*)&Second;
 
     const bool bSame = uuid_compare(a, b) == 0;
     return bSame;
@@ -307,8 +307,8 @@ void UUID_ToString(Uuid ID, String* OutString)
 {
     StringLocal(Temp, GUID_LENGTH);
 
-    unsigned char* a = (unsigned char*)&ID;
-    uuid_unparse(a, Temp.Data);
+    u8* a = (u8*)&ID;
+    uuid_unparse(a, (char*)Temp.Data);
 
     String_Copy(OutString, Temp);
 }
@@ -316,7 +316,7 @@ void UUID_ToString(Uuid ID, String* OutString)
 Uuid UUID_FromString(const String IDString)
 {
     uuid_t id;
-    uuid_parse(IDString.Data, id);
+    uuid_parse((const char*)IDString.Data, id);
 
     return *(Uuid*)id;
 }

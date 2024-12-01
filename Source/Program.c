@@ -5750,7 +5750,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                         StringLocal(AppBundlePath, MAX_PATH_LENGTH);
                         String_BuildPath(&AppBundlePath, WorkingPath, BuildDirectory, AppBundleName);
                         LOG("Cleaning %S", AppBundlePath);
-                        Filesystem_DeleteDirectory(AppBundlePath);
+                        (void)Filesystem_DeleteDirectory(AppBundlePath);
 
                         String_Empty(&AppBundleName);
                         String_Append(&AppBundleName, AssemblyName);
@@ -5758,7 +5758,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                         String_Empty(&AppBundlePath);
                         String_BuildPath(&AppBundlePath, WorkingPath, BuildDirectory, AppBundleName);
                         LOG("Cleaning %S", AppBundlePath);
-                        Filesystem_DeleteDirectory(AppBundlePath);
+                        (void)Filesystem_DeleteDirectory(AppBundlePath);
                     }
                     #endif
 
@@ -6888,7 +6888,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
         if (Filesystem_DoesDirectoryExist(AppBundlePath))
         {
-            Filesystem_DeleteDirectory(AppBundlePath);
+            (void)Filesystem_DeleteDirectory(AppBundlePath);
         }
 
         bSuccess = Filesystem_OpenDirectory(AppBundlePath);
@@ -6932,7 +6932,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
             if (Filesystem_DoesDirectoryExist(IconsetPath))
             {
-                Filesystem_DeleteDirectory(IconsetPath);
+                (void)Filesystem_DeleteDirectory(IconsetPath);
             }
 
             bSuccess = Filesystem_OpenDirectory(IconsetPath);
@@ -7015,7 +7015,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
             // generate Info.plist
             if (bVerboseLog) { LOG("    Generating %S", ResourcePath); }
 
-            if (!ExportInfoPlist(*Arena, &p, ResourcePath, ExpandedVariablesDB, DoesBuildVarExist(ExpandedVariablesDB, S("Info.plist"))))
+            if (!Export_InfoPlist(*Arena, &p, ResourcePath, ExpandedVariablesDB, DoesBuildVarExist(ExpandedVariablesDB, S("Info.plist"))))
             {
                 return 1;
             }
@@ -7047,7 +7047,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
             if (bVerboseLog) { LOG("    Generating %S", ResourcePath); }
 
-            if (!ExportVersionPlist(*Arena, &p, ResourcePath, ExpandedVariablesDB, DoesBuildVarExist(ExpandedVariablesDB, S("Version.plist"))))
+            if (!Export_VersionPlist(*Arena, &p, ResourcePath, ExpandedVariablesDB, DoesBuildVarExist(ExpandedVariablesDB, S("Version.plist"))))
             {
                 return 1;
             }
@@ -7079,7 +7079,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
             if (bVerboseLog) { LOG("    Generating %S", ResourcePath); }
 
-            if (!ExportPkgInfo(&p, ResourcePath))
+            if (!Export_PkgInfo(p.Assembly, ResourcePath))
             {
                 return 1;
             }
@@ -7132,7 +7132,10 @@ static u32 BuildTarget(LinearAllocator* Arena,
             StringLocal(CmdLine, 2048);
             String_Format(&CmdLine, S("chmod +x \"%S\""), TempPath);
             if (bVerboseLog) { LOG("    %S", CmdLine); }
-            Platform_RunCommand(CmdLine, WorkingPath, String_Null());
+            PlatformHandle H = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
+            u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
+            bSuccess = ExitCode == 0;
+            if (!bSuccess) { goto CopyError; }
             String_Empty(&TempPath);
 
             // Step 3 ----------------
@@ -7176,7 +7179,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
             String_BuildPath(&AssemblyPath, WorkingPath, BuildDirectory, AssemblyNameWithExt);
 
             u32 LastSlashIndex = 0;
-            String_IndexOfLastPathSlash(IconFilePath, &LastSlashIndex);
+            (void)String_IndexOfLastPathSlash(IconFilePath, &LastSlashIndex);
 
             // Step 1 ------------------
             StringLocal(RsrcFilePath, MAX_PATH_LENGTH);
