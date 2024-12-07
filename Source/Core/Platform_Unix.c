@@ -573,7 +573,7 @@ u32 Platform_GetExitCodeForProcess(PlatformHandle Handle)
         return 0;
     }
 
-    return WEXITSTATUS(PidStatus);
+    return (u32)WEXITSTATUS(PidStatus);
 }
 
 u32 Platform_WaitForProcessAndGetExitCode(PlatformHandle Handle)
@@ -588,7 +588,7 @@ u32 Platform_WaitForProcessAndGetExitCode(PlatformHandle Handle)
         return 0;
     }
 
-    return WEXITSTATUS(PidStatus);
+    return (u32)WEXITSTATUS(PidStatus);
 }
 
 void Platform_WaitForHandle(PlatformHandle Handle, i32 Milliseconds)
@@ -947,7 +947,7 @@ bool Filesystem_Open_MemoryMapped(const String FilePath, EFileMode Mode, FileHan
     usize Size = 0;
     (void)Filesystem_GetFileSize(*OutHandle, &Size);
 
-    void* Address = mmap(NULL, Size, ProtectFlags, MAP_SHARED, fileno(OutHandle->Data), 0);
+    void* Address = mmap(NULL, Size, ProtectFlags, MAP_SHARED, fileno((FILE*)OutHandle->Data), 0);
 
     if (Address == MAP_FAILED)
     {

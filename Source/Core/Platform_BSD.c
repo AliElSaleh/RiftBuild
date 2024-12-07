@@ -9,8 +9,8 @@
 
 #include "Uuid.h"
 #include "Filesystem.h"
-#include "String/StringUtils.h"
-#include "Structures/Array.h"
+#include "StringUtils.h"
+#include "Array.h"
 
 #define _BSD_SOURCE
 
@@ -41,6 +41,7 @@
 #include <sys/mman.h>
 #include <sys/ioctl.h>
 #include <sys/sysctl.h>
+#include <sys/utsname.h>
 
 #if PLATFORM_FREE_BSD
 #include <sys/user.h>
@@ -165,7 +166,7 @@ bool Platform_CreateNamedMutex(const String Name, PlatformMutex* OutMutex)
     String_Append(&Temp, S("/tmp/lock_"));
     String_Append(&Temp, Name);
 
-    i32 fd = open(Temp.Data, O_CREAT | O_RDWR, 0666);
+    i32 fd = open((const char*)Temp.Data, O_CREAT | O_RDWR, 0666);
     if (fd == -1)
     {
         StringLocal(Prefix, 512);
@@ -330,6 +331,53 @@ u32 Platform_GetCpuCacheLineSize(void)
 #endif
 }
 
+f64 Platform_GetAbsoluteTime(void)
+{
+    struct timespec t = {0};
+    clock_gettime(CLOCK_REALTIME, &t);
+    const f64 a = (f64)t.tv_sec + ((f64)t.tv_nsec * 0.000000001); // 1e-9
+    return a;
+}
+
+void Platform_Sleep(f64 ms)
+{
+    if (ms > 0)
+    {
+        struct timespec t = {0};
+        clock_gettime(CLOCK_REALTIME, &t);
+        const f64 Start = (f64)t.tv_sec + ((f64)t.tv_nsec * 0.000000001); // 1e-9
+
+        f64 Target = ms/1000.0;
+
+        while (1)
+        {
+            clock_gettime(CLOCK_REALTIME, &t);
+            const f64 Now = (f64)t.tv_sec + ((f64)t.tv_nsec * 0.000000001); // 1e-9
+            if ((Now-Start) >= Target)
+                break;
+        }
+    }
+}
+
+PlatformVersion Platform_GetVersion(void)
+{
+    PlatformVersion Result = {0};
+    
+    struct utsname VersionInfo = {0};
+    if (uname(&VersionInfo) == 0)
+    {
+        (void)sscanf(VersionInfo.release, "%d.%d.%d", &Result.Major, &Result.Minor, &Result.Patch);
+    }
+
+    return Result;
+}
+
+bool Platform_IsWindowFocused(void)
+{
+    // no BSD implementation
+    return true;
+}
+
 Uuid UUID_Generate(void)
 {
     uuid_t id;
@@ -355,7 +403,7 @@ void UUID_ToString(Uuid ID, String* OutString)
 
     uuid_t* a = (uuid_t*)&ID;
     u32 status = 0;
-    uuid_to_string(a, &Temp.Data, &status);
+    uuid_to_string(a, (char**)&Temp.Data, &status);
 
     String_Copy(OutString, Temp);
 }
@@ -364,9 +412,9 @@ Uuid UUID_FromString(const String IDString)
 {
     uuid_t id;
     u32 status = 0;
-    uuid_from_string(IDString.Data, &id, &status);
+    uuid_from_string((const char*)IDString.Data, &id, &status);
 
     return *(Uuid*)&id;
 }
 
-#endif // PLATFORM_LINUX
+#endif // PLATFORM_BSD
