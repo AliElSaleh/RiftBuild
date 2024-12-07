@@ -7341,8 +7341,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 // todo: remove defines, use runtime check for gnome/xfce4
                 #if PLATFORM_LINUX_GNOME
                 u32 LastSlash = 0, LastDot = 0;
-                String_IndexOfLastPathSlash(IconFilePath, &LastSlash);
-                String_IndexOfLastChar(StrShiftF(IconFilePath, LastSlash+1), '.', &LastDot);
+                (void)String_IndexOfLastPathSlash(IconFilePath, &LastSlash);
+                (void)String_IndexOfLastChar(StrShiftF(IconFilePath, LastSlash+1), '.', &LastDot);
 
                 const String IconName = StrSlice(StrShiftF(IconFilePath, LastSlash+1).Data, LastDot);
                 #endif
