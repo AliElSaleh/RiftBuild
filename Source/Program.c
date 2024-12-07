@@ -1125,11 +1125,14 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String
             return false;
         }
 
-        *ExitCode = Platform_WaitForProcessAndGetExitCode(Handle);
+        bool bDontWait = String_EndsWith(Name, S("_Cmd"), false);
+        if (!bDontWait)
+        {
+            *ExitCode = Platform_WaitForProcessAndGetExitCode(Handle);
+        }
+
         if (*ExitCode != 0 && !bIgnoreErrors)
         {
-            LOG("    You can ignore this error by using ._Cmd instead");
-
             return false;
         }
     }
@@ -3059,6 +3062,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 continue;
             }
 
+            // TODO: oimplemtn Assert.Admin or Assert.Sudo
             const String Exclusions[14] =
             {
                 S("AssertProgramExists"),

@@ -651,6 +651,12 @@ void Platform_ExitCriticalSection(PlatformCriticalSection CriticalSection)
 {
 }
 
+bool Platform_IsRunningAsAdmin(void)
+{
+    uid_t euid = geteuid();
+    return euid == 0;
+}
+
 SystemTime Platform_GetSystemLocalTime(void)
 {
     time_t mytime = time(0);
