@@ -263,9 +263,9 @@ RIFT_API NO_DISCARD bool Platform_FindFile_Ex(String FileName, String ExtensionW
 
 RIFT_API NO_DISCARD u32 Platform_GetExitCodeForProcess(PlatformHandle Handle);
 RIFT_API NO_DISCARD u32 Platform_WaitForProcessAndGetExitCode(PlatformHandle Handle);
-RIFT_API void Platform_WaitForHandle(PlatformHandle Handle, i32 Milliseconds);
+RIFT_API            void Platform_WaitForHandle(PlatformHandle Handle, i32 Milliseconds);
 RIFT_API NO_DISCARD u32 Platform_WaitForMultipleHandles(PlatformHandle* Handles, u32 NumHandles, i32 Milliseconds, bool bWaitAll);
-RIFT_API void Platform_CloseHandle(PlatformHandle Handle);
+RIFT_API            void Platform_CloseHandle(PlatformHandle Handle);
 RIFT_API NO_DISCARD bool Platform_IsValidHandle(const PlatformHandle Handle);
 
 RIFT_API NO_DISCARD usize Platform_GetCriticalSectionMemoryRequirement(void);
@@ -279,6 +279,8 @@ RIFT_API NO_DISCARD bool Platform_AnyKeyPressed(void);
 RIFT_API NO_DISCARD bool Platform_CreateMutex(PlatformMutex* OutMutex);
 RIFT_API NO_DISCARD bool Platform_CreateNamedMutex(const String Name, PlatformMutex* OutMutex);
 RIFT_API NO_DISCARD bool Platform_ReleaseMutex(PlatformMutex* Mutex);
+
+RIFT_API NO_DISCARD bool Platform_IsRunningAsAdmin(void);
 
 RIFT_API NO_DISCARD u32  Platform_GetConsoleProcessCount(void);
 
