@@ -384,22 +384,22 @@ void Platform_MemFree(void* Block)
 
 void Platform_MemZero(void* Block, usize Size)
 {
-    RtlZeroMemory(Block, Size);
+    (void)RtlZeroMemory(Block, Size);
 }
 
 void Platform_MemCopy(void* Dest, const void* Source, usize Size)
 {
-    RtlCopyMemory(Dest, Source, Size);
+    (void)RtlCopyMemory(Dest, Source, Size);
 }
 
 void Platform_MemMove(void* Dest, const void* Source, usize Size)
 {
-    RtlMoveMemory(Dest, Source, Size);
+    (void)RtlMoveMemory(Dest, Source, Size);
 }
 
 void Platform_MemSet(void* Dest, i32 Value, usize Size)
 {
-    RtlFillMemory(Dest, Size, (BYTE)Value);
+    (void)RtlFillMemory(Dest, Size, (BYTE)Value);
 }
 
 bool Platform_SetWorkingDirectory(const String Path)
