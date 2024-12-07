@@ -7572,13 +7572,13 @@ static u32 BuildTarget(LinearAllocator* Arena,
             if (bHaveXml)
             {
                 if (bVerboseLog) { LOG("    Deleting %S ...", XmlFilePath); }
-                Filesystem_DeleteFile(XmlFilePath);
+                (void)Filesystem_DeleteFile(XmlFilePath);
             }
 
             if (bHaveDotDesktop)
             {
                 if (bVerboseLog) { LOG("    Deleting %S ...", DotDesktopFilePath); }
-                Filesystem_DeleteFile(DotDesktopFilePath);
+                (void)Filesystem_DeleteFile(DotDesktopFilePath);
             }
 
             // update databases

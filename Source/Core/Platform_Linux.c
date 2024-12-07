@@ -53,13 +53,16 @@ PRAGMA_ENABLE_WARNINGS
 #include <ftw.h>
 #include <fcntl.h>
 #include <pwd.h>
-#include "uuid.h"
 #include <sys/mman.h>
 #include <sys/ioctl.h>
 #include <spawn.h>
 #include <termios.h>
 #include <semaphore.h>
 #include <stdarg.h>
+
+#include <sys/utsname.h>
+
+#include "Libraries/Linux/uuid.h"
 
 extern int fileno (FILE *__stream) __THROW __wur;
 
@@ -141,7 +144,7 @@ bool Platform_CreateNamedMutex(const String Name, PlatformMutex* OutMutex)
     String_Append(&Temp, S("/tmp/lock_"));
     String_Append(&Temp, Name);
 
-    i32 fd = open(Temp.Data, O_CREAT | O_RDWR, 0666);
+    i32 fd = open((const char*)Temp.Data, O_CREAT | O_RDWR, 0666);
     if (fd == -1)
     {
         StringLocal(Prefix, 512);
@@ -249,7 +252,7 @@ bool Filesystem_GetFilePath(const FileHandle Handle, String* OutPath)
     const i32 fd = fileno(Handle.Data);
     snprintf(Path, PATH_MAX, "/proc/self/fd/%d", fd);
 
-    ssize_t Result = readlink(Path, OutPath->Data, OutPath->Capacity);
+    ssize_t Result = readlink(Path, (char*)OutPath->Data, OutPath->Capacity);
     if (Result == -1)
     {
         LogLastError(S("Failed to retrieve file path for file handle"));
@@ -296,6 +299,25 @@ bool Platform_GetFullCpuName(String* OutName)
     return bFound;
 }
 
+PlatformVersion Platform_GetVersion(void)
+{
+    PlatformVersion Result = {0};
+
+    struct utsname VersionInfo = {0};
+    if (uname(&VersionInfo) == 0)
+    {
+        (void)sscanf(VersionInfo.release, "%d.%d.%d", &Result.Major, &Result.Minor, &Result.Patch);
+    }
+
+    return Result;
+}
+
+bool Platform_IsWindowFocused(void)
+{
+    // no linux implementation
+    return true;
+}
+
 Uuid UUID_Generate(void)
 {
     uuid_t id;
@@ -306,8 +328,8 @@ Uuid UUID_Generate(void)
 
 bool UUID_IsEqual(Uuid First, Uuid Second)
 {
-    unsigned char* a = (unsigned char*)&First;
-    unsigned char* b = (unsigned char*)&Second;
+    u8* a = (u8*)&First;
+    u8* b = (u8*)&Second;
 
     const bool bSame = uuid_compare(a, b) == 0;
     return bSame;
@@ -317,8 +339,8 @@ void UUID_ToString(Uuid ID, String* OutString)
 {
     StringLocal(Temp, GUID_LENGTH);
 
-    unsigned char* a = (unsigned char*)&ID;
-    uuid_unparse(a, Temp.Data);
+    u8* a = (u8*)&ID;
+    uuid_unparse(a, (char*)Temp.Data);
 
     String_Copy(OutString, Temp);
 }
@@ -326,7 +348,7 @@ void UUID_ToString(Uuid ID, String* OutString)
 Uuid UUID_FromString(const String IDString)
 {
     uuid_t id;
-    uuid_parse(IDString.Data, id);
+    uuid_parse((const char*)IDString.Data, id);
 
     return *(Uuid*)id;
 }

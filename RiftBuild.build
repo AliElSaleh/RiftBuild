@@ -55,7 +55,7 @@ if pull PreBuild.Cmd git pull
 if check PostBuild.Cmd cppcheck ./Source --cppcheck-build-dir=Intermediate\CppCheck --check-level=exhaustive --enable=all --disable=missingInclude -j 16 --language=c --std=c99 --max-ctu-depth=16 --platform=win64 -i Source/Libraries/ -i Source/Core/Platform_Unix.c -i Source/Core/Platform_Mac.c -i Source/Core/Platform_BSD.c -i Source/Core/Platform_Linux.c -i Source/Libraries/Vendor/stb_sprintf.h -D__clang__ -DRIFT_STATIC -DNO_ASSERT -DNO_PROFILING -D_NO_CRT_STDIO_INLINE -DNDEBUG -DWIN32 -D__x86_64__ -ISource/Core/ -ISource/Libraries/Vendor/
 
 # todo: make this a native operation
-if debug PreLink.Delete $(BuildDirectory)/$(Assembly).pdb
+if windows if debug PreLink.Delete $(BuildDirectory)/$(Assembly).pdb
 
 ##
 cpu   "%(_cpu)"

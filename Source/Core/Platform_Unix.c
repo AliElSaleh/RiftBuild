@@ -75,7 +75,6 @@ void Platform_PreInitialize(void)
     struct sigaction act = {0};
     act.sa_handler = &Internal_SignalHandler;
     sigaction(SIGINT, &act, NULL);
-    sigaction(SIGKILL, &act, NULL);
     sigaction(SIGQUIT, &act, NULL);
     sigaction(SIGILL, &act, NULL);
     sigaction(SIGABRT, &act, NULL);
