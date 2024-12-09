@@ -971,7 +971,7 @@ bool Filesystem_Open_MemoryMapped(const String FilePath, EFileMode Mode, FileHan
     if (OutSize) 
         *OutSize = Size;
 
-    return 0;
+    return true;
 }
 
 bool Filesystem_OpenDirectory(const String FilePath)
