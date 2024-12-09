@@ -220,6 +220,13 @@ If no extension was specified, RiftBuild will automatically choose the correct e
 |---------|--------|--------|--------|
 | `.ico`  | `.png` | `.png` | `.png` |
 
+On Linux and BSD, the following Desktop Environments are supported:
+- GNOME
+- KDE
+- XFCE4
+- MATE
+- Cinnamon
+
 ---
 
 # Supported Platforms & Architectures
