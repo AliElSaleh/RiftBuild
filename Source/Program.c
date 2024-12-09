@@ -1,4 +1,4 @@
-// Copyright (c) 2024 Ali El Saleh
+// Copyright (c) 2024 Artisan Softworks
 // Licensed under the BSD 3-Clause License. See the LICENSE file for details.
 
 #include "Core/EntryPoint.h"
@@ -2007,7 +2007,8 @@ static void PrintAbout(const String WorkingDirectory)
     SystemTime TimeNow = Platform_GetSystemLocalTime();
 
     LOG("   A simpler build tool for C/C++, because fuck CMake.\n");
-    LOG("   Copyright (c) %hu Ali El Saleh", TimeNow.Year);
+    LOG("   Copyright (c) %hu Artisan Softworks", TimeNow.Year);
+    LOG("   Licensed under the BSD 3-Clause License. See the LICENSE file for details.", TimeNow.Year);
     LOG("   Compiled with %S on %S", String_EatSpacesFromEnd(CompiledWith), S(__TIMESTAMP__));
     LOG_LINE_BREAK();
     LOG("   Repository Link: https://github.com/AliElSaleh/RiftBuild");
@@ -2360,6 +2361,17 @@ static void ExpandPathFlags(LinearAllocator Scratch, String* Dest, const String 
         {
             StringLocal(ItCopy, MAX_PATH_LENGTH);
             (void)String_SanitizeQuotes(&ItCopy, It.String);
+
+            // Fixes compiler being confused by this specific cmd line arg (on windows)
+            // -I"..\" now becomes -I"..\\"
+            if (String_EatPathSeparatorsInlineFromEnd(&ItCopy))
+            {
+                #if PLATFORM_WINDOWS
+                String_Append(&ItCopy, S("\\\\"));
+                #else
+                String_Append(&ItCopy, S("/"));
+                #endif
+            }
 
             String_Append(&NonWildcardFlags, ItCopy);
             String_AppendSpace(&NonWildcardFlags);

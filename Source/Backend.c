@@ -1,4 +1,4 @@
-// Copyright (c) 2024 Ali El Saleh
+// Copyright (c) 2024 Artisan Softworks
 // Licensed under the BSD 3-Clause License. See the LICENSE file for details.
 
 #ifndef UNITY_BUILD
@@ -422,6 +422,7 @@ bool C_Compile(const BuildParams* Params, u32* OutNumCompiled)
     {
         if (bQuietBuild) { Logging_Enable(); }
 
+        //TODO: say how long ago the last build was like -> (5.3 secs ago)
         #ifndef HOOD
         LOG("\nNothing to compile - source files unchanged since last build");
         #else

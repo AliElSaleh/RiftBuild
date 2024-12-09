@@ -7,8 +7,8 @@ Icon                    riftbuild
 
 TitleName               Rift Build %^%debug
 Description             A simpler build tool for C/C++, because fuck cmake
-Version!                0.9.8-alpha-%_date.nosep
-CompanyName             Ali El Saleh
+Version!                0.9.9-alpha-%_date.nosep
+CompanyName             Artisan Softworks
 Copyright!              Copyright (c) %_date.year $CompanyName
 License                 BSD 3-Clause
 
@@ -22,9 +22,10 @@ Defines                 $SharedDefines RIFT_STATIC %^%hood
 
 IncludedSourceFiles     Memory.c StringUtils.c Globals.c Log.c Platform_Core.c Program.c Backend.c Exporter.c Parse.c
 if windows              IncludedSourceFiles Platform_Windows.c
-if linux                IncludedSourceFiles Platform_Unix.c Platform_Linux.c
-if mac                  IncludedSourceFiles Platform_Unix.c Platform_Mac.c
-if bsd                  IncludedSourceFiles Platform_Unix.c Platform_BSD.c
+if unix                 IncludedSourceFiles Platform_Unix.c
+if linux                IncludedSourceFiles Platform_Linux.c
+if mac                  IncludedSourceFiles Platform_Mac.c
+if bsd                  IncludedSourceFiles Platform_BSD.c
 
 if mac                  CompilerFlags -mmacosx-version-min=10.12 ; LinkerFlags -framework Foundation
 

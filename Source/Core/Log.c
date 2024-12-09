@@ -1,4 +1,4 @@
-// Copyright (c) 2024 Ali El Saleh 
+// Copyright (c) 2024 Artisan Softworks 
 // Licensed under the BSD 3-Clause License. See the LICENSE file for details.
 
 #ifndef NO_LOG
