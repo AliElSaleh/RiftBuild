@@ -245,9 +245,6 @@ On Linux and BSD, the following Desktop Environments are supported:
 - BSD
   - FreeBSD, OpenBSD and NetBSD
 
-# Dependencies
-- No dependencies
-
 ---
 
 # Why did I make this?
