@@ -9132,7 +9132,7 @@ u32 RunApplication(const StringArray Arguments)
         while (true)
         {
             Platform_Sleep(10);
-            if (Platform_IsWindowFocused() && Platform_AnyKeyPressed())
+            if (Platform_IsConsoleFocused() && Platform_AnyKeyPressed())
             {
                 break;
             }

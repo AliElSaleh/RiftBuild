@@ -2229,6 +2229,23 @@ PlatformVersion Platform_GetVersion(void)
     return Result;
 }
 
+bool Platform_IsConsoleFocused(void)
+{
+    bool bIsFocused = false;
+
+    HWND ForegroundWindow = GetConsoleWindow();
+    DWORD ThisProcessID = GetCurrentProcessId();
+    DWORD ForegroundProcessID = 0;
+    DWORD Result = GetWindowThreadProcessId(ForegroundWindow, &ForegroundProcessID);
+    
+    if (Result > 0 && ForegroundProcessID > 0)
+    {
+        bIsFocused = ThisProcessID == ForegroundProcessID;
+    }
+
+    return bIsFocused;
+}
+
 bool Platform_IsWindowFocused(void)
 {
     bool bIsFocused = false;

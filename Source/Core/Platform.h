@@ -318,5 +318,6 @@ RIFT_API NO_DISCARD CpuInfo Platform_QueryCPUInfo(void);
 RIFT_API NO_DISCARD PlatformVersion Platform_GetVersion(void);
 
 RIFT_API NO_DISCARD bool Platform_IsWindowFocused(void);
+RIFT_API NO_DISCARD bool Platform_IsConsoleFocused(void);
 
 #endif // PLATFORM_H

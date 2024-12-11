@@ -1452,5 +1452,6 @@ WINBASEAPI NO_DISCARD HWND       WINAPI GetForegroundWindow(void);
 WINBASEAPI NO_DISCARD HWND       WINAPI GetFocus(void);
 WINBASEAPI NO_DISCARD HWND       WINAPI GetActiveWindow(void);
 WINBASEAPI NO_DISCARD DWORD      WINAPI GetWindowThreadProcessId(HWND hWnd, LPDWORD lpdwProcessId);
+WINBASEAPI NO_DISCARD HWND       WINAPI GetConsoleWindow(void);
 
 #endif // WIN32TYPES_H
