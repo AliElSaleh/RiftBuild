@@ -2508,12 +2508,12 @@ static u32 BuildTarget(LinearAllocator* Arena,
     bool bBuildFilePathSuccess = Filesystem_GetFilePath(BuildFileHandle, &BuildFilePathFull);
     if (bFoundBuildFile && (BuildFilePathFull.Length == 0 || !bBuildFilePathSuccess))
     {
-        LOG_FATAL("Operating system error: failed to retrieve file path from handle. Aborting...");
+        LOG_FATAL("Operating system error: Failed to retrieve build file path from its handle. Aborting...");
         return 1;
     }
 
     // make sure no one else is building this target
-    const bool bNoMutex = StringArray_Contains(Parameters, S("-no-mutex"), false);
+    const bool bNoMutex = StringArray_Contains(Parameters, S("--no-mutex"), false);
     if (!bNoMutex)
     {
         String MutexString = String_Reserve(Arena, MAX_PATH_LENGTH);
@@ -2549,12 +2549,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
             }
 
             LOG("    To prevent conflicts, please wait for the existing build to finish before trying again.\n");
-            LOG("    This feature can be disabled with -no-mutex");
+            LOG("    This feature can be disabled with --no-mutex");
 
-            #if !PLATFORM_WINDOWS
-            //LOG_LINE_BREAK();
-            #endif
-            
             return 1;
         }
     }
