@@ -9,7 +9,7 @@ TitleName               Rift Build %^%debug
 Description             A simpler build tool for C/C++, because fuck cmake
 Version!                0.9.9-alpha-%_date.nosep
 CompanyName             Artisan Softworks
-Copyright!              Copyright (c) %_date.year $CompanyName
+Copyright!              Copyright (c) $CompanyName
 License                 BSD 3-Clause
 
 SourceDirectory         Source

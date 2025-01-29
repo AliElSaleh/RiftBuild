@@ -1,7 +1,7 @@
 Compiler               clang++
 Assembly               %(_FileName)%%32
 Type                   static_lib
-Includes               ../../Core
+Includes               ../../
 CompilerFlags          -Os -Wno-writable-strings -nostdlib -nostdlib++
 LinkerFlags            
 if 32                  CompilerFlags -m32 ; LinkerFlags --target=i386-pc-windows-msvc 

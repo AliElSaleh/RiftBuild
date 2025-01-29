@@ -6,12 +6,14 @@ typedef unsigned char      u8;
 typedef unsigned short     u16;
 typedef unsigned int       u32;
 typedef unsigned long long u64;
+typedef unsigned long      ulong;
 
 // Signed integer types
 typedef signed char        i8;
 typedef signed short       i16;
 typedef signed int         i32;
 typedef signed long long   i64;
+typedef signed long        ilong;
 
 // Floating-point types
 typedef float              f32;
@@ -170,7 +172,7 @@ STRUCT(StringList)
 #define StringN(n)  		                struct { uchar Data[n]; u32 Length; u32 Capacity; }
 
 #define StringLocal(Name, n) 	            u8    MACRO_VAR(CONCAT(Buffer_, Name))[n+1] = {0}; String   Name; Name.Data = (uchar*)MACRO_VAR(CONCAT(Buffer_, Name)); Name.Length = 0; Name.Capacity = (n)
-#define String16Local(Name, n) 	            wchar MACRO_VAR(CONCAT(Buffer_, Name))[n+1] = {0}; String16 Name; Name.Data = (uchar*)MACRO_VAR(CONCAT(Buffer_, Name)), Name.Length = 0, Name.Capacity = (n)
+#define String16Local(Name, n) 	            wchar MACRO_VAR(CONCAT(Buffer_, Name))[n+1] = {0}; String16 Name; Name.Data = (wchar*)MACRO_VAR(CONCAT(Buffer_, Name)), Name.Length = 0, Name.Capacity = (n)
 
 #define CStr(s)                             (String)         {.Data = (uchar*)(s),      .Length = String_GetLength(s),             .Capacity = 0}
 #define CStrEx(s, n)                        (String)         {.Data = (uchar*)(s),      .Length = String_GetLength_Ex(s, n),       .Capacity = 0}

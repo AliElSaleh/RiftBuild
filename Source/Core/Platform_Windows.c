@@ -1,4 +1,4 @@
-// Copyright (c) 2024 Artisan Softworks
+// Copyright (c) Artisan Softworks
 // Licensed under the BSD 3-Clause License. See the LICENSE file for details.
 
 #ifndef UNITY_BUILD
@@ -1892,7 +1892,7 @@ PlatformHandle Platform_RunCommand(const String CmdLine, const String WorkingDir
     {
         ProcessHandle = ProcessInfo.hProcess;
 
-        SetPriorityClass(ProcessInfo.hProcess, ABOVE_NORMAL_PRIORITY_CLASS);
+        SetPriorityClass(ProcessInfo.hProcess, HIGH_PRIORITY_CLASS);
         CloseHandle(ProcessInfo.hThread);
     }
     else
@@ -1923,14 +1923,70 @@ PlatformHandle Platform_RunProcess(const String ProcessExePath, const String Par
     {
         ProcessHandle = ProcessInfo.hProcess;
 
-        SetPriorityClass(ProcessInfo.hProcess, ABOVE_NORMAL_PRIORITY_CLASS);
+        SetPriorityClass(ProcessInfo.hProcess, HIGH_PRIORITY_CLASS);
         CloseHandle(ProcessInfo.hThread);
     }
     else
     {
         StringLocal(Prefix, Kibibytes(8));
-        String_Format(&Prefix, S("Failed to run command: \"%S%S\""), ProcessExePath, Parameters);
+        String_Format(&Prefix, S("Failed to run process: \"%S %S\""), ProcessExePath, Parameters);
         LogLastError(Prefix);
+    }
+
+    return ProcessHandle;
+}
+
+PlatformHandle Platform_RunProcess_Ex(const String ProcessExePath, const String Parameters, const String WorkingDirectory, PlatformPipe* StdOutPipe)
+{
+    PROCESS_INFORMATION ProcessInfo = {0};
+    SECURITY_ATTRIBUTES saAttr = {0}; 
+    saAttr.nLength = sizeof(SECURITY_ATTRIBUTES); 
+    saAttr.bInheritHandle = TRUE; 
+    saAttr.lpSecurityDescriptor = NULL; 
+
+    PlatformHandle ProcessHandle = INVALID_HANDLE_VALUE;
+
+    HANDLE r = 0, w = 0;
+
+    bool bSuccess = CreatePipe(&r, &w, &saAttr, 0);
+
+    if (bSuccess)
+    {
+        bSuccess = SetHandleInformation(r, HANDLE_FLAG_INHERIT, 0);
+    }
+
+    if (bSuccess)
+    {
+        if (StdOutPipe)
+        {
+            (*StdOutPipe)[0] = r;
+            (*StdOutPipe)[1] = w;
+        }
+
+        STARTUPINFO StartupInfo = {0};
+        StartupInfo.cb = sizeof(STARTUPINFO);
+        StartupInfo.hStdError = w;
+        StartupInfo.hStdOutput = w;
+        StartupInfo.hStdInput = NULL;
+        StartupInfo.dwFlags |= STARTF_USESTDHANDLES;
+
+        StringLocal(Copy, MAX_PATH_LENGTH);
+        String_Copy(&Copy, WorkingDirectory);
+        const char* Dir = Copy.Length > 0 ? (char*)Copy.Data : NULL;
+
+        if (CreateProcess((char*)ProcessExePath.Data, (char*)Parameters.Data, NULL, NULL, TRUE, 0, NULL, Dir, &StartupInfo, &ProcessInfo))
+        {
+            ProcessHandle = ProcessInfo.hProcess;
+
+            SetPriorityClass(ProcessInfo.hProcess, HIGH_PRIORITY_CLASS);
+            CloseHandle(ProcessInfo.hThread);
+        }
+        else
+        {
+            StringLocal(Prefix, Kibibytes(8));
+            String_Format(&Prefix, S("Failed to run command: \"%S\""), Parameters);
+            LogLastError(Prefix);
+        }
     }
 
     return ProcessHandle;
@@ -1978,7 +2034,7 @@ PlatformHandle Platform_RunCommand_Ex(const String CmdLine, const String Working
         {
             ProcessHandle = ProcessInfo.hProcess;
 
-            SetPriorityClass(ProcessInfo.hProcess, ABOVE_NORMAL_PRIORITY_CLASS);
+            SetPriorityClass(ProcessInfo.hProcess, HIGH_PRIORITY_CLASS);
             CloseHandle(ProcessInfo.hThread);
         }
         else
@@ -2007,7 +2063,8 @@ bool Platform_FindProgram(String ProgramName)
 
 bool Platform_FindProgram_Ex(String ProgramName, String* OutProgramPath)
 {
-    return Platform_FindFile_Ex(ProgramName, S(".exe"), OutProgramPath);
+    return Platform_FindFile_Ex(ProgramName, S(".exe"), OutProgramPath) ||
+           Platform_FindFile_Ex(ProgramName, S(".com"), OutProgramPath);
 }
 
 bool Platform_FindFile(String FileName, String ExtensionWithDot)
@@ -2036,7 +2093,10 @@ bool Platform_FindFile_Ex(String FileName, String ExtensionWithDot, String* OutF
 
         if (bSuccess && OutFilePath)
         {
+            //String_Empty(OutFilePath);
+            //String_AppendChar(OutFilePath, '"');
             String_Copy(OutFilePath, StrSlice(FullPath, Len));
+            //String_AppendChar(OutFilePath, '"');
         }
     }
 
@@ -2261,6 +2321,11 @@ bool Platform_IsWindowFocused(void)
     }
 
     return bIsFocused;
+}
+
+u32 Platform_GetPosixVersion(void)
+{
+    return 0;
 }
 
 /*

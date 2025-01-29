@@ -137,6 +137,9 @@ STRUCT(BuildParams)
     String Extension_Og;
     String CompilerProgram;
     String CompilerPath;
+    String LinkerPath;
+    String ArchiverPath;
+    String DumpBinPath;
     String CompilerOutputFlag;
     String AsmProgram;
     String AsmPath;

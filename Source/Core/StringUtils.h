@@ -212,6 +212,8 @@ RIFT_API NO_DISCARD u8 ToLower(u8 Char);
 RIFT_API NO_DISCARD u8 ToForwardSlash(u8 Char);
 RIFT_API NO_DISCARD u8 ToBackSlash(u8 Char);
 
+RIFT_API NO_DISCARD u8 Integer_CountDigits(u64 Value);
+
 // TODO: possibly delete all these functions below
 /*
 RIFT_API void EatSpaces(u8** Str);

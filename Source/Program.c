@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Artisan Softworks
+// Copyright (c) Artisan Softworks
 // Licensed under the BSD 3-Clause License. See the LICENSE file for details.
 
 #include "Core/EntryPoint.h"
@@ -2486,6 +2486,22 @@ static void Internal_RunAssembly(LinearAllocator Scratch, const String WorkingPa
     }
 }
 
+static void TimeAsPercentageOfTotal(String* Buffer, u32 Length, f64 ElapsedTime, f64 TotalTime)
+{
+    i32 SpacesToAppend = Max(0, 12 - (i32)Length) + 2;
+    for (i32 i = 0; i < SpacesToAppend; i++)
+    {
+        String_AppendSpace(Buffer);
+    }
+
+    String_Append(Buffer, S("["));
+    f64 Percentage = (ElapsedTime / TotalTime) * 100.0;
+    StringLocal(PercentageString, 8);
+    String_Format(&PercentageString, S("%.2f"), Percentage);
+    String_Append(Buffer, PercentageString);
+    String_Append(Buffer, S("%]"));
+}
+
 static u32 BuildTarget(LinearAllocator* Arena,
                         const FileHandle BuildFileHandle, PlatformMutex* BuildMutex,
                         const String WorkingPath, const StringArray Parameters, const String CameFromBuildFile,
@@ -3561,6 +3577,14 @@ static u32 BuildTarget(LinearAllocator* Arena,
     String AssemblyName = FinalAssemblyName;
 
     StringLocal(CompilerPath, MAX_PATH_LENGTH);
+    StringLocal(LinkerPath, MAX_PATH_LENGTH);
+    StringLocal(ArchiverPath, MAX_PATH_LENGTH);
+    StringLocal(RCCompilerPath, MAX_PATH_LENGTH);
+    StringLocal(DumpBinPath, MAX_PATH_LENGTH);
+
+    #if PLATFORM_WINDOWS
+    StringLocal(WindowsSDKPath, MAX_PATH_LENGTH);
+    #endif
 
     bool bExplicitCompilerPath = false;
     if (String_IndexOfFirstPathSlash(CompilerProgram, NULL))
@@ -3595,6 +3619,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
         if (!bCompilerProgramFound && bNoCompilerProgramExplicityGiven)
         {
+            // TODO: on windows, search msvc first
             const String CompilerPrograms[9] =
             {
                 S("clang"),
@@ -3720,6 +3745,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
                 StringLocal(ExePath, MAX_PATH_LENGTH);
                 if (MSVC_SDK_Result.vs_exe_path) { String_ToNarrow(CStr16(MSVC_SDK_Result.vs_exe_path), &ExePath); }
+
+                if (MSVC_SDK_Result.windows_sdk_bin_path) { String_ToNarrow(CStr16(MSVC_SDK_Result.windows_sdk_bin_path), &WindowsSDKPath); }
 
                 // TODO: .InitMSVCEnvironment in build file to trigger this
                 
@@ -5431,6 +5458,114 @@ static u32 BuildTarget(LinearAllocator* Arena,
         }
     }
 
+    String RCCompilerFlags = String_Null();
+
+    // resolve linker and archiver paths
+    {
+        u32 LastSlashIndex = 0;
+        (void)String_IndexOfLastPathSlash(CompilerPath, &LastSlashIndex);
+
+        const String CompilerBasePath = StrSlice(CompilerPath.Data, LastSlashIndex);
+        const String CompilerExe = StrShiftF(CompilerPath, LastSlashIndex+1);
+
+        if (String_Contains(CompilerExe, S("clang"), false))
+        {
+            String_Copy(&LinkerPath, CompilerPath);
+
+            String_BuildPath(&ArchiverPath, CompilerBasePath, S("llvm-ar"));
+            String_BuildPath(&DumpBinPath, CompilerBasePath, S("llvm-objdump"));
+            String_BuildPath(&RCCompilerPath, CompilerBasePath, S("llvm-rc"));
+
+            #if PLATFORM_WINDOWS
+            String_Append(&ArchiverPath, S(".exe"));
+            String_Append(&DumpBinPath, S(".exe"));
+            String_Append(&RCCompilerPath, S(".exe"));
+            #endif
+        }
+        else if (String_Contains(CompilerExe, S("gcc"), false) ||
+                 String_Contains(CompilerExe, S("g++"), false))
+        {
+            String_Copy(&LinkerPath, CompilerPath);
+
+            String_BuildPath(&ArchiverPath, CompilerBasePath, S("gcc-ar"));
+            String_BuildPath(&DumpBinPath, CompilerBasePath, S("objdump"));
+            String_BuildPath(&RCCompilerPath, CompilerBasePath, S("windres"));
+
+            #if PLATFORM_WINDOWS
+            String_Append(&ArchiverPath, S(".exe"));
+            String_Append(&DumpBinPath, S(".exe"));
+            String_Append(&RCCompilerPath, S(".exe"));
+            #endif
+        }
+        else if (String_Contains(CompilerExe, S("cl.exe"), false))
+        {
+            String_BuildPath(&LinkerPath, CompilerBasePath, S("link.exe"));
+            String_BuildPath(&ArchiverPath, CompilerBasePath, S("lib.exe"));
+            String_BuildPath(&DumpBinPath, CompilerBasePath, S("dumpbin.exe"));
+            String_BuildPath(&RCCompilerPath, WindowsSDKPath, S("\\"CPU_ARCHITECTURE_STRING"\\rc.exe"));
+
+            RCCompilerFlags = S("/nologo");
+        }
+        else
+        {
+            String_Copy(&LinkerPath, CompilerPath);
+
+            #if PLATFORM_WINDOWS
+            if (WindowsSDKPath.Length > 0)
+            {
+                String_BuildPath(&RCCompilerPath, WindowsSDKPath, S("\\"CPU_ARCHITECTURE_STRING"\\rc.exe"));
+                RCCompilerFlags = S("/nologo");
+            }
+            #else
+            // TODO: find the path
+            //String_Copy(&ArchiverPath, CompilerBasePath);
+            String_Copy(&ArchiverPath, S("ar"));
+            String_Copy(&DumpBinPath, S("objdump"));
+            #endif
+        }
+
+        // TODO: delete after verifying new code
+        /*
+        // find the appropriate rc program
+        #if PLATFORM_WINDOWS
+        String RCProgram = S("windres");
+        String RCProgramFlags = String_Null();
+        if (String_IsEqual(CompilerProgram, S("cl"), false))
+        {
+            RCProgram = S("rc");
+            RCProgramFlags = S(" /nologo");
+        }
+        else if (String_IsEqual(CompilerProgram, S("clang"), false) ||
+                String_IsEqual(CompilerProgram, S("clang++"), false ||
+                String_IsEqual(CompilerProgram, S("clang-cl"), false)))
+        {
+            RCProgram = S("llvm-rc");
+        }
+        else
+        {
+            // no action required
+        }
+
+        StringLocal(RCProgramPath, MAX_PATH_LENGTH);
+        bool bHasRcProgram = Platform_FindProgram_Ex(RCProgram, &RCProgramPath);
+        #endif
+        */
+    }
+
+    const bool bHasRcProgram = RCCompilerPath.Length > 0;
+    String RCProgram = String_Null();
+
+    if (bHasRcProgram)
+    {
+        u32 Index = 0;
+        (void)String_IndexOfLastPathSlash(RCCompilerPath, &Index);
+        RCProgram = StrShiftF(RCCompilerPath, Index+1);
+        if (String_IndexOfLastChar(RCProgram, '.', &Index))
+        {
+            RCProgram = StrSlice(RCProgram.Data, Index);
+        }
+    }
+
     bool bExportingSomething = false;
     for (u8 i = 0; i < Parameters.Num; i++)
     {
@@ -5863,30 +5998,6 @@ static u32 BuildTarget(LinearAllocator* Arena,
         LOG_LINE_BREAK();
     }
 
-    // find the appropriate rc program
-    #if PLATFORM_WINDOWS
-    String RCProgram = S("windres");
-    String RCProgramFlags = String_Null();
-    if (String_IsEqual(CompilerProgram, S("cl"), false))
-    {
-        RCProgram = S("rc");
-        RCProgramFlags = S(" /nologo");
-    }
-    else if (String_IsEqual(CompilerProgram, S("clang"), false) ||
-            String_IsEqual(CompilerProgram, S("clang++"), false ||
-            String_IsEqual(CompilerProgram, S("clang-cl"), false)))
-    {
-        RCProgram = S("llvm-rc");
-    }
-    else
-    {
-        // no action required
-    }
-
-    StringLocal(RCProgramPath, MAX_PATH_LENGTH);
-    bool bHasRcProgram = Platform_FindProgram_Ex(RCProgram, &RCProgramPath);
-    #endif
-
     if (!bExportingSomething)
     {
         if (bFoundBuildFile)
@@ -5961,9 +6072,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
             }
 
             #if PLATFORM_WINDOWS
-            if (bHasRcProgram && (Icon.Length > 0 || CountData.NumRcSources > 0))
+            if (RCCompilerPath.Length > 0 && (Icon.Length > 0 || CountData.NumRcSources > 0))
             {
-                LOG("    Resource Compiler:    %S -> \"%S\"", RCProgram, RCProgramPath);
+                LOG("    Resource Compiler:    %S -> \"%S\"", RCProgram, RCCompilerPath);
             }
             #endif
 
@@ -6095,12 +6206,15 @@ static u32 BuildTarget(LinearAllocator* Arena,
     p.CompilerProgram               = bExplicitCompilerPath ? CompilerPath : CompilerProgram;
     p.CompilerPath                  = CompilerPath;
     p.CompilerOutputFlag            = CompilerOutputFlag;
+    p.LinkerPath                    = LinkerPath;
+    p.ArchiverPath                  = ArchiverPath;
+    p.DumpBinPath                   = DumpBinPath;
     p.AsmProgram                    = AsmProgram;
     p.AsmPath                       = AsmCompilerPath;
     #if PLATFORM_WINDOWS
     p.RCProgram                     = RCProgram;
-    p.RCProgramPath                 = RCProgramPath;
-    p.RCProgramFlags                = RCProgramFlags;
+    p.RCProgramPath                 = RCCompilerPath;
+    p.RCProgramFlags                = RCCompilerFlags;
     p.bHasRCProgram                 = bHasRcProgram;
     #endif
     p.Assembly                      = AssemblyName;
@@ -6734,9 +6848,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
             }
             else
             {
-                LOG_WARNING("Unable to build icon. \"%S\" tool does not exist."
-                " Download \"%S\" and add a new environment path that points to it."
-                " Skipping icon build...", RCProgram, RCProgram);
+                LOG_WARNING("Unable to build icon. You do not have a resource compiler installed on this machine. Skipping icon build...");
             }
         }
 
@@ -6777,12 +6889,10 @@ static u32 BuildTarget(LinearAllocator* Arena,
             }
             else
             {
-                LOG_WARNING("Unable to build version resource file. \"%S\" tool does not exist."
-                " Download \"%S\" and add a new environment path that points to it."
-                " Skipping resource build...", RCProgram, RCProgram);
+                LOG_WARNING("Unable to build version resource file. You do not have a resource compiler installed on this machine. Skipping icon build...");
             }
         }
-        #endif
+        #endif // PLATFORM_WINDOWS
     }
 
     p.IconResFilePath    = IconResFilePath;
@@ -7724,6 +7834,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     Clock_GetElapsedTime_ToString(&CompileClock, true, &TimeString);
     String_Append(&LogTimingBuffer, S("\nCompile     time: "));
     String_Append(&LogTimingBuffer, TimeString);
+    TimeAsPercentageOfTotal(&LogTimingBuffer, TimeString.Length, CompileClock.ElapsedTime, BuildRuntime.ElapsedTime);
     String_AppendNewline(&LogTimingBuffer);
 
     // TODO: compress into function
@@ -7732,6 +7843,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
         Clock_GetElapsedTime_ToString(&LinkClock, true, &TimeString);
         String_Append(&LogTimingBuffer, S("Link        time: "));
         String_Append(&LogTimingBuffer, TimeString);
+        TimeAsPercentageOfTotal(&LogTimingBuffer, TimeString.Length, LinkClock.ElapsedTime, BuildRuntime.ElapsedTime);
         String_AppendNewline(&LogTimingBuffer);
     }
 
@@ -7740,6 +7852,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
         Clock_GetElapsedTime_ToString(&IconClock, true, &TimeString);
         String_Append(&LogTimingBuffer, S("Icon        time: "));
         String_Append(&LogTimingBuffer, TimeString);
+        TimeAsPercentageOfTotal(&LogTimingBuffer, TimeString.Length, IconClock.ElapsedTime, BuildRuntime.ElapsedTime);
         String_AppendNewline(&LogTimingBuffer);
     }
 
@@ -7748,6 +7861,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
         Clock_GetElapsedTime_ToString(&ResourceCompileClock, true, &TimeString);
         String_Append(&LogTimingBuffer, S("Resource    time: "));
         String_Append(&LogTimingBuffer, TimeString);
+        TimeAsPercentageOfTotal(&LogTimingBuffer, TimeString.Length, ResourceCompileClock.ElapsedTime, BuildRuntime.ElapsedTime);
         String_AppendNewline(&LogTimingBuffer);
     }
 
@@ -7756,6 +7870,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
         Clock_GetElapsedTime_ToString(&BundleCompileClock, true, &TimeString);
         String_Append(&LogTimingBuffer, S("Bundle      time: "));
         String_Append(&LogTimingBuffer, TimeString);
+        TimeAsPercentageOfTotal(&LogTimingBuffer, TimeString.Length, BundleCompileClock.ElapsedTime, BuildRuntime.ElapsedTime);
         String_AppendNewline(&LogTimingBuffer);
     }
 
@@ -7764,6 +7879,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
         Clock_GetElapsedTime_ToString(&BuildFileParseClock, true, &TimeString);
         String_Append(&LogTimingBuffer, S("Build parse time: "));
         String_Append(&LogTimingBuffer, TimeString);
+        TimeAsPercentageOfTotal(&LogTimingBuffer, TimeString.Length, BuildFileParseClock.ElapsedTime, BuildRuntime.ElapsedTime);
         String_AppendNewline(&LogTimingBuffer);
     }
 
@@ -7772,6 +7888,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
         Clock_GetElapsedTime_ToString(&MSVCInitClock, true, &TimeString);
         String_Append(&LogTimingBuffer, S("MSVC Init   time: "));
         String_Append(&LogTimingBuffer, TimeString);
+        TimeAsPercentageOfTotal(&LogTimingBuffer, TimeString.Length, MSVCInitClock.ElapsedTime, BuildRuntime.ElapsedTime);
         String_AppendNewline(&LogTimingBuffer);
     }
 
@@ -7780,6 +7897,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
         Clock_GetElapsedTime_ToString(&DependencyBuildClock, true, &TimeString);
         String_Append(&LogTimingBuffer, S("Dependency  time: "));
         String_Append(&LogTimingBuffer, TimeString);
+        TimeAsPercentageOfTotal(&LogTimingBuffer, TimeString.Length, DependencyBuildClock.ElapsedTime, BuildRuntime.ElapsedTime);
         String_AppendNewline(&LogTimingBuffer);
     }
 
@@ -7788,6 +7906,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
         Clock_GetElapsedTime_ToString(&ExternalClock, true, &TimeString);
         String_Append(&LogTimingBuffer, S("External    time: "));
         String_Append(&LogTimingBuffer, TimeString);
+        TimeAsPercentageOfTotal(&LogTimingBuffer, TimeString.Length, ExternalClock.ElapsedTime, BuildRuntime.ElapsedTime);
         String_AppendNewline(&LogTimingBuffer);
     }
 
@@ -7808,6 +7927,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     Clock_GetElapsedTime_ToString(&OverheadClock, true, &TimeString);
     String_Append(&LogTimingBuffer, S("Overhead    time: "));
     String_Append(&LogTimingBuffer, TimeString);
+    TimeAsPercentageOfTotal(&LogTimingBuffer, TimeString.Length, OverheadClock.ElapsedTime, BuildRuntime.ElapsedTime);
     String_AppendNewline(&LogTimingBuffer);
 
     Clock_GetElapsedTime_ToString(&BuildRuntime, true, &TimeString);

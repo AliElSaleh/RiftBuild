@@ -1,4 +1,4 @@
-// Copyright (c) 2024 Artisan Softworks
+// Copyright (c) Artisan Softworks
 // Licensed under the BSD 3-Clause License. See the LICENSE file for details.
 
 #ifndef UNITY_BUILD
@@ -17,6 +17,25 @@
 // TODO: use compiler path directly, dont rely on shell to find it
 
 bool C_DoCompile(CompileData* Data, const String FullPath, const String RelativePath);
+
+static void LogCompilingFile(u32 Index, u32 NumSources, String FullPath)
+{
+    if (bQuietBuild) { Logging_Enable(); }
+    #ifndef HOOD
+    u8 NumDigits1 = Integer_CountDigits(NumSources);
+    u8 NumDigits2 = Integer_CountDigits(Index);
+    u8 Diff = (NumDigits1 - NumDigits2) + 1;
+
+    StringLocal(Spaces, 128);
+    Spaces.Length = Diff;
+    String_Fill(&Spaces, ' ');
+
+    LOG("[%i/%i]%SCompiling %S", Index, NumSources, Spaces, FullPath);
+    #else
+    LOG("compil'n %i o' %i %S", Index, NumSources, FullPath);
+    #endif
+    if (bQuietBuild) { Logging_Disable(); }
+}
 
 static bool AsmSourceFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
@@ -258,8 +277,15 @@ bool RC_Compile(const BuildParams* Params, const String FullRCPath, String* OutR
 
     #if PLATFORM_WINDOWS
     StringLocal(CmdLine, 1024);
-    String_Append(&CmdLine, Params->RCProgram);
-    String_Append(&CmdLine, Params->RCProgramFlags);
+    String_AppendChar(&CmdLine, '"');
+    String_Append(&CmdLine, Params->RCProgramPath);
+    String_AppendChar(&CmdLine, '"');
+
+    if (Params->RCProgramFlags.Length > 0)
+    {
+        String_AppendSpace(&CmdLine);
+        String_Append(&CmdLine, Params->RCProgramFlags);
+    }
 
     const bool bWindres = String_IsEqual(Params->RCProgram, S("windres"), false);
 
@@ -296,7 +322,8 @@ bool RC_Compile(const BuildParams* Params, const String FullRCPath, String* OutR
     
     if (Params->bVerbose) { LOG("    %S", CmdLine); }
 
-    PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
+    //PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
+    PlatformHandle H = Platform_RunProcess(Params->RCProgramPath, CmdLine, Params->RootDirectory, String_Null());
     if (!Platform_IsValidHandle(H)) { return false; }
     u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
     if (ExitCode != 0)
@@ -616,7 +643,11 @@ bool C_DoCompile(CompileData* Data, const String FullPath, const String Relative
         String_Append(&ObjectPath, Params->AssemblyPostfix);
         String_Append(&ObjectPath, Params->Extension);
 
-        String_BuildSeparator(&CmdLine, ' ', Params->CompilerPath, FullSourcePath, Params->CompilerFlags, Params->CompilerOutputFlag);
+        String_AppendChar(&CmdLine, '"');
+        String_Append(&CmdLine, Params->CompilerPath);
+        String_AppendChar(&CmdLine, '"');
+
+        String_BuildSeparator(&CmdLine, ' ', FullSourcePath, Params->CompilerFlags, Params->CompilerOutputFlag);
         (void)String_EatSpacesInlineFromEnd(&CmdLine);
         String_Append(&CmdLine, S(" \""));
         String_Append(&CmdLine, ObjectPath);
@@ -624,7 +655,11 @@ bool C_DoCompile(CompileData* Data, const String FullPath, const String Relative
     }
     else
     {
-        String_BuildSeparator(&CmdLine, ' ', Params->CompilerPath, S("-c"), FullSourcePath, Params->CompilerFlags, AdditionalPlatformFlags, Params->DefineFlags, Params->IncludeFlags);
+        String_AppendChar(&CmdLine, '"');
+        String_Append(&CmdLine, Params->CompilerPath);
+        String_AppendChar(&CmdLine, '"');
+
+        String_BuildSeparator(&CmdLine, ' ', S("-c"), FullSourcePath, Params->CompilerFlags, AdditionalPlatformFlags, Params->DefineFlags, Params->IncludeFlags);
         (void)String_EatSpacesInlineFromEnd(&CmdLine);
         String_Append(&CmdLine, S(" -o \""));
         String_Append(&CmdLine, ObjectPath);
@@ -662,31 +697,16 @@ bool C_DoCompile(CompileData* Data, const String FullPath, const String Relative
 
     (void)Filesystem_NewFile(ObjectPath);
 
-    if (bQuietBuild) { Logging_Enable(); }
-
-    #ifndef HOOD
-    LOG("[%i/%i] Compiling %S", Data->Index, Params->NumSources, FullPath);
-    #else
-    LOG("compil'n %i o' %i %S", Data->Index, Params->NumSources, FullPath);
-    #endif
-
-    if (bQuietBuild) { Logging_Disable(); }
+    LogCompilingFile(Data->Index, Params->NumSources, FullPath);
 
     if (Params->bVerbose)
     {
         LOG("\n    %S\n", CmdLine);
     }
 
-    //Clock CompileTime;
-    //Clock_Start(&CompileTime);
-
-    //PlatformPipe StdOutPipe = {0};
-    //PlatformHandle Handle = Platform_RunCommand_Ex(CmdLine, Params->RootDirectory, &StdOutPipe);
-    PlatformHandle Handle = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
+    PlatformHandle Handle = Platform_RunProcess(Params->CompilerPath, CmdLine, Params->RootDirectory, String_Null());
     if (!Platform_IsValidHandle(Handle)) { return false; }
-    //Platform_CloseHandle(StdOutPipe[1]);
     Array_Add(Processes, Handle);
-    //Array_Add(Pipes, StdOutPipe);
     (*Data->NumCompiled) += 1;
 
     if (Params->bShouldWaitPerCompileProcess)
@@ -724,7 +744,9 @@ bool C_Link(const BuildParams* Params)
     if (Params->Type != AssemblyType_StaticLibrary)
     {
         StringLocal(CmdLine, UINT16_MAX);
-        String_Append(&CmdLine, Params->CompilerPath);
+        String_AppendChar(&CmdLine, '"');
+        String_Append(&CmdLine, Params->LinkerPath);
+        String_AppendChar(&CmdLine, '"');
         String_AppendChar(&CmdLine, ' ');
 
         LinkData Data = { Params, &CmdLine };
@@ -782,7 +804,7 @@ bool C_Link(const BuildParams* Params)
             }
         }
 
-        PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
+        PlatformHandle H = Platform_RunProcess(Params->CompilerPath, CmdLine, Params->RootDirectory, String_Null());
         if (!Platform_IsValidHandle(H)) { return false; }
         const u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
         if (ExitCode != 0)
@@ -802,7 +824,23 @@ bool C_Link(const BuildParams* Params)
         Params->Type == AssemblyType_StaticLibrary)
     {
         StringLocal(CmdLine, UINT16_MAX);
+        
+        String_AppendChar(&CmdLine, '"');
+        String_Append(&CmdLine, Params->ArchiverPath);
+        String_AppendChar(&CmdLine, '"');
+        String_AppendSpace(&CmdLine);
 
+        #if PLATFORM_WINDOWS
+        if (String_IsEqual(Params->CompilerProgram, S("clang"), false) ||
+            String_IsEqual(Params->CompilerProgram, S("clang++"), false))
+        {
+            String_Append(&CmdLine, S("r \""));
+        }
+        #else
+        String_Append(&CmdLine, S("rcs \""));
+        #endif
+
+        /*
         #if PLATFORM_WINDOWS
         if (String_IsEqual(Params->CompilerProgram, S("clang"), false) ||
             String_IsEqual(Params->CompilerProgram, S("clang++"), false))
@@ -816,6 +854,7 @@ bool C_Link(const BuildParams* Params)
         #else
         String_Append(&CmdLine, S("ar rcs \""));
         #endif
+        */
 
         StringLocal(BuildPath, MAX_PATH_LENGTH);
         String_BuildPath(&BuildPath, Params->RootDirectory, Params->BuildDirectory);
@@ -868,7 +907,8 @@ bool C_Link(const BuildParams* Params)
             }
         }
 
-        PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
+        //PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
+        PlatformHandle H = Platform_RunProcess(Params->ArchiverPath, CmdLine, Params->RootDirectory, String_Null());
         if (!Platform_IsValidHandle(H)) { return false; }
         u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
         if (ExitCode != 0)
@@ -884,13 +924,16 @@ bool C_Link(const BuildParams* Params)
 
     // generate a .def file if we are building a dll file (windows only)
     #if PLATFORM_WINDOWS
-    if (Platform_FindProgram(S("dumpbin")))
+    if (Params->DumpBinPath.Length > 0)
     {
         if (Params->Type == AssemblyType_Library ||
             Params->Type == AssemblyType_DynamicLibrary)
         {
             StringLocal(CmdLine, 8192);
-            String_Append(&CmdLine, S("dumpbin /EXPORTS /NOLOGO /OUT:\""));
+            String_AppendChar(&CmdLine, '"');
+            String_Append(&CmdLine, Params->DumpBinPath);
+            String_AppendChar(&CmdLine, '"');
+            String_Append(&CmdLine, S(" /EXPORTS /NOLOGO /OUT:\""));
 
             StringLocal(BuildPath, 512);
             String_BuildPath(&BuildPath, Params->RootDirectory, Params->BuildDirectory);
@@ -905,7 +948,8 @@ bool C_Link(const BuildParams* Params)
             String_Append(&CmdLine, Params->Assembly);
             String_Append(&CmdLine, S(".dll\""));
 
-            PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
+            //PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
+            PlatformHandle H = Platform_RunProcess(Params->DumpBinPath, CmdLine, Params->RootDirectory, String_Null());
             if (!Platform_IsValidHandle(H)) { return false; }
             u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
             if (ExitCode != 0)
@@ -1328,7 +1372,9 @@ bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String Relat
     Data->Index++;
     
     StringLocal(CmdLine, UINT16_MAX);
+    String_AppendChar(&CmdLine, '"');
     String_Append(&CmdLine, Params->CompilerPath);
+    String_AppendChar(&CmdLine, '"');
     String_Append(&CmdLine, S(" /nologo /c "));
 
     u32 LastSlash = 0;
@@ -1525,7 +1571,7 @@ bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String Relat
 
     if (Params->bShouldWaitPerCompileProcess)
     {
-        LOG("[%i/%i] Compiling %S", Data->Index, Params->NumSources, FullPath);
+        LogCompilingFile(Data->Index, Params->NumSources, FullPath);
     }
 
     if (bQuietBuild) { Logging_Disable(); }
@@ -1535,7 +1581,7 @@ bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String Relat
         LOG("    %S\n", CmdLine);
     }
 
-    PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
+    PlatformHandle H = Platform_RunProcess(Params->CompilerPath, CmdLine, Params->RootDirectory, String_Null());
     if (!Platform_IsValidHandle(H)) { return false; }
     Array_Add(Processes, H);
     (*Data->NumCompiled) += 1;
@@ -1850,7 +1896,9 @@ bool MSVC_Link(const BuildParams* Params)
 
     if (bIsExe || bIsDLL)
     {
-        String_Append(&CmdLine, S("link"));
+        String_AppendChar(&CmdLine, '"');
+        String_Append(&CmdLine, Params->LinkerPath);
+        String_AppendChar(&CmdLine, '"');
 
         if (bIsDLL)
         {
@@ -1918,12 +1966,14 @@ bool MSVC_Link(const BuildParams* Params)
         // TODO: switch between fancy and non fancy logging
 
         /*
-        PlatformHandle Handle = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
+        PlatformHandle Handle = Platform_RunProcess(Params->LinkerPath, CmdLine, Params->RootDirectory, String_Null());
+        //PlatformHandle Handle = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
         if (!Platform_IsValidHandle(Handle)) return false;
         */
 
         PlatformPipe StdOutHandle = {0};
-        PlatformHandle Handle = Platform_RunCommand_Ex(CmdLine, Params->RootDirectory, &StdOutHandle);
+        //PlatformHandle Handle = Platform_RunCommand_Ex(CmdLine, Params->RootDirectory, &StdOutHandle);
+        PlatformHandle Handle = Platform_RunProcess_Ex(Params->LinkerPath, CmdLine, Params->RootDirectory, &StdOutHandle);
         if (!Platform_IsValidHandle(Handle)) { return false; }
 
         Internal_ProcessLinkerOutput_MSVC(StdOutHandle);
@@ -1945,7 +1995,10 @@ bool MSVC_Link(const BuildParams* Params)
     if (bIsLib)
     {
         String_Empty(&CmdLine);
-        String_Append(&CmdLine, S("lib /nologo "));
+        String_AppendChar(&CmdLine, '"');
+        String_Append(&CmdLine, Params->ArchiverPath);
+        String_AppendChar(&CmdLine, '"');
+        String_Append(&CmdLine, S(" /nologo "));
 
         String_BuildSeparator(&CmdLine, ' ', Params->LinkerFlags, Params->Libraries, Params->LibraryDirectories, Params->VersionResFilePath);
         String_AppendSpace(&CmdLine);
@@ -1987,7 +2040,8 @@ bool MSVC_Link(const BuildParams* Params)
             }
         }
 
-        PlatformHandle Handle = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
+        //PlatformHandle Handle = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
+        PlatformHandle Handle = Platform_RunProcess(Params->ArchiverPath, CmdLine, Params->RootDirectory, String_Null());
         if (!Platform_IsValidHandle(Handle)) { return false; }
         u32 ExitCode = Platform_WaitForProcessAndGetExitCode(Handle);
         if (ExitCode != 0)
@@ -2006,7 +2060,10 @@ bool MSVC_Link(const BuildParams* Params)
     if (bIsDLL)
     {
         String_Empty(&CmdLine);
-        String_Append(&CmdLine, S("dumpbin /EXPORTS /NOLOGO /OUT:\""));
+        String_AppendChar(&CmdLine, '"');
+        String_Append(&CmdLine, Params->DumpBinPath);
+        String_AppendChar(&CmdLine, '"');
+        String_Append(&CmdLine, S(" /EXPORTS /NOLOGO /OUT:\""));
 
         String_Append(&CmdLine, BuildPath);
         String_Append(&CmdLine, Params->Assembly);
@@ -2016,7 +2073,8 @@ bool MSVC_Link(const BuildParams* Params)
         String_Append(&CmdLine, Params->Assembly);
         String_Append(&CmdLine, S(".dll\""));
 
-        PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
+        //PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
+        PlatformHandle H = Platform_RunProcess(Params->DumpBinPath, CmdLine, Params->RootDirectory, String_Null());
         if (!Platform_IsValidHandle(H)) { return false; }
         u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
 

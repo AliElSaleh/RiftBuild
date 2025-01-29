@@ -1,4 +1,4 @@
-// Copyright (c) 2024 Artisan Softworks
+// Copyright (c) Artisan Softworks
 // Licensed under the BSD 3-Clause License. See the LICENSE file for details.
 
 #ifndef UNITY_BUILD
@@ -2782,6 +2782,19 @@ u8 ToForwardSlash(u8 Char)
 u8 ToBackSlash(u8 Char)
 {
     return Char == '/' ? '\\' : Char;
+}
+
+// TODO: remove from this file
+u8 Integer_CountDigits(u64 Value)
+{
+    u8 Count = 0;
+    while (Value > 0)
+    {
+        Value /= 10;
+        Count++;
+    }
+
+    return Count;
 }
 
 /*

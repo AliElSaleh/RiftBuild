@@ -59,6 +59,7 @@ struct Find_Result {
     int padding;
 
     wchar* windows_sdk_root;
+    wchar* windows_sdk_bin_path;
     wchar* windows_sdk_um_library_path;
     wchar* windows_sdk_ucrt_library_path;
     
@@ -266,7 +267,7 @@ wchar_t *concat(const wchar_t *a, const wchar_t *b, const wchar_t *c = nullptr, 
     return result;
 }
 
-typedef void (*Visit_Proc_W)(wchar_t *short_name, wchar_t *full_name, Version_Data *data);
+typedef void (*Visit_Proc_W)(const wchar_t *short_name, const wchar_t *full_name, Version_Data *data);
 bool visit_files_w(const wchar_t *dir_name, Version_Data *data, Visit_Proc_W proc) {
 
     // Visit everything in one folder (non-recursively). If it's a directory
@@ -374,7 +375,7 @@ void win10_best(const wchar_t *short_name, const wchar_t *full_name, Version_Dat
             buffer_wide.Capacity = buffer_wide.Length;
 
             String_ToNarrow(buffer_wide, &conversion_buffer);
-            String_ToI32(conversion_buffer, &versions[version_level]);
+            (void)String_ToI32(conversion_buffer, &versions[version_level]);
 
             buffer_count = 0;
             version_level++;
@@ -450,7 +451,7 @@ void win8_best(const wchar_t *short_name, const wchar_t *full_name, Version_Data
             buffer_wide.Capacity = buffer_wide.Length;
 
             String_ToNarrow(buffer_wide, &conversion_buffer);
-            String_ToI32(conversion_buffer, &versions[version_level]);
+            (void)String_ToI32(conversion_buffer, &versions[version_level]);
 
             buffer_count = 0;
             version_level++;
@@ -495,15 +496,37 @@ void find_windows_kit_root(Find_Result *result) {
     // Look for a Windows 10 entry.
     auto windows10_root = read_from_the_registry(main_key, L"KitsRoot10");
     if (windows10_root) {
-        //defer { free(windows10_root); };
-        Version_Data data = {0};
-        auto windows10_lib = concat(windows10_root, L"Lib");
-        //defer { free(windows10_lib); };
         
-        visit_files_w(windows10_lib, &data, win10_best);
-        if (data.best_name) {
-            result->windows_sdk_version = 10;
-            result->windows_sdk_root = (wchar*)data.best_name;
+        bool bFound = false;
+
+        {
+            //defer { free(windows10_root); };
+            Version_Data data = {0};
+            auto windows10_lib = concat(windows10_root, L"Lib");
+            //defer { free(windows10_lib); };
+
+            visit_files_w(windows10_lib, &data, win10_best);
+            if (data.best_name) {
+                result->windows_sdk_version = 10;
+                result->windows_sdk_root = (wchar*)data.best_name;
+                bFound = true;
+            }
+        }
+
+        {
+            Version_Data data = {0};
+            auto windows10_bin = concat(windows10_root, L"bin");
+
+            visit_files_w(windows10_bin, &data, win10_best);
+            if (data.best_name) {
+                result->windows_sdk_version = 10;
+                result->windows_sdk_bin_path = (wchar*)data.best_name;
+                bFound = true;
+            }
+        }
+
+        if (bFound)
+        {
             return;
         }
     }

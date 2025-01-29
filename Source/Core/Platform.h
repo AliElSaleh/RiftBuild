@@ -255,6 +255,7 @@ RIFT_API void Platform_EndNonBlockingMode(void);
 RIFT_API NO_DISCARD PlatformHandle Platform_RunCommand(const String CmdLine, const String WorkingDirectory, const String EnvBlock);
 RIFT_API NO_DISCARD PlatformHandle Platform_RunCommand_Ex(const String CmdLine, const String WorkingDirectory, PlatformPipe* StdOutPipe);
 RIFT_API NO_DISCARD PlatformHandle Platform_RunProcess(const String ProcessExePath, const String Parameters, const String WorkingDirectory, const String EnvBlock);
+RIFT_API NO_DISCARD PlatformHandle Platform_RunProcess_Ex(const String ProcessExePath, const String Parameters, const String WorkingDirectory, PlatformPipe* StdOutPipe);
 RIFT_API NO_DISCARD bool Platform_TerminateProcess(PlatformHandle Handle, u32 ExitCode);
 RIFT_API NO_DISCARD bool Platform_FindProgram(String ProgramName);
 RIFT_API NO_DISCARD bool Platform_FindProgram_Ex(String ProgramName, String* OutProgramPath);

@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Artisan Softworks
+// Copyright (c) Artisan Softworks
 // Licensed under the BSD 3-Clause License. See the LICENSE file for details.
 
 #ifndef UNITY_BUILD
