@@ -281,6 +281,7 @@ bool Export_PkgInfo(const String AssemblyName, const String Path);
 bool Export_VersionRC(const BuildParams* Params, const String Path);
 bool Export_IconRC(const String Path, const String IconFilePath);
 
+bool Export_License(const String LicenseType, const BuildParams* Params, const String Path);
 bool Export_License_BSD2(const BuildParams* Params, const String Path);
 bool Export_License_BSD3(const BuildParams* Params, const String Path);
 bool Export_License_MIT(const BuildParams* Params, const String Path);

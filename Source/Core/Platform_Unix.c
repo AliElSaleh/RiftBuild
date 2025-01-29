@@ -1,4 +1,4 @@
-// Copyright (c) 2024 Artisan Softworks
+// Copyright (c) 2025 Artisan Softworks
 // Licensed under the BSD 3-Clause License. See the LICENSE file for details.
 
 #include "Platform.h"
@@ -312,6 +312,70 @@ void Platform_ConsoleWrite_CustomLength(const char* Message, u32 Length, u8 Colo
 PRAGMA_ENABLE_WARNINGS
 
 extern char** environ;
+
+PlatformHandle Platform_RunProcess(const String ProcessExePath, const String Parameters, const String WorkingDirectory, const String EnvBlock)
+{
+    String Command;
+    StringLocal(Copy, Kibibytes(32));
+    if (WorkingDirectory.Length > 0)
+    {
+        String_Append(&Copy, S("cd \""));
+        String_Append(&Copy, WorkingDirectory);
+        (void)String_EatPathSeparatorsInlineFromEnd(&Copy);
+        String_Append(&Copy, S("\"; "));
+        String_Append(&Copy, Parameters);
+
+        Command = Copy;
+    }
+    else
+    {
+        Command = Parameters;
+    }
+
+    pid_t pid = fork();
+
+    if (pid < 0)
+    {
+        LogLastError(S("fork() failed"));
+    }
+    else if (pid > 0) // parent path
+    {
+        return pid;
+    }
+    else // child path
+    {
+        StringLocal(EnvArgs, 4096);
+        char* envp[256] = { NULL };
+
+        if (EnvBlock.Length > 0)
+        {
+            u32 EnvCount = 0;
+            while (environ[EnvCount] != NULL)
+            {
+                String_Append(&EnvArgs, CStrEx(environ[EnvCount], 4096));
+                String_AppendChar(&EnvArgs, '\0');
+                EnvCount++;
+            }
+
+            String_Append(&EnvArgs, EnvBlock);
+
+            u32 i = 0;
+            u32 Offset = 0;
+            for (u32 j = 0; j < EnvArgs.Length; j++)
+            {
+                if (EnvArgs.Data[j] == '\0')
+                {
+                    envp[i] = (char*)&EnvArgs.Data[Offset];
+                    Offset = j+1;
+                    i++;
+                }
+            }
+        }
+
+        execve(ProcessExePath.Data, (char*[]){(char*)Command.Data, NULL}, EnvArgs.Length == 0 ? environ : envp);
+        exit(0);
+    }
+}
 
 PlatformHandle Platform_RunCommand(const String CmdLine, const String WorkingDirectory, const String EnvBlock)
 {
@@ -1771,6 +1835,15 @@ bool Platform_GetTerminalDimensions(u32* OutRows, u32* OutColumns)
     *OutColumns = w.ws_col;
 
     return true;
+}
+
+u32 Platform_GetPosixVersion(void)
+{
+    #ifdef _POSIX_VERSION
+    return _POSIX_VERSION;
+    #else
+    return 0;
+    #endif
 }
 
 #endif // PLATFORM_UNIX

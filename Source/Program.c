@@ -1,4 +1,4 @@
-// Copyright (c) 2024 Artisan Softworks
+// Copyright (c) 2025 Artisan Softworks
 // Licensed under the BSD 3-Clause License. See the LICENSE file for details.
 
 #include "Core/EntryPoint.h"
@@ -1021,13 +1021,13 @@ static void ListVariables(LinearAllocator Arena, const String Name, TArray(FileV
 {
     const String Exclusions[25] =
     {
-        S("AssertProgramExists"),
-        S("AssertLibExists"),
-        S("AssertBuildVarExists"),
-        S("AssertWorkingDirectory"),
-        S("AssertArgExists"),
-        S("AssertEnvVarExists"),
-        S("AssertPlatform"),
+        S("Assert.ProgramExists"),
+        S("Assert.LibExists"),
+        S("Assert.BuildVarExists"),
+        S("Assert.WorkingDirectory"),
+        S("Assert.ArgExists"),
+        S("Assert.EnvVarExists"),
+        S("Assert.Platform"),
         S("PreDepend"),
         S("PreBuild"),
         S("PostBuild"),
@@ -3073,13 +3073,13 @@ static u32 BuildTarget(LinearAllocator* Arena,
             // TODO: oimplemtn Assert.Admin or Assert.Sudo
             const String Exclusions[14] =
             {
-                S("AssertProgramExists"),
-                S("AssertBuildVarExists"),
-                S("AssertLibExists"),
-                S("AssertWorkingDirectory"),
-                S("AssertArgExists"),
-                S("AssertEnvVarExists"),
-                S("AssertPlatform"),
+                S("Assert.ProgramExists"),
+                S("Assert.BuildVarExists"),
+                S("Assert.LibExists"),
+                S("Assert.WorkingDirectory"),
+                S("Assert.ArgExists"),
+                S("Assert.EnvVarExists"),
+                S("Assert.Platform"),
                 S("PreDepend"),
                 S("PreBuild"),
                 S("PostBuild"),
@@ -3241,17 +3241,17 @@ static u32 BuildTarget(LinearAllocator* Arena,
     const String Defines                    = GetVariableValue(ExpandedVariablesDB, S("Defines"));
     const String UnDefines                  = GetVariableValue(ExpandedVariablesDB, S("UnDefines"));
     const String LinkerDefines              = GetVariableValue(ExpandedVariablesDB, S("LinkerDefines"));
-    const String AssertCompilers            = GetVariableValue(ExpandedVariablesDB, S("AssertCompiler"));
-    const String AssertAssemblers           = GetVariableValue(ExpandedVariablesDB, S("AssertAssembler"));
-    const String AssertPlatforms            = GetVariableValue(ExpandedVariablesDB, S("AssertPlatform"));
-    const String AssertPlatformVersion      = GetVariableValue(ExpandedVariablesDB, S("AssertPlatformVersion"));
-    const String AssertVersion              = GetVariableValue(ExpandedVariablesDB, S("AssertVersion"));
-    const String AssertArchitecture         = GetVariableValue(ExpandedVariablesDB, S("AssertArchitecture"));
-    const String AssertPrograms             = GetVariableValue(ExpandedVariablesDB, S("AssertProgramExists"));
-    const String AssertEnvVars              = GetVariableValue(ExpandedVariablesDB, S("AssertEnvVarExists"));
-    const String AssertBuildVars            = GetVariableValue(ExpandedVariablesDB, S("AssertBuildVarExists"));
-    //const String AssertLibs                 = GetVariableValue(ExpandedVariablesDB, S("AssertLibExists"));
-    String AssertWorkingDirectory           = GetVariableValue(ExpandedVariablesDB, S("AssertWorkingDirectory"));
+    const String AssertCompilers            = GetVariableValue(ExpandedVariablesDB, S("Assert.Compiler"));
+    const String AssertAssemblers           = GetVariableValue(ExpandedVariablesDB, S("Assert.Assembler"));
+    const String AssertPlatforms            = GetVariableValue(ExpandedVariablesDB, S("Assert.Platform"));
+    const String AssertPlatformVersion      = GetVariableValue(ExpandedVariablesDB, S("Assert.PlatformVersion"));
+    const String AssertVersion              = GetVariableValue(ExpandedVariablesDB, S("Assert.Version"));
+    const String AssertArchitecture         = GetVariableValue(ExpandedVariablesDB, S("Assert.Architecture"));
+    const String AssertPrograms             = GetVariableValue(ExpandedVariablesDB, S("Assert.ProgramExists"));
+    const String AssertEnvVars              = GetVariableValue(ExpandedVariablesDB, S("Assert.EnvVarExists"));
+    const String AssertBuildVars            = GetVariableValue(ExpandedVariablesDB, S("Assert.BuildVarExists"));
+    //const String AssertLibs                 = GetVariableValue(ExpandedVariablesDB, S("Assert.LibExists"));
+    String AssertWorkingDirectory           = GetVariableValue(ExpandedVariablesDB, S("Assert.WorkingDirectory"));
     String IncludedSourceFiles              = GetVariableValue(ExpandedVariablesDB, S("IncludedSourceFiles"));
     String ExcludedSourceFiles              = GetVariableValue(ExpandedVariablesDB, S("ExcludedSourceFiles"));
     const String IncludedSourceDir          = GetVariableValue(ExpandedVariablesDB, S("IncludedSourceDirectories"));
@@ -6199,6 +6199,14 @@ static u32 BuildTarget(LinearAllocator* Arena,
                     //const bool bGenVisualStudio             = String_IsEqual(*var, S("export:visual_studio"), false);
                     //const bool bGenXCode                    = String_IsEqual(*var, S("export:xcode"), false);
 
+                    const bool bLicense                       = String_IsEqual(*var, S("license"), false) ||
+                                                                String_IsEqual(*var, S("license="), false);
+                    const bool bLicenseMIT                    = String_IsEqual(*var, S("license=MIT"), false);
+                    const bool bLicenseBSD2                   = String_IsEqual(*var, S("license=BSD2"), false);
+                    const bool bLicenseBSD3                   = String_IsEqual(*var, S("license=BSD3"), false);
+                    const bool bLicenseFuckYou                = String_IsEqual(*var, S("license=FuckYou"), false);
+                    const bool bLicenseUnlicense              = String_IsEqual(*var, S("license=Unlicense"), false);
+
                     if (bGenCompileCommandsJSON || bGenCompileCommandsJSONOneLine)
                     {
                         if (bQuietBuild) { Logging_Enable(); }
@@ -6365,6 +6373,83 @@ static u32 BuildTarget(LinearAllocator* Arena,
                         if (bQuietBuild) { Logging_Disable(); }
 
                         bAnyExported = true;
+                    }
+                    else if (bLicense || bLicenseBSD2 || bLicenseBSD3 || bLicenseMIT || bLicenseFuckYou || bLicenseUnlicense)
+                    {
+                        if (bQuietBuild) { Logging_Enable(); }
+
+                        // TODO export multiple licenses with comma like this:
+                        // export:license=MIT,BSD,Unlicense
+
+                        u32 EqualsIndex = 0;
+                        bool bHasEqual = String_IndexOfChar(*var, '=', &EqualsIndex);
+                        const String LicenseType = StrShiftF(*var, EqualsIndex+1);
+                        if (bHasEqual && LicenseType.Length > 0)
+                        {
+                            LOG("Generating %S license file ...", LicenseType);
+
+                            Clock c;
+                            Clock_Start(&c);
+
+                            StringLocal(ExportPath, MAX_PATH_LENGTH);
+                            String_BuildPath(&ExportPath, WorkingPath, IntermediateDirectory, S("__Exports"), S("Licenses"));
+
+                            if (!Filesystem_OpenDirectory(ExportPath))
+                            {
+                                return 1;
+                            }
+
+                            StringLocal(FileName, 128);
+                            String_Format(&FileName, S("LICENSE_%S"), LicenseType);
+                            String_ToUpper(&FileName);
+
+                            StringLocal(LicensePath, MAX_PATH_LENGTH);
+                            String_BuildPath(&LicensePath, ExportPath, FileName);
+
+                            if (!Export_License(LicenseType, &p, LicensePath))
+                            {
+                                LOG_ERROR("Failed to export \"%S\". Aborting...", LicensePath);
+                                return 1;
+                            }
+
+                            Clock_Tick(&c);
+
+                            StringLocal(ExportTimeString, 32);
+                            Clock_GetElapsedTime_ToString(&c, true, &ExportTimeString);
+                            LOG("\nExport time: %S", ExportTimeString);
+
+                            LOG_SUCCESS("\n\"%S\"", LicensePath);
+
+                            bAnyExported = true;
+                        }
+                        else
+                        {
+                            bAnyExported = true; // to disable error message that is not meaningful
+
+                            // log all valid license exports
+                            const String LicenseTypes[5] =
+                            {
+                                S("MIT"),
+                                S("BSD2"),
+                                S("BSD3"),
+                                S("FuckYou"),
+                                S("Unlicense"),
+                            };
+
+                            LOG("Here is a list of all supported license export types:");
+
+                            for (u8 j = 0; j < SArray_Capacity(LicenseTypes); j++)
+                            {
+                                LOG("  %i. %S", j+1, LicenseTypes[j]);
+                            }
+
+
+                            LOG_INLINE_WARNING("\nUsage");
+                            LOG("\n     riftbuild export:license=MIT");
+                            LOG("  or riftbuild export:license=MIT,BSD3,WhateverElse,YouWant (not yet implemented)");
+                        }
+
+                        if (bQuietBuild) { Logging_Disable(); }
                     }
                     else
                     {
@@ -8507,9 +8592,6 @@ static void InitInternalVars(LinearAllocator* Arena)
     // store static options. like platform, native os .lib's, etc..
     AddInternalVariable(S(PLATFORM_STRING), String_Null());
 
-    // TODO: POSIX
-    // TODO: _POSIX = "version"
-
     // store riftbuild version
     AddInternalVariable(S("_Version"),       S(RIFTBUILD_VERSION_STRING));
     AddInternalVariable(S("_Version.Major"), S(STRINGIFY(RIFTBUILD_MAJOR_VERSION)));
@@ -8530,6 +8612,14 @@ static void InitInternalVars(LinearAllocator* Arena)
     AddInternalVariable(S("_Platform.Version.Minor"), OSVersionStringMinor);
     String_Format(&OSVersionStringPatch, S("%u"),     OSVersion.Patch);
     AddInternalVariable(S("_Platform.Version.Patch"), OSVersionStringPatch);
+
+    u32 PosixVersion = Platform_GetPosixVersion();
+    if (PosixVersion > 0)
+    {
+        String Temp = String_Reserve(Arena, 8);
+        String_Format(&Temp, S("%u"), PosixVersion);
+        AddInternalVariable(S("_POSIX"), Temp);
+    }
 
     // TODO _Ram
     // TODO

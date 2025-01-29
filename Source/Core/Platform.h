@@ -320,4 +320,6 @@ RIFT_API NO_DISCARD PlatformVersion Platform_GetVersion(void);
 RIFT_API NO_DISCARD bool Platform_IsWindowFocused(void);
 RIFT_API NO_DISCARD bool Platform_IsConsoleFocused(void);
 
+RIFT_API NO_DISCARD u32 Platform_GetPosixVersion(void);
+
 #endif // PLATFORM_H
