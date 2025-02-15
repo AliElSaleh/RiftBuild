@@ -1025,7 +1025,7 @@ static void ListVariables(LinearAllocator Arena, const String Name, TArray(FileV
         S("Assert.LibExists"),
         S("Assert.BuildVarExists"),
         S("Assert.WorkingDirectory"),
-        S("Assert.ArgExists"),
+        S("Assert.Arg"),
         S("Assert.EnvVarExists"),
         S("Assert.Platform"),
         S("PreDepend"),
@@ -3093,7 +3093,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 S("Assert.BuildVarExists"),
                 S("Assert.LibExists"),
                 S("Assert.WorkingDirectory"),
-                S("Assert.ArgExists"),
+                S("Assert.Arg"),
                 S("Assert.EnvVarExists"),
                 S("Assert.Platform"),
                 S("PreDepend"),
@@ -3612,6 +3612,17 @@ static u32 BuildTarget(LinearAllocator* Arena,
         }
     }
 
+    #if PLATFORM_WINDOWS
+    GMSVCFindAllocator = *Arena;
+
+    Find_Result MSVC_SDK_Result = {0};
+    MSVC_SDK_Result.allocate = &MSVC_Find_Allocate;
+    MSVC_SDK_Result.release  = &MSVC_Find_Release;
+    find_visual_studio_and_windows_sdk(&MSVC_SDK_Result);
+
+    if (MSVC_SDK_Result.windows_sdk_bin_path) { String_ToNarrow(CStr16(MSVC_SDK_Result.windows_sdk_bin_path), &WindowsSDKPath); }
+    #endif
+
     // does the compiler program exist on the user's machine
     if (!bExplicitCompilerPath)
     {
@@ -3678,15 +3689,6 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 LOG("Initializing MSVC environment... %S\n", !bShowExtraInfo ? S("[--help-msvc-init for more info]") : String_Null());
                 if (bQuietBuild) { Logging_Disable(); }
 
-                Clock_Start(&MSVCInitClock);
-
-                GMSVCFindAllocator = *Arena;
-
-                Find_Result MSVC_SDK_Result = {0};
-                MSVC_SDK_Result.allocate = &MSVC_Find_Allocate;
-                MSVC_SDK_Result.release  = &MSVC_Find_Release;
-                find_visual_studio_and_windows_sdk(&MSVC_SDK_Result);
-
                 if (bShowExtraInfo)
                 {
                     LOG(" Windows SDK Version: %d", MSVC_SDK_Result.windows_sdk_version);
@@ -3746,7 +3748,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 StringLocal(ExePath, MAX_PATH_LENGTH);
                 if (MSVC_SDK_Result.vs_exe_path) { String_ToNarrow(CStr16(MSVC_SDK_Result.vs_exe_path), &ExePath); }
 
-                if (MSVC_SDK_Result.windows_sdk_bin_path) { String_ToNarrow(CStr16(MSVC_SDK_Result.windows_sdk_bin_path), &WindowsSDKPath); }
+                String_Copy(&CompilerPath, ExePath);
+                String_Append(&CompilerPath, S("\\cl.exe"));
 
                 // TODO: .InitMSVCEnvironment in build file to trigger this
                 
@@ -3755,6 +3758,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 // luckily the bat file is always in the same place relative to the base path
                 if (Filesystem_DoesDirectoryExist(BasePath))
                 {
+                    Clock_Start(&MSVCInitClock);
+
                     StringLocal(CmdLine, 8192);
                     String_Append(&CmdLine, S("\""));
 
@@ -3827,9 +3832,6 @@ static u32 BuildTarget(LinearAllocator* Arena,
                     }
 
                     Platform_CloseHandle(StdOutHandle[0]);
-
-                    String_Copy(&CompilerPath, ExePath);
-                    String_Append(&CompilerPath, S("\\cl.exe"));
 
                     bCompilerProgramFound = true;
 

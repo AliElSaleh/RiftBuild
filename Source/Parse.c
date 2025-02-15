@@ -1390,7 +1390,7 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
             {
                 for each (FileVariable, Var, VariablesDB)
                 {
-                    if (String_IsEqual(Var.Name, S("Assert.ArgExists"), false))
+                    if (String_IsEqual(Var.Name, S("Assert.Arg"), false))
                     {
                         StringArray CmdVarsArray = String_ParseIntoArray(&Scratch, Var.Value, ' ', 0, 128);
 
@@ -1428,7 +1428,7 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
                             }
                         }
                     }
-                    else if (String_IsEqual(Var.Name, S("Assert.ArgExists.Any"), false))
+                    else if (String_IsEqual(Var.Name, S("Assert.Arg.Any"), false))
                     {
                         StringArray ArgArray = String_ParseIntoArray(&Scratch, Var.Value, ' ', 0, 128);
 
@@ -1463,7 +1463,7 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
                             return false;
                         }
                     }
-                    else if (String_IsEqual(Var.Name, S("Assert.ArgExists.OnlyOne"), false)) // TODO: make dynamic
+                    else if (String_IsEqual(Var.Name, S("Assert.Arg.OnlyOne"), false)) // TODO: make dynamic
                     {
                         StringArray ArgArray = String_ParseIntoArray(&Scratch, Var.Value, ' ', 0, 128);
 
