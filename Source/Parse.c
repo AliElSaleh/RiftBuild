@@ -19,9 +19,6 @@
 #define MAX_META_KEY_LENGTH 16
 #define LINE_BUFFER_SIZE (MAX_KEY_LENGTH+MAX_VALUE_LENGTH+MAX_META_KEY_LENGTH)
 
-// Parser rules notes:
-// only alphanumeric key names are allowed, but we can have . and underscore anywhere
-
 static void Internal_AddVariable(LinearAllocator* Arena,
                                    TArray(FileVariable) VariablesDB,
                                    const String Name,
@@ -237,6 +234,33 @@ static Token Parser_Peek(TArray(Token) Tokens, u32 Current)
     return Tok;
 }
 
+static Token Parser_LookBack(TArray(Token) Tokens, u32 Current)
+{
+    Token Tok = Token_Null();
+    if (Current > 0)
+    {
+        Tok = Tokens[Current-1];
+    }
+
+    return Tok;
+}
+
+static bool Parser_Match(TArray(Token) Tokens, u32* Current, ETokenType Expected)
+{
+    bool bResult = false;
+
+    if (*Current < Array_Num(Tokens))
+    {
+        if (Tokens[*Current].Type == Expected)
+        {
+            *Current += 1;
+            bResult = true;
+        }
+    }
+
+    return bResult;
+}
+
 static void Lexer_AddToken(TArray(Token) Tokens, u32 Current, u32 Start, u32 Line, String Text, ETokenType Type)
 {
     u32 Diff = ClampMin(Current - Start, 1);
@@ -251,9 +275,14 @@ static void Lexer_AddToken(TArray(Token) Tokens, u32 Current, u32 Start, u32 Lin
 
 static bool IsValidCharForValueToken(uchar Char)
 {
+    bool bSymbols = Char == '%' || Char == '$' || Char == '@' || Char == '!' || Char == '(' || Char == ')' || Char == '|';
+    bool bValid = !IsWhitespace(Char) && !bSymbols;
+
+    /*
     bool bExtra = Char == '_' || Char == '.' || Char == ',' || Char == '-' || Char == '/' || Char == '\\' ||
                   Char == '+' || Char == '=';
     bool bValid = IsAlphabet(Char) || IsDigit(Char) || bExtra;
+    */
     return bValid;
 }
 
@@ -428,7 +457,21 @@ bool ParseBuildFileV2(LinearAllocator* Arena,
                     Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_Text);
                 }
             }
-            else if (IsValidCharForValueToken(Char))
+            else if (IsWhitespace(Char) || Char == '\0')
+            {
+                if (Char == '\n')
+                {
+                    if (LastTokenType != Token_Newline && // prevent duplicates as we dont really care
+                        LastTokenType != Token_LCurly &&
+                        LastTokenType != Token_LSquare)
+                    {
+                        Lexer_AddToken(Tokens, Current, Start, Line, String_Null(), Token_Newline);
+                    }
+
+                    Line += 1;
+                }
+            }
+            else
             {
                 while (IsValidCharForValueToken(Lexer_Peek(Text, Current)))
                 {
@@ -450,25 +493,6 @@ bool ParseBuildFileV2(LinearAllocator* Arena,
                 }
 
                 Lexer_AddToken(Tokens, Current, Start, Line, Text, FinalType);
-            }
-            else if (IsWhitespace(Char) || Char == '\0')
-            {
-                if (Char == '\n')
-                {
-                    if (LastTokenType != Token_Newline && // prevent duplicates as we dont really care
-                        LastTokenType != Token_LCurly &&
-                        LastTokenType != Token_LSquare)
-                    {
-                        Lexer_AddToken(Tokens, Current, Start, Line, String_Null(), Token_Newline);
-                    }
-
-                    Line += 1;
-                }
-            }
-            else
-            {
-                LOG_ERROR("[Lexer] [Line %u]: Unknown character '%c'. Delete this.", Line, Char);
-                break;
             }
         }
 
@@ -496,7 +520,46 @@ bool ParseBuildFileV2(LinearAllocator* Arena,
 
                 // @todo: make sure to handle all tokens possible
 
-                if (t.Type == Token_If)
+                if (t.Type == Token_Newline || t.Type == Token_Semicolon)
+                {
+                }
+                else if (t.Type == Token_Text)
+                {
+                    ETokenType Prev = Parser_LookBack(Tokens, Current).Type;
+                    if (Prev == Token_None || Prev == Token_Max || Prev == Token_Newline || Prev == Token_Semicolon)
+                    {
+                        // this means we are the key
+                        if (Parser_Match(Tokens, &Current, Token_Text))
+                        {
+
+                        }
+                    }
+                    else
+                    {
+                        // we are the value to that key, blast through to the end of line or semicolon (whichever is first)
+                        while (!(Parser_Peek(Tokens, Current).Type == Token_Newline ||
+                                 Parser_Peek(Tokens, Current).Type == Token_Semicolon))
+                        {
+                            Parser_Advance(&Current, NumTokens);
+                        }
+                    }
+
+                }
+                else if (t.Type == Token_Include)
+                {
+                    Token NextToken = Parser_Peek(Tokens, Current);
+
+                    if (Parser_Match(Tokens, &Current, Token_Text))
+                    {
+
+                    }
+                    else
+                    {
+                        LOG_ERROR("[Parser] [Line %u]: Expected file path after 'include'", NextToken.Line);
+                        break;
+                    }
+                }
+                else if (t.Type == Token_If)
                 {
                     Token NextToken = Parser_Peek(Tokens, Current);
                     if (NextToken.Type == Token_None)
@@ -508,10 +571,80 @@ bool ParseBuildFileV2(LinearAllocator* Arena,
                         NextToken.Type == Token_Not ||
                         NextToken.Type == Token_At ||
                         NextToken.Type == Token_Mod ||
-                        NextToken.Type == Token_Dollar ||
-                        NextToken.Type == Token_LParen)
+                        NextToken.Type == Token_Dollar)
                     {
+                        if (NextToken.Type == Token_Text)
+                        {
+                            Parser_Advance(&Current, NumTokens);
 
+                            String TestValues[8] = {NextToken.Lexeme}; // @todo: store info if paired with @ ! % or $
+                            u8 NumTestValues = 1;
+                            bool bOverlimit = false;
+                            bool bError = false;
+
+                            while (Parser_Match(Tokens, &Current, Token_Pipe))
+                            {
+                                Token Peek = Parser_Peek(Tokens, Current);
+                                if (Peek.Type == Token_Text)
+                                {
+                                    if (NumTestValues > 7)
+                                    {
+                                        bError = true;
+                                        bOverlimit = true;
+                                        break;
+                                    }
+
+                                    Parser_Advance(&Current, NumTokens);
+
+                                    TestValues[NumTestValues] = Peek.Lexeme;
+
+                                    NumTestValues += 1;
+                                }
+                                else
+                                {
+                                    LOG_ERROR("[Parser] [Line %u]: Token '%S' was unexpected. Only identifiers are allowed between OR conditions.", Peek.Line, Peek.Lexeme);
+                                    bError = true;
+                                    break;
+                                }
+                            }
+
+                            if (bError)
+                            {
+                                if (bOverlimit)
+                                {
+                                    LOG_ERROR("[Parser] [Line %u]: if statement conditions are over the max limit of 8.", NextToken.Line);
+                                }
+
+                                break;
+                            }
+
+                            u32 PathA = Current;
+                            u32 PathB = Current;
+                            u32 EndPath = 0;
+
+                            // look for the else keyword on this line
+                            while (1)
+                            {
+                                ETokenType PeekType = Parser_Peek(Tokens, Current+1).Type;
+                                if (PeekType == Token_None || PeekType == Token_Newline || PeekType == Token_Semicolon)
+                                {
+                                    break;
+                                }
+
+                                Parser_Advance(&Current, NumTokens);
+
+                                if (PeekType == Token_Else)
+                                {
+                                    PathB = Current+1;
+                                    break;
+                                }
+                            }
+
+                            bool bFoundElse = PathA != PathB;
+
+
+                            // @todo: evalutate the test values and choose a path to parse until statement end then move current to newline
+                        }
                     }
                     else
                     {
@@ -528,11 +661,9 @@ bool ParseBuildFileV2(LinearAllocator* Arena,
                         break;
                     }
                 }
-                else if (t.Type == Token_If)
-                {
-
-                }
             }
+
+            LOG("Parsing Done!");
         }
     }
 
