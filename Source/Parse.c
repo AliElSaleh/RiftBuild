@@ -39,6 +39,506 @@ static void Internal_AddVariable(LinearAllocator* Arena,
     Array_Add(VariablesDB, var);
 }
 
+ENUM(ETokenType)
+{
+    Token_None = 0,
+
+    // single-char tokens
+    Token_LParen,
+    Token_RParen,
+    Token_LCurly,
+    Token_RCurly,
+    Token_LSquare,
+    Token_RSquare,
+    Token_Star,
+    Token_Caret,
+    Token_Mod,
+    Token_Pipe,
+    Token_Colon,
+    Token_Semicolon,
+    Token_Not,
+    Token_At,
+    Token_Dollar,
+    Token_GreaterThan,
+    Token_LessThan,
+
+    // two-char tokens
+    Token_GreaterOrEqual,
+    Token_LessOrEqual,
+    Token_NotEqual,
+    Token_EqualEqual,
+    Token_Equal,
+
+    // Literals
+    Token_Text,
+
+    // Reserved Keywords
+    Token_Artifact,
+    Token_Target,
+    Token_Include,
+    Token_If,
+    Token_Else,
+    Token_True,
+    Token_False,
+    Token_And,
+    Token_Or,
+
+    Token_Newline,
+
+    Token_Max
+};
+
+STRUCT(Token)
+{
+    usize      Line;
+    String     Lexeme;
+    ETokenType Type;
+};
+
+static Token Token_Null(void)
+{
+    return (Token)
+    {
+        .Line = 0,
+        .Lexeme = S(""),
+        .Type = Token_None
+    };
+}
+
+static String TokenTypeEnumStringTable[Token_Max] =
+{
+    SC("Token_None"),
+
+    // single-char tokens
+    SC("Token_LParen"),
+    SC("Token_RParen"),
+    SC("Token_LCurly"),
+    SC("Token_RCurly"),
+    SC("Token_LSquare"),
+    SC("Token_RSquare"),
+    SC("Token_Star"),
+    SC("Token_Caret"),
+    SC("Token_Mod"),
+    SC("Token_Pipe"),
+    SC("Token_Colon"),
+    SC("Token_Semicolon"),
+    SC("Token_Not"),
+    SC("Token_At"),
+    SC("Token_Dollar"),
+    SC("Token_GreaterThan"),
+    SC("Token_LessThan"),
+
+    // two-char tokens
+    SC("Token_GreaterOrEqual"),
+    SC("Token_LessOrEqual"),
+    SC("Token_NotEqual"),
+    SC("Token_EqualEqual"),
+    SC("Token_Equal"),
+
+    // Literals
+    SC("Token_Text"),
+
+    // Reserved Keywords
+    SC("Token_Artifact"),
+    SC("Token_Target"),
+    SC("Token_Include"),
+    SC("Token_If"),
+    SC("Token_Else"),
+    SC("Token_True"),
+    SC("Token_False"),
+    SC("Token_And"),
+    SC("Token_Or"),
+
+    SC("Token_Newline"),
+};
+
+STRUCT(KeywordTableEntry)
+{
+    ETokenType Type;
+    String     Name;
+};
+
+static KeywordTableEntry ReservedKeywordsTable[9] =
+{
+    { .Type = Token_If,       .Name = SC("if")      },
+    { .Type = Token_Else,     .Name = SC("else")    },
+    { .Type = Token_Include,  .Name = SC("include") },
+    { .Type = Token_True,     .Name = SC("true")    },
+    { .Type = Token_False,    .Name = SC("false")   },
+    { .Type = Token_And,      .Name = SC("and")     },
+    { .Type = Token_Or,       .Name = SC("or")      },
+    { .Type = Token_Artifact, .Name = SC("artifact")},
+    { .Type = Token_Target ,  .Name = SC("target")  },
+};
+
+static String ETokenType_ToString(ETokenType Type)
+{
+    String Result = String_Null();
+
+    if (Type < Token_Max)
+    {
+        Result = TokenTypeEnumStringTable[Type];
+    }
+
+    return Result;
+}
+
+static void Lexer_Advance(u32* Current, u32 Length)
+{
+    if (*Current < Length)
+    {
+        *Current += 1;
+    }
+}
+
+static uchar Lexer_Peek(String Text, u32 Current)
+{
+    uchar Char = 0;
+    if (Current < Text.Length)
+    {
+        Char = Text.Data[Current];
+    }
+
+    return Char;
+}
+
+static bool Lexer_Match(u32* Current, String Text, uchar Expected)
+{
+    bool bResult = false;
+
+    if (*Current < Text.Length)
+    {
+        if (Text.Data[*Current] == Expected)
+        {
+            *Current += 1;
+            bResult = true;
+        }
+    }
+
+    return bResult;
+}
+
+static void Parser_Advance(u32* Current, u32 Length)
+{
+    if (*Current < Length)
+    {
+        *Current += 1;
+    }
+}
+
+static Token Parser_Peek(TArray(Token) Tokens, u32 Current)
+{
+    Token Tok = Token_Null();
+    if (Current < Array_Num(Tokens))
+    {
+        Tok = Tokens[Current];
+    }
+
+    return Tok;
+}
+
+static void Lexer_AddToken(TArray(Token) Tokens, u32 Current, u32 Start, u32 Line, String Text, ETokenType Type)
+{
+    u32 Diff = ClampMin(Current - Start, 1);
+
+    Token NewToken  = {0};
+    NewToken.Type   = Type;
+    NewToken.Lexeme = Text.Length == 0 ? Text : StrSub(Text, Start, Diff);
+    NewToken.Line   = Line;
+
+    Array_Add(Tokens, NewToken);
+}
+
+static bool IsValidCharForValueToken(uchar Char)
+{
+    bool bExtra = Char == '_' || Char == '.' || Char == ',' || Char == '-' || Char == '/' || Char == '\\' ||
+                  Char == '+' || Char == '=';
+    bool bValid = IsAlphabet(Char) || IsDigit(Char) || bExtra;
+    return bValid;
+}
+
+static ETokenType PeekLastTokenType(TArray(Token) Tokens)
+{
+    ETokenType Result = Token_None;
+
+    if (Array_Num(Tokens) > 0)
+    {
+        Result = Array_Last(Tokens).Type;
+    }
+
+    return Result;
+}
+
+ENUM(ELexerState)
+{
+    LexerState_Key,
+    LexerState_Value,
+    LexerState_If,
+    LexerState_IfAfterIdent,
+};
+
+bool ParseBuildFileV2(LinearAllocator* Arena,
+                    const FileHandle H,
+                    const String BuildFilePath,
+                    const String WorkingDirectory,
+                    TArray(FileVariable) VariablesDB,
+                    TArray(FileVariable) ExpandedVariablesDB,
+                    TArray(CmdOption) CmdOptionsDB,
+                    TArray(String) Messages,
+                    TArray(FileHandle) IncludeFiles,
+                    u32* ReturnCode,
+                    bool bIsIncludeFile,
+                    StringList* Includes,
+                    bool bIsAssemblyExe)
+{
+    if (ReturnCode)
+    {
+        *ReturnCode = 0;
+    }
+
+    StringLocal(Text, Kibibytes(128));
+    
+    usize Length = 0;
+    if (Filesystem_ReadEntireFile(H, Text.Data, &Length))
+    {
+        Text.Length = (u32)Min(Length, Kibibytes(128));
+
+        // tokenize the text
+        u32 Start = 0;
+        u32 Current = 0;
+        u32 Line = 1;
+        ArrayLocal_Arena(Token, Tokens, 1024, Arena);
+        while (Current < Text.Length)
+        {
+            Start = Current;
+            
+            uchar Char = Text.Data[Current];
+            Lexer_Advance(&Current, Text.Length);
+
+            ETokenType LastTokenType = PeekLastTokenType(Tokens);
+
+            if      (Char == '(') { Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_LParen);       }
+            else if (Char == ')') { Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_RParen);       }
+            else if (Char == '{') { Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_LCurly);       }
+            else if (Char == '}') { Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_RCurly);       }
+            else if (Char == '[') { Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_LSquare);      }
+            else if (Char == ']') { Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_RSquare);      }
+            else if (Char == '*') { Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_Star);         }
+            else if (Char == '^') { Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_Caret);        }
+            else if (Char == ';') { Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_Semicolon);    }
+            else if (Char == '$') { Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_Dollar);       }
+            else if (Char == '@') { Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_At);           }
+            else if (Char == '|') { Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_Pipe);         }
+            else if (Char == '%') { Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_Mod);          }
+            else if (Char == '#')
+            {
+                bool bIsMultiLine = Lexer_Match(&Current, Text, '#');
+                if (bIsMultiLine)
+                {
+                    while (1)
+                    {
+                        uchar PeekChar = Lexer_Peek(Text, Current);
+                        if (PeekChar == '#')
+                        {
+                            (void)Lexer_Advance(&Current, Text.Length);
+                            if (Lexer_Match(&Current, Text, '#'))
+                            {
+                                break;
+                            }
+                        }
+
+                        if (PeekChar == 0)
+                        {
+                            break;
+                        }
+
+                        if (PeekChar == '\n')
+                        {
+                            Line += 1;
+                        }
+
+                        (void)Lexer_Advance(&Current, Text.Length);
+                    }
+                }
+                else
+                {
+                    while (!IsNewline(Lexer_Peek(Text, Current)))
+                    {
+                        (void)Lexer_Advance(&Current, Text.Length);
+                    }
+                }
+            }
+            else if (Char == ':')
+            {
+                Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_Colon);
+            }
+            else if (Char == '!')
+            {
+                ETokenType Type = Lexer_Match(&Current, Text, '=') ? Token_NotEqual : Token_Not;
+                Lexer_AddToken(Tokens, Current, Start, Line, Text, Type);
+            }
+            else if (Char == '=')
+            {
+                ETokenType Type = Lexer_Match(&Current, Text, '=') ? Token_EqualEqual : Token_Equal;
+                Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_EqualEqual);
+            }
+            else if (Char == '<')
+            {
+                ETokenType Type = Lexer_Match(&Current, Text, '=') ? Token_LessOrEqual : Token_LessThan;
+                Lexer_AddToken(Tokens, Current, Start, Line, Text, Type);
+            }
+            else if (Char == '>')
+            {
+                ETokenType Type = Lexer_Match(&Current, Text, '=') ? Token_GreaterOrEqual : Token_GreaterThan;
+                Lexer_AddToken(Tokens, Current, Start, Line, Text, Type);
+            }
+            else if (Char == '\'' || Char == '"')
+            {
+                const uchar Letter = Char;
+                uchar PeekLetter = Lexer_Peek(Text, Current);
+
+                while (PeekLetter != 0 && PeekLetter != Letter && PeekLetter != '\n')
+                {
+                    (void)Lexer_Advance(&Current, Text.Length);
+                    PeekLetter = Lexer_Peek(Text, Current);
+
+                    // handle quote strings within this string
+                    /*
+                    PeekLetter = Lexer_Peek(Text, Current);
+                    if (PeekLetter == '\\')
+                    {
+                        (void)Lexer_Advance(&Current, Text.Length);
+                        (void)Lexer_Match(&Current, Text, Letter);
+                        PeekLetter = Lexer_Peek(Text, Current);
+                    }
+                    */
+                }
+
+                // consume ending quote
+                (void)Lexer_Advance(&Current, Text.Length);
+
+                bool bError = PeekLetter == 0 || PeekLetter == '\n';
+
+                if (bError)
+                {
+                    LOG_ERROR("[Line %u]: Missing closing quote '%c'", Line, Char);
+                }
+                else
+                {
+                    Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_Text);
+                }
+            }
+            else if (IsValidCharForValueToken(Char))
+            {
+                while (IsValidCharForValueToken(Lexer_Peek(Text, Current)))
+                {
+                    (void)Lexer_Advance(&Current, Text.Length);
+                }
+
+                u32 Diff = ClampMin(Current - Start, 1);
+                String Lexeme = StrSub(Text, Start, Diff);
+
+                ETokenType FinalType = Token_Text;
+
+                for (u8 j = 0; j < SArray_Capacity(ReservedKeywordsTable); j++)
+                {
+                    if (String_IsEqual(Lexeme, ReservedKeywordsTable[j].Name, true))
+                    {
+                        FinalType = ReservedKeywordsTable[j].Type;
+                        break;
+                    }
+                }
+
+                Lexer_AddToken(Tokens, Current, Start, Line, Text, FinalType);
+            }
+            else if (IsWhitespace(Char) || Char == '\0')
+            {
+                if (Char == '\n')
+                {
+                    if (LastTokenType != Token_Newline && // prevent duplicates as we dont really care
+                        LastTokenType != Token_LCurly &&
+                        LastTokenType != Token_LSquare)
+                    {
+                        Lexer_AddToken(Tokens, Current, Start, Line, String_Null(), Token_Newline);
+                    }
+
+                    Line += 1;
+                }
+            }
+            else
+            {
+                LOG_ERROR("[Lexer] [Line %u]: Unknown character '%c'. Delete this.", Line, Char);
+                break;
+            }
+        }
+
+        for each (Token, t, Tokens)
+        {
+            if (t.Lexeme.Length > 0)
+            {
+                LOG("[%u] %S -> %S", t.Line, ETokenType_ToString(t.Type), t.Lexeme);
+            }
+            else
+            {
+                LOG("[%u] %S", t.Line, ETokenType_ToString(t.Type));
+            }
+        }
+        LOG("Num Tokens: %u", Array_Num(Tokens));
+
+        // parse the tokens
+        {
+            Current = 0;
+            u32 NumTokens = (u32)Array_Num(Tokens);
+            while (Current < NumTokens)
+            {
+                Token t = Tokens[Current];
+                Parser_Advance(&Current, NumTokens);
+
+                // @todo: make sure to handle all tokens possible
+
+                if (t.Type == Token_If)
+                {
+                    Token NextToken = Parser_Peek(Tokens, Current);
+                    if (NextToken.Type == Token_None)
+                    {
+                        break;
+                    }
+
+                    if (NextToken.Type == Token_Text ||
+                        NextToken.Type == Token_Not ||
+                        NextToken.Type == Token_At ||
+                        NextToken.Type == Token_Mod ||
+                        NextToken.Type == Token_Dollar ||
+                        NextToken.Type == Token_LParen)
+                    {
+
+                    }
+                    else
+                    {
+                        if (NextToken.Lexeme.Length > 0)
+                        {
+                            LOG_ERROR("[Parser] [Line %u]: Token '%S' (%S) was unexpected.", NextToken.Line, NextToken.Lexeme, ETokenType_ToString(NextToken.Type));
+                        }
+                        else
+                        {
+                            LOG_ERROR("[Parser] [Line %u]: Missing expression after 'if'.", NextToken.Line, NextToken.Lexeme, ETokenType_ToString(NextToken.Type));
+                        }
+                        
+                        LOG("There must be an expression after an \"if\". For example: if some_identifier");
+                        break;
+                    }
+                }
+                else if (t.Type == Token_If)
+                {
+
+                }
+            }
+        }
+    }
+
+    return true;
+}
+
 bool ParseBuildFile(LinearAllocator* Arena,
                     const FileHandle H,
                     const String BuildFilePath,

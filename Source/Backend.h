@@ -270,6 +270,21 @@ bool ParseBuildFile(LinearAllocator* Arena,
                     StringList* Includes,
                     bool bIsAssemblyExe);
 
+bool ParseBuildFileV2(LinearAllocator* Arena,
+                    const FileHandle H,
+                    const String BuildFilePath,
+                    const String WorkingDirectory,
+                    TArray(FileVariable) VariablesDB,
+                    TArray(FileVariable) ExpandedVariablesDB,
+                    TArray(CmdOption) CmdOptionsDB,
+                    TArray(String) Messages,
+                    TArray(FileHandle) IncludeFiles,
+                    u32* ReturnCode,
+                    bool bIsIncludeFile,
+                    StringList* Includes,
+                    bool bIsAssemblyExe);
+
+
 bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) VariablesDB, TArray(CmdOption) CmdOptionsDB,
                          String* Dest, const String Key, const String Value, const String Root, const String WorkingDirectory,
                          bool bLowerStrings, bool bIsAssemblyExe);
