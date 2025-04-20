@@ -1598,8 +1598,6 @@ bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String Relat
 
 static void Internal_ParseAndLogLinkerOutput_MSVC(String StdOutData)
 {
-    //if (StdOutData.Length == 0) { return; }
-
     String LastObjFile = String_Null();
 
     u32 Offset = 0;
@@ -1641,7 +1639,7 @@ static void Internal_ParseAndLogLinkerOutput_MSVC(String StdOutData)
                         (void)String_IndexOfChar(Trimmed, ':', &ColonIndex);
                         String Message = StrShiftF(Trimmed, ColonIndex+1);
 
-                        const String SymbolDefineWarningPhrases[] =
+                        const String SymbolDefineWarningPhrases[3] =
                         {
                             S("defined in"),
                             S("is imported by"),
@@ -1836,7 +1834,6 @@ static void Internal_ProcessLinkerOutput_MSVC(PlatformPipe StdOutHandle)
 
     StringLocal(StdOutData, UINT16_MAX);
 
-    // TODO: think about logging speed
     do
     {
         StringLocal(PipeData, UINT16_MAX);

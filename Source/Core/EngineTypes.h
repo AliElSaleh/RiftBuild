@@ -64,8 +64,7 @@ typedef struct LinearAllocator LinearAllocator;
 #define NULL ((void*)0)
 #endif
 
-#define _Crash_ do { i32* volatile _ = (i32*)1; *_ = 69; } while (0)
-//#define _Crash_ do { *(volatile char*)1 = 69; } while (0)
+#define _Crash_ do { i32* volatile _ = (i32*)1; *_*= 69; } while (0)
 
 #define INT8_MIN         -127
 #define INT16_MIN        -32767
@@ -108,6 +107,7 @@ typedef struct LinearAllocator LinearAllocator;
 #define BITS_PER_LONG (8 * sizeof(u64))
 //#define BIT(x)        (1UL << ((x) % BITS_PER_LONG))
 #define BIT(x)        (1UL << x##UL)
+#define BITX(x)        (1UL << (x))
 
 
 #define Kilobytes(x) ((x)*(usize)1000)
@@ -196,7 +196,7 @@ STRUCT(StringList)
 
 #define INVALID_ID UINT32_MAX
 
-// if only microsoft supported this like clang and gcc :((
+// if only microsoft supported typeof() like clang and gcc :(( aaaaarrgghhhhh
 //#define each(Element, Array)          (typeof((Array)[0])* CONCAT(Element, _) = &(Array)[0], Element = *CONCAT(Element, _); CONCAT(Element, _) <= &(Array)[Array_Num((Array))-1]; CONCAT(Element, _)++, Element = *CONCAT(Element, _))
 //#define each_i(Index, Element, Array) (typeof((Array)[0])* CONCAT(Element, _) = &(Array)[0], Element = *CONCAT(Element, _); CONCAT(Element, _) <= &(Array)[Array_Num((Array))-1]; CONCAT(Element, _)++, Element = *CONCAT(Element, _), ++(Index))
 
@@ -209,6 +209,7 @@ STRUCT(StringList)
 #define For(Array) for each (It, Array)
 #define ForEach(It, Array) for each (It, Array)
 
+// this actually kinda works? lol
 #define is ==
 #define isnt !=
 #define and &&
@@ -221,6 +222,7 @@ STRUCT(StringList)
 
 #define global extern
 //#define internal static
+#define local_persist static
 #define thread_local _Thread_local
 
 #define UNUSED_PARAM(Param) (void)Param
@@ -229,7 +231,7 @@ STRUCT(StringList)
 
 // Platform detection
 // Rift Build only supports the following:
-// - Windows (XP and above)
+// - Windows (7 and above)
 // - Linux (Debian, Fedora, Red Hat and Arch based only)
 // - macOS (10.10 and above)
 // - BSD (FreeBSD, NetBSD, OpenBSD)
@@ -570,6 +572,8 @@ STRUCT(StringList)
 // Ensure all types are of the correct size
 STATIC_ASSERT(sizeof(bool)  == 1, "Expected size of bool to be 1 byte.");
 STATIC_ASSERT(sizeof(char)  == 1, "Expected size of char to be 1 byte.");
+STATIC_ASSERT(sizeof(uchar) == 1, "Expected size of uchar to be 1 byte.");
+STATIC_ASSERT(sizeof(wchar) == 2, "Expected size of wchar to be 2 bytes.");
 STATIC_ASSERT(sizeof(u8)    == 1, "Expected size of u8 to be 1 byte.");
 STATIC_ASSERT(sizeof(u16)   == 2, "Expected size of u16 to be 2 bytes.");
 STATIC_ASSERT(sizeof(u32)   == 4, "Expected size of u32 to be 4 bytes.");
@@ -580,6 +584,8 @@ STATIC_ASSERT(sizeof(i32)   == 4, "Expected size of i32 to be 4 bytes.");
 STATIC_ASSERT(sizeof(i64)   == 8, "Expected size of i64 to be 8 bytes.");
 STATIC_ASSERT(sizeof(f32)   == 4, "Expected size of f32 to be 4 bytes.");
 STATIC_ASSERT(sizeof(f64)   == 8, "Expected size of f64 to be 8 bytes.");
+STATIC_ASSERT(sizeof(ulong) == 4, "Expected size of ulong to be 4 bytes.");
+STATIC_ASSERT(sizeof(ilong) == 4, "Expected size of ilong to be 4 bytes.");
 
 #if PLATFORM_WINDOWS
 typedef void* PlatformHandle;

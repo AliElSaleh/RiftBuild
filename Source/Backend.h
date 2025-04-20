@@ -6,6 +6,9 @@
 #include "Core/Filesystem.h"
 #endif
 
+global bool bQuietBuild;
+global bool bNoWordWrapLogging;
+
 STRUCT(FileVariable)
 {
     String Name;
@@ -22,8 +25,6 @@ STRUCT(InternalVariable)
 };
 
 global TArray(InternalVariable) InternalVariablesDB;
-global bool bQuietBuild;
-global bool bNoWordWrapLogging;
 
 STRUCT(SourceFileData)
 {
@@ -232,7 +233,6 @@ bool IsCppHeader(const String Extension);
 
 // Util functions --------------------
 
-bool DoesCmdVarExist(TArray(CmdOption) CmdOptionsDB, const String Name);
 bool DoesBuildVarExist(TArray(FileVariable) VariablesDB, const String Name);
 
 String GetCmdOptionValue(TArray(CmdOption) CmdOptionsDB, const String Name);
@@ -251,7 +251,7 @@ void LogString_WordWrapped    (LinearAllocator Scratch, const String Name, const
 
 bool LogCustomErrorMessage(TArray(FileVariable) VariablesDB, const String Context, const String Key, const bool bLineBreak);
 
-void LogPathEnvVarTutorialSteps(void);
+//void LogPathEnvVarTutorialSteps(void);
 void LogRegularEnvVarTutorialSteps(void);
 
 // Parsing functions --------------------
@@ -290,7 +290,13 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
                          bool bLowerStrings, bool bIsAssemblyExe);
 
 
+bool SourceFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData);
+
 // Export functions --------------------
+
+// this would collapse those export functions below, but human error when providing the extra parameters would make
+// things more complex than it needs to be.
+//bool Export_Something(LinearAllocator Arena, const BuildParams* Params, const String OutputPath, ...);
 
 bool Export_CompileCommands(const BuildParams* Params, const bool bIsLastBuild, const bool bKeepOneLine);
 bool Export_InfoPlist(LinearAllocator Arena, const BuildParams* Params, const String Path, TArray(FileVariable) ExpandedVariablesDB, bool bRawMode);
@@ -299,17 +305,11 @@ bool Export_PkgInfo(const String AssemblyName, const String Path);
 bool Export_VersionRC(const BuildParams* Params, const String Path);
 bool Export_IconRC(const String Path, const String IconFilePath);
 
+// LicenseType: BSD2, BSD3, MIT, FuckYou, Unlicense
 bool Export_License(const String LicenseType, const BuildParams* Params, const String Path);
-bool Export_License_BSD2(const BuildParams* Params, const String Path);
-bool Export_License_BSD3(const BuildParams* Params, const String Path);
-bool Export_License_MIT(const BuildParams* Params, const String Path);
-bool Export_License_DoWhatTheFuckYouWantTo(const BuildParams* Params, const String Path);
-bool Export_License_TheUnlicense(const String Path);
-
-bool SourceFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData);
 
 global LinearAllocator GMSVCFindAllocator;
 void* MSVC_Find_Allocate(usize Size);
-void MSVC_Find_Release(void* Memory);
+void  MSVC_Find_Release(void* Memory);
 
 #endif // _BACKEND_H_

@@ -91,7 +91,7 @@ bool IsValidFileHandle(const FileHandle Handle)
 String String_Null(void)
 {
     #ifdef DEVELOPER
-    // GGlobals.NullString was somehow modified... you broke it somewhere in user code, fix it
+    // GGlobals.NullString was somehow modified...
     ASSERT(GGlobals.NullString.Data[0]  == 0);
     ASSERT(GGlobals.NullString.Length   == 0);
     ASSERT(GGlobals.NullString.Capacity == 255);
@@ -103,7 +103,7 @@ String String_Null(void)
 StringArray StringArray_Null(void)
 {
     #ifdef DEVELOPER
-    // GGlobals.NullStringArray was somehow modified... you broke it somewhere in user code, fix it
+    // GGlobals.NullStringArray was somehow modified...
     ASSERT(GGlobals.NullStringArray.Num          == 0);
     ASSERT(GGlobals.NullStringArray.IterIndex    == 0);
     ASSERT(GGlobals.NullStringArray.IterCurrent  == NULL);
@@ -115,7 +115,7 @@ StringArray StringArray_Null(void)
 StringList StringList_Null(void)
 {
     #ifdef DEVELOPER
-    // GGlobals.NullStringList was somehow modified... you broke it somewhere in user code, fix it
+    // GGlobals.NullStringList was somehow modified...
     ASSERT(GGlobals.NullStringList.Next            == &GGlobals.NullStringList);
     ASSERT(GGlobals.NullStringList.String.Data[0]  == 0);
     ASSERT(GGlobals.NullStringList.String.Length   == 0);
@@ -128,17 +128,10 @@ StringList StringList_Null(void)
 FileHandle FileHandle_Null(void)
 {
     #ifdef DEVELOPER
-    // GGlobals.NullFileHandle was somehow modified... you broke it somewhere in user code, fix it
+    // GGlobals.NullFileHandle was somehow modified...
     ASSERT(GGlobals.NullFileHandle.Data  != NULL);
     ASSERT(GGlobals.NullFileHandle.Data2 == NULL);
     #endif
 
     return GGlobals.NullFileHandle;
 }
-
-/*
-EngineGlobals Globals(void)
-{
-    return GGlobals;
-}
-*/

@@ -26,14 +26,7 @@ static void WriteFlags(LinearAllocator Scratch, const FileHandle File, const Str
     StringArray List = String_ParseIntoArray(&Scratch, Flags, ' ', 0, 256);
     if (List.Num > 0)
     {
-        if (bOneLine)
-        {
-            Filesystem_WriteLine(File, S(", "), NULL);
-        }
-        else
-        {
-            Filesystem_WriteLine(File, S(",\n"), NULL);
-        }
+        Filesystem_WriteLine(File, bOneLine ? S(", ") : S(",\n"), NULL);
     }
 
     for each_str_i (i, Flag, List)
@@ -680,38 +673,7 @@ bool GenerateSolutionFile(const String ProjectName, const String ProjectPath)
 // License Generator
 // todo: if no copyright key was specified, make one
 
-bool Export_License(const String LicenseType, const BuildParams* Params, const String Path)
-{
-    bool bSuccess = false;
-
-    if (String_IsEqual(LicenseType, S("BSD2"), false))
-    {
-        bSuccess = Export_License_BSD2(Params, Path);
-    }
-    else if (String_IsEqual(LicenseType, S("BSD3"), false))
-    {
-        bSuccess = Export_License_BSD3(Params, Path);
-    }
-    else if (String_IsEqual(LicenseType, S("MIT"), false))
-    {
-        bSuccess = Export_License_MIT(Params, Path);
-    }
-    else if (String_IsEqual(LicenseType, S("FuckYou"), false))
-    {
-        bSuccess = Export_License_DoWhatTheFuckYouWantTo(Params, Path);
-    }
-    else if (String_IsEqual(LicenseType, S("Unlicense"), false))
-    {
-        bSuccess = Export_License_TheUnlicense(Path);
-    }
-    else
-    {
-    }
-
-    return bSuccess;
-}
-
-bool Export_License_BSD2(const BuildParams* Params, const String Path)
+static bool Export_License_BSD2(const BuildParams* Params, const String Path)
 {
     FileHandle f = FileHandle_Null();
     bool bSuccess = false;
@@ -751,7 +713,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.\n\
     return bSuccess;
 }
 
-bool Export_License_BSD3(const BuildParams* Params, const String Path)
+static bool Export_License_BSD3(const BuildParams* Params, const String Path)
 {
     FileHandle f = FileHandle_Null();
     bool bSuccess = false;
@@ -795,7 +757,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.\n\
     return bSuccess;
 }
 
-bool Export_License_MIT(const BuildParams* Params, const String Path)
+static bool Export_License_MIT(const BuildParams* Params, const String Path)
 {
     FileHandle f = FileHandle_Null();
 
@@ -834,7 +796,7 @@ SOFTWARE.\n\
     return bSuccess;
 }
 
-bool Export_License_DoWhatTheFuckYouWantTo(const BuildParams* Params, const String Path)
+static bool Export_License_DoWhatTheFuckYouWantTo(const BuildParams* Params, const String Path)
 {
     FileHandle f = FileHandle_Null();
     bool bSuccess = false;
@@ -864,7 +826,7 @@ TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION\n\
     return bSuccess;
 }
 
-bool Export_License_TheUnlicense(const String Path)
+static bool Export_License_TheUnlicense(const String Path)
 {
     FileHandle f = FileHandle_Null();
     bool bSuccess = false;
@@ -900,6 +862,37 @@ For more information, please refer to <https://unlicense.org>\n\
         Filesystem_WriteLine(f, Text, NULL);
         Filesystem_Close(&f);
         bSuccess = true;
+    }
+
+    return bSuccess;
+}
+
+bool Export_License(const String LicenseType, const BuildParams* Params, const String Path)
+{
+    bool bSuccess = false;
+
+    if (String_IsEqual(LicenseType, S("BSD2"), false))
+    {
+        bSuccess = Export_License_BSD2(Params, Path);
+    }
+    else if (String_IsEqual(LicenseType, S("BSD3"), false))
+    {
+        bSuccess = Export_License_BSD3(Params, Path);
+    }
+    else if (String_IsEqual(LicenseType, S("MIT"), false))
+    {
+        bSuccess = Export_License_MIT(Params, Path);
+    }
+    else if (String_IsEqual(LicenseType, S("FuckYou"), false))
+    {
+        bSuccess = Export_License_DoWhatTheFuckYouWantTo(Params, Path);
+    }
+    else if (String_IsEqual(LicenseType, S("Unlicense"), false))
+    {
+        bSuccess = Export_License_TheUnlicense(Path);
+    }
+    else
+    {
     }
 
     return bSuccess;
