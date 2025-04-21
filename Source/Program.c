@@ -25,6 +25,8 @@ TArray(InternalVariable) InternalVariablesDB = NULL;
 bool bQuietBuild = false;
 bool bNoWordWrapLogging = false;
 
+//static ExportMetaData ExportMetaData_Null = {.StringParam_1 = S(""), .StringParam_2 = S("")};
+
 static FileVariable FileVariable_Empty = {0};
 static bool bSingleThread = false;
 static bool bIsRebuild = false;
@@ -35,25 +37,25 @@ static bool bHelp = false;
 
 STRUCT(BuildFileDirectoryIteratorData)
 {
-    String* Name;
-    String* Path;
+    String*     Name;
+    String*     Path;
     StringArray Arguments;
-    bool bFoundBuildFile;
-    bool bNoBuildFileSpecifiedInCmd;
-    bool bSearchOnlyBuildBatch;
-    i8 BuildFileIndex;
-    i8 RootPathIndex;
-    u8 NumBuildFilesFound;
-    u8 Padding1[2];
+    bool        bFoundBuildFile;
+    bool        bNoBuildFileSpecifiedInCmd;
+    bool        bSearchOnlyBuildBatch;
+    i8          BuildFileIndex;
+    i8          RootPathIndex;
+    u8          NumBuildFilesFound;
+    u8          Padding1[2];
 };
 
 STRUCT(CopyrightEnforceInfo)
 {
     String Content;
-    u32 FromLine;
-    u32 ToLine;
-    bool bSuccess;
-    u8 Padding[7];
+    u32    FromLine;
+    u32    ToLine;
+    bool   bSuccess;
+    u8     Padding[7];
 };
 
 static bool IsBuildFile(const String FilePath)
@@ -1096,7 +1098,10 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String
 
     ASSERT(ExitCode != NULL);
 
-    if (String_EndsWith(Name, S("Cmd"), false))
+    if (String_EndsWith(Name, S("Cmd"), false) ||
+        String_EndsWith(Name, S("Exec"), false) ||
+        String_EndsWith(Name, S("Command"), false) ||
+        String_EndsWith(Name, S("Execute"), false))
     {
         const String Cmd = Value;
 
@@ -1440,6 +1445,11 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String
         StringList ArgList      = String_SplitIntoList(&Scratch, Value, ' ', true);
         String URL              = StringList_GetStringFromIndex(ArgList, 0);
         String Destination      = StringList_GetStringFromIndex(ArgList, 1);
+
+        // TODO:     PreBuild.Download https://github.com/glfw/glfw/releases/download/3.4/glfw-3.4.zip glfw.zip
+        // make it so that we dont have to specify .zip. if we want directory, a slash will be necessary.
+        // like this: ./deps or whatever/deps
+
 
         StringLocal(FinalDestinationPath, MAX_PATH_LENGTH);
         String_BuildPath(&FinalDestinationPath, WorkingDirectory, Destination);
@@ -1819,7 +1829,7 @@ static void AddCmdOption(TArray(CmdOption)* CmdOptionsDB, const String Name, con
     Array_Add(*CmdOptionsDB, c);
 }
 
-static void AddInternalVariable(const String Name, const String Value)
+inline static void AddInternalVariable(const String Name, const String Value)
 {
     InternalVariable c;
     c.Name = Name;
@@ -1886,7 +1896,7 @@ static bool CheckForBuildVariableOverrides(TArray(FileVariable) VariablesDB, TAr
     return bAnyOverriden;
 }
 
-void LogPathEnvVarTutorialSteps(void)
+static void LogPathEnvVarTutorialSteps(void)
 {
     #ifdef HOOD
     LOG_INLINE_WARNING("aight lisen up dawg, this is how you put a new entry to the path env var on yo system:\n");
@@ -2804,6 +2814,11 @@ static u32 BuildTarget(LinearAllocator* Arena,
     if (bFoundBuildFile)
     {
         Clock_Start(&BuildFileParseClock);
+
+        ParseBuildFileV2(Arena, BuildFileHandle, BuildFilePath, WorkingPath, VariablesDB, ExpandedVariablesDB,
+                            CmdOptionsDB, Messages, IncludeFiles, NULL, false, NULL, false);
+
+        return 0;
 
         if (!ParseBuildFile(Arena, BuildFileHandle, BuildFilePath, WorkingPath, VariablesDB, ExpandedVariablesDB,
                             CmdOptionsDB, Messages, IncludeFiles, NULL, false, NULL, false))
@@ -4633,7 +4648,10 @@ static u32 BuildTarget(LinearAllocator* Arena,
             LinearAllocator_Destroy(&NewArena);
             //Platform_MemFree(ArenaMemory);
 
-            if (ExitCode == 2)
+            // TODO: support this syntax: Depends!NoRebuildIfDoneSomeWork
+            //                            [     ]![pre-defined phrase   ]
+
+            if (ExitCode == 2) // special exit code meaning this child build finished successfully (and that it did some work)
             {
                 if (!bIsRebuild && !Var.bHasSpecial)
                 {
@@ -8927,6 +8945,23 @@ static void InitInternalVars(LinearAllocator* Arena)
     #endif
 
     //#define AddInstruction(Instruction) AddInternalVariable(S("_" #Instruction), CPUInfo.Instruction ? One : Zero)
+
+    // TODO: Speed: change to this method
+    /*
+    const InternalVariable Pairs[] =
+    {
+        { .Name = S("_MMX"), .Value = CPUInfo.MMX ? One : Zero },
+        { .Name = S("_MMX"), .Value = CPUInfo.MMX ? One : Zero },
+        { .Name = S("_MMX"), .Value = CPUInfo.MMX ? One : Zero },
+        { .Name = S("_MMX"), .Value = CPUInfo.MMX ? One : Zero },
+        { .Name = S("_MMX"), .Value = CPUInfo.MMX ? One : Zero },
+    };
+
+    for (u16 i = 0; i < SArray_Capacity(Pairs); i++)
+    {
+        Array_Add(InternalVariablesDB, Pairs[i]);
+    }
+    */
 
     // x86
     if (CPUInfo.x86 || CPUInfo.x64)

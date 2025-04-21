@@ -79,6 +79,9 @@ ENUM(ETokenType)
     Token_False,
     Token_And,
     Token_Or,
+    Token_Contains,
+    Token_StartsWith,
+    Token_EndsWith,
 
     Token_Newline,
 
@@ -90,6 +93,7 @@ STRUCT(Token)
     usize      Line;
     String     Lexeme;
     ETokenType Type;
+    u8         Padding[7];
 };
 
 static Token Token_Null(void)
@@ -145,27 +149,34 @@ static String TokenTypeEnumStringTable[Token_Max] =
     SC("Token_False"),
     SC("Token_And"),
     SC("Token_Or"),
+    SC("Token_Contains"),
+    SC("Token_StartsWith"),
+    SC("Token_EndsWith"),
 
     SC("Token_Newline"),
 };
 
 STRUCT(KeywordTableEntry)
 {
-    ETokenType Type;
     String     Name;
+    ETokenType Type;
+    u8         Padding[7];
 };
 
-static KeywordTableEntry ReservedKeywordsTable[9] =
+static KeywordTableEntry ReservedKeywordsTable[12] =
 {
-    { .Type = Token_If,       .Name = SC("if")      },
-    { .Type = Token_Else,     .Name = SC("else")    },
-    { .Type = Token_Include,  .Name = SC("include") },
-    { .Type = Token_True,     .Name = SC("true")    },
-    { .Type = Token_False,    .Name = SC("false")   },
-    { .Type = Token_And,      .Name = SC("and")     },
-    { .Type = Token_Or,       .Name = SC("or")      },
-    { .Type = Token_Artifact, .Name = SC("artifact")},
-    { .Type = Token_Target ,  .Name = SC("target")  },
+    { .Type = Token_If,          .Name = SC("if")          },
+    { .Type = Token_Else,        .Name = SC("else")        },
+    { .Type = Token_Include,     .Name = SC("include")     },
+    { .Type = Token_True,        .Name = SC("true")        },
+    { .Type = Token_False,       .Name = SC("false")       },
+    { .Type = Token_And,         .Name = SC("and")         },
+    { .Type = Token_Or,          .Name = SC("or")          },
+    { .Type = Token_Artifact,    .Name = SC("artifact")    },
+    { .Type = Token_Target ,     .Name = SC("target")      },
+    { .Type = Token_Contains ,   .Name = SC("contains")    },
+    { .Type = Token_StartsWith,  .Name = SC("starts_with") },
+    { .Type = Token_EndsWith,    .Name = SC("ends_with")   },
 };
 
 static String ETokenType_ToString(ETokenType Type)
@@ -409,7 +420,7 @@ bool ParseBuildFileV2(LinearAllocator* Arena,
             else if (Char == '=')
             {
                 ETokenType Type = Lexer_Match(&Current, Text, '=') ? Token_EqualEqual : Token_Equal;
-                Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_EqualEqual);
+                Lexer_AddToken(Tokens, Current, Start, Line, Text, Type);
             }
             else if (Char == '<')
             {
@@ -461,9 +472,9 @@ bool ParseBuildFileV2(LinearAllocator* Arena,
             {
                 if (Char == '\n')
                 {
-                    if (LastTokenType != Token_Newline && // prevent duplicates as we dont really care
-                        LastTokenType != Token_LCurly &&
-                        LastTokenType != Token_LSquare)
+                    if (LastTokenType != Token_Newline)// && // prevent duplicates as we dont really care
+                        //LastTokenType != Token_LCurly &&
+                        //LastTokenType != Token_LSquare)
                     {
                         Lexer_AddToken(Tokens, Current, Start, Line, String_Null(), Token_Newline);
                     }
@@ -513,137 +524,159 @@ bool ParseBuildFileV2(LinearAllocator* Arena,
         {
             Current = 0;
             u32 NumTokens = (u32)Array_Num(Tokens);
+            bool bPreviouslyEvaluatedIfStatement = false;
             while (Current < NumTokens)
             {
+                Start = Current;
                 Token t = Tokens[Current];
-                Parser_Advance(&Current, NumTokens);
+
+                bool bJustEvaluatedIfStatement = false;
 
                 // @todo: make sure to handle all tokens possible
 
                 if (t.Type == Token_Newline || t.Type == Token_Semicolon)
                 {
                 }
-                else if (t.Type == Token_Text)
+                else if (t.Type == Token_Text ||
+                         t.Type == Token_Not ||
+                         t.Type == Token_At ||
+                         t.Type == Token_Mod ||
+                         t.Type == Token_Dollar)
                 {
                     ETokenType Prev = Parser_LookBack(Tokens, Current).Type;
-                    if (Prev == Token_None || Prev == Token_Max || Prev == Token_Newline || Prev == Token_Semicolon)
+                    if (Prev == Token_None ||
+                        Prev == Token_Max ||
+                        Prev == Token_Else ||
+                        Prev == Token_Newline ||
+                        Prev == Token_Semicolon ||
+                        bPreviouslyEvaluatedIfStatement)
                     {
                         // this means we are the key
                         if (Parser_Match(Tokens, &Current, Token_Text))
                         {
+                            LOG("[KEY]          %S", t.Lexeme);
 
+                            if (Parser_Match(Tokens, &Current, Token_Not))
+                            {
+                                LOG("[SPECIAL_MOD]");
+                            }
                         }
                     }
                     else
                     {
+                        LOG_INLINE("[VALUE]        ");
+
+                        bool bFoundTokens = false;
                         // we are the value to that key, blast through to the end of line or semicolon (whichever is first)
                         while (!(Parser_Peek(Tokens, Current).Type == Token_Newline ||
                                  Parser_Peek(Tokens, Current).Type == Token_Semicolon))
                         {
+                            bFoundTokens = true;
+                            LOG_INLINE("%S ", Parser_Peek(Tokens, Current).Lexeme);
                             Parser_Advance(&Current, NumTokens);
                         }
+
+                        LOG_LINE_BREAK();
                     }
 
                 }
                 else if (t.Type == Token_Include)
                 {
+                    Parser_Advance(&Current, NumTokens);
+
                     Token NextToken = Parser_Peek(Tokens, Current);
 
-                    if (Parser_Match(Tokens, &Current, Token_Text))
+                    LOG_INLINE("[INCLUDE]      ");
+                    bool bFoundTokens = false;
+                    while (!(Parser_Peek(Tokens, Current).Type == Token_Newline ||
+                            Parser_Peek(Tokens, Current).Type == Token_Semicolon))
                     {
-
+                        bFoundTokens = true;
+                        LOG_INLINE("%S", Parser_Peek(Tokens, Current).Lexeme);
+                        Parser_Advance(&Current, NumTokens);
                     }
-                    else
+
+                    LOG_LINE_BREAK();
+
+                    if (!bFoundTokens)
                     {
-                        LOG_ERROR("[Parser] [Line %u]: Expected file path after 'include'", NextToken.Line);
+                        LOG_ERROR("[Parser] [Line %u]: Expected file path or expression after 'include'", NextToken.Line);
                         break;
                     }
                 }
+                /*
+                  if <<prefix>condition|...>  <key> <value>
+                                            | <key> <value> else <key> <value>
+                                            | { <key> <value> <stmt-end> ... }
+                                            | { <key> <value> <stmt-end> ... } else { <key> <value> <stmt-end> ... }
+                */
                 else if (t.Type == Token_If)
                 {
+                    Parser_Advance(&Current, NumTokens);
+
                     Token NextToken = Parser_Peek(Tokens, Current);
                     if (NextToken.Type == Token_None)
                     {
                         break;
                     }
 
+
+                    // evaluate if conditions
                     if (NextToken.Type == Token_Text ||
                         NextToken.Type == Token_Not ||
                         NextToken.Type == Token_At ||
                         NextToken.Type == Token_Mod ||
                         NextToken.Type == Token_Dollar)
                     {
-                        if (NextToken.Type == Token_Text)
+                        while (NextToken.Type == Token_Text ||
+                            NextToken.Type == Token_Not ||
+                            NextToken.Type == Token_At ||
+                            NextToken.Type == Token_Mod ||
+                            NextToken.Type == Token_Dollar ||
+                            NextToken.Type == Token_Pipe)
                         {
-                            Parser_Advance(&Current, NumTokens);
+                            u8 Prefixes = 0;
 
-                            String TestValues[8] = {NextToken.Lexeme}; // @todo: store info if paired with @ ! % or $
-                            u8 NumTestValues = 1;
-                            bool bOverlimit = false;
-                            bool bError = false;
-
-                            while (Parser_Match(Tokens, &Current, Token_Pipe))
+                            while (Parser_Match(Tokens, &Current, Token_Not)    ||
+                                   Parser_Match(Tokens, &Current, Token_Dollar) ||
+                                   Parser_Match(Tokens, &Current, Token_Mod)    ||
+                                   Parser_Match(Tokens, &Current, Token_At))
                             {
-                                Token Peek = Parser_Peek(Tokens, Current);
-                                if (Peek.Type == Token_Text)
-                                {
-                                    if (NumTestValues > 7)
-                                    {
-                                        bError = true;
-                                        bOverlimit = true;
-                                        break;
-                                    }
-
-                                    Parser_Advance(&Current, NumTokens);
-
-                                    TestValues[NumTestValues] = Peek.Lexeme;
-
-                                    NumTestValues += 1;
-                                }
-                                else
-                                {
-                                    LOG_ERROR("[Parser] [Line %u]: Token '%S' was unexpected. Only identifiers are allowed between OR conditions.", Peek.Line, Peek.Lexeme);
-                                    bError = true;
-                                    break;
-                                }
+                                ETokenType Peek = Parser_Peek(Tokens, Current-1).Type;
+                                
+                                if      (Peek == Token_Not)    { Prefixes |= BIT(1); }
+                                else if (Peek == Token_Dollar) { Prefixes |= BIT(2); }
+                                else if (Peek == Token_Mod)    { Prefixes |= BIT(3); }
+                                else if (Peek == Token_At)     { Prefixes |= BIT(4); }
+                                else    {}
                             }
 
-                            if (bError)
-                            {
-                                if (bOverlimit)
-                                {
-                                    LOG_ERROR("[Parser] [Line %u]: if statement conditions are over the max limit of 8.", NextToken.Line);
-                                }
 
+                            bool bNot           = Prefixes & BIT(1);
+                            bool bSearchUserVar = Prefixes & BIT(2);
+                            bool bSearchCmdVar  = Prefixes & BIT(3);
+                            bool bSearchEnv     = Prefixes & BIT(4);
+                            bool bPrefixedWithSearchSymbol = bSearchUserVar || bSearchCmdVar || bSearchEnv;
+
+
+                            (void)bPrefixedWithSearchSymbol;
+                            (void)bNot;
+
+
+
+                            Parser_Advance(&Current, NumTokens);
+
+                            if (Parser_Peek(Tokens, Current).Type == Token_Text)
+                            {
                                 break;
                             }
 
-                            u32 PathA = Current;
-                            u32 PathB = Current;
-                            u32 EndPath = 0;
-
-                            // look for the else keyword on this line
-                            while (1)
+                            if (Parser_Peek(Tokens, Current).Type == Token_Pipe)
                             {
-                                ETokenType PeekType = Parser_Peek(Tokens, Current+1).Type;
-                                if (PeekType == Token_None || PeekType == Token_Newline || PeekType == Token_Semicolon)
-                                {
-                                    break;
-                                }
-
                                 Parser_Advance(&Current, NumTokens);
-
-                                if (PeekType == Token_Else)
-                                {
-                                    PathB = Current+1;
-                                    break;
-                                }
                             }
 
-                            bool bFoundElse = PathA != PathB;
-
-
-                            // @todo: evalutate the test values and choose a path to parse until statement end then move current to newline
+                            NextToken = Parser_Peek(Tokens, Current);
                         }
                     }
                     else
@@ -660,7 +693,50 @@ bool ParseBuildFileV2(LinearAllocator* Arena,
                         LOG("There must be an expression after an \"if\". For example: if some_identifier");
                         break;
                     }
+
+                    u32 PathA = Current;
+                    u32 PathB = Current;
+                    u32 EndPath = 0;
+
+                    // look for the else keyword on this line
+                    while (1)
+                    {
+                        ETokenType PeekType = Parser_Peek(Tokens, Current+1).Type;
+                        if (PeekType == Token_None || PeekType == Token_Newline || PeekType == Token_Semicolon)
+                        {
+                            break;
+                        }
+
+                        Parser_Advance(&Current, NumTokens);
+
+                        if (PeekType == Token_Else)
+                        {
+                            PathB = Current+1;
+                            break;
+                        }
+                    }
+
+                    bool bFoundElse = PathA != PathB;
+
+                    if (!bFoundElse)
+                    {
+                        Current = PathA;
+                    }
+
+                    // @todo: evalutate the test values and choose a path to parse until statement end then move current to newline
+
+                    (void)EndPath;
+
+                    bJustEvaluatedIfStatement = true;
                 }
+
+                // only advance when nothing happened
+                if (Start == Current)
+                {
+                    Parser_Advance(&Current, NumTokens);
+                }
+
+                bPreviouslyEvaluatedIfStatement = bJustEvaluatedIfStatement;
             }
 
             LOG("Parsing Done!");

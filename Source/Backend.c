@@ -319,7 +319,6 @@ bool RC_Compile(const BuildParams* Params, const String FullRCPath, String* OutR
     
     if (Params->bVerbose) { LOG("    %S", CmdLine); }
 
-    //PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
     PlatformHandle H = Platform_RunProcess(Params->RCProgramPath, CmdLine, Params->RootDirectory, String_Null());
     if (!Platform_IsValidHandle(H)) { return false; }
     u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
@@ -904,7 +903,6 @@ bool C_Link(const BuildParams* Params)
             }
         }
 
-        //PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
         PlatformHandle H = Platform_RunProcess(Params->ArchiverPath, CmdLine, Params->RootDirectory, String_Null());
         if (!Platform_IsValidHandle(H)) { return false; }
         u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
@@ -945,7 +943,6 @@ bool C_Link(const BuildParams* Params)
             String_Append(&CmdLine, Params->Assembly);
             String_Append(&CmdLine, S(".dll\""));
 
-            //PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
             PlatformHandle H = Platform_RunProcess(Params->DumpBinPath, CmdLine, Params->RootDirectory, String_Null());
             if (!Platform_IsValidHandle(H)) { return false; }
             u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
@@ -1966,7 +1963,6 @@ bool MSVC_Link(const BuildParams* Params)
         */
 
         PlatformPipe StdOutHandle = {0};
-        //PlatformHandle Handle = Platform_RunCommand_Ex(CmdLine, Params->RootDirectory, &StdOutHandle);
         PlatformHandle Handle = Platform_RunProcess_Ex(Params->LinkerPath, CmdLine, Params->RootDirectory, &StdOutHandle);
         if (!Platform_IsValidHandle(Handle)) { return false; }
 
@@ -2034,7 +2030,6 @@ bool MSVC_Link(const BuildParams* Params)
             }
         }
 
-        //PlatformHandle Handle = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
         PlatformHandle Handle = Platform_RunProcess(Params->ArchiverPath, CmdLine, Params->RootDirectory, String_Null());
         if (!Platform_IsValidHandle(Handle)) { return false; }
         u32 ExitCode = Platform_WaitForProcessAndGetExitCode(Handle);
@@ -2067,7 +2062,6 @@ bool MSVC_Link(const BuildParams* Params)
         String_Append(&CmdLine, Params->Assembly);
         String_Append(&CmdLine, S(".dll\""));
 
-        //PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
         PlatformHandle H = Platform_RunProcess(Params->DumpBinPath, CmdLine, Params->RootDirectory, String_Null());
         if (!Platform_IsValidHandle(H)) { return false; }
         u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);

@@ -631,6 +631,81 @@ bool Export_VersionRC(const BuildParams* Params, const String Path)
     return bSuccess;
 }
 
+/* I am conflicted on this because on the one hand it's clean to have one procedure that calls into the
+   appropriate one, but on the other hand, user code is now slightly more complicated compared to a direct call.
+   it's just more code, struct/enum types, and extra typing for no real benefit.
+
+   for example, this original code
+
+        if ((bGenVersionRc && !Export_VersionRC(&p, RCPath)) ||
+            (bGenIconRc && !Export_IconRC(RCPath, IconFilePath)))
+
+    now becomes
+
+        if ((bGenVersionRc && !Export(ExportType_VersionRC, *Arena, &p, RCPath, ExportMetaData_Null)) ||
+            (bGenIconRc && !Export(ExportType_IconRC, *Arena, &p, RCPath, (ExportMetaData){.StringParam_1 = IconFilePath})))
+    
+    which is a lot more noisy, and looks like shit to read (and write)
+
+   so this code is staying here until i decide what to do with it.
+   - Ali (20/04/2025)
+
+bool Export(EExportType Type, LinearAllocator Scratch, const BuildParams* Params, const String OutputPath, ExportMetaData MetaData)
+{
+    bool bSuccess = false;
+
+    switch (Type)
+    {
+        case ExportType_None: { } break;
+
+        case ExportType_CompileCommands:
+        {
+            bSuccess = Export_CompileCommands(Params, MetaData.bIsLastBuild, MetaData.bKeepOneLine);
+        }
+        break;
+
+        case ExportType_InfoPList:
+        {
+            bSuccess = Export_InfoPlist(Scratch, Params, OutputPath, MetaData.ExpandedVariablesDB, MetaData.bRawMode);
+        }
+        break;
+
+        case ExportType_VersionPList:
+        {
+            bSuccess = Export_VersionPlist(Scratch, Params, OutputPath, MetaData.ExpandedVariablesDB, MetaData.bRawMode);
+        }
+        break;
+
+        case ExportType_PkgInfo:
+        {
+            bSuccess = Export_PkgInfo(Params->Assembly, OutputPath);
+        }
+        break;
+
+        case ExportType_VersionRC:
+        {
+            bSuccess = Export_VersionRC(Params, OutputPath);
+        }
+        break;
+
+        case ExportType_IconRC:
+        {
+            bSuccess = Export_IconRC(OutputPath, MetaData.StringParam_1);
+        }
+        break;
+
+        case ExportType_License:
+        {
+            bSuccess = Export_License(MetaData.StringParam_1, Params, OutputPath);
+        }
+        break;
+    }
+
+    return bSuccess;
+}
+*/
+
+
 // -----------------------------------------------------------
 // Visual Studio Solution Generator
 
@@ -673,7 +748,7 @@ bool GenerateSolutionFile(const String ProjectName, const String ProjectPath)
 // License Generator
 // todo: if no copyright key was specified, make one
 
-static bool Export_License_BSD2(const BuildParams* Params, const String Path)
+static bool Internal_Export_License_BSD2(const BuildParams* Params, const String Path)
 {
     FileHandle f = FileHandle_Null();
     bool bSuccess = false;
@@ -713,7 +788,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.\n\
     return bSuccess;
 }
 
-static bool Export_License_BSD3(const BuildParams* Params, const String Path)
+static bool Internal_Export_License_BSD3(const BuildParams* Params, const String Path)
 {
     FileHandle f = FileHandle_Null();
     bool bSuccess = false;
@@ -757,7 +832,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.\n\
     return bSuccess;
 }
 
-static bool Export_License_MIT(const BuildParams* Params, const String Path)
+static bool Internal_Export_License_MIT(const BuildParams* Params, const String Path)
 {
     FileHandle f = FileHandle_Null();
 
@@ -796,7 +871,7 @@ SOFTWARE.\n\
     return bSuccess;
 }
 
-static bool Export_License_DoWhatTheFuckYouWantTo(const BuildParams* Params, const String Path)
+static bool Internal_Export_License_DoWhatTheFuckYouWantTo(const BuildParams* Params, const String Path)
 {
     FileHandle f = FileHandle_Null();
     bool bSuccess = false;
@@ -826,7 +901,7 @@ TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION\n\
     return bSuccess;
 }
 
-static bool Export_License_TheUnlicense(const String Path)
+static bool Internal_Export_License_TheUnlicense(const String Path)
 {
     FileHandle f = FileHandle_Null();
     bool bSuccess = false;
@@ -873,23 +948,23 @@ bool Export_License(const String LicenseType, const BuildParams* Params, const S
 
     if (String_IsEqual(LicenseType, S("BSD2"), false))
     {
-        bSuccess = Export_License_BSD2(Params, Path);
+        bSuccess = Internal_Export_License_BSD2(Params, Path);
     }
     else if (String_IsEqual(LicenseType, S("BSD3"), false))
     {
-        bSuccess = Export_License_BSD3(Params, Path);
+        bSuccess = Internal_Export_License_BSD3(Params, Path);
     }
     else if (String_IsEqual(LicenseType, S("MIT"), false))
     {
-        bSuccess = Export_License_MIT(Params, Path);
+        bSuccess = Internal_Export_License_MIT(Params, Path);
     }
     else if (String_IsEqual(LicenseType, S("FuckYou"), false))
     {
-        bSuccess = Export_License_DoWhatTheFuckYouWantTo(Params, Path);
+        bSuccess = Internal_Export_License_DoWhatTheFuckYouWantTo(Params, Path);
     }
     else if (String_IsEqual(LicenseType, S("Unlicense"), false))
     {
-        bSuccess = Export_License_TheUnlicense(Path);
+        bSuccess = Internal_Export_License_TheUnlicense(Path);
     }
     else
     {
