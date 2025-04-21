@@ -104,7 +104,7 @@ The guiding north star of RiftBuild, followed in design and implementation.
 - A single `riftbuild` call is all that is needed to build a program. No need to configure or setup anything.
 
 ### Focused
-- RiftBuild is solely focused on alleviating the headaches of building C and C++ projects specifically. This is not a general-purpose build tool (like CMake, Ninja, etc.) and it should not try to be.
+- RiftBuild is solely focused on alleviating the headaches of building C and C++ projects specifically. This is not a general-purpose build tool (like Make, CMake, Ninja, etc.) and it should not try to be.
 
 ### Simplicity
 - No `.build` file is necessary to build simple C or C++ programs. Source files are all that is needed to build your program.
@@ -253,7 +253,7 @@ It feels like with build systems, [there is no paradise that you can escape to](
 
 I hate CMake with every fiber of my being.
 
-I was trying to build my game engine using CMake (because that's what professionals should be doing right, I had previously used a .bat script). I ended up spending a few hours trying to figure out how to program in it correctly by googling and watching YouTube tutorials. I eventually became depressed with how complicated it was and didn't want to proceed any further.
+I was trying to build my game engine using CMake (because that's what professionals should be using right? I had previously used a .bat script). I ended up spending a few hours trying to figure out how to program in it correctly by googling and watching YouTube tutorials. I eventually became depressed with how complicated it was and didn't want to proceed any further.
 
 And yes, I've also tried alternative build systems like Meson, Ninja, Bazel, Premake, etc., and guess what, they were all shit, they were all too complicated and bloated for what should be (in my view) a straightforward process, so I spent one weekend developing the first iteration of my own build system. A perk of this system, is that you don't even need to write **_any_** .build script if your program is dead simple. This allows you to be productive much quicker, so you spend **_zero_** time thinking about how you should build something and more time programming.
 
@@ -279,7 +279,7 @@ Admittedly, one of the simpler build tools out there.
 
 But still... you don't need to write a build file with riftbuild
 
-<img src="https://github.com/user-attachments/assets/62516fa8-c65b-4203-b9f4-9d76f4929b3a" width="66%" height="66%"/>
+<img src="https://github.com/user-attachments/assets/62516fa8-c65b-4203-b9f4-9d76f4929b3a" width="88%" height="88%"/>
 
 ---
 
