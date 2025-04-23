@@ -13,6 +13,8 @@
 #endif
 
 // todo: when appending values, use linked list?
+// support this, replace the special flag '!' with named special instead. like this PreLink.Delete(silent ignore_exit_code)
+// rename "IncludedSourceFiles" to "SourceFiles", same with the dir version
 
 #define MAX_KEY_LENGTH 64
 #define MAX_VALUE_LENGTH 8192
@@ -75,13 +77,14 @@ ENUM(ETokenType)
     Token_Include,
     Token_If,
     Token_Else,
-    Token_True,
-    Token_False,
     Token_And,
     Token_Or,
+    Token_Goto,
     Token_Contains,
     Token_StartsWith,
     Token_EndsWith,
+    Token_Stop,
+    Token_Abort,
 
     Token_Newline,
 
@@ -145,13 +148,14 @@ static String TokenTypeEnumStringTable[Token_Max] =
     SC("Token_Include"),
     SC("Token_If"),
     SC("Token_Else"),
-    SC("Token_True"),
-    SC("Token_False"),
     SC("Token_And"),
     SC("Token_Or"),
+    SC("Token_Goto"),
     SC("Token_Contains"),
     SC("Token_StartsWith"),
     SC("Token_EndsWith"),
+    SC("Token_Stop"),
+    SC("Token_Abort"),
 
     SC("Token_Newline"),
 };
@@ -163,20 +167,21 @@ STRUCT(KeywordTableEntry)
     u8         Padding[7];
 };
 
-static KeywordTableEntry ReservedKeywordsTable[12] =
+static KeywordTableEntry ReservedKeywordsTable[13] =
 {
     { .Type = Token_If,          .Name = SC("if")          },
     { .Type = Token_Else,        .Name = SC("else")        },
     { .Type = Token_Include,     .Name = SC("include")     },
-    { .Type = Token_True,        .Name = SC("true")        },
-    { .Type = Token_False,       .Name = SC("false")       },
     { .Type = Token_And,         .Name = SC("and")         },
     { .Type = Token_Or,          .Name = SC("or")          },
+    { .Type = Token_Goto,        .Name = SC("goto")        },
     { .Type = Token_Artifact,    .Name = SC("artifact")    },
     { .Type = Token_Target ,     .Name = SC("target")      },
     { .Type = Token_Contains ,   .Name = SC("contains")    },
     { .Type = Token_StartsWith,  .Name = SC("starts_with") },
     { .Type = Token_EndsWith,    .Name = SC("ends_with")   },
+    { .Type = Token_Stop,        .Name = SC(".stop")       },
+    { .Type = Token_Abort,       .Name = SC(".abort")      },
 };
 
 static String ETokenType_ToString(ETokenType Type)
@@ -605,7 +610,8 @@ bool ParseBuildFileV2(LinearAllocator* Arena,
                     }
                 }
                 /*
-                  if <<prefix>condition|...>  <key> <value>
+                  if <<prefix?>condition|...> <comparison_operator?> <test?|...>
+                                              <key> <value>
                                             | <key> <value> else <key> <value>
                                             | { <key> <value> <stmt-end> ... }
                                             | { <key> <value> <stmt-end> ... } else { <key> <value> <stmt-end> ... }
@@ -651,20 +657,389 @@ bool ParseBuildFileV2(LinearAllocator* Arena,
                                 else    {}
                             }
 
-
-                            bool bNot           = Prefixes & BIT(1);
-                            bool bSearchUserVar = Prefixes & BIT(2);
-                            bool bSearchCmdVar  = Prefixes & BIT(3);
-                            bool bSearchEnv     = Prefixes & BIT(4);
-                            bool bPrefixedWithSearchSymbol = bSearchUserVar || bSearchCmdVar || bSearchEnv;
-
-
-                            (void)bPrefixedWithSearchSymbol;
-                            (void)bNot;
-
-
+                            const String Condition = Parser_Peek(Tokens, Current).Lexeme;
 
                             Parser_Advance(&Current, NumTokens);
+
+                            Token Comparison = Parser_Peek(Tokens, Current);
+
+                            //String TestValue = String_Null();
+                            if (Comparison.Type == Token_EqualEqual     || Comparison.Type == Token_NotEqual    ||
+                                Comparison.Type == Token_GreaterOrEqual || Comparison.Type == Token_LessOrEqual ||
+                                Comparison.Type == Token_GreaterThan    || Comparison.Type == Token_LessThan    ||
+                                Comparison.Type == Token_StartsWith     || Comparison.Type == Token_EndsWith    ||
+                                Comparison.Type == Token_Contains)
+                            {
+                                Parser_Advance(&Current, NumTokens);
+
+                                Token TestToken = Parser_Peek(Tokens, Current);
+                                if (TestToken.Type == Token_Text)
+                                {
+                                    while (1)
+                                    {
+                                        // do stuff...
+
+                                        Parser_Advance(&Current, NumTokens);
+                                        if (Parser_Peek(Tokens, Current).Type == Token_Pipe)
+                                        {
+                                            Parser_Advance(&Current, NumTokens);
+                                            TestToken = Parser_Peek(Tokens, Current);
+
+                                            if (TestToken.Type != Token_Text)
+                                            {
+                                                LOG_ERROR("[Parser] [Line %u]: '%S' was unexpected after '|'. Please delete.", TestToken.Line, TestToken.Lexeme);
+                                                return 1;
+                                            }
+                                        }
+                                        else
+                                        {
+                                            break;
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    LOG_ERROR("[Parser] [Line %u]: '%S' was unexpected after '%S'. Please delete.", TestToken.Line, TestToken.Lexeme, Comparison.Lexeme);
+                                    return 1;
+                                }
+                            }
+
+                            /*
+                            i64 LeftInt = 0, RightInt = 0;
+                            switch (Comparison)
+                            {
+                                default: // none comparison type
+                                {
+
+                                }
+                                break;
+
+                                case Token_EqualEqual:
+                                {
+                                    LinearAllocator Scratch = *Arena;
+                                    StringArray Values = String_ParseIntoArray(&Scratch, TestValue, '|', 0, 128);
+                                    for each_str (v, Values)
+                                    {
+                                        bConditionMet = String_IsEqual(ConditionValuePtr, *v, bCaseSensitive);
+                                        if (bConditionMet)
+                                        {
+                                            break;
+                                        }
+
+                                        // if the condition value has more than one value separated by a space
+                                        StringArray Values2 = String_ParseIntoArray(&Scratch, ConditionValuePtr, ' ', 0, 128);
+                                        for each_str (v2, Values2)
+                                        {
+                                            bConditionMet = String_IsEqual(*v, *v2, bCaseSensitive);
+                                            if (bConditionMet)
+                                            {
+                                                break;
+                                            }
+                                        }
+
+                                        if (bConditionMet)
+                                        {
+                                            break;
+                                        }
+                                    }
+                                }
+                                break;
+
+                                case Token_NotEqual:
+                                {
+                                    LinearAllocator Scratch = *Arena;
+                                    StringArray Values = String_ParseIntoArray(&Scratch, TestValue, '|', 0, 128);
+                                    for each_str (v, Values)
+                                    {
+                                        bConditionMet = !String_IsEqual(ConditionValuePtr, *v, bCaseSensitive);
+                                        if (bConditionMet)
+                                        {
+                                            break;
+                                        }
+
+                                        // if the condition value has more than one value separated by a space
+                                        StringArray Values2 = String_ParseIntoArray(&Scratch, ConditionValuePtr, ' ', 0, 128);
+                                        for each_str (v2, Values2)
+                                        {
+                                            bConditionMet = !String_IsEqual(*v, *v2, bCaseSensitive);
+                                            if (bConditionMet)
+                                            {
+                                                break;
+                                            }
+                                        }
+
+                                        if (bConditionMet)
+                                        {
+                                            break;
+                                        }
+                                    }
+                                }
+                                break;
+
+                                case Token_GreaterOrEqual:
+                                {
+                                    if (!String_ToI64(ConditionValuePtr, &LeftInt) ||
+                                        !String_ToI64(TestValue, &RightInt))
+                                    {
+                                        bConditionMet = false;
+                                        break;
+                                    }
+
+                                    bConditionMet = LeftInt >= RightInt;
+                                }
+                                break;
+
+                                case Token_LessOrEqual:
+                                {
+                                    if (!String_ToI64(ConditionValuePtr, &LeftInt) ||
+                                        !String_ToI64(TestValue, &RightInt))
+                                    {
+                                        bConditionMet = false;
+                                        break;
+                                    }
+
+                                    bConditionMet = LeftInt <= RightInt;
+                                }
+                                break;
+
+                                case Token_GreaterThan:
+                                {
+                                    if (!String_ToI64(ConditionValuePtr, &LeftInt) ||
+                                        !String_ToI64(TestValue, &RightInt))
+                                    {
+                                        bConditionMet = false;
+                                        break;
+                                    }
+
+                                    bConditionMet = LeftInt > RightInt;
+                                }
+                                break;
+
+                                case Token_LessThan:
+                                {
+                                    if (!String_ToI64(ConditionValuePtr, &LeftInt) ||
+                                        !String_ToI64(TestValue, &RightInt))
+                                    {
+                                        bConditionMet = false;
+                                        break;
+                                    }
+
+                                    bConditionMet = LeftInt < RightInt;
+                                }
+                                break;
+
+                                case Token_StartsWith:
+                                {
+                                    LinearAllocator Scratch = *Arena;
+                                    StringArray Values = String_ParseIntoArray(&Scratch, TestValue, '|', 0, 128);
+                                    for each_str (v, Values)
+                                    {
+                                        bConditionMet = String_StartsWith(ConditionValuePtr, *v, bCaseSensitive);
+                                        if (bConditionMet)
+                                        {
+                                            break;
+                                        }
+
+                                        // if the condition value has more than one value separated by a space
+                                        StringArray Values2 = String_ParseIntoArray(&Scratch, ConditionValuePtr, ' ', 0, 128);
+                                        for each_str (v2, Values2)
+                                        {
+                                            bConditionMet = String_StartsWith(*v2, *v, bCaseSensitive);
+                                            if (bConditionMet)
+                                            {
+                                                break;
+                                            }
+                                        }
+
+                                        if (bConditionMet)
+                                        {
+                                            break;
+                                        }
+                                    }
+                                }
+                                break;
+
+                                case Token_EndsWith:
+                                {
+                                    LinearAllocator Scratch = *Arena;
+                                    StringArray Values = String_ParseIntoArray(&Scratch, TestValue, '|', 0, 128);
+                                    for each_str (v, Values)
+                                    {
+                                        bConditionMet = String_EndsWith(ConditionValuePtr, *v, bCaseSensitive);
+                                        if (bConditionMet)
+                                        {
+                                            break;
+                                        }
+
+                                        // if the condition value has more than one value separated by a space
+                                        StringArray Values2 = String_ParseIntoArray(&Scratch, ConditionValuePtr, ' ', 0, 128);
+                                        for each_str (v2, Values2)
+                                        {
+                                            bConditionMet = String_EndsWith(*v2, *v, bCaseSensitive);
+                                            if (bConditionMet)
+                                            {
+                                                break;
+                                            }
+                                        }
+
+                                        if (bConditionMet)
+                                        {
+                                            break;
+                                        }
+                                    }
+                                }
+                                break;
+
+                                case Token_Contains:
+                                {
+                                    LinearAllocator Scratch = *Arena;
+                                    StringArray Values = String_ParseIntoArray(&Scratch, TestValue, '|', 0, 128);
+                                    for each_str (v, Values)
+                                    {
+                                        bConditionMet = String_Contains(ConditionValuePtr, *v, bCaseSensitive);
+                                        if (bConditionMet)
+                                        {
+                                            break;
+                                        }
+
+                                        // if the condition value has more than one value separated by a space
+                                        StringArray Values2 = String_ParseIntoArray(&Scratch, ConditionValuePtr, ' ', 0, 128);
+                                        for each_str (v2, Values2)
+                                        {
+                                            bConditionMet = String_Contains(*v2, *v, bCaseSensitive);
+                                            if (bConditionMet)
+                                            {
+                                                break;
+                                            }
+                                        }
+
+                                        if (bConditionMet)
+                                        {
+                                            break;
+                                        }
+                                    }
+                                }
+                                break;
+
+                                default:
+                                break;
+                            }
+                            */
+
+
+                            // TODO: revisit this
+                            /*
+                            if (!String_IsEqual(ComparisonOperator, S("!="), false)) // ignore !=
+                            {
+                                if (String_EatCharInline(&ComparisonOperator, '!'))
+                                {
+                                    bIsNot = true;
+                                }
+                            }
+                            */
+
+
+                            String ConditionValuePtr = String_Null();
+                            StringLocal(EnvValue, 1024);
+
+                            bool bNot                = Prefixes & BIT(1);
+                            bool bSearchUserVar      = Prefixes & BIT(2);
+                            bool bSearchCmdVar       = Prefixes & BIT(3);
+                            bool bSearchEnv          = Prefixes & BIT(4);
+                            bool bPrefixedWithSymbol = bSearchUserVar || bSearchCmdVar || bSearchEnv;
+
+                            (void)bNot;
+
+                            bool bConditionMet = false;
+                            bool bIsPath = String_ContainsPathSeparators(Condition);
+                            if (bIsPath)
+                            {
+                                bool bIsDirectory = String_IsLast(Condition, '/') || String_IsLast(Condition, '\\');
+
+                                StringLocal(Temp, MAX_PATH_LENGTH);
+                                if (Filesystem_IsPathRelative(Condition))
+                                {
+                                    String_BuildPath(&Temp, WorkingDirectory, Condition);
+                                }
+                                else
+                                {
+                                    String_Copy(&Temp, Condition);
+                                }
+
+                                if (bIsDirectory)
+                                {
+                                    bConditionMet = Filesystem_DoesDirectoryExist(Temp);
+                                }
+                                else
+                                {
+                                    bConditionMet = Filesystem_DoesFileExist(Temp);
+                                }
+                            }
+                            else
+                            {
+                                if (bSearchEnv)
+                                {
+                                    // find this variable
+                                    StringLocal(Temp, 256);
+                                    String_Copy(&Temp, Condition);
+                                    if (Platform_GetEnvironmentVariableValue(Temp, &EnvValue))
+                                    {
+                                        ConditionValuePtr = EnvValue;
+                                        bConditionMet = true;
+                                    }
+                                }
+
+                                if (!bConditionMet && (bSearchCmdVar || !bPrefixedWithSymbol))
+                                {
+                                    // check the condition string against the internal build vars passed in from the command line
+                                    // override VarValue for single line if's, for multiline if's, loop back to the top and process each line until '}' is found
+                                    for each (CmdOption, o, CmdOptionsDB)
+                                    {
+                                        bool bMatch = String_IsEqual(o.Name, Condition, false);
+                                        if (bMatch)
+                                        {
+                                            if (!o.bEqualsToSomething || o.Value.Length > 0) // make sure we have some value if we specified an '=' sign
+                                            {
+                                                ConditionValuePtr = o.Value;
+                                                bConditionMet = true;
+                                                break;
+                                            }
+                                        }
+                                    }
+
+                                    if (!bConditionMet)
+                                    {
+                                        for each (InternalVariable, v, InternalVariablesDB)
+                                        {
+                                            if (String_IsEqual(v.Name, Condition, false))
+                                            {
+                                                ConditionValuePtr = v.Value;
+                                                bConditionMet = true;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (!bConditionMet && (bSearchUserVar || !bPrefixedWithSymbol))
+                                {
+                                    for each (FileVariable, o, VariablesDB) // intentional that we're not using expanded DB, this should only be used for simple things anyway
+                                    {
+                                        bool bMatch = String_IsEqual(o.Name, Condition, false);
+                                        if (bMatch)
+                                        {
+                                            ConditionValuePtr = o.Value;
+                                            bConditionMet = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+
+
+
+
+                            //Parser_Advance(&Current, NumTokens);
 
                             if (Parser_Peek(Tokens, Current).Type == Token_Text)
                             {
@@ -690,7 +1065,7 @@ bool ParseBuildFileV2(LinearAllocator* Arena,
                             LOG_ERROR("[Parser] [Line %u]: Missing expression after 'if'.", NextToken.Line, NextToken.Lexeme, ETokenType_ToString(NextToken.Type));
                         }
                         
-                        LOG("There must be an expression after an \"if\". For example: if some_identifier");
+                        //LOG("There must be an expression after an \"if\". For example: if some_identifier");
                         break;
                     }
 
