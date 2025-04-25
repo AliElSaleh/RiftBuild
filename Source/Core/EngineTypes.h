@@ -405,31 +405,44 @@ STRUCT(StringList)
 #endif // RIFT_STATIC
 
 #ifdef _MSC_VER
+#define MSVC_SECTION(x)   __declspec(allocate(x))
 #define MSVC_ATTRIBUTE(x) __declspec(x)
 #define MSVC_PRAGMA(x)    _Pragma(STRINGIFY(x))
 #else
+#define MSVC_SECTION(x)
 #define MSVC_ATTRIBUTE(x)
 #define MSVC_PRAGMA(x)
 #endif
 
 #ifdef __GNUC__
+#define GCC_SECTION(x)   __attribute__((__section__(x)))
 #define GCC_ATTRIBUTE(x) __attribute__((x))
 #define GCC_PRAGMA(x)    _Pragma(STRINGIFY(x))
 #else
+#define GCC_SECTION(x)
 #define GCC_ATTRIBUTE(x)
 #define GCC_PRAGMA(x)
 #endif
 
-#define read_only \
-    MSVC_ATTRIBUTE(allocate(".rdata$")) \
-    GCC_ATTRIBUTE(section(".rodata,\"l\",@progbits#"))
+#define SECTION(x) \
+    MSVC_SECTION(x) \
+    GCC_SECTION(x)
 
-// Usage:
+// MSVC Usage:
 // 
 // MSVC_PRAGMA(section(".rdata$", read))
 // read_only i32 Data = 0;
 //
 
+#ifdef _MSC_VER
+#pragma section(".roglob", read)
+#endif
+
+// Old: GCC_SECTION(".roglob,\"l\",@progbits#")
+
+#define read_only \
+    MSVC_SECTION(".roglob") \
+    GCC_SECTION(".roglob")
 
 #if COMPILER_CLANG || COMPILER_GCC
 
