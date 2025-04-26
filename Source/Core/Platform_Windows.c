@@ -512,7 +512,7 @@ bool Platform_GetTimeZone(String* OutTimeZone)
     return Result > 0;
 }
 
-void Platform_Sleep(f64 ms)
+void Platform_Wait(f64 ms)
 {
     if (ms > 0)
     {
@@ -538,6 +538,11 @@ void Platform_Sleep(f64 ms)
             }
         }
     }
+}
+
+void Platform_Sleep(u32 ms)
+{
+    Sleep(ms);
 }
 
 u64 Platform_GetCurrentThreadID(void)

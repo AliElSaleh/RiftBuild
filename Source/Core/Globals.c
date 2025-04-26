@@ -19,6 +19,7 @@ STRUCT(EngineGlobals)
     String NullString;
     StringArray NullStringArray;
     StringList NullStringList;
+    Clock NullClock;
 };
 
 static LinearAllocator GlobalsAllocator = {0};
@@ -64,6 +65,12 @@ static void Internal_InitGlobals(EngineGlobals* G)
         Str.String = G->NullString;
         G->NullStringList = Str;
         G->NullStringList.Next = &G->NullStringList;
+    }
+
+    // Clock
+    {
+        Clock c = {0};
+        G->NullClock = c;
     }
 }
 
@@ -134,4 +141,9 @@ FileHandle FileHandle_Null(void)
     #endif
 
     return GGlobals.NullFileHandle;
+}
+
+Clock Clock_Null(void)
+{
+    return GGlobals.NullClock;
 }

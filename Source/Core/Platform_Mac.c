@@ -162,7 +162,7 @@ f64 Platform_GetAbsoluteTime(void)
     return Nano/1.0e9;
 }
 
-void Platform_Sleep(f64 ms)
+void Platform_Wait(f64 ms)
 {
     if (ms > 0)
     {
@@ -185,6 +185,11 @@ void Platform_Sleep(f64 ms)
                 break;
         }
     }
+}
+
+void Platform_Sleep(u32 ms)
+{
+    sleep(ms);
 }
 
 u64 Platform_GetCurrentThreadID(void)

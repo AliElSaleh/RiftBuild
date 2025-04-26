@@ -11,6 +11,8 @@ STRUCT(Clock)
 	f64 ElapsedTime;
 };
 
+RIFT_API NO_DISCARD Clock Clock_Null(void);
+
 RIFT_API void Clock_Start(Clock* C);
 RIFT_API void Clock_Stop(Clock* C);
 

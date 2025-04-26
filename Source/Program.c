@@ -1613,6 +1613,73 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String
     return true;
 }
 
+static bool TryRunBuildCommands(const String Key, const String WorkingPath, TArray(FileVariable) ExpandedVariablesDB, Clock* Timer)
+{
+    bool bSuccess = true;
+
+    FileVariable* Cmds[64] = {0}; // reasonable max limit
+
+    u8 NumCmds = 0;
+    for each (FileVariable, Var, ExpandedVariablesDB)
+    {
+        if (String_StartsWith(Var.Name, Key, false))
+        {
+            Cmds[NumCmds] = Var_;
+            NumCmds++;
+            if (NumCmds >= 64)
+            {
+                // TODO: log warning
+                break;
+            }
+        }
+    }
+
+    if (NumCmds > 0 && !bIsClean)
+    {
+        #ifndef HOOD
+        LOG("%S:", Key);
+        #else
+        LOG("cool mang, gonna run some %S cmds...", Key);
+        #endif
+
+        f64 ElapsedSoFar = 0;
+        if (Timer)
+        {
+            ElapsedSoFar = Timer->ElapsedTime;
+            Clock_Start(Timer);
+        }
+
+        for (u8 i = 0; i < NumCmds; i++)
+        {
+            const FileVariable* Var = Cmds[i];
+
+            u32 ExitCode = 0;
+            bool bResult = Internal_ExecuteBuildCmd(WorkingPath, Var->Name, Var->Value, Var->bHasSpecial, &ExitCode);
+            if (!bResult)
+            {
+                #ifndef HOOD
+                LOG_ERROR("%S command exited with a failure result: %u", Key, ExitCode);
+                #else
+                LOG_ERROR("brah wtf, gon have to stop you there nigga. da command we jus run fuck'n failed on me nigga");
+                #endif
+
+                bSuccess = false;
+                break;
+            }
+        }
+
+        if (Timer)
+        {
+            Clock_Tick(Timer);
+            Timer->ElapsedTime += ElapsedSoFar;
+        }
+
+        LOG_LINE_BREAK();
+    }
+
+    return bSuccess;
+}
+
 static void Internal_RemoveBuildVariable(TArray(FileVariable) VariablesDB, const String Name)
 {
     u32 i = 0;
@@ -2815,10 +2882,12 @@ static u32 BuildTarget(LinearAllocator* Arena,
     {
         Clock_Start(&BuildFileParseClock);
 
+        /*
         ParseBuildFileV2(Arena, BuildFileHandle, BuildFilePath, WorkingPath, VariablesDB, ExpandedVariablesDB,
                             CmdOptionsDB, Messages, IncludeFiles, NULL, false, NULL, false);
 
         return 0;
+        */
 
         if (!ParseBuildFile(Arena, BuildFileHandle, BuildFilePath, WorkingPath, VariablesDB, ExpandedVariablesDB,
                             CmdOptionsDB, Messages, IncludeFiles, NULL, false, NULL, false))
@@ -3233,6 +3302,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                     {
                         if (!DoesBuildVarExist(VariablesDB, *var))
                         {
+                            // TODO: make this a warning instead
                             LOG_ERROR("Failed to list \"%S\". It does not exist in \"%S\" (within the context of the given build parameters)", *var, BuildFilePath);
                             return 1;
                         }
@@ -4408,48 +4478,11 @@ static u32 BuildTarget(LinearAllocator* Arena,
     }
 
     // pre depend
-    u16 NumPreDependCmds = 0;
-
     // TODO: time this
-    for each (FileVariable, Var, ExpandedVariablesDB)
+    if (!TryRunBuildCommands(S("PreDepend"), WorkingPath, ExpandedVariablesDB, NULL))
     {
-        if (String_StartsWith(Var.Name, S("PreDepend"), false))
-        {
-            NumPreDependCmds += 1;
-        }
+        return 1;
     }
-
-    if (NumPreDependCmds > 0 && !bIsClean)
-    {
-        #ifndef HOOD
-        LOG("PreDepend:");
-        #else
-        LOG("cool mang, gonna run some pre depend cmds...");
-        #endif
-
-        // run pre build commands (if specified)
-        for each (FileVariable, Var, ExpandedVariablesDB)
-        {
-            if (String_StartsWith(Var.Name, S("PreDepend"), false))
-            {
-                u32 ExitCode = 0;
-                bool bResult = Internal_ExecuteBuildCmd(WorkingPath, Var.Name, Var.Value, Var.bHasSpecial, &ExitCode);
-                if (!bResult)
-                {
-                    #ifndef HOOD
-                    LOG_ERROR("Pre-depend command exited with a failure result: %u", ExitCode);
-                    #else
-                    LOG_ERROR("brah wtf, gon have to stop you there nigga. da command we jus run fuck'n failed on me nigga");
-                    #endif
-
-                    return 1;
-                }
-            }
-        }
-
-        LOG_LINE_BREAK();
-    }
-
 
     Clock DependencyBuildClock;
     Clock_Start(&DependencyBuildClock);
@@ -4686,46 +4719,10 @@ static u32 BuildTarget(LinearAllocator* Arena,
         LOG("[All build dependencies complete. Continuing with %S]\n", BuildFileName);
     }
 
-    u16 NumPreBuildCmds = 0;
-    u16 NumPostBuildCmds = 0;
-
     // TODO: time this
-    for each (FileVariable, Var, ExpandedVariablesDB)
+    if (!TryRunBuildCommands(S("PreBuild"), WorkingPath, ExpandedVariablesDB, NULL))
     {
-        if (String_StartsWith(Var.Name, S("PreBuild"), false))
-        {
-            NumPreBuildCmds += 1;
-        }
-    }
-
-    if (NumPreBuildCmds > 0 && !bIsClean)
-    {
-        #ifndef HOOD
-        LOG("PreBuild:");
-        #else
-        LOG("cool mang, gonna run some pre build cmds...");
-        #endif
-
-        // run pre build commands (if specified)
-        for each (FileVariable, Var, ExpandedVariablesDB)
-        {
-            if (String_StartsWith(Var.Name, S("PreBuild"), false))
-            {
-                u32 ExitCode = 0;
-                bool bResult = Internal_ExecuteBuildCmd(WorkingPath, Var.Name, Var.Value, Var.bHasSpecial, &ExitCode);
-                if (!bResult)
-                {
-                    #ifndef HOOD
-                    LOG_ERROR("Pre-build command exited with a failure result: %u", ExitCode);
-                    #else
-                    LOG_ERROR("brah wtf, gon have to stop you there nigga. da command we jus run fuck'n failed on me nigga");
-                    #endif
-                    return 1;
-                }
-            }
-        }
-
-        LOG_LINE_BREAK();
+        return 1;
     }
 
     // assert libraries exist
@@ -6677,52 +6674,10 @@ static u32 BuildTarget(LinearAllocator* Arena,
     Clock_Start(&ExternalClock);
 
     // precompile step
-    u16 NumPreCompileCmds = 0;
-    u16 NumPostCompileCmds = 0;
-    u16 NumPreLinkCmds = 0;
-    u16 NumPostLinkCmds = 0;
-
-    for each (FileVariable, Var, ExpandedVariablesDB)
+    if (!TryRunBuildCommands(S("PreCompile"), WorkingPath, ExpandedVariablesDB, &ExternalClock))
     {
-        if      (String_StartsWith(Var.Name, S("PreCompile"), false))  { NumPreCompileCmds  += 1; }
-        else if (String_StartsWith(Var.Name, S("PostCompile"), false)) { NumPostCompileCmds += 1; }
-        else if (String_StartsWith(Var.Name, S("PreLink"), false))     { NumPreLinkCmds     += 1; }
-        else if (String_StartsWith(Var.Name, S("PostLink"), false))    { NumPostLinkCmds    += 1; }
-        else                                                           { }
+        return 1;
     }
-
-    if (NumPreCompileCmds > 0 && !bIsClean)
-    {
-        #ifndef HOOD
-        LOG("PreCompile:");
-        #else
-        LOG("cool mang, gonna run some pre compile cmds...");
-        #endif
-
-        for each (FileVariable, Var, ExpandedVariablesDB)
-        {
-            if (String_StartsWith(Var.Name, S("PreCompile"), false))
-            {
-                u32 ExitCode = 0;
-                bool bResult = Internal_ExecuteBuildCmd(WorkingPath, Var.Name, Var.Value, Var.bHasSpecial, &ExitCode);
-                if (!bResult)
-                {
-                    #ifndef HOOD
-                    LOG_ERROR("Pre-compile command exited with a failure result: %u", ExitCode);
-                    #else
-                    LOG_ERROR("brah wtf, gon have to stop you there nigga. da command we jus ran fuck'n failed on me nigga");
-                    #endif
-
-                    return 1;
-                }
-            }
-        }
-
-        Clock_Tick(&ExternalClock);
-
-        LOG_LINE_BREAK();
-    }
-
 
     // find the icon path (if specified)
     if (Icon.Length > 0)
@@ -6959,41 +6914,12 @@ static u32 BuildTarget(LinearAllocator* Arena,
         goto PostBuild;
     }
 
+    LOG_LINE_BREAK();
+
     // postcompile step
-    if (NumPostCompileCmds > 0 && !bIsClean)
+    if (!TryRunBuildCommands(S("PostCompile"), WorkingPath, ExpandedVariablesDB, &ExternalClock))
     {
-        #ifndef HOOD
-        LOG("\nPostCompile:");
-        #else
-        LOG("cool mang, gonna run some post compile cmds...");
-        #endif
-
-        f64 ElapsedSoFar = ExternalClock.ElapsedTime;
-        Clock_Start(&ExternalClock);
-
-        for each (FileVariable, Var, ExpandedVariablesDB)
-        {
-            if (String_StartsWith(Var.Name, S("PostCompile"), false))
-            {
-                u32 ExitCode = 0;
-                bool bResult = Internal_ExecuteBuildCmd(WorkingPath, Var.Name, Var.Value, Var.bHasSpecial, &ExitCode);
-                if (!bResult)
-                {
-                    #ifndef HOOD
-                    LOG_ERROR("Post-compile command exited with a failure result: %u", ExitCode);
-                    #else
-                    LOG_ERROR("brah wtf, gon have to stop you there nigga. da command we jus ran fuck'n failed on me nigga");
-                    #endif
-
-                    return 1;
-                }
-            }
-        }
-
-        Clock_Tick(&ExternalClock);
-        ExternalClock.ElapsedTime += ElapsedSoFar;
-
-        LOG_LINE_BREAK();
+        return 1;
     }
 
     Clock LinkClock = {0};
@@ -7001,38 +6927,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
     // prelink step
     if (AssemblyType != AssemblyType_CompilerObject)
     {
-        if (NumPreLinkCmds > 0 && !bIsClean)
+        if (!TryRunBuildCommands(S("PreLink"), WorkingPath, ExpandedVariablesDB, &ExternalClock))
         {
-            #ifndef HOOD
-            LOG("\nPreLink:");
-            #else
-            LOG("\ncool mang, gonna run some pre link cmds...");
-            #endif
-
-            f64 ElapsedSoFar = ExternalClock.ElapsedTime;
-            Clock_Start(&ExternalClock);
-
-            for each (FileVariable, Var, ExpandedVariablesDB)
-            {
-                if (String_StartsWith(Var.Name, S("PreLink"), false))
-                {
-                    u32 ExitCode = 0;
-                    bool bResult = Internal_ExecuteBuildCmd(WorkingPath, Var.Name, Var.Value, Var.bHasSpecial, &ExitCode);
-                    if (!bResult)
-                    {
-                        #ifndef HOOD
-                        LOG_ERROR("Pre-link command exited with a failure result: %u", ExitCode);
-                        #else
-                        LOG_ERROR("brah wtf, gon have to stop you there nigga. da command we jus ran fuck'n failed on me nigga");
-                        #endif
-
-                        return 1;
-                    }
-                }
-            }
-
-            Clock_Tick(&ExternalClock);
-            ExternalClock.ElapsedTime += ElapsedSoFar;
+            return 1;
         }
 
         if (String_IsEqual(CompilerProgram, S("cl"), false) ||
@@ -7055,38 +6952,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
         }
 
         // postlink step
-        if (NumPostLinkCmds > 0 && !bIsClean)
+        if (!TryRunBuildCommands(S("PostLink"), WorkingPath, ExpandedVariablesDB, &ExternalClock))
         {
-            #ifndef HOOD
-            LOG("\nPostLink:");
-            #else
-            LOG("cool mang, gonna run some pre link cmds...");
-            #endif
-
-            f64 ElapsedSoFar = ExternalClock.ElapsedTime;
-            Clock_Start(&ExternalClock);
-
-            for each (FileVariable, Var, ExpandedVariablesDB)
-            {
-                if (String_StartsWith(Var.Name, S("PostLink"), false))
-                {
-                    u32 ExitCode = 0;
-                    bool bResult = Internal_ExecuteBuildCmd(WorkingPath, Var.Name, Var.Value, Var.bHasSpecial, &ExitCode);
-                    if (!bResult)
-                    {
-                        #ifndef HOOD
-                        LOG_ERROR("Post-link command exited with a failure result: %u", ExitCode);
-                        #else
-                        LOG_ERROR("brah wtf, gon have to stop you there nigga. da command we jus ran fuck'n failed on me nigga");
-                        #endif
-
-                        return 1;
-                    }
-                }
-            }
-
-            Clock_Tick(&ExternalClock);
-            ExternalClock.ElapsedTime += ElapsedSoFar;
+            return 1;
         }
     }
 
@@ -8007,44 +7875,10 @@ static u32 BuildTarget(LinearAllocator* Arena,
 PostBuild:
     if (bQuietBuild) { Logging_Enable(); }
 
-    for each (FileVariable, Var, ExpandedVariablesDB)
+    // TODO: test under the condition of when we're cleaning
+    if (!TryRunBuildCommands(S("PostBuild"), WorkingPath, ExpandedVariablesDB, NULL))
     {
-        if (String_StartsWith(Var.Name, S("PostBuild"), false))
-        {
-            NumPostBuildCmds += 1;
-        }
-    }
-
-    if (NumPostBuildCmds > 0)
-    {
-        LOG_LINE_BREAK();
-
-        #ifndef HOOD
-        LOG("PostBuild:");
-        #else
-        LOG("cool mang, gonna run some post build cmds...");
-        #endif
-
-        for each (FileVariable, Var, ExpandedVariablesDB)
-        {
-            if (String_StartsWith(Var.Name, S("PostBuild"), false))
-            {
-                u32 ExitCode = 0;
-                bool bResult = Internal_ExecuteBuildCmd(WorkingPath, Var.Name, Var.Value, Var.bHasSpecial, &ExitCode);
-                if (!bResult)
-                {
-                    #ifndef HOOD
-                    LOG_ERROR("Post-build command exited with a failure result: %u", ExitCode);
-                    #else
-                    LOG_ERROR("brah wtf, gon have to stop you there nigga. da command we jus ran fuck'n failed on me nigga");
-                    #endif
-
-                    return 1;
-                }
-            }
-        }
-
-        LOG_LINE_BREAK();
+        return 1;
     }
 
 End:

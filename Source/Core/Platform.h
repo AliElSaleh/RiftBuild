@@ -289,7 +289,8 @@ RIFT_API NO_DISCARD f64 Platform_GetAbsoluteTime(void);
 RIFT_API NO_DISCARD SystemTime Platform_GetSystemLocalTime(void);
 RIFT_API NO_DISCARD bool Platform_GetTimeZone(String* OutTimeZone);
 
-RIFT_API void Platform_Sleep(f64 ms);
+RIFT_API void Platform_Wait(f64 ms);
+RIFT_API void Platform_Sleep(u32 ms);
 
 RIFT_API NO_DISCARD u64 Platform_GetCurrentThreadID(void);
 RIFT_API NO_DISCARD u64 Platform_GetMainThreadID(void);
