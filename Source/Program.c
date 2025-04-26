@@ -2579,6 +2579,24 @@ static void TimeAsPercentageOfTotal(String* Buffer, u32 Length, f64 ElapsedTime,
     String_Append(Buffer, S("%]"));
 }
 
+static void PrintClockTimeToBuffer(String* Buffer, Clock* Timer, Clock* MasterTimer, const String DisplayName, bool bOnlyElapsed)
+{
+    if (Timer->StartTime > 0 &&
+        (!bOnlyElapsed || (bOnlyElapsed && Timer->ElapsedTime > 0)))
+    {
+        StringLocal(TimeString, 32);
+
+        Clock_GetElapsedTime_ToString(Timer, true, &TimeString);
+        String_Append(Buffer, DisplayName);
+        String_Append(Buffer, TimeString);
+        if (MasterTimer)
+        {
+            TimeAsPercentageOfTotal(Buffer, TimeString.Length, Timer->ElapsedTime, MasterTimer->ElapsedTime);
+        }
+        String_AppendNewline(Buffer);
+    }
+}
+
 static u32 BuildTarget(LinearAllocator* Arena,
                         const FileHandle BuildFileHandle, PlatformMutex* BuildMutex,
                         const String WorkingPath, const StringArray Parameters, const String CameFromBuildFile,
@@ -7716,114 +7734,39 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
     if (bQuietBuild) { Logging_Enable(); }
 
-    StringLocal(LogTimingBuffer, 512);
-    StringLocal(TimeString, 32);
-
-    Clock_GetElapsedTime_ToString(&CompileClock, true, &TimeString);
-    String_Append(&LogTimingBuffer, S("\nCompile     time: "));
-    String_Append(&LogTimingBuffer, TimeString);
-    TimeAsPercentageOfTotal(&LogTimingBuffer, TimeString.Length, CompileClock.ElapsedTime, BuildRuntime.ElapsedTime);
-    String_AppendNewline(&LogTimingBuffer);
-
-    // TODO: compress into function
-    if (LinkClock.StartTime > 0)
+    // log all the timings
     {
-        Clock_GetElapsedTime_ToString(&LinkClock, true, &TimeString);
-        String_Append(&LogTimingBuffer, S("Link        time: "));
-        String_Append(&LogTimingBuffer, TimeString);
-        TimeAsPercentageOfTotal(&LogTimingBuffer, TimeString.Length, LinkClock.ElapsedTime, BuildRuntime.ElapsedTime);
-        String_AppendNewline(&LogTimingBuffer);
+        StringLocal(TimingBuffer, 512);
+
+        // calculate the overhead time
+        f64 TotalElapsedTime = CompileClock.ElapsedTime +
+                            LinkClock.ElapsedTime +
+                            IconClock.ElapsedTime +
+                            ResourceCompileClock.ElapsedTime +
+                            BundleCompileClock.ElapsedTime +
+                            BuildFileParseClock.ElapsedTime +
+                            MSVCInitClock.ElapsedTime +
+                            DependencyBuildClock.ElapsedTime +
+                            ExternalClock.ElapsedTime;
+
+        Clock OverheadClock = {0};
+        OverheadClock.StartTime = 1;
+        OverheadClock.ElapsedTime = BuildRuntime.ElapsedTime - TotalElapsedTime;
+
+        PrintClockTimeToBuffer(&TimingBuffer, &CompileClock,         &BuildRuntime, S("\nCompile     time: "), false);
+        PrintClockTimeToBuffer(&TimingBuffer, &LinkClock,            &BuildRuntime, S(  "Link        time: "), false);
+        PrintClockTimeToBuffer(&TimingBuffer, &IconClock,            &BuildRuntime, S(  "Icon        time: "), false);
+        PrintClockTimeToBuffer(&TimingBuffer, &ResourceCompileClock, &BuildRuntime, S(  "Resource    time: "), false);
+        PrintClockTimeToBuffer(&TimingBuffer, &BundleCompileClock,   &BuildRuntime, S(  "Bundle      time: "), false);
+        PrintClockTimeToBuffer(&TimingBuffer, &BuildFileParseClock,  &BuildRuntime, S(  "Build Parse time: "), false);
+        PrintClockTimeToBuffer(&TimingBuffer, &MSVCInitClock,        &BuildRuntime, S(  "MSVC Init   time: "), false);
+        PrintClockTimeToBuffer(&TimingBuffer, &DependencyBuildClock, &BuildRuntime, S(  "Dependency  time: "), true);
+        PrintClockTimeToBuffer(&TimingBuffer, &ExternalClock,        &BuildRuntime, S(  "External    time: "), true);
+        PrintClockTimeToBuffer(&TimingBuffer, &OverheadClock,        &BuildRuntime, S(  "Overhead    time: "), true);
+        PrintClockTimeToBuffer(&TimingBuffer, &BuildRuntime,         NULL         , S(  "Total build time: "), false);
+
+        LOG("%S", TimingBuffer);
     }
-
-    if (IconClock.StartTime > 0)
-    {
-        Clock_GetElapsedTime_ToString(&IconClock, true, &TimeString);
-        String_Append(&LogTimingBuffer, S("Icon        time: "));
-        String_Append(&LogTimingBuffer, TimeString);
-        TimeAsPercentageOfTotal(&LogTimingBuffer, TimeString.Length, IconClock.ElapsedTime, BuildRuntime.ElapsedTime);
-        String_AppendNewline(&LogTimingBuffer);
-    }
-
-    if (ResourceCompileClock.StartTime > 0)
-    {
-        Clock_GetElapsedTime_ToString(&ResourceCompileClock, true, &TimeString);
-        String_Append(&LogTimingBuffer, S("Resource    time: "));
-        String_Append(&LogTimingBuffer, TimeString);
-        TimeAsPercentageOfTotal(&LogTimingBuffer, TimeString.Length, ResourceCompileClock.ElapsedTime, BuildRuntime.ElapsedTime);
-        String_AppendNewline(&LogTimingBuffer);
-    }
-
-    if (BundleCompileClock.StartTime > 0)
-    {
-        Clock_GetElapsedTime_ToString(&BundleCompileClock, true, &TimeString);
-        String_Append(&LogTimingBuffer, S("Bundle      time: "));
-        String_Append(&LogTimingBuffer, TimeString);
-        TimeAsPercentageOfTotal(&LogTimingBuffer, TimeString.Length, BundleCompileClock.ElapsedTime, BuildRuntime.ElapsedTime);
-        String_AppendNewline(&LogTimingBuffer);
-    }
-
-    if (bFoundBuildFile)
-    {
-        Clock_GetElapsedTime_ToString(&BuildFileParseClock, true, &TimeString);
-        String_Append(&LogTimingBuffer, S("Build parse time: "));
-        String_Append(&LogTimingBuffer, TimeString);
-        TimeAsPercentageOfTotal(&LogTimingBuffer, TimeString.Length, BuildFileParseClock.ElapsedTime, BuildRuntime.ElapsedTime);
-        String_AppendNewline(&LogTimingBuffer);
-    }
-
-    if (MSVCInitClock.StartTime > 0)
-    {
-        Clock_GetElapsedTime_ToString(&MSVCInitClock, true, &TimeString);
-        String_Append(&LogTimingBuffer, S("MSVC Init   time: "));
-        String_Append(&LogTimingBuffer, TimeString);
-        TimeAsPercentageOfTotal(&LogTimingBuffer, TimeString.Length, MSVCInitClock.ElapsedTime, BuildRuntime.ElapsedTime);
-        String_AppendNewline(&LogTimingBuffer);
-    }
-
-    if (DependencyBuildClock.ElapsedTime > 0)
-    {
-        Clock_GetElapsedTime_ToString(&DependencyBuildClock, true, &TimeString);
-        String_Append(&LogTimingBuffer, S("Dependency  time: "));
-        String_Append(&LogTimingBuffer, TimeString);
-        TimeAsPercentageOfTotal(&LogTimingBuffer, TimeString.Length, DependencyBuildClock.ElapsedTime, BuildRuntime.ElapsedTime);
-        String_AppendNewline(&LogTimingBuffer);
-    }
-
-    if (ExternalClock.ElapsedTime > 0)
-    {
-        Clock_GetElapsedTime_ToString(&ExternalClock, true, &TimeString);
-        String_Append(&LogTimingBuffer, S("External    time: "));
-        String_Append(&LogTimingBuffer, TimeString);
-        TimeAsPercentageOfTotal(&LogTimingBuffer, TimeString.Length, ExternalClock.ElapsedTime, BuildRuntime.ElapsedTime);
-        String_AppendNewline(&LogTimingBuffer);
-    }
-
-    // calculate the overhead time
-    f64 TotalElapsedTime = CompileClock.ElapsedTime +
-                           LinkClock.ElapsedTime +
-                           IconClock.ElapsedTime +
-                           ResourceCompileClock.ElapsedTime +
-                           BundleCompileClock.ElapsedTime +
-                           BuildFileParseClock.ElapsedTime +
-                           MSVCInitClock.ElapsedTime +
-                           DependencyBuildClock.ElapsedTime +
-                           ExternalClock.ElapsedTime;
-
-    Clock OverheadClock = {0};
-    OverheadClock.ElapsedTime = BuildRuntime.ElapsedTime - TotalElapsedTime;
-
-    Clock_GetElapsedTime_ToString(&OverheadClock, true, &TimeString);
-    String_Append(&LogTimingBuffer, S("Overhead    time: "));
-    String_Append(&LogTimingBuffer, TimeString);
-    TimeAsPercentageOfTotal(&LogTimingBuffer, TimeString.Length, OverheadClock.ElapsedTime, BuildRuntime.ElapsedTime);
-    String_AppendNewline(&LogTimingBuffer);
-
-    Clock_GetElapsedTime_ToString(&BuildRuntime, true, &TimeString);
-    String_Append(&LogTimingBuffer, S("Total build time: "));
-    String_Append(&LogTimingBuffer, TimeString);
-    String_AppendNewline(&LogTimingBuffer);
-
-    LOG("%S", LogTimingBuffer);
 
     StringLocal(OutputPath, MAX_PATH_LENGTH);
     String_AppendChar(&OutputPath, '"');
