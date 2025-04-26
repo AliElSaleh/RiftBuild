@@ -13,6 +13,13 @@
 #include "Core/Log.h"
 #endif
 
+// TODO: handle this cleanly
+/* 
+    LinkerFlags:!cl:!gcc -nostdlib -Wl,-entry:EntryPoint,-subsystem:console -Xlinker /stack:0x800000,0x800000
+    LinkerFlags:gcc      -nostdlib -Wl,--entry,EntryPoint,--subsystem,console,--stack,0x800000
+    LinkerFlags:cl       /ENTRY:EntryPoint /SUBSYSTEM:CONSOLE /STACK:0x800000,0x800000
+*/
+
 bool C_DoCompile(CompileData* Data, const String FullPath, const String RelativePath);
 
 static void LogCompilingFile(u32 Index, u32 NumSources, String FullPath)
@@ -781,9 +788,9 @@ bool C_Link(const BuildParams* Params)
         if (bQuietBuild) { Logging_Enable(); }
 
         #ifndef HOOD
-        LOG("\nLinking %S", Params->AssemblyWithExt);
+        LOG("Linking %S", Params->AssemblyWithExt);
         #else
-        LOG("\nlink'n it up: %S", Params->AssemblyWithExt);
+        LOG("link'n it up: %S", Params->AssemblyWithExt);
         #endif
 
         if (bQuietBuild) { Logging_Disable(); }
@@ -884,9 +891,9 @@ bool C_Link(const BuildParams* Params)
         if (bQuietBuild) { Logging_Enable(); }
 
         #ifndef HOOD
-        LOG("\nLinking %S [static]", LibFile);
+        LOG("Linking %S [static]", LibFile);
         #else
-        LOG("\nstatic link'n it up: %S", LibFile);
+        LOG("static link'n it up: %S", LibFile);
         #endif
 
         if (bQuietBuild) { Logging_Disable(); }
@@ -1938,7 +1945,7 @@ bool MSVC_Link(const BuildParams* Params)
 
         if (bQuietBuild) { Logging_Enable(); }
 
-        LOG("\nLinking %S", Params->AssemblyWithExt);
+        LOG("Linking %S", Params->AssemblyWithExt);
 
         if (bQuietBuild) { Logging_Disable(); }
 
@@ -2014,7 +2021,7 @@ bool MSVC_Link(const BuildParams* Params)
 
         if (bQuietBuild) { Logging_Enable(); }
 
-        LOG("\nLinking %S [static]", LibFile);
+        LOG("Linking %S [static]", LibFile);
 
         if (bQuietBuild) { Logging_Disable(); }
 
