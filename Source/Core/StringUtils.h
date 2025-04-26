@@ -53,8 +53,8 @@ RIFT_API            void   String_ConcatArray(String* Dest, const StringArray Ar
 
 RIFT_API NO_DISCARD StringArray String_CreateArray(LinearAllocator* Arena, const StringArray Array);
 
-RIFT_API NO_DISCARD bool String_IsEqual(const String StringA, const String StringB, bool bCaseSensitive);
-RIFT_API NO_DISCARD bool String16_IsEqual(const String16 StringA, const String16 StringB, bool bCaseSensitive);
+RIFT_API NO_DISCARD bool String_IsEqual(const String StringA, const String StringB, bool bCaseSensitive)       PURE_FN;
+RIFT_API NO_DISCARD bool String16_IsEqual(const String16 StringA, const String16 StringB, bool bCaseSensitive) PURE_FN;
 
 RIFT_API NO_DISCARD bool String_IsInteger(const String Str);
 RIFT_API NO_DISCARD bool String_IsInteger32(const String Str);
@@ -195,24 +195,24 @@ RIFT_API NO_DISCARD bool String_ToI64(const String Str, i64* OutInt);
 
 RIFT_API NO_DISCARD bool String_ToBool(const String Str);
 
-RIFT_API NO_DISCARD u32 String_GetLength(const char* Str);
-RIFT_API NO_DISCARD u32 String_GetLength_Ex(const char* Str, u32 MaxLength);
-RIFT_API NO_DISCARD u32 String16_GetLength(const wchar* Str);
-RIFT_API NO_DISCARD u32 String16_GetLength_Ex(const wchar* Str, u32 MaxLength);
+RIFT_API NO_DISCARD u32 String_GetLength(const char* Str)                       PURE_FN;
+RIFT_API NO_DISCARD u32 String_GetLength_Ex(const char* Str, u32 MaxLength)     PURE_FN;
+RIFT_API NO_DISCARD u32 String16_GetLength(const wchar* Str)                    PURE_FN;
+RIFT_API NO_DISCARD u32 String16_GetLength_Ex(const wchar* Str, u32 MaxLength)  PURE_FN;
 
-RIFT_API NO_DISCARD bool IsAlphabet(u8 Char);
-RIFT_API NO_DISCARD bool IsAlphabetUpper(u8 Char);
-RIFT_API NO_DISCARD bool IsAlphabetLower(u8 Char);
-RIFT_API NO_DISCARD bool IsDigit(u8 Char);
-RIFT_API NO_DISCARD bool IsWhitespace(u8 Char);
-RIFT_API NO_DISCARD bool IsNewline(u8 Char);
-RIFT_API NO_DISCARD bool IsSymbol(u8 Char);
-RIFT_API NO_DISCARD u8 ToUpper(u8 Char);
-RIFT_API NO_DISCARD u8 ToLower(u8 Char);
-RIFT_API NO_DISCARD u8 ToForwardSlash(u8 Char);
-RIFT_API NO_DISCARD u8 ToBackSlash(u8 Char);
+RIFT_API NO_DISCARD bool IsAlphabet(u8 Char)      CONST_FN;
+RIFT_API NO_DISCARD bool IsAlphabetUpper(u8 Char) CONST_FN;
+RIFT_API NO_DISCARD bool IsAlphabetLower(u8 Char) CONST_FN;
+RIFT_API NO_DISCARD bool IsDigit(u8 Char)         CONST_FN;
+RIFT_API NO_DISCARD bool IsWhitespace(u8 Char)    CONST_FN;
+RIFT_API NO_DISCARD bool IsNewline(u8 Char)       CONST_FN;
+RIFT_API NO_DISCARD bool IsSymbol(u8 Char)        CONST_FN;
+RIFT_API NO_DISCARD u8   ToUpper(u8 Char)         CONST_FN;
+RIFT_API NO_DISCARD u8   ToLower(u8 Char)         CONST_FN;
+RIFT_API NO_DISCARD u8   ToForwardSlash(u8 Char)  CONST_FN;
+RIFT_API NO_DISCARD u8   ToBackSlash(u8 Char)     CONST_FN;
 
-RIFT_API NO_DISCARD u8 Integer_CountDigits(u64 Value);
+RIFT_API NO_DISCARD u8 Integer_CountDigits(u64 Value) CONST_FN;
 
 // TODO: possibly delete all these functions below
 /*

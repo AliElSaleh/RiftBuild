@@ -481,8 +481,8 @@ STRUCT(StringList)
 
     #define DEPRECATED       __attribute__((__deprecated__))
     #define UNUSED           __attribute__((unused))
-    #define CONST_ATTRIB     __attribute__((const))
-    #define PURE_ATTRIB      __attribute__((pure))
+    #define CONST_FN         __attribute__((const))
+    #define PURE_FN          __attribute__((pure))
     #define NO_DISCARD       __attribute__((warn_unused_result))
     #define FALL_THROUGH     __attribute__((fallthrough))
     #define NO_RETURN        __attribute__((noreturn))
@@ -568,6 +568,9 @@ STRUCT(StringList)
     #define ASSERT(Expression, ...) do { if (Expression) {} else { ##__VA_ARGS__; DEBUG_BREAK(); _Crash_; } } while (0)
     #define ENSURE(Expression, ...) do { if (Expression) {} else { ##__VA_ARGS__; DEBUG_BREAK(); } } while (0)
 #endif
+
+#define STATIC_PURE_FN(...) static __VA_ARGS__ PURE_FN; static __VA_ARGS__ 
+#define STATIC_CONST_FN(...) static __VA_ARGS__ CONST_FN; static __VA_ARGS__ 
 
 #define STATIC_ASSERT(e, Msg) typedef uchar MACRO_VAR(__C_ASSERT__)[(e) ? 1 : -1]
 

@@ -2109,7 +2109,7 @@ bool String_ToF64(const String Str, f64* OutFloat)
 // 1 - u16
 // 2 - u32
 // 3 - u64
-static bool Internal_String_ToUnsignedInt(const String Str, u64* OutInt, u8 IntType)
+static bool Internal_ToUnsignedInt(const String Str, u64* OutInt, u8 IntType)
 {
     bool bSuccess = false;
     bool bNegative = false;
@@ -2194,7 +2194,7 @@ static bool Internal_String_ToUnsignedInt(const String Str, u64* OutInt, u8 IntT
 // 1 - i16
 // 2 - i32
 // 3 - i64
-static bool Internal_String_ToSignedInt(const String Str, i64* OutInt, u8 IntType)
+static bool Internal_ToSignedInt(const String Str, i64* OutInt, u8 IntType)
 {
     bool bSuccess = false;
     
@@ -2274,7 +2274,7 @@ bool String_ToU8(const String Str, u8* OutInt)
     // 0-255
 
     u64 Num = 0;
-    bool bSuccess = Internal_String_ToUnsignedInt(Str, &Num, 0);
+    bool bSuccess = Internal_ToUnsignedInt(Str, &Num, 0);
     if (bSuccess)
     {
         if (OutInt)
@@ -2291,7 +2291,7 @@ bool String_ToU16(const String Str, u16* OutInt)
     // 0-65535
 
     u64 Num = 0;
-    bool bSuccess = Internal_String_ToUnsignedInt(Str, &Num, 1);
+    bool bSuccess = Internal_ToUnsignedInt(Str, &Num, 1);
     if (bSuccess)
     {
         if (OutInt)
@@ -2308,7 +2308,7 @@ bool String_ToU32(const String Str, u32* OutInt)
     // 0-4294967295
 
     u64 Num = 0;
-    bool bSuccess = Internal_String_ToUnsignedInt(Str, &Num, 2);
+    bool bSuccess = Internal_ToUnsignedInt(Str, &Num, 2);
     if (bSuccess)
     {
         if (OutInt)
@@ -2325,7 +2325,7 @@ bool String_ToU64(const String Str, u64* OutInt)
     // 0-18446744073709551615
 
     u64 Num = 0;
-    bool bSuccess = Internal_String_ToUnsignedInt(Str, &Num, 3);
+    bool bSuccess = Internal_ToUnsignedInt(Str, &Num, 3);
     if (bSuccess)
     {
         if (OutInt)
@@ -2342,7 +2342,7 @@ bool String_ToI8(const String Str, i8* OutInt)
     // -127-127
 
     i64 Num = 0;
-    bool bSuccess = Internal_String_ToSignedInt(Str, &Num, 0);
+    bool bSuccess = Internal_ToSignedInt(Str, &Num, 0);
     if (bSuccess)
     {
         if (OutInt)
@@ -2359,7 +2359,7 @@ bool String_ToI16(const String Str, i16* OutInt)
     // -32767-32767
 
     i64 Num = 0;
-    bool bSuccess = Internal_String_ToSignedInt(Str, &Num, 1);
+    bool bSuccess = Internal_ToSignedInt(Str, &Num, 1);
     if (bSuccess)
     {
         if (OutInt)
@@ -2376,7 +2376,7 @@ bool String_ToI32(const String Str, i32* OutInt)
     // -2147483648-2147483647
 
     i64 Num = 0;
-    bool bSuccess = Internal_String_ToSignedInt(Str, &Num, 2);
+    bool bSuccess = Internal_ToSignedInt(Str, &Num, 2);
     if (bSuccess)
     {
         if (OutInt)
@@ -2393,7 +2393,7 @@ bool String_ToI64(const String Str, i64* OutInt)
     // -9223372036854775807-9223372036854775807
 
     i64 Num = 0;
-    bool bSuccess = Internal_String_ToSignedInt(Str, &Num, 3);
+    bool bSuccess = Internal_ToSignedInt(Str, &Num, 3);
     if (bSuccess)
     {
         if (OutInt)
