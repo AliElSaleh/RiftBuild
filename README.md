@@ -54,29 +54,31 @@ Below are forks of a few open-source projects that I've translated from CMake (a
 
 They work on Windows, macOS and Linux (where appropriate).
 
-- [Jolt Physics](https://github.com/AliElSaleh/JoltPhysics)
-- [Refterm](https://github.com/AliElSaleh/refterm)
-- [Craft](https://github.com/AliElSaleh/Craft)
-- [RAD Debugger](https://github.com/AliElSaleh/raddebugger)
-- [PhysX 4.1](https://github.com/AliElSaleh/PhysX)
-- [SDL2 TODO](https://google.com)
-- [Star Ruler 2](https://github.com/AliElSaleh/StarRuler2-Source)
-- [fmt](https://github.com/AliElSaleh/fmt)
-- [GLFW](https://github.com/AliElSaleh/glfw)
-- [FreeType](https://github.com/AliElSaleh/freetype)
-- [libjpeg-turbo](https://github.com/AliElSaleh/libjpeg-turbo)
-- [libpng](https://github.com/AliElSaleh/libpng)
-- [zlib](https://github.com/AliElSaleh/zlib)
-- [PCSX2 TODO](https://google.com)
-- [RPCS3 TODO](https://google.com)
-- [Raylib TODO](https://google.com)
-- [Playdate SDK TODO](https://google.com)
-- [Kinema](https://github.com/AliElSaleh/kinema)
-- [PhysFS](https://github.com/AliElSaleh/physfs)
-- [Zydis](https://github.com/AliElSaleh/zydis)
-- [Tracy](https://github.com/AliElSaleh/tracy)
-- [Ninja](https://github.com/AliElSaleh/ninja)
-- [Z3 TODO](https://github.com/AliElSaleh/z3)
+| Project                         |                                                                 |
+|---------------------------------|-----------------------------------------------------------------|
+| [Jolt Physics](https://github.com/AliElSaleh/JoltPhysics)    | Physics Engine                     |
+| [Refterm](https://github.com/AliElSaleh/refterm)             | Terminal Renderer                  |
+| [Craft](https://github.com/AliElSaleh/Craft)                 | Minecraft Clone                    |
+| [RAD Debugger](https://github.com/AliElSaleh/raddebugger)    | Graphical Native Debugger          |
+| [PhysX 4.1](https://github.com/AliElSaleh/PhysX)             | Physics Library                    |
+| [SDL2 TODO](https://google.com)                              | Framework Library                  |
+| [Star Ruler 2](https://github.com/AliElSaleh/StarRuler2-Source) | Video Game                      |
+| [fmt](https://github.com/AliElSaleh/fmt)                     | C++ String Formatting Library      |
+| [GLFW](https://github.com/AliElSaleh/glfw)                   | Graphics Framework Library         |
+| [FreeType](https://github.com/AliElSaleh/freetype)           | Font Renderer                      |
+| [libjpeg-turbo](https://github.com/AliElSaleh/libjpeg-turbo) | JPEG Library                       |
+| [libpng](https://github.com/AliElSaleh/libpng)               | PNG Library                        |
+| [zlib](https://github.com/AliElSaleh/zlib)                   | Data Compression Library           |
+| [PCSX2 TODO](https://google.com)                             | PS2 Emulator                       |
+| [RPCS3 TODO](https://google.com)                             | PS3 Emulator                       |
+| [Raylib TODO](https://google.com)                            | Game Framework Library             |
+| [Playdate SDK TODO](https://google.com)                      | Playdate SDK                       |
+| [Kinema](https://github.com/AliElSaleh/kinema)               | Voxel Tech Demo                    |
+| [PhysFS](https://github.com/AliElSaleh/physfs)               | Multi-platform Virtual File System |
+| [Zydis](https://github.com/AliElSaleh/zydis)                 |                                    |
+| [Tracy](https://github.com/AliElSaleh/tracy)                 | Profiler                           |
+| [Ninja](https://github.com/AliElSaleh/ninja)                 | Build Tool                         |
+| [Z3 TODO](https://github.com/AliElSaleh/z3)                  |                                    |
 
 [Extended list can be found here]()
 
