@@ -6313,6 +6313,17 @@ static u32 BuildTarget(LinearAllocator* Arena,
             {
                 const String VarToList = StrShiftF(Arg, Colon+1);
 
+                if (VarToList.Length == 0)
+                {
+                    LOG_ERROR("Failed to export. No export type was given after ':'");
+                    LOG_INLINE_WARNING("\nUsage\n");
+                    LOG("     export:compile_commands");
+                    LOG("     export:icon.rc");
+                    LOG("     export:plist,bat,sh");
+
+                    return 1;
+                }
+
                 if (!Export_FromArg(*Arena, &p, VarToList, ExpandedVariablesDB))
                 {
                     return 1;

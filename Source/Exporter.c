@@ -979,353 +979,339 @@ bool Export_FromArg(LinearAllocator Scratch, const BuildParams* Params, const St
 {
     bool bSuccess = true;
 
-    if (Arg.Length == 0)
+    StringArray Vars = String_ParseIntoArray(&Scratch, Arg, ',', 0, 128);
+
+    bool bAnyExported = false;
+    for each_str (var, Vars)
     {
-        LOG_ERROR("Failed to export. No export type was given after ':'");
-        LOG_INLINE_WARNING("\nUsage\n");
-        LOG("     export:compile_commands");
-        LOG("     export:icon.rc");
-        LOG("     export:plist,bat,sh");
+        const bool bGenCompileCommandsJSON        = String_IsEqual(*var, S("compile_commands"), false) ||
+                                                    String_IsEqual(*var, S("cc"), false);
+        const bool bGenCompileCommandsJSONOneLine = String_IsEqual(*var, S("compile_commands_one_line"), false) ||
+                                                    String_IsEqual(*var, S("cc_one_line"), false) ||
+                                                    String_IsEqual(*var, S("compile_commands1"), false) ||
+                                                    String_IsEqual(*var, S("cc1"), false);
+        const bool bGenInfoPlist                  = String_IsEqual(*var, S("info.plist"), false);
+        const bool bGenVersionPlist               = String_IsEqual(*var, S("version.plist"), false);
+        const bool bGenPlist                      = String_IsEqual(*var, S("plist"), false);
+        const bool bGenPkgInfo                    = String_IsEqual(*var, S("pkginfo"), false);
+        const bool bGenVersionRc                  = String_IsEqual(*var, S("versionrc"), false) ||
+                                                    String_IsEqual(*var, S("version.rc"), false);
+        const bool bGenIconRc                     = String_IsEqual(*var, S("iconrc"), false) ||
+                                                    String_IsEqual(*var, S("icon.rc"), false);
+        //const bool bGenVisualStudio             = String_IsEqual(*var, S("export:visual_studio"), false);
+        //const bool bGenXCode                    = String_IsEqual(*var, S("export:xcode"), false);
 
-        bSuccess = false;
-    }
+        const bool bLicense                       = String_IsEqual(*var, S("license"), false) ||
+                                                    String_IsEqual(*var, S("license="), false);
+        const bool bLicenseMIT                    = String_IsEqual(*var, S("license=MIT"), false) ||
+                                                    String_IsEqual(*var, S("MIT"), false);
+        const bool bLicenseBSD2                   = String_IsEqual(*var, S("license=BSD2"), false) ||
+                                                    String_IsEqual(*var, S("BSD2"), false);
+        const bool bLicenseBSD3                   = String_IsEqual(*var, S("license=BSD3"), false) ||
+                                                    String_IsEqual(*var, S("BSD3"), false);
+        const bool bLicenseFuckYou                = String_IsEqual(*var, S("license=FuckYou"), false) ||
+                                                    String_IsEqual(*var, S("FuckYou"), false);
+        const bool bLicenseUnlicense              = String_IsEqual(*var, S("license=Unlicense"), false) ||
+                                                    String_IsEqual(*var, S("unlicense"), false);
 
-    if (bSuccess)
-    {
-        StringArray Vars = String_ParseIntoArray(&Scratch, Arg, ',', 0, 128);
-
-        bool bAnyExported = false;
-        for each_str (var, Vars)
+        if (bGenCompileCommandsJSON || bGenCompileCommandsJSONOneLine)
         {
-            const bool bGenCompileCommandsJSON        = String_IsEqual(*var, S("compile_commands"), false) ||
-                                                        String_IsEqual(*var, S("cc"), false);
-            const bool bGenCompileCommandsJSONOneLine = String_IsEqual(*var, S("compile_commands_one_line"), false) ||
-                                                        String_IsEqual(*var, S("cc_one_line"), false) ||
-                                                        String_IsEqual(*var, S("compile_commands1"), false) ||
-                                                        String_IsEqual(*var, S("cc1"), false);
-            const bool bGenInfoPlist                  = String_IsEqual(*var, S("info.plist"), false);
-            const bool bGenVersionPlist               = String_IsEqual(*var, S("version.plist"), false);
-            const bool bGenPlist                      = String_IsEqual(*var, S("plist"), false);
-            const bool bGenPkgInfo                    = String_IsEqual(*var, S("pkginfo"), false);
-            const bool bGenVersionRc                  = String_IsEqual(*var, S("versionrc"), false) ||
-                                                        String_IsEqual(*var, S("version.rc"), false);
-            const bool bGenIconRc                     = String_IsEqual(*var, S("iconrc"), false) ||
-                                                        String_IsEqual(*var, S("icon.rc"), false);
-            //const bool bGenVisualStudio             = String_IsEqual(*var, S("export:visual_studio"), false);
-            //const bool bGenXCode                    = String_IsEqual(*var, S("export:xcode"), false);
+            if (bQuietBuild) { Logging_Enable(); }
 
-            const bool bLicense                       = String_IsEqual(*var, S("license"), false) ||
-                                                        String_IsEqual(*var, S("license="), false);
-            const bool bLicenseMIT                    = String_IsEqual(*var, S("license=MIT"), false) ||
-                                                        String_IsEqual(*var, S("MIT"), false);
-            const bool bLicenseBSD2                   = String_IsEqual(*var, S("license=BSD2"), false) ||
-                                                        String_IsEqual(*var, S("BSD2"), false);
-            const bool bLicenseBSD3                   = String_IsEqual(*var, S("license=BSD3"), false) ||
-                                                        String_IsEqual(*var, S("BSD3"), false);
-            const bool bLicenseFuckYou                = String_IsEqual(*var, S("license=FuckYou"), false) ||
-                                                        String_IsEqual(*var, S("FuckYou"), false);
-            const bool bLicenseUnlicense              = String_IsEqual(*var, S("license=Unlicense"), false) ||
-                                                        String_IsEqual(*var, S("unlicense"), false);
+            LOG("Generating compile_commands.json ...");
 
-            if (bGenCompileCommandsJSON || bGenCompileCommandsJSONOneLine)
+            bool bLast = Params->CameFromBuildFile.Length == 0;
+
+            Clock c;
+            Clock_Start(&c);
+
+            if (!Export_CompileCommands(Params, bLast, bGenCompileCommandsJSONOneLine))
             {
-                if (bQuietBuild) { Logging_Enable(); }
-
-                LOG("Generating compile_commands.json ...");
-
-                bool bLast = Params->CameFromBuildFile.Length == 0;
-
-                Clock c;
-                Clock_Start(&c);
-
-                if (!Export_CompileCommands(Params, bLast, bGenCompileCommandsJSONOneLine))
-                {
-                    bSuccess = false;
-                    break;
-                }
-
-                Clock_Tick(&c);
-
-                if (bLast)
-                {
-                    StringLocal(ExportTimeString, 32);
-                    Clock_GetElapsedTime_ToString(&c, true, &ExportTimeString);
-                    LOG("\nExport time: %S", ExportTimeString);
-
-                    StringLocal(CompileCommandsPath, MAX_PATH_LENGTH);
-                    String_BuildPath(&CompileCommandsPath, Params->RootDirectory, S("compile_commands.json"));
-                    LOG_SUCCESS("\n\"%S\"", CompileCommandsPath);
-                }
-
-                if (bQuietBuild) { Logging_Disable(); }
-
-                bAnyExported = true;
+                bSuccess = false;
+                break;
             }
-            else if (bGenPlist || bGenInfoPlist || bGenVersionPlist)
+
+            Clock_Tick(&c);
+
+            if (bLast)
             {
-                if (bQuietBuild) { Logging_Enable(); }
-
-                StringLocal(ExportPath, MAX_PATH_LENGTH);
-                String_BuildPath(&ExportPath, Params->RootDirectory, Params->IntermediateDirectory, S("__Exports"));
-
-                if (!Filesystem_OpenDirectory(ExportPath))
-                {
-                    bSuccess = false;
-                    break;
-                }
-
-                Clock c;
-                Clock_Start(&c);
-
-                if (bGenPlist || bGenInfoPlist)
-                {
-                    LOG("Generating Info.plist ...");
-
-                    StringLocal(PlistPath, MAX_PATH_LENGTH);
-                    String_BuildPath(&PlistPath, ExportPath, S("Info.plist"));
-
-                    if (!Export_InfoPlist(Scratch, Params, PlistPath, ExpandedVariablesDB, DoesBuildVarExist(ExpandedVariablesDB, S("Info.plist"))))
-                    {
-                        LOG_ERROR("Failed to export \"%S\". Aborting build...", PlistPath);
-
-                        bSuccess = false;
-                        break;
-                    }
-
-                    LOG_SUCCESS("\n\"%S\"", PlistPath);
-                }
-
-                if (bGenPlist || bGenVersionPlist)
-                {
-                    LOG("\nGenerating Version.plist ...");
-
-                    StringLocal(PlistPath, MAX_PATH_LENGTH);
-                    String_BuildPath(&PlistPath, ExportPath, S("Version.plist"));
-
-                    if (!Export_VersionPlist(Scratch, Params, PlistPath, ExpandedVariablesDB, DoesBuildVarExist(ExpandedVariablesDB, S("Version.plist"))))
-                    {
-                        LOG_ERROR("Failed to export \"%S\". Aborting build...", PlistPath);
-
-                        bSuccess = false;
-                        break;
-                    }
-
-                    LOG_SUCCESS("\n\"%S\"", PlistPath);
-                }
-
-                Clock_Tick(&c);
-
                 StringLocal(ExportTimeString, 32);
                 Clock_GetElapsedTime_ToString(&c, true, &ExportTimeString);
                 LOG("\nExport time: %S", ExportTimeString);
 
-                if (bQuietBuild) { Logging_Disable(); }
-
-                bAnyExported = true;
+                StringLocal(CompileCommandsPath, MAX_PATH_LENGTH);
+                String_BuildPath(&CompileCommandsPath, Params->RootDirectory, S("compile_commands.json"));
+                LOG_SUCCESS("\n\"%S\"", CompileCommandsPath);
             }
-            else if (bGenPkgInfo)
+
+            if (bQuietBuild) { Logging_Disable(); }
+
+            bAnyExported = true;
+        }
+        else if (bGenPlist || bGenInfoPlist || bGenVersionPlist)
+        {
+            if (bQuietBuild) { Logging_Enable(); }
+
+            StringLocal(ExportPath, MAX_PATH_LENGTH);
+            String_BuildPath(&ExportPath, Params->RootDirectory, Params->IntermediateDirectory, S("__Exports"));
+
+            if (!Filesystem_OpenDirectory(ExportPath))
             {
-                if (bQuietBuild) { Logging_Enable(); } 
-
-                LOG("Generating PkgInfo ...");
-
-                StringLocal(ExportPath, MAX_PATH_LENGTH);
-                String_BuildPath(&ExportPath, Params->RootDirectory, Params->IntermediateDirectory, S("__Exports"));
-
-                if (!Filesystem_OpenDirectory(ExportPath))
-                {
-                    bSuccess = false;
-                    break;
-                }
-
-                StringLocal(PkgInfoPath, MAX_PATH_LENGTH);
-                String_BuildPath(&PkgInfoPath, ExportPath, S("PkgInfo"));
-
-                Clock c;
-                Clock_Start(&c);
-
-                if (!Export_PkgInfo(Params->Assembly, PkgInfoPath))
-                {
-                    LOG_ERROR("Failed to export \"%S\". Aborting build...", PkgInfoPath);
-
-                    bSuccess = false;
-                    break;
-                }
-
-                Clock_Tick(&c);
-
-                StringLocal(ExportTimeString, 32);
-                Clock_GetElapsedTime_ToString(&c, true, &ExportTimeString);
-                LOG("\nExport time: %S", ExportTimeString);
-
-                LOG_SUCCESS("\n\"%S\"", PkgInfoPath);
-
-                if (bQuietBuild) { Logging_Disable(); }
-
-                bAnyExported = true;
+                bSuccess = false;
+                break;
             }
-            else if (bGenVersionRc || bGenIconRc)
+
+            Clock c;
+            Clock_Start(&c);
+
+            if (bGenPlist || bGenInfoPlist)
             {
-                if (bQuietBuild) { Logging_Enable(); }
+                LOG("Generating Info.plist ...");
 
-                LOG("Generating resource file ...");
+                StringLocal(PlistPath, MAX_PATH_LENGTH);
+                String_BuildPath(&PlistPath, ExportPath, S("Info.plist"));
 
-                StringLocal(ExportPath, MAX_PATH_LENGTH);
-                String_BuildPath(&ExportPath, Params->RootDirectory, Params->IntermediateDirectory, S("__Exports"));
-
-                if (!Filesystem_OpenDirectory(ExportPath))
+                if (!Export_InfoPlist(Scratch, Params, PlistPath, ExpandedVariablesDB, DoesBuildVarExist(ExpandedVariablesDB, S("Info.plist"))))
                 {
-                    bSuccess = false;
-                    break;
-                }
-
-                Clock c;
-                Clock_Start(&c);
-
-                StringLocal(RCPath, MAX_PATH_LENGTH);
-                String_BuildPath(&RCPath, ExportPath, bGenVersionRc ? S("version.rc") : S("icon.rc"));
-
-                if ((bGenVersionRc && !Export_VersionRC(Params, RCPath)) ||
-                    (bGenIconRc && !Export_IconRC(RCPath, Params->IconFilePath)))
-                {
-                    LOG_ERROR("Failed to export \"%S\". Aborting build...", RCPath);
+                    LOG_ERROR("Failed to export \"%S\". Aborting build...", PlistPath);
 
                     bSuccess = false;
                     break;
                 }
 
-                Clock_Tick(&c);
-
-                StringLocal(ExportTimeString, 32);
-                Clock_GetElapsedTime_ToString(&c, true, &ExportTimeString);
-                LOG("\nExport time: %S", ExportTimeString);
-
-                LOG_SUCCESS("\n\"%S\"", RCPath);
-
-                if (bQuietBuild) { Logging_Disable(); }
-
-                bAnyExported = true;
+                LOG_SUCCESS("\n\"%S\"", PlistPath);
             }
-            else if (bLicense || bLicenseBSD2 || bLicenseBSD3 || bLicenseMIT || bLicenseFuckYou || bLicenseUnlicense)
+
+            if (bGenPlist || bGenVersionPlist)
             {
-                if (bQuietBuild) { Logging_Enable(); }
+                LOG("\nGenerating Version.plist ...");
 
-                // TODO export multiple licenses with comma like this:
-                // export:license=MIT,BSD,Unlicense
+                StringLocal(PlistPath, MAX_PATH_LENGTH);
+                String_BuildPath(&PlistPath, ExportPath, S("Version.plist"));
 
-                u32 EqualsIndex = 0;
-                bool bHasEqual = String_IndexOfChar(*var, '=', &EqualsIndex);
-                String LicenseType = String_Null();
-                if (bHasEqual)
+                if (!Export_VersionPlist(Scratch, Params, PlistPath, ExpandedVariablesDB, DoesBuildVarExist(ExpandedVariablesDB, S("Version.plist"))))
                 {
-                    LicenseType = StrShiftF(*var, EqualsIndex+1);
-                }
-                else
-                {
-                    if (!String_IsEqual(*var, S("license"), false)) // ignore this
-                    {
-                        LicenseType = *var;
-                    }
+                    LOG_ERROR("Failed to export \"%S\". Aborting build...", PlistPath);
+
+                    bSuccess = false;
+                    break;
                 }
 
-                if (LicenseType.Length > 0)
-                {
-                    LOG("Generating %S license file ...", LicenseType);
+                LOG_SUCCESS("\n\"%S\"", PlistPath);
+            }
 
-                    Clock c;
-                    Clock_Start(&c);
+            Clock_Tick(&c);
 
-                    StringLocal(ExportPath, MAX_PATH_LENGTH);
-                    String_BuildPath(&ExportPath, Params->RootDirectory, Params->IntermediateDirectory, S("__Exports"), S("Licenses"));
+            StringLocal(ExportTimeString, 32);
+            Clock_GetElapsedTime_ToString(&c, true, &ExportTimeString);
+            LOG("\nExport time: %S", ExportTimeString);
 
-                    if (!Filesystem_OpenDirectory(ExportPath))
-                    {
-                        bSuccess = false;
-                        break;
-                    }
+            if (bQuietBuild) { Logging_Disable(); }
 
-                    StringLocal(FileName, 128);
-                    String_Format(&FileName, S("LICENSE_%S"), LicenseType);
-                    String_ToUpper(&FileName);
+            bAnyExported = true;
+        }
+        else if (bGenPkgInfo)
+        {
+            if (bQuietBuild) { Logging_Enable(); } 
 
-                    StringLocal(LicensePath, MAX_PATH_LENGTH);
-                    String_BuildPath(&LicensePath, ExportPath, FileName);
+            LOG("Generating PkgInfo ...");
 
-                    if (!Export_License(LicenseType, Params, LicensePath))
-                    {
-                        LOG_ERROR("Failed to export \"%S\". Aborting...", LicensePath);
+            StringLocal(ExportPath, MAX_PATH_LENGTH);
+            String_BuildPath(&ExportPath, Params->RootDirectory, Params->IntermediateDirectory, S("__Exports"));
 
-                        bSuccess = false;
-                        break;
-                    }
+            if (!Filesystem_OpenDirectory(ExportPath))
+            {
+                bSuccess = false;
+                break;
+            }
 
-                    Clock_Tick(&c);
+            StringLocal(PkgInfoPath, MAX_PATH_LENGTH);
+            String_BuildPath(&PkgInfoPath, ExportPath, S("PkgInfo"));
 
-                    StringLocal(ExportTimeString, 32);
-                    Clock_GetElapsedTime_ToString(&c, true, &ExportTimeString);
-                    LOG("\nExport time: %S", ExportTimeString);
+            Clock c;
+            Clock_Start(&c);
 
-                    LOG_SUCCESS("\n\"%S\"", LicensePath);
+            if (!Export_PkgInfo(Params->Assembly, PkgInfoPath))
+            {
+                LOG_ERROR("Failed to export \"%S\". Aborting build...", PkgInfoPath);
 
-                    bAnyExported = true;
-                }
-                else
-                {
-                    bAnyExported = true; // to disable error message that is not meaningful
+                bSuccess = false;
+                break;
+            }
 
-                    // log all valid license exports
-                    const String LicenseTypes[5] =
-                    {
-                        S("MIT"),
-                        S("BSD2"),
-                        S("BSD3"),
-                        S("FuckYou"),
-                        S("Unlicense"),
-                    };
+            Clock_Tick(&c);
 
-                    LOG("Here is a list of all supported license export types:");
+            StringLocal(ExportTimeString, 32);
+            Clock_GetElapsedTime_ToString(&c, true, &ExportTimeString);
+            LOG("\nExport time: %S", ExportTimeString);
 
-                    for (u8 j = 0; j < SArray_Capacity(LicenseTypes); j++)
-                    {
-                        LOG("  %i. %S", j+1, LicenseTypes[j]);
-                    }
+            LOG_SUCCESS("\n\"%S\"", PkgInfoPath);
 
+            if (bQuietBuild) { Logging_Disable(); }
 
-                    LOG_INLINE_WARNING("\nUsage");
-                    LOG("\n     riftbuild export:license=MIT");
-                    LOG("  or riftbuild export:license=MIT,BSD3,WhateverElse,YouWant (not yet implemented)");
-                }
+            bAnyExported = true;
+        }
+        else if (bGenVersionRc || bGenIconRc)
+        {
+            if (bQuietBuild) { Logging_Enable(); }
 
-                if (bQuietBuild) { Logging_Disable(); }
+            LOG("Generating resource file ...");
+
+            StringLocal(ExportPath, MAX_PATH_LENGTH);
+            String_BuildPath(&ExportPath, Params->RootDirectory, Params->IntermediateDirectory, S("__Exports"));
+
+            if (!Filesystem_OpenDirectory(ExportPath))
+            {
+                bSuccess = false;
+                break;
+            }
+
+            Clock c;
+            Clock_Start(&c);
+
+            StringLocal(RCPath, MAX_PATH_LENGTH);
+            String_BuildPath(&RCPath, ExportPath, bGenVersionRc ? S("version.rc") : S("icon.rc"));
+
+            if ((bGenVersionRc && !Export_VersionRC(Params, RCPath)) ||
+                (bGenIconRc && !Export_IconRC(RCPath, Params->IconFilePath)))
+            {
+                LOG_ERROR("Failed to export \"%S\". Aborting build...", RCPath);
+
+                bSuccess = false;
+                break;
+            }
+
+            Clock_Tick(&c);
+
+            StringLocal(ExportTimeString, 32);
+            Clock_GetElapsedTime_ToString(&c, true, &ExportTimeString);
+            LOG("\nExport time: %S", ExportTimeString);
+
+            LOG_SUCCESS("\n\"%S\"", RCPath);
+
+            if (bQuietBuild) { Logging_Disable(); }
+
+            bAnyExported = true;
+        }
+        else if (bLicense || bLicenseBSD2 || bLicenseBSD3 || bLicenseMIT || bLicenseFuckYou || bLicenseUnlicense)
+        {
+            if (bQuietBuild) { Logging_Enable(); }
+
+            // TODO export multiple licenses with comma like this:
+            // export:license=MIT,BSD,Unlicense
+
+            u32 EqualsIndex = 0;
+            bool bHasEqual = String_IndexOfChar(*var, '=', &EqualsIndex);
+            String LicenseType = String_Null();
+            if (bHasEqual)
+            {
+                LicenseType = StrShiftF(*var, EqualsIndex+1);
             }
             else
             {
-                // no action required
+                if (!String_IsEqual(*var, S("license"), false)) // ignore this
+                {
+                    LicenseType = *var;
+                }
             }
-        }
-        
-        if (!bAnyExported)
-        {
-            LOG_INLINE("Nothing happened. No export logic was implemented for ");
 
-            u32 i = 0;
-            for each_str_i (i, var, Vars)
+            if (LicenseType.Length > 0)
             {
-                if (i == 0)
+                LOG("Generating %S license file ...", LicenseType);
+
+                Clock c;
+                Clock_Start(&c);
+
+                StringLocal(ExportPath, MAX_PATH_LENGTH);
+                String_BuildPath(&ExportPath, Params->RootDirectory, Params->IntermediateDirectory, S("__Exports"), S("Licenses"));
+
+                if (!Filesystem_OpenDirectory(ExportPath))
                 {
-                    LOG_INLINE("\"%S\"", *var);
+                    bSuccess = false;
+                    break;
                 }
-                else
+
+                StringLocal(FileName, 128);
+                String_Format(&FileName, S("LICENSE_%S"), LicenseType);
+                String_ToUpper(&FileName);
+
+                StringLocal(LicensePath, MAX_PATH_LENGTH);
+                String_BuildPath(&LicensePath, ExportPath, FileName);
+
+                if (!Export_License(LicenseType, Params, LicensePath))
                 {
-                    String Prefix = i == Vars.Num-1 ? S("or") : S(",");
-                    LOG_INLINE("%S \"%S\" ", Prefix, *var);
+                    LOG_ERROR("Failed to export \"%S\". Aborting...", LicensePath);
+
+                    bSuccess = false;
+                    break;
                 }
+
+                Clock_Tick(&c);
+
+                StringLocal(ExportTimeString, 32);
+                Clock_GetElapsedTime_ToString(&c, true, &ExportTimeString);
+                LOG("\nExport time: %S", ExportTimeString);
+
+                LOG_SUCCESS("\n\"%S\"", LicensePath);
+
+                bAnyExported = true;
+            }
+            else
+            {
+                bAnyExported = true; // to disable error message that is not meaningful
+
+                // log all valid license exports
+                const String LicenseTypes[5] =
+                {
+                    S("MIT"),
+                    S("BSD2"),
+                    S("BSD3"),
+                    S("FuckYou"),
+                    S("Unlicense"),
+                };
+
+                LOG("Here is a list of all supported license export types:");
+
+                for (u8 j = 0; j < SArray_Capacity(LicenseTypes); j++)
+                {
+                    LOG("  %i. %S", j+1, LicenseTypes[j]);
+                }
+
+
+                LOG_INLINE_WARNING("\nUsage");
+                LOG("\n     riftbuild export:license=MIT");
+                LOG("  or riftbuild export:license=MIT,BSD3,WhateverElse,YouWant (not yet implemented)");
             }
 
-            LOG_LINE_BREAK();
-
-            //TODO: list all export types
+            if (bQuietBuild) { Logging_Disable(); }
         }
+        else
+        {
+            // no action required
+        }
+    }
+    
+    if (!bAnyExported)
+    {
+        LOG_INLINE("Nothing happened. No export logic was implemented for ");
+
+        u32 i = 0;
+        for each_str_i (i, var, Vars)
+        {
+            if (i == 0)
+            {
+                LOG_INLINE("\"%S\"", *var);
+            }
+            else
+            {
+                String Prefix = i == Vars.Num-1 ? S("or") : S(",");
+                LOG_INLINE("%S \"%S\" ", Prefix, *var);
+            }
+        }
+
+        LOG_LINE_BREAK();
+
+        //TODO: list all export types
     }
 
     return bSuccess;
