@@ -518,8 +518,8 @@ STRUCT(StringList)
 
     #define DEPRECATED       __declspec(deprecated)
     #define UNUSED           
-    #define CONST_ATTRIB     
-    #define PURE_ATTRIB      
+    #define CONST_FN     
+    #define PURE_FN         
     #define NO_DISCARD       
     #define FALL_THROUGH     
     #define NO_RETURN        
