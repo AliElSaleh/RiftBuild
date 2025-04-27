@@ -157,6 +157,9 @@ STRUCT(BuildParams)
     String Libraries;
     String LibraryDirectories;
 
+    String CameFromBuildFile;
+
+    String IconFilePath;
     String IconResFilePath;
     String VersionResFilePath;
 
@@ -333,6 +336,8 @@ bool Export_IconRC(const String Path, const String IconFilePath);
 
 // LicenseType: BSD2, BSD3, MIT, FuckYou, Unlicense
 bool Export_License(const String LicenseType, const BuildParams* Params, const String Path);
+
+bool Export_FromArg(LinearAllocator Scratch, const BuildParams* Params, const String Arg, TArray(FileVariable) ExpandedVariablesDB);
 
 global LinearAllocator GMSVCFindAllocator;
 void* MSVC_Find_Allocate(usize Size);

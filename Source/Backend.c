@@ -926,16 +926,16 @@ bool C_Link(const BuildParams* Params)
 
     // generate a .def file if we are building a dll file (windows only)
     #if PLATFORM_WINDOWS
-    if (Params->DumpBinPath.Length > 0)
+    if (Platform_FindProgram(S("dumpbin")))
     {
         if (Params->Type == AssemblyType_Library ||
             Params->Type == AssemblyType_DynamicLibrary)
         {
             StringLocal(CmdLine, 8192);
-            String_AppendChar(&CmdLine, '"');
-            String_Append(&CmdLine, Params->DumpBinPath);
-            String_AppendChar(&CmdLine, '"');
-            String_Append(&CmdLine, S(" /EXPORTS /NOLOGO /OUT:\""));
+            //String_AppendChar(&CmdLine, '"');
+            //String_Append(&CmdLine, Params->DumpBinPath);
+            //String_AppendChar(&CmdLine, '"');
+            String_Append(&CmdLine, S("dumpbin /EXPORTS /NOLOGO /OUT:\""));
 
             StringLocal(BuildPath, 512);
             String_BuildPath(&BuildPath, Params->RootDirectory, Params->BuildDirectory);
@@ -950,7 +950,7 @@ bool C_Link(const BuildParams* Params)
             String_Append(&CmdLine, Params->Assembly);
             String_Append(&CmdLine, S(".dll\""));
 
-            PlatformHandle H = Platform_RunProcess(Params->DumpBinPath, CmdLine, Params->RootDirectory, String_Null());
+            PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
             if (!Platform_IsValidHandle(H)) { return false; }
             u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
             if (ExitCode != 0)
@@ -2053,13 +2053,13 @@ bool MSVC_Link(const BuildParams* Params)
     }
 
     // generate a .def file if we are building a dll file
-    if (bIsDLL)
+    if (bIsDLL && Platform_FindProgram(S("dumpbin")))
     {
         String_Empty(&CmdLine);
-        String_AppendChar(&CmdLine, '"');
-        String_Append(&CmdLine, Params->DumpBinPath);
-        String_AppendChar(&CmdLine, '"');
-        String_Append(&CmdLine, S(" /EXPORTS /NOLOGO /OUT:\""));
+        //String_AppendChar(&CmdLine, '"');
+        //String_Append(&CmdLine, Params->DumpBinPath);
+        //String_AppendChar(&CmdLine, '"');
+        String_Append(&CmdLine, S("dumpbin /EXPORTS /NOLOGO /OUT:\""));
 
         String_Append(&CmdLine, BuildPath);
         String_Append(&CmdLine, Params->Assembly);
@@ -2069,7 +2069,7 @@ bool MSVC_Link(const BuildParams* Params)
         String_Append(&CmdLine, Params->Assembly);
         String_Append(&CmdLine, S(".dll\""));
 
-        PlatformHandle H = Platform_RunProcess(Params->DumpBinPath, CmdLine, Params->RootDirectory, String_Null());
+        PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
         if (!Platform_IsValidHandle(H)) { return false; }
         u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
 
