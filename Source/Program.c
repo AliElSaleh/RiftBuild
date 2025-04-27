@@ -18,6 +18,12 @@
 #include "Libraries/Vendor/microsoft_craziness.h"
 #endif
 
+// TODO:
+// [ ] we should generate a license if specified in a build file
+//        License   BSD3
+// [ ] for IncludedSourceFiles we shouldnt have to specify the .c or .cpp extension. if the names match.
+//     will be a lot more convienent
+
 const usize GEngineMemoryAmount  = Kibibytes(128);
 const usize GEngineScratchAmount = Kibibytes(8);
 
@@ -1605,6 +1611,24 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String
 
         LOG_LINE_BREAK();
     }
+    // TODO: implement this
+    else if (String_EndsWith(Name, S(".Export"), false))
+    {
+        if (String_StartsWith(Name, S("PreDepend"), false) ||
+            String_StartsWith(Name, S("PreBuild"), false))
+        {
+            u32 Dot = 0;
+            (void)String_IndexOfChar(Name, '.', &Dot);
+            String Key = StrSlice(Name.Data, Dot);
+            LOG_WARNING("Cannot execute the \".Export\" command under the \"%S\" context", Key);
+            LOG("\".Export\" can only be executed under these contexts:");
+            LOG("\n    PreCompile\n    PostCompile\n    PreLink\n    PostLink\n    PostBuild");
+
+            return false;
+        }
+
+        //Export_FromArg();
+    }
     else
     {
         // no action required
@@ -2620,6 +2644,11 @@ static u32 BuildTarget(LinearAllocator* Arena,
     if (bFoundBuildFile && (BuildFilePathFull.Length == 0 || !bBuildFilePathSuccess))
     {
         LOG_FATAL("Operating system error: Failed to retrieve build file path from its handle. Aborting...");
+
+        LOG("   Something seriously went wrong here, before you proceed any further,");
+        LOG("   please submit this issue over to: https://github.com/AliElSaleh/RiftBuild/issues");
+
+        LOG("\n   Provide clear and detailed reproduction steps on how this issue had occured.");
         return 1;
     }
 
@@ -4426,6 +4455,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 LOG_ERROR("yo dis program \"%S\" don exist cuh. need to be installed and set in da path ma nigga", Trimmed);
                 #endif
 
+                // todo: try run the program with -v only if they do this: lua|>5.4
                 if (LogCustomErrorMessage(ExpandedVariablesDB, S("Program"), Trimmed, false))
                 {
                     LOG_LINE_BREAK();
@@ -7697,6 +7727,14 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments, const 
                     {
                         String_Append(&BuildFileName, S(".build"));
                     }
+                }
+
+                // change the working directory to match where this build file lives (if not already specified)
+                if (RootPathIndex == -1)
+                {
+                    u32 Slash = 0;
+                    (void)String_IndexOfLastPathSlash(BuildFilePath, &Slash);
+                    String_Copy(&WorkingDirectory, StrSlice(BuildFilePath.Data, Slash));
                 }
 
                 bBuildPathGivenInCmdLine = true;
