@@ -562,6 +562,70 @@ static Node* Parse_Block(LinearAllocator* Arena,
                     bool bInIf
                     );
 
+static Node* Parse_Include(LinearAllocator* Arena,
+                           TArray(Token) Tokens,
+                           u32 NumTokens,
+                           u32 Offset,
+                           u32* NumTokensParsed)
+{
+    Node* Root = LinearAllocator_Allocate(Arena, sizeof(Node));
+    Root->Type = Node_Include;
+
+    u32 Current = Offset;
+
+    Parser_Advance(&Current, NumTokens);
+
+    //Token NextToken = Parser_Peek(Tokens, Current);
+
+    //LOG_INLINE("[INCLUDE]      ");
+
+    StringList* ValueList = LinearAllocator_Allocate(Arena, sizeof(StringList));
+
+    bool bFoundTokens = false;
+    while (Parser_Peek(Tokens, Current).Type == Token_Text    ||
+           Parser_Peek(Tokens, Current).Type == Token_At      ||
+           Parser_Peek(Tokens, Current).Type == Token_Mod     ||
+           Parser_Peek(Tokens, Current).Type == Token_LParen  ||
+           Parser_Peek(Tokens, Current).Type == Token_RParen  ||
+           Parser_Peek(Tokens, Current).Type == Token_Dollar)
+    {
+        bFoundTokens = true;
+        //LOG_INLINE("%S", Parser_Peek(Tokens, Current).Lexeme);
+
+        String Lexeme = Parser_Peek(Tokens, Current).Lexeme;
+
+        StringList* Entry = LinearAllocator_Allocate(Arena, sizeof(StringList));
+        Entry->String = Lexeme;
+        Entry->Next = NULL;
+
+        StringList** Next = &ValueList;
+        while (*Next)
+        {
+            Next = &(*Next)->Next;
+        }
+
+        *Next = Entry;
+
+        Parser_Advance(&Current, NumTokens);
+    }
+
+    Root->Value = ValueList;
+
+    LOG_LINE_BREAK();
+
+    if (!bFoundTokens)
+    {
+        LOG_ERROR("[Parser] [Line %u]: '%S' was unexpected after 'include'. Expected a file path or expression.", Tokens[Offset].Line, Parser_Peek(Tokens, Current).Lexeme);
+        return &Node_Null;
+    }
+
+    if (NumTokensParsed)
+    {
+        *NumTokensParsed = Current - Offset;
+    }
+
+    return Root;
+}
 
 
 static Node* Parse_If(LinearAllocator* Arena,
@@ -579,8 +643,6 @@ static Node* Parse_If(LinearAllocator* Arena,
     u32 Current = Offset;
     u32 Start = 0;
     u32 NumTokens = (u32)Array_Num(Tokens);
-    //Token LastRootToken = Token_Null();
-    //bool bPreviouslyEvaluatedIfStatement = false;
     bool bInlineIf = false;
     ETokenType LastTokenType = Token_If;
     while (Current < NumTokens)
@@ -588,7 +650,15 @@ static Node* Parse_If(LinearAllocator* Arena,
         Start = Current;
         const Token t = Tokens[Current];
 
-        if (t.Type == Token_Newline || t.Type == Token_Semicolon)
+        if (t.Type == Token_Newline)
+        {
+            if (bInlineIf)
+            {
+                bInlineIf = false;
+                break;
+            }
+        }
+        else if (t.Type == Token_Semicolon)
         {
         }
         else if (t.Type == Token_RCurly)
@@ -642,6 +712,12 @@ static Node* Parse_If(LinearAllocator* Arena,
                 Current += NumParsed;
 
                 Root->Right = BlockNode;
+
+                if (Parser_Match(Tokens, &Current, Token_Newline) ||
+                    Parser_Match(Tokens, &Current, Token_Semicolon))
+                {
+                    break;
+                }
             }
             else
             {
@@ -657,14 +733,11 @@ static Node* Parse_If(LinearAllocator* Arena,
         }
         else
         {
-            //Parser_Advance(&Current, NumTokens);
-
             Token NextToken = Parser_Peek(Tokens, Current);
             if (NextToken.Type == Token_None)
             {
                 break;
             }
-
 
             // evaluate if conditions
             if (NextToken.Type == Token_Text ||
@@ -706,6 +779,7 @@ static Node* Parse_If(LinearAllocator* Arena,
                     if (Comparison.Type == Token_If)
                     {
                         u32 NumParsed = 0;
+                        //Node* BlockNode = Parse_Block(Arena, WorkingDirectory, VariablesDB, ExpandedVariablesDB, CmdOptionsDB, Tokens, Current, &NumParsed, true);
                         Node* IfNode = Parse_If(Arena, WorkingDirectory, VariablesDB, ExpandedVariablesDB, CmdOptionsDB, Tokens, Current+1, &NumParsed);
                         if (IfNode == &Node_Null)
                         {
@@ -715,6 +789,8 @@ static Node* Parse_If(LinearAllocator* Arena,
                         Current += NumParsed+1;
 
                         Root->Left = IfNode;
+
+                        bInlineIf = true;
                     }
                     else
                     {
@@ -1093,8 +1169,13 @@ static Node* Parse_If(LinearAllocator* Arena,
 
                         (void)ConditionValuePtr;
 
-
-                        if (Parser_Peek(Tokens, Current).Type == Token_Text)
+                        // TODO: token assert
+                        if (Parser_Peek(Tokens, Current).Type == Token_Text ||
+                            Parser_Peek(Tokens, Current).Type == Token_Help ||
+                            Parser_Peek(Tokens, Current).Type == Token_Include ||
+                            Parser_Peek(Tokens, Current).Type == Token_Stop ||
+                            Parser_Peek(Tokens, Current).Type == Token_Abort ||
+                            Parser_Peek(Tokens, Current).Type == Token_Goto)
                         {
                             u32 NumParsed = 0;
                             Node* BlockNode = Parse_Block(Arena, WorkingDirectory, VariablesDB, ExpandedVariablesDB, CmdOptionsDB, Tokens, Current, &NumParsed, true);
@@ -1125,15 +1206,15 @@ static Node* Parse_If(LinearAllocator* Arena,
             {
                 if (NextToken.Lexeme.Length > 0)
                 {
-                    LOG_ERROR("[Parser] [Line %u]: Token '%S' (%S) was unexpected.", NextToken.Line, NextToken.Lexeme, ETokenType_ToString(NextToken.Type));
+                    LOG_ERROR("[Parser] [Line %u]: '%S' was unexpected after 'if'", NextToken.Line, NextToken.Lexeme);
                 }
                 else
                 {
-                    LOG_ERROR("[Parser] [Line %u]: Missing expression after 'if'.", NextToken.Line, NextToken.Lexeme, ETokenType_ToString(NextToken.Type));
+                    LOG_ERROR("[Parser] [Line %u]: Missing expression after 'if'", NextToken.Line);
                 }
                 
                 //LOG("There must be an expression after an \"if\". For example: if some_identifier");
-                break;
+                return &Node_Null;
             }
 
             //u32 PathA = Current;
@@ -1255,8 +1336,6 @@ static Node* Parse_Block(LinearAllocator* Arena,
                 LOG_ERROR("[Parser] [Line %u]: '}' is missing for '%S' block.", Parser_Peek(Tokens, Current-1).Line, ETokenTypeNoPrefix_ToString(PrevTokenType));
                 return &Node_Null;
             }
-
-            //Root->Left = BlockNode;
 
             NodeList* Entry = LinearAllocator_Allocate(Arena, sizeof(NodeList));
             Entry->Node = BlockNode;
@@ -1405,6 +1484,29 @@ static Node* Parse_Block(LinearAllocator* Arena,
         }
         else if (t.Type == Token_Include)
         {
+            u32 NumParsed = 0;
+            Node* IncludeNode = Parse_Include(Arena, Tokens, NumTokens, Current, &NumParsed);
+            if (IncludeNode == &Node_Null)
+            {
+                return &Node_Null;
+            }
+
+            Current += NumParsed;
+
+            NodeList* Entry = LinearAllocator_Allocate(Arena, sizeof(NodeList));
+            Entry->Node = IncludeNode;
+            Entry->Next = NULL;
+
+            NodeList** Next = &Root->List;
+            while (*Next)
+            {
+                Next = &(*Next)->Next;
+            }
+
+            *Next = Entry;
+
+
+            /*
             Parser_Advance(&Current, NumTokens);
 
             Token NextToken = Parser_Peek(Tokens, Current);
@@ -1412,7 +1514,7 @@ static Node* Parse_Block(LinearAllocator* Arena,
             LOG_INLINE("[INCLUDE]      ");
             bool bFoundTokens = false;
             while (!(Parser_Peek(Tokens, Current).Type == Token_Newline ||
-                    Parser_Peek(Tokens, Current).Type == Token_Semicolon))
+                     Parser_Peek(Tokens, Current).Type == Token_Semicolon))
             {
                 bFoundTokens = true;
                 LOG_INLINE("%S", Parser_Peek(Tokens, Current).Lexeme);
@@ -1426,6 +1528,7 @@ static Node* Parse_Block(LinearAllocator* Arena,
                 LOG_ERROR("[Parser] [Line %u]: Expected file path or expression after 'include'", NextToken.Line);
                 break;
             }
+            */
         }
         /*
             if <<prefix?>condition|...> <comparison_operator?> <test?|...>
@@ -1436,19 +1539,13 @@ static Node* Parse_Block(LinearAllocator* Arena,
         */
         else if (t.Type == Token_Else)
         {
-            break;
-            /*
-            Token PrevToken = Parser_Peek(Tokens, Current-1);
-            if (PrevToken.Type == Token_RCurly)
+            if (!bInIf)
             {
+                LOG_ERROR("[Parser] [Line %u]: Illegal 'else' without matching 'if'", t.Line);
+                return &Node_Null;
+            }
 
-            }
-            else
-            {
-                LOG_ERROR("[Parser] [Line %u]: '}' is missing before 'else'.", t.Line);
-                return 1;
-            }
-            */
+            break;
         }
         else if (t.Type == Token_If)
         {
@@ -1516,6 +1613,68 @@ static Node* Parse_Root(LinearAllocator* Arena,
 static void Print_BlockNode(NodeList* Root, u32 Level);
 static void Print_IfNode(Node* Root, u32 Level);
 
+static void Print_HelpNode(Node* Root, u32 Level)
+{
+    if (!Root)
+    {
+        return;
+    }
+
+    StringLocal(Spaces, 256);
+    for (u32 i = 0; i < Level; i++)
+    {
+        String_AppendChar(&Spaces, ' ');
+    }
+
+    LOG("%SHELP", Spaces);
+
+    if (Root->Value)
+    {
+        for each_str_list (*Root->Value)
+        {
+            if (!String_IsValid(It.String))
+            {
+                continue;
+            }
+
+            LOG_INLINE("%S", It.String);
+        }
+        LOG_LINE_BREAK();
+    }
+
+    LOG("%SEND HELP", Spaces);
+}
+
+static void Print_IncludeNode(Node* Root, u32 Level)
+{
+    if (!Root)
+    {
+        return;
+    }
+
+    StringLocal(Spaces, 256);
+    for (u32 i = 0; i < Level; i++)
+    {
+        String_AppendChar(&Spaces, ' ');
+    }
+
+    LOG_INLINE("%SINCLUDE ", Spaces);
+    
+    if (Root->Value)
+    {
+        for each_str_list (*Root->Value)
+        {
+            if (!String_IsValid(It.String))
+            {
+                continue;
+            }
+
+            LOG_INLINE("%S", It.String);
+        }
+        LOG_LINE_BREAK();
+    }
+}
+
 static void Print_BlockNode(NodeList* List, u32 Level)
 {
     if (!List)
@@ -1553,27 +1712,11 @@ static void Print_BlockNode(NodeList* List, u32 Level)
             }
             else if (Root->Type == Node_Help)
             {
-                LOG("%S HELP", Spaces);
-
-                if (Root->Value)
-                {
-                    for each_str_list (*Root->Value)
-                    {
-                        if (!String_IsValid(It.String))
-                        {
-                            continue;
-                        }
-
-                        LOG_INLINE("%S", It.String);
-                    }
-                    LOG_LINE_BREAK();
-                }
-
-                LOG("%S END HELP", Spaces);
+                Print_HelpNode(Root, Level+1);
             }
             else if (Root->Type == Node_Include)
             {
-                LOG("%S INCLUDE", Spaces);
+                Print_IncludeNode(Root, Level+1);
             }
             else if (Root->Type == Node_KeyValue)
             {
@@ -1594,7 +1737,6 @@ static void Print_BlockNode(NodeList* List, u32 Level)
                     {
                         LOG_INLINE("%S ", It.String);
                     }
-                    LOG_LINE_BREAK();
                     LOG_LINE_BREAK();
                 }
             }
@@ -1702,8 +1844,13 @@ bool ParseBuildFileV2(LinearAllocator* Arena,
         {
             Start = Current;
             
-            uchar Char = Text.Data[Current];
+            const uchar Char = Text.Data[Current];
             Lexer_Advance(&Current, Text.Length);
+
+            if (Char == '\n')
+            {
+                Line += 1;
+            }
 
             ETokenType LastTokenType = PeekLastTokenType(Tokens);
 
@@ -1844,15 +1991,20 @@ bool ParseBuildFileV2(LinearAllocator* Arena,
                     {
                         Lexer_AddToken(Tokens, Current, Start, Line, String_Null(), Token_Newline);
                     }
-
-                    Line += 1;
                 }
             }
             else
             {
-                while (IsValidCharForValueToken(Lexer_Peek(Text, Current), bInsideHelp))
+                uchar Peek = Lexer_Peek(Text, Current);
+                while (IsValidCharForValueToken(Peek, bInsideHelp))
                 {
+                    if (Peek == '\n')
+                    {
+                        Line += 1;
+                    }
+
                     (void)Lexer_Advance(&Current, Text.Length);
+                    Peek = Lexer_Peek(Text, Current);
                 }
 
                 u32 Diff = ClampMin(Current - Start, 1);
