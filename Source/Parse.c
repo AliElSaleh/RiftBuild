@@ -548,7 +548,8 @@ static Node* Parse_If(LinearAllocator* Arena,
                     TArray(CmdOption) CmdOptionsDB,
                     TArray(Token) Tokens,
                     u32 Offset,
-                    u32* NumTokensParsed);
+                    u32* NumTokensParsed,
+                    bool bCameFromInline);
 
 
 static Node* Parse_Block(LinearAllocator* Arena,
@@ -635,7 +636,8 @@ static Node* Parse_If(LinearAllocator* Arena,
                     TArray(CmdOption) CmdOptionsDB,
                     TArray(Token) Tokens,
                     u32 Offset,
-                    u32* NumTokensParsed)
+                    u32* NumTokensParsed,
+                    bool bCameFromInline)
 {
     Node* Root = LinearAllocator_Allocate(Arena, sizeof(Node));
     Root->Type = Node_If;
@@ -655,6 +657,11 @@ static Node* Parse_If(LinearAllocator* Arena,
             if (bInlineIf)
             {
                 bInlineIf = false;
+                break;
+            }
+
+            if (bCameFromInline)
+            {
                 break;
             }
         }
@@ -689,6 +696,11 @@ static Node* Parse_If(LinearAllocator* Arena,
             else
             {
                 Root->Right = BlockNode;
+            }
+
+            if (bCameFromInline)
+            {
+                break;
             }
         }
         else if (t.Type == Token_Else)
@@ -733,6 +745,12 @@ static Node* Parse_If(LinearAllocator* Arena,
         }
         else
         {
+            if (bInlineIf)
+            {
+                bInlineIf = false;
+                break;
+            }
+
             Token NextToken = Parser_Peek(Tokens, Current);
             if (NextToken.Type == Token_None)
             {
@@ -779,8 +797,7 @@ static Node* Parse_If(LinearAllocator* Arena,
                     if (Comparison.Type == Token_If)
                     {
                         u32 NumParsed = 0;
-                        //Node* BlockNode = Parse_Block(Arena, WorkingDirectory, VariablesDB, ExpandedVariablesDB, CmdOptionsDB, Tokens, Current, &NumParsed, true);
-                        Node* IfNode = Parse_If(Arena, WorkingDirectory, VariablesDB, ExpandedVariablesDB, CmdOptionsDB, Tokens, Current+1, &NumParsed);
+                        Node* IfNode = Parse_If(Arena, WorkingDirectory, VariablesDB, ExpandedVariablesDB, CmdOptionsDB, Tokens, Current+1, &NumParsed, true);
                         if (IfNode == &Node_Null)
                         {
                             return &Node_Null;
@@ -791,6 +808,7 @@ static Node* Parse_If(LinearAllocator* Arena,
                         Root->Left = IfNode;
 
                         bInlineIf = true;
+                        break;
                     }
                     else
                     {
@@ -1295,6 +1313,7 @@ static Node* Parse_Block(LinearAllocator* Arena,
     u32 NumTokens = (u32)Array_Num(Tokens);
     Token LastRootToken = Token_Null();
     bool bPreviouslyEvaluatedIfStatement = false;
+    bool bSkipRootTokenUpdate = false;
     while (Current < NumTokens)
     {
         Start = Current;
@@ -1320,7 +1339,11 @@ static Node* Parse_Block(LinearAllocator* Arena,
         {
             ETokenType PrevTokenType = LastRootToken.Type;
 
-            // TODO: must be an if or some text, a block cant be anonymous
+            if (PrevTokenType != Token_Text)
+            {
+                LOG_ERROR("[Parser] [Line %u]: Anonymous blocks are not allowed. Missing text before '{'.", t.Line);
+                return &Node_Null;
+            }
 
             u32 NumParsed = 0;
             Node* BlockNode = Parse_Block(Arena, WorkingDirectory, VariablesDB, ExpandedVariablesDB, CmdOptionsDB, Tokens, Current+1, &NumParsed, bPreviouslyEvaluatedIfStatement);
@@ -1348,7 +1371,6 @@ static Node* Parse_Block(LinearAllocator* Arena,
             }
 
             *Next = Entry;
-            break;
         }
         else if (t.Type == Token_RCurly)
         {
@@ -1415,6 +1437,7 @@ static Node* Parse_Block(LinearAllocator* Arena,
 
                 StringList* ValueList = LinearAllocator_Allocate(Arena, sizeof(StringList));
 
+                bool bFoundTokens = false;
                 // we are the value to that key, blast through to the end of line or semicolon (whichever is first)
                 while (!(Parser_Peek(Tokens, Current).Type == Token_Newline   ||
                          Parser_Peek(Tokens, Current).Type == Token_Semicolon ||
@@ -1422,6 +1445,8 @@ static Node* Parse_Block(LinearAllocator* Arena,
                          Parser_Peek(Tokens, Current).Type == Token_RCurly    ||
                          Parser_Peek(Tokens, Current).Type == Token_Else))
                 {
+                    bFoundTokens = true;
+
                     String Lexeme = Parser_Peek(Tokens, Current).Lexeme;
                     //LOG_INLINE("%S ", Lexeme);
 
@@ -1458,6 +1483,17 @@ static Node* Parse_Block(LinearAllocator* Arena,
                 }
 
                 *Next = Entry;
+
+                if (!bFoundTokens)
+                {
+                    LastRootToken = t;
+                }
+                else
+                {
+                    LastRootToken = Token_Null();
+                }
+                
+                bSkipRootTokenUpdate = true;
             }
             else
             {
@@ -1539,6 +1575,8 @@ static Node* Parse_Block(LinearAllocator* Arena,
         */
         else if (t.Type == Token_Else)
         {
+            bSkipRootTokenUpdate = true;
+
             if (!bInIf)
             {
                 LOG_ERROR("[Parser] [Line %u]: Illegal 'else' without matching 'if'", t.Line);
@@ -1549,8 +1587,10 @@ static Node* Parse_Block(LinearAllocator* Arena,
         }
         else if (t.Type == Token_If)
         {
+            bSkipRootTokenUpdate = true;
+
             u32 NumParsed = 0;
-            Node* IfNode = Parse_If(Arena, WorkingDirectory, VariablesDB, ExpandedVariablesDB, CmdOptionsDB, Tokens, Current+1, &NumParsed);
+            Node* IfNode = Parse_If(Arena, WorkingDirectory, VariablesDB, ExpandedVariablesDB, CmdOptionsDB, Tokens, Current+1, &NumParsed, false);
             if (IfNode == &Node_Null)
             {
                 return &Node_Null;
@@ -1586,10 +1626,15 @@ static Node* Parse_Block(LinearAllocator* Arena,
             bPreviouslyEvaluatedIfStatement = bJustEvaluatedIfStatement;
         }
 
-        if (t.Type != Token_Newline && t.Type != Token_Semicolon)
+        if (!bSkipRootTokenUpdate)
         {
-            LastRootToken = t;
+            if (t.Type != Token_Newline && t.Type != Token_Semicolon)
+            {
+                LastRootToken = t;
+            }
         }
+
+        bSkipRootTokenUpdate = false;
     }
 
     if (NumTokensParsed)
