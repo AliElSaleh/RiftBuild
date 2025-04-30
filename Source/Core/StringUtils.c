@@ -2441,6 +2441,14 @@ bool StringList_Iterate_Check(StringList InList)
     return bValid;
 }
 
+StringList* StringList_Create(LinearAllocator* Arena, String Value, StringList* Next)
+{
+    StringList* List = LinearAllocator_Allocate(Arena, sizeof(StringList));
+    List->String     = Value;
+    List->Next       = Next;
+    return List;
+}
+
 StringList StringList_Iterate_Next(StringList InList)
 {
     StringList Next = {0};
@@ -2682,7 +2690,7 @@ String StringList_GetStringFromIndex(StringList List, u32 Index)
     return Result;
 }
 
-u32 String_GetLength(const char *Str)
+u32 String_GetLength(const char* Str)
 {
     register u32 Len = 0;
     while (Str[Len])

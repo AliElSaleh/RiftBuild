@@ -163,8 +163,9 @@ RIFT_API void String_StripAlphabet(const String Str, String* OutStr);
 RIFT_API NO_DISCARD String* StringArray_Iterate_Next(StringArray* InArray);
 RIFT_API NO_DISCARD String* StringArray_Iterate_Begin(StringArray* InArray);
 
-RIFT_API NO_DISCARD StringList StringList_Iterate_Next(StringList InList);
-RIFT_API NO_DISCARD bool       StringList_Iterate_Check(StringList InList);
+RIFT_API NO_DISCARD StringList* StringList_Create(LinearAllocator* Arena, String Value, StringList* Next);
+RIFT_API NO_DISCARD StringList  StringList_Iterate_Next(StringList InList);
+RIFT_API NO_DISCARD bool        StringList_Iterate_Check(StringList InList);
 
 RIFT_API NO_DISCARD bool StringArray_Contains(const StringArray InArray, const String SubString, bool bCaseSensitive);
 
