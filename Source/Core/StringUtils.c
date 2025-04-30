@@ -2766,10 +2766,14 @@ bool IsNewline(u8 Char)
 
 bool IsSymbol(u8 Char)
 {
-    return Char == '(' || Char == ')' || Char == '{' || Char == '}' ||
-           Char == '!' || Char == '@' || Char == '#' || Char == '$' ||
-           Char == '%' || Char == '^' || Char == '&' || Char == '*' ||
-           Char == '+' || Char == '=' || Char == '/' || Char == '\\';
+    return Char == '(' || Char == ')' || Char == '{' || Char == '}'  ||
+           Char == '!' || Char == '@' || Char == '#' || Char == '$'  ||
+           Char == '%' || Char == '^' || Char == '&' || Char == '*'  ||
+           Char == '+' || Char == '=' || Char == '/' || Char == '\\' ||
+           Char == '[' || Char == ']' || Char == '?' || Char == ':'  ||
+           Char == ';' || Char == '<' || Char == '>' || Char == '\'' ||
+           Char == '"' || Char == '|' || Char == ',' || Char == '`'  ||
+           Char == '~';
 }
 
 u8 ToUpper(u8 Char)

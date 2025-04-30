@@ -49,7 +49,9 @@ ENUM(ETokenType)
     Token_RCurly,
     Token_LSquare,
     Token_RSquare,
-    Token_Star,
+    Token_FSlash,
+    Token_BSlash,
+    //Token_Star,
     Token_Caret,
     Token_Mod,
     Token_Pipe,
@@ -86,6 +88,7 @@ ENUM(ETokenType)
     Token_Stop,
     Token_Abort,
     Token_Help,
+    Token_ErrorMessage,
 
     Token_Newline,
 
@@ -121,7 +124,9 @@ static String TokenTypeEnumStringTable_NoPrefix[Token_Max] =
     SC("RCurly"),
     SC("LSquare"),
     SC("RSquare"),
-    SC("Star"),
+    SC("FSlash"),
+    SC("BSlash"),
+    //SC("Star"),
     SC("Caret"),
     SC("Mod"),
     SC("Pipe"),
@@ -158,6 +163,7 @@ static String TokenTypeEnumStringTable_NoPrefix[Token_Max] =
     SC("Stop"),
     SC("Abort"),
     SC("Help"),
+    SC("ErrorMessage"),
 
     SC("Newline"),
 };
@@ -173,7 +179,9 @@ static String TokenTypeEnumStringTable[Token_Max] =
     SC("Token_RCurly"),
     SC("Token_LSquare"),
     SC("Token_RSquare"),
-    SC("Token_Star"),
+    SC("Token_FSlash"),
+    SC("Token_BSlash"),
+    //SC("Token_Star"),
     SC("Token_Caret"),
     SC("Token_Mod"),
     SC("Token_Pipe"),
@@ -210,6 +218,7 @@ static String TokenTypeEnumStringTable[Token_Max] =
     SC("Token_Stop"),
     SC("Token_Abort"),
     SC("Token_Help"),
+    SC("Token_ErrorMessage"),
 
     SC("Token_Newline"),
 };
@@ -307,6 +316,11 @@ static KeywordTableEntry ReservedKeywordsTable[14] =
     { .Type = Token_Stop,        .Name = SC(".stop")       },
     { .Type = Token_Abort,       .Name = SC(".abort")      },
     { .Type = Token_Help,        .Name = SC(".help")       },
+};
+
+static KeywordTableEntry ReservedEndingKeywordsTable[1] =
+{
+    { .Type = Token_ErrorMessage, .Name = SC(".ErrorMessage")},
 };
 
 static String ReservedKeys[] =
@@ -466,7 +480,7 @@ static void Lexer_AddToken(TArray(Token) Tokens, u32 Current, u32 Start, u32 Lin
     Array_Add(Tokens, NewToken);
 }
 
-static bool IsValidCharForValueToken(uchar Char, bool bAllowWhitespace)
+static bool IsValidTextToken(uchar Char, bool bAllowWhitespace)
 {
     bool bSymbols = Char == '%' || Char == '$' || Char == '@' || Char == '!' || Char == '(' || Char == ')' || Char == '|' || Char == '{' || Char == '}';
     bool bWhitespaceValid = (bAllowWhitespace || !bAllowWhitespace && !IsWhitespace(Char));
@@ -614,6 +628,8 @@ static Node* Parse_Include(LinearAllocator* Arena,
            Parser_Peek(Tokens, Current).Type == Token_Mod     ||
            Parser_Peek(Tokens, Current).Type == Token_LParen  ||
            Parser_Peek(Tokens, Current).Type == Token_RParen  ||
+           Parser_Peek(Tokens, Current).Type == Token_FSlash  ||
+           Parser_Peek(Tokens, Current).Type == Token_BSlash  ||
            Parser_Peek(Tokens, Current).Type == Token_Dollar)
     {
         bFoundTokens = true;
@@ -663,6 +679,20 @@ static Node* Parse_If(LinearAllocator* Arena,
         Start = Current;
         const Token t = Tokens[Current];
 
+        if (Root->Left && !Root->Right) // we have an 'if' but no 'else' yet...
+        {
+            // stop if we see something other than 'else'
+            if (t.Type != Token_Newline &&
+                t.Type != Token_Semicolon &&
+                t.Type != Token_LCurly &&
+                t.Type != Token_RCurly &&
+                t.Type != Token_Else
+                )
+            {
+                break;
+            }
+        }
+
         if (t.Type == Token_Newline)
         {
             if (bInlineIf)
@@ -709,10 +739,10 @@ static Node* Parse_If(LinearAllocator* Arena,
                 Root->Right = BlockNode;
             }
 
-            if (bCameFromInline)
-            {
-                break;
-            }
+            //if (bCameFromInline)
+            //{
+                //break;
+            //}
         }
         else if (t.Type == Token_Else)
         {
@@ -744,7 +774,6 @@ static Node* Parse_If(LinearAllocator* Arena,
             }
             else
             {
-
             }
 
             bInlineIf = false;
@@ -1071,7 +1100,7 @@ static Node* Parse_Block(LinearAllocator* Arena,
 
             if (PrevTokenType != Token_Text)
             {
-                LOG_ERROR("[Parser] [Line %u]: Anonymous blocks are not allowed. Missing text before '{'.", t.Line);
+                LOG_ERROR("[Parser] [Line %u]: Anonymous blocks are not allowed. Missing <key> before '{'.", t.Line);
                 return &Node_Null;
             }
 
@@ -1110,11 +1139,25 @@ static Node* Parse_Block(LinearAllocator* Arena,
 
             SLL_Push(NextNode, List);
         }
-        else if (t.Type == Token_Text ||
-                 t.Type == Token_Not ||
-                 t.Type == Token_At ||
-                 t.Type == Token_Mod ||
-                 t.Type == Token_Dollar)
+        else if (t.Type == Token_ErrorMessage)
+        {
+            LOG("TODO: handle .ErrorMessage");
+
+            // this is an error
+            if (String_IsEqual(t.Lexeme, S(".ErrorMessage"), false))
+            {
+                LOG_ERROR("[Parser] [Line %u]: '%S' must be paired with a key.", t.Line, t.Lexeme);
+                
+                String Spaces = S("     ");
+                LOG_INLINE_WARNING("\n%SExample of valid syntax\n\n", Spaces);
+                LOG("%S      Arg.something.ErrorMessage this is some error message", Spaces);
+                LOG_INLINE_WARNING("%S   or\n", Spaces);
+                LOG("%S      Arg.something.ErrorMessage {\n%S         this is some error message\n%S      }", Spaces, Spaces, Spaces);
+                return &Node_Null;
+            }
+
+        }
+        else if (t.Type == Token_Text)
         {
             ETokenType Prev = Parser_LookBack(Tokens, Current).Type;
             if (Prev == Token_None ||
@@ -1134,6 +1177,12 @@ static Node* Parse_Block(LinearAllocator* Arena,
                     {
                         bIsSpecial = true;
                     }
+                }
+
+                if (!IsAlphabet(t.Lexeme.Data[0]))
+                {
+                    LOG_ERROR("[Parser] [Line %u]: Key '%S' can only start with an alphabet character. Please remove '%c'", t.Line, t.Lexeme, t.Lexeme.Data[0]);
+                    return &Node_Null;
                 }
 
                 StringList* ValueList = LinearAllocator_Allocate(Arena, sizeof(StringList));
@@ -1225,6 +1274,11 @@ static Node* Parse_Block(LinearAllocator* Arena,
             SLL_Push(NextNode, List);
 
             bJustEvaluatedIfStatement = true;
+        }
+        else
+        {
+            LOG_ERROR("[Parser] [Line %u]: Keys can not start with '%S'. Please delete.", t.Line, t.Lexeme);
+            return &Node_Null;
         }
 
         // only advance when nothing happened
@@ -1490,7 +1544,7 @@ bool ParseBuildFileV2(LinearAllocator* Arena,
         u32 Start = 0;
         u32 Current = 0;
         u32 Line = 1;
-        bool bInsideHelp = false;
+        bool bAllowWhitespace = false;
         ArrayLocal_Arena(Token, Tokens, 1024, Arena);
         while (Current < Text.Length)
         {
@@ -1510,7 +1564,9 @@ bool ParseBuildFileV2(LinearAllocator* Arena,
             else if (Char == ')') { Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_RParen);       }
             else if (Char == '[') { Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_LSquare);      }
             else if (Char == ']') { Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_RSquare);      }
-            else if (Char == '*') { Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_Star);         }
+            else if (Char == '/') { Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_FSlash);      }
+            else if (Char == '\\') { Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_BSlash);      }
+            //else if (Char == '*') { Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_Star);         }
             else if (Char == '^') { Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_Caret);        }
             else if (Char == ';') { Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_Semicolon);    }
             else if (Char == '$') { Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_Dollar);       }
@@ -1519,18 +1575,18 @@ bool ParseBuildFileV2(LinearAllocator* Arena,
             else if (Char == '%') { Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_Mod);          }
             else if (Char == '{')
             {
-                if (LastTokenType == Token_Help)
+                if (LastTokenType == Token_Help || LastTokenType == Token_ErrorMessage)
                 {
-                    bInsideHelp = true;
+                    bAllowWhitespace = true;
                 }
 
                 Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_LCurly);
             }
             else if (Char == '}')
             {
-                if (bInsideHelp)
+                if (bAllowWhitespace)
                 {
-                    bInsideHelp = false;
+                    bAllowWhitespace = false;
                 }
 
                 Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_RCurly);
@@ -1633,7 +1689,7 @@ bool ParseBuildFileV2(LinearAllocator* Arena,
                     Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_Text);
                 }
             }
-            else if ((!bInsideHelp && IsWhitespace(Char)) || IsNewline(Char) || Char == '\0')
+            else if ((!bAllowWhitespace && IsWhitespace(Char)) || IsNewline(Char) || Char == '\0')
             {
                 if (Char == '\n')
                 {
@@ -1645,10 +1701,10 @@ bool ParseBuildFileV2(LinearAllocator* Arena,
                     }
                 }
             }
-            else
+            else //if (IsValidTextToken(Char, bInsideHelp))
             {
                 uchar Peek = Lexer_Peek(Text, Current);
-                while (IsValidCharForValueToken(Peek, bInsideHelp))
+                while (IsValidTextToken(Peek, bAllowWhitespace))
                 {
                     if (Peek == '\n')
                     {
@@ -1673,11 +1729,26 @@ bool ParseBuildFileV2(LinearAllocator* Arena,
                     }
                 }
 
+                for (u8 j = 0; j < SArray_Capacity(ReservedEndingKeywordsTable); j++)
+                {
+                    if (String_EndsWith(Lexeme, ReservedEndingKeywordsTable[j].Name, false))
+                    {
+                        FinalType = ReservedEndingKeywordsTable[j].Type;
+                        break;
+                    }
+                }
+
                 Lexer_AddToken(Tokens, Current, Start, Line, Text, FinalType);
             }
+            /*
+            else
+            {
+                LOG_ERROR("[Lexer] [Line %u]: Unexpected character '%c'", Line, Char);
+                return false;
+            }
+            */
         }
 
-        /*
         for each (Token, t, Tokens)
         {
             if (t.Lexeme.Length > 0)
@@ -1690,10 +1761,9 @@ bool ParseBuildFileV2(LinearAllocator* Arena,
             }
         }
         LOG("Num Tokens: %u", Array_Num(Tokens));
-        */
 
         Node* AST = Parse_Root(Arena, WorkingDirectory, VariablesDB, ExpandedVariablesDB, CmdOptionsDB, Tokens);
-        if (AST == &Node_Null)
+        if (!AST || AST == &Node_Null)
         {
             return false;
         }
