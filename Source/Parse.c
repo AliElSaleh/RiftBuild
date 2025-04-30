@@ -51,6 +51,7 @@ ENUM(ETokenType)
     Token_RSquare,
     Token_FSlash,
     Token_BSlash,
+    Token_Quote,
     //Token_Star,
     Token_Caret,
     Token_Mod,
@@ -126,6 +127,7 @@ static String TokenTypeEnumStringTable_NoPrefix[Token_Max] =
     SC("RSquare"),
     SC("FSlash"),
     SC("BSlash"),
+    SC("Quote"),
     //SC("Star"),
     SC("Caret"),
     SC("Mod"),
@@ -181,6 +183,7 @@ static String TokenTypeEnumStringTable[Token_Max] =
     SC("Token_RSquare"),
     SC("Token_FSlash"),
     SC("Token_BSlash"),
+    SC("Token_Quote"),
     //SC("Token_Star"),
     SC("Token_Caret"),
     SC("Token_Mod"),
@@ -229,9 +232,11 @@ ENUM_TYPED(ENodeType, u32)
     Node_Block,
     Node_If,
     Node_Help,
+    Node_ErrorMessage,
     Node_Include,
     Node_Assert,
     Node_KeyValue,
+    Node_LogMessage,
 };
 
 STRUCT(NodeList)
@@ -482,9 +487,14 @@ static void Lexer_AddToken(TArray(Token) Tokens, u32 Current, u32 Start, u32 Lin
 
 static bool IsValidTextToken(uchar Char, bool bAllowWhitespace)
 {
-    bool bSymbols = Char == '%' || Char == '$' || Char == '@' || Char == '!' || Char == '(' || Char == ')' || Char == '|' || Char == '{' || Char == '}';
+    bool bSymbols = Char == '%' || Char == '$'  || Char == '@'  || Char == '!'  ||
+                    Char == '(' || Char == ')'  || /*Char == '|'  ||*/ Char == '{'  ||
+                    Char == '}' || Char == '['  || Char == ']'  || Char == '\'' ||
+                    Char == '"' || /*Char == '/'  || Char == '\\' || */Char == '^'  ||
+                    Char == ';';
+
     bool bWhitespaceValid = (bAllowWhitespace || !bAllowWhitespace && !IsWhitespace(Char));
-    bool bValid = bWhitespaceValid && !bSymbols;
+    bool bValid = bWhitespaceValid && !bSymbols && Char != 0;
 
     return bValid;
 }
@@ -513,37 +523,62 @@ ENUM(ELexerState)
             *(List) = Entry; \
             List = &(*List)->Next
 
-static Node* Parse_Special_Help(LinearAllocator* Arena, u32* Current, u32 NumTokens, TArray(Token) Tokens)
+static Node* Parse_Special_LogMessage(LinearAllocator* Arena, u32* Current, u32 NumTokens, TArray(Token) Tokens)
 {
-    Node* Root = Node_Create(Arena, Node_Help);
-
-    //u32 Start = *Current;
-
-    //LOG("[KEY]          %S", Tokens[Start].Lexeme);
+    Node* Root = Node_Create(Arena, Node_LogMessage);
 
     Parser_Advance(Current, NumTokens);
-
-    //LOG_INLINE("[VALUE]       ");
 
     StringList* ValueList = LinearAllocator_Allocate(Arena, sizeof(StringList));
     StringList** Next = &ValueList;
 
+    while (Parser_Peek(Tokens, *Current).Type != Token_Quote)
+    {
+        Token Peek = Parser_Peek(Tokens, *Current);
+        if (Peek.Type == Token_BSlash)
+        {
+            Parser_Advance(Current, NumTokens);
+            Peek = Parser_Peek(Tokens, *Current);
+        }
+
+        String Lexeme = Peek.Lexeme;
+        if (Peek.Type == Token_Newline)
+        {
+            Lexeme = S("\n");
+        }
+        
+        SLL_Push(Next, StringList_Create(Arena, Lexeme, NULL));
+
+        Parser_Advance(Current, NumTokens);
+    }
+
+    Parser_Advance(Current, NumTokens);
+
+    Root->Value = ValueList;
+
+    return Root;
+}
+
+static Node* Parse_Special_ErrorMessage(LinearAllocator* Arena, u32* Current, u32 NumTokens, TArray(Token) Tokens)
+{
+    Node* Root = Node_Create(Arena, Node_ErrorMessage);
+
+    Parser_Advance(Current, NumTokens);
+
+    StringList* ValueList = LinearAllocator_Allocate(Arena, sizeof(StringList));
+    StringList** Next = &ValueList;
+
+    // TODO: support '[' and ']'
+    // TODO: support escaping '{', '}' and '[', ']'
     if (Parser_Match(Tokens, Current, Token_LCurly))
     {
         while (Parser_Peek(Tokens, *Current).Type != Token_RCurly)
         {
             String Lexeme = Parser_Peek(Tokens, *Current).Lexeme;
-
-            /*
-            StringList* Entry = LinearAllocator_Allocate(Arena, sizeof(StringList));
-            Entry->String = Lexeme;
-            Entry->Next = NULL;
-
-            *Next = Entry;
-            Next = &(*Next)->Next;
-
-            SLL_Push(*Next, Entry);
-            */
+            if (Parser_Peek(Tokens, *Current).Type == Token_Newline)
+            {
+                Lexeme = S("\n");
+            }
 
             SLL_Push(Next, StringList_Create(Arena, Lexeme, NULL));
 
@@ -551,33 +586,62 @@ static Node* Parse_Special_Help(LinearAllocator* Arena, u32* Current, u32 NumTok
         }
 
         Parser_Advance(Current, NumTokens);
-
-        //LOG_LINE_BREAK();
     }
     else
     {
         while (!(Parser_Peek(Tokens, *Current).Type == Token_Newline   ||
                 Parser_Peek(Tokens, *Current).Type == Token_Semicolon))
         {
-            //LOG_INLINE("%S ", Parser_Peek(Tokens, *Current).Lexeme);
-
             String Lexeme = Parser_Peek(Tokens, *Current).Lexeme;
+            SLL_Push(Next, StringList_Create(Arena, Lexeme, NULL));
 
-            /*
-            StringList* Entry = LinearAllocator_Allocate(Arena, sizeof(StringList));
-            Entry->String = Lexeme;
-            Entry->Next = NULL;
+            Parser_Advance(Current, NumTokens);
+        }
+    }
 
-            *Next = Entry;
-            Next = &(*Next)->Next;
-            */
+    Root->Value = ValueList;
+
+    return Root;
+}
+
+static Node* Parse_Special_Help(LinearAllocator* Arena, u32* Current, u32 NumTokens, TArray(Token) Tokens)
+{
+    Node* Root = Node_Create(Arena, Node_Help);
+
+    Parser_Advance(Current, NumTokens);
+
+    StringList* ValueList = LinearAllocator_Allocate(Arena, sizeof(StringList));
+    StringList** Next = &ValueList;
+
+    // TODO: support '[' and ']'
+    // TODO: support escaping '{', '}' and '[', ']'
+    if (Parser_Match(Tokens, Current, Token_LCurly))
+    {
+        while (Parser_Peek(Tokens, *Current).Type != Token_RCurly)
+        {
+            String Lexeme = Parser_Peek(Tokens, *Current).Lexeme;
+            if (Parser_Peek(Tokens, *Current).Type == Token_Newline)
+            {
+                Lexeme = S("\n");
+            }
 
             SLL_Push(Next, StringList_Create(Arena, Lexeme, NULL));
 
             Parser_Advance(Current, NumTokens);
         }
 
-        //LOG_LINE_BREAK();
+        Parser_Advance(Current, NumTokens);
+    }
+    else
+    {
+        while (!(Parser_Peek(Tokens, *Current).Type == Token_Newline   ||
+                Parser_Peek(Tokens, *Current).Type == Token_Semicolon))
+        {
+            String Lexeme = Parser_Peek(Tokens, *Current).Lexeme;
+            SLL_Push(Next, StringList_Create(Arena, Lexeme, NULL));
+
+            Parser_Advance(Current, NumTokens);
+        }
     }
 
     Root->Value = ValueList;
@@ -628,8 +692,6 @@ static Node* Parse_Include(LinearAllocator* Arena,
            Parser_Peek(Tokens, Current).Type == Token_Mod     ||
            Parser_Peek(Tokens, Current).Type == Token_LParen  ||
            Parser_Peek(Tokens, Current).Type == Token_RParen  ||
-           Parser_Peek(Tokens, Current).Type == Token_FSlash  ||
-           Parser_Peek(Tokens, Current).Type == Token_BSlash  ||
            Parser_Peek(Tokens, Current).Type == Token_Dollar)
     {
         bFoundTokens = true;
@@ -785,6 +847,7 @@ static Node* Parse_If(LinearAllocator* Arena,
         }
         // evaluate if conditions
         else if (t.Type == Token_Text  ||
+                 t.Type == Token_ErrorMessage   ||
                  t.Type == Token_Not   ||
                  t.Type == Token_At    ||
                  t.Type == Token_Mod   ||
@@ -993,6 +1056,7 @@ static Node* Parse_If(LinearAllocator* Arena,
 
                     // TODO: token assert
                     if (Parser_Peek(Tokens, Current).Type == Token_Text ||
+                        Parser_Peek(Tokens, Current).Type == Token_ErrorMessage ||
                         Parser_Peek(Tokens, Current).Type == Token_Help ||
                         Parser_Peek(Tokens, Current).Type == Token_Include ||
                         Parser_Peek(Tokens, Current).Type == Token_Stop ||
@@ -1139,10 +1203,20 @@ static Node* Parse_Block(LinearAllocator* Arena,
 
             SLL_Push(NextNode, List);
         }
+        else if (t.Type == Token_Quote)
+        {
+            NodeList* List = NodeList_CreateNull(Arena);
+            Node* LogMsgNode = Parse_Special_LogMessage(Arena, &Current, NumTokens, Tokens);
+            List->Node = LogMsgNode;
+            if (LogMsgNode == &Node_Null)
+            {
+                return &Node_Null;
+            }
+
+            SLL_Push(NextNode, List);
+        }
         else if (t.Type == Token_ErrorMessage)
         {
-            LOG("TODO: handle .ErrorMessage");
-
             // this is an error
             if (String_IsEqual(t.Lexeme, S(".ErrorMessage"), false))
             {
@@ -1156,6 +1230,15 @@ static Node* Parse_Block(LinearAllocator* Arena,
                 return &Node_Null;
             }
 
+            NodeList* List = NodeList_CreateNull(Arena);
+            Node* ErrorMsgNode = Parse_Special_ErrorMessage(Arena, &Current, NumTokens, Tokens);
+            List->Node = ErrorMsgNode;
+            if (ErrorMsgNode == &Node_Null)
+            {
+                return &Node_Null;
+            }
+
+            SLL_Push(NextNode, List);
         }
         else if (t.Type == Token_Text)
         {
@@ -1185,24 +1268,46 @@ static Node* Parse_Block(LinearAllocator* Arena,
                     return &Node_Null;
                 }
 
+                // now we are the value to that key, blast through to the end of line or semicolon (whichever is first)
+
                 StringList* ValueList = LinearAllocator_Allocate(Arena, sizeof(StringList));
                 StringList** NextValue = &ValueList;
 
                 bool bFoundTokens = false;
-                // we are the value to that key, blast through to the end of line or semicolon (whichever is first)
-                while (!(Parser_Peek(Tokens, Current).Type == Token_Newline   ||
-                         Parser_Peek(Tokens, Current).Type == Token_Semicolon ||
-                         Parser_Peek(Tokens, Current).Type == Token_LCurly    ||
-                         Parser_Peek(Tokens, Current).Type == Token_RCurly    ||
-                         Parser_Peek(Tokens, Current).Type == Token_Else))
+
+                if (Parser_Match(Tokens, &Current, Token_LSquare))
                 {
-                    bFoundTokens = true;
+                    while (Parser_Peek(Tokens, Current).Type != Token_RSquare)
+                    {
+                        bFoundTokens = true;
 
-                    String Lexeme = Parser_Peek(Tokens, Current).Lexeme;
+                        String Lexeme = Parser_Peek(Tokens, Current).Lexeme;
+                        if (Parser_Peek(Tokens, Current).Type != Token_Newline)
+                        {
+                            SLL_Push(NextValue, StringList_Create(Arena, Lexeme, NULL));
+                        }
 
-                    SLL_Push(NextValue, StringList_Create(Arena, Lexeme, NULL));
+                        Parser_Advance(&Current, NumTokens);
+                    }
 
                     Parser_Advance(&Current, NumTokens);
+                }
+                else
+                {
+                    while (!(Parser_Peek(Tokens, Current).Type == Token_Newline   ||
+                            Parser_Peek(Tokens, Current).Type == Token_Semicolon ||
+                            Parser_Peek(Tokens, Current).Type == Token_LCurly    ||
+                            Parser_Peek(Tokens, Current).Type == Token_RCurly    ||
+                            Parser_Peek(Tokens, Current).Type == Token_None      ||
+                            Parser_Peek(Tokens, Current).Type == Token_Else))
+                    {
+                        bFoundTokens = true;
+
+                        String Lexeme = Parser_Peek(Tokens, Current).Lexeme;
+                        SLL_Push(NextValue, StringList_Create(Arena, Lexeme, NULL));
+
+                        Parser_Advance(&Current, NumTokens);
+                    }
                 }
 
                 NodeList* List = NodeList_CreateNull(Arena);
@@ -1386,6 +1491,70 @@ static void Print_IncludeNode(Node* Root, u32 Level)
     }
 }
 
+static void Print_LogNode(Node* Root, u32 Level)
+{
+    if (!Root)
+    {
+        return;
+    }
+
+    StringLocal(Spaces, 256);
+    for (u32 i = 0; i < Level; i++)
+    {
+        String_AppendChar(&Spaces, ' ');
+    }
+
+    LOG("%SLOG MESSAGE", Spaces);
+
+    if (Root->Value)
+    {
+        for each_str_list (*Root->Value)
+        {
+            if (!String_IsValid(It.String))
+            {
+                continue;
+            }
+
+            LOG_INLINE("%S", It.String);
+        }
+        LOG_LINE_BREAK();
+    }
+
+    LOG("%SEND LOG MESSAGE", Spaces);
+}
+
+static void Print_ErrorNode(Node* Root, u32 Level)
+{
+    if (!Root)
+    {
+        return;
+    }
+
+    StringLocal(Spaces, 256);
+    for (u32 i = 0; i < Level; i++)
+    {
+        String_AppendChar(&Spaces, ' ');
+    }
+
+    LOG("%SERROR MESSAGE", Spaces);
+
+    if (Root->Value)
+    {
+        for each_str_list (*Root->Value)
+        {
+            if (!String_IsValid(It.String))
+            {
+                continue;
+            }
+
+            LOG_INLINE("%S", It.String);
+        }
+        LOG_LINE_BREAK();
+    }
+
+    LOG("%SEND ERROR MESSAGE", Spaces);
+}
+
 static void Print_BlockNode(NodeList* List, u32 Level)
 {
     if (!List)
@@ -1428,6 +1597,14 @@ static void Print_BlockNode(NodeList* List, u32 Level)
             else if (Root->Type == Node_Include)
             {
                 Print_IncludeNode(Root, Level+1);
+            }
+            else if (Root->Type == Node_ErrorMessage)
+            {
+                Print_ErrorNode(Root, Level+1);
+            }
+            else if (Root->Type == Node_LogMessage)
+            {
+                Print_LogNode(Root, Level+1);
             }
             else if (Root->Type == Node_KeyValue)
             {
@@ -1545,12 +1722,13 @@ bool ParseBuildFileV2(LinearAllocator* Arena,
         u32 Current = 0;
         u32 Line = 1;
         bool bAllowWhitespace = false;
-        ArrayLocal_Arena(Token, Tokens, 1024, Arena);
+        ArrayLocal_Arena(Token, Tokens, 2048, Arena);
         while (Current < Text.Length)
         {
             Start = Current;
             
             const uchar Char = Text.Data[Current];
+            const uchar PrevChar = Text.Data[ClampMax((i32)Current-1, 0)];
             Lexer_Advance(&Current, Text.Length);
 
             if (Char == '\n')
@@ -1564,8 +1742,6 @@ bool ParseBuildFileV2(LinearAllocator* Arena,
             else if (Char == ')') { Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_RParen);       }
             else if (Char == '[') { Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_LSquare);      }
             else if (Char == ']') { Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_RSquare);      }
-            else if (Char == '/') { Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_FSlash);      }
-            else if (Char == '\\') { Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_BSlash);      }
             //else if (Char == '*') { Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_Star);         }
             else if (Char == '^') { Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_Caret);        }
             else if (Char == ';') { Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_Semicolon);    }
@@ -1573,6 +1749,24 @@ bool ParseBuildFileV2(LinearAllocator* Arena,
             else if (Char == '@') { Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_At);           }
             else if (Char == '|') { Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_Pipe);         }
             else if (Char == '%') { Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_Mod);          }
+            else if (Char == '\'')
+            {
+                if (PrevChar != '\\')
+                {
+                    bAllowWhitespace = !bAllowWhitespace;
+                }
+
+                Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_Quote);
+            }
+            else if (Char == '"')
+            {
+                if (PrevChar != '\\')
+                {
+                    bAllowWhitespace = !bAllowWhitespace;
+                }
+
+                Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_Quote);
+            }
             else if (Char == '{')
             {
                 if (LastTokenType == Token_Help || LastTokenType == Token_ErrorMessage)
@@ -1653,55 +1847,17 @@ bool ParseBuildFileV2(LinearAllocator* Arena,
                 ETokenType Type = Lexer_Match(&Current, Text, '=') ? Token_GreaterOrEqual : Token_GreaterThan;
                 Lexer_AddToken(Tokens, Current, Start, Line, Text, Type);
             }
-            else if (Char == '\'' || Char == '"')
-            {
-                const uchar Letter = Char;
-                uchar PeekLetter = Lexer_Peek(Text, Current);
-
-                while (PeekLetter != 0 && PeekLetter != Letter && PeekLetter != '\n')
-                {
-                    (void)Lexer_Advance(&Current, Text.Length);
-                    PeekLetter = Lexer_Peek(Text, Current);
-
-                    // handle quote strings within this string
-                    /*
-                    PeekLetter = Lexer_Peek(Text, Current);
-                    if (PeekLetter == '\\')
-                    {
-                        (void)Lexer_Advance(&Current, Text.Length);
-                        (void)Lexer_Match(&Current, Text, Letter);
-                        PeekLetter = Lexer_Peek(Text, Current);
-                    }
-                    */
-                }
-
-                // consume ending quote
-                (void)Lexer_Advance(&Current, Text.Length);
-
-                bool bError = PeekLetter == 0 || PeekLetter == '\n';
-
-                if (bError)
-                {
-                    LOG_ERROR("[Line %u]: Missing closing quote '%c'", Line, Char);
-                }
-                else
-                {
-                    Lexer_AddToken(Tokens, Current, Start, Line, Text, Token_Text);
-                }
-            }
             else if ((!bAllowWhitespace && IsWhitespace(Char)) || IsNewline(Char) || Char == '\0')
             {
                 if (Char == '\n')
                 {
-                    if (LastTokenType != Token_Newline)// && // prevent duplicates as we dont really care
-                        //LastTokenType != Token_LCurly &&
-                        //LastTokenType != Token_LSquare)
+                    if (bAllowWhitespace || LastTokenType != Token_Newline)// && // prevent duplicates as we dont really care
                     {
                         Lexer_AddToken(Tokens, Current, Start, Line, String_Null(), Token_Newline);
                     }
                 }
             }
-            else //if (IsValidTextToken(Char, bInsideHelp))
+            else
             {
                 uchar Peek = Lexer_Peek(Text, Current);
                 while (IsValidTextToken(Peek, bAllowWhitespace))
@@ -1740,13 +1896,6 @@ bool ParseBuildFileV2(LinearAllocator* Arena,
 
                 Lexer_AddToken(Tokens, Current, Start, Line, Text, FinalType);
             }
-            /*
-            else
-            {
-                LOG_ERROR("[Lexer] [Line %u]: Unexpected character '%c'", Line, Char);
-                return false;
-            }
-            */
         }
 
         for each (Token, t, Tokens)
