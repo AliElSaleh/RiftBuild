@@ -74,7 +74,7 @@
 #define LOG_CAT_SUCCESS(LogCategory, Text, ...)        LogMessage(LOG_TYPE_SUCCESS, S(LogCategory), S(Text), ##__VA_ARGS__)
 #define LOG_CAT_WARNING(LogCategory, Text, ...)        LogMessage(LOG_TYPE_WARNING, S(LogCategory), S(Text), ##__VA_ARGS__)
 #define LOG_CAT_ERROR(LogCategory, Text, ...)          LogMessage(LOG_TYPE_ERROR,   S(LogCategory), S(Text), ##__VA_ARGS__)
-#define LOG_CAT_FATAL(LogCategory, Text, ...)          LogMessage(LOG_TYPE_FATAL,   S(LogCategory), S(Text), ##__VA_ARGS__); _Crash_
+#define LOG_CAT_FATAL(LogCategory, Text, ...)          LogMessage(LOG_TYPE_FATAL,   S(LogCategory), S(Text), ##__VA_ARGS__)
 
 #define LOG(Text, ...)                                 LogMessage(LOG_TYPE_NONE,    S(__FILE_NAME__), S(Text), ##__VA_ARGS__)
 #define LOG_MUTE(Text, ...)                            LogMessage(LOG_TYPE_MUTE,    S(__FILE_NAME__), S(Text), ##__VA_ARGS__)
