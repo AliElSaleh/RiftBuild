@@ -488,12 +488,12 @@ static void Lexer_AddToken(TArray(Token) Tokens, u32 Current, u32 Start, u32 Lin
 static bool IsValidTextToken(uchar Char, bool bAllowWhitespace)
 {
     bool bSymbols = Char == '%' || Char == '$'  || Char == '@'  || Char == '!'  ||
-                    Char == '(' || Char == ')'  || /*Char == '|'  ||*/ Char == '{'  ||
+                    Char == '(' || Char == ')'  || Char == ':'  || Char == '{'  ||
                     Char == '}' || Char == '['  || Char == ']'  || Char == '\'' ||
-                    Char == '"' || /*Char == '/'  || Char == '\\' || */Char == '^'  ||
+                    Char == '"' || Char == '|'  ||/* Char == '\\' || */Char == '^'  ||
                     Char == ';';
 
-    bool bWhitespaceValid = (bAllowWhitespace || !bAllowWhitespace && !IsWhitespace(Char));
+    bool bWhitespaceValid = bAllowWhitespace || (!bAllowWhitespace && !IsWhitespace(Char));
     bool bValid = bWhitespaceValid && !bSymbols && Char != 0;
 
     return bValid;
@@ -529,7 +529,7 @@ static Node* Parse_Special_LogMessage(LinearAllocator* Arena, u32* Current, u32 
 
     Parser_Advance(Current, NumTokens);
 
-    StringList* ValueList = LinearAllocator_Allocate(Arena, sizeof(StringList));
+    StringList* ValueList = NULL;//LinearAllocator_Allocate(Arena, sizeof(StringList));
     StringList** Next = &ValueList;
 
     while (Parser_Peek(Tokens, *Current).Type != Token_Quote)
@@ -565,7 +565,7 @@ static Node* Parse_Special_ErrorMessage(LinearAllocator* Arena, u32* Current, u3
 
     Parser_Advance(Current, NumTokens);
 
-    StringList* ValueList = LinearAllocator_Allocate(Arena, sizeof(StringList));
+    StringList* ValueList = NULL;//LinearAllocator_Allocate(Arena, sizeof(StringList));
     StringList** Next = &ValueList;
 
     // TODO: support '[' and ']'
@@ -610,7 +610,7 @@ static Node* Parse_Special_Help(LinearAllocator* Arena, u32* Current, u32 NumTok
 
     Parser_Advance(Current, NumTokens);
 
-    StringList* ValueList = LinearAllocator_Allocate(Arena, sizeof(StringList));
+    StringList* ValueList = NULL;//LinearAllocator_Allocate(Arena, sizeof(StringList));
     StringList** Next = &ValueList;
 
     // TODO: support '[' and ']'
@@ -668,7 +668,8 @@ static Node* Parse_Block(LinearAllocator* Arena,
                     TArray(Token) Tokens,
                     u32 Offset,
                     u32* NumTokensParsed,
-                    bool bInIf
+                    bool bInIf,
+                    bool bAllowSymbolKeys
                     );
 
 static Node* Parse_Include(LinearAllocator* Arena,
@@ -683,7 +684,7 @@ static Node* Parse_Include(LinearAllocator* Arena,
 
     Parser_Advance(&Current, NumTokens);
 
-    StringList* ValueList = LinearAllocator_Allocate(Arena, sizeof(StringList));
+    StringList* ValueList = NULL;//LinearAllocator_Allocate(Arena, sizeof(StringList));
     StringList** Next = &ValueList;
 
     bool bFoundTokens = false;
@@ -730,6 +731,9 @@ static Node* Parse_If(LinearAllocator* Arena,
                     bool bCameFromInline)
 {
     Node* Root = Node_Create(Arena, Node_If);
+
+    StringList* ValueList = NULL;//LinearAllocator_Allocate(Arena, sizeof(struct StringList));
+    StringList** NextValue = &ValueList;
 
     u32 Current = Offset;
     u32 Start = 0;
@@ -778,7 +782,7 @@ static Node* Parse_If(LinearAllocator* Arena,
         else if (t.Type == Token_LCurly)
         {
             u32 NumParsed = 0;
-            Node* BlockNode = Parse_Block(Arena, WorkingDirectory, VariablesDB, ExpandedVariablesDB, CmdOptionsDB, Tokens, Current+1, &NumParsed, false);
+            Node* BlockNode = Parse_Block(Arena, WorkingDirectory, VariablesDB, ExpandedVariablesDB, CmdOptionsDB, Tokens, Current+1, &NumParsed, false, false);
             if (BlockNode == &Node_Null)
             {
                 return &Node_Null;
@@ -818,7 +822,7 @@ static Node* Parse_If(LinearAllocator* Arena,
                 //bool bHasCurly = Parser_Match(Tokens, &Current, Token_LCurly);
 
                 u32 NumParsed = 0;
-                Node* BlockNode = Parse_Block(Arena, WorkingDirectory, VariablesDB, ExpandedVariablesDB, CmdOptionsDB, Tokens, Current, &NumParsed, true);
+                Node* BlockNode = Parse_Block(Arena, WorkingDirectory, VariablesDB, ExpandedVariablesDB, CmdOptionsDB, Tokens, Current, &NumParsed, true, false);
                 if (BlockNode == &Node_Null)
                 {
                     return &Node_Null;
@@ -864,8 +868,7 @@ static Node* Parse_If(LinearAllocator* Arena,
                    NextToken.Type == Token_Not    ||
                    NextToken.Type == Token_At     ||
                    NextToken.Type == Token_Mod    ||
-                   NextToken.Type == Token_Dollar ||
-                   NextToken.Type == Token_Pipe)
+                   NextToken.Type == Token_Dollar)
             {
                 u8 Prefixes = 0;
 
@@ -886,7 +889,10 @@ static Node* Parse_If(LinearAllocator* Arena,
                 //const String Condition = Parser_Peek(Tokens, Current).Lexeme;
                 //LOG("%S", Condition);
 
-                Root->Key = &Tokens[Current].Lexeme;
+                //Root->Key = &Tokens[Current].Lexeme;
+
+                String Lexeme = Parser_Peek(Tokens, Current).Lexeme;
+                SLL_Push(NextValue, StringList_Create(Arena, Lexeme, NULL));
 
                 Parser_Advance(&Current, NumTokens);
 
@@ -1056,6 +1062,9 @@ static Node* Parse_If(LinearAllocator* Arena,
 
                     // TODO: token assert
                     if (Parser_Peek(Tokens, Current).Type == Token_Text ||
+                        Parser_Peek(Tokens, Current).Type == Token_At     ||
+                        Parser_Peek(Tokens, Current).Type == Token_Mod    ||
+                        Parser_Peek(Tokens, Current).Type == Token_Dollar ||
                         Parser_Peek(Tokens, Current).Type == Token_ErrorMessage ||
                         Parser_Peek(Tokens, Current).Type == Token_Help ||
                         Parser_Peek(Tokens, Current).Type == Token_Include ||
@@ -1063,8 +1072,12 @@ static Node* Parse_If(LinearAllocator* Arena,
                         Parser_Peek(Tokens, Current).Type == Token_Abort ||
                         Parser_Peek(Tokens, Current).Type == Token_Goto)
                     {
+                        bool bAllowSymbolKeys = Parser_Peek(Tokens, Current).Type == Token_At     ||
+                                                Parser_Peek(Tokens, Current).Type == Token_Mod    ||
+                                                Parser_Peek(Tokens, Current).Type == Token_Dollar;
+
                         u32 NumParsed = 0;
-                        Node* BlockNode = Parse_Block(Arena, WorkingDirectory, VariablesDB, ExpandedVariablesDB, CmdOptionsDB, Tokens, Current, &NumParsed, true);
+                        Node* BlockNode = Parse_Block(Arena, WorkingDirectory, VariablesDB, ExpandedVariablesDB, CmdOptionsDB, Tokens, Current, &NumParsed, true, bAllowSymbolKeys);
                         if (BlockNode == &Node_Null)
                         {
                             return &Node_Null;
@@ -1079,10 +1092,7 @@ static Node* Parse_If(LinearAllocator* Arena,
                         break;
                     }
 
-                    if (Parser_Peek(Tokens, Current).Type == Token_Pipe)
-                    {
-                        Parser_Advance(&Current, NumTokens);
-                    }
+                    (void)Parser_Match(Tokens, &Current, Token_Pipe);
                 }
 
                 NextToken = Parser_Peek(Tokens, Current);
@@ -1114,6 +1124,8 @@ static Node* Parse_If(LinearAllocator* Arena,
         *NumTokensParsed = Current - Offset;
     }
 
+    Root->Value = ValueList;
+
     return Root;
 }
 
@@ -1125,7 +1137,8 @@ static Node* Parse_Block(LinearAllocator* Arena,
                     TArray(Token) Tokens,
                     u32 Offset,
                     u32* NumTokensParsed,
-                    bool bInIf
+                    bool bInIf,
+                    bool bAllowSymbolKeys
                     )
 {
     Node* Root = Node_Create(Arena, Node_Block);
@@ -1170,7 +1183,7 @@ static Node* Parse_Block(LinearAllocator* Arena,
 
             u32 NumParsed = 0;
             NodeList* List = NodeList_CreateNull(Arena);
-            Node* BlockNode = Parse_Block(Arena, WorkingDirectory, VariablesDB, ExpandedVariablesDB, CmdOptionsDB, Tokens, Current+1, &NumParsed, bPreviouslyEvaluatedIfStatement);
+            Node* BlockNode = Parse_Block(Arena, WorkingDirectory, VariablesDB, ExpandedVariablesDB, CmdOptionsDB, Tokens, Current+1, &NumParsed, bPreviouslyEvaluatedIfStatement, false);
             List->Node = BlockNode;
             if (BlockNode == &Node_Null)
             {
@@ -1240,7 +1253,11 @@ static Node* Parse_Block(LinearAllocator* Arena,
 
             SLL_Push(NextNode, List);
         }
-        else if (t.Type == Token_Text)
+        else if (t.Type == Token_Text ||
+                (bAllowSymbolKeys &&
+                (t.Type == Token_At ||
+                t.Type == Token_Mod ||
+                t.Type == Token_Dollar)))
         {
             ETokenType Prev = Parser_LookBack(Tokens, Current).Type;
             if (Prev == Token_None ||
@@ -1262,57 +1279,207 @@ static Node* Parse_Block(LinearAllocator* Arena,
                     }
                 }
 
-                if (!IsAlphabet(t.Lexeme.Data[0]))
+                // this is for inline if on keys
+                if (bAllowSymbolKeys)
+                {
+                    while (Parser_Match(Tokens, &Current, Token_At)  ||
+                           Parser_Match(Tokens, &Current, Token_Mod) ||
+                           Parser_Match(Tokens, &Current, Token_Dollar))
+                    {
+                    }
+                }
+
+                if (!bAllowSymbolKeys && !IsAlphabet(t.Lexeme.Data[0]))
                 {
                     LOG_ERROR("[Parser] [Line %u]: Key '%S' can only start with an alphabet character. Please remove '%c'", t.Line, t.Lexeme, t.Lexeme.Data[0]);
                     return &Node_Null;
                 }
 
-                // now we are the value to that key, blast through to the end of line or semicolon (whichever is first)
-
-                StringList* ValueList = LinearAllocator_Allocate(Arena, sizeof(StringList));
-                StringList** NextValue = &ValueList;
-
                 bool bFoundTokens = false;
 
-                if (Parser_Match(Tokens, &Current, Token_LSquare))
-                {
-                    while (Parser_Peek(Tokens, Current).Type != Token_RSquare)
-                    {
-                        bFoundTokens = true;
+                NodeList* List = NodeList_CreateNull(Arena);
 
-                        String Lexeme = Parser_Peek(Tokens, Current).Lexeme;
-                        if (Parser_Peek(Tokens, Current).Type != Token_Newline)
+                // we are filtering this key. aka if statement
+                Node* FilterNode = &Node_Null;
+                Node* LastIfNode = &Node_Null;
+                //Node* InlineIfNode = &Node_Null;
+                if (Parser_Match(Tokens, &Current, Token_Colon))
+                {
+                    while (Parser_Peek(Tokens, Current).Type == Token_Text   ||
+                           Parser_Peek(Tokens, Current).Type == Token_Not    ||
+                           Parser_Peek(Tokens, Current).Type == Token_At     ||
+                           Parser_Peek(Tokens, Current).Type == Token_Mod    ||
+                           Parser_Peek(Tokens, Current).Type == Token_Dollar)
+                    {
+                        u8 Prefixes = 0;
+                        while (Parser_Match(Tokens, &Current, Token_Not)    ||
+                               Parser_Match(Tokens, &Current, Token_Dollar) ||
+                               Parser_Match(Tokens, &Current, Token_Mod)    ||
+                               Parser_Match(Tokens, &Current, Token_At))
                         {
+                            ETokenType Peek = Parser_Peek(Tokens, Current-1).Type;
+                            
+                            if      (Peek == Token_Not)    { Prefixes |= BIT(1); }
+                            else if (Peek == Token_Dollar) { Prefixes |= BIT(2); }
+                            else if (Peek == Token_Mod)    { Prefixes |= BIT(3); }
+                            else if (Peek == Token_At)     { Prefixes |= BIT(4); }
+                            else    {}
+                        }
+
+                        Node* IfNode = Node_Create(Arena, Node_If);
+                        StringList* ValueList = NULL;//LinearAllocator_Allocate(Arena, sizeof(StringList));
+                        StringList** NextValue = &ValueList;
+
+                        while (Parser_Match(Tokens, &Current, Token_Text))
+                        {
+                            String Lexeme = Parser_Peek(Tokens, Current-1).Lexeme;
                             SLL_Push(NextValue, StringList_Create(Arena, Lexeme, NULL));
+
+                            if (!Parser_Match(Tokens, &Current, Token_Pipe))
+                            {
+                                break;
+                            }
+                        }
+
+                        IfNode->Value = ValueList;
+
+                        if (FilterNode == &Node_Null)
+                        {
+                            FilterNode = IfNode;
+                        }
+
+                        if (LastIfNode != &Node_Null)
+                        {
+                            LastIfNode->Left = IfNode;
+                        }
+
+                        LastIfNode = IfNode;
+
+                        // another if node
+                        if (Parser_Match(Tokens, &Current, Token_Colon))
+                        {
+
+                        }
+                        else
+                        {
+                            break;
+                        }
+                    }
+                }
+                // inline if
+                /*
+                else if (Parser_Match(Tokens, &Current, Token_If))
+                {
+                    if (!(Parser_Peek(Tokens, Current+1).Type == Token_Text ||
+                        Parser_Peek(Tokens, Current+1).Type == Token_Dollar ||
+                        Parser_Peek(Tokens, Current+1).Type == Token_Mod ||
+                        Parser_Peek(Tokens, Current+1).Type == Token_At))
+                    {
+
+                        LOG_ERROR("[Parser] [Line %u]: 'if' after a key can only be inline.", t.Line);
+                        // TODO: example
+                        return &Node_Null;
+                    }
+
+                    u32 NumParsed = 0;
+                    Node* IfNode = Parse_If(Arena, WorkingDirectory, VariablesDB, ExpandedVariablesDB, CmdOptionsDB, Tokens, Current, &NumParsed, true);
+                    if (IfNode == &Node_Null)
+                    {
+                        return &Node_Null;
+                    }
+
+                    Current += NumParsed;
+
+                    InlineIfNode = IfNode;
+
+                    bFoundTokens = true; // skip the value finding code
+                }
+                */
+
+                // now we are the value to that key, blast through to the end of line or semicolon (whichever is first)
+
+                
+                //if (InlineIfNode == &Node_Null)
+                {
+                    StringList* ValueList = NULL;//LinearAllocator_Allocate(Arena, sizeof(StringList));
+                    StringList** NextValue = &ValueList;
+
+                    if (Parser_Match(Tokens, &Current, Token_LSquare))
+                    {
+                        while (Parser_Peek(Tokens, Current).Type != Token_RSquare)
+                        {
+                            bFoundTokens = true;
+
+                            String Lexeme = Parser_Peek(Tokens, Current).Lexeme;
+                            if (Parser_Peek(Tokens, Current).Type != Token_Newline)
+                            {
+                                SLL_Push(NextValue, StringList_Create(Arena, Lexeme, NULL));
+                            }
+
+                            Parser_Advance(&Current, NumTokens);
                         }
 
                         Parser_Advance(&Current, NumTokens);
                     }
-
-                    Parser_Advance(&Current, NumTokens);
-                }
-                else
-                {
-                    while (!(Parser_Peek(Tokens, Current).Type == Token_Newline   ||
-                            Parser_Peek(Tokens, Current).Type == Token_Semicolon ||
-                            Parser_Peek(Tokens, Current).Type == Token_LCurly    ||
-                            Parser_Peek(Tokens, Current).Type == Token_RCurly    ||
-                            Parser_Peek(Tokens, Current).Type == Token_None      ||
-                            Parser_Peek(Tokens, Current).Type == Token_Else))
+                    else if (Parser_Match(Tokens, &Current, Token_LCurly))
                     {
-                        bFoundTokens = true;
 
-                        String Lexeme = Parser_Peek(Tokens, Current).Lexeme;
-                        SLL_Push(NextValue, StringList_Create(Arena, Lexeme, NULL));
+                    }
+                    else
+                    {
+                        while (!(Parser_Peek(Tokens, Current).Type == Token_Newline   ||
+                                Parser_Peek(Tokens, Current).Type == Token_Semicolon ||
+                                Parser_Peek(Tokens, Current).Type == Token_LCurly    ||
+                                Parser_Peek(Tokens, Current).Type == Token_RCurly    ||
+                                Parser_Peek(Tokens, Current).Type == Token_None      ||
+                                Parser_Peek(Tokens, Current).Type == Token_Else))
+                        {
+                            bFoundTokens = true;
 
-                        Parser_Advance(&Current, NumTokens);
+                            String Lexeme = Parser_Peek(Tokens, Current).Lexeme;
+                            SLL_Push(NextValue, StringList_Create(Arena, Lexeme, NULL));
+
+                            Parser_Advance(&Current, NumTokens);
+                        }
+                    }
+
+                    Node* KV_Node = Node_Create_KeyValue(Arena, &tPtr->Lexeme, ValueList, bIsSpecial);
+
+                    if (FilterNode != &Node_Null)
+                    {
+                        LastIfNode->Left = KV_Node;
+                        List->Node = FilterNode;
+                    }
+                    else
+                    {
+                        List->Node = KV_Node;
                     }
                 }
+                /*
+                else
+                {
+                    if (InlineIfNode->Left)
+                    {
+                        StringList* ValueList = StringList_Create(Arena, *InlineIfNode->Left->List->Node->Key, InlineIfNode->Left->List->Node->Value);
+                        NodeList* LocalList = NodeList_CreateNull(Arena);
+                        LocalList->Node = Node_Create_KeyValue(Arena, &tPtr->Lexeme, ValueList, bIsSpecial);
+                        InlineIfNode->Left->List = LocalList;
+                    }
 
-                NodeList* List = NodeList_CreateNull(Arena);
-                Node* KV_Node = Node_Create_KeyValue(Arena, &tPtr->Lexeme, ValueList, bIsSpecial);
-                List->Node = KV_Node;
+                    if (InlineIfNode->Right)
+                    {
+                        StringList* ValueList = StringList_Create(Arena, *InlineIfNode->Right->List->Node->Key, InlineIfNode->Right->List->Node->Value);
+                        NodeList* LocalList = NodeList_CreateNull(Arena);
+                        LocalList->Node = Node_Create_KeyValue(Arena, &tPtr->Lexeme, ValueList, bIsSpecial);
+                        InlineIfNode->Right->List = LocalList;
+                    }
+
+                    List->Node = InlineIfNode;
+                }
+                */
+
+                // TODO: check that certain keys cannot be made into blocks like: Compiler { }
+
                 SLL_Push(NextNode, List);
 
                 if (!bFoundTokens)
@@ -1423,7 +1590,7 @@ static Node* Parse_Root(LinearAllocator* Arena,
                     TArray(CmdOption) CmdOptionsDB,
                     TArray(Token) Tokens)
 {
-    return Parse_Block(Arena, WorkingDirectory, VariablesDB, ExpandedVariablesDB, CmdOptionsDB, Tokens, 0, NULL, false);
+    return Parse_Block(Arena, WorkingDirectory, VariablesDB, ExpandedVariablesDB, CmdOptionsDB, Tokens, 0, NULL, false, false);
 }
 
 static void Print_BlockNode(NodeList* Root, u32 Level);
@@ -1555,6 +1722,40 @@ static void Print_ErrorNode(Node* Root, u32 Level)
     LOG("%SEND ERROR MESSAGE", Spaces);
 }
 
+static void Print_KVNode(Node* Root, u32 Level)
+{
+    if (!Root)
+    {
+        return;
+    }
+
+    StringLocal(Spaces, 256);
+    for (u32 i = 0; i < Level; i++)
+    {
+        String_AppendChar(&Spaces, ' ');
+    }
+
+    if (Root->bIsSpecial)
+    {
+        LOG("%S [SPECIAL MOD]    ", Spaces);
+    }
+
+    if (Root->Key)
+    {
+        LOG("\n%S [KEY]      %S", Spaces, *Root->Key);
+    }
+
+    if (Root->Value)
+    {
+        LOG_INLINE("%S [VALUE]    ", Spaces);
+        for each_str_list (*Root->Value)
+        {
+            LOG_INLINE("%S ", It.String);
+        }
+        LOG_LINE_BREAK();
+    }
+}
+
 static void Print_BlockNode(NodeList* List, u32 Level)
 {
     if (!List)
@@ -1608,25 +1809,7 @@ static void Print_BlockNode(NodeList* List, u32 Level)
             }
             else if (Root->Type == Node_KeyValue)
             {
-                if (Root->bIsSpecial)
-                {
-                    LOG("%S [SPECIAL MOD]    ", Spaces);
-                }
-
-                if (Root->Key)
-                {
-                    LOG("\n%S [KEY]      %S", Spaces, *Root->Key);
-                }
-
-                if (Root->Value)
-                {
-                    LOG_INLINE("%S [VALUE]    ", Spaces);
-                    for each_str_list (*Root->Value)
-                    {
-                        LOG_INLINE("%S ", It.String);
-                    }
-                    LOG_LINE_BREAK();
-                }
+                Print_KVNode(Root, Level);
             }
         }
 
@@ -1655,7 +1838,17 @@ static void Print_IfNode(Node* Root, u32 Level)
         String_AppendChar(&Spaces, ' ');
     }
 
-    LOG("%SIF %S", Spaces, *Root->Key);
+    LOG_INLINE("%SIF ", Spaces);
+
+    if (Root->Value)
+    {
+        for each_str_list (*Root->Value)
+        {
+            LOG_INLINE("%S ", It.String);
+        }
+    }
+
+    LOG_LINE_BREAK();
 
     Node* Left = Root->Left;
     Node* Right = Root->Right;
@@ -1672,6 +1865,11 @@ static void Print_IfNode(Node* Root, u32 Level)
         {
             Print_IfNode(Left, Level+2);
         }
+
+        if (Left->Type == Node_KeyValue)
+        {
+            Print_KVNode(Left, Level+1);
+        }
     }
 
     if (Right)
@@ -1686,9 +1884,14 @@ static void Print_IfNode(Node* Root, u32 Level)
         {
             Print_IfNode(Right, Level+2);
         }
+
+        if (Right->Type == Node_KeyValue)
+        {
+            Print_KVNode(Right, Level+1);
+        }
     }
 
-    LOG("%SEND IF", Spaces);
+    LOG("%SEND IF\n", Spaces);
 }
 
 bool ParseBuildFileV2(LinearAllocator* Arena,
