@@ -773,3 +773,16 @@ String Filesystem_ExtractFileNameFromPath(const String Path, bool bIncludeExtens
 
     return FileName;
 }
+
+String Filesystem_StripFileExtension(const String FilePath)
+{
+    String Final = FilePath;
+
+    u32 LastDot = 0;
+    if (String_IndexOfLastChar(FilePath, '.', &LastDot))
+    {
+        Final = StrSlice(FilePath.Data, LastDot);
+    }
+
+    return Final;
+}
