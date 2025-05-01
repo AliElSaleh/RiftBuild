@@ -785,7 +785,7 @@ bool Platform_GetEnvironmentVariableValue(String Name, String* OutVariable)
         return false;
     }
 
-    String_Copy(OutVariable, CStr(Value));
+    String_Copy(OutVariable, CStrEx(Value, OutVariable->Capacity));
     return true;
 }
 
@@ -858,23 +858,71 @@ bool Platform_GetUserName(String* OutName)
     return true;
 }
 
+// TODO: test and verify
 bool Platform_GetUserDirectory(String* OutDirectory)
 {
+    // check the passwd database first as it is the real user's home directory
     struct passwd pwd = {0};
     struct passwd* result = NULL;
     char Buffer[4096] = {0};
 
-    getpwuid_r(getuid(), &pwd, Buffer, 4096, &result);
-    if (result == NULL)
+    int Error = getpwuid_r(getuid(), &pwd, Buffer, sizeof(Buffer), &result);
+    if (Error == 0 && result)
     {
-        StringLocal(Prefix, MAX_PATH_LENGTH);
-        String_Format(&Prefix, S("Failed to get user directory"));
-        LogLastError(Prefix);
-        return false;
+        if (pwd.pw_dir)
+        {
+            String_Copy(OutDirectory, CStrEx(pwd.pw_dir, MAX_PATH_LENGTH));
+            return true;
+        }
     }
 
-    String_Copy(OutDirectory, CStr(pwd.pw_dir));
-    return true;
+    return false;
+}
+
+void Platform_GetHomeDirectory(String* OutDirectory)
+{
+    // read the env var
+    {
+        StringLocal(Result, MAX_PATH_LENGTH);
+        if (Platform_GetEnvironmentVariableValue(S("HOME"), &Result))
+        {
+            if (String_IsValid(Result))
+            {
+                if (access(Result.Data, F_OK))
+                {
+                    String_Copy(OutDirectory, Result);
+                    return;
+                }
+            }
+        }
+    }
+
+    // Fallback: $TMPDIR or /tmp
+    {
+        StringLocal(Result, MAX_PATH_LENGTH);
+        if (Platform_GetEnvironmentVariableValue(S("TMPDIR"), &Result))
+        {
+            if (String_IsValid(Result))
+            {
+                if (access(Result.Data, F_OK))
+                {
+                    String_Copy(OutDirectory, Result);
+                    return;
+                }
+            }
+        }
+
+        if (access("/tmp", F_OK))
+        {
+            String_Copy(OutDirectory, S("/tmp"));
+            return;
+        }
+    }
+
+    // Final fallback: use the current working directory
+    {
+        Platform_GetWorkingDirectory(OutDirectory);
+    }
 }
 
 bool Platform_GetCurrentProcessName(String* OutName)

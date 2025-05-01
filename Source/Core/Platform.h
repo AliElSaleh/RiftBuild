@@ -227,10 +227,10 @@ STRUCT(PlatformVersion)
     u32 Patch;
 };
 
-RIFT_API void Platform_PreInitialize(void);
+RIFT_API            void Platform_PreInitialize(void);
 RIFT_API NO_DISCARD f64 Platform_GetClockFrequency(void);
 
-RIFT_API void Platform_Abort(u32 ExitCode);
+RIFT_API            void Platform_Abort(u32 ExitCode);
 
 RIFT_API NO_DISCARD StringArray Platform_GetCommandLineArgs(void);
 
@@ -246,11 +246,10 @@ RIFT_API NO_DISCARD bool  Platform_MemEqual(const void* Block1, const void* Bloc
 
 RIFT_API NO_DISCARD bool Platform_SetWorkingDirectory(const String Path);
 
-RIFT_API void Platform_ConsoleWrite(const char* Message, u8 Color, bool bIsError);
-RIFT_API void Platform_ConsoleWrite_CustomLength(const char* Message, u32 Length, u8 Color, bool bIsError);
-
-RIFT_API void Platform_BeginNonBlockingMode(void);
-RIFT_API void Platform_EndNonBlockingMode(void);
+RIFT_API            void Platform_ConsoleWrite(const char* Message, u8 Color, bool bIsError);
+RIFT_API            void Platform_ConsoleWrite_CustomLength(const char* Message, u32 Length, u8 Color, bool bIsError);
+RIFT_API            void Platform_BeginNonBlockingMode(void);
+RIFT_API            void Platform_EndNonBlockingMode(void);
 
 RIFT_API NO_DISCARD PlatformHandle Platform_RunCommand(const String CmdLine, const String WorkingDirectory, const String EnvBlock);
 RIFT_API NO_DISCARD PlatformHandle Platform_RunCommand_Ex(const String CmdLine, const String WorkingDirectory, PlatformPipe* StdOutPipe);
@@ -264,16 +263,16 @@ RIFT_API NO_DISCARD bool Platform_FindFile_Ex(String FileName, String ExtensionW
 
 RIFT_API NO_DISCARD u32 Platform_GetExitCodeForProcess(PlatformHandle Handle);
 RIFT_API NO_DISCARD u32 Platform_WaitForProcessAndGetExitCode(PlatformHandle Handle);
-RIFT_API            void Platform_WaitForHandle(PlatformHandle Handle, i32 Milliseconds);
 RIFT_API NO_DISCARD u32 Platform_WaitForMultipleHandles(PlatformHandle* Handles, u32 NumHandles, i32 Milliseconds, bool bWaitAll);
-RIFT_API            void Platform_CloseHandle(PlatformHandle Handle);
 RIFT_API NO_DISCARD bool Platform_IsValidHandle(const PlatformHandle Handle);
+RIFT_API            void Platform_CloseHandle(PlatformHandle Handle);
+RIFT_API            void Platform_WaitForHandle(PlatformHandle Handle, i32 Milliseconds);
 
 RIFT_API NO_DISCARD usize Platform_GetCriticalSectionMemoryRequirement(void);
-RIFT_API void Platform_InitializeCriticalSection(PlatformCriticalSection OutCriticalSection);
-RIFT_API void Platform_DeleteCriticalSection(PlatformCriticalSection CriticalSection);
-RIFT_API void Platform_EnterCriticalSection(PlatformCriticalSection CriticalSection);
-RIFT_API void Platform_ExitCriticalSection(PlatformCriticalSection CriticalSection);
+RIFT_API            void Platform_InitializeCriticalSection(PlatformCriticalSection OutCriticalSection);
+RIFT_API            void Platform_DeleteCriticalSection(PlatformCriticalSection CriticalSection);
+RIFT_API            void Platform_EnterCriticalSection(PlatformCriticalSection CriticalSection);
+RIFT_API            void Platform_ExitCriticalSection(PlatformCriticalSection CriticalSection);
 
 RIFT_API NO_DISCARD bool Platform_AnyKeyPressed(void);
 
@@ -289,13 +288,13 @@ RIFT_API NO_DISCARD f64 Platform_GetAbsoluteTime(void);
 RIFT_API NO_DISCARD SystemTime Platform_GetSystemLocalTime(void);
 RIFT_API NO_DISCARD bool Platform_GetTimeZone(String* OutTimeZone);
 
-RIFT_API void Platform_Wait(f64 ms);
-RIFT_API void Platform_Sleep(u32 ms);
+RIFT_API            void Platform_Wait(f64 ms);
+RIFT_API            void Platform_Sleep(u32 ms);
 
 RIFT_API NO_DISCARD u64 Platform_GetCurrentThreadID(void);
 RIFT_API NO_DISCARD u64 Platform_GetMainThreadID(void);
 
-RIFT_API void Platform_GetWorkingDirectory(String* OutPath);
+RIFT_API            void Platform_GetWorkingDirectory(String* OutPath);
 
 RIFT_API NO_DISCARD bool Platform_GetEnvironmentVariableValue(String Name, String* OutVariable);
 RIFT_API NO_DISCARD bool Platform_SetEnvironmentVariableValue(String Name, String Value);
@@ -306,6 +305,7 @@ RIFT_API NO_DISCARD u32 Platform_GetNumLogicalProcessors(void);
 RIFT_API NO_DISCARD bool Platform_GetAccountName(String* OutName);
 RIFT_API NO_DISCARD bool Platform_GetUserName(String* OutName);
 RIFT_API NO_DISCARD bool Platform_GetUserDirectory(String* OutDirectory);
+RIFT_API            void Platform_GetHomeDirectory(String* OutDirectory);
 
 RIFT_API NO_DISCARD bool Platform_GetCurrentProcessName(String* OutName);
 RIFT_API NO_DISCARD u64  Platform_GetCurrentProcessID(void);

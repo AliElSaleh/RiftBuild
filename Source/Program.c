@@ -23,6 +23,7 @@
 //        License   BSD3
 // [ ] for IncludedSourceFiles we shouldnt have to specify the .c or .cpp extension. if the names match.
 //     will be a lot more convienent
+// [ ] enter game mode while we are building
 
 const usize GEngineMemoryAmount  = Kibibytes(128);
 const usize GEngineScratchAmount = Kibibytes(8);
@@ -2095,14 +2096,12 @@ static void PrintAbout(const String WorkingDirectory)
 {
     LOG_INLINE_WARNING("About\n");
 
-    String CompiledWith = String_Null();
-
     #if COMPILER_MSVC
-    CompiledWith = S("MSVC " STRINGIFY(_MSC_FULL_VER));
+    String CompiledWith = S("MSVC " STRINGIFY(_MSC_FULL_VER));
     #elif COMPILER_CLANG
-    CompiledWith = S("Clang " __clang_version__);
+    String CompiledWith = S("Clang " __clang_version__);
     #elif COMPILER_GCC
-    CompiledWith = S("GCC " STRINGIFY(__GNUC__) "." STRINGIFY(__GNUC_MINOR__) "." STRINGIFY(__GNUC_PATCHLEVEL__));
+    String CompiledWith = S("GCC " STRINGIFY(__GNUC__) "." STRINGIFY(__GNUC_MINOR__) "." STRINGIFY(__GNUC_PATCHLEVEL__));
     #endif
 
     SystemTime TimeNow = Platform_GetSystemLocalTime();
@@ -2929,12 +2928,10 @@ static u32 BuildTarget(LinearAllocator* Arena,
     {
         Clock_Start(&BuildFileParseClock);
 
-        /*
         ParseBuildFileV2(Arena, BuildFileHandle, BuildFilePath, WorkingPath, VariablesDB, ExpandedVariablesDB,
                             CmdOptionsDB, Messages, IncludeFiles, NULL, false, NULL, false);
 
         return 0;
-        */
 
         if (!ParseBuildFile(Arena, BuildFileHandle, BuildFilePath, WorkingPath, VariablesDB, ExpandedVariablesDB,
                             CmdOptionsDB, Messages, IncludeFiles, NULL, false, NULL, false))
@@ -8813,14 +8810,23 @@ static void InitInternalVars(LinearAllocator* Arena)
         AddInternalVariable(S("_UserName"), Allocated);
     }
 
+    StringLocal(HomeDirectory, MAX_PATH_LENGTH);
+    Platform_GetHomeDirectory(&HomeDirectory);
+    (void)String_EatPathSeparatorsInlineFromEnd(&HomeDirectory);
+    String AllocatedHome = String_Create(Arena, HomeDirectory);
+    AddInternalVariable(S("_HomeDirectory"), AllocatedHome);
+    AddInternalVariable(S("_Home"),          AllocatedHome);
+
     StringLocal(UserDirectory, MAX_PATH_LENGTH);
     if (Platform_GetUserDirectory(&UserDirectory))
     {
         (void)String_EatPathSeparatorsInlineFromEnd(&UserDirectory);
         Allocated = String_Create(Arena, UserDirectory);
         AddInternalVariable(S("_UserDirectory"), Allocated);
-        AddInternalVariable(S("_HomeDirectory"), Allocated);
-        AddInternalVariable(S("_Home"),          Allocated);
+    }
+    else
+    {
+        AddInternalVariable(S("_UserDirectory"), AllocatedHome);
     }
 
     FileVariable_Empty.Name = String_Null();

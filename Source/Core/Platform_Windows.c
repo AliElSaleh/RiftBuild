@@ -616,6 +616,11 @@ bool Platform_GetUserDirectory(String* OutDirectory)
     return bSuccess;
 }
 
+void Platform_GetHomeDirectory(String* OutDirectory)
+{
+    (void)Platform_GetUserDirectory(OutDirectory);
+}
+
 bool Platform_GetCurrentProcessName(String* OutName)
 {
     TCHAR FileName[MAX_PATH] = {0};
@@ -823,9 +828,9 @@ bool Filesystem_Open(const String FilePath, EFileMode Mode, FileHandle* OutHandl
         HANDLE File = CreateFile((char*)PathCopy.Data, OpenStyle, ShareStyle, NULL, Disposition, FILE_ATTRIBUTE_NORMAL, NULL);
         if (File == INVALID_HANDLE_VALUE)
         {
-            StringLocal(Prefix, 512);
-            String_Format(&Prefix, S("Failed to open file \"%S\""), PathCopy);
-            LogLastError(Prefix);
+            //StringLocal(Prefix, 512);
+            //String_Format(&Prefix, S("Failed to open file \"%S\""), PathCopy);
+            //LogLastError(Prefix);
 
             bSuccess = false;
         }
