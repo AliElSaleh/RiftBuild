@@ -8,6 +8,7 @@
 #include "Core/Platform.h"
 #include "Core/StringUtils.h"
 #include "Core/Array.h"
+#include "Core/Clock.h"
 #include "Core/Globals.h"
 #include "Core/Log.h"
 #endif
@@ -15,6 +16,7 @@
 // todo: when appending values, use linked list?
 // support this, replace the special flag '!' with named special instead. like this PreLink.Delete(silent ignore_exit_code)
 // rename "IncludedSourceFiles" to "SourceFiles", same with the dir version
+// .rpath key
 
 #define MAX_KEY_LENGTH 64
 #define MAX_VALUE_LENGTH 8192
@@ -485,6 +487,7 @@ static void Lexer_AddToken(TArray(Token) Tokens, u32 Current, u32 Start, u32 Lin
     Array_Add(Tokens, NewToken);
 }
 
+static bool IsValidTextToken(uchar Char, bool bAllowWhitespace) CONST_FN;
 static bool IsValidTextToken(uchar Char, bool bAllowWhitespace)
 {
     bool bSymbols = Char == '%' || Char == '$'  || Char == '@'  || Char == '!'  ||
@@ -519,17 +522,13 @@ ENUM(ELexerState)
     LexerState_IfAfterIdent,
 };
 
-#define SLL_Push(List, Entry) \
-            *(List) = Entry; \
-            List = &(*List)->Next
-
 static Node* Parse_Special_LogMessage(LinearAllocator* Arena, u32* Current, u32 NumTokens, TArray(Token) Tokens)
 {
     Node* Root = Node_Create(Arena, Node_LogMessage);
 
     Parser_Advance(Current, NumTokens);
 
-    StringList* ValueList = NULL;//LinearAllocator_Allocate(Arena, sizeof(StringList));
+    StringList* ValueList = NULL;
     StringList** Next = &ValueList;
 
     while (Parser_Peek(Tokens, *Current).Type != Token_Quote)
@@ -547,7 +546,7 @@ static Node* Parse_Special_LogMessage(LinearAllocator* Arena, u32* Current, u32 
             Lexeme = S("\n");
         }
         
-        SLL_Push(Next, StringList_Create(Arena, Lexeme, NULL));
+        SLinkedList_Push(Next, StringList_Create(Arena, Lexeme, NULL));
 
         Parser_Advance(Current, NumTokens);
     }
@@ -565,7 +564,7 @@ static Node* Parse_Special_ErrorMessage(LinearAllocator* Arena, u32* Current, u3
 
     Parser_Advance(Current, NumTokens);
 
-    StringList* ValueList = NULL;//LinearAllocator_Allocate(Arena, sizeof(StringList));
+    StringList* ValueList = NULL;
     StringList** Next = &ValueList;
 
     // TODO: support '[' and ']'
@@ -580,7 +579,7 @@ static Node* Parse_Special_ErrorMessage(LinearAllocator* Arena, u32* Current, u3
                 Lexeme = S("\n");
             }
 
-            SLL_Push(Next, StringList_Create(Arena, Lexeme, NULL));
+            SLinkedList_Push(Next, StringList_Create(Arena, Lexeme, NULL));
 
             Parser_Advance(Current, NumTokens);
         }
@@ -593,7 +592,7 @@ static Node* Parse_Special_ErrorMessage(LinearAllocator* Arena, u32* Current, u3
                 Parser_Peek(Tokens, *Current).Type == Token_Semicolon))
         {
             String Lexeme = Parser_Peek(Tokens, *Current).Lexeme;
-            SLL_Push(Next, StringList_Create(Arena, Lexeme, NULL));
+            SLinkedList_Push(Next, StringList_Create(Arena, Lexeme, NULL));
 
             Parser_Advance(Current, NumTokens);
         }
@@ -610,7 +609,7 @@ static Node* Parse_Special_Help(LinearAllocator* Arena, u32* Current, u32 NumTok
 
     Parser_Advance(Current, NumTokens);
 
-    StringList* ValueList = NULL;//LinearAllocator_Allocate(Arena, sizeof(StringList));
+    StringList* ValueList = NULL;
     StringList** Next = &ValueList;
 
     // TODO: support '[' and ']'
@@ -625,7 +624,7 @@ static Node* Parse_Special_Help(LinearAllocator* Arena, u32* Current, u32 NumTok
                 Lexeme = S("\n");
             }
 
-            SLL_Push(Next, StringList_Create(Arena, Lexeme, NULL));
+            SLinkedList_Push(Next, StringList_Create(Arena, Lexeme, NULL));
 
             Parser_Advance(Current, NumTokens);
         }
@@ -638,7 +637,7 @@ static Node* Parse_Special_Help(LinearAllocator* Arena, u32* Current, u32 NumTok
                 Parser_Peek(Tokens, *Current).Type == Token_Semicolon))
         {
             String Lexeme = Parser_Peek(Tokens, *Current).Lexeme;
-            SLL_Push(Next, StringList_Create(Arena, Lexeme, NULL));
+            SLinkedList_Push(Next, StringList_Create(Arena, Lexeme, NULL));
 
             Parser_Advance(Current, NumTokens);
         }
@@ -684,7 +683,7 @@ static Node* Parse_Include(LinearAllocator* Arena,
 
     Parser_Advance(&Current, NumTokens);
 
-    StringList* ValueList = NULL;//LinearAllocator_Allocate(Arena, sizeof(StringList));
+    StringList* ValueList = NULL;
     StringList** Next = &ValueList;
 
     bool bFoundTokens = false;
@@ -698,7 +697,7 @@ static Node* Parse_Include(LinearAllocator* Arena,
         bFoundTokens = true;
 
         String Lexeme = Parser_Peek(Tokens, Current).Lexeme;
-        SLL_Push(Next, StringList_Create(Arena, Lexeme, NULL));
+        SLinkedList_Push(Next, StringList_Create(Arena, Lexeme, NULL));
 
         Parser_Advance(&Current, NumTokens);
     }
@@ -732,7 +731,7 @@ static Node* Parse_If(LinearAllocator* Arena,
 {
     Node* Root = Node_Create(Arena, Node_If);
 
-    StringList* ValueList = NULL;//LinearAllocator_Allocate(Arena, sizeof(struct StringList));
+    StringList* ValueList = NULL;
     StringList** NextValue = &ValueList;
 
     u32 Current = Offset;
@@ -892,7 +891,7 @@ static Node* Parse_If(LinearAllocator* Arena,
                 //Root->Key = &Tokens[Current].Lexeme;
 
                 String Lexeme = Parser_Peek(Tokens, Current).Lexeme;
-                SLL_Push(NextValue, StringList_Create(Arena, Lexeme, NULL));
+                SLinkedList_Push(NextValue, StringList_Create(Arena, Lexeme, NULL));
 
                 Parser_Advance(&Current, NumTokens);
 
@@ -1198,7 +1197,7 @@ static Node* Parse_Block(LinearAllocator* Arena,
                 return &Node_Null;
             }
 
-            SLL_Push(NextNode, List);
+            SLinkedList_Push(NextNode, List);
         }
         else if (t.Type == Token_RCurly)
         {
@@ -1214,7 +1213,7 @@ static Node* Parse_Block(LinearAllocator* Arena,
                 return &Node_Null;
             }
 
-            SLL_Push(NextNode, List);
+            SLinkedList_Push(NextNode, List);
         }
         else if (t.Type == Token_Quote)
         {
@@ -1226,7 +1225,7 @@ static Node* Parse_Block(LinearAllocator* Arena,
                 return &Node_Null;
             }
 
-            SLL_Push(NextNode, List);
+            SLinkedList_Push(NextNode, List);
         }
         else if (t.Type == Token_ErrorMessage)
         {
@@ -1251,7 +1250,7 @@ static Node* Parse_Block(LinearAllocator* Arena,
                 return &Node_Null;
             }
 
-            SLL_Push(NextNode, List);
+            SLinkedList_Push(NextNode, List);
         }
         else if (t.Type == Token_Text ||
                 (bAllowSymbolKeys &&
@@ -1327,13 +1326,13 @@ static Node* Parse_Block(LinearAllocator* Arena,
                         }
 
                         Node* IfNode = Node_Create(Arena, Node_If);
-                        StringList* ValueList = NULL;//LinearAllocator_Allocate(Arena, sizeof(StringList));
+                        StringList* ValueList = NULL;
                         StringList** NextValue = &ValueList;
 
                         while (Parser_Match(Tokens, &Current, Token_Text))
                         {
                             String Lexeme = Parser_Peek(Tokens, Current-1).Lexeme;
-                            SLL_Push(NextValue, StringList_Create(Arena, Lexeme, NULL));
+                            SLinkedList_Push(NextValue, StringList_Create(Arena, Lexeme, NULL));
 
                             if (!Parser_Match(Tokens, &Current, Token_Pipe))
                             {
@@ -1401,7 +1400,7 @@ static Node* Parse_Block(LinearAllocator* Arena,
                 
                 //if (InlineIfNode == &Node_Null)
                 {
-                    StringList* ValueList = NULL;//LinearAllocator_Allocate(Arena, sizeof(StringList));
+                    StringList* ValueList = NULL;
                     StringList** NextValue = &ValueList;
 
                     if (Parser_Match(Tokens, &Current, Token_LSquare))
@@ -1413,7 +1412,7 @@ static Node* Parse_Block(LinearAllocator* Arena,
                             String Lexeme = Parser_Peek(Tokens, Current).Lexeme;
                             if (Parser_Peek(Tokens, Current).Type != Token_Newline)
                             {
-                                SLL_Push(NextValue, StringList_Create(Arena, Lexeme, NULL));
+                                SLinkedList_Push(NextValue, StringList_Create(Arena, Lexeme, NULL));
                             }
 
                             Parser_Advance(&Current, NumTokens);
@@ -1437,7 +1436,7 @@ static Node* Parse_Block(LinearAllocator* Arena,
                             bFoundTokens = true;
 
                             String Lexeme = Parser_Peek(Tokens, Current).Lexeme;
-                            SLL_Push(NextValue, StringList_Create(Arena, Lexeme, NULL));
+                            SLinkedList_Push(NextValue, StringList_Create(Arena, Lexeme, NULL));
 
                             Parser_Advance(&Current, NumTokens);
                         }
@@ -1480,7 +1479,7 @@ static Node* Parse_Block(LinearAllocator* Arena,
 
                 // TODO: check that certain keys cannot be made into blocks like: Compiler { }
 
-                SLL_Push(NextNode, List);
+                SLinkedList_Push(NextNode, List);
 
                 if (!bFoundTokens)
                 {
@@ -1507,7 +1506,7 @@ static Node* Parse_Block(LinearAllocator* Arena,
 
             Current += NumParsed;
 
-            SLL_Push(NextNode, List);
+            SLinkedList_Push(NextNode, List);
         }
         /*
             if <<prefix?>condition|...> <comparison_operator?> <test?|...>
@@ -1543,7 +1542,7 @@ static Node* Parse_Block(LinearAllocator* Arena,
 
             Current += NumParsed+1;
 
-            SLL_Push(NextNode, List);
+            SLinkedList_Push(NextNode, List);
 
             bJustEvaluatedIfStatement = true;
         }
@@ -1913,6 +1912,9 @@ bool ParseBuildFileV2(LinearAllocator* Arena,
         *ReturnCode = 0;
     }
 
+    Clock c;
+    Clock_Start(&c);
+
     StringLocal(Text, Kibibytes(48));
     
     usize Length = 0;
@@ -2100,6 +2102,8 @@ bool ParseBuildFileV2(LinearAllocator* Arena,
                 Lexer_AddToken(Tokens, Current, Start, Line, Text, FinalType);
             }
         }
+        Clock_Tick(&c);
+        Clock_PrintElapsedTime(&c, true);
 
         for each (Token, t, Tokens)
         {
@@ -2114,11 +2118,14 @@ bool ParseBuildFileV2(LinearAllocator* Arena,
         }
         LOG("Num Tokens: %u", Array_Num(Tokens));
 
+        Clock_Start(&c);
         Node* AST = Parse_Root(Arena, WorkingDirectory, VariablesDB, ExpandedVariablesDB, CmdOptionsDB, Tokens);
         if (!AST || AST == &Node_Null)
         {
             return false;
         }
+        Clock_Tick(&c);
+        Clock_PrintElapsedTime(&c, true);
         
         Print_BlockNode(AST->List, 0);
     }

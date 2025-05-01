@@ -220,6 +220,10 @@ STRUCT(StringList)
 #define SArray(Type, Name, Count) Type Name[Count]; u32 CONCAT(Name, _Count)
 #define TMap(KeyType, ValueType) Map
 
+#define SLinkedList_Push(List, Entry) \
+                        *(List) = Entry; \
+                        List = &(*(List))->Next
+
 #define global extern
 //#define internal static
 #define local_persist static
