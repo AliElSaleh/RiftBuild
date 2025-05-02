@@ -681,9 +681,11 @@ static Node* Parse_Special_ErrorMessage(LinearAllocator* Arena, Parser* P)
 
     // TODO: support '[' and ']'
     // TODO: support escaping '{', '}' and '[', ']'
-    if (Parser_Match(P, Token_LCurly))
+    if (Parser_Match(P, Token_LCurly) || 
+        Parser_Match(P, Token_LSquare))
     {
-        while (Parser_Peek(P).Type != Token_RCurly)
+        while (Parser_Peek(P).Type != Token_RCurly &&
+               Parser_Peek(P).Type != Token_RSquare)
         {
             String Lexeme = Parser_Peek(P).Lexeme;
             if (Parser_Peek(P).Type == Token_Newline)
@@ -726,9 +728,11 @@ static Node* Parse_Special_Help(LinearAllocator* Arena, Parser* P)
 
     // TODO: support '[' and ']'
     // TODO: support escaping '{', '}' and '[', ']'
-    if (Parser_Match(P, Token_LCurly))
+    if (Parser_Match(P, Token_LCurly) || 
+        Parser_Match(P, Token_LSquare))
     {
-        while (Parser_Peek(P).Type != Token_RCurly)
+        while (Parser_Peek(P).Type != Token_RCurly &&
+               Parser_Peek(P).Type != Token_RSquare)
         {
             String Lexeme = Parser_Peek(P).Lexeme;
             if (Parser_Peek(P).Type == Token_Newline)
@@ -1872,6 +1876,7 @@ bool ParseBuildFileV2(LinearAllocator* Arena,
         Text.Length = (u32)Min(Length, Kibibytes(48));
 
         bool bAllowWhitespace = false;
+        bool bInsideWhitespaceAllowedBlock = false;
 
         // tokenize the text
         Lexer l = {0};
@@ -1894,10 +1899,13 @@ bool ParseBuildFileV2(LinearAllocator* Arena,
 
             ETokenType LastTokenType = Lexer_PeekLastTokenType(&l);
 
+            if (LastTokenType == Token_Help || LastTokenType == Token_ErrorMessage)
+            {
+                bInsideWhitespaceAllowedBlock = true;
+            }
+
             if      (Char == '(') { Lexer_AddToken(&l, Token_LParen);       }
             else if (Char == ')') { Lexer_AddToken(&l, Token_RParen);       }
-            else if (Char == '[') { Lexer_AddToken(&l, Token_LSquare);      }
-            else if (Char == ']') { Lexer_AddToken(&l, Token_RSquare);      }
             else if (Char == '^') { Lexer_AddToken(&l, Token_Caret);        }
             else if (Char == ';') { Lexer_AddToken(&l, Token_Semicolon);    }
             else if (Char == '$') { Lexer_AddToken(&l, Token_Dollar);       }
@@ -1906,25 +1914,31 @@ bool ParseBuildFileV2(LinearAllocator* Arena,
             else if (Char == '%') { Lexer_AddToken(&l, Token_Mod);          }
             else if (Char == '\'')
             {
-                if (PrevChar != '\\')
+                if (!bInsideWhitespaceAllowedBlock)
                 {
-                    bAllowWhitespace = !bAllowWhitespace;
+                    if (PrevChar != '\\')
+                    {
+                        bAllowWhitespace = !bAllowWhitespace;
+                    }
                 }
 
                 Lexer_AddToken(&l, Token_Quote);
             }
             else if (Char == '"')
             {
-                if (PrevChar != '\\')
+                if (!bInsideWhitespaceAllowedBlock)
                 {
-                    bAllowWhitespace = !bAllowWhitespace;
+                    if (PrevChar != '\\')
+                    {
+                        bAllowWhitespace = !bAllowWhitespace;
+                    }
                 }
 
                 Lexer_AddToken(&l, Token_Quote);
             }
             else if (Char == '{')
             {
-                if (LastTokenType == Token_Help || LastTokenType == Token_ErrorMessage)
+                if (bInsideWhitespaceAllowedBlock)
                 {
                     bAllowWhitespace = true;
                 }
@@ -1933,12 +1947,32 @@ bool ParseBuildFileV2(LinearAllocator* Arena,
             }
             else if (Char == '}')
             {
-                if (bAllowWhitespace)
+                if (bInsideWhitespaceAllowedBlock)
                 {
+                    bInsideWhitespaceAllowedBlock = false;
                     bAllowWhitespace = false;
                 }
 
                 Lexer_AddToken(&l, Token_RCurly);
+            }
+            else if (Char == '[')
+            { 
+                if (bInsideWhitespaceAllowedBlock)
+                {
+                    bAllowWhitespace = true;
+                }
+
+                Lexer_AddToken(&l, Token_LSquare);
+            }
+            else if (Char == ']')
+            {
+                if (bInsideWhitespaceAllowedBlock)
+                {
+                    bInsideWhitespaceAllowedBlock = false;
+                    bAllowWhitespace = false;
+                }
+
+                Lexer_AddToken(&l, Token_RSquare);
             }
             else if (Char == '#')
             {
