@@ -365,6 +365,7 @@ STRUCT(Node)
 
     String*     Key;
     StringList* Value;
+    StringList* Parameters;
 
     Node*       Left;
     Node*       Right;
@@ -646,21 +647,23 @@ static Node* Parse_Special_LogMessage(LinearAllocator* Arena, Parser* P)
     while (Parser_Peek(P).Type != Token_Quote)
     {
         Token Peek = Parser_Peek(P);
-        if (Peek.Type == Token_BSlash)
-        {
-            Parser_Advance(P);
-            Peek = Parser_Peek(P);
-        }
-
         String Lexeme = Peek.Lexeme;
         if (Peek.Type == Token_Newline)
         {
             Lexeme = S("\n");
         }
         
-        SLinkedList_Push(Next, StringList_Create(Arena, Lexeme, NULL));
-
+        SLinkedList_Push(Next, StringList_Create(Arena, String_EatCharFromEnd(Lexeme, '\\'), NULL));
         Parser_Advance(P);
+
+        if (Parser_Peek(P).Type == Token_Quote)
+        {
+            if (String_IsLast(Parser_LookBack(P).Lexeme, '\\'))
+            {
+                SLinkedList_Push(Next, StringList_Create(Arena, Parser_Peek(P).Lexeme, NULL));
+                Parser_Advance(P);
+            }
+        }
     }
 
     Parser_Advance(P);
@@ -679,23 +682,31 @@ static Node* Parse_Special_ErrorMessage(LinearAllocator* Arena, Parser* P)
     StringList* ValueList = NULL;
     StringList** Next = &ValueList;
 
-    // TODO: support '[' and ']'
-    // TODO: support escaping '{', '}' and '[', ']'
     if (Parser_Match(P, Token_LCurly) || 
         Parser_Match(P, Token_LSquare))
     {
         while (Parser_Peek(P).Type != Token_RCurly &&
                Parser_Peek(P).Type != Token_RSquare)
         {
-            String Lexeme = Parser_Peek(P).Lexeme;
-            if (Parser_Peek(P).Type == Token_Newline)
+            Token Peek = Parser_Peek(P);
+            String Lexeme = Peek.Lexeme;
+            if (Peek.Type == Token_Newline)
             {
                 Lexeme = S("\n");
             }
 
-            SLinkedList_Push(Next, StringList_Create(Arena, Lexeme, NULL));
-
+            SLinkedList_Push(Next, StringList_Create(Arena, String_EatCharFromEnd(Lexeme, '\\'), NULL));
             Parser_Advance(P);
+
+            if (Parser_Peek(P).Type == Token_RSquare ||
+                Parser_Peek(P).Type == Token_RCurly)
+            {
+                if (String_IsLast(Parser_LookBack(P).Lexeme, '\\'))
+                {
+                    SLinkedList_Push(Next, StringList_Create(Arena, Parser_Peek(P).Lexeme, NULL));
+                    Parser_Advance(P);
+                }
+            }
         }
 
         Parser_Advance(P);
@@ -726,23 +737,31 @@ static Node* Parse_Special_Help(LinearAllocator* Arena, Parser* P)
     StringList* ValueList = NULL;
     StringList** Next = &ValueList;
 
-    // TODO: support '[' and ']'
-    // TODO: support escaping '{', '}' and '[', ']'
     if (Parser_Match(P, Token_LCurly) || 
         Parser_Match(P, Token_LSquare))
     {
         while (Parser_Peek(P).Type != Token_RCurly &&
                Parser_Peek(P).Type != Token_RSquare)
         {
-            String Lexeme = Parser_Peek(P).Lexeme;
-            if (Parser_Peek(P).Type == Token_Newline)
+            Token Peek = Parser_Peek(P);
+            String Lexeme = Peek.Lexeme;
+            if (Peek.Type == Token_Newline)
             {
                 Lexeme = S("\n");
             }
 
-            SLinkedList_Push(Next, StringList_Create(Arena, Lexeme, NULL));
-
+            SLinkedList_Push(Next, StringList_Create(Arena, String_EatCharFromEnd(Lexeme, '\\'), NULL));
             Parser_Advance(P);
+
+            if (Parser_Peek(P).Type == Token_RSquare ||
+                Parser_Peek(P).Type == Token_RCurly)
+            {
+                if (String_IsLast(Parser_LookBack(P).Lexeme, '\\'))
+                {
+                    SLinkedList_Push(Next, StringList_Create(Arena, Parser_Peek(P).Lexeme, NULL));
+                    Parser_Advance(P);
+                }
+            }
         }
 
         Parser_Advance(P);
@@ -964,10 +983,11 @@ static Node* Parse_If(LinearAllocator* Arena,
                     else    {}
                 }
 
-                //const String Condition = Parser_Peek(P).Lexeme;
-                //LOG("%S", Condition);
-
-                //Root->Key = &Tokens[Current].Lexeme;
+                if (Parser_Peek(P).Type != Token_Text)
+                {
+                    LOG_ERROR("[Parser] [Line %u]: '%S' are not allowed within 'if' statements. Please delete.", Parser_Peek(P).Line, Parser_Peek(P).Lexeme);
+                    return &Node_Null;
+                }
 
                 String Lexeme = Parser_Peek(P).Lexeme;
                 SLinkedList_Push(NextValue, StringList_Create(Arena, Lexeme, NULL));
@@ -975,6 +995,35 @@ static Node* Parse_If(LinearAllocator* Arena,
                 Parser_Advance(P);
 
                 Token Comparison = Parser_Peek(P);
+
+                if (Comparison.Type != Token_If &&
+                    Comparison.Type != Token_Text &&
+                    Comparison.Type != Token_ErrorMessage &&
+                    Comparison.Type != Token_Help &&
+                    Comparison.Type != Token_Include &&
+                    Comparison.Type != Token_Stop &&
+                    Comparison.Type != Token_Abort &&
+                    Comparison.Type != Token_Goto &&
+                    Comparison.Type != Token_LCurly &&
+                    Comparison.Type != Token_Pipe &&
+                    Comparison.Type != Token_Or &&
+
+                    !(Comparison.Type == Token_EqualEqual   || Comparison.Type == Token_NotEqual    ||
+                    Comparison.Type == Token_GreaterOrEqual || Comparison.Type == Token_LessOrEqual ||
+                    Comparison.Type == Token_GreaterThan    || Comparison.Type == Token_LessThan    ||
+                    Comparison.Type == Token_StartsWith     || Comparison.Type == Token_EndsWith    ||
+                    Comparison.Type == Token_Contains))
+                {
+                    if (Comparison.Type == Token_Newline)
+                    {
+                        LOG_ERROR("[Parser] [Line %u]: Expected either another 'if', comparison operator, Key Value, or new block after '%S'. Please delete.", Comparison.Line, Parser_LookBack(P).Lexeme);
+                    }
+                    else
+                    {
+                        LOG_ERROR("[Parser] [Line %u]: '%S' was unexpected after '%S'. Expected either another 'if', comparison operator, Key Value, or new block after '%S'. Please delete.", Comparison.Line,Comparison.Lexeme, Parser_LookBack(P).Lexeme, Parser_LookBack(P).Lexeme);
+                    }
+                    return &Node_Null;
+                }
 
                 if (Comparison.Type == Token_If)
                 {
@@ -991,7 +1040,6 @@ static Node* Parse_If(LinearAllocator* Arena,
                 }
                 else
                 {
-                    //String TestValue = String_Null();
                     if (Comparison.Type == Token_EqualEqual     || Comparison.Type == Token_NotEqual    ||
                         Comparison.Type == Token_GreaterOrEqual || Comparison.Type == Token_LessOrEqual ||
                         Comparison.Type == Token_GreaterThan    || Comparison.Type == Token_LessThan    ||
@@ -1054,7 +1102,8 @@ static Node* Parse_If(LinearAllocator* Arena,
                         break;
                     }
 
-                    (void)Parser_Match(P, Token_Pipe);
+                    while (Parser_Match(P, Token_Pipe) ||
+                            Parser_Match(P, Token_Or));
                 }
 
                 NextToken = Parser_Peek(P);
@@ -1889,7 +1938,7 @@ bool ParseBuildFileV2(LinearAllocator* Arena,
             l.Start = l.Current;
             
             const uchar Char = l.Text.Data[l.Current];
-            const uchar PrevChar = l.Text.Data[ClampMax((i32)l.Current-1, 0)];
+            const uchar PrevChar = l.Text.Data[ClampMin((i32)l.Current-1, 0)];
             Lexer_Advance(&l);
 
             if (Char == '\n')
@@ -1947,7 +1996,7 @@ bool ParseBuildFileV2(LinearAllocator* Arena,
             }
             else if (Char == '}')
             {
-                if (bInsideWhitespaceAllowedBlock)
+                if (bInsideWhitespaceAllowedBlock && PrevChar != '\\')
                 {
                     bInsideWhitespaceAllowedBlock = false;
                     bAllowWhitespace = false;
@@ -1966,7 +2015,7 @@ bool ParseBuildFileV2(LinearAllocator* Arena,
             }
             else if (Char == ']')
             {
-                if (bInsideWhitespaceAllowedBlock)
+                if (bInsideWhitespaceAllowedBlock && PrevChar != '\\')
                 {
                     bInsideWhitespaceAllowedBlock = false;
                     bAllowWhitespace = false;
