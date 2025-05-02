@@ -184,14 +184,11 @@ ENUM_TYPED(ETokenType, u32)
     Token_Text,
 
     // Reserved Keywords
-    Token_Artifact,
     Token_Target,
     Token_Include,
     Token_If,
     Token_Else,
-    Token_And,
     Token_Or,
-    Token_Goto,
     Token_Contains,
     Token_StartsWith,
     Token_EndsWith,
@@ -251,14 +248,11 @@ static String TokenTypeEnumStringTable_NoPrefix[Token_Max] =
     SC("Text"),
 
     // Reserved Keywords
-    SC("Artifact"),
     SC("Target"),
     SC("Include"),
     SC("If"),
     SC("Else"),
-    SC("And"),
     SC("Or"),
-    SC("Goto"),
     SC("Contains"),
     SC("StartsWith"),
     SC("EndsWith"),
@@ -307,14 +301,11 @@ static String TokenTypeEnumStringTable[Token_Max] =
     SC("Token_Text"),
 
     // Reserved Keywords
-    SC("Token_Artifact"),
     SC("Token_Target"),
     SC("Token_Include"),
     SC("Token_If"),
     SC("Token_Else"),
-    SC("Token_And"),
     SC("Token_Or"),
-    SC("Token_Goto"),
     SC("Token_Contains"),
     SC("Token_StartsWith"),
     SC("Token_EndsWith"),
@@ -361,7 +352,8 @@ STRUCT(Node)
     ENodeType   Type;
     ETokenType  ComparisonOp;
     bool        bIsSpecial;
-    u8          Padding[7];
+    bool        bIsReservedKey;
+    u8          Padding[6];
 
     String*     Key;
     StringList* Value;
@@ -428,11 +420,7 @@ static KeywordTableEntry ReservedKeywordsTable[14] =
     { .Type = Token_If,          .Name = SC("if")          },
     { .Type = Token_Else,        .Name = SC("else")        },
     { .Type = Token_Include,     .Name = SC("include")     },
-    { .Type = Token_And,         .Name = SC("and")         },
     { .Type = Token_Or,          .Name = SC("or")          },
-    { .Type = Token_Goto,        .Name = SC("goto")        },
-    { .Type = Token_Artifact,    .Name = SC("artifact")    },
-    { .Type = Token_Target ,     .Name = SC("target")      },
     { .Type = Token_Contains ,   .Name = SC("contains")    },
     { .Type = Token_StartsWith,  .Name = SC("starts_with") },
     { .Type = Token_EndsWith,    .Name = SC("ends_with")   },
@@ -448,6 +436,7 @@ static KeywordTableEntry ReservedEndingKeywordsTable[1] =
 
 static String ReservedKeys[] =
 {
+    SC("Compiler"),
     SC("Compiler"),
 };
 
@@ -468,6 +457,25 @@ static String ReservedKeys_CanMakeScopeBlock[] =
 static ETokenType DisallowedInIfElseBlock[1] =
 {
     Token_Help,
+};
+
+STRUCT(DeferredKVData)
+{
+    Token* Key;
+    StringList* Params;
+    Node* FilterNode;
+    Node* LastIfNode;
+    bool bIsSpecial;
+    u8 Padding[7];
+};
+
+read_only static DeferredKVData DeferredKVData_Null = 
+{
+    .Key = &Token_Null,
+    .Params = NULL,
+    .FilterNode = &Node_Null,
+    .LastIfNode = &Node_Null,
+    .bIsSpecial = false,
 };
 
 UNUSED static bool Parser_IsTokenDisallowedInIfElseBlock(ETokenType Type)
@@ -679,6 +687,8 @@ static Node* Parse_Special_ErrorMessage(LinearAllocator* Arena, Parser* P)
 
     Parser_Advance(P);
 
+    (void)Parser_Match(P, Token_Newline);
+
     StringList* ValueList = NULL;
     StringList** Next = &ValueList;
 
@@ -733,6 +743,8 @@ static Node* Parse_Special_Help(LinearAllocator* Arena, Parser* P)
     Node* Root = Node_Create(Arena, Node_Help);
 
     Parser_Advance(P);
+
+    (void)Parser_Match(P, Token_Newline);
 
     StringList* ValueList = NULL;
     StringList** Next = &ValueList;
@@ -918,8 +930,12 @@ static Node* Parse_If(LinearAllocator* Arena,
 
             if (bInlineIf)
             {
-                // todo: make sure ther eis no lcurly
-                //bool bHasCurly = Parser_Match(P, Token_LCurly);
+                bool bHasCurly = Parser_Match(P, Token_LCurly);
+                if (bHasCurly)
+                {
+                    LOG_ERROR("[Parser] [Line %u]: '{' are not allowed for inline if statements.", Parser_LookBack(P).Line);
+                    return &Node_Null;
+                }
 
                 Node* BlockNode = Parse_Block(Arena, P, 0, true);
                 if (BlockNode == &Node_Null)
@@ -1003,10 +1019,10 @@ static Node* Parse_If(LinearAllocator* Arena,
                     Comparison.Type != Token_Include &&
                     Comparison.Type != Token_Stop &&
                     Comparison.Type != Token_Abort &&
-                    Comparison.Type != Token_Goto &&
                     Comparison.Type != Token_LCurly &&
                     Comparison.Type != Token_Pipe &&
                     Comparison.Type != Token_Or &&
+                    Comparison.Type != Token_Newline &&
 
                     !(Comparison.Type == Token_EqualEqual   || Comparison.Type == Token_NotEqual    ||
                     Comparison.Type == Token_GreaterOrEqual || Comparison.Type == Token_LessOrEqual ||
@@ -1014,14 +1030,7 @@ static Node* Parse_If(LinearAllocator* Arena,
                     Comparison.Type == Token_StartsWith     || Comparison.Type == Token_EndsWith    ||
                     Comparison.Type == Token_Contains))
                 {
-                    if (Comparison.Type == Token_Newline)
-                    {
-                        LOG_ERROR("[Parser] [Line %u]: Expected either another 'if', comparison operator, Key Value, or new block after '%S'. Please delete.", Comparison.Line, Parser_LookBack(P).Lexeme);
-                    }
-                    else
-                    {
-                        LOG_ERROR("[Parser] [Line %u]: '%S' was unexpected after '%S'. Expected either another 'if', comparison operator, Key Value, or new block after '%S'. Please delete.", Comparison.Line,Comparison.Lexeme, Parser_LookBack(P).Lexeme, Parser_LookBack(P).Lexeme);
-                    }
+                    LOG_ERROR("[Parser] [Line %u]: '%S' was unexpected after '%S'. Expected either another 'if', comparison operator, Key Value, or new block after '%S'. Please delete.", Comparison.Line,Comparison.Lexeme, Parser_LookBack(P).Lexeme, Parser_LookBack(P).Lexeme);
                     return &Node_Null;
                 }
 
@@ -1080,14 +1089,12 @@ static Node* Parse_If(LinearAllocator* Arena,
                         }
                     }
 
-                    // TODO: token assert
                     if (Parser_Peek(P).Type == Token_Text ||
                         Parser_Peek(P).Type == Token_ErrorMessage ||
                         Parser_Peek(P).Type == Token_Help ||
                         Parser_Peek(P).Type == Token_Include ||
                         Parser_Peek(P).Type == Token_Stop ||
-                        Parser_Peek(P).Type == Token_Abort ||
-                        Parser_Peek(P).Type == Token_Goto)
+                        Parser_Peek(P).Type == Token_Abort)
                     {
                         Node* BlockNode = Parse_Block(Arena, P, 0, true);
                         if (BlockNode == &Node_Null)
@@ -1151,10 +1158,9 @@ static Node* Parse_Block(LinearAllocator* Arena,
     Token LastRootToken = Token_Null;
     bool bPreviouslyEvaluatedIfStatement = false;
     bool bSkipRootTokenUpdate = false;
-    Token* DeferredKey = &Token_Null;
-    Node* DeferredFilterNode = &Node_Null;
-    Node* DeferredLastIfNode = &Node_Null;
-    bool bDeferredKeyIsSpecial = false;
+
+    DeferredKVData Deferred = DeferredKVData_Null;
+
     while (P->Current < NumTokens)
     {
         Start = P->Current;
@@ -1199,14 +1205,14 @@ static Node* Parse_Block(LinearAllocator* Arena,
                 return &Node_Null;
             }
 
-            if (DeferredKey != &Token_Null)
+            if (Deferred.Key != &Token_Null)
             {
-                BlockNode->Key = &DeferredKey->Lexeme;
+                BlockNode->Key = &Deferred.Key->Lexeme;
 
-                if (DeferredFilterNode != &Node_Null)
+                if (Deferred.FilterNode != &Node_Null)
                 {
-                    DeferredLastIfNode->Left = BlockNode;
-                    List->Node = DeferredFilterNode;
+                    Deferred.LastIfNode->Left = BlockNode;
+                    List->Node = Deferred.FilterNode;
                 }
                 else
                 {
@@ -1220,10 +1226,7 @@ static Node* Parse_Block(LinearAllocator* Arena,
 
             SLinkedList_Push(NextNode, List);
 
-            DeferredKey        = &Token_Null;
-            DeferredFilterNode = &Node_Null;
-            DeferredLastIfNode = &Node_Null;
-            bDeferredKeyIsSpecial = false;
+            Deferred = DeferredKVData_Null;
         }
         else if (t.Type == Token_RCurly)
         {
@@ -1231,7 +1234,7 @@ static Node* Parse_Block(LinearAllocator* Arena,
         }
         else if (t.Type == Token_LSquare)
         {
-            if (DeferredKey != &Token_Null)
+            if (Deferred.Key != &Token_Null)
             {
                 Parser_Advance(P);
 
@@ -1255,12 +1258,13 @@ static Node* Parse_Block(LinearAllocator* Arena,
 
                 Parser_Advance(P); // go past ']'
 
-                Node* KV_Node = Node_Create_KeyValue(Arena, &DeferredKey->Lexeme, ValueList, bDeferredKeyIsSpecial);
+                Node* KV_Node = Node_Create_KeyValue(Arena, &Deferred.Key->Lexeme, ValueList, Deferred.bIsSpecial);
+                KV_Node->Parameters = Deferred.Params;
 
-                if (DeferredFilterNode != &Node_Null)
+                if (Deferred.FilterNode != &Node_Null)
                 {
-                    DeferredLastIfNode->Left = KV_Node;
-                    List->Node = DeferredFilterNode;
+                    Deferred.LastIfNode->Left = KV_Node;
+                    List->Node = Deferred.FilterNode;
                 }
                 else
                 {
@@ -1269,10 +1273,7 @@ static Node* Parse_Block(LinearAllocator* Arena,
 
                 SLinkedList_Push(NextNode, List);
 
-                DeferredKey        = &Token_Null;
-                DeferredFilterNode = &Node_Null;
-                DeferredLastIfNode = &Node_Null;
-                bDeferredKeyIsSpecial = false;
+                Deferred = DeferredKVData_Null;
             }
             else
             {
@@ -1281,30 +1282,26 @@ static Node* Parse_Block(LinearAllocator* Arena,
             }
         }
         // the positioning of this if statement is important, do not move this!!
-        else if (DeferredKey != &Token_Null)
+        else if (Deferred.Key != &Token_Null)
         {
             // this means this key has no value
             NodeList* List = NodeList_CreateNull(Arena);
-            Node* KV_Node = Node_Create_KeyValue(Arena, &DeferredKey->Lexeme, NULL, bDeferredKeyIsSpecial);
+            Node* KV_Node = Node_Create_KeyValue(Arena, &Deferred.Key->Lexeme, NULL, Deferred.bIsSpecial);
+            KV_Node->Parameters = Deferred.Params;
 
-            if (DeferredFilterNode != &Node_Null)
+            if (Deferred.FilterNode != &Node_Null)
             {
-                DeferredLastIfNode->Left = KV_Node;
-                List->Node = DeferredFilterNode;
+                Deferred.LastIfNode->Left = KV_Node;
+                List->Node = Deferred.FilterNode;
             }
             else
             {
                 List->Node = KV_Node;
             }
 
-            // TODO: check that certain keys cannot be made into blocks like: Compiler { }
-
             SLinkedList_Push(NextNode, List);
 
-            DeferredKey        = &Token_Null;
-            DeferredFilterNode = &Node_Null;
-            DeferredLastIfNode = &Node_Null;
-            bDeferredKeyIsSpecial = false;
+            Deferred = DeferredKVData_Null;
 
             P->Current -= 1;
             continue;
@@ -1376,6 +1373,24 @@ static Node* Parse_Block(LinearAllocator* Arena,
                 return &Node_Null;
             }
 
+            StringList* ParamList = NULL;
+            if (Parser_Match(P, Token_LParen))
+            {
+                StringList** Next = &ParamList;
+                while (Parser_Peek(P).Type == Token_Text ||
+                       Parser_Peek(P).Type == Token_Colon)
+                {
+                    SLinkedList_Push(Next, StringList_Create(Arena, Parser_Peek(P).Lexeme, NULL));
+                    Parser_Advance(P);
+                }
+
+                if (!Parser_Match(P, Token_RParen))
+                {
+                    LOG_ERROR("[Parser] [Line %u]: '%S' was unexpected within parameter list. Missing enclosing ')'", Parser_Peek(P).Line, Parser_Peek(P).Lexeme);
+                    return &Node_Null;
+                }
+            }
+
             // we are filtering this key. aka if statement
             Node* FilterNode = &Node_Null;
             Node* LastIfNode = &Node_Null;
@@ -1445,15 +1460,16 @@ static Node* Parse_Block(LinearAllocator* Arena,
 
             bool bFoundTokens = false;
 
-            // this means we are deferring. in other words, this value is multiline
+            // this means we are multiline
             if (Parser_Peek(P).Type == Token_Newline ||
                 Parser_Peek(P).Type == Token_LSquare ||
                 Parser_Peek(P).Type == Token_LCurly)
             {
-                DeferredKey = tPtr;
-                DeferredFilterNode = FilterNode;
-                DeferredLastIfNode = LastIfNode;
-                bDeferredKeyIsSpecial = bIsSpecial;
+                Deferred.Key        = tPtr;
+                Deferred.Params     = ParamList;
+                Deferred.FilterNode = FilterNode;
+                Deferred.LastIfNode = LastIfNode;
+                Deferred.bIsSpecial = bIsSpecial;
             }
             else
             {
@@ -1479,6 +1495,7 @@ static Node* Parse_Block(LinearAllocator* Arena,
                 }
 
                 Node* KV_Node = Node_Create_KeyValue(Arena, &tPtr->Lexeme, ValueList, bIsSpecial);
+                KV_Node->Parameters = ParamList;
 
                 if (FilterNode != &Node_Null)
                 {
@@ -1489,8 +1506,6 @@ static Node* Parse_Block(LinearAllocator* Arena,
                 {
                     List->Node = KV_Node;
                 }
-
-                // TODO: check that certain keys cannot be made into blocks like: Compiler { }
 
                 SLinkedList_Push(NextNode, List);
             }
@@ -1518,13 +1533,6 @@ static Node* Parse_Block(LinearAllocator* Arena,
 
             SLinkedList_Push(NextNode, List);
         }
-        /*
-            if <<prefix?>condition|...> <comparison_operator?> <test?|...>
-                                        <key> <value>
-                                    | <key> <value> else <key> <value>
-                                    | { <key> <value> <stmt-end> ... }
-                                    | { <key> <value> <stmt-end> ... } else { <key> <value> <stmt-end> ... }
-        */
         else if (t.Type == Token_Else)
         {
             bSkipRootTokenUpdate = true;
@@ -1731,20 +1739,30 @@ static void Print_KVNode(Node* Root, u32 Level)
         String_AppendChar(&Spaces, ' ');
     }
 
-    if (Root->bIsSpecial)
-    {
-        LOG("%S [SPECIAL MOD]    ", Spaces);
-    }
-
     if (Root->Key)
     {
         LOG("\n%S [KEY]      %S", Spaces, *Root->Key);
+
+        if (Root->bIsSpecial)
+        {
+            LOG("%S [SPECIAL MOD]    ", Spaces);
+        }
     }
 
     if (Root->Value)
     {
         LOG_INLINE("%S [VALUE]    ", Spaces);
         for each_str_list (*Root->Value)
+        {
+            LOG_INLINE("%S ", It.String);
+        }
+        LOG_LINE_BREAK();
+    }
+
+    if (Root->Parameters)
+    {
+        LOG_INLINE("%S [PARAMS]   ", Spaces);
+        for each_str_list (*Root->Parameters)
         {
             LOG_INLINE("%S ", It.String);
         }
