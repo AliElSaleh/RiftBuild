@@ -25,6 +25,8 @@ STRUCT(EngineGlobals)
 static LinearAllocator GlobalsAllocator = {0};
 static EngineGlobals   GGlobals = {0};
 
+read_only String GString_Null = SC("");
+
 static void Internal_InitGlobals(EngineGlobals* G)
 {
     ENSURE_NO_REENTRY();
@@ -83,7 +85,7 @@ void Globals_Init(void* Memory, usize Size)
     Internal_InitGlobals(&GGlobals);
 }
 
-bool IsValidFileHandle(const FileHandle Handle)
+NO_DISCARD bool IsValidFileHandle(const FileHandle Handle)
 {
     bool bValid = Handle.Data != NULL;
 
@@ -95,7 +97,9 @@ bool IsValidFileHandle(const FileHandle Handle)
     return bValid;
 }
 
-String String_Null(void)
+// todo; remove these and replace with read only global versions
+// rename to Global_ actuallyy...
+NO_DISCARD String String_Null(void)
 {
     #ifdef DEVELOPER
     // GGlobals.NullString was somehow modified...
@@ -107,7 +111,7 @@ String String_Null(void)
     return GGlobals.NullString;
 }
 
-StringArray StringArray_Null(void)
+NO_DISCARD StringArray StringArray_Null(void)
 {
     #ifdef DEVELOPER
     // GGlobals.NullStringArray was somehow modified...
@@ -119,7 +123,7 @@ StringArray StringArray_Null(void)
     return GGlobals.NullStringArray;
 }
 
-StringList StringList_Null(void)
+NO_DISCARD StringList StringList_Null(void)
 {
     #ifdef DEVELOPER
     // GGlobals.NullStringList was somehow modified...
@@ -132,7 +136,7 @@ StringList StringList_Null(void)
     return GGlobals.NullStringList;
 }
 
-FileHandle FileHandle_Null(void)
+NO_DISCARD FileHandle FileHandle_Null(void)
 {
     #ifdef DEVELOPER
     // GGlobals.NullFileHandle was somehow modified...
@@ -143,7 +147,7 @@ FileHandle FileHandle_Null(void)
     return GGlobals.NullFileHandle;
 }
 
-Clock Clock_Null(void)
+NO_DISCARD Clock Clock_Null(void)
 {
     return GGlobals.NullClock;
 }

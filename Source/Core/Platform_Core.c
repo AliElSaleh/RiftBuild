@@ -68,13 +68,13 @@ static void cpuid(i32 info[4], i32 infoType, i32 subtype)
 }
 
 #if PLATFORM_WINDOWS || PLATFORM_LINUX
-RIFT_API u32 Platform_GetCpuCacheLineSize(void)
+RIFT_API NO_DISCARD u32 Platform_GetCpuCacheLineSize(void)
 {
     // todo: do this dynamically
     return CACHE_LINE_SIZE;
 }
 
-bool Platform_GetCpuBrandName(String* OutName)
+NO_DISCARD bool Platform_GetCpuBrandName(String* OutName)
 {
     i32 info[4] = {0};
     cpuid(info, 0, 0);
@@ -90,7 +90,7 @@ bool Platform_GetCpuBrandName(String* OutName)
 }
 #endif
 
-CpuInfo Platform_QueryCPUInfo(void)
+NO_DISCARD CpuInfo Platform_QueryCPUInfo(void)
 {
     CpuInfo Result = {0};
 
@@ -558,7 +558,7 @@ void Clock_Tick(Clock* C)
     }
 }
 
-f64 Clock_GetElapsedTime(const Clock* C, bool bAutoConvertTimeUnit)
+NO_DISCARD f64 Clock_GetElapsedTime(const Clock* C, bool bAutoConvertTimeUnit)
 {
     f64 ElapsedTime;
     if (bAutoConvertTimeUnit)
@@ -583,22 +583,22 @@ void Clock_GetElapsedTime_ToStringEx(const Clock* C, bool bAutoConvertTimeUnit, 
     Time_ToStringEx(C->ElapsedTime, bAutoConvertTimeUnit, OutString, Format);
 }
 
-f64 Clock_GetElapsedTime_Milliseconds(const Clock* C)
+NO_DISCARD f64 Clock_GetElapsedTime_Milliseconds(const Clock* C)
 {
     return C->ElapsedTime * 1000.0;
 }
 
-f64 Clock_GetElapsedTime_Microseconds(const Clock* C)
+NO_DISCARD f64 Clock_GetElapsedTime_Microseconds(const Clock* C)
 {
     return C->ElapsedTime * 1000000.0;
 }
 
-f64 Clock_GetElapsedTime_Nanoseconds(const Clock* C)
+NO_DISCARD f64 Clock_GetElapsedTime_Nanoseconds(const Clock* C)
 {
     return C->ElapsedTime * 1000000000.0;
 }
 
-f64 Time_AutoConvert(f64 Seconds)
+NO_DISCARD f64 Time_AutoConvert(f64 Seconds)
 {
     f64 FinalTime = 0.0;
 
@@ -734,7 +734,7 @@ void Clock_PrintElapsedTime(const Clock* C, bool bAutoConvertTimeUnit)
     Platform_ConsoleWrite_CustomLength("\n", 1, 0, false);
 }
 
-bool Filesystem_DoesPathHaveFileExtension(const String Path)
+NO_DISCARD bool Filesystem_DoesPathHaveFileExtension(const String Path)
 {
     u32 LastDot = 0, LastSlash = 0;
     (void)String_IndexOfLastChar(Path, '.', &LastDot);
@@ -752,7 +752,7 @@ bool Filesystem_DoesPathHaveFileExtension(const String Path)
     return bSuccess;
 }
 
-String Filesystem_ExtractFileNameFromPath(const String Path, bool bIncludeExtension)
+NO_DISCARD String Filesystem_ExtractFileNameFromPath(const String Path, bool bIncludeExtension)
 {
     String FileName = String_Null();
 
@@ -774,7 +774,7 @@ String Filesystem_ExtractFileNameFromPath(const String Path, bool bIncludeExtens
     return FileName;
 }
 
-String Filesystem_StripFileExtension(const String FilePath)
+NO_DISCARD String Filesystem_StripFileExtension(const String FilePath)
 {
     String Final = FilePath;
 

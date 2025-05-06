@@ -160,7 +160,7 @@ void Platform_PreInitialize(void)
     (void)LocalFree(ArgsW);
 }
 
-bool Platform_CreateMutex(PlatformMutex* OutMutex)
+NO_DISCARD bool Platform_CreateMutex(PlatformMutex* OutMutex)
 {
     bool bSuccess = false;
 
@@ -180,7 +180,7 @@ bool Platform_CreateMutex(PlatformMutex* OutMutex)
     return bSuccess;
 }
 
-bool Platform_CreateNamedMutex(const String Name, PlatformMutex* OutMutex)
+NO_DISCARD bool Platform_CreateNamedMutex(const String Name, PlatformMutex* OutMutex)
 {
     bool bSuccess = false;
 
@@ -203,7 +203,7 @@ bool Platform_CreateNamedMutex(const String Name, PlatformMutex* OutMutex)
     return bSuccess;
 }
 
-bool Platform_ReleaseMutex(PlatformMutex* Mutex)
+NO_DISCARD bool Platform_ReleaseMutex(PlatformMutex* Mutex)
 {
     bool bResult = false;
 
@@ -219,7 +219,7 @@ bool Platform_ReleaseMutex(PlatformMutex* Mutex)
     return bResult;
 }
 
-u32 Platform_GetConsoleProcessCount(void)
+NO_DISCARD u32 Platform_GetConsoleProcessCount(void)
 {
     DWORD Processes[4] = {0};
     DWORD Count = GetConsoleProcessList(Processes, 4);
@@ -231,7 +231,7 @@ void Platform_Abort(u32 ExitCode)
     ExitProcess(ExitCode);
 }
 
-StringArray Platform_GetCommandLineArgs(void)
+NO_DISCARD StringArray Platform_GetCommandLineArgs(void)
 {
     StringArray Args = {0};
     Args.Num = (u32)(GArgC-1 <= 0 ? 0 : (GArgC-1 < 128 ? GArgC-1 : 128));
@@ -239,7 +239,7 @@ StringArray Platform_GetCommandLineArgs(void)
     return Args;
 }
 
-f64 Platform_GetClockFrequency(void)
+NO_DISCARD f64 Platform_GetClockFrequency(void)
 {
     LARGE_INTEGER Frequency = {0};
     BOOL bSuccess = QueryPerformanceFrequency(&Frequency);
@@ -348,19 +348,19 @@ i32 memcmp(const void* s1, const void* s2, SIZE_T len)
 
 PRAGMA_ENABLE_WARNINGS
 
-void* Platform_MemAlloc(usize Size)
+NO_DISCARD void* Platform_MemAlloc(usize Size)
 {
     DWORD dwFlags = HEAP_CREATE_ALIGN_16;
     return HeapAlloc(GetProcessHeap(), dwFlags, Size);
 }
 
-void* Platform_MemAllocZero(usize Size)
+NO_DISCARD void* Platform_MemAllocZero(usize Size)
 {
     DWORD dwFlags = HEAP_ZERO_MEMORY | HEAP_CREATE_ALIGN_16;
     return HeapAlloc(GetProcessHeap(), dwFlags, Size);
 }
 
-void* Platform_MemReAlloc(void* Block, usize Size)
+NO_DISCARD void* Platform_MemReAlloc(void* Block, usize Size)
 {
     void* Result;
 
@@ -402,7 +402,7 @@ void Platform_MemSet(void* Dest, i32 Value, usize Size)
     (void)RtlFillMemory(Dest, Size, (BYTE)Value);
 }
 
-bool Platform_SetWorkingDirectory(const String Path)
+NO_DISCARD bool Platform_SetWorkingDirectory(const String Path)
 {
     StringLocal(Copy, MAX_PATH_LENGTH);
     String_Copy(&Copy, Path);
@@ -457,7 +457,7 @@ void Platform_ConsoleWrite_CustomLength(const char* Message, u32 Length, u8 Colo
     }
 }
 
-f64 Platform_GetAbsoluteTime(void)
+NO_DISCARD f64 Platform_GetAbsoluteTime(void)
 {
     LARGE_INTEGER Frequency = {0}, Now = {0};
 
@@ -471,7 +471,7 @@ f64 Platform_GetAbsoluteTime(void)
     return Result;
 }
 
-SystemTime Platform_GetSystemLocalTime(void)
+NO_DISCARD SystemTime Platform_GetSystemLocalTime(void)
 {
     SYSTEMTIME SysTime = {0};
     GetLocalTime(&SysTime);
@@ -489,7 +489,7 @@ SystemTime Platform_GetSystemLocalTime(void)
     return Result;
 }
 
-bool Platform_GetTimeZone(String* OutTimeZone)
+NO_DISCARD bool Platform_GetTimeZone(String* OutTimeZone)
 {
     TIME_ZONE_INFORMATION TimeZoneInfo = {0};
     DWORD Result = GetTimeZoneInformation(&TimeZoneInfo);
@@ -545,12 +545,12 @@ void Platform_Sleep(u32 ms)
     Sleep(ms);
 }
 
-u64 Platform_GetCurrentThreadID(void)
+NO_DISCARD u64 Platform_GetCurrentThreadID(void)
 {
     return GetCurrentThreadId();
 }
 
-u64 Platform_GetMainThreadID(void)
+NO_DISCARD u64 Platform_GetMainThreadID(void)
 {
     return GetCurrentThreadId();
 }
@@ -573,7 +573,7 @@ void Platform_GetComputerName(String* OutName)
     }
 }
 
-bool Platform_GetAccountName(String* OutName)
+NO_DISCARD bool Platform_GetAccountName(String* OutName)
 {
     u8 UserName[256] = {0};
     DWORD Size = 255;
@@ -590,7 +590,7 @@ bool Platform_GetAccountName(String* OutName)
     return bResult;
 }
 
-bool Platform_GetUserName(String* OutName)
+NO_DISCARD bool Platform_GetUserName(String* OutName)
 {
     bool bSuccess = false;
 
@@ -617,7 +617,7 @@ bool Platform_GetUserName(String* OutName)
     return bSuccess;
 }
 
-bool Platform_GetUserDirectory(String* OutDirectory)
+NO_DISCARD bool Platform_GetUserDirectory(String* OutDirectory)
 {
     bool bSuccess = false;
 
@@ -639,7 +639,7 @@ void Platform_GetHomeDirectory(String* OutDirectory)
     (void)Platform_GetUserDirectory(OutDirectory);
 }
 
-bool Platform_GetCurrentProcessName(String* OutName)
+NO_DISCARD bool Platform_GetCurrentProcessName(String* OutName)
 {
     TCHAR FileName[MAX_PATH] = {0};
     u32 Len = GetModuleFileName(NULL, FileName, MAX_PATH);
@@ -659,7 +659,7 @@ bool Platform_GetCurrentProcessName(String* OutName)
     return bSuccess;
 }
 
-u64 Platform_GetCurrentProcessID(void)
+NO_DISCARD u64 Platform_GetCurrentProcessID(void)
 {
     return GetCurrentProcessId();
 }
@@ -670,7 +670,7 @@ void Platform_GetWorkingDirectory(String* OutPath)
     OutPath->Length = Len;
 }
 
-bool Platform_GetEnvironmentVariableValue(String Name, String* OutVariable)
+NO_DISCARD bool Platform_GetEnvironmentVariableValue(String Name, String* OutVariable)
 {
 #ifdef UNICODE
     String16Local(NameWide, 2048);
@@ -695,7 +695,7 @@ bool Platform_GetEnvironmentVariableValue(String Name, String* OutVariable)
 #endif
 }
 
-bool Platform_SetEnvironmentVariableValue(String Name, String Value)
+NO_DISCARD bool Platform_SetEnvironmentVariableValue(String Name, String Value)
 {
     StringLocal(NameCopy, 128); // we copy the name because the passed in Name could have had its length altered but not the data, so create a copy with a null terminator at the length so windows gets the correct string
     String_Copy(&NameCopy, Name);
@@ -707,7 +707,7 @@ bool Platform_SetEnvironmentVariableValue(String Name, String Value)
     return bSuccess;
 }
 
-bool Platform_DoesEnvironmentVariableExist(String Name)
+NO_DISCARD bool Platform_DoesEnvironmentVariableExist(String Name)
 {
     StringLocal(NameCopy, 128); // we copy the name because the passed in Name could have had its length altered but not the data, so create a copy with a null terminator at the length so windows gets the correct string
     String_Copy(&NameCopy, Name);
@@ -716,14 +716,14 @@ bool Platform_DoesEnvironmentVariableExist(String Name)
     return Len != 0;
 }
 
-u32 Platform_GetNumLogicalProcessors(void)
+NO_DISCARD u32 Platform_GetNumLogicalProcessors(void)
 {
     SYSTEM_INFO info = {0};
     GetSystemInfo(&info);
     return info.dwNumberOfProcessors;
 }
 
-Uuid UUID_Generate(void)
+NO_DISCARD Uuid UUID_Generate(void)
 {
     uuid_t id = {0};
     (void)UuidCreate(&id);
@@ -731,7 +731,7 @@ Uuid UUID_Generate(void)
     return *(Uuid*)&id;
 }
 
-bool UUID_IsEqual(Uuid First, Uuid Second)
+NO_DISCARD bool UUID_IsEqual(Uuid First, Uuid Second)
 {
     return Platform_MemEqual(&First, &Second, sizeof(Uuid));
 }
@@ -749,7 +749,7 @@ void UUID_ToString(Uuid ID, String* OutString)
     }
 }
 
-Uuid UUID_FromString(const String IDString)
+NO_DISCARD Uuid UUID_FromString(const String IDString)
 {
     uuid_t id = {0};
     (void)UuidFromString((const RPC_CSTR)IDString.Data, &id);
@@ -757,7 +757,7 @@ Uuid UUID_FromString(const String IDString)
     return *(Uuid*)&id;
 }
 
-bool Filesystem_Open(const String FilePath, EFileMode Mode, FileHandle* OutHandle)
+NO_DISCARD bool Filesystem_Open(const String FilePath, EFileMode Mode, FileHandle* OutHandle)
 {
     bool bSuccess = false;
 
@@ -867,7 +867,7 @@ bool Filesystem_Open(const String FilePath, EFileMode Mode, FileHandle* OutHandl
     return bSuccess;
 }
 
-bool Filesystem_NewFile(const String FilePath)
+NO_DISCARD bool Filesystem_NewFile(const String FilePath)
 {
     FileHandle f = {0};
     bool bSuccess = Filesystem_Open(FilePath, FileMode_Write, &f);
@@ -879,7 +879,7 @@ bool Filesystem_NewFile(const String FilePath)
     return bSuccess;
 }
 
-bool Filesystem_DeleteFile(String FilePath)
+NO_DISCARD bool Filesystem_DeleteFile(String FilePath)
 {
     StringLocal(Copy, MAX_PATH);
     String_Copy(&Copy, FilePath);
@@ -889,7 +889,7 @@ bool Filesystem_DeleteFile(String FilePath)
     return Result != 0;
 }
 
-bool Filesystem_Open_MemoryMapped(const String FilePath, EFileMode Mode, FileHandle* OutHandle, u8** OutData, usize* OutSize)
+NO_DISCARD bool Filesystem_Open_MemoryMapped(const String FilePath, EFileMode Mode, FileHandle* OutHandle, u8** OutData, usize* OutSize)
 {
     bool bSuccess = false;
 
@@ -992,7 +992,7 @@ bool Filesystem_Open_MemoryMapped(const String FilePath, EFileMode Mode, FileHan
     return bSuccess;
 }
 
-bool Filesystem_OpenDirectory(const String FilePath)
+NO_DISCARD bool Filesystem_OpenDirectory(const String FilePath)
 {
     bool bAnySuccess = Filesystem_DoesDirectoryExist(FilePath);
     
@@ -1051,7 +1051,7 @@ bool Filesystem_OpenDirectory(const String FilePath)
     return bAnySuccess;
 }
 
-bool Filesystem_OpenDirectory_Ex(const String FilePath, FileHandle* OutHandle)
+NO_DISCARD bool Filesystem_OpenDirectory_Ex(const String FilePath, FileHandle* OutHandle)
 {
     bool bSuccess = false;
 
@@ -1104,49 +1104,49 @@ void Filesystem_Close(FileHandle* Handle)
     }
 }
 
-bool Filesystem_Seek(const FileHandle Handle, isize Offset)
+NO_DISCARD bool Filesystem_Seek(const FileHandle Handle, isize Offset)
 {
     DWORD Result = SetFilePointer(Handle.Data, (long)Offset, NULL, FILE_CURRENT);
     return Result != INVALID_SET_FILE_POINTER;
 }
 
-bool Filesystem_SeekFromBeginning(const FileHandle Handle, usize Offset)
+NO_DISCARD bool Filesystem_SeekFromBeginning(const FileHandle Handle, usize Offset)
 {
     DWORD Result = SetFilePointer(Handle.Data, (long)Offset, NULL, FILE_BEGIN);
     return Result != INVALID_SET_FILE_POINTER;
 }
 
-bool Filesystem_SeekFromEnd(const FileHandle Handle, usize Offset)
+NO_DISCARD bool Filesystem_SeekFromEnd(const FileHandle Handle, usize Offset)
 {
     DWORD Result = SetFilePointer(Handle.Data, (long)Offset, NULL, FILE_END);
     return Result != INVALID_SET_FILE_POINTER;
 }
 
-bool Filesystem_SeekToBeginning(const FileHandle Handle)
+NO_DISCARD bool Filesystem_SeekToBeginning(const FileHandle Handle)
 {
     DWORD Result = SetFilePointer(Handle.Data, 0, NULL, FILE_BEGIN);
     return Result != INVALID_SET_FILE_POINTER;
 }
 
-bool Filesystem_SeekToEnd(const FileHandle Handle)
+NO_DISCARD bool Filesystem_SeekToEnd(const FileHandle Handle)
 {
     DWORD Result = SetFilePointer(Handle.Data, 0, NULL, FILE_END);
     return Result != INVALID_SET_FILE_POINTER;
 }
 
-usize Filesystem_GetCurrentFilePosition(const FileHandle Handle)
+NO_DISCARD usize Filesystem_GetCurrentFilePosition(const FileHandle Handle)
 {
     return SetFilePointer(Handle.Data, 0, NULL, FILE_CURRENT);
 }
 
-FileHandle Filesystem_GetStdInputHandle(void)
+NO_DISCARD FileHandle Filesystem_GetStdInputHandle(void)
 {
     FileHandle Handle = {0};
     Handle.Data = GetStdHandle(STD_INPUT_HANDLE);
     return Handle;
 }
 
-usize Filesystem_GetLastWriteTime(const String FilePath)
+NO_DISCARD usize Filesystem_GetLastWriteTime(const String FilePath)
 {
     FILETIME FileTimeStamp = {0};
 
@@ -1164,7 +1164,7 @@ usize Filesystem_GetLastWriteTime(const String FilePath)
     return (usize)a;
 }
 
-usize Filesystem_GetLastAccessTime(const String FilePath)
+NO_DISCARD usize Filesystem_GetLastAccessTime(const String FilePath)
 {
     FILETIME FileTimeStamp = {0};
 
@@ -1182,7 +1182,7 @@ usize Filesystem_GetLastAccessTime(const String FilePath)
     return (usize)a;
 }
 
-usize Filesystem_GetCreationTime(const String FilePath)
+NO_DISCARD usize Filesystem_GetCreationTime(const String FilePath)
 {
     FILETIME FileTimeStamp = {0};
 
@@ -1200,7 +1200,7 @@ usize Filesystem_GetCreationTime(const String FilePath)
     return (usize)a;
 }
 
-FileTimeData Filesystem_GetFileTime(const String FilePath)
+NO_DISCARD FileTimeData Filesystem_GetFileTime(const String FilePath)
 {
     FileTimeData Time = {0};
 
@@ -1225,7 +1225,7 @@ FileTimeData Filesystem_GetFileTime(const String FilePath)
     return Time;
 }
 
-usize Filesystem_GetLastWriteTimeH(const FileHandle Handle)
+NO_DISCARD usize Filesystem_GetLastWriteTimeH(const FileHandle Handle)
 {
     FILETIME FileTimeStamp = {0};
     (void)GetFileTime(Handle.Data, NULL, NULL, &FileTimeStamp);
@@ -1234,7 +1234,7 @@ usize Filesystem_GetLastWriteTimeH(const FileHandle Handle)
     return (usize)a;
 }
 
-usize Filesystem_GetLastAccessTimeH(const FileHandle Handle)
+NO_DISCARD usize Filesystem_GetLastAccessTimeH(const FileHandle Handle)
 {
     FILETIME FileTimeStamp = {0};
     (void)GetFileTime(Handle.Data, NULL, &FileTimeStamp, NULL);
@@ -1243,7 +1243,7 @@ usize Filesystem_GetLastAccessTimeH(const FileHandle Handle)
     return (usize)a;
 }
 
-usize Filesystem_GetCreationTimeH(const FileHandle Handle)
+NO_DISCARD usize Filesystem_GetCreationTimeH(const FileHandle Handle)
 {
     FILETIME FileTimeStamp = {0};
     (void)GetFileTime(Handle.Data, &FileTimeStamp, NULL, NULL);
@@ -1252,7 +1252,7 @@ usize Filesystem_GetCreationTimeH(const FileHandle Handle)
     return (usize)a;
 }
 
-FileTimeData Filesystem_GetFileTimeH(const FileHandle Handle)
+NO_DISCARD FileTimeData Filesystem_GetFileTimeH(const FileHandle Handle)
 {
     FileTimeData Time = {0};
 
@@ -1268,7 +1268,7 @@ FileTimeData Filesystem_GetFileTimeH(const FileHandle Handle)
     return Time;
 }
 
-bool Filesystem_ReadPipe(PlatformPipe Handle, usize DataSize, void* OutData, usize* OutBytesRead)
+NO_DISCARD bool Filesystem_ReadPipe(PlatformPipe Handle, usize DataSize, void* OutData, usize* OutBytesRead)
 {
     bool bSuccess = Handle[0] && Handle[1];
 
@@ -1286,7 +1286,7 @@ bool Filesystem_ReadPipe(PlatformPipe Handle, usize DataSize, void* OutData, usi
     return bSuccess;
 }
 
-bool Filesystem_Read(const FileHandle Handle, usize DataSize, void* OutData, usize* OutBytesRead)
+NO_DISCARD bool Filesystem_Read(const FileHandle Handle, usize DataSize, void* OutData, usize* OutBytesRead)
 {
     bool bSuccess = IsValidFileHandle(Handle);
 
@@ -1304,7 +1304,7 @@ bool Filesystem_Read(const FileHandle Handle, usize DataSize, void* OutData, usi
     return bSuccess;
 }
 
-bool Filesystem_ReadEntireFile(const FileHandle Handle, void* OutData, usize* OutBytesRead)
+NO_DISCARD bool Filesystem_ReadEntireFile(const FileHandle Handle, void* OutData, usize* OutBytesRead)
 {
     bool bSuccess = IsValidFileHandle(Handle);
     
@@ -1333,7 +1333,7 @@ bool Filesystem_ReadEntireFile(const FileHandle Handle, void* OutData, usize* Ou
     return bSuccess;
 }
 
-bool Filesystem_ReadLine(const FileHandle Handle, String* LineBuffer)
+NO_DISCARD bool Filesystem_ReadLine(const FileHandle Handle, String* LineBuffer)
 {
     bool bSuccess = IsValidFileHandle(Handle) && LineBuffer && String_IsDataValid(*LineBuffer);
     
@@ -1498,7 +1498,7 @@ bool Filesystem_WriteLineFormatted(const FileHandle Handle, const String Text, u
     return bSuccess;
 }
 
-bool Filesystem_DoesFileExist(const String FilePath)
+NO_DISCARD bool Filesystem_DoesFileExist(const String FilePath)
 {
     bool bExists = false;
 
@@ -1513,7 +1513,7 @@ bool Filesystem_DoesFileExist(const String FilePath)
     return bExists;
 }
 
-bool Filesystem_DoesDirectoryExist(const String FilePath)
+NO_DISCARD bool Filesystem_DoesDirectoryExist(const String FilePath)
 {
     bool bExists = false;
 
@@ -1529,7 +1529,7 @@ bool Filesystem_DoesDirectoryExist(const String FilePath)
     return bExists;
 }
 
-bool Filesystem_GetFilePath(const FileHandle File, String* OutPath)
+NO_DISCARD bool Filesystem_GetFilePath(const FileHandle File, String* OutPath)
 {
     bool bSuccess = IsValidFileHandle(File);
     if (bSuccess)
@@ -1548,7 +1548,7 @@ bool Filesystem_GetFilePath(const FileHandle File, String* OutPath)
     return bSuccess;
 }
 
-bool Filesystem_GetFileSize(const FileHandle File, usize* OutSize)
+NO_DISCARD bool Filesystem_GetFileSize(const FileHandle File, usize* OutSize)
 {
     bool bSuccess = IsValidFileHandle(File);
 
@@ -1566,33 +1566,33 @@ bool Filesystem_GetFileSize(const FileHandle File, usize* OutSize)
     return bSuccess;
 }
 
-bool Filesystem_IsFile(const String Path)
+NO_DISCARD bool Filesystem_IsFile(const String Path)
 {
     DWORD Attrib = GetFileAttributes((char*)Path.Data);
     return (Attrib != INVALID_FILE_ATTRIBUTES && (Attrib & FILE_ATTRIBUTE_NORMAL));
 }
 
-bool Filesystem_IsDirectory(const String Path)
+NO_DISCARD bool Filesystem_IsDirectory(const String Path)
 {
     DWORD Attrib = GetFileAttributes((char*)Path.Data);
     return (Attrib != INVALID_FILE_ATTRIBUTES && (Attrib & FILE_ATTRIBUTE_DIRECTORY));
 }
 
-bool Filesystem_IsNewer(const String PathA, const String PathB)
+NO_DISCARD bool Filesystem_IsNewer(const String PathA, const String PathB)
 {
     usize a = Filesystem_GetLastWriteTime(PathA);
     usize b = Filesystem_GetLastWriteTime(PathB);
     return a > b;
 }
 
-bool Filesystem_IsOlder(const String PathA, const String PathB)
+NO_DISCARD bool Filesystem_IsOlder(const String PathA, const String PathB)
 {
     usize a = Filesystem_GetLastWriteTime(PathA);
     usize b = Filesystem_GetLastWriteTime(PathB);
     return a < b;
 }
 
-bool Filesystem_IsPathRelative(const String Path)
+NO_DISCARD bool Filesystem_IsPathRelative(const String Path)
 {
     bool bDriveSymbol = String_IndexOfChar(Path, ':', NULL);
 
@@ -1601,7 +1601,7 @@ bool Filesystem_IsPathRelative(const String Path)
     return bRelative;
 }
 
-bool Filesystem_ConvertRelativeToAbsolutePath(String* OutFullPath)
+NO_DISCARD bool Filesystem_ConvertRelativeToAbsolutePath(String* OutFullPath)
 {
     StringLocal(Copy, MAX_PATH);
     String_Copy(&Copy, *OutFullPath);
@@ -1611,7 +1611,7 @@ bool Filesystem_ConvertRelativeToAbsolutePath(String* OutFullPath)
     return bResult;
 }
 
-static bool Internal_IterateDirectory(const String RootPath, const String DirectoryPath, DirectoryIterator Callback, bool bRecursive, void* UserData)
+NO_DISCARD static bool Internal_IterateDirectory(const String RootPath, const String DirectoryPath, DirectoryIterator Callback, bool bRecursive, void* UserData)
 {
     const String RealDirectoryPath = DirectoryPath.Length == 0 ? S(".") : DirectoryPath;
 
@@ -1695,15 +1695,15 @@ static bool Internal_IterateDirectory(const String RootPath, const String Direct
 
 void Filesystem_IterateDirectory(const String BasePath, DirectoryIterator Callback, bool bRecursive)
 {
-    Internal_IterateDirectory(BasePath, BasePath, Callback, bRecursive, NULL);
+    (void)Internal_IterateDirectory(BasePath, BasePath, Callback, bRecursive, NULL);
 }
 
 void Filesystem_IterateDirectory_Ex(const String BasePath, DirectoryIterator Callback, bool bRecursive, void* UserData)
 {
-    Internal_IterateDirectory(BasePath, BasePath, Callback, bRecursive, UserData);
+    (void)Internal_IterateDirectory(BasePath, BasePath, Callback, bRecursive, UserData);
 }
 
-bool Filesystem_DeleteFiles(const String FilePath, const String Wildcard, bool bRecursive)
+NO_DISCARD bool Filesystem_DeleteFiles(const String FilePath, const String Wildcard, bool bRecursive)
 {
     WIN32_FIND_DATA fd = {0};
 
@@ -1756,7 +1756,7 @@ bool Filesystem_DeleteFiles(const String FilePath, const String Wildcard, bool b
     return bAnyFilesDeleted;
 }
 
-bool Filesystem_DeleteDirectory(const String DirectoryPath)
+NO_DISCARD bool Filesystem_DeleteDirectory(const String DirectoryPath)
 {
     WIN32_FIND_DATA fd = {0};
 
@@ -1802,7 +1802,7 @@ bool Filesystem_DeleteDirectory(const String DirectoryPath)
     return bResult;
 }
 
-bool Filesystem_Copy(const String Source, const String Destination)
+NO_DISCARD bool Filesystem_Copy(const String Source, const String Destination)
 {
     StringLocal(SourceCopy, MAX_PATH);
     StringLocal(DestinationCopy, MAX_PATH);
@@ -1853,7 +1853,7 @@ bool Filesystem_Copy(const String Source, const String Destination)
     return bResult;
 }
 
-bool Filesystem_Move(const String Source, const String Destination, bool bRename)
+NO_DISCARD bool Filesystem_Move(const String Source, const String Destination, bool bRename)
 {
     StringLocal(SourceCopy, MAX_PATH);
     StringLocal(DestinationCopy, MAX_PATH);
@@ -1893,7 +1893,7 @@ bool Filesystem_Move(const String Source, const String Destination, bool bRename
     return bResult;
 }
 
-bool Filesystem_ArePathsCommon(String PathA, String PathB)
+NO_DISCARD bool Filesystem_ArePathsCommon(String PathA, String PathB)
 {
     StringLocal(CommonPath, MAX_PATH);
     i32 Len = PathCommonPrefix((char*)PathA.Data, (char*)PathB.Data, (char*)CommonPath.Data);
@@ -1902,7 +1902,7 @@ bool Filesystem_ArePathsCommon(String PathA, String PathB)
     return String_IsEqual(CommonPath, PathA, false);
 }
 
-PlatformHandle Platform_RunCommand(const String CmdLine, const String WorkingDirectory, const String EnvBlock)
+NO_DISCARD PlatformHandle Platform_RunCommand(const String CmdLine, const String WorkingDirectory, const String EnvBlock)
 {
     PROCESS_INFORMATION ProcessInfo = {0};
     STARTUPINFO StartupInfo = {0};
@@ -1933,7 +1933,7 @@ PlatformHandle Platform_RunCommand(const String CmdLine, const String WorkingDir
     return ProcessHandle;
 }
 
-PlatformHandle Platform_RunProcess(const String ProcessExePath, const String Parameters, const String WorkingDirectory, const String EnvBlock)
+NO_DISCARD PlatformHandle Platform_RunProcess(const String ProcessExePath, const String Parameters, const String WorkingDirectory, const String EnvBlock)
 {
     PROCESS_INFORMATION ProcessInfo = {0};
     STARTUPINFO StartupInfo = {0};
@@ -1964,7 +1964,7 @@ PlatformHandle Platform_RunProcess(const String ProcessExePath, const String Par
     return ProcessHandle;
 }
 
-PlatformHandle Platform_RunProcess_Ex(const String ProcessExePath, const String Parameters, const String WorkingDirectory, PlatformPipe* StdOutPipe)
+NO_DISCARD PlatformHandle Platform_RunProcess_Ex(const String ProcessExePath, const String Parameters, const String WorkingDirectory, PlatformPipe* StdOutPipe)
 {
     PROCESS_INFORMATION ProcessInfo = {0};
     SECURITY_ATTRIBUTES saAttr = {0}; 
@@ -2020,7 +2020,7 @@ PlatformHandle Platform_RunProcess_Ex(const String ProcessExePath, const String 
     return ProcessHandle;
 }
 
-PlatformHandle Platform_RunCommand_Ex(const String CmdLine, const String WorkingDirectory, PlatformPipe* StdOutPipe)
+NO_DISCARD PlatformHandle Platform_RunCommand_Ex(const String CmdLine, const String WorkingDirectory, PlatformPipe* StdOutPipe)
 {
     PROCESS_INFORMATION ProcessInfo = {0};
     SECURITY_ATTRIBUTES saAttr = {0}; 
@@ -2076,31 +2076,31 @@ PlatformHandle Platform_RunCommand_Ex(const String CmdLine, const String Working
     return ProcessHandle;
 }
 
-bool Platform_TerminateProcess(PlatformHandle Handle, u32 ExitCode)
+NO_DISCARD bool Platform_TerminateProcess(PlatformHandle Handle, u32 ExitCode)
 {
     bool bResult = TerminateProcess(Handle, ExitCode);
     CloseHandle(Handle);
     return bResult;
 }
 
-bool Platform_FindProgram(String ProgramName)
+NO_DISCARD bool Platform_FindProgram(String ProgramName)
 {
     return Platform_FindFile_Ex(ProgramName, S(".exe"), NULL) ||
            Platform_FindFile_Ex(ProgramName, S(".com"), NULL);
 }
 
-bool Platform_FindProgram_Ex(String ProgramName, String* OutProgramPath)
+NO_DISCARD bool Platform_FindProgram_Ex(String ProgramName, String* OutProgramPath)
 {
     return Platform_FindFile_Ex(ProgramName, S(".exe"), OutProgramPath) ||
            Platform_FindFile_Ex(ProgramName, S(".com"), OutProgramPath);
 }
 
-bool Platform_FindFile(String FileName, String ExtensionWithDot)
+NO_DISCARD bool Platform_FindFile(String FileName, String ExtensionWithDot)
 {
     return Platform_FindFile_Ex(FileName, ExtensionWithDot, NULL);
 }
 
-bool Platform_FindFile_Ex(String FileName, String ExtensionWithDot, String* OutFilePath)
+NO_DISCARD bool Platform_FindFile_Ex(String FileName, String ExtensionWithDot, String* OutFilePath)
 {
     bool bSuccess = String_IsValid(FileName);
 
@@ -2131,12 +2131,12 @@ bool Platform_FindFile_Ex(String FileName, String ExtensionWithDot, String* OutF
     return bSuccess;
 }
 
-bool Platform_IsValidHandle(const PlatformHandle Handle)
+NO_DISCARD bool Platform_IsValidHandle(const PlatformHandle Handle)
 {
     return Handle != NULL && Handle != INVALID_HANDLE_VALUE;
 }
 
-usize Platform_GetCriticalSectionMemoryRequirement(void)
+NO_DISCARD usize Platform_GetCriticalSectionMemoryRequirement(void)
 {
     return sizeof(CRITICAL_SECTION);
 }
@@ -2161,7 +2161,7 @@ void Platform_ExitCriticalSection(PlatformCriticalSection CriticalSection)
     LeaveCriticalSection(CriticalSection);
 }
 
-bool Platform_AnyKeyPressed(void)
+NO_DISCARD bool Platform_AnyKeyPressed(void)
 {
     bool bHit = false;
 
@@ -2189,7 +2189,7 @@ void Platform_EndNonBlockingMode(void)
 {
 }
 
-bool Platform_GetFullCpuName(String* OutName)
+NO_DISCARD bool Platform_GetFullCpuName(String* OutName)
 {
     HKEY Key = NULL;
     LSTATUS Status = RegOpenKeyExA(HKEY_LOCAL_MACHINE, "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0\\",
@@ -2216,7 +2216,7 @@ bool Platform_GetFullCpuName(String* OutName)
     return bSuccess;
 }
 
-u32 Platform_GetExitCodeForProcess(PlatformHandle Handle)
+NO_DISCARD u32 Platform_GetExitCodeForProcess(PlatformHandle Handle)
 {
     u32 Code = 0;
 
@@ -2241,7 +2241,7 @@ u32 Platform_GetExitCodeForProcess(PlatformHandle Handle)
     return Code;
 }
 
-u32 Platform_WaitForProcessAndGetExitCode(PlatformHandle Handle)
+NO_DISCARD u32 Platform_WaitForProcessAndGetExitCode(PlatformHandle Handle)
 {
     u32 Code = 0;
 
@@ -2263,7 +2263,7 @@ u32 Platform_WaitForProcessAndGetExitCode(PlatformHandle Handle)
     return Code;
 }
 
-u32 Platform_WaitForMultipleHandles(PlatformHandle* Handles, u32 NumHandles, i32 Milliseconds, bool bWaitAll)
+NO_DISCARD u32 Platform_WaitForMultipleHandles(PlatformHandle* Handles, u32 NumHandles, i32 Milliseconds, bool bWaitAll)
 {
     i32 Time = Milliseconds <= 0 ? (i32)INFINITE : Milliseconds;
     return WaitForMultipleObjects(NumHandles, Handles, bWaitAll, (u32)Time);
@@ -2286,7 +2286,7 @@ void Platform_CloseHandle(PlatformHandle Handle)
     }
 }
 
-bool Platform_GetTerminalDimensions(u32* OutRows, u32* OutColumns)
+NO_DISCARD bool Platform_GetTerminalDimensions(u32* OutRows, u32* OutColumns)
 {
     bool bSuccess = false;
 
@@ -2302,7 +2302,7 @@ bool Platform_GetTerminalDimensions(u32* OutRows, u32* OutColumns)
     return bSuccess;
 }
 
-PlatformVersion Platform_GetVersion(void)
+NO_DISCARD PlatformVersion Platform_GetVersion(void)
 {
     PlatformVersion Result = {0};
     
@@ -2317,7 +2317,7 @@ PlatformVersion Platform_GetVersion(void)
     return Result;
 }
 
-bool Platform_IsConsoleFocused(void)
+NO_DISCARD bool Platform_IsConsoleFocused(void)
 {
     bool bIsFocused = false;
 
@@ -2334,7 +2334,7 @@ bool Platform_IsConsoleFocused(void)
     return bIsFocused;
 }
 
-bool Platform_IsWindowFocused(void)
+NO_DISCARD bool Platform_IsWindowFocused(void)
 {
     bool bIsFocused = false;
 
@@ -2351,7 +2351,7 @@ bool Platform_IsWindowFocused(void)
     return bIsFocused;
 }
 
-u32 Platform_GetPosixVersion(void)
+NO_DISCARD u32 Platform_GetPosixVersion(void)
 {
     return 0;
 }

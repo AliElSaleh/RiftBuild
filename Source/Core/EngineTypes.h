@@ -209,6 +209,8 @@ STRUCT(StringList)
 #define For(Array) for each (It, Array)
 #define ForEach(It, Array) for each (It, Array)
 
+#define EachElement(Index, Array) (u32 Index = 0; Index < SArray_Capacity(Array); Index++)
+
 // this actually kinda works? lol
 #define is ==
 #define isnt !=
@@ -218,7 +220,7 @@ STRUCT(StringList)
 
 #define TArray(Type) Type*
 #define SArray(Type, Name, Count) Type Name[Count]; u32 CONCAT(Name, _Count)
-#define TMap(KeyType, ValueType) Map
+#define TMap(KeyType, ValueType)
 
 #define SLinkedList_Push(List, Entry) \
                         *(List) = Entry; \
@@ -491,13 +493,13 @@ STRUCT(StringList)
     #define FALL_THROUGH     __attribute__((fallthrough))
     #define NO_RETURN        __attribute__((noreturn))
     #define RETURN_NON_NULL  __attribute__((returns_nonnull))
+    #define FORCEINLINE      __attribute__((always_inline)) inline
+    #define FORCENOINLINE
     #define ASM              __asm__ \
 
     #define UNLIKELY(Expression) __builtin_expect(!!(Expression), 0)
     #define LIKELY(Expression)   __builtin_expect(!!(Expression), 1)
 
-    #define FORCEINLINE    __attribute__((always_inline)) inline
-    #define FORCENOINLINE
 
     #define DEBUG_BREAK()  __builtin_trap()
 
@@ -520,21 +522,22 @@ STRUCT(StringList)
         PRAGMA_DISABLE_WARNINGS \
         PRAGMA_DISABLE_WARNING(4820)
 
+    #include <sal.h>
+
     #define DEPRECATED       __declspec(deprecated)
     #define UNUSED           
     #define CONST_FN     
     #define PURE_FN         
-    #define NO_DISCARD       
+    #define NO_DISCARD       _Check_return_
     #define FALL_THROUGH     
-    #define NO_RETURN        
-    #define RETURN_NON_NULL  
+    #define NO_RETURN        __declspec(noreturn)
+    #define RETURN_NON_NULL  _Ret_notnull_
     #define ASM              __asm
+    #define FORCEINLINE      __forceinline
+    #define FORCENOINLINE    __declspec(noinline)
 
     #define UNLIKELY(Expression) Expression
     #define LIKELY(Expression)   Expression
-
-    #define FORCEINLINE    __forceinline 
-    #define FORCENOINLINE  __declspec(noinline)
 
     extern void __nop(void);
 
@@ -568,9 +571,11 @@ STRUCT(StringList)
 #ifdef NO_ASSERT
     #define ASSERT(Expression)
     #define ENSURE(Expression)
+    #define UNREACHABLE()
 #else
     #define ASSERT(Expression, ...) do { if (Expression) {} else { ##__VA_ARGS__; DEBUG_BREAK(); _Crash_; } } while (0)
     #define ENSURE(Expression, ...) do { if (Expression) {} else { ##__VA_ARGS__; DEBUG_BREAK(); } } while (0)
+    #define UNREACHABLE()           do { DEBUG_BREAK; _Crash_; } while (0)
 #endif
 
 #define STATIC_PURE_FN(...) static __VA_ARGS__ PURE_FN; static __VA_ARGS__ 
@@ -658,5 +663,7 @@ typedef u32 usize;
     #define MAX_PATH_LENGTH_EX 1024
     #define PATH_SEPARATOR '/'
 #endif
+
+read_only global String GString_Null;
 
 #endif // ENGINE_TYPES_H

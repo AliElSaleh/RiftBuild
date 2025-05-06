@@ -32,6 +32,7 @@ static FreeListAllocator GEngineAllocator_Debug = { 0 };
 static PlatformCriticalSection GCriticalSection_Debug = NULL;
 #endif
 
+NO_DISCARD
 #ifdef RIFT_DEBUG_MEMORY
 bool Memory_Initialize(void* Memory, usize MemSize, void* DebugMemory, usize DebugMemSize, void* ScratchMemory, usize ScratchSize)
 #else
@@ -182,7 +183,7 @@ void MemFree_Debug(void* Block)
 }
 #endif
 
-void* MemAlloc(usize Size, EMemoryTag Tag)
+NO_DISCARD void* MemAlloc(usize Size, EMemoryTag Tag)
 {
     ASSERT(Size != 0);
 
@@ -259,25 +260,25 @@ void MemMove(void* Destination, const void* Source, usize Size)
     Platform_MemMove(Destination, Source, Size);
 }
 
-bool MemEqual(const void* Block1, const void* Block2, usize Size)
+NO_DISCARD bool MemEqual(const void* Block1, const void* Block2, usize Size)
 {
     return Platform_MemEqual(Block1, Block2, Size);
 }
 
 #if PLATFORM_WINDOWS
 extern i32 memcmp(const void* s1, const void* s2, usize len);
-bool Platform_MemEqual(const void* Block1, const void* Block2, usize Size)
+NO_DISCARD bool Platform_MemEqual(const void* Block1, const void* Block2, usize Size)
 {
     return memcmp(Block1, Block2, Size) == 0;
 }
 #endif
 
-LinearAllocator Memory_GetScratch(void)
+NO_DISCARD LinearAllocator Memory_GetScratch(void)
 {
     return GEngineScratchAllocator;
 }
 
-usize Memory_GetEngineMemoryRemaining(void)
+NO_DISCARD usize Memory_GetEngineMemoryRemaining(void)
 {
     return GEngineAllocator.TotalSize - GEngineAllocator.Allocated;
 }
@@ -391,7 +392,7 @@ void LinearAllocator_Destroy(LinearAllocator* Allocator)
     Allocator->bOwnsMemory = false;
 }
 
-void* LinearAllocator_Allocate(LinearAllocator* Allocator, usize Size)
+NO_DISCARD void* LinearAllocator_Allocate(LinearAllocator* Allocator, usize Size)
 {
     ASSERT(Size > 0);
     ASSERT(Allocator->Allocated < Allocator->TotalSize);
@@ -416,7 +417,7 @@ void* LinearAllocator_Allocate(LinearAllocator* Allocator, usize Size)
     return Block;
 }
 
-void* LinearAllocator_MemoryHead(LinearAllocator* Allocator)
+NO_DISCARD void* LinearAllocator_MemoryHead(LinearAllocator* Allocator)
 {
     return ((u8*)Allocator->Memory) + Allocator->Allocated;
 }
@@ -596,7 +597,7 @@ usize FreeListAllocator_Offset(FreeListAllocator* Allocator, void* Memory)
     return (usize)((u8*)Memory - (u8*)Allocator->Memory);
 }
 
-void* FreeListAllocator_MemoryFromOffset(FreeListAllocator* Allocator, usize Offset)
+NO_DISCARD void* FreeListAllocator_MemoryFromOffset(FreeListAllocator* Allocator, usize Offset)
 {
     ASSERT(Offset > sizeof(FreeListAllocator_Header));
     ASSERT(Offset < Allocator->TotalSize);
@@ -604,7 +605,7 @@ void* FreeListAllocator_MemoryFromOffset(FreeListAllocator* Allocator, usize Off
     return (void*)((u8*)Allocator->Memory + Offset);
 }
 
-void* FreeListAllocator_Allocate(FreeListAllocator* Allocator, usize Size, usize* OutBytesAllocated)
+NO_DISCARD void* FreeListAllocator_Allocate(FreeListAllocator* Allocator, usize Size, usize* OutBytesAllocated)
 {
     if (OutBytesAllocated)
     {
@@ -802,7 +803,7 @@ void FreeListAllocator_Free(FreeListAllocator* Allocator, void* Memory, usize* O
 /////////////////////////////////////
 
 
-void* Internal_ArrayCreate(usize Num, usize Stride)
+NO_DISCARD void* Internal_ArrayCreate(usize Num, usize Stride)
 {
     usize HeaderSize = ArrayField_Count * sizeof(usize);
     usize ArraySize = Num * Stride;
@@ -817,7 +818,7 @@ void* Internal_ArrayCreate(usize Num, usize Stride)
     return (void*)(NewArray + ArrayField_Count);
 }
 
-usize Array_CalculateMemRequirement(usize Num, usize Stride)
+NO_DISCARD usize Array_CalculateMemRequirement(usize Num, usize Stride)
 {
     usize HeaderSize = ArrayField_Count * sizeof(usize);
     usize Alignment = 3;
@@ -826,7 +827,7 @@ usize Array_CalculateMemRequirement(usize Num, usize Stride)
     return HeaderSize + ArraySize;
 }
 
-void* Internal_ArrayCreateStatic(void* Memory, usize Num, usize Stride)
+NO_DISCARD void* Internal_ArrayCreateStatic(void* Memory, usize Num, usize Stride)
 {
     usize* NewArray = (usize*)Memory;
 

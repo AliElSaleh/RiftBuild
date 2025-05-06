@@ -12,7 +12,7 @@
 #define STB_SPRINTF_IMPLEMENTATION
 #include "Libraries/Vendor/stb_sprintf.h"
 
-bool String_IsValid(const String Str)
+NO_DISCARD bool String_IsValid(const String Str)
 {
     bool bValid = true;
     if (!Str.Data || Str.Data[0] == 0 || Str.Length == 0 || Str.Data == String_Null().Data)
@@ -23,7 +23,7 @@ bool String_IsValid(const String Str)
     return bValid;
 }
 
-bool String_IsDataValid(const String Str)
+NO_DISCARD bool String_IsDataValid(const String Str)
 {
     bool bValid = true;
     if (!Str.Data || Str.Data == String_Null().Data)
@@ -34,7 +34,7 @@ bool String_IsDataValid(const String Str)
     return bValid;
 }
 
-bool StringArray_IsValid(const StringArray Str)
+NO_DISCARD bool StringArray_IsValid(const StringArray Str)
 {
     bool bValid = true;
     if (!Str.List || Str.Num == 0 || Str.List == StringArray_Null().List)
@@ -45,7 +45,7 @@ bool StringArray_IsValid(const StringArray Str)
     return bValid;
 }
 
-bool StringList_IsValid(const StringList Str)
+NO_DISCARD bool StringList_IsValid(const StringList Str)
 {
     bool bValid = true;
     if (!Str.Next || Str.Next == StringList_Null().Next || !String_IsValid(Str.String))
@@ -56,7 +56,7 @@ bool StringList_IsValid(const StringList Str)
     return bValid;
 }
 
-String String_Create(LinearAllocator* Arena, const String Source)
+NO_DISCARD String String_Create(LinearAllocator* Arena, const String Source)
 {
     String str = String_Null();
     bool bValid = Source.Length > 0 && (Arena->Allocated + Source.Length+1 < Arena->TotalSize);
@@ -72,7 +72,7 @@ String String_Create(LinearAllocator* Arena, const String Source)
     return str;
 }
 
-String String_Duplicate(LinearAllocator* Arena, const String Source)
+NO_DISCARD String String_Duplicate(LinearAllocator* Arena, const String Source)
 {
     String str = String_Null();
     bool bValid = Source.Length > 0 && (Arena->Allocated + Source.Length+1 < Arena->TotalSize);
@@ -88,7 +88,7 @@ String String_Duplicate(LinearAllocator* Arena, const String Source)
     return str;
 }
 
-String String_Reserve(LinearAllocator* Arena, u32 Capacity)
+NO_DISCARD String String_Reserve(LinearAllocator* Arena, u32 Capacity)
 {
     String str = String_Null();
     bool bValid = Arena->Allocated + Capacity < Arena->TotalSize;
@@ -102,7 +102,7 @@ String String_Reserve(LinearAllocator* Arena, u32 Capacity)
     return str;
 }
 
-String String_ReserveAndCopy(LinearAllocator* Arena, u32 Capacity, const String Source)
+NO_DISCARD String String_ReserveAndCopy(LinearAllocator* Arena, u32 Capacity, const String Source)
 {
     String str = String_Null();
     bool bValid = Arena->Allocated + Capacity < Arena->TotalSize;
@@ -118,7 +118,7 @@ String String_ReserveAndCopy(LinearAllocator* Arena, u32 Capacity, const String 
     return str;
 }
 
-StringArray String_CreateArray(LinearAllocator* Arena, const StringArray Array)
+NO_DISCARD StringArray String_CreateArray(LinearAllocator* Arena, const StringArray Array)
 {
     StringArray Result = StringArray_Null();
     bool bValid = (Arena->Allocated + (sizeof(String) * Array.Num)) < Arena->TotalSize;
@@ -136,7 +136,7 @@ StringArray String_CreateArray(LinearAllocator* Arena, const StringArray Array)
     return Result;
 }
 
-String String_Join(LinearAllocator* Arena, const StringArray Array)
+NO_DISCARD String String_Join(LinearAllocator* Arena, const StringArray Array)
 {
     u32 TotalSize = 0;
     for (u32 i = 0; i < Array.Num; i++)
@@ -200,7 +200,7 @@ void String_ConcatArray(String* Dest, const StringArray Array, u32 MaxSize)
     }
 }
 
-bool String_IsEqual(const String StringA, const String StringB, bool bCaseSensitive)
+NO_DISCARD bool String_IsEqual(const String StringA, const String StringB, bool bCaseSensitive)
 {
     bool bSameLength = StringA.Length == StringB.Length;
     bool bMatch = bSameLength;
@@ -252,7 +252,7 @@ bool String_IsEqual(const String StringA, const String StringB, bool bCaseSensit
     return bMatch;
 }
 
-bool String16_IsEqual(const String16 StringA, const String16 StringB, bool bCaseSensitive)
+NO_DISCARD bool String16_IsEqual(const String16 StringA, const String16 StringB, bool bCaseSensitive)
 {
     bool bSameLength = StringA.Length == StringB.Length;
     bool bMatch = bSameLength;
@@ -305,7 +305,7 @@ bool String16_IsEqual(const String16 StringA, const String16 StringB, bool bCase
 }
 
 
-bool String_IsInteger32(const String Str)
+NO_DISCARD bool String_IsInteger32(const String Str)
 {
     bool bValid = Str.Length > 0 && Str.Length <= 10; // >10 is not a valid 32-bit integer
 
@@ -324,7 +324,7 @@ bool String_IsInteger32(const String Str)
     return bValid;
 }
 
-bool String_IsInteger(const String Str)
+NO_DISCARD bool String_IsInteger(const String Str)
 {
     bool bValid = Str.Length > 0 && Str.Length <= 20; // >20 is not a valid 64-bit integer
 
@@ -340,7 +340,7 @@ bool String_IsInteger(const String Str)
     return bValid;
 }
 
-bool String_IsFloat(const String Str)
+NO_DISCARD bool String_IsFloat(const String Str)
 {
     bool bValid = Str.Length > 0;
 
@@ -374,12 +374,12 @@ bool String_IsFloat(const String Str)
     return bValid;
 }
 
-bool String_IsNumeric(const String Str)
+NO_DISCARD bool String_IsNumeric(const String Str)
 {
     return String_IsInteger(Str) || String_IsFloat(Str);
 }
 
-bool String_Contains(const String Str, const String SubString, bool bCaseSensitive)
+NO_DISCARD bool String_Contains(const String Str, const String SubString, bool bCaseSensitive)
 {
     bool bContains = false;
     bool bValid = SubString.Length > 0 && SubString.Length <= Str.Length;
@@ -407,7 +407,7 @@ bool String_Contains(const String Str, const String SubString, bool bCaseSensiti
     return bContains;
 }
 
-bool String_ContainsPathSeparators(const String Str)
+NO_DISCARD bool String_ContainsPathSeparators(const String Str)
 {
     bool bContains = false;
 
@@ -423,7 +423,7 @@ bool String_ContainsPathSeparators(const String Str)
     return bContains;
 }
 
-bool String_ContainsDigits(const String Str)
+NO_DISCARD bool String_ContainsDigits(const String Str)
 {
     bool bContains = false;
 
@@ -439,7 +439,7 @@ bool String_ContainsDigits(const String Str)
     return bContains;
 }
 
-bool String_ContainsNonDigits(const String Str)
+NO_DISCARD bool String_ContainsNonDigits(const String Str)
 {
     bool bContains = false;
 
@@ -455,7 +455,7 @@ bool String_ContainsNonDigits(const String Str)
     return bContains;
 }
 
-bool String_StartsWith(const String Str, const String SubString, bool bCaseSensitive)
+NO_DISCARD bool String_StartsWith(const String Str, const String SubString, bool bCaseSensitive)
 {
     bool bSuccess = Str.Length >= SubString.Length && SubString.Length > 0;
     if (bSuccess)
@@ -467,7 +467,7 @@ bool String_StartsWith(const String Str, const String SubString, bool bCaseSensi
     return bSuccess;
 }
 
-bool String_EndsWith(const String Str, const String SubString, bool bCaseSensitive)
+NO_DISCARD bool String_EndsWith(const String Str, const String SubString, bool bCaseSensitive)
 {
     bool bSuccess = Str.Length >= SubString.Length && SubString.Length > 0;
     if (bSuccess)
@@ -543,7 +543,7 @@ void String_AppendPathSeparator_Checked(String* Dest)
     }
 }
 
-ECompareResult String_CompareVersion(const String VersionA, const String VersionB)
+NO_DISCARD ECompareResult String_CompareVersion(const String VersionA, const String VersionB)
 {
     if (VersionA.Length == 0 || VersionB.Length == 0) { return CompareResult_None; }
 
@@ -876,7 +876,7 @@ void String_ConvertSlashToPlatformSlash(String* Str)
 #endif
 }
 
-String String_EatSpaces(String Str)
+NO_DISCARD String String_EatSpaces(String Str)
 {
     u32 i = 0;
     for (; i < Str.Length; i++)
@@ -890,7 +890,7 @@ String String_EatSpaces(String Str)
     return StrShiftF(Str, i);
 }
 
-String String_EatNewLines(String Str)
+NO_DISCARD String String_EatNewLines(String Str)
 {
     u32 i = 0;
     for (; i < Str.Length; i++)
@@ -904,7 +904,7 @@ String String_EatNewLines(String Str)
     return StrShiftF(Str, i);
 }
 
-bool String_EatSpacesInline(String* Str)
+NO_DISCARD bool String_EatSpacesInline(String* Str)
 {
     u32 i = 0;
     for (; i < Str->Length; i++)
@@ -921,7 +921,7 @@ bool String_EatSpacesInline(String* Str)
     return i > 0;
 }
 
-bool String_ReplaceCharInline(String* Str, u8 Char, u8 ReplaceChar)
+NO_DISCARD bool String_ReplaceCharInline(String* Str, u8 Char, u8 ReplaceChar)
 {
     bool bAnyChange = false;
     for (u32 i = 0; i < Str->Length; i++)
@@ -936,7 +936,7 @@ bool String_ReplaceCharInline(String* Str, u8 Char, u8 ReplaceChar)
     return bAnyChange;
 }
 
-bool String_ReplaceNonAlphaNumericCharInline(String* Str, u8 ReplaceChar)
+NO_DISCARD bool String_ReplaceNonAlphaNumericCharInline(String* Str, u8 ReplaceChar)
 {
     bool bAnyChange = false;
     for (u32 i = 0; i < Str->Length; i++)
@@ -951,7 +951,7 @@ bool String_ReplaceNonAlphaNumericCharInline(String* Str, u8 ReplaceChar)
     return bAnyChange;
 }
 
-bool String_CollapseMatching(String* Dest, const String A, const String B, bool bCaseSensitive)
+NO_DISCARD bool String_CollapseMatching(String* Dest, const String A, const String B, bool bCaseSensitive)
 {
     const String LongestString  = A.Length > B.Length ? A : B;
     const String ShortestString = A.Length > B.Length ? B : A;
@@ -990,7 +990,7 @@ bool String_CollapseMatching(String* Dest, const String A, const String B, bool 
     return bAnyChange;
 }
 
-String String_EatChar(String Str, u8 Char)
+NO_DISCARD String String_EatChar(String Str, u8 Char)
 {
     u32 i = 0;
     for (; i < Str.Length; i++)
@@ -1004,7 +1004,7 @@ String String_EatChar(String Str, u8 Char)
     return StrShiftF(Str, i);
 }
 
-String String_EatPathSeparatorsFromEnd(String Str)
+NO_DISCARD String String_EatPathSeparatorsFromEnd(String Str)
 {
     i32 i = ((i32)Str.Length)-1;
     for (; i >= 0; i--)
@@ -1025,7 +1025,7 @@ String String_EatPathSeparatorsFromEnd(String Str)
     return Result;
 }
 
-String String_EatPathSeparators(String Str)
+NO_DISCARD String String_EatPathSeparators(String Str)
 {
     u32 i = 0;
     for (; i < Str.Length; i++)
@@ -1039,7 +1039,7 @@ String String_EatPathSeparators(String Str)
     return StrShiftF(Str, i);
 }
 
-bool String_EatCharInline(String* Str, u8 Char)
+NO_DISCARD bool String_EatCharInline(String* Str, u8 Char)
 {
     u32 i = 0;
     for (; i < Str->Length; i++)
@@ -1056,7 +1056,7 @@ bool String_EatCharInline(String* Str, u8 Char)
     return i > 0;
 }
 
-bool String_EatCharInline_Single(String* Str, u8 Char)
+NO_DISCARD bool String_EatCharInline_Single(String* Str, u8 Char)
 {
     bool bSuccess = false;
     if (Str->Data[0] == Char)
@@ -1069,7 +1069,7 @@ bool String_EatCharInline_Single(String* Str, u8 Char)
     return bSuccess;
 }
 
-bool String_EatPathSeparatorsInline(String* Str)
+NO_DISCARD bool String_EatPathSeparatorsInline(String* Str)
 {
     u32 i = 0;
     for (; i < Str->Length; i++)
@@ -1086,7 +1086,7 @@ bool String_EatPathSeparatorsInline(String* Str)
     return i > 0;
 }
 
-String String_EatCharFromEnd(String Str, u8 Char)
+NO_DISCARD String String_EatCharFromEnd(String Str, u8 Char)
 {
     i32 i = ((i32)Str.Length)-1;
     for (; i >= 0; i--)
@@ -1107,7 +1107,7 @@ String String_EatCharFromEnd(String Str, u8 Char)
     return Result;
 }
 
-bool String_EatCharInlineFromEnd(String* Str, u8 Char)
+NO_DISCARD bool String_EatCharInlineFromEnd(String* Str, u8 Char)
 {
     i32 i = ((i32)Str->Length)-1;
     for (; i >= 0; i--)
@@ -1125,7 +1125,7 @@ bool String_EatCharInlineFromEnd(String* Str, u8 Char)
     return bAnyChange;
 }
 
-String String_EatSpacesFromEnd(String Str)
+NO_DISCARD String String_EatSpacesFromEnd(String Str)
 {
     i32 i = ((i32)Str.Length)-1;
     for (; i >= 0; i--)
@@ -1146,7 +1146,7 @@ String String_EatSpacesFromEnd(String Str)
     return Result;
 }
 
-String String_EatNewLinesFromEnd(String Str)
+NO_DISCARD String String_EatNewLinesFromEnd(String Str)
 {
     i32 i = ((i32)Str.Length)-1;
     for (; i >= 0; i--)
@@ -1167,7 +1167,7 @@ String String_EatNewLinesFromEnd(String Str)
     return Result;
 }
 
-bool String_EatSpacesInlineFromEnd(String* Str)
+NO_DISCARD bool String_EatSpacesInlineFromEnd(String* Str)
 {
     i32 i = ((i32)Str->Length)-1;
     for (; i >= 0; i--)
@@ -1185,7 +1185,7 @@ bool String_EatSpacesInlineFromEnd(String* Str)
     return bAnyChange;
 }
 
-bool String_EatNewLinesInline(String* Str)
+NO_DISCARD bool String_EatNewLinesInline(String* Str)
 {
     u32 i = 0;
     for (; i < Str->Length; i++)
@@ -1202,7 +1202,7 @@ bool String_EatNewLinesInline(String* Str)
     return i > 0;
 }
 
-bool String_EatNewLinesInlineFromEnd(String* Str)
+NO_DISCARD bool String_EatNewLinesInlineFromEnd(String* Str)
 {
     i32 i = ((i32)Str->Length)-1;
     for (; i >= 0; i--)
@@ -1220,7 +1220,7 @@ bool String_EatNewLinesInlineFromEnd(String* Str)
     return bAnyChange;
 }
 
-bool String_EatPathSeparatorsInlineFromEnd(String* Str)
+NO_DISCARD bool String_EatPathSeparatorsInlineFromEnd(String* Str)
 {
     i32 i = ((i32)Str->Length)-1;
     for (; i >= 0; i--)
@@ -1238,7 +1238,7 @@ bool String_EatPathSeparatorsInlineFromEnd(String* Str)
     return bAnyChange;
 }
 
-String String_ScanUntil(const String* Str, u8 Char)
+NO_DISCARD String String_ScanUntil(const String* Str, u8 Char)
 {
     u32 NewLength = 0;
     for (u32 i = 0; i < Str->Length; i++)
@@ -1472,7 +1472,7 @@ bool CString_ToBool(const char* Str)
 }
 */
 
-bool String_IndexOfChar(const String Str, u8 C, u32* OutIndex)
+NO_DISCARD bool String_IndexOfChar(const String Str, u8 C, u32* OutIndex)
 {
     bool bFound = false;
     for (u32 i = 0; i < Str.Length; ++i)
@@ -1492,19 +1492,19 @@ bool String_IndexOfChar(const String Str, u8 C, u32* OutIndex)
     return bFound;
 }
 
-bool String_IsFirst(const String Str, u8 C)
+NO_DISCARD bool String_IsFirst(const String Str, u8 C)
 {
     bool bIsFirst = Str.Length > 0 ? Str.Data[0] == C : false;
     return bIsFirst;
 }
 
-bool String_IsLast(const String Str, u8 C)
+NO_DISCARD bool String_IsLast(const String Str, u8 C)
 {
     bool bIsLast = Str.Length > 0 ? Str.Data[Str.Length-1] == C : false;
     return bIsLast;
 }
 
-bool String_IndexOfLastChar(const String Str, u8 C, u32* OutIndex)
+NO_DISCARD bool String_IndexOfLastChar(const String Str, u8 C, u32* OutIndex)
 {
     bool bFound = false;
     for (i32 i = ((i32)Str.Length)-1; i >= 0; i--)
@@ -1524,7 +1524,7 @@ bool String_IndexOfLastChar(const String Str, u8 C, u32* OutIndex)
     return bFound;
 }
 
-bool String_IndexOfFirstPathSlash(const String Str, u32* OutIndex)
+NO_DISCARD bool String_IndexOfFirstPathSlash(const String Str, u32* OutIndex)
 {
     bool bFound = false;
     for (u32 i = 0; i < Str.Length; ++i)
@@ -1544,7 +1544,7 @@ bool String_IndexOfFirstPathSlash(const String Str, u32* OutIndex)
     return bFound;
 }
 
-bool String_IndexOfLastPathSlash(const String Str, u32* OutIndex)
+NO_DISCARD bool String_IndexOfLastPathSlash(const String Str, u32* OutIndex)
 {
     bool bFound = false;
     for (i32 i = ((i32)Str.Length)-1; i >= 0; i--)
@@ -1564,7 +1564,7 @@ bool String_IndexOfLastPathSlash(const String Str, u32* OutIndex)
     return bFound;
 }
 
-bool String_IndexOfFirstWhitespace(const String Str, u32* OutIndex)
+NO_DISCARD bool String_IndexOfFirstWhitespace(const String Str, u32* OutIndex)
 {
     bool bFound = false;
     for (u32 i = 0; i < Str.Length; ++i)
@@ -1584,7 +1584,7 @@ bool String_IndexOfFirstWhitespace(const String Str, u32* OutIndex)
     return bFound;
 }
 
-bool String_IndexOfLastWhitespace(const String Str, u32* OutIndex)
+NO_DISCARD bool String_IndexOfLastWhitespace(const String Str, u32* OutIndex)
 {
     bool bFound = false;
     for (i32 i = ((i32)Str.Length)-1; i >= 0; i--)
@@ -1604,7 +1604,7 @@ bool String_IndexOfLastWhitespace(const String Str, u32* OutIndex)
     return bFound;
 }
 
-bool String_IndexOfFirstNewline(const String Str, u32* OutIndex)
+NO_DISCARD bool String_IndexOfFirstNewline(const String Str, u32* OutIndex)
 {
     bool bFound = false;
     for (u32 i = 0; i < Str.Length; ++i)
@@ -1624,7 +1624,7 @@ bool String_IndexOfFirstNewline(const String Str, u32* OutIndex)
     return bFound;
 }
 
-bool String_IndexOfSubstring(const String Str, const String Substring, bool bCaseSensitive, u32* OutIndex)
+NO_DISCARD bool String_IndexOfSubstring(const String Str, const String Substring, bool bCaseSensitive, u32* OutIndex)
 {
     bool bFound = false;
 
@@ -1652,7 +1652,7 @@ bool String_IndexOfSubstring(const String Str, const String Substring, bool bCas
 // transforms paths with " in them to paths without them
 // for exmaple: "C:\Program Files"\MyApp -> "C:\Program Files\MyApp"
 
-bool String_SanitizeQuotes(String* Dest, const String Source)
+NO_DISCARD bool String_SanitizeQuotes(String* Dest, const String Source)
 {
     bool bHasQuote = false;
     for (u32 i = 0; i < Source.Length; i++)
@@ -1680,7 +1680,7 @@ bool String_SanitizeQuotes(String* Dest, const String Source)
     return Dest->Length > 0;
 }
 
-bool String_SanitizePath(String* Dest, const String Source)
+NO_DISCARD bool String_SanitizePath(String* Dest, const String Source)
 {
     bool bAnyChange = false;
     for (u32 i = 0; i < Source.Length; i++)
@@ -1717,7 +1717,7 @@ bool String_SanitizePath(String* Dest, const String Source)
     return bAnyChange;
 }
 
-bool String_SanitizePathAndWrap(String* Dest, const String Source)
+NO_DISCARD bool String_SanitizePathAndWrap(String* Dest, const String Source)
 {
     bool bAnyChange = false;
 
@@ -1762,7 +1762,7 @@ bool String_SanitizePathAndWrap(String* Dest, const String Source)
     return bAnyChange;
 }
 
-u32 String_CountChar(const String Str, u8 C)
+NO_DISCARD u32 String_CountChar(const String Str, u8 C)
 {
     u32 Count = 0;
     for (u32 i = 0; i < Str.Length; i++)
@@ -1776,7 +1776,7 @@ u32 String_CountChar(const String Str, u8 C)
     return Count;
 }
 
-u32 String_CountSpaces(const String Str)
+NO_DISCARD u32 String_CountSpaces(const String Str)
 {
     u32 Count = 0;
     for (u32 i = 0; i < Str.Length; i++)
@@ -1790,7 +1790,7 @@ u32 String_CountSpaces(const String Str)
     return Count;
 }
 
-u32 String_CountPathSeparators(const String Str)
+NO_DISCARD u32 String_CountPathSeparators(const String Str)
 {
     u32 Count = 0;
     for (u32 i = 0; i < Str.Length; i++)
@@ -1909,7 +1909,7 @@ void String_StripAlphabet(const String Str, String* OutStr)
 }
 
 // TODO: de-duplicate ToFloat code into one func
-bool String_ToF32(const String Str, f32* OutFloat)
+NO_DISCARD bool String_ToF32(const String Str, f32* OutFloat)
 {
     bool bSuccess = false;
 
@@ -2006,7 +2006,7 @@ bool String_ToF32(const String Str, f32* OutFloat)
     return bSuccess;
 }
 
-bool String_ToF64(const String Str, f64* OutFloat)
+NO_DISCARD bool String_ToF64(const String Str, f64* OutFloat)
 {
     bool bSuccess = false;
 
@@ -2269,7 +2269,7 @@ static bool Internal_ToSignedInt(const String Str, i64* OutInt, u8 IntType)
     return bSuccess;
 }
 
-bool String_ToU8(const String Str, u8* OutInt)
+NO_DISCARD bool String_ToU8(const String Str, u8* OutInt)
 {
     // 0-255
 
@@ -2286,7 +2286,7 @@ bool String_ToU8(const String Str, u8* OutInt)
     return bSuccess;
 }
 
-bool String_ToU16(const String Str, u16* OutInt)
+NO_DISCARD bool String_ToU16(const String Str, u16* OutInt)
 {
     // 0-65535
 
@@ -2303,7 +2303,7 @@ bool String_ToU16(const String Str, u16* OutInt)
     return bSuccess;
 }
 
-bool String_ToU32(const String Str, u32* OutInt)
+NO_DISCARD bool String_ToU32(const String Str, u32* OutInt)
 {
     // 0-4294967295
 
@@ -2320,7 +2320,7 @@ bool String_ToU32(const String Str, u32* OutInt)
     return bSuccess;
 }
 
-bool String_ToU64(const String Str, u64* OutInt)
+NO_DISCARD bool String_ToU64(const String Str, u64* OutInt)
 {
     // 0-18446744073709551615
 
@@ -2337,7 +2337,7 @@ bool String_ToU64(const String Str, u64* OutInt)
     return bSuccess;
 }
 
-bool String_ToI8(const String Str, i8* OutInt)
+NO_DISCARD bool String_ToI8(const String Str, i8* OutInt)
 {
     // -127-127
 
@@ -2354,7 +2354,7 @@ bool String_ToI8(const String Str, i8* OutInt)
     return bSuccess;
 }
 
-bool String_ToI16(const String Str, i16* OutInt)
+NO_DISCARD bool String_ToI16(const String Str, i16* OutInt)
 {
     // -32767-32767
 
@@ -2371,7 +2371,7 @@ bool String_ToI16(const String Str, i16* OutInt)
     return bSuccess;
 }
 
-bool String_ToI32(const String Str, i32* OutInt)
+NO_DISCARD bool String_ToI32(const String Str, i32* OutInt)
 {
     // -2147483648-2147483647
 
@@ -2388,7 +2388,7 @@ bool String_ToI32(const String Str, i32* OutInt)
     return bSuccess;
 }
 
-bool String_ToI64(const String Str, i64* OutInt)
+NO_DISCARD bool String_ToI64(const String Str, i64* OutInt)
 {
     // -9223372036854775807-9223372036854775807
 
@@ -2405,12 +2405,12 @@ bool String_ToI64(const String Str, i64* OutInt)
     return bSuccess;
 }
 
-bool String_ToBool(const String Str)
+NO_DISCARD bool String_ToBool(const String Str)
 {
     return String_IsEqual(Str, S("1"), false) || String_IsEqual(Str, S("true"), false);
 }
 
-String* StringArray_Iterate_Next(StringArray *InArray)
+NO_DISCARD String* StringArray_Iterate_Next(StringArray *InArray)
 {
     String* Current = NULL;
 
@@ -2428,20 +2428,20 @@ String* StringArray_Iterate_Next(StringArray *InArray)
     return Current;
 }
 
-String* StringArray_Iterate_Begin(StringArray* InArray)
+NO_DISCARD String* StringArray_Iterate_Begin(StringArray* InArray)
 {
     InArray->IterIndex = 0;
     InArray->IterCurrent = NULL;
     return StringArray_Iterate_Next(InArray);
 }
 
-bool StringList_Iterate_Check(StringList InList)
+NO_DISCARD bool StringList_Iterate_Check(StringList InList)
 {
     bool bValid = InList.String.Data != NULL || InList.Next != NULL;
     return bValid;
 }
 
-StringList* StringList_Create(LinearAllocator* Arena, String Value, StringList* Next)
+NO_DISCARD StringList* StringList_Create(LinearAllocator* Arena, String Value, StringList* Next)
 {
     StringList* List = LinearAllocator_Allocate(Arena, sizeof(StringList));
     List->String     = Value;
@@ -2449,7 +2449,7 @@ StringList* StringList_Create(LinearAllocator* Arena, String Value, StringList* 
     return List;
 }
 
-StringList StringList_Iterate_Next(StringList InList)
+NO_DISCARD StringList StringList_Iterate_Next(StringList InList)
 {
     StringList Next = {0};
 
@@ -2462,7 +2462,7 @@ StringList StringList_Iterate_Next(StringList InList)
     return Next;
 }
 
-bool StringArray_Contains(const StringArray InArray, const String SubString, bool bCaseSensitive)
+NO_DISCARD bool StringArray_Contains(const StringArray InArray, const String SubString, bool bCaseSensitive)
 {
     bool bContains = false;
 
@@ -2481,7 +2481,7 @@ bool StringArray_Contains(const StringArray InArray, const String SubString, boo
 // the problem is that we want to separate one long collection of paths into an array of paths,
 // but we cant just do a simple split on the space character because some paths have spaces in them,
 // so we need to be able to detect when a space is inside of a " " and ignore it. sigh...
-StringList String_SplitIntoList(LinearAllocator* Arena, const String Value, u8 Delimiter, bool bHandleQuotes)
+NO_DISCARD StringList String_SplitIntoList(LinearAllocator* Arena, const String Value, u8 Delimiter, bool bHandleQuotes)
 {
     StringList List = {0};
     List.Next = NULL;
@@ -2553,12 +2553,12 @@ StringList String_SplitIntoList(LinearAllocator* Arena, const String Value, u8 D
     return List;
 }
 
-StringArray String_SplitIntoArray(LinearAllocator* Arena, const String Str, const String Delimiter, u32 StartingIndex, u32 MaxCount)
+NO_DISCARD StringArray String_SplitIntoArray(LinearAllocator* Arena, const String Str, const String Delimiter, u32 StartingIndex, u32 MaxCount)
 {
     return (StringArray){0};
 }
 
-StringArray String_ParseIntoArray(LinearAllocator* Arena, const String Str, u8 Delimiter, u32 StartingIndex, u32 MaxCount)
+NO_DISCARD StringArray String_ParseIntoArray(LinearAllocator* Arena, const String Str, u8 Delimiter, u32 StartingIndex, u32 MaxCount)
 {
     StringArray StrArray = StringArray_Null();
 
@@ -2612,7 +2612,7 @@ StringArray String_ParseIntoArray(LinearAllocator* Arena, const String Str, u8 D
     return StrArray;
 }
 
-bool StringArray_Find(StringArray Array, const String Source, u32* FoundIndex)
+NO_DISCARD bool StringArray_Find(StringArray Array, const String Source, u32* FoundIndex)
 {
     u32 Index = 0;
     bool bFound = false;
@@ -2634,7 +2634,7 @@ bool StringArray_Find(StringArray Array, const String Source, u32* FoundIndex)
     return bFound;
 }
 
-String StringArray_GetStringFromIndex(StringArray Array, u32 Index)
+NO_DISCARD String StringArray_GetStringFromIndex(StringArray Array, u32 Index)
 {
     String Result = String_Null();
 
@@ -2651,7 +2651,7 @@ String StringArray_GetStringFromIndex(StringArray Array, u32 Index)
     return Result;
 }
 
-bool StringList_Find(StringList List, const String Source, u32* FoundIndex)
+NO_DISCARD bool StringList_Find(StringList List, const String Source, u32* FoundIndex)
 {
     u32 Index = 0;
     bool bFound = false;
@@ -2673,7 +2673,7 @@ bool StringList_Find(StringList List, const String Source, u32* FoundIndex)
     return bFound;
 }
 
-String StringList_GetStringFromIndex(StringList List, u32 Index)
+NO_DISCARD String StringList_GetStringFromIndex(StringList List, u32 Index)
 {
     String Result = String_Null();
 
@@ -2690,7 +2690,7 @@ String StringList_GetStringFromIndex(StringList List, u32 Index)
     return Result;
 }
 
-u32 String_GetLength(const char* Str)
+NO_DISCARD u32 String_GetLength(const char* Str)
 {
     register u32 Len = 0;
     while (Str[Len])
@@ -2701,7 +2701,7 @@ u32 String_GetLength(const char* Str)
     return Len;
 }
 
-u32 String_GetLength_Ex(const char* Str, u32 MaxLength)
+NO_DISCARD u32 String_GetLength_Ex(const char* Str, u32 MaxLength)
 {
     register u32 Len = 0;
     while (Len < MaxLength && Str[Len])
@@ -2712,7 +2712,7 @@ u32 String_GetLength_Ex(const char* Str, u32 MaxLength)
     return Len;
 }
 
-u32 String16_GetLength(const wchar* Str)
+NO_DISCARD u32 String16_GetLength(const wchar* Str)
 {
     register u32 Len = 0;
     while (Str[Len])
@@ -2723,7 +2723,7 @@ u32 String16_GetLength(const wchar* Str)
     return Len;
 }
 
-u32 String16_GetLength_Ex(const wchar* Str, u32 MaxLength)
+NO_DISCARD u32 String16_GetLength_Ex(const wchar* Str, u32 MaxLength)
 {
     register u32 Len = 0;
     while (Len < MaxLength && Str[Len])
@@ -2734,37 +2734,37 @@ u32 String16_GetLength_Ex(const wchar* Str, u32 MaxLength)
     return Len;
 }
 
-bool IsAlphabet(u8 Char)
+NO_DISCARD bool IsAlphabet(u8 Char)
 {
     return ((Char >= 'A' && Char <= 'Z') || (Char >= 'a' && Char <= 'z'));
 }
 
-bool IsAlphabetUpper(u8 Char)
+NO_DISCARD bool IsAlphabetUpper(u8 Char)
 {
     return Char >= 'A' && Char <= 'Z';
 }
 
-bool IsAlphabetLower(u8 Char)
+NO_DISCARD bool IsAlphabetLower(u8 Char)
 {
     return Char >= 'a' && Char <= 'z';
 }
 
-bool IsDigit(u8 Char)
+NO_DISCARD bool IsDigit(u8 Char)
 {
     return Char >= '0' && Char <= '9';
 }
 
-bool IsWhitespace(u8 Char)
+NO_DISCARD bool IsWhitespace(u8 Char)
 {
     return Char == ' ' || Char == '\r' || Char == '\t' || Char == '\f' || Char == '\v' || Char == '\n';
 }
 
-bool IsNewline(u8 Char)
+NO_DISCARD bool IsNewline(u8 Char)
 {
     return Char == '\r' || Char == '\f' || Char == '\n';
 }
 
-bool IsSymbol(u8 Char)
+NO_DISCARD bool IsSymbol(u8 Char)
 {
     return Char == '(' || Char == ')' || Char == '{' || Char == '}'  ||
            Char == '!' || Char == '@' || Char == '#' || Char == '$'  ||
@@ -2776,28 +2776,28 @@ bool IsSymbol(u8 Char)
            Char == '~';
 }
 
-u8 ToUpper(u8 Char)
+NO_DISCARD u8 ToUpper(u8 Char)
 {
     return Char >= 'a' && Char <= 'z' ? (u8)(Char - 32) : Char;
 }
 
-u8 ToLower(u8 Char)
+NO_DISCARD u8 ToLower(u8 Char)
 {
     return Char >= 'A' && Char <= 'Z' ? (u8)(Char + 32) : Char;
 }
 
-u8 ToForwardSlash(u8 Char)
+NO_DISCARD u8 ToForwardSlash(u8 Char)
 {
     return Char == '\\' ? '/' : Char;
 }
 
-u8 ToBackSlash(u8 Char)
+NO_DISCARD u8 ToBackSlash(u8 Char)
 {
     return Char == '/' ? '\\' : Char;
 }
 
 // TODO: remove from this file
-u8 Integer_CountDigits(u64 Value)
+NO_DISCARD u8 Integer_CountDigits(u64 Value)
 {
     u8 Count = 0;
     while (Value > 0)

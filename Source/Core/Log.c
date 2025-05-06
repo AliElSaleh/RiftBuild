@@ -94,7 +94,7 @@ static void Internal_WriteToLogFile(const String Text)
     }
 }
 
-bool Logging_Initialize(void* Memory, bool bOpenFile)
+NO_DISCARD bool Logging_Initialize(void* Memory, bool bOpenFile)
 {
     usize Amount = Logging_GetMemoryRequirement();
     LinearAllocator_Create(Amount, Memory, &GLoggingMemoryAllocator);
@@ -124,7 +124,7 @@ void Logging_Shutdown(void)
     GLoggingSystemState = NULL;
 }
 
-usize Logging_GetMemoryRequirement(void)
+NO_DISCARD usize Logging_GetMemoryRequirement(void)
 {
     usize LogFileNameSize = sizeof(String) + 256;
     usize LogFormatStringArena = MAX_LOG_MSG_LENGTH*2;
