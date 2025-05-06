@@ -555,6 +555,24 @@ u64 Platform_GetMainThreadID(void)
     return GetCurrentThreadId();
 }
 
+void Platform_GetComputerName(String* OutName)
+{
+    enum { MAX_NAME_LENGTH = 256 };
+	local_persist char Result[MAX_NAME_LENGTH] = {0};
+
+    BOOL bSuccess = Result[0] != 0;
+	if (!bSuccess)
+	{
+		DWORD Size = MAX_NAME_LENGTH;
+		bSuccess = GetComputerName(Result, &Size);
+	}
+
+    if (bSuccess && OutName)
+    {
+        String_Copy(OutName, CStrEx(Result, MAX_NAME_LENGTH));
+    }
+}
+
 bool Platform_GetAccountName(String* OutName)
 {
     u8 UserName[256] = {0};

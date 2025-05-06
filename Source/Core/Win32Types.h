@@ -1226,6 +1226,8 @@ PRAGMA_ENABLE_WARNINGS
     #define RegQueryValueEx      RegQueryValueExW
     #define RegGetValue          RegGetValueW
 
+    #define GetComputerName      GetComputerNameW
+
 #else
     #define PeekMessage          PeekMessageA
 
@@ -1283,6 +1285,8 @@ PRAGMA_ENABLE_WARNINGS
     #define RegOpenKeyEx         RegOpenKeyExA
     #define RegQueryValueEx      RegQueryValueExA
     #define RegGetValue          RegGetValueA
+
+    #define GetComputerName      GetComputerNameA
 #endif
 
 #define EnumProcesses         K32EnumProcesses
@@ -1453,6 +1457,9 @@ WINBASEAPI NO_DISCARD HWND       WINAPI GetFocus(void);
 WINBASEAPI NO_DISCARD HWND       WINAPI GetActiveWindow(void);
 WINBASEAPI NO_DISCARD DWORD      WINAPI GetWindowThreadProcessId(HWND hWnd, LPDWORD lpdwProcessId);
 WINBASEAPI NO_DISCARD HWND       WINAPI GetConsoleWindow(void);
+WINBASEAPI NO_DISCARD BOOL       WINAPI GetComputerNameA(LPSTR lpBuffer, LPDWORD lpnSize);
+WINBASEAPI NO_DISCARD BOOL       WINAPI GetComputerNameW(LPWSTR lpBuffer, LPDWORD lpnSize);
+
 WINBASEAPI            void       WINAPI Sleep(DWORD dwMilliseconds);
 
 

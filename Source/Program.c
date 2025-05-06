@@ -8829,6 +8829,14 @@ static void InitInternalVars(LinearAllocator* Arena)
         AddInternalVariable(S("_UserDirectory"), AllocatedHome);
     }
 
+    // TODO: think about if this errors?
+    StringLocal(ComputerName, 256);
+    Platform_GetComputerName(&ComputerName);
+    Allocated = String_Create(Arena, ComputerName);
+    AddInternalVariable(S("_Host"), Allocated);
+    AddInternalVariable(S("_HostName"), Allocated);
+    AddInternalVariable(S("_ComputerName"), Allocated);
+
     FileVariable_Empty.Name = String_Null();
     FileVariable_Empty.Value = String_Null();
     FileVariable_Empty.SpecialData = String_Null();
