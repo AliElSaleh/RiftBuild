@@ -168,6 +168,7 @@ STRUCT(StringList)
 #define each_str_list(List)                 (StringList It = List; StringList_Iterate_Check(It); (It) = StringList_Iterate_Next(It))
 #define each_str_list_i(Index, List)        (StringList It = List; StringList_Iterate_Check(It); (It) = StringList_Iterate_Next(It), Index+=1)
 #define each_str_list_it(Element, List)     (StringList Element = List; StringList_Iterate_Check(Element); Element = StringList_Iterate_Next(Element))
+#define each_string_in_list(x)              each_str_list(x)
 
 #define StringN(n)  		                struct { uchar Data[n]; u32 Length; u32 Capacity; }
 
@@ -212,11 +213,11 @@ STRUCT(StringList)
 #define EachElement(Index, Array) (u32 Index = 0; Index < SArray_Capacity(Array); Index++)
 
 // this actually kinda works? lol
-#define is ==
+#define is   ==
 #define isnt !=
-#define and &&
-#define or ||
-#define not !
+#define and  &&
+#define or   ||
+#define not  !
 
 #define TArray(Type) Type*
 #define SArray(Type, Name, Count) Type Name[Count]; u32 CONCAT(Name, _Count)
@@ -434,21 +435,13 @@ STRUCT(StringList)
     MSVC_SECTION(x) \
     GCC_SECTION(x)
 
-// MSVC Usage:
-// 
-// MSVC_PRAGMA(section(".rdata$", read))
-// read_only i32 Data = 0;
-//
-
 #ifdef _MSC_VER
 #pragma section(".roglob", read)
 #endif
 
 // Old: GCC_SECTION(".roglob,\"l\",@progbits#")
 
-#define read_only \
-    MSVC_SECTION(".roglob") \
-    GCC_SECTION(".roglob")
+#define read_only SECTION(".roglob")
 
 #if COMPILER_CLANG || COMPILER_GCC
 

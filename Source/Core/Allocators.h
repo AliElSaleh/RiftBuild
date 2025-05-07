@@ -29,9 +29,10 @@ STRUCT(LinearAllocator_Scratch)
 RIFT_API void LinearAllocator_Create(usize TotalSize, void* Memory, LinearAllocator* OutAllocator);
 RIFT_API void LinearAllocator_Destroy(LinearAllocator* Allocator);
 
-RIFT_API NO_DISCARD void* LinearAllocator_Allocate(LinearAllocator* Allocator, usize Size);
+RIFT_API NO_DISCARD RETURN_NON_NULL void* LinearAllocator_Allocate(LinearAllocator* Allocator, usize Size);
 
-RIFT_API NO_DISCARD void* LinearAllocator_MemoryHead(LinearAllocator* Allocator);
+RIFT_API NO_DISCARD RETURN_NON_NULL void* LinearAllocator_MemoryHead(LinearAllocator* Allocator);
+
 RIFT_API            void  LinearAllocator_Reset(LinearAllocator* Allocator, usize Position);
 
 

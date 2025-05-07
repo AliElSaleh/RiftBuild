@@ -392,7 +392,7 @@ void LinearAllocator_Destroy(LinearAllocator* Allocator)
     Allocator->bOwnsMemory = false;
 }
 
-NO_DISCARD void* LinearAllocator_Allocate(LinearAllocator* Allocator, usize Size)
+NO_DISCARD RETURN_NON_NULL void* LinearAllocator_Allocate(LinearAllocator* Allocator, usize Size)
 {
     ASSERT(Size > 0);
     ASSERT(Allocator->Allocated < Allocator->TotalSize);
@@ -417,7 +417,7 @@ NO_DISCARD void* LinearAllocator_Allocate(LinearAllocator* Allocator, usize Size
     return Block;
 }
 
-NO_DISCARD void* LinearAllocator_MemoryHead(LinearAllocator* Allocator)
+NO_DISCARD RETURN_NON_NULL void* LinearAllocator_MemoryHead(LinearAllocator* Allocator)
 {
     return ((u8*)Allocator->Memory) + Allocator->Allocated;
 }
