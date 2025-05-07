@@ -697,6 +697,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Special_ErrorMessage(LinearAllocat
     Node* Root = Node_Create(Arena, Node_ErrorMessage);
 
     Parser_Advance(P);
+    Parser_SkipWhitespace(P);
 
     (void)Parser_Match(P, Token_Newline);
 
@@ -754,6 +755,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Special_Help(LinearAllocator* Aren
     Node* Root = Node_Create(Arena, Node_Help);
 
     Parser_Advance(P);
+    Parser_SkipWhitespace(P);
 
     (void)Parser_Match(P, Token_Newline);
 
@@ -882,6 +884,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena,
             // stop if we see something other than 'else'
             if (t.Type != Token_Newline &&
                 t.Type != Token_Semicolon &&
+                t.Type != Token_Whitespace &&
                 t.Type != Token_LCurly &&
                 t.Type != Token_RCurly &&
                 t.Type != Token_Else
@@ -1195,6 +1198,9 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena,
         {
 
         }
+        else if (t.Type == Token_Whitespace)
+        {
+        }
         else if (t.Type == Token_Newline)
         {
             if (bInIf)
@@ -1383,6 +1389,8 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena,
         }
         else if (t.Type == Token_Text)
         {
+            Parser_SkipWhitespace(P);
+
             // this means we are the key
             bool bIsSpecial = false;
             if (Parser_Match(P, Token_Text))
@@ -1937,28 +1945,16 @@ static void Print_IfNode(Node* Root, u32 Level)
     LOG("%SEND IF\n", Spaces);
 }
 
-NO_DISCARD bool ParseBuildFileV2(LinearAllocator* Arena,
-                    const FileHandle H,
-                    const String BuildFilePath,
-                    const String WorkingDirectory,
-                    TArray(FileVariable) VariablesDB,
-                    TArray(CmdOption) CmdOptionsDB,
-                    TArray(String) Messages,
-                    TArray(FileHandle) IncludeFiles,
-                    u32* ReturnCode,
-                    bool bIsIncludeFile,
-                    StringList* Includes,
-                    bool bIsAssemblyExe)
+NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseBuildFile(LinearAllocator* Arena, const FileHandle H)
 {
-    if (ReturnCode)
-    {
-        *ReturnCode = 0;
-    }
+    Node* Result = &Node_Null;
 
     Clock c;
     Clock_Start(&c);
 
-    StringLocal(Text, Kibibytes(48));
+    //StringLocal(Text, Kibibytes(48));
+    // TODO: debate if we should take a pointer to things in this text or make new strings instead
+    String Text = String_Reserve(Arena, Kibibytes(48));
     
     usize Length = 0;
     if (Filesystem_ReadEntireFile(H, Text.Data, &Length))
@@ -2064,6 +2060,7 @@ NO_DISCARD bool ParseBuildFileV2(LinearAllocator* Arena,
 
                 Lexer_AddToken(&l, Token_RSquare);
             }
+            // TODO: escape #
             else if (Char == '#')
             {
                 bool bIsMultiLine = Lexer_Match(&l, '#');
@@ -2206,19 +2203,44 @@ NO_DISCARD bool ParseBuildFileV2(LinearAllocator* Arena,
         LOG("Num Tokens: %u", Array_Num(Tokens));
 
         // Parse the tokens into a tree
-        Clock_Start(&c);
-        Parser p = {0};
-        p.Tokens = Tokens;
-        p.NumTokens = (u32)Array_Num(Tokens);
-        Node* AST = Parse_Block(Arena, &p, 0, false);
-        if (!AST || AST == &Node_Null)
         {
-            return false;
-        }
-        Clock_Tick(&c);
-        Clock_PrintElapsedTime(&c, true);
+            Clock_Start(&c);
 
-        Print_BlockNode(AST->List, 0);
+            Parser p = {0};
+            p.Tokens = Tokens;
+            p.NumTokens = (u32)Array_Num(Tokens);
+            Result = Parse_Block(Arena, &p, 0, false);
+
+            Clock_Tick(&c);
+            Clock_PrintElapsedTime(&c, true);
+
+            //Print_BlockNode(Result->List, 0);
+        }
+    }
+
+    return Result;
+}
+
+NO_DISCARD bool ParseBuildFileV2(LinearAllocator* Arena,
+                    const FileHandle H,
+                    const String BuildFilePath,
+                    const String WorkingDirectory,
+                    TArray(FileVariable) VariablesDB,
+                    TArray(CmdOption) CmdOptionsDB,
+                    TArray(String) Messages,
+                    TArray(FileHandle) IncludeFiles,
+                    u32* ReturnCode,
+                    bool bIsIncludeFile,
+                    StringList* Includes,
+                    bool bIsAssemblyExe)
+{
+    if (ReturnCode)
+    {
+        *ReturnCode = 0;
+    }
+
+    {
+        Node* AST = Internal_ParseBuildFile(Arena, H);
 
         // now do some analysis on the tree (two-pass analysis)
 
@@ -2231,18 +2253,18 @@ NO_DISCARD bool ParseBuildFileV2(LinearAllocator* Arena,
 
         LOG("Analyzing the AST tree...");
 
+        Clock c;
         Clock_Start(&c);
 
-        /*
-        STRUCT(KVStore)
-        {
-            String Key;
-            StringList Value;
-        };
+        NodeList* IndeterminateList = NULL;
+        NodeList** IndeterminateNext = &IndeterminateList;
 
-        ArrayLocal_Arena(KVStore, Database, 1000, Arena);
-        (void)Database;
-        */
+
+        // TASKS FOR NEXT TIME:
+        // move the below loop into a function
+        // evaluate if nodes (if we can)
+        // disallow help inside of if nodes
+        // disallow errormessage inside of if nodes
 
         {
             NodeList** Next = &AST->List;
@@ -2276,9 +2298,12 @@ NO_DISCARD bool ParseBuildFileV2(LinearAllocator* Arena,
                     }
                     else if (Root->Type == Node_KeyValue)
                     {
+                        bool bSuccess = false;
+
                         String Key = String_Null();
                         if (Root->Key)
                         {
+                            bSuccess = true;
                             Key = *Root->Key;
                             LOG("KEY:   %S", *Root->Key);
                             if (Root->bIsSpecial)
@@ -2287,42 +2312,56 @@ NO_DISCARD bool ParseBuildFileV2(LinearAllocator* Arena,
                         }
 
                         StringLocal(Expanded, MAX_VALUE_LENGTH);
-
-                        if (Root->Value)
-                        {
-                            LOG_INLINE("VALUE: ");
-
-                            //StringLocal(Val, MAX_VALUE_LENGTH);
-                            for each_string_in_list (*Root->Value)
-                            {
-                                String_Append(&Expanded, It.String);
-                            }
-
-                            /*
-                            if (!ExpandBuildVariable(*Arena, VariablesDB, CmdOptionsDB, &Expanded, Key, Val, Key, WorkingDirectory, false, false))
-                            {
-                                return false;
-                            }
-                            */
-
-                            LOG("%S", Expanded);
-                        }
-                        
-
                         StringLocal(Params, MAX_META_KEY_LENGTH);
-                        if (Root->Parameters)
+
+                        if (bSuccess)
                         {
-                            LOG_INLINE("PARAMS: ");
-                            for each_str_list (*Root->Parameters)
+                            if (Root->Value)
                             {
-                                String_AppendF(&Params, S("%S "), It.String);
+                                LOG_INLINE("VALUE: ");
+
+                                StringLocal(Val, MAX_VALUE_LENGTH);
+                                for each_string_in_list (*Root->Value)
+                                {
+                                    String_Append(&Val, It.String);
+                                }
+
+                                /* todo: make this a macro template
+                                LinearAllocator Scratch = {0};
+                                i8 ScratchMemory[Kibibytes(16)] = {0};
+                                LinearAllocator_Create(Kibibytes(16), ScratchMemory, &Scratch);
+                                */
+
+                                if (!ExpandBuildVariableV2(*Arena, VariablesDB, CmdOptionsDB, &Expanded, Key, Val, Key, WorkingDirectory, false, false))
+                                {
+                                    SLinkedList_Push(IndeterminateNext, NodeList_Create(Arena, Root, NULL));
+                                    LOG_INLINE_WARNING("<indeterminate>\n");
+                                    bSuccess = false;
+                                }
+                                else
+                                {
+                                    LOG("%S", Expanded);
+                                    bSuccess = true;
+                                }
                             }
-                            LOG("%S", Params);
+
+                            if (Root->Parameters)
+                            {
+                                LOG_INLINE("PARAMS: ");
+                                for each_str_list (*Root->Parameters)
+                                {
+                                    String_AppendF(&Params, S("%S "), It.String);
+                                }
+                                LOG("%S", Params);
+                            }
                         }
 
                         LOG_LINE_BREAK();
 
-                        Internal_AddVariable(Arena, VariablesDB, Key, Expanded, Params, Root->bIsSpecial);
+                        if (bSuccess)
+                        {
+                            Internal_AddVariable(Arena, VariablesDB, Key, Expanded, Params, Root->bIsSpecial);
+                        }
                     }
                 }
 
@@ -4096,6 +4135,556 @@ bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) Variables
     }
 
 End:
+    (void)String_EatSpacesInlineFromEnd(Dest);
+
+    return true;
+}
+
+bool ExpandBuildVariableV2(LinearAllocator Scratch, TArray(FileVariable) VariablesDB, TArray(CmdOption) CmdOptionsDB,
+                            String* Dest, const String Key, const String Value, const String Root, const String WorkingDirectory,
+                            bool bLowerStrings, bool bIsAssemblyExe)
+{
+    if (!String_IsValid(Value))
+    {
+        return true;
+    }
+
+    bool bLinux = false;
+    #if PLATFORM_UNIX
+    bLinux = bIsAssemblyExe;
+    #endif
+
+    bool bLowerAll = bLowerStrings || (String_IsEqual(Key, S("Assembly"), false) && bLinux); // hack but whatever. todo: revisit this
+
+    bool bInsideQuote = false; // what happens when we expand a variable inside a quote and recursively call this func?
+    u32 Offset = 1;
+    for (u32 i = 0; i < Value.Length; i+=Offset)
+    {
+        Offset = 1;
+
+        String StrVal = StrSlice(Value.Data+i, Value.Length-i);
+        u8 C = Value.Data[i];
+
+        if (bInsideQuote  && C == '"') { bInsideQuote = false; }
+        if (!bInsideQuote && C == '"') { bInsideQuote = true; }
+
+        String Slice = String_Null();
+        bool bWantsToLower = false;
+        bool bWantsToUpper = false;
+
+        if (String_EndsWith(Key, S(".errormessage"), false) ||
+            String_StartsWith(Key, S(".help"), false) ||
+            String_EndsWith(Key, S(".Cmd"), false)) // todo: rethink
+        {
+            if (C == '!')
+            {
+                String_AppendChar(Dest, C);
+                continue;
+            }
+        }
+
+        if (C == '%' || C == '$' || C == '@' || C == '!')
+        {
+            u32 Index = 0;
+
+            StrVal = StrShiftF(StrVal, 1);
+            
+            bWantsToLower = String_EatCharInline_Single(&StrVal, '-');
+            if (bWantsToLower) { Offset++; }
+            bWantsToUpper = String_EatCharInline_Single(&StrVal, '^');
+            if (bWantsToUpper) { Offset++; }
+
+            if (String_EatCharInline(&StrVal, '('))
+            {
+                Offset++;
+
+                if (String_IndexOfChar(StrVal, ')', &Index))
+                {
+                    Offset++;
+                }
+            }
+
+            if (Index == 0)
+            {
+                (void)String_IndexOfFirstWhitespace(StrVal, &Index);
+            }
+
+            // find this variable
+            if (Index > 0)
+            {
+                Slice = StrSlice(StrVal.Data, Index);
+                Offset += Index;
+            }
+            else
+            {
+                Slice = StrVal;
+                Offset += StrVal.Length;
+            }
+
+            bool bIgnore = Slice.Data[0] == '\\';
+            if (bIgnore)
+            {
+                String_AppendChar(Dest, C);
+                String_Append(Dest, StrShiftF(Slice, 1));
+                continue;   
+            }
+        }
+
+        if (C == '%')
+        {
+            String VarValue = String_Null();
+
+            const bool bHasNot     = Slice.Length > 1 ? String_EatCharInline(&Slice, '!') : false;
+            const bool bWantsPaste = Slice.Length > 1 ? String_EatCharInline(&Slice, '%') : false;
+
+            bool bFoundCmd = false;
+            bool bEqualsToSomething = false;
+            for each (CmdOption, o, CmdOptionsDB)
+            {
+                if (String_IsEqual(o.Name, Slice, false))
+                {
+                    bFoundCmd = true;
+                    VarValue = o.Value;
+                    bEqualsToSomething = o.bEqualsToSomething;
+                    break;
+                }
+            }
+
+            if (!bFoundCmd)
+            {
+                for each (InternalVariable, v, InternalVariablesDB)
+                {
+                    if (String_IsEqual(v.Name, Slice, false))
+                    {
+                        bFoundCmd = true;
+                        VarValue = v.Value;
+                        bEqualsToSomething = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!bFoundCmd)
+            {
+                return false;
+            }
+
+            // run through the cmd var assert list
+            // TODO: something better
+            /*
+            {
+                for each (FileVariable, Var, VariablesDB)
+                {
+                    if (String_IsEqual(Var.Name, S("Assert.Arg"), false))
+                    {
+                        StringArray CmdVarsArray = String_ParseIntoArray(&Scratch, Var.Value, ' ', 0, 128);
+
+                        for each_str (S, CmdVarsArray)
+                        {
+                            const String Trimmed = String_EatSpaces(*S);
+
+                            bool bFound = false;
+                            for each (CmdOption, o, CmdOptionsDB)
+                            {
+                                if (String_IsEqual(o.Name, Trimmed, false))
+                                {
+                                    bFound = true;
+                                    if (o.bEqualsToSomething && o.Value.Length == 0)
+                                    {
+                                        bFound = false;
+                                    }
+                                    
+                                    break;
+                                }
+                            }
+
+                            if (!bFound)
+                            {
+                                #ifndef HOOD
+                                LOG_INLINE_ERROR("[ASSERTION FAILURE] Command line argument \"%S\" or \"%S=VALUE\" was not given."
+                                               "\n                    This is needed for the build to work properly. Aborting build...\n", Trimmed, Trimmed);
+                                #else
+                                LOG_ERROR("yo da cmd line var \"%S\" don exist cuh. dat shit not there nigga", Trimmed);
+                                #endif
+
+                                LogCustomErrorMessage(VariablesDB, S("Arg"), Trimmed, true);
+
+                                return false;
+                            }
+                        }
+                    }
+                    else if (String_IsEqual(Var.Name, S("Assert.Arg.Any"), false))
+                    {
+                        StringArray ArgArray = String_ParseIntoArray(&Scratch, Var.Value, ' ', 0, 128);
+
+                        bool bFound = false;
+                        for each_str (Arg, ArgArray)
+                        {
+                            const String Trimmed = String_EatSpaces(*Arg);
+
+                            for each (CmdOption, o, CmdOptionsDB)
+                            {
+                                if (String_IsEqual(o.Name, Trimmed, false))
+                                {
+                                    bFound = true;
+
+                                    // TODO: this might confuse people if they specify 'arg' but not 'arg=VALUE'?
+                                    if (o.bEqualsToSomething && o.Value.Length == 0)
+                                    {
+                                        bFound = false;
+                                    }
+
+                                    if (bFound)
+                                    {
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+
+                        if (!bFound)
+                        {
+                            LOG_INLINE_ERROR("[ASSERTION FAILURE] Any one of these arguments must be specified: %S\n", Var.Value);
+                            return false;
+                        }
+                    }
+                    else if (String_IsEqual(Var.Name, S("Assert.Arg.OnlyOne"), false)) // TODO: make dynamic
+                    {
+                        StringArray ArgArray = String_ParseIntoArray(&Scratch, Var.Value, ' ', 0, 128);
+
+                        bool bFound = false;
+                        for each_str (Arg, ArgArray)
+                        {
+                            const String Trimmed = String_EatSpaces(*Arg);
+
+                            for each (CmdOption, o, CmdOptionsDB)
+                            {
+                                if (String_IsEqual(o.Name, Trimmed, false))
+                                {
+                                    if (bFound)
+                                    {
+                                        bFound = false;
+                                        goto MultipleArgsFound;
+                                    }
+
+                                    bFound = true;
+                                    if (o.bEqualsToSomething && o.Value.Length == 0)
+                                    {
+                                        bFound = false;
+                                    }
+                                }
+                            }
+                        }
+                        
+                        MultipleArgsFound:
+                        if (!bFound)
+                        {
+                            LOG_INLINE_ERROR("[ASSERTION FAILURE] Only one of these arguments can be specified: %S\n", Var.Value);
+                            return false;
+                        }
+                    }
+                    else
+                    {
+                        // no action is required
+                    }
+                }
+            }
+            */
+
+            if (String_IsValid(VarValue))
+            {
+                // if the first letter is capitalized, then also make the first letter of the value capitalized. revert back when done
+                bool bIsVarUpper = IsAlphabetUpper(Slice.Data[0]);
+                if (bIsVarUpper)
+                {
+                    VarValue.Data[0] = ToUpper(VarValue.Data[0]);
+                }
+
+                String DestEnd = StrShiftF(*Dest, Dest->Length);
+                u32 DestLengthBefore = Dest->Length;
+
+                if (!ExpandBuildVariableV2(Scratch, VariablesDB, CmdOptionsDB, Dest, Slice, VarValue, Root, WorkingDirectory, false, bIsAssemblyExe))
+                {
+                    return false;
+                }
+
+                DestEnd.Length = Dest->Length - DestLengthBefore;
+                if (bWantsToLower) { String_ToLower(&DestEnd); }
+                if (bWantsToUpper) { String_ToUpper(&DestEnd); }
+            }
+            else
+            {
+                if (!bEqualsToSomething)
+                {
+                    if (bHasNot)
+                    {
+                        bFoundCmd = !bFoundCmd;
+                    }
+
+                    // the output of a found empty % cmd depends on the context...
+                    // if we're inside certain keywords (like "Depends") then expand to nothing if we didnt find a value
+                    bool bExpandToNothing = false;
+                    if (String_IsEqual(Root, S("Depends"), false))
+                    {
+                        bExpandToNothing = true;
+                    }
+
+                    if (bExpandToNothing)
+                    {
+                        // but if it was mentioned, just paste the name in
+                        if (bFoundCmd)
+                        {
+                            String_Append(Dest, Slice);
+                        }
+                    }
+                    else
+                    {
+                        if (bWantsPaste)
+                        {
+                            if (bFoundCmd)
+                            {
+                                String DestEnd = StrShiftF(*Dest, Dest->Length);
+                                String_Append(Dest, Slice);
+                                DestEnd.Length = Slice.Length;
+
+                                if (bWantsToLower) { String_ToLower(&DestEnd); }
+                                if (bWantsToUpper) { String_ToUpper(&DestEnd); }
+                            }
+                        }
+                        else
+                        {
+                            bool bIsNative = Slice.Data[0] == '_';
+                            if (!bIsNative)
+                            {
+                                String_AppendChar(Dest, bFoundCmd ? '1' : '0');
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        else if (C == '$')
+        {
+            bool bFound = DoesBuildVarExist(VariablesDB, Slice);
+            if (!bFound)
+            {
+                //LOG_WARNING("Unrecognized build variable \"%S\". Expanded to nothing...", Slice);
+                return false;
+                //continue;
+            }
+
+            if (String_IsEqual(Slice, Key, false))
+            {
+                LOG_ERROR("Circular expansion: %S is referencing itself", Key);
+                return false;
+            }
+
+            if (String_IsEqual(Slice, Root, false))
+            {
+                LOG_ERROR("Circular expansion: %S is indirectly referencing itself from %S", Root, Key);
+                return false;
+            }
+
+            u16 NumEntries = 0;
+            for each (FileVariable, Var, VariablesDB)
+            {
+                if (String_IsEqual(Var.Name, Slice, false))
+                {
+                    if (NumEntries > 0)
+                    {
+                        if (Dest->Length > 0)
+                        {
+                            (void)String_EatSpacesInlineFromEnd(Dest);
+                            String_AppendSpace(Dest);
+                        }
+                    }
+
+                    String TempDest = String_Reserve(&Scratch, Dest->Capacity);
+                    if (!ExpandBuildVariableV2(Scratch, VariablesDB, CmdOptionsDB, &TempDest, Slice, Var.Value, Root, WorkingDirectory, bLowerStrings, bIsAssemblyExe))
+                    {
+                        return false;
+                    }
+
+                    if (bWantsToLower) { String_ToLower(&TempDest); }
+                    if (bWantsToUpper) { String_ToUpper(&TempDest); }
+                    
+                    String_Append(Dest, TempDest);
+
+                    if (Var.Value.Length > 0)
+                    {
+                        NumEntries++;
+                    }
+                }
+            }
+        }
+        else if (C == '@')
+        {
+            // find this variable
+            StringLocal(VarValue, 4096);
+            if (!Platform_GetEnvironmentVariableValue(Slice, &VarValue))
+            {
+                LOG_ERROR("Could not retrieve environment variable named %S\n", Slice);
+
+                if (LogCustomErrorMessage(VariablesDB, S("Env"), Slice, false))
+                {
+                    LOG_LINE_BREAK();
+                }
+
+                LogRegularEnvVarTutorialSteps();
+
+                return false;
+            }
+
+            String DestEnd = StrShiftF(*Dest, Dest->Length);
+            u32 DestLengthBefore = Dest->Length;
+
+            if (!ExpandBuildVariableV2(Scratch, VariablesDB, CmdOptionsDB, Dest, Slice, VarValue, Root, WorkingDirectory, false, bIsAssemblyExe))
+            {
+                return false;
+            }
+
+            DestEnd.Length = Dest->Length - DestLengthBefore;
+            if (bWantsToLower) { String_ToLower(&DestEnd); }
+            if (bWantsToUpper) { String_ToUpper(&DestEnd); }
+        }
+        else if (C == '!' && Slice.Length > 0) // run custom shell commands and append the output of the command to Dest
+        {
+            StringLocal(CmdLine, 8192);
+
+            #if PLATFORM_WINDOWS
+            String_Append(&CmdLine, S("cmd.exe /c \""));
+            String_Append(&CmdLine, Slice);
+            String_AppendChar(&CmdLine, '"');
+            #else
+            String_Append(&CmdLine, Slice);
+            #endif
+
+            PlatformPipe StdOutHandle = {0};
+            PlatformHandle ShellCmd = Platform_RunCommand_Ex(CmdLine, WorkingDirectory, &StdOutHandle);
+            if (!Platform_IsValidHandle(ShellCmd)) { return false; }
+            Platform_WaitForHandle(ShellCmd, -1);
+
+            StringLocal(StdOutData, 8192);
+            usize BytesRead = 0;
+            if (!Filesystem_ReadPipe(StdOutHandle, StdOutData.Capacity, StdOutData.Data, &BytesRead))
+            {
+                LOG_ERROR("Failed to read from standard output pipe for command -> \"%S\"", Slice);
+                return false;
+            }
+
+            StdOutData.Length = Min((u32)BytesRead, StdOutData.Capacity);
+            (void)String_EatNewLinesInlineFromEnd(&StdOutData);
+
+            String DestEnd = StrShiftF(*Dest, Dest->Length);
+            u32 DestLengthBefore = Dest->Length;
+
+            String_Append(Dest, StdOutData);
+            DestEnd.Length = Dest->Length - DestLengthBefore;
+
+            if (bWantsToLower) { String_ToLower(&DestEnd); }
+            if (bWantsToUpper) { String_ToUpper(&DestEnd); }
+
+            Platform_CloseHandle(StdOutHandle[0]);
+            Platform_CloseHandle(StdOutHandle[1]);
+        }
+        else
+        {
+            bool bCheckChar = true;
+
+            if (String_EndsWith(Key, S(".errormessage"), false) ||
+                String_StartsWith(Key, S(".help"), false))
+            {
+                bCheckChar = false;
+            }
+
+            if (bCheckChar)
+            {
+                // fix duplicate spaces when expanding
+                if (Dest->Length > 0)
+                {
+                    if (IsWhitespace(Dest->Data[Dest->Length-1]) && IsWhitespace(C))
+                    {
+                        continue;
+                    }
+                }
+                else
+                {
+                    // the first char should never be whitespace
+                    if (IsWhitespace(C))
+                    {
+                        continue;
+                    }
+                }
+
+                // when expanding, turn tab spaces into regular spaces
+                if (C == '\t')
+                {
+                    C = ' ';
+                }
+
+                if (C == '/' || C == '\\')
+                {
+                    const String KeysToCareAbout[14] = 
+                    {
+                        S("SourceDirectory"),
+                        S("BuildDirectory"),
+                        S("IntermediateDirectory"),
+                        S("LibraryDirectories"),
+                        S("Includes"),
+                        S("Icon"),
+                        S("Compiler"),
+                        S("PCH"),
+                        S("PCH.h"),
+                        S("IncludedSourceDirectories"),
+                        S("ExcludedSourceDirectories"),
+                        S("ExternalSourceDirectories"),
+                        S("IncludedSourceFiles"),
+                        S("ExcludedSourceFiles"),
+                    };
+
+                    bool bKeyIsPathBased = false;
+                    for (u8 j = 0; j < SArray_Capacity(KeysToCareAbout); j++)
+                    {
+                        if (String_IsEqual(Key, KeysToCareAbout[j], false) ||
+                            String_EndsWith(Key, S(".Copy"), false) ||
+                            String_EndsWith(Key, S(".Move"), false) ||
+                            String_EndsWith(Key, S(".Delete"), false) ||
+                            String_EndsWith(Key, S(".Rename"), false) ||
+                            String_EndsWith(Key, S(".NewDir"), false) ||
+                            String_EndsWith(Key, S(".NewDirectory"), false) ||
+                            String_EndsWith(Key, S(".NewFile"), false))
+                        {
+                            C = PATH_SEPARATOR;
+                            
+                            bKeyIsPathBased = true;
+
+                            break;
+                        }
+                    }
+
+                    // only check for duplicate path separator for certain keys
+                    if (bKeyIsPathBased)
+                    {
+                        if (C == '/' || C == '\\')
+                        {
+                            if (Dest->Length > 0)
+                            {
+                                u8 LastChar = Dest->Data[Dest->Length-1];
+                                bool bHasPathSep = LastChar == '/' || LastChar == '\\';
+                                if (bHasPathSep)
+                                {
+                                    continue;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            String_AppendChar(Dest, bLowerAll ? ToLower(C) : C);
+        }
+    }
+
     (void)String_EatSpacesInlineFromEnd(Dest);
 
     return true;
