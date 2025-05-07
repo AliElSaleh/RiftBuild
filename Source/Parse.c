@@ -13,8 +13,9 @@
 #include "Core/Log.h"
 #endif
 
-// todo: when appending values, use linked list?
-// support this, replace the special flag '!' with named special instead. like this PreLink.Delete(silent ignore_exit_code)
+// todos
+// when appending values, use linked list?
+// provide examples with every parser error message
 // rename "IncludedSourceFiles" to "SourceFiles", same with the dir version
 // .rpath key
 
@@ -127,7 +128,7 @@
 
 #define MAX_KEY_LENGTH 64
 #define MAX_VALUE_LENGTH 8192
-#define MAX_META_KEY_LENGTH 16
+#define MAX_META_KEY_LENGTH 64
 #define LINE_BUFFER_SIZE (MAX_KEY_LENGTH+MAX_VALUE_LENGTH+MAX_META_KEY_LENGTH)
 
 static void Internal_AddVariable(LinearAllocator* Arena,
@@ -197,6 +198,7 @@ ENUM_TYPED(ETokenType, u32)
     Token_Help,
     Token_ErrorMessage,
 
+    Token_Whitespace,
     Token_Newline,
 
     Token_Max
@@ -261,6 +263,7 @@ static String TokenTypeEnumStringTable_NoPrefix[Token_Max] =
     SC("Help"),
     SC("ErrorMessage"),
 
+    SC("Whitespace"),
     SC("Newline"),
 };
 
@@ -314,6 +317,7 @@ static String TokenTypeEnumStringTable[Token_Max] =
     SC("Token_Help"),
     SC("Token_ErrorMessage"),
 
+    SC("Token_Whitespace"),
     SC("Token_Newline"),
 };
 
@@ -375,7 +379,7 @@ STRUCT(Parser)
     u8          Padding[8];
 };
 
-NO_DISCARD static NodeList* NodeList_Create(LinearAllocator* Arena, Node* Node, NodeList* Next)
+NO_DISCARD RETURN_NON_NULL static NodeList* NodeList_Create(LinearAllocator* Arena, Node* Node, NodeList* Next)
 {
     NodeList* List = LinearAllocator_Allocate(Arena, sizeof(struct NodeList));
     List->Node     = Node;
@@ -383,7 +387,7 @@ NO_DISCARD static NodeList* NodeList_Create(LinearAllocator* Arena, Node* Node, 
     return List;
 }
 
-NO_DISCARD static NodeList* NodeList_CreateNull(LinearAllocator* Arena)
+NO_DISCARD RETURN_NON_NULL static NodeList* NodeList_CreateNull(LinearAllocator* Arena)
 {
     NodeList* List = LinearAllocator_Allocate(Arena, sizeof(struct NodeList));
     List->Node     = NULL;
@@ -391,14 +395,14 @@ NO_DISCARD static NodeList* NodeList_CreateNull(LinearAllocator* Arena)
     return List;
 }
 
-NO_DISCARD static Node* Node_Create(LinearAllocator* Arena, ENodeType Type)
+NO_DISCARD RETURN_NON_NULL static Node* Node_Create(LinearAllocator* Arena, ENodeType Type)
 {
     Node* Node = LinearAllocator_Allocate(Arena, sizeof(struct Node));
     Node->Type = Type;
     return Node;
 }
 
-NO_DISCARD static Node* Node_Create_KeyValue(LinearAllocator* Arena, String* Key, StringList* Value, bool bIsSpecial)
+NO_DISCARD RETURN_NON_NULL static Node* Node_Create_KeyValue(LinearAllocator* Arena, String* Key, StringList* Value, bool bIsSpecial)
 {
     Node* Node       = LinearAllocator_Allocate(Arena, sizeof(struct Node));
     Node->Type       = Node_KeyValue;
@@ -643,7 +647,14 @@ static bool Parser_Match(Parser* P, ETokenType Expected)
     return bResult;
 }
 
-static Node* Parse_Special_LogMessage(LinearAllocator* Arena, Parser* P)
+static void Parser_SkipWhitespace(Parser* P)
+{
+    while (Parser_Match(P, Token_Whitespace))
+    {
+    }
+}
+
+NO_DISCARD RETURN_NON_NULL static Node* Parse_Special_LogMessage(LinearAllocator* Arena, Parser* P)
 {
     Node* Root = Node_Create(Arena, Node_LogMessage);
 
@@ -681,7 +692,7 @@ static Node* Parse_Special_LogMessage(LinearAllocator* Arena, Parser* P)
     return Root;
 }
 
-static Node* Parse_Special_ErrorMessage(LinearAllocator* Arena, Parser* P)
+NO_DISCARD RETURN_NON_NULL static Node* Parse_Special_ErrorMessage(LinearAllocator* Arena, Parser* P)
 {
     Node* Root = Node_Create(Arena, Node_ErrorMessage);
 
@@ -738,7 +749,7 @@ static Node* Parse_Special_ErrorMessage(LinearAllocator* Arena, Parser* P)
     return Root;
 }
 
-static Node* Parse_Special_Help(LinearAllocator* Arena, Parser* P)
+NO_DISCARD RETURN_NON_NULL static Node* Parse_Special_Help(LinearAllocator* Arena, Parser* P)
 {
     Node* Root = Node_Create(Arena, Node_Help);
 
@@ -795,23 +806,24 @@ static Node* Parse_Special_Help(LinearAllocator* Arena, Parser* P)
     return Root;
 }
 
-static Node* Parse_If(LinearAllocator* Arena,
+NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena,
                     Parser *P,
                     u32 Offset,
                     bool bCameFromInline);
 
 
-static Node* Parse_Block(LinearAllocator* Arena,
+NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena,
                     Parser *P,
                     u32 Offset,
                     bool bInIf
                     );
 
-static Node* Parse_Include(LinearAllocator* Arena, Parser *P)
+NO_DISCARD RETURN_NON_NULL static Node* Parse_Include(LinearAllocator* Arena, Parser *P)
 {
     Node* Root = Node_Create(Arena, Node_Include);
 
     Parser_Advance(P);
+    Parser_SkipWhitespace(P);
 
     StringList* ValueList = NULL;
     StringList** Next = &ValueList;
@@ -844,7 +856,7 @@ static Node* Parse_Include(LinearAllocator* Arena, Parser *P)
 }
 
 
-static Node* Parse_If(LinearAllocator* Arena,
+NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena,
                     Parser* P,
                     u32 Offset,
                     bool bCameFromInline)
@@ -895,6 +907,9 @@ static Node* Parse_If(LinearAllocator* Arena,
         else if (t.Type == Token_Semicolon)
         {
         }
+        else if (t.Type == Token_Whitespace)
+        {
+        }
         else if (t.Type == Token_RCurly)
         {
             break;
@@ -927,6 +942,7 @@ static Node* Parse_If(LinearAllocator* Arena,
             LastTokenType = Token_Else;
 
             Parser_Advance(P);
+            Parser_SkipWhitespace(P);
 
             if (bInlineIf)
             {
@@ -963,12 +979,12 @@ static Node* Parse_If(LinearAllocator* Arena,
             break;
         }
         // evaluate if conditions
-        else if (t.Type == Token_Text  ||
-                 t.Type == Token_ErrorMessage   ||
-                 t.Type == Token_Not   ||
-                 t.Type == Token_At    ||
-                 t.Type == Token_Mod   ||
-                 t.Type == Token_Dollar)
+        else if (t.Type is Token_Text         or
+                 t.Type is Token_ErrorMessage or
+                 t.Type is Token_Not          or
+                 t.Type is Token_At           or
+                 t.Type is Token_Mod          or
+                 t.Type is Token_Dollar)
         {
             if (bInlineIf)
             {
@@ -1009,6 +1025,7 @@ static Node* Parse_If(LinearAllocator* Arena,
                 SLinkedList_Push(NextValue, StringList_Create(Arena, Lexeme, NULL));
 
                 Parser_Advance(P);
+                Parser_SkipWhitespace(P);
 
                 Token Comparison = Parser_Peek(P);
 
@@ -1056,6 +1073,7 @@ static Node* Parse_If(LinearAllocator* Arena,
                         Comparison.Type == Token_Contains)
                     {
                         Parser_Advance(P);
+                        Parser_SkipWhitespace(P);
 
                         Token TestToken = Parser_Peek(P);
                         if (TestToken.Type == Token_Text)
@@ -1088,6 +1106,8 @@ static Node* Parse_If(LinearAllocator* Arena,
                             return &Node_Null;
                         }
                     }
+
+                    Parser_SkipWhitespace(P);
 
                     if (Parser_Peek(P).Type == Token_Text ||
                         Parser_Peek(P).Type == Token_ErrorMessage ||
@@ -1142,7 +1162,7 @@ static Node* Parse_If(LinearAllocator* Arena,
     return Root;
 }
 
-static Node* Parse_Block(LinearAllocator* Arena,
+NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena,
                     Parser* P,
                     u32 Offset,
                     bool bInIf
@@ -1238,6 +1258,9 @@ static Node* Parse_Block(LinearAllocator* Arena,
             {
                 Parser_Advance(P);
 
+                // skip newlines
+                while (Parser_Match(P, Token_Newline)) {}
+
                 NodeList* List = NodeList_CreateNull(Arena);
 
                 StringList* ValueList = NULL;
@@ -1245,15 +1268,18 @@ static Node* Parse_Block(LinearAllocator* Arena,
 
                 while (Parser_Peek(P).Type != Token_RSquare)
                 {
-                    //bFoundTokens = true;
-
                     String Lexeme = Parser_Peek(P).Lexeme;
-                    if (Parser_Peek(P).Type != Token_Newline)
+                    if (Parser_Peek(P).Type == Token_Newline)
+                    {
+                        SLinkedList_Push(NextValue, StringList_Create(Arena, S(" "), NULL));
+                    }
+                    else
                     {
                         SLinkedList_Push(NextValue, StringList_Create(Arena, Lexeme, NULL));
                     }
 
                     Parser_Advance(P);
+                    Parser_SkipWhitespace(P);
                 }
 
                 Parser_Advance(P); // go past ']'
@@ -1382,6 +1408,7 @@ static Node* Parse_Block(LinearAllocator* Arena,
                 {
                     SLinkedList_Push(Next, StringList_Create(Arena, Parser_Peek(P).Lexeme, NULL));
                     Parser_Advance(P);
+                    Parser_SkipWhitespace(P);
                 }
 
                 if (!Parser_Match(P, Token_RParen))
@@ -1457,6 +1484,8 @@ static Node* Parse_Block(LinearAllocator* Arena,
                     }
                 }
             }
+
+            Parser_SkipWhitespace(P);
 
             bool bFoundTokens = false;
 
@@ -1590,11 +1619,6 @@ static Node* Parse_Block(LinearAllocator* Arena,
     }
 
     return Root;
-}
-
-static Node* Parse_Root(LinearAllocator* Arena, Parser* P)
-{
-    return Parse_Block(Arena, P, 0, false);
 }
 
 static void Print_BlockNode(NodeList* Root, u32 Level);
@@ -1754,7 +1778,7 @@ static void Print_KVNode(Node* Root, u32 Level)
         LOG_INLINE("%S [VALUE]    ", Spaces);
         for each_str_list (*Root->Value)
         {
-            LOG_INLINE("%S ", It.String);
+            LOG_INLINE("%S", It.String);
         }
         LOG_LINE_BREAK();
     }
@@ -1913,12 +1937,11 @@ static void Print_IfNode(Node* Root, u32 Level)
     LOG("%SEND IF\n", Spaces);
 }
 
-bool ParseBuildFileV2(LinearAllocator* Arena,
+NO_DISCARD bool ParseBuildFileV2(LinearAllocator* Arena,
                     const FileHandle H,
                     const String BuildFilePath,
                     const String WorkingDirectory,
                     TArray(FileVariable) VariablesDB,
-                    TArray(FileVariable) ExpandedVariablesDB,
                     TArray(CmdOption) CmdOptionsDB,
                     TArray(String) Messages,
                     TArray(FileHandle) IncludeFiles,
@@ -2112,6 +2135,19 @@ bool ParseBuildFileV2(LinearAllocator* Arena,
                         Lexer_AddToken(&l, Token_Newline);
                     }
                 }
+                else
+                {
+                    if ((Char == ' ' || Char == '\t') && LastTokenType != Token_Newline)
+                    {
+                        while (Lexer_Peek(&l) == ' ' ||
+                               Lexer_Peek(&l) == '\t')
+                        {
+                            (void)Lexer_Advance(&l);
+                        }
+
+                        Lexer_AddToken(&l, Token_Whitespace);
+                    }
+                }
             }
             else
             {
@@ -2160,7 +2196,7 @@ bool ParseBuildFileV2(LinearAllocator* Arena,
         {
             if (t.Lexeme.Length > 0 && t.Type != Token_Newline)
             {
-                LOG("[%u] %S -> %S", t.Line, ETokenType_ToString(t.Type), t.Lexeme);
+                LOG("[%u] %S -> %S.", t.Line, ETokenType_ToString(t.Type), t.Lexeme);
             }
             else
             {
@@ -2169,19 +2205,133 @@ bool ParseBuildFileV2(LinearAllocator* Arena,
         }
         LOG("Num Tokens: %u", Array_Num(Tokens));
 
+        // Parse the tokens into a tree
         Clock_Start(&c);
         Parser p = {0};
         p.Tokens = Tokens;
         p.NumTokens = (u32)Array_Num(Tokens);
-        Node* AST = Parse_Root(Arena, &p);
+        Node* AST = Parse_Block(Arena, &p, 0, false);
         if (!AST || AST == &Node_Null)
         {
             return false;
         }
         Clock_Tick(&c);
         Clock_PrintElapsedTime(&c, true);
-        
+
         Print_BlockNode(AST->List, 0);
+
+        // now do some analysis on the tree (two-pass analysis)
+
+        // High level flow:
+        // 1. (first pass) expand all keys possible (skip indeterminates)
+        //  1a. parse include files (get the ast trees) and repeat step 1
+        // 2. (second pass) expand all keys and error on vars that dont exist
+        //  2a. parse include files (get the ast trees) and repeat step 1 independently then continue again with the second pass
+        // 3. run asserts
+
+        LOG("Analyzing the AST tree...");
+
+        Clock_Start(&c);
+
+        /*
+        STRUCT(KVStore)
+        {
+            String Key;
+            StringList Value;
+        };
+
+        ArrayLocal_Arena(KVStore, Database, 1000, Arena);
+        (void)Database;
+        */
+
+        {
+            NodeList** Next = &AST->List;
+            while (*Next)
+            {
+                Node* Root = (*Next)->Node;
+
+                if (Root && Root != &Node_Null)
+                {
+                    if (Root->Type == Node_Block)
+                    {
+                        if (Root->Key)
+                        {
+                            // this is a namespace basically
+                        }
+                    }
+                    else if (Root->Type == Node_If)
+                    {
+                    }
+                    else if (Root->Type == Node_Help)
+                    {
+                    }
+                    else if (Root->Type == Node_Include)
+                    {
+                    }
+                    else if (Root->Type == Node_ErrorMessage)
+                    {
+                    }
+                    else if (Root->Type == Node_LogMessage)
+                    {
+                    }
+                    else if (Root->Type == Node_KeyValue)
+                    {
+                        String Key = String_Null();
+                        if (Root->Key)
+                        {
+                            Key = *Root->Key;
+                            LOG("KEY:   %S", *Root->Key);
+                            if (Root->bIsSpecial)
+                            {
+                            }
+                        }
+
+                        StringLocal(Expanded, MAX_VALUE_LENGTH);
+
+                        if (Root->Value)
+                        {
+                            LOG_INLINE("VALUE: ");
+
+                            //StringLocal(Val, MAX_VALUE_LENGTH);
+                            for each_string_in_list (*Root->Value)
+                            {
+                                String_Append(&Expanded, It.String);
+                            }
+
+                            /*
+                            if (!ExpandBuildVariable(*Arena, VariablesDB, CmdOptionsDB, &Expanded, Key, Val, Key, WorkingDirectory, false, false))
+                            {
+                                return false;
+                            }
+                            */
+
+                            LOG("%S", Expanded);
+                        }
+                        
+
+                        StringLocal(Params, MAX_META_KEY_LENGTH);
+                        if (Root->Parameters)
+                        {
+                            LOG_INLINE("PARAMS: ");
+                            for each_str_list (*Root->Parameters)
+                            {
+                                String_AppendF(&Params, S("%S "), It.String);
+                            }
+                            LOG("%S", Params);
+                        }
+
+                        LOG_LINE_BREAK();
+
+                        Internal_AddVariable(Arena, VariablesDB, Key, Expanded, Params, Root->bIsSpecial);
+                    }
+                }
+
+                Next = &(*Next)->Next;
+            }
+        }
+        
+        Clock_Tick(&c);
+        Clock_PrintElapsedTime(&c, true);
     }
 
     return true;
@@ -2192,7 +2342,6 @@ bool ParseBuildFile(LinearAllocator* Arena,
                     const String BuildFilePath,
                     const String WorkingDirectory,
                     TArray(FileVariable) VariablesDB,
-                    TArray(FileVariable) ExpandedVariablesDB,
                     TArray(CmdOption) CmdOptionsDB,
                     TArray(String) Messages,
                     TArray(FileHandle) IncludeFiles,
@@ -3378,7 +3527,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
                     Array_Add(IncludeFiles, IncludeFileHandle);
 
                     if (!ParseBuildFile(Arena, IncludeFileHandle, BuildFilePath, WorkingDirectory,
-                                        VariablesDB, ExpandedVariablesDB, CmdOptionsDB, Messages,
+                                        VariablesDB, CmdOptionsDB, Messages,
                                         IncludeFiles, ReturnCode, true, Includes, bIsAssemblyExe))
                     {
                         return false;
