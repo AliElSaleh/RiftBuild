@@ -72,6 +72,7 @@ RIFT_API void String_Copy(String* Dest, const String Source);
 RIFT_API void String_CopyN(String* Dest, const String Source, const u32 Length);
 
 RIFT_API void String_Append(String* Dest, const String Source);
+RIFT_API void String_AppendF(String* Dest, const String Format, ...);
 RIFT_API void String_AppendChar(String* Dest, const u8 Source);
 RIFT_API void String_AppendSpace(String* Dest);
 RIFT_API void String_AppendTab(String* Dest);

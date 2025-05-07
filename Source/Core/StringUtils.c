@@ -504,6 +504,16 @@ void String_Append(String* Dest, const String Source)
     Dest->Data[Dest->Length] = 0;
 }
 
+void String_AppendF(String* Dest, const String Format, ...)
+{
+    va_list Args = {0};
+    va_start(Args, Format);
+    const i32 NewCap = (i32)Min(Dest->Capacity-Dest->Length, INT32_MAX); 
+    const i32 Written = stbsp_vsnprintf((char*)Dest->Data+Dest->Length, NewCap, (char*)Format.Data, Args);
+    Dest->Length += (u32)Clamp(Written, 0, INT32_MAX);
+    va_end(Args);
+}
+
 void String_AppendChar(String* Dest, const u8 Source)
 {
     u32 NumToCopy = Min(Dest->Capacity, 1);
@@ -2773,7 +2783,7 @@ NO_DISCARD bool IsSymbol(u8 Char)
            Char == '[' || Char == ']' || Char == '?' || Char == ':'  ||
            Char == ';' || Char == '<' || Char == '>' || Char == '\'' ||
            Char == '"' || Char == '|' || Char == ',' || Char == '`'  ||
-           Char == '~';
+           Char == '~' || Char == '_' || Char == '-';
 }
 
 NO_DISCARD u8 ToUpper(u8 Char)
