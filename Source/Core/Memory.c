@@ -350,7 +350,7 @@ void LinearAllocator_Create(usize TotalSize, void* Memory, LinearAllocator* OutA
     OutAllocator->TotalSize = TotalSize;
     OutAllocator->Allocated = 0;
     OutAllocator->bOwnsMemory = !Memory;
-    OutAllocator->bAlignMemory = true;
+    //OutAllocator->bAlignMemory = true;
 
     if (Memory)
     {
@@ -392,29 +392,41 @@ void LinearAllocator_Destroy(LinearAllocator* Allocator)
     Allocator->bOwnsMemory = false;
 }
 
-NO_DISCARD RETURN_NON_NULL void* LinearAllocator_Allocate(LinearAllocator* Allocator, usize Size)
+read_only u8 OutOfMemory[64] = {0};
+
+FORCEINLINE NO_DISCARD RETURN_NON_NULL static void* Internal_LA_Allocate(LinearAllocator* Allocator, usize Size)
 {
     ASSERT(Size > 0);
-    ASSERT(Allocator->Allocated < Allocator->TotalSize);
-    ASSERT(Allocator->Allocated + Size <= Allocator->TotalSize);
+
+    if (UNLIKELY(NEVER(Allocator->Allocated + Size > Allocator->TotalSize)))
+    {
+        Platform_ConsoleWrite("Oh no... We're out of memory!\n", 4, true);
+        _Crash_;
+        return OutOfMemory;
+    }
     
     void* Block = ((u8*)Allocator->Memory) + Allocator->Allocated;
-
-    if (Allocator->bAlignMemory)
-    {
-        const usize Alignment = 3;
-        Allocator->Allocated += ((Size + Alignment) & ~Alignment); // @Enhancement: Make more robust if the memory given was unaligned to begin with
-    }
-    else
-    {
-        Allocator->Allocated += Size;
-    }
+    Allocator->Allocated += Size;
 
     #if RIFT_ASAN
     __asan_unpoison_memory_region(Block, Size);
     #endif
 
     return Block;
+}
+
+NO_DISCARD RETURN_NON_NULL void* LinearAllocator_Allocate(LinearAllocator* Allocator, usize Size)
+{
+    // @Enhancement: Make more robust if the memory given was unaligned to begin with
+    const usize Alignment = 3;
+    usize Amount = ((Size + Alignment) & ~Alignment);
+
+    return Internal_LA_Allocate(Allocator, Amount);
+}
+
+NO_DISCARD RETURN_NON_NULL void* LinearAllocator_AllocateUnaligned(LinearAllocator* Allocator, usize Size)
+{
+    return Internal_LA_Allocate(Allocator, Size);
 }
 
 NO_DISCARD RETURN_NON_NULL void* LinearAllocator_MemoryHead(LinearAllocator* Allocator)
@@ -627,7 +639,9 @@ NO_DISCARD void* FreeListAllocator_Allocate(FreeListAllocator* Allocator, usize 
     void* Memory = NULL;
     if (UNLIKELY(Node == NULL))
     {
-        LOG_FATAL("Out of memory!");
+        Platform_ConsoleWrite("Oh no... We're out of memory!\n", 4, true);
+        _Crash_;
+        return OutOfMemory;
     }
     else
     {

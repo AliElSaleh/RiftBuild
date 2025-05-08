@@ -493,7 +493,6 @@ STRUCT(StringList)
     #define UNLIKELY(Expression) __builtin_expect(!!(Expression), 0)
     #define LIKELY(Expression)   __builtin_expect(!!(Expression), 1)
 
-
     #define DEBUG_BREAK()  __builtin_trap()
 
 #elif COMPILER_MSVC
@@ -533,7 +532,6 @@ STRUCT(StringList)
     #define LIKELY(Expression)   Expression
 
     extern void __nop(void);
-
     #define DEBUG_BREAK() (__nop(), __debugbreak())
 #endif 
 
@@ -555,7 +553,7 @@ STRUCT(StringList)
 
     // the || (Expression) is only here for msvc's /analyze flag, as it trips up about "dereferencing null pointers" sometimes
     #define ALWAYS(Expression) (__always__(Expression) || (Expression))
-    #define NEVER(Expression)  (__never__(Expression) || (Expression))
+    #define NEVER(Expression)  (__never__(Expression)  || (Expression))
 #else
     #define ALWAYS(Expression) Expression
     #define NEVER(Expression)  Expression
