@@ -18,6 +18,7 @@
 // provide examples with every parser error message
 // rename "IncludedSourceFiles" to "SourceFiles", same with the dir version
 // .rpath key
+// two arenas, one for permanently storing the key-value and another temp one for parsing that can be discarded
 
 
 
@@ -778,6 +779,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Special_ErrorMessage(LinearAllocat
 NO_DISCARD RETURN_NON_NULL static Node* Parse_Special_Help(LinearAllocator* Arena, Parser* P)
 {
     Node* Root = Node_Create(Arena, Node_Help);
+    Root->Key = S(".Help");
 
     Parser_Advance(P);
     Parser_SkipWhitespace(P);
@@ -1061,12 +1063,6 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena,
 
                 String Lexeme = Parser_Peek(P).Lexeme;
 
-                if (IsDigit(Lexeme.Data[0]))
-                {
-                    LOG_ERROR("[Parser] [Line %u]: Condition '%S' can not start with a digit. Please delete.", Parser_Peek(P).Line, Lexeme);
-                    return &Node_Null;
-                }
-
                 Condition.Prefix = Prefixes;
                 Condition.Condition = Lexeme;
 
@@ -1233,6 +1229,12 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena,
 
         }
         else if (t.Type == Token_Whitespace)
+        {
+        }
+        else if (t.Type == Token_Stop)
+        {
+        }
+        else if (t.Type == Token_Abort)
         {
         }
         else if (t.Type == Token_Newline)
@@ -1466,10 +1468,10 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena,
             if (Parser_Match(P, Token_Colon))
             {
                 while (Parser_Peek(P).Type == Token_Text   ||
-                        Parser_Peek(P).Type == Token_Not    ||
-                        Parser_Peek(P).Type == Token_At     ||
-                        Parser_Peek(P).Type == Token_Mod    ||
-                        Parser_Peek(P).Type == Token_Dollar)
+                       Parser_Peek(P).Type == Token_Not    ||
+                       Parser_Peek(P).Type == Token_At     ||
+                       Parser_Peek(P).Type == Token_Mod    ||
+                       Parser_Peek(P).Type == Token_Dollar)
                 {
                     IfConditionList* ConditionList = NULL;
                     IfConditionList** NextCondition = &ConditionList;
@@ -2290,12 +2292,22 @@ STRUCT(ParsingContext)
 {
     TArray(FileVariable) VariablesDB;
     TArray(CmdOption) CmdOptionsDB;
+    TArray(String) Messages;
     String WorkingDirectory;
+    StringList* ParentKeys;
 };
 
-NO_DISCARD static bool Analyze_IncludeNode(LinearAllocator* Arena, Node* Root, ParsingContext Context)
+NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, ParsingContext Context, bool bInIf);
+NO_DISCARD static NodeList* Analyze_List(LinearAllocator* Arena, Node* Block, ParsingContext Context, bool bInIf);
+
+NO_DISCARD static NodeList* Analyze_IncludeNode(LinearAllocator* Arena, Node* Root, ParsingContext Context)
 {
     bool bSuccess = false;
+
+    NodeList* IndeterminateList = NULL;
+    NodeList** IndeterminateNext = &IndeterminateList;
+
+    StringLocal(Expanded, MAX_VALUE_LENGTH);
 
     if (Root->Value)
     {
@@ -2306,8 +2318,6 @@ NO_DISCARD static bool Analyze_IncludeNode(LinearAllocator* Arena, Node* Root, P
         {
             String_Append(&Val, It.String);
         }
-
-        StringLocal(Expanded, MAX_VALUE_LENGTH);
 
         if (!ExpandBuildVariableV2(*Arena, Context.VariablesDB, Context.CmdOptionsDB, &Expanded, Root->Key, Val, Root->Key, Context.WorkingDirectory, false, false))
         {
@@ -2327,81 +2337,186 @@ NO_DISCARD static bool Analyze_IncludeNode(LinearAllocator* Arena, Node* Root, P
     {
         // parse the include file
 
-        //LinearAllocator Scratch = *Arena;
-        //Node* AST = Internal_ParseBuildFile(&Scratch, );
+        FileHandle f = {0};
+        if (!Filesystem_Open(Expanded, FileMode_Read, &f))
+        {
+            #ifndef HOOD
+            LOG_ERROR("Failed to open include file \"%S\" for reading", Expanded);
+            #else
+            LOG_ERROR("huhh?!!!!! cant read the include file for some reason bro, \"%S\", think you gotta check it out on your end cuh", Expanded);
+            #endif
 
+            bSuccess = false;
+        }
+
+        if (bSuccess)
+        {
+            usize Size = 0;
+            bool bResult = Filesystem_GetFileSize(f, &Size);
+
+            if (!bResult || Size == 0)
+            {
+                #ifndef HOOD
+                LOG_WARNING("Include file \"%S\" has a size of 0. Skipping...", Expanded);
+                #else
+                LOG_WARNING("ay bro heads up, gonna skip dis one, dis shit is empty nigga \"%S\"", Expanded);
+                #endif
+
+                bSuccess = false;
+            }
+        }
+        
+        if (bSuccess)
+        {
+            StringLocal(IncludePath, MAX_PATH_LENGTH);
+            if (Filesystem_GetFilePath(f, &IncludePath))
+            {
+                /*
+                if (Includes)
+                {
+                    bool bError = false;
+                    for each_str_list (*Includes)
+                    {
+                        if (String_IsEqual(IncludePath, It.String, false))
+                        {
+                            LOG_ERROR("\"%S\" is including itself\n", IncludePath);
+                            bError = true;
+                            break;
+                        }
+                    }
+
+                    if (bError)
+                    {
+                        LOG("  Include hierarchy for %S", BuildFilePath);
+                        LOG_INLINE("     ");
+                        u8 i = 0;
+                        for each_str_list (*Includes)
+                        {
+                            LOG("%S", It.String);
+
+                            for (u8 Level = 0; Level < i; Level++)
+                            {
+                                LOG_INLINE("   ");
+                            }
+                            
+                            LOG_INLINE("     |- ");
+
+                            i++;
+                        }
+
+                        LOG("%S <--", IncludeFilePath);
+
+                        return false;
+                    }
+                }
+
+                // detect circular includes
+                StringList Entry;
+                Entry.String = IncludePath;
+                Entry.Next = NULL;
+
+                StringList** Next = &Includes;
+                SLinkedList_Push(Next, &Entry);
+
+                if (!ParseBuildFile(Arena, IncludeFileHandle, BuildFilePath, WorkingDirectory,
+                                    VariablesDB, CmdOptionsDB, Messages,
+                                    IncludeFiles, ReturnCode, true, Includes, bIsAssemblyExe))
+                {
+                    return false;
+                }
+
+                *Next = NULL;
+                */
+
+                Node* AST = Internal_ParseBuildFile(Arena, f);
+
+                NodeList* List = Analyze_List(Arena, AST, Context, false);
+                if (List)
+                {
+                    SLinkedList_Push(IndeterminateNext, List);
+                }
+            }
+        }
     }
 
-    return bSuccess;
+    return IndeterminateList;
 }
 
 NO_DISCARD static bool Analyze_KVNode(LinearAllocator* Arena, Node* Root, ParsingContext Context)
 {
     bool bSuccess = true;
 
-    LOG("KEY:   %S", Root->Key);
-
-    if (Root->bIsSpecial)
+    StringLocal(FinalKey, MAX_KEY_LENGTH);
+    if (Context.ParentKeys)
     {
+        StringList** NextKey = &Context.ParentKeys;
+        while (*NextKey)
+        {
+            String_AppendF(&FinalKey, S("%S."), (*NextKey)->String);
+
+            NextKey = &(*NextKey)->Next;
+        }
+
+        String_Append(&FinalKey, Root->Key);
     }
+    else
+    {
+        FinalKey = Root->Key;
+    }
+
+    LOG("KEY:   %S", FinalKey);
 
     StringLocal(Expanded, MAX_VALUE_LENGTH);
     StringLocal(Params, MAX_META_KEY_LENGTH);
 
-    //if (bSuccess)
+    if (Root->Value)
     {
-        if (Root->Value)
+        LOG_INLINE("VALUE: ");
+
+        StringLocal(Val, MAX_VALUE_LENGTH);
+        for each_string_in_list (*Root->Value)
         {
-            LOG_INLINE("VALUE: ");
-
-            StringLocal(Val, MAX_VALUE_LENGTH);
-            for each_string_in_list (*Root->Value)
-            {
-                String_Append(&Val, It.String);
-            }
-
-            /* todo: make this a macro template
-            LinearAllocator Scratch = {0};
-            i8 ScratchMemory[Kibibytes(16)] = {0};
-            LinearAllocator_Create(Kibibytes(16), ScratchMemory, &Scratch);
-            */
-
-            if (!ExpandBuildVariableV2(*Arena, Context.VariablesDB, Context.CmdOptionsDB, &Expanded, Root->Key, Val, Root->Key, Context.WorkingDirectory, false, false))
-            {
-                //SLinkedList_Push(IndeterminateNext, NodeList_Create(Arena, Root, NULL));
-                LOG_INLINE_WARNING("<indeterminate>\n");
-                bSuccess = false;
-            }
-            else
-            {
-                LOG("%S", Expanded);
-                bSuccess = true;
-            }
+            String_Append(&Val, It.String);
         }
 
-        if (Root->Parameters)
+        /* todo: make this a macro template
+        LinearAllocator Scratch = {0};
+        i8 ScratchMemory[Kibibytes(16)] = {0};
+        LinearAllocator_Create(Kibibytes(16), ScratchMemory, &Scratch);
+        */
+
+        if (!ExpandBuildVariableV2(*Arena, Context.VariablesDB, Context.CmdOptionsDB, &Expanded, FinalKey, Val, FinalKey, Context.WorkingDirectory, false, false))
         {
-            LOG_INLINE("PARAMS: ");
-            for each_str_list (*Root->Parameters)
-            {
-                String_AppendF(&Params, S("%S "), It.String);
-            }
-            LOG("%S", Params);
+            LOG_INLINE_WARNING("<indeterminate>\n");
+            bSuccess = false;
         }
+        else
+        {
+            LOG("%S", Expanded);
+            bSuccess = true;
+        }
+    }
+
+    if (Root->Parameters)
+    {
+        LOG_INLINE("PARAMS: ");
+        for each_str_list (*Root->Parameters)
+        {
+            String_AppendF(&Params, S("%S "), It.String);
+        }
+        LOG("%S", Params);
     }
 
     LOG_LINE_BREAK();
 
     if (bSuccess)
     {
-        Internal_AddVariable(Arena, Context.VariablesDB, Root->Key, Expanded, Params, Root->bIsSpecial);
+        Internal_AddVariable(Arena, Context.VariablesDB, FinalKey, Expanded, Params, Root->bIsSpecial);
     }
 
     return bSuccess;
 }
 
-NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, ParsingContext Context, bool bInIf);
-NO_DISCARD static NodeList* Analyze_List(LinearAllocator* Arena, NodeList* List, ParsingContext Context, bool bInIf);
 
 NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, ParsingContext Context, bool bInIf)
 {
@@ -2723,6 +2838,7 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
 
             if (bConditionMet)
             {
+                bFoundVar = true;
                 break;
             }
 
@@ -2740,7 +2856,7 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
         {
             if (Left->Type == Node_Block)
             {
-                NodeList* BlockTree = Analyze_List(Arena, Left->List, Context, bInIf);
+                NodeList* BlockTree = Analyze_List(Arena, Left, Context, bInIf);
                 if (BlockTree)
                 {
                     SLinkedList_Push(IndeterminateNext, BlockTree);
@@ -2769,7 +2885,7 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
         {
             if (Right->Type == Node_Block)
             {
-                NodeList* BlockTree = Analyze_List(Arena, Right->List, Context, bInIf);
+                NodeList* BlockTree = Analyze_List(Arena, Right, Context, bInIf);
                 if (BlockTree)
                 {
                     SLinkedList_Push(IndeterminateNext, BlockTree);
@@ -2801,12 +2917,28 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
     return IndeterminateList;
 }
 
-NO_DISCARD static NodeList* Analyze_List(LinearAllocator* Arena, NodeList* List, ParsingContext Context, bool bInIf)
+NO_DISCARD static NodeList* Analyze_List(LinearAllocator* Arena, Node* Block, ParsingContext Context, bool bInIf)
 {
     NodeList* IndeterminateList = NULL;
     NodeList** IndeterminateNext = &IndeterminateList;
 
-    NodeList** Next = &List;
+    // this is a namespace basically
+    // SomeKey {
+    //     AnotherKey some value
+    // }
+    // 
+    // which will become one key: SomeKey.AnotherKey some value
+    if (Block->Key.Length > 0)
+    {
+        StringList** NextKey = &Context.ParentKeys;
+        while (*NextKey)
+        {
+            NextKey = &(*NextKey)->Next;
+        }
+        *NextKey = StringList_Create(Arena, Block->Key, NULL);
+    }
+
+    NodeList** Next = &Block->List;
     while (*Next)
     {
         Node* Root = (*Next)->Node;
@@ -2816,9 +2948,10 @@ NO_DISCARD static NodeList* Analyze_List(LinearAllocator* Arena, NodeList* List,
         {
             if (Root->Type == Node_Block)
             {
-                //if (Root->Key)
+                NodeList* BlockTree = Analyze_List(Arena, Root, Context, bInIf);
+                if (BlockTree)
                 {
-                    // this is a namespace basically
+                    SLinkedList_Push(IndeterminateNext, BlockTree);
                 }
             }
             else if (Root->Type == Node_If)
@@ -2832,30 +2965,74 @@ NO_DISCARD static NodeList* Analyze_List(LinearAllocator* Arena, NodeList* List,
             }
             else if (Root->Type == Node_Help)
             {
-                if (bInIf)
+                if (bInIf) // TODO: ensure it is at root block
                 {
                     LOG_ERROR("'.Help' can not be inside an 'if' or 'else' block");
                     return NULL;
                 }
-            }
-            else if (Root->Type == Node_Include)
-            {
-                bool bSuccess = Analyze_IncludeNode(Arena, Root, Context);
+
+                bool bSuccess = Analyze_KVNode(Arena, Root, Context);
                 if (!bSuccess)
                 {
                     SLinkedList_Push(IndeterminateNext, NodeList_Create(Arena, Root, NULL));
                 }
             }
+            else if (Root->Type == Node_Include)
+            {
+                NodeList* IncludeTree = Analyze_IncludeNode(Arena, Root, Context);
+                if (IncludeTree)
+                {
+                    SLinkedList_Push(IndeterminateNext, IncludeTree);
+                }
+            }
             else if (Root->Type == Node_ErrorMessage)
             {
-                if (bInIf)
+                if (bInIf) // TODO: ensure it is at root block
                 {
                     LOG_ERROR("'%S' can not be inside an 'if' or 'else' block", Root->Key);
                     return NULL;
                 }
+
+                bool bSuccess = Analyze_KVNode(Arena, Root, Context);
+                if (!bSuccess)
+                {
+                    SLinkedList_Push(IndeterminateNext, NodeList_Create(Arena, Root, NULL));
+                }
             }
             else if (Root->Type == Node_LogMessage)
             {
+                StringLocal(Expanded, MAX_VALUE_LENGTH);
+                bool bSuccess = false;
+
+                LOG_INLINE("LOG: ");
+
+                LinearAllocator Scratch = *Arena;
+                {
+                    String Message = String_CreateFromList(&Scratch, *Root->Value);
+
+                    if (!ExpandBuildVariableV2(Scratch, Context.VariablesDB, Context.CmdOptionsDB, &Expanded, S(""), Message, S(""), Context.WorkingDirectory, false, false))
+                    {
+                        LOG_INLINE_WARNING("<indeterminate>\n");
+                        bSuccess = false;
+                    }
+                    else
+                    {
+                        LOG("%S", Expanded);
+                        bSuccess = true;
+                    }
+                }
+
+                LOG_LINE_BREAK();
+
+                if (bSuccess)
+                {
+                    String Message = String_Create(Arena, Expanded);
+                    Array_Add(Context.Messages, Message);
+                }
+                else
+                {
+                    SLinkedList_Push(IndeterminateNext, NodeList_Create(Arena, Root, NULL));
+                }
             }
             else if (Root->Type == Node_KeyValue)
             {
@@ -2919,8 +3096,9 @@ NO_DISCARD bool ParseBuildFileV2(LinearAllocator* Arena,
         ParsingContext Context = {0};
         Context.VariablesDB  = VariablesDB;
         Context.CmdOptionsDB = CmdOptionsDB;
+        Context.Messages     = Messages;
         Context.WorkingDirectory = WorkingDirectory;
-        NodeList* IndeterminateList = Analyze_List(Arena, AST->List, Context, false);
+        NodeList* IndeterminateList = Analyze_List(Arena, AST, Context, false);
         (void)IndeterminateList;
 
         LOG("[SECOND PASS]");
@@ -4731,6 +4909,7 @@ bool ExpandBuildVariableV2(LinearAllocator Scratch, TArray(FileVariable) Variabl
         String Slice = String_Null();
         bool bWantsToLower = false;
         bool bWantsToUpper = false;
+        bool bWantsPaste   = false;
 
         if (String_EndsWith(Key, S(".errormessage"), false) ||
             String_StartsWith(Key, S(".help"), false) ||
@@ -4764,9 +4943,15 @@ bool ExpandBuildVariableV2(LinearAllocator Scratch, TArray(FileVariable) Variabl
                 }
             }
 
+            if (String_EatCharInline(&StrVal, C))
+            {
+                Offset++;
+                bWantsPaste = true; 
+            }
+
             if (Index == 0)
             {
-                (void)String_IndexOfFirstWhitespace(StrVal, &Index);
+                (void)String_IndexOfFirstNonAlphaNumeric(StrVal, &Index);
             }
 
             // find this variable
@@ -4794,8 +4979,8 @@ bool ExpandBuildVariableV2(LinearAllocator Scratch, TArray(FileVariable) Variabl
         {
             String VarValue = String_Null();
 
-            const bool bHasNot     = Slice.Length > 1 ? String_EatCharInline(&Slice, '!') : false;
-            const bool bWantsPaste = Slice.Length > 1 ? String_EatCharInline(&Slice, '%') : false;
+            const bool bHasNot     = Slice.Length > 1 ? String_EatCharInline(&Slice, '!') : false; // TODO: remove, this wont work
+            //const bool bWantsPaste = Slice.Length > 1 ? String_EatCharInline(&Slice, '%') : false;
 
             bool bFoundCmd = false;
             bool bEqualsToSomething = false;
@@ -4818,7 +5003,7 @@ bool ExpandBuildVariableV2(LinearAllocator Scratch, TArray(FileVariable) Variabl
                     {
                         bFoundCmd = true;
                         VarValue = v.Value;
-                        bEqualsToSomething = true;
+                        bEqualsToSomething = v.Value.Length > 0;
                         break;
                     }
                 }

@@ -537,18 +537,18 @@ STRUCT(StringList)
 
 #if DEVELOPER
     #if COMPILER_CLANG
-    PRAGMA_DISABLE_WARNINGS
-    PRAGMA_DISABLE_WARNING("clang diagnostic ignored \"-Wunused-function\"")
+        PRAGMA_DISABLE_WARNINGS
+        PRAGMA_DISABLE_WARNING("clang diagnostic ignored \"-Wunused-function\"")
     #elif COMPILER_GCC
-    PRAGMA_DISABLE_WARNINGS
-    PRAGMA_DISABLE_WARNING("GCC diagnostic ignored \"-Wunused-function\"")
+        PRAGMA_DISABLE_WARNINGS
+        PRAGMA_DISABLE_WARNING("GCC diagnostic ignored \"-Wunused-function\"")
     #endif
 
     FORCEINLINE static bool __always__(bool bCondition) { if (!bCondition) { DEBUG_BREAK(); } return bCondition; }
     FORCEINLINE static bool __never__(bool bCondition)  { if (bCondition)  { DEBUG_BREAK(); } return bCondition; }
 
     #if COMPILER_CLANG || COMPILER_GCC
-    PRAGMA_ENABLE_WARNINGS
+        PRAGMA_ENABLE_WARNINGS
     #endif
 
     // the || (Expression) is only here for msvc's /analyze flag, as it trips up about "dereferencing null pointers" sometimes
@@ -563,10 +563,12 @@ STRUCT(StringList)
     #define ASSERT(Expression)
     #define ENSURE(Expression)
     #define UNREACHABLE()
+    #define TODO()
 #else
     #define ASSERT(Expression, ...) do { if (Expression) {} else { ##__VA_ARGS__; DEBUG_BREAK(); _Crash_; } } while (0)
     #define ENSURE(Expression, ...) do { if (Expression) {} else { ##__VA_ARGS__; DEBUG_BREAK(); } } while (0)
-    #define UNREACHABLE()           do { DEBUG_BREAK; _Crash_; } while (0)
+    #define UNREACHABLE()           do { DEBUG_BREAK(); _Crash_; } while (0)
+    #define TODO()                  DEBUG_BREAK()
 #endif
 
 #define STATIC_PURE_FN(...) static __VA_ARGS__ PURE_FN; static __VA_ARGS__ 

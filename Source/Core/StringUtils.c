@@ -72,6 +72,26 @@ NO_DISCARD String String_Create(LinearAllocator* Arena, const String Source)
     return str;
 }
 
+NO_DISCARD String String_CreateFromList(LinearAllocator* Arena, const StringList Source)
+{
+    String Result = String_Null();
+
+    u32 TotalLength = 0;
+    for each_string_in_list (Source)
+    {
+        TotalLength += It.String.Length;
+    }
+
+    Result.Data = LinearAllocator_Allocate(Arena, TotalLength+1);
+
+    for each_string_in_list (Source)
+    {
+        String_Append(&Result, It.String);
+    }
+
+    return Result;
+}
+
 NO_DISCARD String String_Duplicate(LinearAllocator* Arena, const String Source)
 {
     String str = String_Null();
@@ -1620,6 +1640,46 @@ NO_DISCARD bool String_IndexOfFirstNewline(const String Str, u32* OutIndex)
     for (u32 i = 0; i < Str.Length; ++i)
     {
         if (IsNewline(Str.Data[i]))
+        {
+            if (OutIndex)
+            {
+                *OutIndex = i;
+            }
+            
+            bFound = true;
+            break;
+        }
+    }
+    
+    return bFound;
+}
+
+NO_DISCARD bool String_IndexOfFirstSymbol(const String Str, u32* OutIndex)
+{
+    bool bFound = false;
+    for (u32 i = 0; i < Str.Length; ++i)
+    {
+        if (IsSymbol(Str.Data[i]))
+        {
+            if (OutIndex)
+            {
+                *OutIndex = i;
+            }
+            
+            bFound = true;
+            break;
+        }
+    }
+    
+    return bFound;
+}
+
+NO_DISCARD bool String_IndexOfFirstNonAlphaNumeric(const String Str, u32* OutIndex)
+{
+    bool bFound = false;
+    for (u32 i = 0; i < Str.Length; ++i)
+    {
+        if (!IsAlphabet(Str.Data[i]) && !IsDigit(Str.Data[i]))
         {
             if (OutIndex)
             {

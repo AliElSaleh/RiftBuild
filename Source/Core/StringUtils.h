@@ -45,6 +45,7 @@ RIFT_API NO_DISCARD bool StringArray_IsValid(const StringArray Str);
 RIFT_API NO_DISCARD bool StringList_IsValid(const StringList Str);
 
 RIFT_API NO_DISCARD String String_Create(LinearAllocator* Arena, const String Source); // todo: deprecate
+RIFT_API NO_DISCARD String String_CreateFromList(LinearAllocator* Arena, const StringList Source);
 RIFT_API NO_DISCARD String String_Duplicate(LinearAllocator* Arena, const String Source);
 RIFT_API NO_DISCARD String String_Reserve(LinearAllocator* Arena, u32 Capacity);
 RIFT_API NO_DISCARD String String_ReserveAndCopy(LinearAllocator* Arena, u32 Capacity, const String Source);
@@ -140,6 +141,8 @@ RIFT_API NO_DISCARD bool String_IndexOfLastPathSlash(const String Str, u32* OutI
 RIFT_API NO_DISCARD bool String_IndexOfFirstWhitespace(const String Str, u32* OutIndex);
 RIFT_API NO_DISCARD bool String_IndexOfLastWhitespace(const String Str, u32* OutIndex);
 RIFT_API NO_DISCARD bool String_IndexOfFirstNewline(const String Str, u32* OutIndex);
+RIFT_API NO_DISCARD bool String_IndexOfFirstSymbol(const String Str, u32* OutIndex);
+RIFT_API NO_DISCARD bool String_IndexOfFirstNonAlphaNumeric(const String Str, u32* OutIndex);
 RIFT_API NO_DISCARD bool String_IndexOfSubstring(const String Str, const String Substring, bool bCaseSensitive, u32* OutIndex);
 
 RIFT_API NO_DISCARD bool String_SanitizePath(String* Dest, const String Source);
