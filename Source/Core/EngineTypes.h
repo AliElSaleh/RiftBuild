@@ -224,8 +224,7 @@ STRUCT(StringList)
 #define TMap(KeyType, ValueType)
 
 #define SLinkedList_Push(List, Entry) \
-                        *(List) = Entry; \
-                        List = &(*(List))->Next
+    do { *(List) = Entry; while (*(List)) { (List) = &(*(List))->Next; } } while (0)
 
 #define global extern
 //#define internal static

@@ -19,113 +19,7 @@
 // rename "IncludedSourceFiles" to "SourceFiles", same with the dir version
 // .rpath key
 // two arenas, one for permanently storing the key-value and another temp one for parsing that can be discarded
-
-
-
-
-
-
-                    /*
-                    String ConditionValuePtr = String_Null();
-                    StringLocal(EnvValue, 1024);
-
-                    bool bNot                = Prefixes & BIT(1);
-                    bool bSearchUserVar      = Prefixes & BIT(2);
-                    bool bSearchCmdVar       = Prefixes & BIT(3);
-                    bool bSearchEnv          = Prefixes & BIT(4);
-                    bool bPrefixedWithSymbol = bSearchUserVar || bSearchCmdVar || bSearchEnv;
-
-                    (void)bNot;
-
-                    bool bConditionMet = false;
-                    bool bIsPath = String_ContainsPathSeparators(Condition);
-                    if (bIsPath)
-                    {
-                        bool bIsDirectory = String_IsLast(Condition, '/') || String_IsLast(Condition, '\\');
-
-                        StringLocal(Temp, MAX_PATH_LENGTH);
-                        if (Filesystem_IsPathRelative(Condition))
-                        {
-                            String_BuildPath(&Temp, WorkingDirectory, Condition);
-                        }
-                        else
-                        {
-                            String_Copy(&Temp, Condition);
-                        }
-
-                        if (bIsDirectory)
-                        {
-                            bConditionMet = Filesystem_DoesDirectoryExist(Temp);
-                        }
-                        else
-                        {
-                            bConditionMet = Filesystem_DoesFileExist(Temp);
-                        }
-                    }
-                    else
-                    {
-                        if (bSearchEnv)
-                        {
-                            // find this variable
-                            StringLocal(Temp, 256);
-                            String_Copy(&Temp, Condition);
-                            if (Platform_GetEnvironmentVariableValue(Temp, &EnvValue))
-                            {
-                                ConditionValuePtr = EnvValue;
-                                bConditionMet = true;
-                            }
-                        }
-
-                        if (!bConditionMet && (bSearchCmdVar || !bPrefixedWithSymbol))
-                        {
-                            // check the condition string against the internal build vars passed in from the command line
-                            // override VarValue for single line if's, for multiline if's, loop back to the top and process each line until '}' is found
-                            for each (CmdOption, o, CmdOptionsDB)
-                            {
-                                bool bMatch = String_IsEqual(o.Name, Condition, false);
-                                if (bMatch)
-                                {
-                                    if (!o.bEqualsToSomething || o.Value.Length > 0) // make sure we have some value if we specified an '=' sign
-                                    {
-                                        ConditionValuePtr = o.Value;
-                                        bConditionMet = true;
-                                        break;
-                                    }
-                                }
-                            }
-
-                            if (!bConditionMet)
-                            {
-                                for each (InternalVariable, v, InternalVariablesDB)
-                                {
-                                    if (String_IsEqual(v.Name, Condition, false))
-                                    {
-                                        ConditionValuePtr = v.Value;
-                                        bConditionMet = true;
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-
-                        if (!bConditionMet && (bSearchUserVar || !bPrefixedWithSymbol))
-                        {
-                            for each (FileVariable, o, VariablesDB) // intentional that we're not using expanded DB, this should only be used for simple things anyway
-                            {
-                                bool bMatch = String_IsEqual(o.Name, Condition, false);
-                                if (bMatch)
-                                {
-                                    ConditionValuePtr = o.Value;
-                                    bConditionMet = true;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-
-                    (void)ConditionValuePtr;
-                    */
-
+// how to detect multiple inclusions of a file?
 
 #define MAX_KEY_LENGTH 64
 #define MAX_VALUE_LENGTH 8192
@@ -197,6 +91,7 @@ ENUM_TYPED(ETokenType, u32)
     Token_Stop,
     Token_Abort,
     Token_Help,
+    Token_Assert,
     Token_ErrorMessage,
 
     Token_Whitespace,
@@ -262,6 +157,7 @@ static String TokenTypeEnumStringTable_NoPrefix[Token_Max] =
     SC("Stop"),
     SC("Abort"),
     SC("Help"),
+    SC("Assert"),
     SC("ErrorMessage"),
 
     SC("Whitespace"),
@@ -316,6 +212,7 @@ static String TokenTypeEnumStringTable[Token_Max] =
     SC("Token_Stop"),
     SC("Token_Abort"),
     SC("Token_Help"),
+    SC("Token_Assert"),
     SC("Token_ErrorMessage"),
 
     SC("Token_Whitespace"),
@@ -381,13 +278,15 @@ STRUCT(Node)
     ETokenType  ComparisonOp;
     bool        bIsSpecial;
     bool        bIsReservedKey;
-    u8          Padding[6];
+    bool        bPreserveOrder;
+    u8          Padding[5];
 
     String      Key;
     StringList* Value;
     StringList* Parameters;
     IfConditionList* ConditionList;
 
+    Node*       Parent;
     Node*       Left;
     Node*       Right;
 
@@ -444,7 +343,7 @@ STRUCT(KeywordTableEntry)
     u8         Padding[4];
 };
 
-static KeywordTableEntry ReservedKeywordsTable[14] =
+static KeywordTableEntry ReservedKeywordsTable[11] =
 {
     { .Type = Token_If,          .Name = SC("if")          },
     { .Type = Token_Else,        .Name = SC("else")        },
@@ -456,6 +355,12 @@ static KeywordTableEntry ReservedKeywordsTable[14] =
     { .Type = Token_Stop,        .Name = SC(".stop")       },
     { .Type = Token_Abort,       .Name = SC(".abort")      },
     { .Type = Token_Help,        .Name = SC(".help")       },
+    { .Type = Token_Assert,      .Name = SC("assert")      },
+};
+
+static KeywordTableEntry ReservedStartingKeywordsTable[1] =
+{
+    { .Type = Token_Assert, .Name = SC("Assert.")},
 };
 
 static KeywordTableEntry ReservedEndingKeywordsTable[1] =
@@ -895,14 +800,6 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena,
     IfConditionList* ConditionList = NULL;
     IfConditionList** NextCondition = &ConditionList;
 
-    /*
-    StringList* ValueList = NULL;
-    StringList** NextValue = &ValueList;
-
-    IfPrefixList* PrefixList = NULL;
-    IfPrefixList** NextPrefix = &PrefixList;
-    */
-
     P->Current += Offset;
 
     u32 Start = 0;
@@ -1018,6 +915,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena,
         }
         // evaluate if conditions
         else if (t.Type is Token_Text         or
+                 t.Type is Token_Assert       or
                  t.Type is Token_ErrorMessage or
                  t.Type is Token_Not          or
                  t.Type is Token_At           or
@@ -1032,6 +930,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena,
 
             Token NextToken = t;
             while (NextToken.Type == Token_Text   ||
+                   NextToken.Type == Token_Assert ||
                    NextToken.Type == Token_Not    ||
                    NextToken.Type == Token_At     ||
                    NextToken.Type == Token_Mod    ||
@@ -1073,6 +972,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena,
 
                 if (Comparison.Type != Token_If &&
                     Comparison.Type != Token_Text &&
+                    Comparison.Type != Token_Assert &&
                     Comparison.Type != Token_ErrorMessage &&
                     Comparison.Type != Token_Help &&
                     Comparison.Type != Token_Include &&
@@ -1138,7 +1038,9 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena,
 
                     Parser_SkipWhitespace(P);
 
+                    // todo: relook at how i can simplify this across other areas of teh codebase
                     if (Parser_Peek(P).Type == Token_Text ||
+                        Parser_Peek(P).Type == Token_Assert ||
                         Parser_Peek(P).Type == Token_ErrorMessage ||
                         Parser_Peek(P).Type == Token_Help ||
                         Parser_Peek(P).Type == Token_Include ||
@@ -1188,11 +1090,39 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena,
 
     Root->ConditionList = ConditionList;
 
-    // TODO: update print node
-    //Root->Value = ValueList;
-    //Root->PrefixList = PrefixList;
-
     return Root;
+}
+
+static void Internal_AssignParentToChildrenRecursively(Node* Parent, NodeList* Children)
+{
+    NodeList** This = &Children;
+    while (*This)
+    {
+        if (!(*This)->Node->Parent)
+        {
+            (*This)->Node->Parent = Parent;
+
+            if ((*This)->Node->Left)
+            {
+                (*This)->Node->Left->Parent = Parent;
+                if ((*This)->Node->Left->List)
+                {
+                    Internal_AssignParentToChildrenRecursively(Parent, (*This)->Node->Left->List);
+                }
+            }
+
+            if ((*This)->Node->Right)
+            {
+                (*This)->Node->Right->Parent = Parent;
+                if ((*This)->Node->Right->List)
+                {
+                    Internal_AssignParentToChildrenRecursively(Parent, (*This)->Node->Right->List);
+                }
+            }
+        }
+
+        This = &(*This)->Next;
+    }
 }
 
 NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena,
@@ -1248,7 +1178,8 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena,
         {
             ETokenType PrevTokenType = LastRootToken.Type;
 
-            if (PrevTokenType != Token_Text)
+            if (PrevTokenType != Token_Text &&
+                PrevTokenType != Token_Assert)
             {
                 LOG_ERROR("[Parser] [Line %u]: Anonymous blocks are not allowed. Missing <key> before '{'.", t.Line);
                 return &Node_Null;
@@ -1285,6 +1216,32 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena,
             {
                 List->Node = BlockNode;
             }
+
+            // assign this block to all children nodes (recursively)
+            Internal_AssignParentToChildrenRecursively(BlockNode, BlockNode->List);
+
+            const String KeysThatPreserveOrder[] =
+            {
+                S("PreDepend"),
+                S("PreBuild"),
+                S("PostBuild"),
+                S("PreCompile"),
+                S("PostCompile"),
+                S("PreLink"),
+                S("PostLink"),
+            };
+
+            bool bKeyMatch = false;
+            for EachElement(i, KeysThatPreserveOrder)
+            {
+                if (String_IsEqual(BlockNode->Key, KeysThatPreserveOrder[i], false))
+                {
+                    bKeyMatch = true;
+                    break;
+                }
+            }
+
+            BlockNode->bPreserveOrder = bKeyMatch;
 
             SLinkedList_Push(NextNode, List);
 
@@ -1423,13 +1380,14 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena,
 
             SLinkedList_Push(NextNode, List);
         }
-        else if (t.Type == Token_Text)
+        else if (t.Type == Token_Text || t.Type == Token_Assert)
         {
             Parser_SkipWhitespace(P);
 
             // this means we are the key
             bool bIsSpecial = false;
-            if (Parser_Match(P, Token_Text))
+            if (Parser_Match(P, Token_Text) ||
+                Parser_Match(P, Token_Assert))
             {
                 if (Parser_Match(P, Token_Not))
                 {
@@ -1437,9 +1395,9 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena,
                 }
             }
 
-            if (!IsAlphabet(t.Lexeme.Data[0]))
+            if (!IsAlphabet(t.Lexeme.Data[0]) && t.Lexeme.Data[0] != '.')
             {
-                LOG_ERROR("[Parser] [Line %u]: Key '%S' can only start with an alphabet character. Please remove '%c'", t.Line, t.Lexeme, t.Lexeme.Data[0]);
+                LOG_ERROR("[Parser] [Line %u]: Key '%S' can only start with an alphabet character or '.'. Please remove '%c'", t.Line, t.Lexeme, t.Lexeme.Data[0]);
                 return &Node_Null;
             }
 
@@ -2232,11 +2190,22 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseBuildFile(LinearAllocator*
 
                 ETokenType FinalType = Token_Text;
 
+
+                // TODO: relook at this code
                 for (u8 j = 0; j < SArray_Capacity(ReservedKeywordsTable); j++)
                 {
                     if (String_IsEqual(Lexeme, ReservedKeywordsTable[j].Name, false))
                     {
                         FinalType = ReservedKeywordsTable[j].Type;
+                        break;
+                    }
+                }
+
+                for (u8 j = 0; j < SArray_Capacity(ReservedStartingKeywordsTable); j++)
+                {
+                    if (String_StartsWith(Lexeme, ReservedStartingKeywordsTable[j].Name, false))
+                    {
+                        FinalType = ReservedStartingKeywordsTable[j].Type;
                         break;
                     }
                 }
@@ -2256,6 +2225,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseBuildFile(LinearAllocator*
         Clock_Tick(&c);
         Clock_PrintElapsedTime(&c, true);
 
+        /*
         for each (Token, t, Tokens)
         {
             if (t.Lexeme.Length > 0 && t.Type != Token_Newline)
@@ -2268,6 +2238,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseBuildFile(LinearAllocator*
             }
         }
         LOG("Num Tokens: %u", Array_Num(Tokens));
+        */
 
         // Parse the tokens into a tree
         {
@@ -2281,7 +2252,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseBuildFile(LinearAllocator*
             Clock_Tick(&c);
             Clock_PrintElapsedTime(&c, true);
 
-            Print_BlockNode(Result->List, 0);
+            //Print_BlockNode(Result->List, 0);
         }
     }
 
@@ -2294,11 +2265,14 @@ STRUCT(ParsingContext)
     TArray(CmdOption) CmdOptionsDB;
     TArray(String) Messages;
     String WorkingDirectory;
-    StringList* ParentKeys;
+    bool bNoFail;
+    u8 Level;
+    u8 Padding[6];
 };
 
 NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, ParsingContext Context, bool bInIf);
 NO_DISCARD static NodeList* Analyze_List(LinearAllocator* Arena, Node* Block, ParsingContext Context, bool bInIf);
+NO_DISCARD static bool      Analyze_Indeterminates(LinearAllocator* Arena, NodeList* List, ParsingContext Context);
 
 NO_DISCARD static NodeList* Analyze_IncludeNode(LinearAllocator* Arena, Node* Root, ParsingContext Context)
 {
@@ -2311,7 +2285,7 @@ NO_DISCARD static NodeList* Analyze_IncludeNode(LinearAllocator* Arena, Node* Ro
 
     if (Root->Value)
     {
-        LOG_INLINE("INCLUDE: ");
+        //LOG_INLINE("INCLUDE: ");
 
         StringLocal(Val, MAX_VALUE_LENGTH);
         for each_string_in_list (*Root->Value)
@@ -2319,18 +2293,20 @@ NO_DISCARD static NodeList* Analyze_IncludeNode(LinearAllocator* Arena, Node* Ro
             String_Append(&Val, It.String);
         }
 
-        if (!ExpandBuildVariableV2(*Arena, Context.VariablesDB, Context.CmdOptionsDB, &Expanded, Root->Key, Val, Root->Key, Context.WorkingDirectory, false, false))
+        bool bFailed = false;
+        bSuccess = ExpandBuildVariableV2(*Arena, Context.VariablesDB, Context.CmdOptionsDB, &Expanded, Root->Key, Val, Root->Key, Context.WorkingDirectory, false, false, &bFailed);
+        if (bFailed || !bSuccess)
         {
-            LOG_INLINE_WARNING("<indeterminate>\n");
+            //LOG_INLINE_WARNING("<indeterminate>\n");
             bSuccess = false;
         }
         else
         {
-            LOG("%S", Expanded);
+            //LOG("%S", Expanded);
             bSuccess = true;
         }
 
-        LOG_LINE_BREAK();
+        //LOG_LINE_BREAK();
     }
 
     if (bSuccess)
@@ -2430,12 +2406,23 @@ NO_DISCARD static NodeList* Analyze_IncludeNode(LinearAllocator* Arena, Node* Ro
 
                 Node* AST = Internal_ParseBuildFile(Arena, f);
 
+                ParsingContext NewContext = Context;
+                NewContext.Level = 0;
+
                 NodeList* List = Analyze_List(Arena, AST, Context, false);
                 if (List)
                 {
                     SLinkedList_Push(IndeterminateNext, List);
                 }
             }
+        }
+    }
+    else
+    {
+        // dont do this when we're in a no fail state to prevent infinite loop
+        if (!Context.bNoFail)
+        {
+            SLinkedList_Push(IndeterminateNext, NodeList_Create(Arena, Root, NULL));
         }
     }
 
@@ -2447,31 +2434,45 @@ NO_DISCARD static bool Analyze_KVNode(LinearAllocator* Arena, Node* Root, Parsin
     bool bSuccess = true;
 
     StringLocal(FinalKey, MAX_KEY_LENGTH);
-    if (Context.ParentKeys)
+
+    // this is a namespace basically
+    // SomeKey {
+    //     AnotherKey some value
+    // }
+    // 
+    // which will become one key: SomeKey.AnotherKey some value
     {
-        StringList** NextKey = &Context.ParentKeys;
-        while (*NextKey)
+        Node* NextParent = Root->Parent;
+        String ParentKeys[64] = {0};
+        u8 i = 0;
+        while (NextParent)
         {
-            String_AppendF(&FinalKey, S("%S."), (*NextKey)->String);
-
-            NextKey = &(*NextKey)->Next;
+            ParentKeys[i] = NextParent->Key;
+            NextParent = NextParent->Parent;
+            i++;
         }
-
-        String_Append(&FinalKey, Root->Key);
+        if (i > 0)
+        {
+            for (i8 j = (i8)i-1; j >= 0; j--)
+            {
+                String_AppendF(&FinalKey, S("%S."), ParentKeys[j]);
+            }
+            String_Append(&FinalKey, Root->Key);
+        }
+        else
+        {
+            FinalKey = Root->Key;
+        }
     }
-    else
-    {
-        FinalKey = Root->Key;
-    }
 
-    LOG("KEY:   %S", FinalKey);
+    //LOG("KEY:   %S", FinalKey);
 
     StringLocal(Expanded, MAX_VALUE_LENGTH);
     StringLocal(Params, MAX_META_KEY_LENGTH);
 
     if (Root->Value)
     {
-        LOG_INLINE("VALUE: ");
+        //LOG_INLINE("VALUE: ");
 
         StringLocal(Val, MAX_VALUE_LENGTH);
         for each_string_in_list (*Root->Value)
@@ -2479,35 +2480,31 @@ NO_DISCARD static bool Analyze_KVNode(LinearAllocator* Arena, Node* Root, Parsin
             String_Append(&Val, It.String);
         }
 
-        /* todo: make this a macro template
-        LinearAllocator Scratch = {0};
-        i8 ScratchMemory[Kibibytes(16)] = {0};
-        LinearAllocator_Create(Kibibytes(16), ScratchMemory, &Scratch);
-        */
-
-        if (!ExpandBuildVariableV2(*Arena, Context.VariablesDB, Context.CmdOptionsDB, &Expanded, FinalKey, Val, FinalKey, Context.WorkingDirectory, false, false))
+        bool bFailed = false;
+        bSuccess = ExpandBuildVariableV2(*Arena, Context.VariablesDB, Context.CmdOptionsDB, &Expanded, FinalKey, Val, FinalKey, Context.WorkingDirectory, false, false, &bFailed);
+        if ((bFailed && !Context.bNoFail) || !bSuccess)
         {
-            LOG_INLINE_WARNING("<indeterminate>\n");
+            //LOG_INLINE_WARNING("<indeterminate>\n");
             bSuccess = false;
         }
         else
         {
-            LOG("%S", Expanded);
+            //LOG("%S", Expanded);
             bSuccess = true;
         }
     }
 
     if (Root->Parameters)
     {
-        LOG_INLINE("PARAMS: ");
+        //LOG_INLINE("PARAMS: ");
         for each_str_list (*Root->Parameters)
         {
             String_AppendF(&Params, S("%S "), It.String);
         }
-        LOG("%S", Params);
+        //LOG("%S", Params);
     }
 
-    LOG_LINE_BREAK();
+    //LOG_LINE_BREAK();
 
     if (bSuccess)
     {
@@ -2582,7 +2579,6 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
                         VarValue = EnvVar;
                         bFoundVar = true;
                     }
-
                 }
 
                 if (!bConditionMet && (bSearchInternalVar || !bPrefixedWithSymbol))
@@ -2647,7 +2643,7 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
                     default:
                     break;
 
-                    case Cmp_Equal:
+                    case Token_EqualEqual:
                     {
                         bConditionMet = String_IsEqual(VarValue, c.TestValue, bCaseSensitive);
                         if (bConditionMet)
@@ -2673,7 +2669,7 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
                     }
                     break;
 
-                    case Cmp_NotEqual:
+                    case Token_NotEqual:
                     {
                         bConditionMet = !String_IsEqual(VarValue, c.TestValue, bCaseSensitive);
                         if (bConditionMet)
@@ -2699,7 +2695,7 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
                     }
                     break;
 
-                    case Cmp_GreaterThanOrEqual:
+                    case Token_GreaterOrEqual:
                     {
                         if (!String_ToI64(VarValue, &LeftInt) ||
                             !String_ToI64(c.TestValue, &RightInt))
@@ -2712,7 +2708,7 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
                     }
                     break;
 
-                    case Cmp_LessThanOrEqual:
+                    case Token_LessOrEqual:
                     {
                         if (!String_ToI64(VarValue, &LeftInt) ||
                             !String_ToI64(c.TestValue, &RightInt))
@@ -2725,7 +2721,7 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
                     }
                     break;
 
-                    case Cmp_GreaterThan:
+                    case Token_GreaterThan:
                     {
                         if (!String_ToI64(VarValue, &LeftInt) ||
                             !String_ToI64(c.TestValue, &RightInt))
@@ -2738,7 +2734,7 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
                     }
                     break;
 
-                    case Cmp_LessThan:
+                    case Token_LessThan:
                     {
                         if (!String_ToI64(VarValue, &LeftInt) ||
                             !String_ToI64(c.TestValue, &RightInt))
@@ -2751,7 +2747,7 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
                     }
                     break;
 
-                    case Cmp_StartsWith:
+                    case Token_StartsWith:
                     {
                         bConditionMet = String_StartsWith(VarValue, c.TestValue, bCaseSensitive);
                         if (bConditionMet)
@@ -2777,7 +2773,7 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
                     }
                     break;
 
-                    case Cmp_EndsWith:
+                    case Token_EndsWith:
                     {
                         bConditionMet = String_EndsWith(VarValue, c.TestValue, bCaseSensitive);
                         if (bConditionMet)
@@ -2917,28 +2913,11 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
     return IndeterminateList;
 }
 
-NO_DISCARD static NodeList* Analyze_List(LinearAllocator* Arena, Node* Block, ParsingContext Context, bool bInIf)
+NO_DISCARD static bool Analyze_Indeterminates(LinearAllocator* Arena, NodeList* List, ParsingContext Context)
 {
-    NodeList* IndeterminateList = NULL;
-    NodeList** IndeterminateNext = &IndeterminateList;
+    bool bSuccess = true;
 
-    // this is a namespace basically
-    // SomeKey {
-    //     AnotherKey some value
-    // }
-    // 
-    // which will become one key: SomeKey.AnotherKey some value
-    if (Block->Key.Length > 0)
-    {
-        StringList** NextKey = &Context.ParentKeys;
-        while (*NextKey)
-        {
-            NextKey = &(*NextKey)->Next;
-        }
-        *NextKey = StringList_Create(Arena, Block->Key, NULL);
-    }
-
-    NodeList** Next = &Block->List;
+    NodeList** Next = &List;
     while (*Next)
     {
         Node* Root = (*Next)->Node;
@@ -2948,81 +2927,149 @@ NO_DISCARD static NodeList* Analyze_List(LinearAllocator* Arena, Node* Block, Pa
         {
             if (Root->Type == Node_Block)
             {
-                NodeList* BlockTree = Analyze_List(Arena, Root, Context, bInIf);
-                if (BlockTree)
-                {
-                    SLinkedList_Push(IndeterminateNext, BlockTree);
-                }
+                (void)Analyze_List(Arena, Root, Context, false);
             }
             else if (Root->Type == Node_If)
             {
-                NodeList* IfTree = Analyze_IfNode(Arena, Root, Context, true);
-                if (IfTree)
-                {
-                    LOG_INLINE_WARNING("IF <indeterminate>\n");
-                    SLinkedList_Push(IndeterminateNext, IfTree);
-                }
+                (void)Analyze_IfNode(Arena, Root, Context, true);
             }
             else if (Root->Type == Node_Help)
             {
-                if (bInIf) // TODO: ensure it is at root block
-                {
-                    LOG_ERROR("'.Help' can not be inside an 'if' or 'else' block");
-                    return NULL;
-                }
-
-                bool bSuccess = Analyze_KVNode(Arena, Root, Context);
-                if (!bSuccess)
-                {
-                    SLinkedList_Push(IndeterminateNext, NodeList_Create(Arena, Root, NULL));
-                }
+                (void)Analyze_KVNode(Arena, Root, Context);
             }
             else if (Root->Type == Node_Include)
             {
-                NodeList* IncludeTree = Analyze_IncludeNode(Arena, Root, Context);
-                if (IncludeTree)
-                {
-                    SLinkedList_Push(IndeterminateNext, IncludeTree);
-                }
+                (void)Analyze_IncludeNode(Arena, Root, Context);
             }
             else if (Root->Type == Node_ErrorMessage)
             {
-                if (bInIf) // TODO: ensure it is at root block
-                {
-                    LOG_ERROR("'%S' can not be inside an 'if' or 'else' block", Root->Key);
-                    return NULL;
-                }
-
-                bool bSuccess = Analyze_KVNode(Arena, Root, Context);
-                if (!bSuccess)
-                {
-                    SLinkedList_Push(IndeterminateNext, NodeList_Create(Arena, Root, NULL));
-                }
+                (void)Analyze_KVNode(Arena, Root, Context);
             }
             else if (Root->Type == Node_LogMessage)
             {
                 StringLocal(Expanded, MAX_VALUE_LENGTH);
-                bool bSuccess = false;
 
-                LOG_INLINE("LOG: ");
+                //LOG_INLINE("LOG: ");
 
                 LinearAllocator Scratch = *Arena;
                 {
                     String Message = String_CreateFromList(&Scratch, *Root->Value);
 
-                    if (!ExpandBuildVariableV2(Scratch, Context.VariablesDB, Context.CmdOptionsDB, &Expanded, S(""), Message, S(""), Context.WorkingDirectory, false, false))
+                    (void)ExpandBuildVariableV2(*Arena, Context.VariablesDB, Context.CmdOptionsDB, &Expanded, S(""), Message, S(""), Context.WorkingDirectory, false, false, NULL);
+                    //LOG("%S", Expanded);
+                }
+
+                //LOG_LINE_BREAK();
+
+                String Message = String_Create(Arena, Expanded);
+                Array_Add(Context.Messages, Message);
+            }
+            else if (Root->Type == Node_KeyValue)
+            {
+                (void)Analyze_KVNode(Arena, Root, Context);
+            }
+        }
+
+        Next = &(*Next)->Next;
+   }
+
+    return bSuccess;
+}
+
+NO_DISCARD static NodeList* Analyze_List(LinearAllocator* Arena, Node* Block, ParsingContext Context, bool bInIf)
+{
+    Context.Level += 1;
+
+    NodeList* IndeterminateList = NULL;
+    NodeList** IndeterminateNext = &IndeterminateList;
+
+    NodeList** Next = &Block->List;
+    while (*Next)
+    {
+        Node* Root = (*Next)->Node;
+
+        bool bValid = Root && Root != &Node_Null;
+        if (bValid)
+        {
+            bool bSuccess = true;
+            NodeList* ListToAdd = NULL;
+
+            if (Root->Type == Node_Block)
+            {
+                NodeList* Tree = Analyze_List(Arena, Root, Context, bInIf);
+                if (Tree)
+                {
+                    //SLinkedList_Push(IndeterminateNext, BlockTree);
+                    ListToAdd = Tree;
+                    bSuccess = false;
+                }
+            }
+            else if (Root->Type == Node_If)
+            {
+                NodeList* Tree = Analyze_IfNode(Arena, Root, Context, true);
+                if (Tree)
+                {
+                    //LOG_INLINE_WARNING("IF <indeterminate>\n");
+                    //SLinkedList_Push(IndeterminateNext, Tree);
+                    ListToAdd = Tree;
+                    bSuccess = false;
+                }
+            }
+            else if (Root->Type == Node_Help)
+            {
+                if (Context.Level > 1)
+                {
+                    LOG_ERROR("'.Help' can not be inside an 'if' or 'else' block");
+                    return NULL;
+                }
+
+                bSuccess = Analyze_KVNode(Arena, Root, Context);
+            }
+            else if (Root->Type == Node_Include)
+            {
+                NodeList* Tree = Analyze_IncludeNode(Arena, Root, Context);
+                if (Tree)
+                {
+                    ListToAdd = Tree;
+                    bSuccess = false;
+                }
+            }
+            else if (Root->Type == Node_ErrorMessage)
+            {
+                if (Context.Level > 1)
+                {
+                    LOG_ERROR("'%S' can not be inside an 'if' or 'else' block", Root->Key);
+                    return NULL;
+                }
+
+                bSuccess = Analyze_KVNode(Arena, Root, Context);
+            }
+            else if (Root->Type == Node_LogMessage)
+            {
+                StringLocal(Expanded, MAX_VALUE_LENGTH);
+                //bool bSuccess = false;
+
+                //LOG_INLINE("LOG: ");
+
+                LinearAllocator Scratch = *Arena;
+                {
+                    String Message = String_CreateFromList(&Scratch, *Root->Value);
+
+                    bool bFailed = false;
+                    bSuccess = ExpandBuildVariableV2(*Arena, Context.VariablesDB, Context.CmdOptionsDB, &Expanded, S(""), Message, S(""), Context.WorkingDirectory, false, false, &bFailed);
+                    if (bFailed || !bSuccess)
                     {
-                        LOG_INLINE_WARNING("<indeterminate>\n");
+                        //LOG_INLINE_WARNING("<indeterminate>\n");
                         bSuccess = false;
                     }
                     else
                     {
-                        LOG("%S", Expanded);
+                        //LOG("%S", Expanded);
                         bSuccess = true;
                     }
                 }
 
-                LOG_LINE_BREAK();
+                //LOG_LINE_BREAK();
 
                 if (bSuccess)
                 {
@@ -3031,13 +3078,34 @@ NO_DISCARD static NodeList* Analyze_List(LinearAllocator* Arena, Node* Block, Pa
                 }
                 else
                 {
-                    SLinkedList_Push(IndeterminateNext, NodeList_Create(Arena, Root, NULL));
                 }
             }
             else if (Root->Type == Node_KeyValue)
             {
-                bool bSuccess = Analyze_KVNode(Arena, Root, Context);
+                bSuccess = Analyze_KVNode(Arena, Root, Context);
+            }
+
+            if (Context.Level > 1) // above root level
+            {
                 if (!bSuccess)
+                {
+                    // does this block care about ordering of keys?
+                    if (Block->bPreserveOrder)
+                    {
+                        ASSERT(IndeterminateList == NULL);
+                        IndeterminateList = Block->List;
+                        break;
+                    }
+                }
+            }
+
+            if (!bSuccess)
+            {
+                if (ListToAdd)
+                {
+                    SLinkedList_Push(IndeterminateNext, ListToAdd);
+                }
+                else
                 {
                     SLinkedList_Push(IndeterminateNext, NodeList_Create(Arena, Root, NULL));
                 }
@@ -3091,7 +3159,7 @@ NO_DISCARD bool ParseBuildFileV2(LinearAllocator* Arena,
         Clock c;
         Clock_Start(&c);
 
-        LOG("[FIRST PASS]");
+        //LOG("=========> [FIRST PASS]");
 
         ParsingContext Context = {0};
         Context.VariablesDB  = VariablesDB;
@@ -3099,11 +3167,33 @@ NO_DISCARD bool ParseBuildFileV2(LinearAllocator* Arena,
         Context.Messages     = Messages;
         Context.WorkingDirectory = WorkingDirectory;
         NodeList* IndeterminateList = Analyze_List(Arena, AST, Context, false);
-        (void)IndeterminateList;
 
-        LOG("[SECOND PASS]");
-        
+        //LOG("=========> [SECOND PASS]");
+
+        Context.bNoFail = true;
+        bool bSuccess = Analyze_Indeterminates(Arena, IndeterminateList, Context);
+        if (!bSuccess)
+        {
+            LOG_ERROR("Errors occured"); // todo: remove this useful ahh message
+            return false;
+        }
+
         Clock_Tick(&c);
+
+        //LOG("=========> [PRINTING VARIABLES]");
+
+        for each (FileVariable, v, VariablesDB)
+        {
+            LOG("KEY:    %S", v.Name);
+            LOG("VALUE:  %S", v.Value);
+            if (v.SpecialData.Length)
+            {
+                LOG("PARAMS: %S", v.SpecialData);
+            }
+
+            LOG_LINE_BREAK();
+        }
+
         Clock_PrintElapsedTime(&c, true);
     }
 
@@ -4880,7 +4970,7 @@ End:
 
 bool ExpandBuildVariableV2(LinearAllocator Scratch, TArray(FileVariable) VariablesDB, TArray(CmdOption) CmdOptionsDB,
                             String* Dest, const String Key, const String Value, const String Root, const String WorkingDirectory,
-                            bool bLowerStrings, bool bIsAssemblyExe)
+                            bool bLowerStrings, bool bIsAssemblyExe, bool* bFailed)
 {
     if (!String_IsValid(Value))
     {
@@ -4951,7 +5041,22 @@ bool ExpandBuildVariableV2(LinearAllocator Scratch, TArray(FileVariable) Variabl
 
             if (Index == 0)
             {
-                (void)String_IndexOfFirstNonAlphaNumeric(StrVal, &Index);
+                // ignore '.' and '_' at the beginning
+                u8 NumEaten = 0;
+                for (u32 j = 0; j < StrVal.Length; j++)
+                {
+                    if (StrVal.Data[j] == '.' || StrVal.Data[j] == '_')
+                    {
+                        NumEaten++;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+
+                (void)String_IndexOfFirstNonAlphaNumeric(StrShiftF(StrVal, NumEaten), &Index);
+                Index += NumEaten;
             }
 
             // find this variable
@@ -5011,7 +5116,8 @@ bool ExpandBuildVariableV2(LinearAllocator Scratch, TArray(FileVariable) Variabl
 
             if (!bFoundCmd)
             {
-                return false;
+                if (bFailed) { *bFailed = true; }
+                //return false;
             }
 
             // run through the cmd var assert list
@@ -5148,7 +5254,7 @@ bool ExpandBuildVariableV2(LinearAllocator Scratch, TArray(FileVariable) Variabl
                 String DestEnd = StrShiftF(*Dest, Dest->Length);
                 u32 DestLengthBefore = Dest->Length;
 
-                if (!ExpandBuildVariableV2(Scratch, VariablesDB, CmdOptionsDB, Dest, Slice, VarValue, Root, WorkingDirectory, false, bIsAssemblyExe))
+                if (!ExpandBuildVariableV2(Scratch, VariablesDB, CmdOptionsDB, Dest, Slice, VarValue, Root, WorkingDirectory, false, bIsAssemblyExe, bFailed))
                 {
                     return false;
                 }
@@ -5214,8 +5320,9 @@ bool ExpandBuildVariableV2(LinearAllocator Scratch, TArray(FileVariable) Variabl
             if (!bFound)
             {
                 //LOG_WARNING("Unrecognized build variable \"%S\". Expanded to nothing...", Slice);
-                return false;
-                //continue;
+                if (bFailed) { *bFailed = true; }
+                //return false;
+                continue;
             }
 
             if (String_IsEqual(Slice, Key, false))
@@ -5245,7 +5352,7 @@ bool ExpandBuildVariableV2(LinearAllocator Scratch, TArray(FileVariable) Variabl
                     }
 
                     String TempDest = String_Reserve(&Scratch, Dest->Capacity);
-                    if (!ExpandBuildVariableV2(Scratch, VariablesDB, CmdOptionsDB, &TempDest, Slice, Var.Value, Root, WorkingDirectory, bLowerStrings, bIsAssemblyExe))
+                    if (!ExpandBuildVariableV2(Scratch, VariablesDB, CmdOptionsDB, &TempDest, Slice, Var.Value, Root, WorkingDirectory, bLowerStrings, bIsAssemblyExe, bFailed))
                     {
                         return false;
                     }
@@ -5280,13 +5387,16 @@ bool ExpandBuildVariableV2(LinearAllocator Scratch, TArray(FileVariable) Variabl
                 LogRegularEnvVarTutorialSteps();
                 */
 
+                if (bFailed) { *bFailed = true; }
+
                 return false;
+                //continue;
             }
 
             String DestEnd = StrShiftF(*Dest, Dest->Length);
             u32 DestLengthBefore = Dest->Length;
 
-            if (!ExpandBuildVariableV2(Scratch, VariablesDB, CmdOptionsDB, Dest, Slice, VarValue, Root, WorkingDirectory, false, bIsAssemblyExe))
+            if (!ExpandBuildVariableV2(Scratch, VariablesDB, CmdOptionsDB, Dest, Slice, VarValue, Root, WorkingDirectory, false, bIsAssemblyExe, bFailed))
             {
                 return false;
             }
