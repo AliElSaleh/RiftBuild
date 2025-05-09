@@ -859,7 +859,8 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena,
 
             if (!Parser_Match(P, Token_RCurly))
             {
-                LOG_ERROR("[Parser] [Line %u]: '}' is missing for 'if' block.", Parser_LookBack(P).Line);
+                // todo get line number for the else token
+                LOG_ERROR("[Parser] [Line %u]: '}' is missing for '%S' block.", Parser_LookBack(P).Line, LastTokenType == Token_If ? S("if") : S("else"));
                 return &Node_Null;
             }
 
@@ -870,6 +871,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena,
             else
             {
                 Root->Right = BlockNode;
+                break;
             }
         }
         else if (t.Type == Token_Else)
@@ -3139,6 +3141,11 @@ NO_DISCARD bool ParseBuildFileV2(LinearAllocator* Arena,
     {
         Node* AST = Internal_ParseBuildFile(Arena, H);
 
+        if (!AST || AST == &Node_Null)
+        {
+            return false;
+        }
+
         // now do some analysis on the tree (two-pass analysis)
 
         // we could just end here and pass the raw data to the main program and let it do things with it.
@@ -3161,6 +3168,8 @@ NO_DISCARD bool ParseBuildFileV2(LinearAllocator* Arena,
 
         //LOG("=========> [FIRST PASS]");
 
+        // First pass
+        // todo: pull this context struct out
         ParsingContext Context = {0};
         Context.VariablesDB  = VariablesDB;
         Context.CmdOptionsDB = CmdOptionsDB;
@@ -3170,6 +3179,7 @@ NO_DISCARD bool ParseBuildFileV2(LinearAllocator* Arena,
 
         //LOG("=========> [SECOND PASS]");
 
+        // Second pass
         Context.bNoFail = true;
         bool bSuccess = Analyze_Indeterminates(Arena, IndeterminateList, Context);
         if (!bSuccess)
@@ -5055,8 +5065,10 @@ bool ExpandBuildVariableV2(LinearAllocator Scratch, TArray(FileVariable) Variabl
                     }
                 }
 
-                (void)String_IndexOfFirstNonAlphaNumeric(StrShiftF(StrVal, NumEaten), &Index);
-                Index += NumEaten;
+                if (String_IndexOfFirstNonAlphaNumericDot(StrShiftF(StrVal, NumEaten), &Index))
+                {
+                    Index += NumEaten;
+                }
             }
 
             // find this variable
