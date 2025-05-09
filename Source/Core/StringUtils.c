@@ -1694,6 +1694,26 @@ NO_DISCARD bool String_IndexOfFirstNonAlphaNumeric(const String Str, u32* OutInd
     return bFound;
 }
 
+NO_DISCARD bool String_IndexOfFirstNonAlphaNumericDot(const String Str, u32* OutIndex)
+{
+    bool bFound = false;
+    for (u32 i = 0; i < Str.Length; ++i)
+    {
+        if (!IsAlphabet(Str.Data[i]) && !IsDigit(Str.Data[i]) && Str.Data[i] != '.')
+        {
+            if (OutIndex)
+            {
+                *OutIndex = i;
+            }
+            
+            bFound = true;
+            break;
+        }
+    }
+    
+    return bFound;
+}
+
 NO_DISCARD bool String_IndexOfSubstring(const String Str, const String Substring, bool bCaseSensitive, u32* OutIndex)
 {
     bool bFound = false;
