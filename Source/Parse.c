@@ -2531,11 +2531,11 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
         {
             IfConditionData c = Next->Data;
 
-            bool bPrefixedWithSymbol   = c.Prefix > 0;
             bool bNot                  = c.Prefix & BIT(1);
             bool bSearchFileVar        = c.Prefix & BIT(2);
             bool bSearchInternalVar    = c.Prefix & BIT(3);
             bool bSearchEnvironmentVar = c.Prefix & BIT(4);
+            bool bPrefixedWithSymbol   = bSearchFileVar || bSearchInternalVar || bSearchEnvironmentVar;
             bool bCaseSensitive        = false; // TODO
 
             StringLocal(EnvVar, MAX_PATH_LENGTH);
