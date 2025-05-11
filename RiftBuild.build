@@ -1,5 +1,5 @@
 if debug Mode Debug else Mode Dist
-include Source/Common.buildvars
+include Source/Common-Ideal.buildvars
 
 Compiler                %%clang %%gcc %%cl
 Assembly                RiftBuild
@@ -7,9 +7,11 @@ Icon                    riftbuild
 
 TitleName               Rift Build %^%debug
 Description             A simpler build tool for C/C++, because fuck cmake
+#Version(macro)          0.9.9-alpha-%_date.nosep
 Version!                0.9.9-alpha-%_date.nosep
 CompanyName             Artisan Softworks
-Copyright!              Copyright (c) $CompanyName
+#Copyright(enforce:0-2)  Copyright (c) $CompanyName
+Copyright               Copyright (c) $CompanyName
 License                 BSD 3-Clause
 
 SourceDirectory         Source
@@ -18,14 +20,11 @@ BuildDirectory          Build/$(Mode)%(%32)/%%Hood
 CompilerFlags           $SharedCompilerFlags
 LinkerFlags             $SharedLinkerFlags
 Includes                $SharedIncludeFlags
-Defines                 $SharedDefines RIFT_STATIC %^%hood
+Defines                 $SharedDefines %^%hood
 
-IncludedSourceFiles     Memory.c StringUtils.c Globals.c Log.c Platform_Core.c Program.c Backend.c Exporter.c Parse.c
-if windows              IncludedSourceFiles Platform_Windows.c
+IncludedSourceFiles     Memory.c StringUtils.c Globals.c Log.c Platform_Core.c Program.c Backend.c Exporter.c Parse.c Platform_%(_platform).c
 if unix                 IncludedSourceFiles Platform_Unix.c
-if linux                IncludedSourceFiles Platform_Linux.c
-if mac                  IncludedSourceFiles Platform_Mac.c
-if bsd                  IncludedSourceFiles Platform_BSD.c
+#if mac                  IncludedSourceFiles Platform_Mac.c # TODO: rename to Platform_macOS.c
 
 if mac                  CompilerFlags -mmacosx-version-min=10.12 ; LinkerFlags -framework Foundation
 
@@ -40,8 +39,10 @@ if windows {
     if 32 if debug      Libraries     libcmtd libvcruntimed
 }
 
-if windows              Libraries %_NativeLibs microsoft_craziness%%32 ; LibraryDirectories Source/Libraries/Windows
-if linux                Libraries uuidS pthread                        ; LibraryDirectories Source/Libraries/Linux
+LibraryDirectories       Source/Libraries/%_platform
+
+if windows              Libraries %_NativeLibs microsoft_craziness%%32
+if linux                Libraries uuidS pthread
 if bsd                  Libraries pthread
 if windows if asan      Libraries libucrt
 
@@ -51,61 +52,48 @@ if linux {
     if @XDG_CURRENT_DESKTOP contains Cinnamon Defines __cinnamon__
 }
 
-if pull PreBuild.Cmd git pull
-
-if check PostBuild.Cmd cppcheck ./Source --cppcheck-build-dir=Intermediate\CppCheck --check-level=exhaustive --enable=all --disable=missingInclude -j 16 --language=c --std=c99 --max-ctu-depth=16 --platform=win64 -i Source/Libraries/ -i Source/Core/Platform_Unix.c -i Source/Core/Platform_Mac.c -i Source/Core/Platform_BSD.c -i Source/Core/Platform_Linux.c -i Source/Libraries/Vendor/stb_sprintf.h -D__clang__ -DRIFT_STATIC -DNO_ASSERT -DNO_PROFILING -D_NO_CRT_STDIO_INLINE -DNDEBUG -DWIN32 -D__x86_64__ -ISource/Core/ -ISource/Libraries/Vendor/
-
-# todo: make this a native operation
+# todo: make riftbuild do this
 if windows if debug PreLink.Delete $(BuildDirectory)/$(Assembly).pdb
 
+
 ##
-cpu   "%(_cpu)"
-vendor %_cpuvendor
+cpu     "%(_cpu)"
+vendor   %_cpuvendor
 cpubrand %_cpubrand
-SSE4 %_sse4
-FMA3 %_fma3
-SHA  %_sha
-AES  %_aes
-AVX  %_avx
-AVX2 %_avx2
-AVX512  %_avx512
-RDRAND %_rdrand
-MPX  %_mpx
-VAES  %_vaes
-GFNI  %_gfni
-neon  %_neon
-fcma %_fcma
-specres %_specres
-bf16 %_bf16
-f16c %_f16c
-lzcnt %_lzcnt
-tzcnt %_tzcnt
-
-clang-tidy Source\Core\Memory.c Source\Core\StringUtils.c Source\Core\Globals.c Source\Core\Log.c Source\Core\Platform_Core.c Source\Program.c Source\Backend.c Source\Exporter.c Source\Parse.c -- C:\RiftBuild -ISource\Core -ISource -DRIFTBUILD_VERSION_STRING=\"test\" -DRIFT_STATIC
-
+SSE4     %_sse4
+FMA3     %_fma3
+SHA      %_sha
+AES      %_aes
+AVX      %_avx
+AVX2     %_avx2
+AVX512   %_avx512
+RDRAND   %_rdrand
+MPX      %_mpx
+VAES     %_vaes
+GFNI     %_gfni
+neon     %_neon
+fcma     %_fcma
+specres  %_specres
+bf16     %_bf16
+f16c     %_f16c
+lzcnt    %_lzcnt
+tzcnt    %_tzcnt
 all_exts %_cpuextensions
+cache    %_CacheLineSize
 
-if apple_m2 AppleM2
-if arm army
+#clang-tidy Source\Core\Memory.c Source\Core\StringUtils.c Source\Core\Globals.c Source\Core\Log.c Source\Core\Platform_Core.c Source\Program.c Source\Backend.c Source\Exporter.c Source\Parse.c -- C:\RiftBuild -ISource\Core -ISource -DRIFTBUILD_VERSION_STRING=\"test\" -DRIFT_STATIC
 
-cache %_CacheLineSize
+Linker
+{
+    EntryPoint    EntryPoint
+    Subsystem     Console
+    Stack:windows 800000000 # 8MB
+}
 
-if !cl                  CompilerFlags:disassemble,$mode -S
+#PostBuild.Export cc1 version.rc
 
-CompilerFlags:windows:clang -nostdlib -fno-builtin -ffreestanding
-LinkerFlags:windows:clang   -nostdlib -Wl,-entry:EntryPoint,-subsystem:console -Xlinker /stack:0x400000,0x400000
-LinkerFlags:windows:gcc     -nostdlib -Wl,--entry,EntryPoint,--subsystem,console,--stack,0x400000
-LinkerFlags:windows:msvc    /ENTRY:EntryPoint /SUBSYSTEM:CONSOLE /STACK:0x400000,0x400000
-
-Libraries:windows       %_nativelibs
-Libraries:linux         uuidS pthread
-Libaries:bsd            pthread
-
-Libaries:bsd:x64|arm64:gcc something
-Libaries:bsd:x64      :gcc blah
-
-Linker.NoStd
-Linker.Target
-Linker.EntryPoint EntryPoint
-Linker.Subsystem  Console
-Linker.Stack      800000000
+if rad
+{
+    prebuild.cmd raddbg -ipc kill_all
+    postbuild.cmd raddbg -ipc run
+}

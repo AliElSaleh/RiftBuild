@@ -1,6 +1,6 @@
 SharedIncludeFlags               Source
 
-SharedDefines                    NO_PROFILING _NO_CRT_STDIO_INLINE
+SharedDefines                    RIFT_STATIC NO_PROFILING _NO_CRT_STDIO_INLINE
 if warn_leaks SharedDefines      WARN_MEMLEAKS
 if debug      SharedDefines      _DEBUG DEVELOPER
 if !debug     SharedDefines      NDEBUG NO_ASSERT
@@ -15,7 +15,7 @@ WarningFlagsDisabled             -Wno-typedef-redefinition -Wno-unused-parameter
 if !gcc WarningFlags             -Wpedantic
 if mac  WarningFlagsDisabled     -Wno-nonportable-include-path
 
-SharedCompilerFlags              -std=c99 -fno-builtin-memcpy -fno-omit-frame-pointer -fno-exceptions -fno-math-errno -fno-trapping-math -funroll-loops -fno-strict-overflow -fno-strict-aliasing $WarningFlags $WarningFlagsDisabled
+SharedCompilerFlags              -std=c99 -pedantic-errors -fno-builtin-memcpy -fno-omit-frame-pointer -fno-exceptions -fno-math-errno -fno-trapping-math -funroll-loops -fno-strict-overflow -fno-strict-aliasing $WarningFlags $WarningFlagsDisabled
 SharedLinkerFlags                
 if windows SharedLinkerFlags     -Xlinker /INCREMENTAL:NO
 if _sse2 SharedCompilerFlags     -msse2
@@ -29,7 +29,7 @@ if debug SharedLinkerFlags       -g3
 if debug SharedDefines           _GLIBCXX_ASSERTIONS _GLIBCXX_DEBUG _GLIBCXX_DEBUG_PEDANTIC
 if !debug SharedCompilerFlags    -Os -finline-functions
 if !debug SharedDefines          _FORTIFY_SOURCE=3
-if test  SharedCompilerFlags     --analyze -funsigned-char
+if analyze SharedCompilerFlags   --analyze -funsigned-char
 
 if disassem  SharedCompilerFlags -S
 if trace     SharedCompilerFlags -ftime-trace
@@ -48,7 +48,9 @@ msvc:
 #   - /wd5045
 #   - /wd4711 | function 'function' selected for inline expansion
 
-SharedCompilerFlags              /Wall /W4 /WX /wd4100 /wd4164 /wd4668 /wd5045 /wd4711 /TC /GS- /Gs999999999 /EHs- /analyze /analyze:stacksize 8000000
+TempWarnings /wd4702
+
+SharedCompilerFlags              /Wall /W4 /WX /wd4100 /wd4164 /wd4668 /wd5045 /wd4711 $TempWarnings /TC /GS- /Gs999999999 /EHs- /analyze /analyze:stacksize 8000000
 SharedLinkerFlags                /SAFESEH:NO /INCREMENTAL:NO /NODEFAULTLIB
 if debug SharedCompilerFlags     /MTd /Od /Zi /FS /Fd"$(IntermediateDirectory)\$(Assembly).pdb"
 if debug SharedLinkerFlags       /DEBUG
