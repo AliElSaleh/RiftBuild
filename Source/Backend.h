@@ -13,9 +13,15 @@ STRUCT(FileVariable)
 {
     String Name;
     String Value;
-    String SpecialData;
+    String SpecialData; // rename to params
     bool   bHasSpecial;
     u8     Padding[7];
+};
+
+STRUCT(FileVariableList)
+{
+    FileVariable Var;
+    struct FileVariableList* Next;
 };
 
 STRUCT(InternalVariable)
@@ -80,6 +86,7 @@ ENUM(ECompiler)
     Compiler_MSVC
 };
 
+// TODO: delete
 ENUM(EComparisonType)
 {
     Cmp_None,
@@ -287,12 +294,26 @@ void LogRegularEnvVarTutorialSteps(void);
 
 // Parsing functions --------------------
 
+STRUCT(ParsingContext)
+{
+    LinearAllocator* TempArena;
+    TArray(FileVariable) VariablesDB;
+    TArray(CmdOption) CmdOptionsDB;
+    TArray(String) Messages;
+    TArray(FileHandle) IncludeFiles;
+    FileVariableList* VarListHead;
+    FileVariableList** VarListTail;
+    String WorkingDirectory;
+    bool bNoFail;
+    u8 Level;
+    u8 Padding[6];
+};
+
 bool ParseBuildFile(LinearAllocator* Arena,
                     const FileHandle H,
                     const String BuildFilePath,
                     const String WorkingDirectory,
                     TArray(FileVariable) VariablesDB,
-                    TArray(FileVariable) ExpandedVariablesDB,
                     TArray(CmdOption) CmdOptionsDB,
                     TArray(String) Messages,
                     TArray(FileHandle) IncludeFiles,
@@ -301,24 +322,35 @@ bool ParseBuildFile(LinearAllocator* Arena,
                     StringList* Includes,
                     bool bIsAssemblyExe);
 
-bool ParseBuildFileV2(LinearAllocator* Arena,
+NO_DISCARD bool ParseBuildFileV2(LinearAllocator* PermanentArena,
                     const FileHandle H,
                     const String BuildFilePath,
-                    const String WorkingDirectory,
-                    TArray(FileVariable) VariablesDB,
-                    TArray(FileVariable) ExpandedVariablesDB,
-                    TArray(CmdOption) CmdOptionsDB,
-                    TArray(String) Messages,
-                    TArray(FileHandle) IncludeFiles,
-                    u32* ReturnCode,
+                    ParsingContext Context,
                     bool bIsIncludeFile,
-                    StringList* Includes,
-                    bool bIsAssemblyExe);
+                    StringList* Includes);
 
 
 bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) VariablesDB, TArray(CmdOption) CmdOptionsDB,
                          String* Dest, const String Key, const String Value, const String Root, const String WorkingDirectory,
                          bool bLowerStrings, bool bIsAssemblyExe);
+
+bool ExpandBuildVariableV2(LinearAllocator Scratch, FileVariableList* VariablesDB, TArray(CmdOption) CmdOptionsDB,
+                         String* Dest, const String Key, const String Value, const String Root, const String WorkingDirectory,
+                         bool bLowerStrings, bool bIsAssemblyExe, bool* bFailed);
+
+void AddVariable(LinearAllocator* Arena,
+                                   TArray(FileVariable) VariablesDB,
+                                   const String Name,
+                                   const String Value,
+                                   const String SpecialData,
+                                   bool bHasSpecial);
+
+void AddOrAppendVariable(LinearAllocator* Arena,
+                                   TArray(FileVariable) VariablesDB,
+                                   const String Name,
+                                   const String Value,
+                                   const String SpecialData,
+                                   bool bHasSpecial);
 
 
 bool SourceFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData);
