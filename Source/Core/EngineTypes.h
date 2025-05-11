@@ -211,6 +211,7 @@ STRUCT(StringList)
 #define ForEach(It, Array) for each (It, Array)
 
 #define EachElement(Index, Array) (u32 Index = 0; Index < SArray_Capacity(Array); Index++)
+#define EachE(Index, Array) (u32 Index = 0; Index < SArray_Capacity(Array); Index++)
 
 // this actually kinda works? lol
 #define is   ==
@@ -218,6 +219,7 @@ STRUCT(StringList)
 #define and  &&
 #define or   ||
 #define not  !
+#define in   ,
 
 #define TArray(Type) Type*
 #define SArray(Type, Name, Count) Type Name[Count]; u32 CONCAT(Name, _Count)
@@ -225,6 +227,13 @@ STRUCT(StringList)
 
 #define SLinkedList_Push(List, Entry) \
     do { *(List) = Entry; while (*(List)) { (List) = &(*(List))->Next; } } while (0)
+
+#define SLinkedList_Skip(List) \
+    do { while (*(List)) { (List) = &(*(List))->Next; } } while (0)
+
+#define SLinkedList_Each(Type, It, List) \
+   Type** It = List; \
+   for (; *It; It = &(*It)->Next)
 
 #define global extern
 //#define internal static

@@ -1028,7 +1028,7 @@ void LogString_WordWrapped(LinearAllocator Scratch, const String Name, const Str
 
 static void ListVariables(LinearAllocator Arena, const String Name, TArray(FileVariable) ExpandedVariablesDB) 
 {
-    const String Exclusions[25] =
+    const String Exclusions[29] =
     {
         S("Assert.ProgramExists"),
         S("Assert.LibExists"),
@@ -1040,6 +1040,10 @@ static void ListVariables(LinearAllocator Arena, const String Name, TArray(FileV
         S("PreDepend"),
         S("PreBuild"),
         S("PostBuild"),
+        S("PreCompile"),
+        S("PostCompile"),
+        S("PreLink"),
+        S("PostLink"),
         S("RunAssembly"),
         S("Depend"),
         S("Depends"),
@@ -2725,7 +2729,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     StringLocal(VersionResFilePath, MAX_PATH_LENGTH);
 
     ArrayLocal_Arena(FileVariable,   VariablesDB,         256, Arena); // 8192 bytes
-    ArrayLocal_Arena(FileVariable,   ExpandedVariablesDB, 256, Arena); // 8192 bytes
+    //ArrayLocal_Arena(FileVariable,   ExpandedVariablesDB, 256, Arena); // 8192 bytes
     ArrayLocal_Arena(FileHandle,     IncludeFiles,        64,  Arena); // 1024 bytes
     ArrayLocal_Arena(CmdOption,      CmdOptionsDB,        128, Arena); // 4608 bytes
     ArrayLocal_Arena(String,         Messages,            128, Arena); // 2048 bytes
@@ -2918,30 +2922,60 @@ static u32 BuildTarget(LinearAllocator* Arena,
     #if PLATFORM_WINDOWS
     bool bFallbackVersion = false;
     #endif
-    Clock BuildFileParseClock = {0};
 
+    Clock BuildFileParseClock = {0};
     Clock MSVCInitClock = {0};
 
     bool bAnyVarsOverriden = false;
+
+    TArray(FileVariable) ExpandedVariablesDB = VariablesDB; // this is just an alias, will remove soon
 
     if (bFoundBuildFile)
     {
         Clock_Start(&BuildFileParseClock);
 
-        ParseBuildFileV2(Arena, BuildFileHandle, BuildFilePath, WorkingPath, VariablesDB, ExpandedVariablesDB,
-                            CmdOptionsDB, Messages, IncludeFiles, NULL, false, NULL, false);
 
-        return 0;
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////
+        //
+        //
+        //                PARSE AND EXPAND
+        //
+        //
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-        if (!ParseBuildFile(Arena, BuildFileHandle, BuildFilePath, WorkingPath, VariablesDB, ExpandedVariablesDB,
+        {
+            LinearAllocator Scratch = {0};
+            i8 ScratchMemory[Kibibytes(512)] = {0};
+            LinearAllocator_Create(Kibibytes(512), ScratchMemory, &Scratch);
+
+            ParsingContext Context   = {0};
+            Context.TempArena        = &Scratch;
+            Context.VariablesDB      = VariablesDB;
+            Context.CmdOptionsDB     = CmdOptionsDB;
+            Context.Messages         = Messages;
+            Context.IncludeFiles     = IncludeFiles;
+            Context.WorkingDirectory = WorkingPath;
+
+            if (!ParseBuildFileV2(Arena, BuildFileHandle, BuildFilePath, Context, false, NULL))
+            {
+                return 1;
+            }
+        }
+
+        Clock_Tick(&BuildFileParseClock);
+
+        /*
+        if (!ParseBuildFile(Arena, BuildFileHandle, BuildFilePath, WorkingPath, VariablesDB,
                             CmdOptionsDB, Messages, IncludeFiles, NULL, false, NULL, false))
         {
             return 1;
         }
+        */
 
         bAnyVarsOverriden = CheckForBuildVariableOverrides(VariablesDB, ExpandedVariablesDB, CmdOptionsDB);
 
         // first expand Type and Extension. so on linux we can tell if its an assembly exe and not a library
+        /* todo: relook
         for each (FileVariable, v, VariablesDB)
         {
             if (String_IsEqual(v.Name, S("Extension"), false) ||
@@ -2954,7 +2988,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                     StringList List = GetVariableValueList(&Scratch, VariablesDB, v.Name);
                     for each_str_list (List)
                     {
-                        if (!ExpandBuildVariable(Scratch, VariablesDB, CmdOptionsDB, &ExpandedVar, v.Name, It.String, v.Name, WorkingPath, false, false))
+                        if (!ExpandBuildVariableV2(Scratch, VariablesDB, CmdOptionsDB, &ExpandedVar, v.Name, It.String, v.Name, WorkingPath, false, false, NULL))
                         {
                             return 1;
                         }
@@ -3009,9 +3043,11 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 FileVariable Expanded;
                 Expanded.Name = v.Name;
                 Expanded.Value = String_Create(Arena, Value);
-                Array_Add(ExpandedVariablesDB, Expanded);
+                //Array_Add(ExpandedVariablesDB, Expanded);
+                Array_Add(VariablesDB, Expanded);
             }
         }
+        */
 
         const String Ext  = GetVariableValue(ExpandedVariablesDB, S("Extension"));
         const String Type = GetVariableValue(ExpandedVariablesDB, S("Type"));
@@ -3022,7 +3058,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
             FileVariable Var;
             Var.Name = S("Type");
             Var.Value = S("app");
-            Array_Add(ExpandedVariablesDB, Var);
+            //Array_Add(ExpandedVariablesDB, Var);
+            Array_Add(VariablesDB, Var);
         }
 
         if (!bIsAssemblyExe)
@@ -3047,6 +3084,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
             AssemblyType = AssemblyType_Executable;
         }
 
+            /*
         String AssemblyKey = S("Assembly");
         if (DoesBuildVarExist(VariablesDB, AssemblyKey))
         {
@@ -3065,6 +3103,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
             Expanded.Value = String_Create(Arena, ExpandedVar);
             Array_Add(ExpandedVariablesDB, Expanded);
         }
+            */
 
         String VersionKey = S("Version");
         bool bDoesVersionVarExist = DoesBuildVarExist(VariablesDB, VersionKey);
@@ -3085,22 +3124,28 @@ static u32 BuildTarget(LinearAllocator* Arena,
         // try expand Version (if it exists)
         if (bDoesVersionVarExist)
         {
+            String ExpandedVar = GetVariableValue(VariablesDB, VersionKey);
+            /*
             StringLocal(ExpandedVar, 256);
-            if (!ExpandBuildVariable(*Arena, VariablesDB, CmdOptionsDB, &ExpandedVar,
+            if (!ExpandBuildVariableV2(*Arena, VariablesDB, CmdOptionsDB, &ExpandedVar,
                                     VersionKey, GetVariableValue(VariablesDB, VersionKey),
-                                    VersionKey, WorkingPath, false, bIsAssemblyExe))
+                                    VersionKey, WorkingPath, false, bIsAssemblyExe, NULL))
             {
                 return 1;
             }
+            */
 
-            (void)String_EatSpacesInlineFromEnd(&ExpandedVar);
+            //(void)String_EatSpacesInlineFromEnd(&ExpandedVar);
 
-            if (ExpandedVar.Length > 0)
+            //if (ExpandedVar.Length > 0)
             {
+                /*
                 FileVariable Expanded;
                 Expanded.Name = VersionKey;
                 Expanded.Value = String_Create(Arena, ExpandedVar);
-                Array_Add(ExpandedVariablesDB, Expanded);
+                //Array_Add(ExpandedVariablesDB, Expanded);
+                Array_Add(VariablesDB, Expanded);
+                */
 
                 // add the defines (if desired)
                 if (VariableHasSpecial(VariablesDB, S("Version")))
@@ -3121,11 +3166,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                         StringLocal(VersionDefineString, 256);
                         String_Format(&VersionDefineString, S("%S_VERSION_STRING=\\\"%S\\\""), AssemblyNameUpper, ExpandedVar);
 
-                        FileVariable Var;
-                        Var.Name = S("Defines");
-                        Var.Value = String_Create(Arena, VersionDefineString);
-                        Var.bHasSpecial = false;
-                        Array_Add(VariablesDB, Var);
+                        AddOrAppendVariable(Arena, VariablesDB, S("Defines"), VersionDefineString, String_Null(), false);
                     }
 
                     (void)String_ReplaceNonAlphaNumericCharInline(&ExpandedVar, '.');
@@ -3166,12 +3207,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                                     }
                                 }
 
-                                // TODO: wrap into function
-                                FileVariable Var;
-                                Var.Name = S("Defines");
-                                Var.Value = String_Create(Arena, VersionDefine);
-                                Var.bHasSpecial = false;
-                                Array_Add(VariablesDB, Var);
+                                AddOrAppendVariable(Arena, VariablesDB, S("Defines"), VersionDefine, String_Null(), false);
 
                                 i++;
                             }
@@ -3192,17 +3228,14 @@ static u32 BuildTarget(LinearAllocator* Arena,
                             String_Format(&VersionDefine, S("%S_VERSION=%S"), AssemblyNameUpper, ExpandedVar);
                         }
 
-                        FileVariable Var;
-                        Var.Name = S("Defines");
-                        Var.Value = String_Create(Arena, VersionDefine);
-                        Var.bHasSpecial = false;
-                        Array_Add(VariablesDB, Var);
+                        AddOrAppendVariable(Arena, VariablesDB, S("Defines"), VersionDefine, String_Null(), false);
                     }
                 }
             }
         }
 
         // expand all build variables
+        /*
         for each (FileVariable, v, VariablesDB)
         {
             // already expanded
@@ -3287,8 +3320,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
             Array_Add(ExpandedVariablesDB, Expanded);
         }
-
-        Clock_Tick(&BuildFileParseClock);
+        */
     }
     else
     {
@@ -3308,6 +3340,14 @@ static u32 BuildTarget(LinearAllocator* Arena,
     {
         LOG_LINE_BREAK();
     }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    //
+    //                PARSE AND EXPAND END
+    //
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     // build file variable listing feature. list:all or list:varname
     for (u8 i = 0; i < Parameters.Num; i++)
