@@ -1669,21 +1669,6 @@ bool Filesystem_IsDirectory(const String Path)
     return S_ISDIR(filestat.st_mode);
 }
 
-// todo: move into platform core?
-bool Filesystem_IsNewer(const String PathA, const String PathB)
-{
-    u64 a = Filesystem_GetLastWriteTime(PathA);
-    u64 b = Filesystem_GetLastWriteTime(PathB);
-    return a > b;
-}
-
-bool Filesystem_IsOlder(const String PathA, const String PathB)
-{
-    u64 a = Filesystem_GetLastWriteTime(PathA);
-    u64 b = Filesystem_GetLastWriteTime(PathB);
-    return a < b;
-}
-
 bool Filesystem_ConvertRelativeToAbsolutePath(String* OutFullPath)
 {
     StringLocal(Copy, MAX_PATH_LENGTH);

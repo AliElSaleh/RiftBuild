@@ -1578,20 +1578,6 @@ NO_DISCARD bool Filesystem_IsDirectory(const String Path)
     return (Attrib != INVALID_FILE_ATTRIBUTES && (Attrib & FILE_ATTRIBUTE_DIRECTORY));
 }
 
-NO_DISCARD bool Filesystem_IsNewer(const String PathA, const String PathB)
-{
-    usize a = Filesystem_GetLastWriteTime(PathA);
-    usize b = Filesystem_GetLastWriteTime(PathB);
-    return a > b;
-}
-
-NO_DISCARD bool Filesystem_IsOlder(const String PathA, const String PathB)
-{
-    usize a = Filesystem_GetLastWriteTime(PathA);
-    usize b = Filesystem_GetLastWriteTime(PathB);
-    return a < b;
-}
-
 NO_DISCARD bool Filesystem_IsPathRelative(const String Path)
 {
     bool bDriveSymbol = String_IndexOfChar(Path, ':', NULL);
@@ -2244,6 +2230,9 @@ NO_DISCARD u32 Platform_GetExitCodeForProcess(PlatformHandle Handle)
 NO_DISCARD u32 Platform_WaitForProcessAndGetExitCode(PlatformHandle Handle)
 {
     u32 Code = 0;
+
+        //Platform_ConsoleWrite("waiting", 0, false);
+
 
     if (Platform_IsValidHandle(Handle))
     {

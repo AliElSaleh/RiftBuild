@@ -734,6 +734,22 @@ void Clock_PrintElapsedTime(const Clock* C, bool bAutoConvertTimeUnit)
     Platform_ConsoleWrite_CustomLength("\n", 1, 0, false);
 }
 
+///////////// Filesystem /////////////
+
+NO_DISCARD bool Filesystem_IsNewer(const String PathA, const String PathB)
+{
+    usize a = Filesystem_GetLastWriteTime(PathA);
+    usize b = Filesystem_GetLastWriteTime(PathB);
+    return a > b;
+}
+
+NO_DISCARD bool Filesystem_IsOlder(const String PathA, const String PathB)
+{
+    usize a = Filesystem_GetLastWriteTime(PathA);
+    usize b = Filesystem_GetLastWriteTime(PathB);
+    return a < b;
+}
+
 NO_DISCARD bool Filesystem_DoesPathHaveFileExtension(const String Path)
 {
     u32 LastDot = 0, LastSlash = 0;
@@ -752,7 +768,7 @@ NO_DISCARD bool Filesystem_DoesPathHaveFileExtension(const String Path)
     return bSuccess;
 }
 
-NO_DISCARD String Filesystem_ExtractFileNameFromPath(const String Path, bool bIncludeExtension)
+NO_DISCARD String Filesystem_ExtractFileName(const String Path, bool bIncludeExtension)
 {
     String FileName = String_Null();
 
@@ -787,6 +803,19 @@ NO_DISCARD String Filesystem_StripFileExtension(const String FilePath)
     if (String_IndexOfLastChar(FilePath, '.', &LastDot))
     {
         Final = StrSlice(FilePath.Data, LastDot);
+    }
+
+    return Final;
+}
+
+NO_DISCARD String Filesystem_ExtractFileExtension(const String FilePath)
+{
+    String Final = String_Null();
+
+    u32 LastDot = 0;
+    if (String_IndexOfLastChar(FilePath, '.', &LastDot))
+    {
+        Final = StrShiftF(FilePath, LastDot+1);
     }
 
     return Final;

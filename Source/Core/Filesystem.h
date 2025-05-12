@@ -98,8 +98,9 @@ RIFT_API NO_DISCARD bool Filesystem_Move(const String Source, const String Desti
 RIFT_API NO_DISCARD bool Filesystem_ArePathsCommon(String PathA, String PathB);
 
 RIFT_API NO_DISCARD bool Filesystem_DoesPathHaveFileExtension(const String Path);
-RIFT_API NO_DISCARD String Filesystem_ExtractFileNameFromPath(const String Path, bool bIncludeExtension);
+RIFT_API NO_DISCARD String Filesystem_ExtractFileName(const String Path, bool bIncludeExtension);
 RIFT_API NO_DISCARD String Filesystem_StripFileExtension(const String FilePath);
+RIFT_API NO_DISCARD String Filesystem_ExtractFileExtension(const String FilePath);
 
 RIFT_API NO_DISCARD bool IsValidFileHandle(const FileHandle Handle);
 
