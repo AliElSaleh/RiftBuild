@@ -62,7 +62,7 @@ void AddOrAppendVariable(LinearAllocator* Arena,
     if (Ref)
     {
         (void)String_EatSpacesInlineFromEnd(&Ref->Value);
-        String_AppendSpace(&Ref->Value);
+        if (Ref->Value.Length) { String_AppendSpace(&Ref->Value); }
         String_Append(&Ref->Value, Value);
         (void)String_EatSpacesInlineFromEnd(&Ref->Value);
     }
@@ -2717,8 +2717,6 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
             {
                 bIsPath = String_ContainsPathSeparators(VarValue);
             }
-
-            // TODO: support inline expansion: if $qhfiohfa/sjeoi { }
 
             if (bIsPath)
             {
