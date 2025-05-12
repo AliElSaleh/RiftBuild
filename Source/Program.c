@@ -287,7 +287,7 @@ static void PrefixVariables(String* Dest, String VariableValue, const String Pre
 
     if (Dest->Length > 0)
     {
-        (void)String_EatSpacesInlineFromEnd(Dest);
+        xx String_EatSpacesInlineFromEnd(Dest);
 
         if (bWrapWithQuotes)// && !String_IsLast(*Dest, '"'))
         {
@@ -880,7 +880,7 @@ bool LogStringList_WordWrapped(LinearAllocator Scratch, const String Name, const
     u32 ParentCount = 0;
 
     u32 Rows = 0, Cols = 0;
-    (void)Platform_GetTerminalDimensions(&Rows, &Cols);
+    xx Platform_GetTerminalDimensions(&Rows, &Cols);
     Cols = Clamp(Cols, 30, 1000);
 
     StringLocal(LogBuffer, 8192);
@@ -993,7 +993,7 @@ UNUSED static void LogBuildVariable(LinearAllocator Scratch, TArray(FileVariable
 
     if (bWordWrap)
     {
-        (void)LogStringList_WordWrapped(Scratch, DisplayName, List);
+        xx LogStringList_WordWrapped(Scratch, DisplayName, List);
     }
     else
     {
@@ -1172,17 +1172,17 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String
             String_IsLast(DestinationDirectory, '\\'))
         {
             u32 LastSlash = 0;
-            (void)String_IndexOfLastPathSlash(SourceFile, &LastSlash);
+            xx String_IndexOfLastPathSlash(SourceFile, &LastSlash);
             String_BuildPath(&FullDestPath, StrShiftF(SourceFile, LastSlash == 0 ? 0 : LastSlash+1));
         }
 
-        (void)Filesystem_ConvertRelativeToAbsolutePath(&FullDestPath);
+        xx Filesystem_ConvertRelativeToAbsolutePath(&FullDestPath);
 
         // only copy if dest does not exist
         if (bHasSpecial)
         {
             u32 LastDot = 0;
-            (void)String_IndexOfLastChar(FullDestPath, '.', &LastDot);
+            xx String_IndexOfLastChar(FullDestPath, '.', &LastDot);
 
             bool bHasExtension = false;
             bool bHasPathSeparator = String_IndexOfFirstPathSlash(StrShiftF(FullDestPath, LastDot), NULL);
@@ -1227,7 +1227,7 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String
              String_EndsWith(Name, S("Sleep"), false))
     {
         u32 Milliseconds = 0;
-        (void)String_ToU32(Value, &Milliseconds);
+        xx String_ToU32(Value, &Milliseconds);
 
         LOG(" > Sleeping for %ums ...", Milliseconds);
 
@@ -1472,7 +1472,7 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String
                 return false;
             }
 
-            const String FileName = Filesystem_ExtractFileNameFromPath(URL, true);
+            const String FileName = Filesystem_ExtractFileName(URL, true);
             String_BuildPath(&FinalDestinationPath, FileName);
         }
 
@@ -1558,7 +1558,7 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String
         String FilePath         = StringList_GetStringFromIndex(ArgList, 0);
         String Destination      = StringList_GetStringFromIndex(ArgList, 1);
 
-        (void)String_EatPathSeparatorsInlineFromEnd(&FilePath);
+        xx String_EatPathSeparatorsInlineFromEnd(&FilePath);
 
         if (!Filesystem_DoesFileExist(FilePath) &&
             !Filesystem_DoesDirectoryExist(FilePath))
@@ -1623,7 +1623,7 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String
             String_StartsWith(Name, S("PreBuild"), false))
         {
             u32 Dot = 0;
-            (void)String_IndexOfChar(Name, '.', &Dot);
+            xx String_IndexOfChar(Name, '.', &Dot);
             String Key = StrSlice(Name.Data, Dot);
             LOG_WARNING("Cannot execute the \".Export\" command under the \"%S\" context", Key);
             LOG("\".Export\" can only be executed under these contexts:");
@@ -2354,7 +2354,7 @@ bool FilterSourceFile(const String WorkingDirectory, const String SourceDirector
             if (String_IndexOfLastChar(TestPath, '*', &Index))
             {
                 u32 LastSlash = 0;
-                (void)String_IndexOfLastPathSlash(TestPath, &LastSlash);
+                xx String_IndexOfLastPathSlash(TestPath, &LastSlash);
                 i32 Diff = (i32)(Index-LastSlash+(TestPath.Length-1-Index));
                 if (Diff <= 1 && TrimmedDirName.Length > 0)
                 {
@@ -2434,14 +2434,14 @@ static void ExpandPathFlags(LinearAllocator Scratch, String* Dest, const String 
         if (String_EndsWith(It.String, S("**"), false))
         {
             String_Copy(&SearchDir, StrSlice(It.String.Data, It.String.Length-2));
-            (void)String_EatPathSeparatorsInlineFromEnd(&SearchDir);
+            xx String_EatPathSeparatorsInlineFromEnd(&SearchDir);
             bRecursive = true;
             bWildcard = true;
         }
         else if (String_EndsWith(It.String, S("*"), false))
         {
             String_Copy(&SearchDir, StrSlice(It.String.Data, It.String.Length-1));
-            (void)String_EatPathSeparatorsInlineFromEnd(&SearchDir);
+            xx String_EatPathSeparatorsInlineFromEnd(&SearchDir);
             bWildcard = true;
         }
         else
@@ -2464,7 +2464,7 @@ static void ExpandPathFlags(LinearAllocator Scratch, String* Dest, const String 
         else
         {
             StringLocal(ItCopy, MAX_PATH_LENGTH);
-            (void)String_SanitizeQuotes(&ItCopy, It.String);
+            xx String_SanitizeQuotes(&ItCopy, It.String);
 
             // Fixes compiler being confused by this specific cmd line arg (on windows)
             // -I"..\" now becomes -I"..\\"
@@ -2482,8 +2482,8 @@ static void ExpandPathFlags(LinearAllocator Scratch, String* Dest, const String 
         }
     }
 
-    (void)String_EatSpacesInlineFromEnd(&WildcardFlags);
-    (void)String_EatSpacesInlineFromEnd(&NonWildcardFlags);
+    xx String_EatSpacesInlineFromEnd(&WildcardFlags);
+    xx String_EatSpacesInlineFromEnd(&NonWildcardFlags);
 
     PrefixVariables(Dest, WildcardFlags, FlagPrefix, bWrapWithQuotes);
     if (WildcardFlags.Length > 0)
@@ -2510,18 +2510,18 @@ static void Internal_RunAssembly(LinearAllocator Scratch, const String WorkingPa
         if (String_StartsWith(It.String, S("env:"), false))
         {
             String_Append(&EnvArgs, StrShiftF(It.String, 4));
-            (void)String_EatSpacesInlineFromEnd(&EnvArgs);
+            xx String_EatSpacesInlineFromEnd(&EnvArgs);
             String_AppendChar(&EnvArgs, '\0');
         }
         else
         {
             String_Append(&ProgramArgs, It.String);
-            (void)String_EatSpacesInlineFromEnd(&ProgramArgs);
+            xx String_EatSpacesInlineFromEnd(&ProgramArgs);
             String_AppendChar(&ProgramArgs, ' ');
         }
     }
 
-    (void)String_EatSpacesInlineFromEnd(&ProgramArgs);
+    xx String_EatSpacesInlineFromEnd(&ProgramArgs);
 
     StringLocal(CmdLine, 8192);
 
@@ -2536,7 +2536,7 @@ static void Internal_RunAssembly(LinearAllocator Scratch, const String WorkingPa
         if (Filesystem_IsPathRelative(CustomPath))
         {
             String_BuildPath(&ExecutableWorkingPath, WorkingPath, CustomPath);
-            (void)String_EatPathSeparatorsInlineFromEnd(&ExecutableWorkingPath);
+            xx String_EatPathSeparatorsInlineFromEnd(&ExecutableWorkingPath);
         }
     }
     else
@@ -2544,7 +2544,7 @@ static void Internal_RunAssembly(LinearAllocator Scratch, const String WorkingPa
         String_Copy(&ExecutableWorkingPath, BuildDirectory);
     }
 
-    (void)Filesystem_ConvertRelativeToAbsolutePath(&ExecutableWorkingPath);
+    xx Filesystem_ConvertRelativeToAbsolutePath(&ExecutableWorkingPath);
 
     String_Append(&CmdLine, S("cd \""));
     String_Append(&CmdLine, ExecutableWorkingPath);
@@ -2561,7 +2561,7 @@ static void Internal_RunAssembly(LinearAllocator Scratch, const String WorkingPa
     String_AppendSpace(&CmdLine);
     String_Append(&CmdLine, ProgramArgs);
 
-    (void)String_EatSpacesInlineFromEnd(&CmdLine);
+    xx String_EatSpacesInlineFromEnd(&CmdLine);
 
     #if PLATFORM_WINDOWS
     String_AppendChar(&CmdLine, '"');
@@ -2670,7 +2670,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
         }
 
         // mainly for windows, but keep it for other platforms just in case
-        (void)String_ReplaceNonAlphaNumericCharInline(&MutexString, '_');
+        xx String_ReplaceNonAlphaNumericCharInline(&MutexString, '_');
 
         if (!Platform_CreateNamedMutex(MutexString, BuildMutex))
         {
@@ -2722,7 +2722,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
         String_AppendSpace(&RiftCmdLine);
     }
 
-    (void)String_EatSpacesInlineFromEnd(&RiftCmdLine);
+    xx String_EatSpacesInlineFromEnd(&RiftCmdLine);
 
     StringLocal(IconFilePath, MAX_PATH_LENGTH);
     StringLocal(IconResFilePath, MAX_PATH_LENGTH);
@@ -2755,15 +2755,15 @@ static u32 BuildTarget(LinearAllocator* Arena,
             if (bFoundEqual)
             {
                 c.Name = StrSlice(Param.Data, EqualIndex);
-                (void)String_EatSpacesInlineFromEnd(&c.Name);
+                xx String_EatSpacesInlineFromEnd(&c.Name);
                 c.Value = StrSlice(Param.Data+EqualIndex+1, Param.Length - (EqualIndex + 1));
-                (void)String_EatSpacesInline(&c.Value);
+                xx String_EatSpacesInline(&c.Value);
                 c.bEqualsToSomething = true;
             }
             else
             {
                 c.Name = Param;
-                (void)String_EatSpacesInlineFromEnd(&c.Name);
+                xx String_EatSpacesInlineFromEnd(&c.Name);
                 c.Value = String_Null();
                 c.bEqualsToSomething = false;
             }
@@ -2992,7 +2992,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                             return 1;
                         }
 
-                        (void)String_EatSpacesInlineFromEnd(&ExpandedVar);
+                        xx String_EatSpacesInlineFromEnd(&ExpandedVar);
 
                         if (ExpandedVar.Length > 0)
                         {
@@ -3001,7 +3001,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                     }
                 }
 
-                (void)String_EatSpacesInlineFromEnd(&ExpandedVar);
+                xx String_EatSpacesInlineFromEnd(&ExpandedVar);
                 
                 StringLocal(SanitizedVar, 64);
                 bool bSawSpace = false;
@@ -3095,7 +3095,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 return 1;
             }
 
-            (void)String_EatSpacesInlineFromEnd(&ExpandedVar);
+            xx String_EatSpacesInlineFromEnd(&ExpandedVar);
 
             FileVariable Expanded;
             Expanded.Name = AssemblyKey;
@@ -3158,7 +3158,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
                     StringLocal(AssemblyNameUpper, 128);
                     String_Copy(&AssemblyNameUpper, GetVariableValue(ExpandedVariablesDB, S("Assembly")));
-                    (void)String_ReplaceCharInline(&AssemblyNameUpper, '-', '_');
+                    xx String_ReplaceCharInline(&AssemblyNameUpper, '-', '_');
                     String_ToUpper(&AssemblyNameUpper);
 
                     {
@@ -3168,7 +3168,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                         AddOrAppendVariable(Arena, VariablesDB, S("Defines"), VersionDefineString, String_Null(), false);
                     }
 
-                    (void)String_ReplaceNonAlphaNumericCharInline(&ExpandedVar, '.');
+                    xx String_ReplaceNonAlphaNumericCharInline(&ExpandedVar, '.');
 
                     const u32 NumDots = String_CountChar(ExpandedVar, '.');
                     if (NumDots > 0)
@@ -3309,7 +3309,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 }
             }
 
-            (void)String_EatSpacesInlineFromEnd(&ExpandedVar);
+            xx String_EatSpacesInlineFromEnd(&ExpandedVar);
 
             FileVariable Expanded;
             Expanded.Name = v.Name;
@@ -3489,7 +3489,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     u8 MaxErrorsAllowed = 1; // default to 1 error (for the people's sanity)
     if (String_IsValid(MaxCompilerErrors))
     {
-        (void)String_ToU8(MaxCompilerErrors, &MaxErrorsAllowed);
+        xx String_ToU8(MaxCompilerErrors, &MaxErrorsAllowed);
     }
 
     String RequireCompilerVersion = String_Null();
@@ -3571,7 +3571,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     String Extension_Og = Extension;
     {
         u32 Index = 0;
-        (void)String_IndexOfFirstWhitespace(Extension, &Index);
+        xx String_IndexOfFirstWhitespace(Extension, &Index);
         if (Index > 0)
         {
             Extension.Length = Index;
@@ -3964,7 +3964,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                     
                     // dummy first read, nothing useful here
                     StringLocal(StdOutData, UINT16_MAX);
-                    (void)Filesystem_ReadPipe(StdOutHandle, StdOutData.Capacity, StdOutData.Data, NULL);
+                    xx Filesystem_ReadPipe(StdOutHandle, StdOutData.Capacity, StdOutData.Data, NULL);
 
                     while (1)
                     {
@@ -3992,7 +3992,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                             {
                                 const String Key = StrSlice(Trimmed.Data, Equals);
                                 const String Value = StrShiftF(Trimmed, Equals+1);
-                                (void)Platform_SetEnvironmentVariableValue(Key, Value);
+                                xx Platform_SetEnvironmentVariableValue(Key, Value);
                             }
                         }
                     }
@@ -4394,8 +4394,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 String_Copy(&AssertPath, AssertWorkingDirectory);
             }
 
-            (void)Filesystem_ConvertRelativeToAbsolutePath(&AssertPath);
-            (void)String_EatPathSeparatorsInlineFromEnd(&AssertPath);
+            xx Filesystem_ConvertRelativeToAbsolutePath(&AssertPath);
+            xx String_EatPathSeparatorsInlineFromEnd(&AssertPath);
 
             if (AssertPath.Length > 0 && !String_IsEqual(WorkingPath, AssertPath, false))
             {
@@ -4642,13 +4642,13 @@ static u32 BuildTarget(LinearAllocator* Arena,
                     CustomPath = String_EatSpacesFromEnd(StrSlice(Value.Data+SpaceIndex+1, Value.Length-SpaceIndex-1));
                 }
 
-                (void)String_EatPathSeparatorsInlineFromEnd(&CustomPath);
+                xx String_EatPathSeparatorsInlineFromEnd(&CustomPath);
                 String_ConvertSlashToPlatformSlash(&CustomPath);
 
                 if (Filesystem_IsPathRelative(CustomPath))
                 {
                     String_BuildPath(&CustomWorkingPath, WorkingPath, CustomPath);
-                    (void)Filesystem_ConvertRelativeToAbsolutePath(&CustomWorkingPath);
+                    xx Filesystem_ConvertRelativeToAbsolutePath(&CustomWorkingPath);
                 }
                 else
                 {
@@ -4662,7 +4662,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                     if (Filesystem_IsPathRelative(Directory))
                     {
                         String_BuildPath(&CustomWorkingPath, WorkingPath, Directory);
-                        (void)Filesystem_ConvertRelativeToAbsolutePath(&CustomWorkingPath);
+                        xx Filesystem_ConvertRelativeToAbsolutePath(&CustomWorkingPath);
                     }
                     else
                     {
@@ -4675,7 +4675,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 }
             }
 
-            (void)String_EatPathSeparatorsInlineFromEnd(&CustomWorkingPath);
+            xx String_EatPathSeparatorsInlineFromEnd(&CustomWorkingPath);
 
             StringLocal(BuildFileNameWithExt, 128);
             if (!bDirectoryOnly)
@@ -4760,7 +4760,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
             PlatformMutex NewMutex = {0};
             u32 ExitCode = BuildTarget(&NewArena, f, &NewMutex, CustomWorkingPath, NewParams, BuildFileName, -1, -1);
-            if (NewMutex.Handle) { (void)Platform_ReleaseMutex(&NewMutex); }
+            if (NewMutex.Handle) { xx Platform_ReleaseMutex(&NewMutex); }
 
             Filesystem_Close(&f);
 
@@ -4974,17 +4974,17 @@ static u32 BuildTarget(LinearAllocator* Arena,
     StringLocal(BuildBaseDirectory, MAX_PATH_LENGTH);
     String_BuildPath(&BuildBaseDirectory, WorkingPath, BuildDirectory);
     String_AppendPathSeparator(&BuildBaseDirectory);
-    (void)Filesystem_ConvertRelativeToAbsolutePath(&BuildBaseDirectory);
+    xx Filesystem_ConvertRelativeToAbsolutePath(&BuildBaseDirectory);
 
     StringLocal(IntermediateBaseDirectory, MAX_PATH_LENGTH);
     String_BuildPath(&IntermediateBaseDirectory, WorkingPath, IntermediateDirectory);
     String_AppendPathSeparator(&IntermediateBaseDirectory);
-    (void)Filesystem_ConvertRelativeToAbsolutePath(&IntermediateBaseDirectory);
+    xx Filesystem_ConvertRelativeToAbsolutePath(&IntermediateBaseDirectory);
 
     StringLocal(SourceDir, MAX_PATH_LENGTH);
     String_BuildPath(&SourceDir, WorkingPath, SourceDirectory);
     String_AppendPathSeparator(&SourceDir);
-    (void)Filesystem_ConvertRelativeToAbsolutePath(&SourceDir);
+    xx Filesystem_ConvertRelativeToAbsolutePath(&SourceDir);
 
     const bool bBuildDirSameAsSource        = String_IsEqual(BuildBaseDirectory, SourceDir, false);
     const bool bIntermediateDirSameAsSource = String_IsEqual(IntermediateBaseDirectory, SourceDir, false);
@@ -5015,7 +5015,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
             StringLocal(DirPath, MAX_PATH_LENGTH);
 
             StringLocal(DirCopy, MAX_PATH_LENGTH);
-            (void)String_SanitizeQuotes(&DirCopy, It.String);
+            xx String_SanitizeQuotes(&DirCopy, It.String);
 
             if (String_IsEqual(It.String, BuildDirectory, false) ||
                 String_IsEqual(It.String, IntermediateDirectory, false))
@@ -5032,7 +5032,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 String_BuildPath(&DirPath, DirCopy);
             }
 
-            (void)Filesystem_ConvertRelativeToAbsolutePath(&DirPath);
+            xx Filesystem_ConvertRelativeToAbsolutePath(&DirPath);
 
             if (!Filesystem_DoesDirectoryExist(DirPath))
             {
@@ -5566,7 +5566,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     // resolve linker and archiver paths
     {
         u32 LastSlashIndex = 0;
-        (void)String_IndexOfLastPathSlash(CompilerPath, &LastSlashIndex);
+        xx String_IndexOfLastPathSlash(CompilerPath, &LastSlashIndex);
 
         const String CompilerBasePath = StrSlice(CompilerPath.Data, LastSlashIndex);
         const String CompilerExe = StrShiftF(CompilerPath, LastSlashIndex+1);
@@ -5661,7 +5661,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     if (bHasRcProgram)
     {
         u32 Index = 0;
-        (void)String_IndexOfLastPathSlash(RCCompilerPath, &Index);
+        xx String_IndexOfLastPathSlash(RCCompilerPath, &Index);
         RCProgram = StrShiftF(RCCompilerPath, Index+1);
         if (String_IndexOfLastChar(RCProgram, '.', &Index))
         {
@@ -5786,7 +5786,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                         bIsRebuild = true;
 
                         StringLocal(Path, MAX_PATH_LENGTH);
-                        (void)Filesystem_GetFilePath(Include, &Path);
+                        xx Filesystem_GetFilePath(Include, &Path);
 
                         #ifndef HOOD
                         LOG("Build variables file \"%S\" has been modified since last build. Forcing rebuild...", Path);
@@ -5976,7 +5976,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                             StringLocal(AssemblyWildcard, MAX_PATH_LENGTH);
                             String_Append(&AssemblyWildcard, AssemblyName);
                             String_Append(&AssemblyWildcard, e);
-                            (void)Filesystem_DeleteFiles(BuildBaseDirectory, AssemblyWildcard, true);
+                            xx Filesystem_DeleteFiles(BuildBaseDirectory, AssemblyWildcard, true);
                         }
                     }
                     else
@@ -5984,11 +5984,11 @@ static u32 BuildTarget(LinearAllocator* Arena,
                         StringLocal(AssemblyWildcard, MAX_PATH_LENGTH);
                         String_Append(&AssemblyWildcard, AssemblyName);
                         String_Append(&AssemblyWildcard, Wildcard);
-                        (void)Filesystem_DeleteFiles(BuildBaseDirectory, AssemblyWildcard, true);
+                        xx Filesystem_DeleteFiles(BuildBaseDirectory, AssemblyWildcard, true);
                         String_Empty(&AssemblyWildcard);
                         String_Append(&AssemblyWildcard, AssemblyName);
                         String_Append(&AssemblyWildcard, WildcardS);
-                        (void)Filesystem_DeleteFiles(BuildBaseDirectory, AssemblyWildcard, true);
+                        xx Filesystem_DeleteFiles(BuildBaseDirectory, AssemblyWildcard, true);
                     }
 
                     #if PLATFORM_APPLE
@@ -6000,7 +6000,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                         StringLocal(AppBundlePath, MAX_PATH_LENGTH);
                         String_BuildPath(&AppBundlePath, WorkingPath, BuildDirectory, AppBundleName);
                         LOG("Cleaning %S", AppBundlePath);
-                        (void)Filesystem_DeleteDirectory(AppBundlePath);
+                        xx Filesystem_DeleteDirectory(AppBundlePath);
 
                         String_Empty(&AppBundleName);
                         String_Append(&AppBundleName, AssemblyName);
@@ -6008,7 +6008,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                         String_Empty(&AppBundlePath);
                         String_BuildPath(&AppBundlePath, WorkingPath, BuildDirectory, AppBundleName);
                         LOG("Cleaning %S", AppBundlePath);
-                        (void)Filesystem_DeleteDirectory(AppBundlePath);
+                        xx Filesystem_DeleteDirectory(AppBundlePath);
                     }
                     #endif
 
@@ -6036,14 +6036,14 @@ static u32 BuildTarget(LinearAllocator* Arena,
                             StringLocal(AssemblyWildcard, MAX_PATH_LENGTH);
                             String_Append(&AssemblyWildcard, S("*"));
                             String_Append(&AssemblyWildcard, e);
-                            (void)Filesystem_DeleteFiles(IntermediateBaseDirectory, AssemblyWildcard, true);
-                            (void)Filesystem_DeleteFiles(IntermediateBaseDirectory, e, true);
+                            xx Filesystem_DeleteFiles(IntermediateBaseDirectory, AssemblyWildcard, true);
+                            xx Filesystem_DeleteFiles(IntermediateBaseDirectory, e, true);
                         }
                     }
                 }
                 else
                 {
-                    (void)Filesystem_DeleteFiles(IntermediateBaseDirectory, Wildcard, true);
+                    xx Filesystem_DeleteFiles(IntermediateBaseDirectory, Wildcard, true);
                 }
 
                 bCleanedSomething = true;
@@ -6272,7 +6272,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     if (String_IsValid(MaxConcurrentCompilations))
     {
         u8 Num = 0;
-        (void)String_ToU8(MaxConcurrentCompilations, &Num);
+        xx String_ToU8(MaxConcurrentCompilations, &Num);
         MaxCompilersAtOnce = Min(Num, (u8)MaxLogicalCores);   
     }
 
@@ -6423,7 +6423,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                     String From = StrSlice(SpecialData.Data, DashIndex);
                     String To   = StrShiftF(SpecialData, DashIndex+1);
 
-                    (void)String_ToU32(From, &FromLine);
+                    xx String_ToU32(From, &FromLine);
                     bool bHasTo = String_ToU32(To, &ToLine);
 
                     FromLine = Max(1, FromLine);
@@ -6439,7 +6439,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 }
                 else
                 {
-                    (void)String_ToU32(SpecialData, &FromLine);
+                    xx String_ToU32(SpecialData, &FromLine);
                     ToLine = FromLine;
                 }
 
@@ -6473,7 +6473,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     if (Icon.Length > 0)
     {
         u32 LastSlashIndex = 0;
-        (void)String_IndexOfLastPathSlash(Icon, &LastSlashIndex);
+        xx String_IndexOfLastPathSlash(Icon, &LastSlashIndex);
 
         bool bHasExtension = false;
         u32 LastDot = 0;
@@ -6685,7 +6685,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
         bSuccess = C_Compile(&p, &NumCompiled);
     }
 
-    (void)Platform_WaitForMultipleHandles(Processes, (u32)Array_Num(Processes), -1, true);
+    xx Platform_WaitForMultipleHandles(Processes, (u32)Array_Num(Processes), -1, true);
 
     Clock_Tick(&CompileClock);
 
@@ -6773,7 +6773,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
         if (Filesystem_DoesDirectoryExist(AppBundlePath))
         {
-            (void)Filesystem_DeleteDirectory(AppBundlePath);
+            xx Filesystem_DeleteDirectory(AppBundlePath);
         }
 
         bSuccess = Filesystem_OpenDirectory(AppBundlePath);
@@ -6817,7 +6817,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
             if (Filesystem_DoesDirectoryExist(IconsetPath))
             {
-                (void)Filesystem_DeleteDirectory(IconsetPath);
+                xx Filesystem_DeleteDirectory(IconsetPath);
             }
 
             bSuccess = Filesystem_OpenDirectory(IconsetPath);
@@ -7064,7 +7064,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
             String_BuildPath(&AssemblyPath, WorkingPath, BuildDirectory, AssemblyNameWithExt);
 
             u32 LastSlashIndex = 0;
-            (void)String_IndexOfLastPathSlash(IconFilePath, &LastSlashIndex);
+            xx String_IndexOfLastPathSlash(IconFilePath, &LastSlashIndex);
 
             // Step 1 ------------------
             StringLocal(RsrcFilePath, MAX_PATH_LENGTH);
@@ -7226,8 +7226,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 // todo: remove defines, use runtime check for gnome/xfce4
                 #if PLATFORM_LINUX_GNOME
                 u32 LastSlash = 0, LastDot = 0;
-                (void)String_IndexOfLastPathSlash(IconFilePath, &LastSlash);
-                (void)String_IndexOfLastChar(StrShiftF(IconFilePath, LastSlash+1), '.', &LastDot);
+                xx String_IndexOfLastPathSlash(IconFilePath, &LastSlash);
+                xx String_IndexOfLastChar(StrShiftF(IconFilePath, LastSlash+1), '.', &LastDot);
 
                 const String IconName = StrSlice(StrShiftF(IconFilePath, LastSlash+1).Data, LastDot);
                 #endif
@@ -7457,13 +7457,13 @@ static u32 BuildTarget(LinearAllocator* Arena,
             if (bHaveXml)
             {
                 if (bVerboseLog) { LOG("    Deleting %S ...", XmlFilePath); }
-                (void)Filesystem_DeleteFile(XmlFilePath);
+                xx Filesystem_DeleteFile(XmlFilePath);
             }
 
             if (bHaveDotDesktop)
             {
                 if (bVerboseLog) { LOG("    Deleting %S ...", DotDesktopFilePath); }
-                (void)Filesystem_DeleteFile(DotDesktopFilePath);
+                xx Filesystem_DeleteFile(DotDesktopFilePath);
             }
 
             // update databases
@@ -7476,7 +7476,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                     if (bVerboseLog) { LOG("    %S", CmdLine); }
 
                     PlatformHandle H = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
-                    (void)Platform_WaitForProcessAndGetExitCode(H);
+                    xx Platform_WaitForProcessAndGetExitCode(H);
                 }
                 else
                 {
@@ -7491,7 +7491,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                     if (bVerboseLog) { LOG("    %S", CmdLine); }
 
                     PlatformHandle H = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
-                    (void)Platform_WaitForProcessAndGetExitCode(H);
+                    xx Platform_WaitForProcessAndGetExitCode(H);
                 }
                 else
                 {
@@ -7773,7 +7773,7 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments, const 
                 if (RootPathIndex == -1)
                 {
                     u32 Slash = 0;
-                    (void)String_IndexOfLastPathSlash(BuildFilePath, &Slash);
+                    xx String_IndexOfLastPathSlash(BuildFilePath, &Slash);
                     String_Copy(&WorkingDirectory, StrSlice(BuildFilePath.Data, Slash));
                 }
 
@@ -7786,8 +7786,8 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments, const 
         }
     }
 
-    (void)String_EatPathSeparatorsInlineFromEnd(&WorkingDirectory);
-    (void)Filesystem_ConvertRelativeToAbsolutePath(&WorkingDirectory);
+    xx String_EatPathSeparatorsInlineFromEnd(&WorkingDirectory);
+    xx Filesystem_ConvertRelativeToAbsolutePath(&WorkingDirectory);
     String_ConvertSlashToPlatformSlash(&WorkingDirectory);
 
     if (WorkingDirectory.Length < 1 || WorkingDirectory.Length > MAX_PATH_LENGTH)
@@ -7817,8 +7817,8 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments, const 
     {
         StringLocal(RootCopy, MAX_PATH_LENGTH);
         String_Copy(&RootCopy, WorkingDirectory);
-        (void)String_EatSpacesInlineFromEnd(&RootCopy);
-        (void)String_EatPathSeparatorsInlineFromEnd(&RootCopy);
+        xx String_EatSpacesInlineFromEnd(&RootCopy);
+        xx String_EatPathSeparatorsInlineFromEnd(&RootCopy);
         String_AppendPathSeparator(&RootCopy);
 
         u32 NumPathSeparators = String_CountPathSeparators(RootCopy);
@@ -7831,7 +7831,7 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments, const 
         }
     }
 
-    (void)String_EatPathSeparatorsInlineFromEnd(&WorkingDirectory);
+    xx String_EatPathSeparatorsInlineFromEnd(&WorkingDirectory);
 
     if (!Platform_SetWorkingDirectory(WorkingDirectory))
     {
@@ -8234,7 +8234,7 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments, const 
                 }
             }
 
-            (void)Filesystem_SeekToBeginning(BuildFileHandle);
+            xx Filesystem_SeekToBeginning(BuildFileHandle);
         
             if (bFoundPreset)
             {
@@ -8269,7 +8269,7 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments, const 
 
     PlatformMutex BuildMutex = {0};
     u32 ExitCode = BuildTarget(Arena, BuildFileHandle, &BuildMutex, WorkingDirectory, BuildArguments, String_Null(), BuildFileIndex, RootPathIndex);
-    if (BuildMutex.Handle) { (void)Platform_ReleaseMutex(&BuildMutex); }
+    if (BuildMutex.Handle) { xx Platform_ReleaseMutex(&BuildMutex); }
 
     Filesystem_Close(&BuildFileHandle);
 
@@ -8421,7 +8421,7 @@ static void InitInternalVars(LinearAllocator* Arena)
         CpuBrandName = String_Create(Arena, CPU);
         AddInternalVariable(S("_CPUBrand"), CpuBrandName);
 
-        (void)String_ReplaceCharInline(&CPU, ' ', '_');
+        xx String_ReplaceCharInline(&CPU, ' ', '_');
         CpuBrandName = String_Create(Arena, CPU);
         AddInternalVariable(CpuBrandName, One);
     }
@@ -8433,7 +8433,7 @@ static void InitInternalVars(LinearAllocator* Arena)
     String CpuFullName = S("Unknown");
     if (Platform_GetFullCpuName(&CPU))
     {
-        (void)String_ReplaceCharInline(&CPU, '@', '|');
+        xx String_ReplaceCharInline(&CPU, '@', '|');
 
         CpuFullName = String_Create(Arena, CPU);
     }
@@ -8855,7 +8855,7 @@ static void InitInternalVars(LinearAllocator* Arena)
 
     StringLocal(HomeDirectory, MAX_PATH_LENGTH);
     Platform_GetHomeDirectory(&HomeDirectory);
-    (void)String_EatPathSeparatorsInlineFromEnd(&HomeDirectory);
+    xx String_EatPathSeparatorsInlineFromEnd(&HomeDirectory);
     String AllocatedHome = String_Create(Arena, HomeDirectory);
     AddInternalVariable(S("_HomeDirectory"), AllocatedHome);
     AddInternalVariable(S("_Home"),          AllocatedHome);
@@ -8863,7 +8863,7 @@ static void InitInternalVars(LinearAllocator* Arena)
     StringLocal(UserDirectory, MAX_PATH_LENGTH);
     if (Platform_GetUserDirectory(&UserDirectory))
     {
-        (void)String_EatPathSeparatorsInlineFromEnd(&UserDirectory);
+        xx String_EatPathSeparatorsInlineFromEnd(&UserDirectory);
         Allocated = String_Create(Arena, UserDirectory);
         AddInternalVariable(S("_UserDirectory"), Allocated);
     }
@@ -8947,7 +8947,7 @@ u32 RunApplication(const StringArray Arguments)
         while (true)
         {
             Platform_Sleep(10);
-            if (Platform_IsConsoleFocused() && Platform_AnyKeyPressed())
+            if (Platform_IsWindowFocused() && Platform_AnyKeyPressed())
             {
                 break;
             }

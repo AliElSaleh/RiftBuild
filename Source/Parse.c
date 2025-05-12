@@ -61,10 +61,10 @@ void AddOrAppendVariable(LinearAllocator* Arena,
 
     if (Ref)
     {
-        (void)String_EatSpacesInlineFromEnd(&Ref->Value);
+        xx String_EatSpacesInlineFromEnd(&Ref->Value);
         if (Ref->Value.Length) { String_AppendSpace(&Ref->Value); }
         String_Append(&Ref->Value, Value);
-        (void)String_EatSpacesInlineFromEnd(&Ref->Value);
+        xx String_EatSpacesInlineFromEnd(&Ref->Value);
     }
     else
     {
@@ -720,7 +720,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Special_ErrorMessage(LinearAllocat
     Parser_Advance(P);
     Parser_SkipWhitespace(P);
 
-    (void)Parser_Match(P, Token_Newline);
+    xx Parser_Match(P, Token_Newline);
 
     StringList* ValueList = NULL;
     StringList** Next = &ValueList;
@@ -779,7 +779,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Special_Help(LinearAllocator* Aren
     Parser_Advance(P);
     Parser_SkipWhitespace(P);
 
-    (void)Parser_Match(P, Token_Newline);
+    xx Parser_Match(P, Token_Newline);
 
     StringList* ValueList = NULL;
     StringList** Next = &ValueList;
@@ -2098,7 +2098,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
     //Clock_Start(&c);
 
     usize FileSize = 0;
-    (void)Filesystem_GetFileSize(H, &FileSize);
+    xx Filesystem_GetFileSize(H, &FileSize);
 
     if (FileSize > Kibibytes(48))
     {
@@ -2222,7 +2222,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
                         uchar PeekChar = Lexer_Peek(&l);
                         if (PeekChar == '#')
                         {
-                            (void)Lexer_Advance(&l);
+                            xx Lexer_Advance(&l);
                             if (Lexer_Match(&l, '#'))
                             {
                                 break;
@@ -2239,14 +2239,14 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
                             l.Line += 1;
                         }
 
-                        (void)Lexer_Advance(&l);
+                        xx Lexer_Advance(&l);
                     }
                 }
                 else
                 {
                     while (!IsNewline(Lexer_Peek(&l)))
                     {
-                        (void)Lexer_Advance(&l);
+                        xx Lexer_Advance(&l);
                     }
                 }
             }
@@ -2290,7 +2290,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
                         while (Lexer_Peek(&l) == ' ' ||
                                Lexer_Peek(&l) == '\t')
                         {
-                            (void)Lexer_Advance(&l);
+                            xx Lexer_Advance(&l);
                         }
 
                         Lexer_AddToken(&l, Token_Whitespace);
@@ -2307,7 +2307,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
                         l.Line += 1;
                     }
 
-                    (void)Lexer_Advance(&l);
+                    xx Lexer_Advance(&l);
                     Peek = Lexer_Peek(&l);
                 }
 
@@ -2759,7 +2759,7 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
                 StringLocal(Expanded, MAX_PATH_LENGTH);
                 if (bFoundVar)
                 {
-                    (void)ExpandBuildVariableV2(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, String_Null(), VarValue, String_Null(), Context->WorkingDirectory, false, false, NULL);
+                    xx ExpandBuildVariableV2(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, String_Null(), VarValue, String_Null(), Context->WorkingDirectory, false, false, NULL);
                 }
                 else
                 {
@@ -2771,7 +2771,7 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
                         if (Symbol) { String_AppendChar(&ConditionPrefixed, Symbol); }
                         String_Append(&ConditionPrefixed, Condition);
 
-                        (void)ExpandBuildVariableV2(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, String_Null(), ConditionPrefixed, String_Null(), Context->WorkingDirectory, false, false, NULL);
+                        xx ExpandBuildVariableV2(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, String_Null(), ConditionPrefixed, String_Null(), Context->WorkingDirectory, false, false, NULL);
                     }
                     else
                     {
@@ -3097,23 +3097,23 @@ NO_DISCARD static bool Analyze_Indeterminates(LinearAllocator* Arena, NodeList* 
         {
             if (Root->Type == Node_Block)
             {
-                (void)Analyze_List(Arena, Root, Context, false);
+                xx Analyze_List(Arena, Root, Context, false);
             }
             else if (Root->Type == Node_If)
             {
-                (void)Analyze_IfNode(Arena, Root, Context, true);
+                xx Analyze_IfNode(Arena, Root, Context, true);
             }
             else if (Root->Type == Node_Help)
             {
-                (void)Analyze_KVNode(Arena, Root, Context);
+                xx Analyze_KVNode(Arena, Root, Context);
             }
             else if (Root->Type == Node_Include)
             {
-                (void)Analyze_IncludeNode(Arena, Root, Context);
+                xx Analyze_IncludeNode(Arena, Root, Context);
             }
             else if (Root->Type == Node_ErrorMessage)
             {
-                (void)Analyze_KVNode(Arena, Root, Context);
+                xx Analyze_KVNode(Arena, Root, Context);
             }
             else if (Root->Type == Node_LogMessage)
             {
@@ -3125,7 +3125,7 @@ NO_DISCARD static bool Analyze_Indeterminates(LinearAllocator* Arena, NodeList* 
                 {
                     String Message = String_CreateFromList(&Scratch, *Root->Value);
 
-                    (void)ExpandBuildVariableV2(*Arena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, S(""), Message, S(""), Context->WorkingDirectory, false, false, NULL);
+                    xx ExpandBuildVariableV2(*Arena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, S(""), Message, S(""), Context->WorkingDirectory, false, false, NULL);
                     //LOG("%S", Expanded);
                 }
 
@@ -3136,7 +3136,7 @@ NO_DISCARD static bool Analyze_Indeterminates(LinearAllocator* Arena, NodeList* 
             }
             else if (Root->Type == Node_KeyValue)
             {
-                (void)Analyze_KVNode(Arena, Root, Context);
+                xx Analyze_KVNode(Arena, Root, Context);
             }
         }
 
@@ -3335,7 +3335,7 @@ static bool Internal_LogCustomErrorMessage(ParsingContext* Context, const String
                     //if (bLineBreak) { LOG_LINE_BREAK(); }
 
                     StringLocal(Expanded, MAX_VALUE_LENGTH);
-                    (void)ExpandBuildVariableV2(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, Var.Name, Var.Value, Var.Name, Context->WorkingDirectory, false, false, NULL);
+                    xx ExpandBuildVariableV2(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, Var.Name, Var.Value, Var.Name, Context->WorkingDirectory, false, false, NULL);
 
                     LOG("%S", Expanded);
                     bLogged = true;
@@ -3434,7 +3434,7 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
 
                     if (!bAnyPlatformMatch)
                     {
-                        const String BuildFileName = Filesystem_ExtractFileNameFromPath(BuildFilePath, true);
+                        const String BuildFileName = Filesystem_ExtractFileName(BuildFilePath, true);
 
                         #ifndef HOOD
                         LOG_INLINE_ERROR("[ASSERTION FAILURE] %S can only be built on %S. You are on %S. Aborting build...\n", BuildFileName, PlatformsLogString, S(PLATFORM_STRING));
@@ -3527,7 +3527,7 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
 
                     if (!bAnyArchMatch)
                     {
-                        const String BuildFileName = Filesystem_ExtractFileNameFromPath(BuildFilePath, true);
+                        const String BuildFileName = Filesystem_ExtractFileName(BuildFilePath, true);
 
                         #ifndef HOOD
                         LOG_INLINE_ERROR("[ASSERTION FAILURE] %S can only be built on %S architectures. You are on %S. Aborting build...\n", BuildFileName, ArchitecturesLogString, S(CPU_ARCHITECTURE_STRING));
@@ -3583,12 +3583,12 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
                         String_ConvertSlashToPlatformSlash(&AssertPath);
                     }
 
-                    (void)Filesystem_ConvertRelativeToAbsolutePath(&AssertPath);
-                    (void)String_EatPathSeparatorsInlineFromEnd(&AssertPath);
+                    xx Filesystem_ConvertRelativeToAbsolutePath(&AssertPath);
+                    xx String_EatPathSeparatorsInlineFromEnd(&AssertPath);
 
                     if (AssertPath.Length > 0 && !String_IsEqual(Context->WorkingDirectory, AssertPath, false))
                     {
-                        const String BuildFileName = Filesystem_ExtractFileNameFromPath(BuildFilePath, true);
+                        const String BuildFileName = Filesystem_ExtractFileName(BuildFilePath, true);
 
                         #ifndef HOOD
                         LOG_INLINE_ERROR("[ASSERTION FAILURE] %S must be ran from this directory:\n\n"
@@ -3637,7 +3637,7 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
                         LOG_ERROR("yo da cmd line var \"%S\" don exist cuh. dat shit not there nigga", Trimmed);
                         #endif
 
-                        (void)Internal_LogCustomErrorMessage(Context, S("Arg"), Trimmed, true);
+                        xx Internal_LogCustomErrorMessage(Context, S("Arg"), Trimmed, true);
 
                         bAssertionFailed = true;
                         break;
@@ -3899,7 +3899,7 @@ NO_DISCARD bool ParseBuildFileV2(LinearAllocator* PermanentArena,
 
             if (IsValidFileHandle(H))
             {
-                FinalName = Filesystem_ExtractFileNameFromPath(BuildFilePath, false);
+                FinalName = Filesystem_ExtractFileName(BuildFilePath, false);
             }
 
             AddVariableToList(Context.TempArena, &Context, S("Assembly"), FinalName, String_Null(), false);
@@ -3979,7 +3979,7 @@ NO_DISCARD bool ParseBuildFileV2(LinearAllocator* PermanentArena,
         }
 
         StringLocal(Expanded, MAX_VALUE_LENGTH);
-        (void)ExpandBuildVariableV2(*Context.TempArena, Context.VarListHead, Context.CmdOptionsDB, &Expanded, Var.Name, Var.Value, Var.Name, Context.WorkingDirectory, false, false, NULL);
+        xx ExpandBuildVariableV2(*Context.TempArena, Context.VarListHead, Context.CmdOptionsDB, &Expanded, Var.Name, Var.Value, Var.Name, Context.WorkingDirectory, false, false, NULL);
 
         if (bExcludeFromConcat)
         {
@@ -6170,7 +6170,7 @@ bool ExpandBuildVariableV2(LinearAllocator Scratch, FileVariableList* VariablesD
                     {
                         if (Dest->Length > 0)
                         {
-                            (void)String_EatSpacesInlineFromEnd(Dest);
+                            xx String_EatSpacesInlineFromEnd(Dest);
                             String_AppendSpace(Dest);
                         }
                     }
@@ -6255,7 +6255,7 @@ bool ExpandBuildVariableV2(LinearAllocator Scratch, FileVariableList* VariablesD
             }
 
             StdOutData.Length = Min((u32)BytesRead, StdOutData.Capacity);
-            (void)String_EatNewLinesInlineFromEnd(&StdOutData);
+            xx String_EatNewLinesInlineFromEnd(&StdOutData);
 
             String DestEnd = StrShiftF(*Dest, Dest->Length);
             u32 DestLengthBefore = Dest->Length;
@@ -6367,7 +6367,7 @@ bool ExpandBuildVariableV2(LinearAllocator Scratch, FileVariableList* VariablesD
         }
     }
 
-    (void)String_EatSpacesInlineFromEnd(Dest);
+    xx String_EatSpacesInlineFromEnd(Dest);
 
     return true;
 }

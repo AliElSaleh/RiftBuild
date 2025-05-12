@@ -107,8 +107,9 @@ typedef struct LinearAllocator LinearAllocator;
 #define BITS_PER_LONG (8 * sizeof(u64))
 //#define BIT(x)        (1UL << ((x) % BITS_PER_LONG))
 #define BIT(x)        (1UL << x##UL)
-#define BITX(x)        (1UL << (x))
+#define BITX(x)       (1UL << (x))
 
+#define xx (void)
 
 #define Kilobytes(x) ((x)*(usize)1000)
 #define Megabytes(x) (Kilobytes(x)*(usize)1000)
