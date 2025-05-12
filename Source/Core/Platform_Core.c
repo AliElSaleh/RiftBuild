@@ -757,9 +757,14 @@ NO_DISCARD String Filesystem_ExtractFileNameFromPath(const String Path, bool bIn
     String FileName = String_Null();
 
     u32 LastSlash = 0;
-    if (String_IndexOfLastPathSlash(Path, &LastSlash))
+    (void)String_IndexOfLastPathSlash(Path, &LastSlash);
+    if (LastSlash)
     {
         FileName = StrShiftF(Path, LastSlash+1);
+    }
+    else
+    {
+        FileName = Path;
     }
 
     if (!bIncludeExtension)
