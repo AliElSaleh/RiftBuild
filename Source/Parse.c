@@ -1219,6 +1219,25 @@ static void Internal_AssignParentToChildrenRecursively(Node* Parent, NodeList* C
     }
 }
 
+NO_DISCARD RETURN_NON_NULL static NodeList* Internal_CreateNodeListFromDeferred(LinearAllocator* Arena, DeferredKVData Deferred)
+{
+    NodeList* List = NodeList_CreateNull(Arena);
+    Node* KV_Node = Node_Create_KeyValue(Arena, Deferred.Key->Lexeme, NULL, Deferred.bIsSpecial);
+    KV_Node->Parameters = Deferred.Params;
+
+    if (Deferred.FilterNode != &Node_Null)
+    {
+        Deferred.LastIfNode->Left = KV_Node;
+        List->Node = Deferred.FilterNode;
+    }
+    else
+    {
+        List->Node = KV_Node;
+    }
+
+    return List;
+}
+
 NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena,
                     Parser* P,
                     u32 Offset,
@@ -1404,23 +1423,10 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena,
             }
         }
         // the positioning of this if statement is important, do not move this!!
+        // this means this key has no value
         else if (Deferred.Key != &Token_Null)
         {
-            // this means this key has no value
-            NodeList* List = NodeList_CreateNull(Arena);
-            Node* KV_Node = Node_Create_KeyValue(Arena, Deferred.Key->Lexeme, NULL, Deferred.bIsSpecial);
-            KV_Node->Parameters = Deferred.Params;
-
-            if (Deferred.FilterNode != &Node_Null)
-            {
-                Deferred.LastIfNode->Left = KV_Node;
-                List->Node = Deferred.FilterNode;
-            }
-            else
-            {
-                List->Node = KV_Node;
-            }
-
+            NodeList* List = Internal_CreateNodeListFromDeferred(Arena, Deferred);
             SLinkedList_Push(NextNode, List);
 
             Deferred = DeferredKVData_Null;
@@ -1737,6 +1743,14 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena,
         }
 
         bSkipRootTokenUpdate = false;
+    }
+
+    // if we reached the end of this block but we haven't made a node out of it yet, in the case of EOF
+    // this means this key has no value
+    if (Deferred.Key != &Token_Null)
+    {
+        NodeList* List = Internal_CreateNodeListFromDeferred(Arena, Deferred);
+        SLinkedList_Push(NextNode, List);
     }
 
     return Root;
