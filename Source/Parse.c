@@ -185,6 +185,11 @@ ENUM_TYPED(ETokenType, u32)
     Token_Max
 };
 
+#define Token_Char_Not    '!'
+#define Token_Char_At     '@'
+#define Token_Char_Mod    '%'
+#define Token_Char_Dollar '$'
+
 STRUCT(Token)
 {
     String     Lexeme;
@@ -2100,14 +2105,14 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
                 bInsideWhitespaceAllowedBlock = true;
             }
 
-            if      (Char == '(') { Lexer_AddToken(&l, Token_LParen);       }
-            else if (Char == ')') { Lexer_AddToken(&l, Token_RParen);       }
-            else if (Char == '^') { Lexer_AddToken(&l, Token_Caret);        }
-            else if (Char == ';') { Lexer_AddToken(&l, Token_Semicolon);    }
-            else if (Char == '$') { Lexer_AddToken(&l, Token_Dollar);       }
-            else if (Char == '@') { Lexer_AddToken(&l, Token_At);           }
-            else if (Char == '|') { Lexer_AddToken(&l, Token_Pipe);         }
-            else if (Char == '%') { Lexer_AddToken(&l, Token_Mod);          }
+            if      (Char == '(')               { Lexer_AddToken(&l, Token_LParen);    }
+            else if (Char == ')')               { Lexer_AddToken(&l, Token_RParen);    }
+            else if (Char == '^')               { Lexer_AddToken(&l, Token_Caret);     }
+            else if (Char == ';')               { Lexer_AddToken(&l, Token_Semicolon); }
+            else if (Char == Token_Char_Dollar) { Lexer_AddToken(&l, Token_Dollar);    }
+            else if (Char == Token_Char_At)     { Lexer_AddToken(&l, Token_At);        }
+            else if (Char == Token_Char_Mod)    { Lexer_AddToken(&l, Token_Mod);       }
+            else if (Char == '|')               { Lexer_AddToken(&l, Token_Pipe);      }
             else if (Char == '\'')
             {
                 if (!bInsideWhitespaceAllowedBlock)
@@ -2213,7 +2218,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
             {
                 Lexer_AddToken(&l, Token_Colon);
             }
-            else if (Char == '!')
+            else if (Char == Token_Char_Not)
             {
                 ETokenType Type = Lexer_Match(&l, '=') ? Token_NotEqual : Token_Not;
                 Lexer_AddToken(&l, Type);
@@ -2650,7 +2655,6 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
             bool bIsPath = String_ContainsPathSeparators(Condition);
             if (!bIsPath)
             {
-
                 if (bSearchEnvironmentVar)
                 {
                     if (Platform_GetEnvironmentVariableValue(Condition, &EnvVar))
@@ -2725,7 +2729,20 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
                 }
                 else
                 {
-                    Expanded = Condition;
+                    if (bPrefixedWithSymbol)
+                    {
+                        StringLocal(ConditionPrefixed, MAX_PATH_LENGTH);
+
+                        uchar Symbol = bSearchFileVar ? Token_Char_Dollar : (bSearchInternalVar ? Token_Char_Mod : (bSearchEnvironmentVar ? Token_Char_At : 0));
+                        if (Symbol) { String_AppendChar(&ConditionPrefixed, Symbol); }
+                        String_Append(&ConditionPrefixed, Condition);
+
+                        (void)ExpandBuildVariableV2(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, String_Null(), ConditionPrefixed, String_Null(), Context->WorkingDirectory, false, false, NULL);
+                    }
+                    else
+                    {
+                        Expanded = Condition;
+                    }
                 }
 
                 bool bIsDirectory = String_IsLast(Expanded, '/') || String_IsLast(Expanded, '\\');
@@ -5317,7 +5334,7 @@ bool ExpandBuildVariableV2(LinearAllocator Scratch, FileVariableList* VariablesD
             }
         }
 
-        if (C == '%' || C == '$' || C == '@' || C == '!')
+        if (C == Token_Char_Mod || C == Token_Char_Dollar || C == Token_Char_At || C == Token_Char_Not)
         {
             u32 Index = 0;
 
@@ -5387,7 +5404,7 @@ bool ExpandBuildVariableV2(LinearAllocator Scratch, FileVariableList* VariablesD
             }
         }
 
-        if (C == '%')
+        if (C == Token_Char_Mod)
         {
             String VarValue = String_Null();
 
@@ -5621,7 +5638,7 @@ bool ExpandBuildVariableV2(LinearAllocator Scratch, FileVariableList* VariablesD
                 }
             }
         }
-        else if (C == '$')
+        else if (C == Token_Char_Dollar)
         {
             bool bFound = false;//DoesBuildVarExist(VariablesDB, Slice);
             {
@@ -5698,7 +5715,7 @@ bool ExpandBuildVariableV2(LinearAllocator Scratch, FileVariableList* VariablesD
                 }
             }
         }
-        else if (C == '@')
+        else if (C == Token_Char_At)
         {
             // find this variable
             StringLocal(VarValue, 4096);
@@ -5734,7 +5751,7 @@ bool ExpandBuildVariableV2(LinearAllocator Scratch, FileVariableList* VariablesD
             if (bWantsToLower) { String_ToLower(&DestEnd); }
             if (bWantsToUpper) { String_ToUpper(&DestEnd); }
         }
-        else if (C == '!' && Slice.Length > 0) // run custom shell commands and append the output of the command to Dest
+        else if (C == Token_Char_Not && Slice.Length > 0) // run custom shell commands and append the output of the command to Dest
         {
             StringLocal(CmdLine, 8192);
 
