@@ -462,7 +462,7 @@ bool C_Compile(const BuildParams* Params, u32* OutNumCompiled)
         }
     }
 
-    // compile all .c/c++ files
+    // compile all source files
     {
         CompileData UserData = { &C_DoCompile, Params, OutNumCompiled, 0, true, NULL };
         Filesystem_IterateDirectory_Ex(SourceDir, &SourceFileDirectoryIterator, true, &UserData);

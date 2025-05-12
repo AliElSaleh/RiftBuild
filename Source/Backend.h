@@ -313,6 +313,7 @@ STRUCT(ParsingContext)
     u8 Padding[6];
 };
 
+/*
 bool ParseBuildFile(LinearAllocator* Arena,
                     const FileHandle H,
                     const String BuildFilePath,
@@ -325,6 +326,7 @@ bool ParseBuildFile(LinearAllocator* Arena,
                     bool bIsIncludeFile,
                     StringList* Includes,
                     bool bIsAssemblyExe);
+                    */
 
 NO_DISCARD bool ParseBuildFileV2(LinearAllocator* PermanentArena,
                     const FileHandle H,
@@ -334,9 +336,11 @@ NO_DISCARD bool ParseBuildFileV2(LinearAllocator* PermanentArena,
                     StringList* Includes);
 
 
+/*
 bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) VariablesDB, TArray(CmdOption) CmdOptionsDB,
                          String* Dest, const String Key, const String Value, const String Root, const String WorkingDirectory,
                          bool bLowerStrings, bool bIsAssemblyExe);
+                         */
 
 bool ExpandBuildVariableV2(LinearAllocator Scratch, FileVariableList* VariablesDB, TArray(CmdOption) CmdOptionsDB,
                          String* Dest, const String Key, const String Value, const String Root, const String WorkingDirectory,

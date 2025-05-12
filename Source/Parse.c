@@ -924,10 +924,12 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena,
                 break;
             }
 
+            /*
             if (bCameFromInline)
             {
                 break;
             }
+            */
         }
         else if (t.Type == Token_Semicolon)
         {
@@ -1220,7 +1222,7 @@ static void Internal_AssignParentToChildrenRecursively(Node* Parent, NodeList* C
 NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena,
                     Parser* P,
                     u32 Offset,
-                    bool bInIf
+                    bool bInlineIf
                     )
 {
     Node* Root = Node_Create(Arena, Node_Block);
@@ -1231,7 +1233,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena,
     u32 Start = 0;
     u32 NumTokens = P->NumTokens;
     Token LastRootToken = Token_Null;
-    bool bPreviouslyEvaluatedIfStatement = false;
+    //bool bPreviouslyEvaluatedIfStatement = false;
     bool bSkipRootTokenUpdate = false;
 
     DeferredKVData Deferred = DeferredKVData_Null;
@@ -1242,7 +1244,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena,
         Token t = P->Tokens[P->Current];
         Token* tPtr = &P->Tokens[P->Current];
 
-        bool bJustEvaluatedIfStatement = false;
+        //bool bJustEvaluatedIfStatement = false;
 
         // @todo: make sure to handle all tokens possible
 
@@ -1254,7 +1256,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena,
         }
         else if (t.Type == Token_Newline)
         {
-            if (bInIf)
+            if (bInlineIf && Deferred.Key == &Token_Null)
             {
                 break;
             }
@@ -1271,7 +1273,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena,
             }
 
             NodeList* List = NodeList_CreateNull(Arena);
-            Node* BlockNode = Parse_Block(Arena, P, 1, bPreviouslyEvaluatedIfStatement);
+            Node* BlockNode = Parse_Block(Arena, P, 1, false);
             if (BlockNode == &Node_Null)
             {
                 return &Node_Null;
@@ -1283,7 +1285,8 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena,
                 return &Node_Null;
             }
 
-            if (Deferred.Key != &Token_Null)
+            bool bIsDeferring = Deferred.Key != &Token_Null;
+            if (bIsDeferring)
             {
                 BlockNode->Key = Deferred.Key->Lexeme;
 
@@ -1331,6 +1334,11 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena,
             SLinkedList_Push(NextNode, List);
 
             Deferred = DeferredKVData_Null;
+
+            if (bInlineIf && bIsDeferring)
+            {
+                break;
+            }
         }
         else if (t.Type == Token_RCurly)
         {
@@ -1383,6 +1391,11 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena,
                 SLinkedList_Push(NextNode, List);
 
                 Deferred = DeferredKVData_Null;
+
+                if (bInlineIf)
+                {
+                    break;
+                }
             }
             else
             {
@@ -1426,6 +1439,11 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena,
             }
 
             SLinkedList_Push(NextNode, List);
+
+            if (bInlineIf)
+            { 
+                break;
+            }
         }
         else if (t.Type == Token_Quote)
         {
@@ -1463,6 +1481,8 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena,
             }
 
             SLinkedList_Push(NextNode, List);
+
+            if (bInlineIf) { break; }
         }
         else if (t.Type == Token_Text || t.Type == Token_Assert)
         {
@@ -1665,7 +1685,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena,
         {
             bSkipRootTokenUpdate = true;
 
-            if (!bInIf)
+            if (!bInlineIf)
             {
                 LOG_ERROR("[Parser] [Line %u]: Illegal 'else' without matching 'if'", t.Line);
                 return &Node_Null;
@@ -1687,7 +1707,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena,
 
             SLinkedList_Push(NextNode, List);
 
-            bJustEvaluatedIfStatement = true;
+            //bJustEvaluatedIfStatement = true;
         }
         else
         {
@@ -1701,10 +1721,12 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena,
             Parser_Advance(P);
         }
 
+        /*
         if (!(t.Type == Token_LCurly || t.Type == Token_Newline))
         {
             bPreviouslyEvaluatedIfStatement = bJustEvaluatedIfStatement;
         }
+        */
 
         if (!bSkipRootTokenUpdate)
         {
@@ -3265,7 +3287,7 @@ UNUSED static void Internal_PrintVariables(TArray(FileVariable) VariablesDB)
     }
 }
 
-bool Internal_LogCustomErrorMessage(ParsingContext* Context, const String ContextKey, const String Key, const bool bLineBreak)
+static bool Internal_LogCustomErrorMessage(ParsingContext* Context, const String ContextKey, const String Key, const bool bLineBreak)
 {
     if (bQuietBuild) { Logging_Enable(); }
 
@@ -3894,8 +3916,6 @@ NO_DISCARD bool ParseBuildFileV2(LinearAllocator* PermanentArena,
         SC("PostLink"),
         SC("Depend"),
         SC("Depends"),
-        SC("RunAssembly"),
-        SC(".Run"),
     };
 
     /*
@@ -3914,7 +3934,6 @@ NO_DISCARD bool ParseBuildFileV2(LinearAllocator* PermanentArena,
     */
 
     // TODO: do not store include variables
-    // TODO: do not store asserts
 
     SLinkedList_Each(FileVariableList, This, &Context.VarListHead)
     {
@@ -3933,17 +3952,14 @@ NO_DISCARD bool ParseBuildFileV2(LinearAllocator* PermanentArena,
 
         bool bExcludeFromConcat = false;
         {
-            if (!bExcludeFromConcat)
+            for EachE(i, ConcatExclusions)
             {
-                for EachE(i, ConcatExclusions)
+                if (String_IsEqual(Var.Name, ConcatExclusions[i], false) ||
+                    String_StartsWith(Var.Name, ConcatExclusions[i], false) ||
+                    String_StartsWith(Var.Name, S("."), false))
                 {
-                    if (String_IsEqual(Var.Name, ConcatExclusions[i], false) ||
-                        String_StartsWith(Var.Name, ConcatExclusions[i], false) ||
-                        String_StartsWith(Var.Name, S("."), false))
-                    {
-                        bExcludeFromConcat = true;
-                        break;
-                    }
+                    bExcludeFromConcat = true;
+                    break;
                 }
             }
         }
@@ -3968,6 +3984,7 @@ NO_DISCARD bool ParseBuildFileV2(LinearAllocator* PermanentArena,
     return true;
 }
 
+#if 0
 bool ParseBuildFile(LinearAllocator* Arena,
                     const FileHandle H,
                     const String BuildFilePath,
@@ -5735,6 +5752,7 @@ End:
 
     return true;
 }
+#endif
 
 bool ExpandBuildVariableV2(LinearAllocator Scratch, FileVariableList* VariablesDB, TArray(CmdOption) CmdOptionsDB,
                             String* Dest, const String Key, const String Value, const String Root, const String WorkingDirectory,

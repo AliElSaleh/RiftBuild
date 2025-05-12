@@ -1044,7 +1044,6 @@ static void ListVariables(LinearAllocator Arena, const String Name, TArray(FileV
         S("PostCompile"),
         S("PreLink"),
         S("PostLink"),
-        S("RunAssembly"),
         S(".Run"),
         S("Depend"),
         S("Depends"),
@@ -1442,7 +1441,7 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String
         }
         else
         {
-            LOG("%S\n", Value);
+            LOG(" %S\n", Value);
         }
     }
     else if (String_EndsWith(Name, S("WriteFile"), false) ||
@@ -7611,9 +7610,7 @@ End:
 
         for each (FileVariable, v, ExpandedVariablesDB)
         {
-            // todo: eventually remove runassembly key
-            if (String_IsEqual(v.Name, S("RunAssembly"), false) ||
-                String_IsEqual(v.Name, S(".Run"), false))
+            if (String_IsEqual(v.Name, S(".Run"), false))
             {
                 if (v.bHasSpecial)
                 {
