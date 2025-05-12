@@ -3265,6 +3265,441 @@ UNUSED static void Internal_PrintVariables(TArray(FileVariable) VariablesDB)
     }
 }
 
+bool Internal_LogCustomErrorMessage(ParsingContext* Context, const String ContextKey, const String Key, const bool bLineBreak)
+{
+    if (bQuietBuild) { Logging_Enable(); }
+
+    bool bLogged = false;
+
+    SLinkedList_Each(FileVariableList, This, &Context->VarListHead)
+    {
+        const FileVariable Var = (*This)->Var;
+
+        if (String_StartsWith(Var.Name, ContextKey, false) &&
+            String_EndsWith(Var.Name, S(".errormessage"), false))
+        {
+            String Slice = StrSlice(Var.Name.Data, Var.Name.Length-13);
+
+            u32 Dot = 0;
+            if (String_IndexOfChar(Slice, '.', &Dot))
+            {
+                Slice = StrShiftF(Slice, Dot+1);
+            }
+            
+            LinearAllocator Scratch = {0};
+            i8 ScratchMemory[128] = {0};
+            LinearAllocator_Create(128, ScratchMemory, &Scratch);
+            StringArray Keys = String_ParseIntoArray(&Scratch, Slice, '|', 0, 8);
+            for each_str (k, Keys)
+            {
+                if (String_IsEqual(*k, S("*"), false) ||
+                   (String_IsEqual(*k, Key, false) &&
+                   (ContextKey.Length == 0 || String_StartsWith(Var.Name, ContextKey, false))))
+                {
+                    //if (bLineBreak) { LOG_LINE_BREAK(); }
+
+                    StringLocal(Expanded, MAX_VALUE_LENGTH);
+                    (void)ExpandBuildVariableV2(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, Var.Name, Var.Value, Var.Name, Context->WorkingDirectory, false, false, NULL);
+
+                    LOG("%S", Expanded);
+                    bLogged = true;
+                    break;
+                }
+            }
+            LinearAllocator_Destroy(&Scratch);
+
+            if (bLogged)
+            {
+                break;
+            }
+        }
+    }
+
+    if (bQuietBuild) { Logging_Disable(); }
+
+    return bLogged;
+}
+
+
+static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFilePath)
+{
+    bool bAssertionFailed = false;
+
+    SLinkedList_Each(FileVariableList, This, &Context->VarListHead)
+    {
+        const FileVariable Var = (*This)->Var;
+
+        LinearAllocator Scratch = *Context->TempArena;
+
+        if (Var.Name.Data[0] == 'A' || Var.Name.Data[0] == 'a')
+        {
+            if (String_IsEqual(Var.Name, S("Assert.Platform"), false))
+            {
+                StringArray PlatformsArray = String_ParseIntoArray(&Scratch, Var.Value, ' ', 0, 128);
+
+                StringLocal(PlatformsLogString, 128);
+                {
+                    u8 i = 0;
+                    for each_str_i (i, p, PlatformsArray)
+                    {
+                        String_Append(&PlatformsLogString, *p);
+                        if (PlatformsArray.Num > 1 && i != PlatformsArray.Num-1)
+                        {
+                            if (i == PlatformsArray.Num-2)
+                            {
+                                String_Append(&PlatformsLogString, S(" and "));
+                            }
+                            else
+                            {
+                                String_AppendChar(&PlatformsLogString, ',');
+                                String_AppendSpace(&PlatformsLogString);
+                            }
+                        }
+                    }
+                }
+
+                #if PLATFORM_WINDOWS
+                const String HostPlatform = S("Windows");
+                #elif PLATFORM_MAC
+                const String HostPlatform = S("Apple Mac MacOS OSX Unix");
+                #elif PLATFORM_LINUX
+                const String HostPlatform = S("Linux Unix");
+                #elif PLATFORM_BSD
+                const String HostPlatform = S("BSD " PLATFORM_STRING);
+                #else
+                const String HostPlatform = S("Unix");
+                #endif
+
+                if (PlatformsArray.Num > 0)
+                {
+                    bool bAnyPlatformMatch = false;
+                    for each_str (s, PlatformsArray)
+                    {
+                        String Trimmed = String_EatSpaces(*s);
+
+                        bool bMatch = String_IsEqual(Trimmed, HostPlatform, false);
+                        if (bMatch)
+                        {
+                            bAnyPlatformMatch = true;
+                            break;
+                        }
+
+                        StringArray AdditionalPlatforms = String_ParseIntoArray(&Scratch, HostPlatform, ' ', 0, 128);
+                        for each_str (p, AdditionalPlatforms)
+                        {
+                            bMatch = String_IsEqual(Trimmed, *p, false);
+                            if (bMatch)
+                            {
+                                bAnyPlatformMatch = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!bAnyPlatformMatch)
+                    {
+                        const String BuildFileName = Filesystem_ExtractFileNameFromPath(BuildFilePath, true);
+
+                        #ifndef HOOD
+                        LOG_INLINE_ERROR("[ASSERTION FAILURE] %S can only be built on %S. You are on %S. Aborting build...\n", BuildFileName, PlatformsLogString, S(PLATFORM_STRING));
+                        #else
+                        LOG_ERROR("yo u cant build on dis platform nigga\n");
+                        #endif
+
+                        StringArray AdditionalPlatforms = String_ParseIntoArray(&Scratch, HostPlatform, ' ', 0, 128);
+                        for each_str (p, AdditionalPlatforms)
+                        {
+                            if (Internal_LogCustomErrorMessage(Context, S("Platform"), *p, true))
+                            {
+                                break;
+                            }
+                        }
+
+                        bAssertionFailed = true;
+                        break;
+                    }
+                }
+            }
+            else if (String_IsEqual(Var.Name, S("Assert.Platform.Version"), false))
+            {
+                if (String_CountChar(Var.Value, '.') >= 1) // make sure this is something sensible
+                {
+                    PlatformVersion OSVersion = Platform_GetVersion();
+                    StringLocal(VersionString, 32);
+                    String_Format(&VersionString, S("%u.%u.%u"), OSVersion.Major, OSVersion.Minor, OSVersion.Patch);
+                    ECompareResult Result = String_CompareVersion(VersionString, Var.Value);
+                    if (Result == CompareResult_Less)
+                    {
+                        LOG_INLINE_ERROR("[ASSERTION FAILURE] Unsupported platform version \"%u.%u.%u\" is less than the required version \"%S\" or later. Aborting build...\n", OSVersion.Major, OSVersion.Minor, OSVersion.Patch, Var.Value);
+
+                        bAssertionFailed = true;
+                        break;
+                    }
+                }
+            }
+            else if (String_IsEqual(Var.Name, S("Assert.Arch"), false) ||
+                     String_IsEqual(Var.Name, S("Assert.Architecture"), false))
+            {
+                StringArray ArchitecturesArray = String_ParseIntoArray(&Scratch, Var.Value, ' ', 0, 128);
+
+                StringLocal(ArchitecturesLogString, 128);
+                {
+                    u8 i = 0;
+                    for each_str_i (i, a, ArchitecturesArray)
+                    {
+                        String_Append(&ArchitecturesLogString, *a);
+                        if (ArchitecturesArray.Num > 1 && i != ArchitecturesArray.Num-1)
+                        {
+                            if (i == ArchitecturesArray.Num-2)
+                            {
+                                String_Append(&ArchitecturesLogString, S(" and "));
+                            }
+                            else
+                            {
+                                String_AppendChar (&ArchitecturesLogString, ',');
+                                String_AppendSpace(&ArchitecturesLogString);
+                            }
+                        }
+                    }
+                }
+
+                if (ArchitecturesArray.Num > 0)
+                {
+                    bool bAnyArchMatch = false;
+                    for each_str (S, ArchitecturesArray)
+                    {
+                        String Trimmed = String_EatSpaces(*S);
+
+                        bool bMatch = String_IsEqual(Trimmed, S(CPU_ARCHITECTURE_STRING), false);
+                        if (bMatch)
+                        {
+                            bAnyArchMatch = true;
+                            break;
+                        }
+
+                        StringArray AdditionalArchs = String_ParseIntoArray(&Scratch, S(CPU_ARCHITECTURE_STRING_EX), '|', 0, 128);
+                        for each_str (p, AdditionalArchs)
+                        {
+                            bMatch = String_IsEqual(Trimmed, *p, false);
+                            if (bMatch)
+                            {
+                                bAnyArchMatch = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!bAnyArchMatch)
+                    {
+                        const String BuildFileName = Filesystem_ExtractFileNameFromPath(BuildFilePath, true);
+
+                        #ifndef HOOD
+                        LOG_INLINE_ERROR("[ASSERTION FAILURE] %S can only be built on %S architectures. You are on %S. Aborting build...\n", BuildFileName, ArchitecturesLogString, S(CPU_ARCHITECTURE_STRING));
+                        #else
+                        LOG_ERROR("yo u cant build on dis platform nigga\n");
+                        #endif
+
+                        StringArray AdditionalArchs = String_ParseIntoArray(&Scratch, S(CPU_ARCHITECTURE_STRING_EX), '|', 0, 128);
+                        for each_str (p, AdditionalArchs)
+                        {
+                            if (Internal_LogCustomErrorMessage(Context, S("Arch"), *p, true))
+                            {
+                                break;
+                            }
+                        }
+
+                        bAssertionFailed = true;
+                        break;
+                    }
+                }
+            }
+            else if (String_IsEqual(Var.Name, S("Assert.WorkingDirectory"), false))
+            {
+                if (Var.Value.Length > 0)
+                {
+                    //String_ConvertSlashToPlatformSlash(&Var.Value);
+
+                    // did we get a relative directory?
+                    #if PLATFORM_WINDOWS
+                    bool bDriveSymbol = String_IndexOfChar(Var.Value, ':', NULL);
+                    #else
+                    bool bDriveSymbol = Var.Value.Data[0] == '/';
+                    #endif
+
+                    bool bRelative = !bDriveSymbol;
+
+                    StringLocal(AssertPath, MAX_PATH_LENGTH);
+
+                    if (bRelative)
+                    {
+                        u32 LastSlash = 0;
+                        if (String_IndexOfLastPathSlash(BuildFilePath, &LastSlash))
+                        {
+                            //String_Append(&AssertPath, StrSlice(BuildFilePathFull.Data, LastSlash+1));
+                            //String_Append(&AssertPath, Var.Value);
+                        }
+                        
+                        String_BuildPath(&AssertPath, Context->WorkingDirectory, StrSlice(BuildFilePath.Data, LastSlash), Var.Value);
+                    }
+                    else
+                    {
+                        String_Copy(&AssertPath, Var.Value);
+                        String_ConvertSlashToPlatformSlash(&AssertPath);
+                    }
+
+                    (void)Filesystem_ConvertRelativeToAbsolutePath(&AssertPath);
+                    (void)String_EatPathSeparatorsInlineFromEnd(&AssertPath);
+
+                    if (AssertPath.Length > 0 && !String_IsEqual(Context->WorkingDirectory, AssertPath, false))
+                    {
+                        const String BuildFileName = Filesystem_ExtractFileNameFromPath(BuildFilePath, true);
+
+                        #ifndef HOOD
+                        LOG_INLINE_ERROR("[ASSERTION FAILURE] %S must be ran from this directory:\n\n"
+                                         "                      \"%S\"\n\n"
+                                         "                    but we are in\n\n"
+                                         "                      \"%S\"\n", BuildFileName, AssertPath, Context->WorkingDirectory);
+                        #else
+                        LOG_ERROR("yo we cant run from this dir cuh \"%S\" you gotta run from \"%S\"", Context->WorkingDirectory, AssertPath);
+                        #endif
+
+                        bAssertionFailed = true;
+                        break;
+                    }
+                }
+            }
+            else if (String_IsEqual(Var.Name, S("Assert.Arg"), false))
+            {
+                StringArray CmdVarsArray = String_ParseIntoArray(&Scratch, Var.Value, ' ', 0, 128);
+
+                for each_str (S, CmdVarsArray)
+                {
+                    const String Trimmed = String_EatSpaces(*S);
+
+                    bool bFound = false;
+                    // TODO: extract into a function. replace all the other cmdoptionsdb loops
+                    for each (CmdOption, o, Context->CmdOptionsDB)
+                    {
+                        if (String_IsEqual(o.Name, Trimmed, false))
+                        {
+                            bFound = true;
+                            if (o.bEqualsToSomething && o.Value.Length == 0)
+                            {
+                                bFound = false;
+                            }
+                            
+                            break;
+                        }
+                    }
+
+                    if (!bFound)
+                    {
+                        #ifndef HOOD
+                        LOG_INLINE_ERROR("[ASSERTION FAILURE] Command line argument \"%S\" or \"%S=VALUE\" was not given."
+                                        "\n                    This is needed for the build to work properly. Aborting build...\n", Trimmed, Trimmed);
+                        #else
+                        LOG_ERROR("yo da cmd line var \"%S\" don exist cuh. dat shit not there nigga", Trimmed);
+                        #endif
+
+                        (void)Internal_LogCustomErrorMessage(Context, S("Arg"), Trimmed, true);
+
+                        bAssertionFailed = true;
+                        break;
+                    }
+                }
+            }
+            else if (String_IsEqual(Var.Name, S("Assert.Arg.Any"), false))
+            {
+                StringArray ArgArray = String_ParseIntoArray(&Scratch, Var.Value, ' ', 0, 128);
+
+                bool bFound = false;
+                for each_str (Arg, ArgArray)
+                {
+                    const String Trimmed = String_EatSpaces(*Arg);
+
+                    for each (CmdOption, o, Context->CmdOptionsDB)
+                    {
+                        if (String_IsEqual(o.Name, Trimmed, false))
+                        {
+                            bFound = true;
+
+                            // TODO: this might confuse people if they specify 'arg' but not 'arg=VALUE'?
+                            if (o.bEqualsToSomething && o.Value.Length == 0)
+                            {
+                                bFound = false;
+                            }
+
+                            if (bFound)
+                            {
+                                break;
+                            }
+                        }
+                    }
+
+                    if (bFound)
+                    {
+                        break;
+                    }
+                }
+
+                if (!bFound)
+                {
+                    LOG_INLINE_ERROR("[ASSERTION FAILURE] Any one of these arguments must be specified: %S\n", Var.Value);
+                    bAssertionFailed = true;
+                    break;
+                }
+            }
+            else if (String_IsEqual(Var.Name, S("Assert.Arg.OnlyOne"), false)) // TODO: make dynamic
+            {
+                StringArray ArgArray = String_ParseIntoArray(&Scratch, Var.Value, ' ', 0, 128);
+
+                bool bFound = false;
+                for each_str (Arg, ArgArray)
+                {
+                    const String Trimmed = String_EatSpaces(*Arg);
+
+                    for each (CmdOption, o, Context->CmdOptionsDB)
+                    {
+                        if (String_IsEqual(o.Name, Trimmed, false))
+                        {
+                            if (bFound)
+                            {
+                                bFound = false;
+                                goto MultipleArgsFound;
+                            }
+
+                            bFound = true;
+                            if (o.bEqualsToSomething && o.Value.Length == 0)
+                            {
+                                bFound = false;
+                            }
+                        }
+                    }
+                }
+                
+                MultipleArgsFound:
+                if (!bFound)
+                {
+                    LOG_INLINE_ERROR("[ASSERTION FAILURE] Only one of these arguments can be specified: %S\n", Var.Value);
+                    bAssertionFailed = true;
+                    break;
+                }
+            }
+            else
+            {
+                // no action is required
+            }
+        }
+
+        if (bAssertionFailed)
+        {
+            break;
+        }
+    }
+
+    return bAssertionFailed;
+}
+
 
 static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, ParsingContext* Context)
 {
@@ -3438,7 +3873,13 @@ NO_DISCARD bool ParseBuildFileV2(LinearAllocator* PermanentArena,
         Internal_SetDefaultBuildVariables(Context.TempArena, &Context);
     }
 
+    // run the asserts
+    bool bAssertionFailed = Internal_RunAsserts(&Context, BuildFilePath);
 
+    if (bAssertionFailed)
+    {
+        return false;
+    }
 
     //Clock_Tick(&c);
 
@@ -3473,25 +3914,32 @@ NO_DISCARD bool ParseBuildFileV2(LinearAllocator* PermanentArena,
     */
 
     // TODO: do not store include variables
+    // TODO: do not store asserts
 
     SLinkedList_Each(FileVariableList, This, &Context.VarListHead)
     {
         const FileVariable Var = (*This)->Var;
 
+        if (String_IsEqual(Var.Name, S("Assert"), false) ||
+            String_StartsWith(Var.Name, S("Assert."), false))
+        {
+            continue;
+        }
+
+        if (String_EndsWith(Var.Name, S(".ErrorMessage"), false))
+        {
+            continue;
+        }
+
         bool bExcludeFromConcat = false;
         {
-            if (String_IsEqual(Var.Name, S("Assert"), false) ||
-                String_StartsWith(Var.Name, S("Assert."), false))
-            {
-                bExcludeFromConcat = true;
-            }
-
             if (!bExcludeFromConcat)
             {
                 for EachE(i, ConcatExclusions)
                 {
                     if (String_IsEqual(Var.Name, ConcatExclusions[i], false) ||
-                        String_StartsWith(Var.Name, ConcatExclusions[i], false))
+                        String_StartsWith(Var.Name, ConcatExclusions[i], false) ||
+                        String_StartsWith(Var.Name, S("."), false))
                     {
                         bExcludeFromConcat = true;
                         break;

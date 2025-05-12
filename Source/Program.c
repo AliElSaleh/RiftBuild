@@ -3428,15 +3428,15 @@ static u32 BuildTarget(LinearAllocator* Arena,
     const String LinkerDefines              = GetVariableValue(ExpandedVariablesDB, S("LinkerDefines"));
     const String AssertCompilers            = GetVariableValue(ExpandedVariablesDB, S("Assert.Compiler"));
     const String AssertAssemblers           = GetVariableValue(ExpandedVariablesDB, S("Assert.Assembler"));
-    const String AssertPlatforms            = GetVariableValue(ExpandedVariablesDB, S("Assert.Platform"));
-    const String AssertPlatformVersion      = GetVariableValue(ExpandedVariablesDB, S("Assert.PlatformVersion"));
+    //const String AssertPlatforms            = GetVariableValue(ExpandedVariablesDB, S("Assert.Platform"));
+    //const String AssertPlatformVersion      = GetVariableValue(ExpandedVariablesDB, S("Assert.PlatformVersion"));
     const String AssertVersion              = GetVariableValue(ExpandedVariablesDB, S("Assert.Version"));
-    const String AssertArchitecture         = GetVariableValue(ExpandedVariablesDB, S("Assert.Architecture"));
+    //const String AssertArchitecture         = GetVariableValue(ExpandedVariablesDB, S("Assert.Architecture"));
     const String AssertPrograms             = GetVariableValue(ExpandedVariablesDB, S("Assert.ProgramExists"));
     const String AssertEnvVars              = GetVariableValue(ExpandedVariablesDB, S("Assert.EnvVarExists"));
     const String AssertBuildVars            = GetVariableValue(ExpandedVariablesDB, S("Assert.BuildVarExists"));
     //const String AssertLibs                 = GetVariableValue(ExpandedVariablesDB, S("Assert.LibExists"));
-    String AssertWorkingDirectory           = GetVariableValue(ExpandedVariablesDB, S("Assert.WorkingDirectory"));
+    //String AssertWorkingDirectory           = GetVariableValue(ExpandedVariablesDB, S("Assert.WorkingDirectory"));
     String IncludedSourceFiles              = GetVariableValue(ExpandedVariablesDB, S("IncludedSourceFiles"));
     String ExcludedSourceFiles              = GetVariableValue(ExpandedVariablesDB, S("ExcludedSourceFiles"));
     const String IncludedSourceDir          = GetVariableValue(ExpandedVariablesDB, S("IncludedSourceDirectories"));
@@ -3565,7 +3565,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     String_ConvertSlashToPlatformSlash(&Icon);
     String_ConvertSlashToPlatformSlash(&IncludedSourceFiles);
     String_ConvertSlashToPlatformSlash(&ExcludedSourceFiles);
-    String_ConvertSlashToPlatformSlash(&AssertWorkingDirectory);
+    //String_ConvertSlashToPlatformSlash(&AssertWorkingDirectory);
 
     // Extension could have multiple options listed
     // for example: to allow for a .dll and a static lib to be generated. So the first one is always the real extension
@@ -3830,13 +3830,13 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 // todo: prettier log messaging
                 #if PLATFORM_WINDOWS
                 LOG_ERROR(
-                    "You don't seem to have a C compiler installed on your machine."
-                    " Install either \"clang\", \"gcc\" or \"cl (msvc)\" and add to the path environment"
+                    "You don't seem to have a C nor C++ compiler installed on your machine."
+                    " Install either \"clang/clang++\", \"gcc/g++\" or \"cl (msvc)\" and add to the path environment"
                     " before using RiftBuild, as we require a working compiler program to function properly. Aborting build...\n");
                 #else
                 LOG_ERROR(
-                    "You don't seem to have a C compiler installed on your machine."
-                    " Install either \"clang\" or \"gcc\" and add to the PATH environment"
+                    "You don't seem to have a C nor C++ compiler installed on your machine."
+                    " Install either \"clang/clang++\" or \"gcc/g++\" and add to the PATH environment"
                     " before using RiftBuild, as we require a working compiler program to function properly. Aborting build...\n");
 
                 #endif
@@ -4184,8 +4184,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
         StringArray ProgramsArray      = String_ParseIntoArray(&Scratch, AssertPrograms, ' ', 0, 128);
         StringArray EnvVarsArray       = String_ParseIntoArray(&Scratch, AssertEnvVars, ' ', 0, 128);
         StringArray BuildVarsArray     = String_ParseIntoArray(&Scratch, AssertBuildVars, ' ', 0, 128);
-        StringArray PlatformsArray     = String_ParseIntoArray(&Scratch, AssertPlatforms, ' ', 0, 128);
-        StringArray ArchitecturesArray = String_ParseIntoArray(&Scratch, AssertArchitecture, ' ', 0, 128);
+        //StringArray PlatformsArray     = String_ParseIntoArray(&Scratch, AssertPlatforms, ' ', 0, 128);
+        //StringArray ArchitecturesArray = String_ParseIntoArray(&Scratch, AssertArchitecture, ' ', 0, 128);
         StringArray CompilersArray     = String_ParseIntoArray(&Scratch, AssertCompilers, ' ', 0, 128);
         
         {
@@ -4200,6 +4200,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
             }
         }
 
+        /*
         StringLocal(PlatformsLogString, 128);
         {
             u8 i = 0;
@@ -4294,7 +4295,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 }
             }
         }
+        */
 
+        /*
         StringLocal(ArchitecturesLogString, 128);
         {
             u8 i = 0;
@@ -4362,7 +4365,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 return 1;
             }
         }
+        */
 
+        /*
         if (AssertWorkingDirectory.Length > 0)
         {
             // did we get a relative directory?
@@ -4404,6 +4409,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 return 1;
             }
         }
+        */
 
         if (CompilersArray.Num > 0)
         {
