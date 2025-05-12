@@ -987,7 +987,7 @@ static void LogNameValuePair(LinearAllocator Scratch, const String Name, const S
     }
 }
 
-static void LogBuildVariable(LinearAllocator Scratch, TArray(FileVariable) VariablesDB, const String Name, const String DisplayName, const bool bWordWrap)
+UNUSED static void LogBuildVariable(LinearAllocator Scratch, TArray(FileVariable) VariablesDB, const String Name, const String DisplayName, const bool bWordWrap)
 {
     StringList List = GetVariableValueList(&Scratch, VariablesDB, Name);
 
@@ -3418,11 +3418,11 @@ static u32 BuildTarget(LinearAllocator* Arena,
     String AsmProgram                       = GetVariableValue(ExpandedVariablesDB, S("Assembler"));
     String CompilerFlagPrefixSymbol         = S("-");
     const String CompilerFlags              = GetVariableValue(ExpandedVariablesDB, S("CompilerFlags"));
-    const String AssemblerFlags             = GetVariableValue(ExpandedVariablesDB, S("AssemblerFlags"));
+    //const String AssemblerFlags             = GetVariableValue(ExpandedVariablesDB, S("AssemblerFlags"));
     String IncludeFlags                     = GetVariableValue(ExpandedVariablesDB, S("Includes"));
     const String Libraries                  = GetVariableValue(ExpandedVariablesDB, S("Libraries"));
     String LibraryDirectories               = GetVariableValue(ExpandedVariablesDB, S("LibraryDirectories"));
-    String LinkerFlags                      = GetVariableValue(ExpandedVariablesDB, S("LinkerFlags"));
+    //String LinkerFlags                      = GetVariableValue(ExpandedVariablesDB, S("LinkerFlags"));
     const String Defines                    = GetVariableValue(ExpandedVariablesDB, S("Defines"));
     const String UnDefines                  = GetVariableValue(ExpandedVariablesDB, S("UnDefines"));
     const String LinkerDefines              = GetVariableValue(ExpandedVariablesDB, S("LinkerDefines"));
@@ -6176,6 +6176,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
             }
             #endif
 
+            /*
             if (CompilerFlags.Length > 0)      { LogBuildVariable(*Arena, VariablesDB, S("CompilerFlags"),      S("    Compiler Flags:       "), !bNoWordWrapLogging); }
             if (AssemblerFlags.Length > 0)     { LogBuildVariable(*Arena, VariablesDB, S("AssemblerFlags"),     S("    Assembler Flags:      "), !bNoWordWrapLogging); }
             if (IncludeFlags.Length > 0)       { LogBuildVariable(*Arena, VariablesDB, S("Includes"),           S("    Includes:             "), !bNoWordWrapLogging); }
@@ -6185,6 +6186,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
             if (Defines.Length > 0)            { LogBuildVariable(*Arena, VariablesDB, S("Defines"),            S("    Defines:              "), !bNoWordWrapLogging); }
             if (UnDefines.Length > 0)          { LogBuildVariable(*Arena, VariablesDB, S("UnDefines"),          S("    UnDefines:            "), !bNoWordWrapLogging); }
             if (LinkerDefines.Length > 0)      { LogBuildVariable(*Arena, VariablesDB, S("LinkerDefines"),      S("    Linker Defines:       "), !bNoWordWrapLogging); }
+            */
 
             LOG_LINE_BREAK();
         }
@@ -6239,15 +6241,15 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
     if (!bExportingSomething)
     {
-        LogNameValuePair(*Arena, S("Expanded Compiler  Flags: "), ExpandedCompilerFlags,      !bNoWordWrapLogging);
-        LogNameValuePair(*Arena, S("Expanded Assembler Flags: "), ExpandedAssemblerFlags,     !bNoWordWrapLogging);
-        LogNameValuePair(*Arena, S("Expanded Include   Flags: "), ExpandedIncludeFlags,       !bNoWordWrapLogging);
-        LogNameValuePair(*Arena, S("Expanded Linker    Flags: "), ExpandedLinkerFlags,        !bNoWordWrapLogging);
-        LogNameValuePair(*Arena, S("Expanded Library   Flags: "), ExpandedLibraries,          !bNoWordWrapLogging);
-        LogNameValuePair(*Arena, S("Expanded Library   Paths: "), ExpandedLibraryDirectories, !bNoWordWrapLogging);
-        LogNameValuePair(*Arena, S("Expanded Define    Flags: "), ExpandedDefineFlags,        !bNoWordWrapLogging);
-        LogNameValuePair(*Arena, S("Expanded UnDefine  Flags: "), ExpandedUnDefineFlags,      !bNoWordWrapLogging);
-        LogNameValuePair(*Arena, S("Expanded Linker  Defines: "), ExpandedLinkerDefineFlags,  !bNoWordWrapLogging);
+        LogNameValuePair(*Arena, S("    Compiler  Flags:      "), ExpandedCompilerFlags,      !bNoWordWrapLogging);
+        LogNameValuePair(*Arena, S("    Assembler Flags:      "), ExpandedAssemblerFlags,     !bNoWordWrapLogging);
+        LogNameValuePair(*Arena, S("    Include   Flags:      "), ExpandedIncludeFlags,       !bNoWordWrapLogging);
+        LogNameValuePair(*Arena, S("    Linker    Flags:      "), ExpandedLinkerFlags,        !bNoWordWrapLogging);
+        LogNameValuePair(*Arena, S("    Define    Flags:      "), ExpandedDefineFlags,        !bNoWordWrapLogging);
+        LogNameValuePair(*Arena, S("    UnDefine  Flags:      "), ExpandedUnDefineFlags,      !bNoWordWrapLogging);
+        LogNameValuePair(*Arena, S("    Linker  Defines:      "), ExpandedLinkerDefineFlags,  !bNoWordWrapLogging);
+        LogNameValuePair(*Arena, S("    Library   Flags:      "), ExpandedLibraries,          !bNoWordWrapLogging);
+        LogNameValuePair(*Arena, S("    Library   Paths:      "), ExpandedLibraryDirectories, !bNoWordWrapLogging);
     }
 
     Clock IconClock = {0};
