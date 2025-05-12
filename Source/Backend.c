@@ -160,6 +160,17 @@ bool SourceFileDirectoryIterator(const String FullPath, const String RelativePat
         // ignore the intermediate and build directories
         if (String_IndexOfFirstPathSlash(RelativePath, NULL))
         {
+            if (String_StartsWith(RelativePath, Data->Params->IntermediateDirectory, false) ||
+                String_StartsWith(RelativePath, Data->Params->BuildDirectory, false))
+            {
+                return true;
+            }
+        }
+
+        // ignore the intermediate and build directories
+        /* TODO: verify if commenting this doesnt break anything?
+        if (String_IndexOfFirstPathSlash(RelativePath, NULL))
+        {
             if (RelativePath.Length == Data->Params->IntermediateBaseDirectory.Length)
             {
                 if (String_StartsWith(RelativePath, Data->Params->IntermediateDirectory, false))
@@ -177,6 +188,7 @@ bool SourceFileDirectoryIterator(const String FullPath, const String RelativePat
                 }
             }
         }
+        */
 
         u32 DotIndex = 0;
         bool bHasExt = String_IndexOfLastChar(FileName, '.', &DotIndex);
@@ -229,6 +241,17 @@ static bool ResourceFileDirectoryIterator(const String FullPath, const String Re
         // ignore the intermediate and build directories
         if (String_IndexOfFirstPathSlash(RelativePath, NULL))
         {
+            if (String_StartsWith(RelativePath, Data->Params->IntermediateDirectory, false) ||
+                String_StartsWith(RelativePath, Data->Params->BuildDirectory, false))
+            {
+                return true;
+            }
+        }
+
+        // ignore the intermediate and build directories
+        /*
+        if (String_IndexOfFirstPathSlash(RelativePath, NULL))
+        {
             if (RelativePath.Length == Data->Params->IntermediateBaseDirectory.Length)
             {
                 if (String_StartsWith(RelativePath, Data->Params->IntermediateDirectory, false))
@@ -245,6 +268,7 @@ static bool ResourceFileDirectoryIterator(const String FullPath, const String Re
                 }
             }
         }
+        */
 
         if (String_EndsWith(FileName, S(".rc"), false))
         {
@@ -774,6 +798,7 @@ bool C_Link(const BuildParams* Params)
         #if !PLATFORM_WINDOWS
         if (Params->bIsAssemblyExe)
         {
+            // TODO: specify custom rpath
             RunPathLinkFlag = S("-Wl,-rpath,'$ORIGIN'");
         }
         #endif
@@ -1314,6 +1339,8 @@ bool MSVC_Compile(const BuildParams* Params, u32* OutNumCompiled)
     return true;
 }
 
+// todo: compiling with cl makes this run serially? (happens on release mode only)
+
 bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String RelativePath)
 {
     ASSERT(Data != NULL);
@@ -1351,6 +1378,7 @@ bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String Relat
         u32 Num = (u32)Array_Num(Processes);
         if (Num == Params->MaxCompilersAtOnce)
         {
+            //LOG("waiting multiple...");
             u32 Index = Platform_WaitForMultipleHandles(*Params->Processes, (u32)Array_Num(*Params->Processes), -1, false);
 
             const u32 ExitCode = Platform_GetExitCodeForProcess(Processes[Index]);
@@ -1586,6 +1614,8 @@ bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String Relat
     if (!Platform_IsValidHandle(H)) { return false; }
     Array_Add(Processes, H);
     (*Data->NumCompiled) += 1;
+
+        //LOG_UINT(Array_Num(Processes));
 
     if (Params->bShouldWaitPerCompileProcess)
     {
