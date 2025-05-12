@@ -72,6 +72,42 @@ void AddOrAppendVariable(LinearAllocator* Arena,
     }
 }
 
+static String GetVarValueInList(FileVariableList* List, const String Key)
+{
+    String Result = String_Null();
+    {
+        SLinkedList_Each(FileVariableList, This, &List)
+        {
+            const FileVariable Var = (*This)->Var;
+
+            if (String_IsEqual(Var.Name, Key, false))
+            {
+                Result = Var.Value;
+                break;
+            }
+        }
+    }
+    return Result;
+}
+
+static bool DoesVarExistInList(FileVariableList* List, const String Slice)
+{
+    bool bFound = false;
+    {
+        SLinkedList_Each(FileVariableList, This, &List)
+        {
+            const FileVariable Var = (*This)->Var;
+
+            if (String_IsEqual(Var.Name, Slice, false))
+            {
+                bFound = true;
+                break;
+            }
+        }
+    }
+    return bFound;
+}
+
 NO_DISCARD RETURN_NON_NULL static FileVariableList* FileVariableList_Create(LinearAllocator* Arena, FileVariable Var)
 {
     FileVariableList* List = LinearAllocator_Allocate(Arena, sizeof(struct FileVariableList));
@@ -2612,33 +2648,9 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
             const String Condition = c.Condition;
 
             bool bIsPath = String_ContainsPathSeparators(Condition);
-            if (bIsPath)
+            if (!bIsPath)
             {
-                bool bIsDirectory = String_IsLast(Condition, '/') || String_IsLast(Condition, '\\');
 
-                StringLocal(Temp, MAX_PATH_LENGTH);
-                if (Filesystem_IsPathRelative(Condition))
-                {
-                    String_BuildPath(&Temp, Context->WorkingDirectory, Condition);
-                }
-                else
-                {
-                    String_Copy(&Temp, Condition);
-                }
-
-                if (bIsDirectory)
-                {
-                    bConditionMet = Filesystem_DoesDirectoryExist(Temp);
-                }
-                else
-                {
-                    bConditionMet = Filesystem_DoesFileExist(Temp);
-                }
-
-                bFoundVar = true;
-            }
-            else
-            {
                 if (bSearchEnvironmentVar)
                 {
                     if (Platform_GetEnvironmentVariableValue(Condition, &EnvVar))
@@ -2686,20 +2698,58 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
 
                 if (!bConditionMet && (bSearchFileVar || !bPrefixedWithSymbol))
                 {
-                    // check the condition string against the currently expanded build file vars
-                    // todo: remove
-                    for each (FileVariable, v, Context->VariablesDB)
+                    // check the condition string against the list of current vars (non-expanded)
+                    String Found = GetVarValueInList(Context->VarListHead, Condition);
+                    if (String_IsValid(Found))
                     {
-                        bool bMatch = String_IsEqual(v.Name, Condition, false);
-                        if (bMatch)
-                        {
-                            VarValue = v.Value;
-                            bConditionMet = c.ComparisonOp == Token_None;
-                            bFoundVar = true;
-                            break;
-                        }
+                        VarValue = Found;
+                        bConditionMet = c.ComparisonOp == Token_None;
+                        bFoundVar = true;
                     }
                 }
+            }
+
+            if (bFoundVar)
+            {
+                bIsPath = String_ContainsPathSeparators(VarValue);
+            }
+
+            // TODO: support inline expansion: if $qhfiohfa/sjeoi { }
+
+            if (bIsPath)
+            {
+                StringLocal(Expanded, MAX_PATH_LENGTH);
+                if (bFoundVar)
+                {
+                    (void)ExpandBuildVariableV2(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, String_Null(), VarValue, String_Null(), Context->WorkingDirectory, false, false, NULL);
+                }
+                else
+                {
+                    Expanded = Condition;
+                }
+
+                bool bIsDirectory = String_IsLast(Expanded, '/') || String_IsLast(Expanded, '\\');
+
+                StringLocal(Temp, MAX_PATH_LENGTH);
+                if (Filesystem_IsPathRelative(Expanded))
+                {
+                    String_BuildPath(&Temp, Context->WorkingDirectory, Expanded);
+                }
+                else
+                {
+                    String_Copy(&Temp, Expanded);
+                }
+
+                if (bIsDirectory)
+                {
+                    bConditionMet = Filesystem_DoesDirectoryExist(Temp);
+                }
+                else
+                {
+                    bConditionMet = Filesystem_DoesFileExist(Temp);
+                }
+
+                bFoundVar = true;
             }
 
             if (c.ComparisonOp != Token_None)
@@ -3200,41 +3250,6 @@ UNUSED static void Internal_PrintVariables(TArray(FileVariable) VariablesDB)
     }
 }
 
-static String GetVarValueInList(FileVariableList* List, const String Key)
-{
-    String Result = String_Null();
-    {
-        SLinkedList_Each(FileVariableList, This, &List)
-        {
-            const FileVariable Var = (*This)->Var;
-
-            if (String_IsEqual(Var.Name, Key, false))
-            {
-                Result = Var.Value;
-                break;
-            }
-        }
-    }
-    return Result;
-}
-
-static bool DoesVarExistInList(FileVariableList* List, const String Slice)
-{
-    bool bFound = false;
-    {
-        SLinkedList_Each(FileVariableList, This, &List)
-        {
-            const FileVariable Var = (*This)->Var;
-
-            if (String_IsEqual(Var.Name, Slice, false))
-            {
-                bFound = true;
-                break;
-            }
-        }
-    }
-    return bFound;
-}
 
 static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, ParsingContext* Context)
 {
