@@ -14,12 +14,11 @@
 #endif
 
 // todos
-// when appending values, use linked list?
 // provide examples with every parser error message
 // rename "IncludedSourceFiles" to "SourceFiles", same with the dir version
 // .rpath key
-// two arenas, one for permanently storing the key-value and another temp one for parsing that can be discarded
 // how to detect multiple inclusions of a file?
+// prevent including .build files
 
 #define MAX_KEY_LENGTH 64
 #define MAX_VALUE_LENGTH 8192
@@ -79,6 +78,18 @@ NO_DISCARD RETURN_NON_NULL static FileVariableList* FileVariableList_Create(Line
     List->Var  = Var;
     List->Next = NULL;
     return List;
+}
+
+
+static void AddVariableToList(LinearAllocator* Arena, ParsingContext* Context, const String Key, const String Value, const String Params, bool bIsSpecial)
+{
+    FileVariable var = {0};
+    var.Name         = String_Create(Arena, Key);
+    var.Value        = String_Create(Arena, Value);
+    var.SpecialData  = String_IsValid(Params) ? String_Create(Arena, Params) : String_Null();
+    var.bHasSpecial  = bIsSpecial;
+
+    SLinkedList_Push(Context->VarListTail, FileVariableList_Create(Arena, var));
 }
 
 ENUM_TYPED(ETokenType, u32)
@@ -2523,7 +2534,9 @@ NO_DISCARD static bool Analyze_KVNode(LinearAllocator* Arena, Node* Root, Parsin
         {
             String_Append(&Val, It.String);
         }
+        String_Copy(&Expanded, Val);
 
+        /*
         bool bFailed = false;
         bSuccess = ExpandBuildVariableV2(*Arena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, FinalKey, Val, FinalKey, Context->WorkingDirectory, false, false, &bFailed);
         if ((bFailed && !Context->bNoFail) || !bSuccess)
@@ -2536,6 +2549,7 @@ NO_DISCARD static bool Analyze_KVNode(LinearAllocator* Arena, Node* Root, Parsin
             //LOG("%S", Expanded);
             bSuccess = true;
         }
+        */
     }
 
     if (Root->Parameters)
@@ -2552,6 +2566,9 @@ NO_DISCARD static bool Analyze_KVNode(LinearAllocator* Arena, Node* Root, Parsin
 
     if (bSuccess)
     {
+        AddVariableToList(Arena, Context, FinalKey, Expanded, Params, Root->bIsSpecial);
+
+        /*
         FileVariable var = {0};
         var.Name         = String_Create(Arena, FinalKey);
         var.Value        = String_Create(Arena, Expanded);
@@ -2559,6 +2576,7 @@ NO_DISCARD static bool Analyze_KVNode(LinearAllocator* Arena, Node* Root, Parsin
         var.bHasSpecial  = Root->bIsSpecial;
 
         SLinkedList_Push(Context->VarListTail, FileVariableList_Create(Arena, var));
+        */
     }
 
     return bSuccess;
@@ -2669,6 +2687,7 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
                 if (!bConditionMet && (bSearchFileVar || !bPrefixedWithSymbol))
                 {
                     // check the condition string against the currently expanded build file vars
+                    // todo: remove
                     for each (FileVariable, v, Context->VariablesDB)
                     {
                         bool bMatch = String_IsEqual(v.Name, Condition, false);
@@ -3064,10 +3083,11 @@ NO_DISCARD static NodeList* Analyze_List(LinearAllocator* Arena, Node* Block, Pa
             }
             else if (Root->Type == Node_Help)
             {
+                // TODO: exit out fully
                 if (Context->Level > 1)
                 {
-                    LOG_ERROR("'.Help' can not be inside an 'if' or 'else' block");
-                    return NULL;
+                    //LOG_ERROR("'.Help' can not be inside an 'if' or 'else' block");
+                    //return NULL;
                 }
 
                 bSuccess = Analyze_KVNode(Arena, Root, Context);
@@ -3085,8 +3105,8 @@ NO_DISCARD static NodeList* Analyze_List(LinearAllocator* Arena, Node* Block, Pa
             {
                 if (Context->Level > 1)
                 {
-                    LOG_ERROR("'%S' can not be inside an 'if' or 'else' block", Root->Key);
-                    return NULL;
+                    //LOG_ERROR("'%S' can not be inside an 'if' or 'else' block", Root->Key);
+                    //return NULL;
                 }
 
                 bSuccess = Analyze_KVNode(Arena, Root, Context);
@@ -3180,6 +3200,146 @@ UNUSED static void Internal_PrintVariables(TArray(FileVariable) VariablesDB)
     }
 }
 
+static String GetVarValueInList(FileVariableList* List, const String Key)
+{
+    String Result = String_Null();
+    {
+        SLinkedList_Each(FileVariableList, This, &List)
+        {
+            const FileVariable Var = (*This)->Var;
+
+            if (String_IsEqual(Var.Name, Key, false))
+            {
+                Result = Var.Value;
+                break;
+            }
+        }
+    }
+    return Result;
+}
+
+static bool DoesVarExistInList(FileVariableList* List, const String Slice)
+{
+    bool bFound = false;
+    {
+        SLinkedList_Each(FileVariableList, This, &List)
+        {
+            const FileVariable Var = (*This)->Var;
+
+            if (String_IsEqual(Var.Name, Slice, false))
+            {
+                bFound = true;
+                break;
+            }
+        }
+    }
+    return bFound;
+}
+
+static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, ParsingContext* Context)
+{
+
+    if (!DoesVarExistInList(Context->VarListHead, S("BuildDirectory")))
+    {
+        AddVariableToList(Arena, Context, S("BuildDirectory"), S("Build"), String_Null(), false);
+    }
+
+    if (!DoesVarExistInList(Context->VarListHead, S("IntermediateDirectory")))
+    {
+        AddVariableToList(Arena, Context, S("IntermediateDirectory"), S("Intermediate"), String_Null(), false);
+    }
+
+    if (!DoesVarExistInList(Context->VarListHead, S("Version")))
+    {
+        AddVariableToList(Arena, Context, S("Version"), S("1.0.0"), String_Null(), false);
+    }
+
+    const String Type = GetVarValueInList(Context->VarListHead, S("Type"));
+    bool bSetExtension = false;
+    if (String_IsValid(Type))
+    {
+        String Extension = String_Null();
+        
+        if (String_IsEqual(Type, S("lib"), false) ||
+            String_IsEqual(Type, S("library"), false))
+        {
+            #if PLATFORM_WINDOWS
+                Extension = S(".dll .lib");
+            #elif PLATFORM_APPLE
+                Extension = S(".dylib .a");
+            #else
+                Extension = S(".so .a");
+            #endif
+        }
+        else if (String_IsEqual(Type, S("static_lib"), false) ||
+                 String_IsEqual(Type, S("static_library"), false))
+        {
+            #if PLATFORM_WINDOWS
+                Extension = S(".lib");
+            #elif PLATFORM_APPLE
+                Extension = S(".a");
+            #else
+                Extension = S(".a");
+            #endif
+        }
+        else if (String_IsEqual(Type, S("shared_lib"), false) ||
+                 String_IsEqual(Type, S("shared_library"), false) ||
+                 String_IsEqual(Type, S("dynamic_lib"), false) ||
+                 String_IsEqual(Type, S("dynamic_library"), false))
+        {
+            #if PLATFORM_WINDOWS
+                Extension = S(".dll");
+            #elif PLATFORM_APPLE
+                Extension = S(".dylib");
+            #else
+                Extension = S(".so");
+            #endif
+        }
+        else if (String_IsEqual(Type, S("app"), false) ||
+                 String_IsEqual(Type, S("application"), false) ||
+                 String_IsEqual(Type, S("exe"), false) ||
+                 String_IsEqual(Type, S("executable"), false))
+        {
+            #if PLATFORM_WINDOWS
+                Extension = S(".exe");
+            #elif PLATFORM_APPLE
+                Extension = String_Null();
+            #else
+                Extension = String_Null();
+            #endif
+        }
+        else if (String_IsEqual(Type, S("gch"), false))
+        {
+            Extension = S(".gch");
+        }
+        else if (String_IsEqual(Type, S("pch"), false) ||
+                 String_IsEqual(Type, S("pre_compiled_header"), false))
+        {
+            Extension = S(".pch");
+        }
+        else
+        {
+            // no action required
+        }
+
+        AddVariableToList(Arena, Context, S("Extension"), Extension, String_Null(), false);
+        bSetExtension = true;
+    }
+
+    if (!bSetExtension && !DoesVarExistInList(Context->VarListHead, S("Extension")))
+    {
+        #if PLATFORM_WINDOWS
+        String Value = S(".exe");
+        #elif PLATFORM_APPLE
+        String Value = String_Null();
+        #else
+        String Value = String_Null();
+        #endif
+
+        AddVariableToList(Arena, Context, S("Extension"), Value, String_Null(), false);
+    }
+}
+
 NO_DISCARD bool ParseBuildFileV2(LinearAllocator* PermanentArena,
                     const FileHandle H,
                     const String BuildFilePath,
@@ -3229,6 +3389,26 @@ NO_DISCARD bool ParseBuildFileV2(LinearAllocator* PermanentArena,
         LOG_ERROR("Errors occured"); // todo: remove this useful ahh message
         return false;
     }
+
+    // check for certain keys if they exist, if they dont, add the default value
+    {
+        if (!DoesVarExistInList(Context.VarListHead, S("Assembly")))
+        {
+            String FinalName = S("Untitled");
+
+            if (IsValidFileHandle(H))
+            {
+                FinalName = Filesystem_ExtractFileNameFromPath(BuildFilePath, false);
+            }
+
+            AddVariableToList(Context.TempArena, &Context, S("Assembly"), FinalName, String_Null(), false);
+        }
+
+
+        Internal_SetDefaultBuildVariables(Context.TempArena, &Context);
+    }
+
+
 
     //Clock_Tick(&c);
 
@@ -3280,7 +3460,8 @@ NO_DISCARD bool ParseBuildFileV2(LinearAllocator* PermanentArena,
             {
                 for EachE(i, ConcatExclusions)
                 {
-                    if (String_IsEqual(Var.Name, ConcatExclusions[i], false))
+                    if (String_IsEqual(Var.Name, ConcatExclusions[i], false) ||
+                        String_StartsWith(Var.Name, ConcatExclusions[i], false))
                     {
                         bExcludeFromConcat = true;
                         break;
@@ -3289,13 +3470,16 @@ NO_DISCARD bool ParseBuildFileV2(LinearAllocator* PermanentArena,
             }
         }
 
+        StringLocal(Expanded, MAX_VALUE_LENGTH);
+        (void)ExpandBuildVariableV2(*Context.TempArena, Context.VarListHead, Context.CmdOptionsDB, &Expanded, Var.Name, Var.Value, Var.Name, Context.WorkingDirectory, false, false, NULL);
+
         if (bExcludeFromConcat)
         {
-            AddVariable(PermanentArena, Context.VariablesDB, Var.Name, Var.Value, Var.SpecialData, Var.bHasSpecial);
+            AddVariable(PermanentArena, Context.VariablesDB, Var.Name, Expanded, Var.SpecialData, Var.bHasSpecial);
         }
         else
         {
-            AddOrAppendVariable(PermanentArena, Context.VariablesDB, Var.Name, Var.Value, Var.SpecialData, Var.bHasSpecial);
+            AddOrAppendVariable(PermanentArena, Context.VariablesDB, Var.Name, Expanded, Var.SpecialData, Var.bHasSpecial);
         }
     }
 

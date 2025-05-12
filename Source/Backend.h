@@ -6,6 +6,10 @@
 #include "Core/Filesystem.h"
 #endif
 
+#define MAX_KEY_LENGTH 64
+#define MAX_VALUE_LENGTH 8192
+#define MAX_META_KEY_LENGTH 64
+
 global bool bQuietBuild;
 global bool bNoWordWrapLogging;
 

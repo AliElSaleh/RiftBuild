@@ -14,7 +14,7 @@ if cl
     WarningFlagsDisabled         /wd4100 /wd4164 /wd4668 /wd5045 /wd4711 $TempWarnings
 
     SharedCompilerFlags          $WarningFlags $WarningFlagsDisabled /TC /GS- /Gs999999999 /EHs- /analyze /analyze:stacksize 8000000
-    SharedCompilerFlags:debug    /MTd /Od /Zi /FS /Fd"$(IntermediateDirectory)\$(Assembly).pdb"
+    SharedCompilerFlags:debug    /MTd /Od /Zi /FS /Fd"$IntermediateDirectory\$(Assembly).pdb"
     SharedCompilerFlags:!debug   /MT /O2
     SharedCompilerFlags:32       /d2noftol3
     

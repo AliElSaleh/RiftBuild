@@ -1028,7 +1028,7 @@ void LogString_WordWrapped(LinearAllocator Scratch, const String Name, const Str
 
 static void ListVariables(LinearAllocator Arena, const String Name, TArray(FileVariable) ExpandedVariablesDB) 
 {
-    const String Exclusions[29] =
+    const String Exclusions[30] =
     {
         S("Assert.ProgramExists"),
         S("Assert.LibExists"),
@@ -1045,6 +1045,7 @@ static void ListVariables(LinearAllocator Arena, const String Name, TArray(FileV
         S("PreLink"),
         S("PostLink"),
         S("RunAssembly"),
+        S(".Run"),
         S("Depend"),
         S("Depends"),
         S("Assembly"),
@@ -1728,7 +1729,7 @@ static void Internal_AddOrUpdateBuildVariable(TArray(FileVariable) VariablesDB, 
     Array_Add(VariablesDB, Expanded);
 }
 
-static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const FileHandle BuildFileHandle, TArray(FileVariable) VariablesDB, TArray(FileVariable) ExpandedVariablesDB)
+static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const FileHandle BuildFileHandle, TArray(FileVariable) VariablesDB)//, TArray(FileVariable) ExpandedVariablesDB)
 {
     if (!DoesBuildVarExist(VariablesDB, S("Assembly")))
     {
@@ -1761,10 +1762,10 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const File
         Expanded.bHasSpecial = false;
 
         Array_Add(VariablesDB, Expanded);
-        Array_Add(ExpandedVariablesDB, Expanded);
+        //Array_Add(ExpandedVariablesDB, Expanded);
     }
 
-    const String Type = GetVariableValue(ExpandedVariablesDB, S("Type"));
+    const String Type = GetVariableValue(VariablesDB, S("Type"));
     if (String_IsValid(Type))
     {
         String Extension = String_Null();
@@ -1838,7 +1839,7 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const File
         Expanded.Value = Extension;
 
         Array_Add(VariablesDB, Expanded);
-        Array_Add(ExpandedVariablesDB, Expanded);
+        //Array_Add(ExpandedVariablesDB, Expanded);
     }
 
     if (!DoesBuildVarExist(VariablesDB, S("Extension")))
@@ -1856,7 +1857,7 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const File
         #endif
 
         Array_Add(VariablesDB, Expanded);
-        Array_Add(ExpandedVariablesDB, Expanded);
+        //Array_Add(ExpandedVariablesDB, Expanded);
     }
 
     if (!DoesBuildVarExist(VariablesDB, S("Compiler")))
@@ -1867,7 +1868,7 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const File
         Expanded.bHasSpecial = false;
 
         Array_Add(VariablesDB, Expanded);
-        Array_Add(ExpandedVariablesDB, Expanded);
+        //Array_Add(ExpandedVariablesDB, Expanded);
     }
 
     if (!DoesBuildVarExist(VariablesDB, S("Version")))
@@ -1878,7 +1879,7 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const File
         Expanded.bHasSpecial = false;
 
         Array_Add(VariablesDB, Expanded);
-        Array_Add(ExpandedVariablesDB, Expanded);
+        //Array_Add(ExpandedVariablesDB, Expanded);
     }
 
     if (!DoesBuildVarExist(VariablesDB, S("BuildDirectory")))
@@ -1889,7 +1890,7 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const File
         Expanded.bHasSpecial = false;
 
         Array_Add(VariablesDB, Expanded);
-        Array_Add(ExpandedVariablesDB, Expanded);
+        //Array_Add(ExpandedVariablesDB, Expanded);
     }
 
     if (!DoesBuildVarExist(VariablesDB, S("IntermediateDirectory")))
@@ -1900,7 +1901,7 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const File
         Expanded.bHasSpecial = false;
 
         Array_Add(VariablesDB, Expanded);
-        Array_Add(ExpandedVariablesDB, Expanded);
+        //Array_Add(ExpandedVariablesDB, Expanded);
     }
 
     if (!DoesBuildVarExist(VariablesDB, S("SourceDirectory")))
@@ -1911,7 +1912,7 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const File
         Expanded.bHasSpecial = false;
 
         Array_Add(VariablesDB, Expanded);
-        Array_Add(ExpandedVariablesDB, Expanded);
+        //Array_Add(ExpandedVariablesDB, Expanded);
     }
 }
 
@@ -2917,7 +2918,6 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
     EAssemblyType AssemblyType = AssemblyType_None;
     //bool bIsAssemblyExe = false;
-    bool bShouldWaitPerCompileProcess = false;
 
     #if PLATFORM_WINDOWS
     bool bFallbackVersion = false;
@@ -3117,7 +3117,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
         // set defaults for a few key build variables
         bool bAnyOverriden = CheckForBuildVariableOverrides(VariablesDB, ExpandedVariablesDB, CmdOptionsDB);
-        Internal_SetDefaultBuildVariables(Arena, BuildFileHandle, VariablesDB, ExpandedVariablesDB);
+        //Internal_SetDefaultBuildVariables(Arena, BuildFileHandle, VariablesDB);//, ExpandedVariablesDB);
 
         if (!bAnyVarsOverriden) { bAnyVarsOverriden = bAnyOverriden; }
 
@@ -3331,7 +3331,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
         // set defaults for a few key build variables
         FileHandle f = {0};
         bool bAnyOverriden = CheckForBuildVariableOverrides(VariablesDB, ExpandedVariablesDB, CmdOptionsDB);
-        Internal_SetDefaultBuildVariables(Arena, f, VariablesDB, ExpandedVariablesDB);
+        Internal_SetDefaultBuildVariables(Arena, f, VariablesDB);//, ExpandedVariablesDB);
 
         bAnyVarsOverriden = bAnyOverriden;
     }
@@ -3486,8 +3486,6 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
         return 0;
     }
-
-    bShouldWaitPerCompileProcess = bSingleThread;
 
     u8 MaxErrorsAllowed = 1; // default to 1 error (for the people's sanity)
     if (String_IsValid(MaxCompilerErrors))
@@ -4685,17 +4683,15 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 }
             }
 
-            //void* ArenaMemory = Platform_MemAllocZero(Kibibytes(512));
-            /*
+            void* ArenaMemory = Platform_MemAllocZero(Mebibytes(1));
             if (!ArenaMemory)
             {
                 LOG_ERROR("Failed to allocate memory from the operating system for %S", BuildFileNameWithExt);
                 return 1;
             }
-            */
 
             LinearAllocator NewArena = {0};
-            i8 ArenaMemory[Mebibytes(1)] = {0};
+            //i8 ArenaMemory[Mebibytes(1)] = {0};
             LinearAllocator_Create(Mebibytes(1), ArenaMemory, &NewArena);
 
             StringList List = String_SplitIntoList(&NewArena, SpecifiedParams, ' ', true);
@@ -4733,7 +4729,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
             Data.Path = &NewBuildFilePath;
             Data.Arguments = NewParams;
 
-            Filesystem_IterateDirectory_Ex(CustomWorkingPath, &BuildFileDirectoryIterator, true, &Data);
+            Filesystem_IterateDirectory_Ex(CustomWorkingPath, &BuildFileDirectoryIterator, !bDirectoryOnly, &Data);
 
             if (!Data.bFoundBuildFile)
             {
@@ -6278,6 +6274,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
         MaxCompilersAtOnce = 1;
     }
 
+    //LOG_INFO("Max compilers: %u", MaxCompilersAtOnce);
+
     if (!String_IsEqual(BuildDirectory, S("."), false))
     {
         StringLocal(FullBuildDirectory, MAX_PATH_LENGTH);
@@ -6342,7 +6340,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     p.PCHHeaderPath                 = PCHHeaderPath;
     p.MaxCompilersAtOnce            = MaxCompilersAtOnce;
     p.MaxErrors                     = MaxErrorsAllowed;
-    p.bShouldWaitPerCompileProcess  = bShouldWaitPerCompileProcess;
+    p.bShouldWaitPerCompileProcess  = bSingleThread;
     p.CompilerFlags                 = ExpandedCompilerFlags;
     p.AssemblerFlags                = ExpandedAssemblerFlags;
     p.LinkerFlags                   = ExpandedLinkerFlags;
@@ -7605,20 +7603,20 @@ End:
 
         for each (FileVariable, v, ExpandedVariablesDB)
         {
-            if (!String_IsEqual(v.Name, S("RunAssembly"), false))
+            // todo: eventually remove runassembly key
+            if (String_IsEqual(v.Name, S("RunAssembly"), false) ||
+                String_IsEqual(v.Name, S(".Run"), false))
             {
-                continue;
-            }
-
-            if (v.bHasSpecial)
-            {
-                if (NumCompiled == 0)
+                if (v.bHasSpecial)
                 {
-                    continue;
+                    if (NumCompiled == 0)
+                    {
+                        continue;
+                    }
                 }
-            }
 
-            Internal_RunAssembly(*Arena, WorkingPath, BuildBaseDirectory, AssemblyNameWithExt, v.Value);
+                Internal_RunAssembly(*Arena, WorkingPath, BuildBaseDirectory, AssemblyNameWithExt, v.Value);
+            }
         }
     }
 
