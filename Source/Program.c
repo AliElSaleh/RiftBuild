@@ -3458,6 +3458,11 @@ static u32 BuildTarget(LinearAllocator* Arena,
         IncludedSourceFiles = GetVariableValue(ExpandedVariablesDB, S("SourceFiles"));
     }
 
+    if (!IncludedSourceDir.Length)
+    {
+        IncludedSourceDir = GetVariableValue(ExpandedVariablesDB, S("SourceDirectories"));
+    }
+
     #if PLATFORM_APPLE
     const String CustomInfoPlist            = GetVariableValue(ExpandedVariablesDB, S("Bundle.InfoPlist"));
     const String CustomVersionPlist         = GetVariableValue(ExpandedVariablesDB, S("Bundle.VersionPlist"));
