@@ -389,6 +389,14 @@ STRUCT(Parser)
     u8          Padding[8];
 };
 
+NO_DISCARD static Parser Parser_Create(TArray(Token) Tokens)
+{
+    Parser p    = {0};
+    p.Tokens    = Tokens;
+    p.NumTokens = (u32)Array_Num(Tokens);
+    return p;
+}
+
 NO_DISCARD RETURN_NON_NULL static NodeList* NodeList_Create(LinearAllocator* Arena, Node* Node, NodeList* Next)
 {
     NodeList* List = LinearAllocator_Allocate(Arena, sizeof(struct NodeList));
@@ -826,17 +834,8 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Special_Help(LinearAllocator* Aren
     return Root;
 }
 
-NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena,
-                    Parser *P,
-                    u32 Offset,
-                    bool bCameFromInline);
-
-
-NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena,
-                    Parser *P,
-                    u32 Offset,
-                    bool bInIf
-                    );
+NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena, Parser *P, u32 Offset);
+NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Parser *P, u32 Offset, bool bInIf);
 
 NO_DISCARD RETURN_NON_NULL static Node* Parse_Include(LinearAllocator* Arena, Parser *P)
 {
@@ -876,10 +875,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Include(LinearAllocator* Arena, Pa
 }
 
 
-NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena,
-                    Parser* P,
-                    u32 Offset,
-                    bool bCameFromInline)
+NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena, Parser* P, u32 Offset)
 {
     Node* Root = Node_Create(Arena, Node_If);
 
@@ -919,13 +915,6 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena,
                 bInlineIf = false;
                 break;
             }
-
-            /*
-            if (bCameFromInline)
-            {
-                break;
-            }
-            */
         }
         else if (t.Type == Token_Semicolon)
         {
@@ -992,12 +981,8 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena,
                     break;
                 }
             }
-            else
-            {
-            }
 
             bInlineIf = false;
-
         }
         else if (t.Type == Token_If)
         {
@@ -1087,7 +1072,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena,
                 {
                     SLinkedList_Push(NextCondition, IfConditionList_Create(Arena, Condition));
 
-                    Node* IfNode = Parse_If(Arena, P, 1, true);
+                    Node* IfNode = Parse_If(Arena, P, 1);
                     if (IfNode == &Node_Null)
                     {
                         return &Node_Null;
@@ -1248,7 +1233,6 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena,
     u32 Start = 0;
     u32 NumTokens = P->NumTokens;
     Token LastRootToken = Token_Null;
-    //bool bPreviouslyEvaluatedIfStatement = false;
     bool bSkipRootTokenUpdate = false;
 
     DeferredKVData Deferred = DeferredKVData_Null;
@@ -1258,10 +1242,6 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena,
         Start = P->Current;
         Token t = P->Tokens[P->Current];
         Token* tPtr = &P->Tokens[P->Current];
-
-        //bool bJustEvaluatedIfStatement = false;
-
-        // @todo: make sure to handle all tokens possible
 
         if (t.Type == Token_Semicolon  ||
             t.Type == Token_Whitespace ||
@@ -1709,7 +1689,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena,
             bSkipRootTokenUpdate = true;
 
             NodeList* List = NodeList_CreateNull(Arena);
-            Node* IfNode = Parse_If(Arena, P, 1, false);
+            Node* IfNode = Parse_If(Arena, P, 1);
             List->Node = IfNode;
             if (IfNode == &Node_Null)
             {
@@ -1717,8 +1697,6 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena,
             }
 
             SLinkedList_Push(NextNode, List);
-
-            //bJustEvaluatedIfStatement = true;
         }
         else
         {
@@ -1731,13 +1709,6 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena,
         {
             Parser_Advance(P);
         }
-
-        /*
-        if (!(t.Type == Token_LCurly || t.Type == Token_Newline))
-        {
-            bPreviouslyEvaluatedIfStatement = bJustEvaluatedIfStatement;
-        }
-        */
 
         if (!bSkipRootTokenUpdate)
         {
@@ -1903,7 +1874,6 @@ static void Print_KVNode(Node* Root, u32 Level)
         String_AppendChar(&Spaces, ' ');
     }
 
-    //if (Root->Key)
     {
         LOG("\n%S [KEY]      %S", Spaces, Root->Key);
 
@@ -1963,10 +1933,7 @@ static void Print_BlockNode(NodeList* List, u32 Level)
         {
             if (Root->Type == Node_Block)
             {
-                //if (Root->Key)
-                {
-                    LOG(" %S[%S]", Spaces, Root->Key);
-                }
+                LOG(" %S[%S]", Spaces, Root->Key);
 
                 Print_BlockNode(Root->List, Level+1);
             }
@@ -2041,12 +2008,6 @@ static void Print_IfNode(Node* Root, u32 Level)
 
             Next = Next->Next;
         }
-        /*
-        for each_str_list (*Root->ConditionList)
-        {
-            LOG_INLINE("%S ", It.String);
-        }
-        */
     }
 
     LOG_LINE_BREAK();
@@ -2227,7 +2188,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
                         uchar PeekChar = Lexer_Peek(&l);
                         if (PeekChar == '#')
                         {
-                            xx Lexer_Advance(&l);
+                            Lexer_Advance(&l);
                             if (Lexer_Match(&l, '#'))
                             {
                                 break;
@@ -2244,14 +2205,14 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
                             l.Line += 1;
                         }
 
-                        xx Lexer_Advance(&l);
+                        Lexer_Advance(&l);
                     }
                 }
                 else
                 {
                     while (!IsNewline(Lexer_Peek(&l)))
                     {
-                        xx Lexer_Advance(&l);
+                        Lexer_Advance(&l);
                     }
                 }
             }
@@ -2295,7 +2256,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
                         while (Lexer_Peek(&l) == ' ' ||
                                Lexer_Peek(&l) == '\t')
                         {
-                            xx Lexer_Advance(&l);
+                            Lexer_Advance(&l);
                         }
 
                         Lexer_AddToken(&l, Token_Whitespace);
@@ -2312,7 +2273,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
                         l.Line += 1;
                     }
 
-                    xx Lexer_Advance(&l);
+                    Lexer_Advance(&l);
                     Peek = Lexer_Peek(&l);
                 }
 
@@ -2375,9 +2336,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
         {
             //Clock_Start(&c);
 
-            Parser p = {0};
-            p.Tokens = Tokens;
-            p.NumTokens = (u32)Array_Num(Tokens);
+            Parser p = Parser_Create(Tokens);
             Result = Parse_Block(Arena, &p, 0, false);
 
             //Clock_Tick(&c);
@@ -2405,8 +2364,6 @@ NO_DISCARD static NodeList* Analyze_IncludeNode(LinearAllocator* Arena, Node* Ro
 
     if (Root->Value)
     {
-        //LOG_INLINE("INCLUDE: ");
-
         StringLocal(Val, MAX_VALUE_LENGTH);
         for each_string_in_list (*Root->Value)
         {
@@ -2417,16 +2374,12 @@ NO_DISCARD static NodeList* Analyze_IncludeNode(LinearAllocator* Arena, Node* Ro
         bSuccess = ExpandBuildVariableV2(*Arena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, Root->Key, Val, Root->Key, Context->WorkingDirectory, false, false, &bFailed);
         if (bFailed || !bSuccess)
         {
-            //LOG_INLINE_WARNING("<indeterminate>\n");
             bSuccess = false;
         }
         else
         {
-            //LOG("%S", Expanded);
             bSuccess = true;
         }
-
-        //LOG_LINE_BREAK();
     }
 
     if (bSuccess)
@@ -2526,17 +2479,9 @@ NO_DISCARD static NodeList* Analyze_IncludeNode(LinearAllocator* Arena, Node* Ro
 
                 Node* AST = Internal_ParseFile(Arena, f);
 
-                /*
-                FileVariableList* NewList = NULL;
-                ParsingContext NewContext = Context;
-                NewContext.VarList = &NewList;
-                NewContext.Level = 0;
-                */
-
                 u8 Level = Context->Level;
                 Context->Level = 0;
 
-                //NodeList* List = Analyze_List(Arena, AST, NewContext, false, &NewList);
                 NodeList* List = Analyze_List(Arena, AST, Context, false);
                 if (List)
                 {
@@ -2544,13 +2489,6 @@ NO_DISCARD static NodeList* Analyze_IncludeNode(LinearAllocator* Arena, Node* Ro
                 }
 
                 Context->Level = Level;
-
-                /*
-                if (NewList)
-                {
-                    SLinkedList_Push(*VarList, NewList);
-                }
-                */
             }
         }
     }
@@ -2566,11 +2504,11 @@ NO_DISCARD static NodeList* Analyze_IncludeNode(LinearAllocator* Arena, Node* Ro
     return IndeterminateList;
 }
 
-NO_DISCARD static bool Analyze_KVNode(LinearAllocator* Arena, Node* Root, ParsingContext* Context)
+static void Analyze_KVNode(LinearAllocator* Arena, Node* Root, ParsingContext* Context)
 {
-    bool bSuccess = true;
-
     StringLocal(FinalKey, MAX_KEY_LENGTH);
+    StringLocal(Val, MAX_VALUE_LENGTH);
+    StringLocal(Params, MAX_META_KEY_LENGTH);
 
     // this is a namespace basically
     // SomeKey {
@@ -2602,42 +2540,25 @@ NO_DISCARD static bool Analyze_KVNode(LinearAllocator* Arena, Node* Root, Parsin
         }
     }
 
-    //LOG("KEY:   %S", FinalKey);
-
-    StringLocal(Expanded, MAX_VALUE_LENGTH);
-    StringLocal(Params, MAX_META_KEY_LENGTH);
-
+    // TODO: debate whether or not we should even store?
     if (Root->Value)
     {
-        //LOG_INLINE("VALUE: ");
-
-        StringLocal(Val, MAX_VALUE_LENGTH);
         for each_string_in_list (*Root->Value)
         {
             String_Append(&Val, It.String);
         }
-        String_Copy(&Expanded, Val);
     }
 
     if (Root->Parameters)
     {
-        //LOG_INLINE("PARAMS: ");
-        for each_str_list (*Root->Parameters)
+        for each_string_in_list (*Root->Parameters)
         {
-            String_AppendF(&Params, S("%S"), It.String);
+            String_Append(&Params, It.String);
         }
         xx String_EatSpacesInlineFromEnd(&Params);
-        //LOG("%S", Params);
     }
 
-    //LOG_LINE_BREAK();
-
-    if (bSuccess)
-    {
-        AddVariableToList(Arena, Context, FinalKey, Expanded, Params, Root->bIsSpecial);
-    }
-
-    return bSuccess;
+    AddVariableToList(Arena, Context, FinalKey, Val, Params, Root->bIsSpecial);
 }
 
 NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, ParsingContext* Context, bool bInIf)
@@ -3018,11 +2939,7 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
             }
             else if (Left->Type == Node_KeyValue)
             {
-                bool bSuccess = Analyze_KVNode(Arena, Left, Context);
-                if (!bSuccess)
-                {
-                    SLinkedList_Push(IndeterminateNext, NodeList_Create(Arena, Left, NULL));
-                }
+                Analyze_KVNode(Arena, Left, Context);
             }
         }
 
@@ -3047,11 +2964,7 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
             }
             else if (Right->Type == Node_KeyValue)
             {
-                bool bSuccess = Analyze_KVNode(Arena, Right, Context);
-                if (!bSuccess)
-                {
-                    SLinkedList_Push(IndeterminateNext, NodeList_Create(Arena, Right, NULL));
-                }
+                Analyze_KVNode(Arena, Right, Context);
             }
         }
     }
@@ -3085,7 +2998,7 @@ NO_DISCARD static bool Analyze_Indeterminates(LinearAllocator* Arena, NodeList* 
             }
             else if (Root->Type == Node_Help)
             {
-                xx Analyze_KVNode(Arena, Root, Context);
+                Analyze_KVNode(Arena, Root, Context);
             }
             else if (Root->Type == Node_Include)
             {
@@ -3093,30 +3006,26 @@ NO_DISCARD static bool Analyze_Indeterminates(LinearAllocator* Arena, NodeList* 
             }
             else if (Root->Type == Node_ErrorMessage)
             {
-                xx Analyze_KVNode(Arena, Root, Context);
+                Analyze_KVNode(Arena, Root, Context);
             }
             else if (Root->Type == Node_LogMessage)
             {
-                StringLocal(Expanded, MAX_VALUE_LENGTH);
+                // TODO: this looks wrong, we should expand this later, not here.
 
-                //LOG_INLINE("LOG: ");
+                StringLocal(Expanded, MAX_VALUE_LENGTH);
 
                 LinearAllocator Scratch = *Arena;
                 {
                     String Message = String_CreateFromList(&Scratch, *Root->Value);
-
-                    xx ExpandBuildVariableV2(*Arena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, S(""), Message, S(""), Context->WorkingDirectory, false, false, NULL);
-                    //LOG("%S", Expanded);
+                    xx ExpandBuildVariableV2(Scratch, Context->VarListHead, Context->CmdOptionsDB, &Expanded, String_Null(), Message, String_Null(), Context->WorkingDirectory, false, false, NULL);
                 }
-
-                //LOG_LINE_BREAK();
 
                 String Message = String_Create(Arena, Expanded);
                 Array_Add(Context->Messages, Message);
             }
             else if (Root->Type == Node_KeyValue)
             {
-                xx Analyze_KVNode(Arena, Root, Context);
+                Analyze_KVNode(Arena, Root, Context);
             }
         }
 
@@ -3171,7 +3080,7 @@ NO_DISCARD static NodeList* Analyze_List(LinearAllocator* Arena, Node* Block, Pa
                     //return NULL;
                 }
 
-                bSuccess = Analyze_KVNode(Arena, Root, Context);
+                Analyze_KVNode(Arena, Root, Context);
             }
             else if (Root->Type == Node_Include)
             {
@@ -3190,47 +3099,39 @@ NO_DISCARD static NodeList* Analyze_List(LinearAllocator* Arena, Node* Block, Pa
                     //return NULL;
                 }
 
-                bSuccess = Analyze_KVNode(Arena, Root, Context);
+                Analyze_KVNode(Arena, Root, Context);
             }
             else if (Root->Type == Node_LogMessage)
             {
-                StringLocal(Expanded, MAX_VALUE_LENGTH);
-                //bool bSuccess = false;
+                // TODO: this looks wrong, we should expand this later, not here.
 
-                //LOG_INLINE("LOG: ");
+                StringLocal(Expanded, MAX_VALUE_LENGTH);
 
                 LinearAllocator Scratch = *Arena;
                 {
                     String Message = String_CreateFromList(&Scratch, *Root->Value);
 
                     bool bFailed = false;
-                    bSuccess = ExpandBuildVariableV2(*Arena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, S(""), Message, S(""), Context->WorkingDirectory, false, false, &bFailed);
+                    bSuccess = ExpandBuildVariableV2(Scratch, Context->VarListHead, Context->CmdOptionsDB, &Expanded, S(""), Message, S(""), Context->WorkingDirectory, false, false, &bFailed);
                     if (bFailed || !bSuccess)
                     {
-                        //LOG_INLINE_WARNING("<indeterminate>\n");
                         bSuccess = false;
                     }
                     else
                     {
-                        //LOG("%S", Expanded);
                         bSuccess = true;
                     }
                 }
-
-                //LOG_LINE_BREAK();
 
                 if (bSuccess)
                 {
                     String Message = String_Create(Arena, Expanded);
                     Array_Add(Context->Messages, Message);
                 }
-                else
-                {
-                }
             }
             else if (Root->Type == Node_KeyValue)
             {
-                bSuccess = Analyze_KVNode(Arena, Root, Context);
+                Analyze_KVNode(Arena, Root, Context);
             }
 
             if (Context->Level > 1) // above root level?
@@ -3312,8 +3213,6 @@ static bool Internal_LogCustomErrorMessage(ParsingContext* Context, const String
                    (String_IsEqual(*k, Key, false) &&
                    (ContextKey.Length == 0 || String_StartsWith(Var.Name, ContextKey, false))))
                 {
-                    //if (bLineBreak) { LOG_LINE_BREAK(); }
-
                     StringLocal(Expanded, MAX_VALUE_LENGTH);
                     xx ExpandBuildVariableV2(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, Var.Name, Var.Value, Var.Name, Context->WorkingDirectory, false, false, NULL);
 
@@ -3335,7 +3234,6 @@ static bool Internal_LogCustomErrorMessage(ParsingContext* Context, const String
 
     return bLogged;
 }
-
 
 static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFilePath)
 {
@@ -3828,154 +3726,156 @@ NO_DISCARD bool ParseBuildFileV2(LinearAllocator* PermanentArena,
                     bool bIsIncludeFile,
                     StringList* Includes)
 {
+    // sanity - peace of mind checks
+    ASSERT(IsValidFileHandle(H));
+    ASSERT(BuildFilePath.Length > 0);
+
     // the lexer/parser will need at least 128KiB of memory to function correctly
     ASSERT(Context.TempArena->TotalSize > Kibibytes(128));
+
+    bool bSuccess = true;
 
     Node* AST = Internal_ParseFile(Context.TempArena, H);
 
     if (!AST || AST == &Node_Null)
     {
-        return false;
+        bSuccess = false;
     }
 
-    // now do some analysis on the tree (two-pass analysis)
-
-    // we could just end here and pass the raw data to the main program and let it do things with it.
-    // this can almost become a general language that others may find useful, it has basic support for
-    // if's and namespacing keys. so all it would do it just parse the file and give you key:value array
-    // that the program can use and interpret how it wants.
-    // TODO: think about making this a library?
-
-    // High level flow:
-    // 1. (first pass) expand all keys possible (skip indeterminates)
-    //  1a. parse include files (get the ast trees) and repeat step 1
-    // 2. (second pass) expand all keys and error on vars that dont exist
-    //  2a. parse include files (get the ast trees) and repeat step 1 independently then continue again with the second pass
-    // 3. run asserts
-
-    //LOG("Analyzing the AST tree...");
-
-    //Clock c;
-    //Clock_Start(&c);
-
-    // First pass
-    Context.VarListTail = &Context.VarListHead;
-    NodeList* IndeterminateList = Analyze_List(Context.TempArena, AST, &Context, false);
-
-    // Second pass
-    Context.bNoFail = true;
-    bool bSuccess = Analyze_Indeterminates(Context.TempArena, IndeterminateList, &Context);
-    if (!bSuccess)
+    if (bSuccess)
     {
-        LOG_ERROR("Errors occured"); // todo: remove this useful ahh message
-        return false;
+        // now do some analysis on the tree (two-pass analysis)
+
+        // we could just end here and pass the raw data to the main program and let it do things with it.
+        // this can almost become a general language that others may find useful, it has basic support for
+        // if's and namespacing keys. so all we would do is just parse the file and give you key:value array
+        // that the program can use and interpret how it wants.
+        // TODO: think about making this a library?
+
+        // High level flow:
+        // 1. (first pass) store all keys possible (skip indeterminates)
+        //  1a. parse include files (get the ast trees) and repeat step 1
+        // 2. (second pass) go through the indeterminate list and store all keys possible
+        //  2a. parse include files (get the ast trees) and repeat step 1 independently then continue again with the second pass
+        // 3. store default values of keys that we're mentioned in the tree
+        // 4. run asserts
+        // 5. finally expand all keys
+
+        //Clock c;
+        //Clock_Start(&c);
+
+        // 1. First pass
+        Context.VarListTail = &Context.VarListHead;
+        NodeList* IndeterminateList = Analyze_List(Context.TempArena, AST, &Context, false);
+
+        // 2. Second pass
+        Context.bNoFail = true;
+        bSuccess = Analyze_Indeterminates(Context.TempArena, IndeterminateList, &Context);
+
+        //Clock_Tick(&c);
+        //Clock_PrintElapsedTime(&c, true);
     }
 
-    // check for certain keys if they exist, if they dont, add the default value
+    if (bSuccess)
     {
-        if (!DoesVarExistInList(Context.VarListHead, S("Assembly")))
+        // 3. check for certain keys if they exist, if they dont, add the default value
         {
-            String FinalName = S("Untitled");
-
-            if (IsValidFileHandle(H))
+            if (!DoesVarExistInList(Context.VarListHead, S("Assembly")))
             {
-                FinalName = Filesystem_ExtractFileName(BuildFilePath, false);
+                String FinalName = Filesystem_ExtractFileName(BuildFilePath, false);
+                AddVariableToList(Context.TempArena, &Context, S("Assembly"), FinalName, String_Null(), false);
             }
 
-            AddVariableToList(Context.TempArena, &Context, S("Assembly"), FinalName, String_Null(), false);
+            Internal_SetDefaultBuildVariables(Context.TempArena, &Context);
         }
 
+        // 4. run the asserts
+        bool bAssertionFailed = Internal_RunAsserts(&Context, BuildFilePath);
 
-        Internal_SetDefaultBuildVariables(Context.TempArena, &Context);
+        if (bAssertionFailed)
+        {
+            bSuccess = false;
+        }
     }
 
-    // run the asserts
-    bool bAssertionFailed = Internal_RunAsserts(&Context, BuildFilePath);
-
-    if (bAssertionFailed)
+    if (bSuccess)
     {
-        return false;
-    }
-
-    //Clock_Tick(&c);
-
-    local_persist const String ConcatExclusions[11] =
-    {
-        SC("PreDepend"),
-        SC("PreBuild"),
-        SC("PostBuild"),
-        SC("PreCompile"),
-        SC("PostCompile"),
-        SC("PreLink"),
-        SC("PostLink"),
-        SC("Depend"),
-        SC("Depends"),
-    };
-
-    /*
-    SLinkedList_Each(FileVariableList, It, &Context.VarListHead)
-    {
-        const FileVariable Var = (*It)->Var;
-        LOG("KEY:    %S", Var.Name);
-        LOG("VALUE:  %S", Var.Value);
-        if (Var.SpecialData.Length)
+        /*
+        SLinkedList_Each(FileVariableList, It, &Context.VarListHead)
         {
-            LOG("PARAMS: %S", Var.SpecialData);
-        }
-
-        LOG_LINE_BREAK();
-    }
-    */
-
-    // TODO: do not store include variables
-
-    SLinkedList_Each(FileVariableList, This, &Context.VarListHead)
-    {
-        const FileVariable Var = (*This)->Var;
-
-        if (String_IsEqual(Var.Name, S("Assert"), false) ||
-            String_StartsWith(Var.Name, S("Assert."), false))
-        {
-            continue;
-        }
-
-        if (String_EndsWith(Var.Name, S(".ErrorMessage"), false))
-        {
-            continue;
-        }
-
-        bool bExcludeFromConcat = false;
-        {
-            for EachE(i, ConcatExclusions)
+            const FileVariable Var = (*It)->Var;
+            LOG("KEY:    %S", Var.Name);
+            LOG("VALUE:  %S", Var.Value);
+            if (Var.SpecialData.Length)
             {
-                if (String_IsEqual(Var.Name, ConcatExclusions[i], false) ||
-                    String_StartsWith(Var.Name, ConcatExclusions[i], false) ||
-                    String_StartsWith(Var.Name, S("."), false))
+                LOG("PARAMS: %S", Var.SpecialData);
+            }
+
+            LOG_LINE_BREAK();
+        }
+        */
+
+        // TODO: do not store include variables
+
+        SLinkedList_Each(FileVariableList, This, &Context.VarListHead)
+        {
+            const FileVariable Var = (*This)->Var;
+
+            if (String_IsEqual(Var.Name, S("Assert"), false) ||
+                String_StartsWith(Var.Name, S("Assert."), false))
+            {
+                continue;
+            }
+
+            if (String_EndsWith(Var.Name, S(".ErrorMessage"), false))
+            {
+                continue;
+            }
+
+            bool bExcludeFromConcat = false;
+            {
+                local_persist const String ConcatExclusions[11] =
                 {
-                    bExcludeFromConcat = true;
-                    break;
+                    SC("PreDepend"),
+                    SC("PreBuild"),
+                    SC("PostBuild"),
+                    SC("PreCompile"),
+                    SC("PostCompile"),
+                    SC("PreLink"),
+                    SC("PostLink"),
+                    SC("Depend"),
+                    SC("Depends"),
+                };
+
+                for EachE(i, ConcatExclusions)
+                {
+                    if (String_IsEqual(Var.Name, ConcatExclusions[i], false) ||
+                        String_StartsWith(Var.Name, ConcatExclusions[i], false) ||
+                        String_StartsWith(Var.Name, S("."), false))
+                    {
+                        bExcludeFromConcat = true;
+                        break;
+                    }
                 }
             }
+
+            StringLocal(Expanded, MAX_VALUE_LENGTH);
+            xx ExpandBuildVariableV2(*Context.TempArena, Context.VarListHead, Context.CmdOptionsDB, &Expanded, Var.Name, Var.Value, Var.Name, Context.WorkingDirectory, false, false, NULL);
+
+            if (bExcludeFromConcat)
+            {
+                AddVariable(PermanentArena, Context.VariablesDB, Var.Name, Expanded, Var.SpecialData, Var.bHasSpecial);
+            }
+            else
+            {
+                AddOrAppendVariable(PermanentArena, Context.VariablesDB, Var.Name, Expanded, Var.SpecialData, Var.bHasSpecial);
+            }
         }
 
-        StringLocal(Expanded, MAX_VALUE_LENGTH);
-        xx ExpandBuildVariableV2(*Context.TempArena, Context.VarListHead, Context.CmdOptionsDB, &Expanded, Var.Name, Var.Value, Var.Name, Context.WorkingDirectory, false, false, NULL);
-
-        if (bExcludeFromConcat)
-        {
-            AddVariable(PermanentArena, Context.VariablesDB, Var.Name, Expanded, Var.SpecialData, Var.bHasSpecial);
-        }
-        else
-        {
-            AddOrAppendVariable(PermanentArena, Context.VariablesDB, Var.Name, Expanded, Var.SpecialData, Var.bHasSpecial);
-        }
+        //Internal_PrintVariables(Context.VariablesDB);
     }
 
-    //Internal_PrintVariables(Context.VariablesDB);
-
-    //Clock_PrintElapsedTime(&c, true);
-
-    return true;
+    return bSuccess;
 }
 
 #if 0

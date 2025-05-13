@@ -252,6 +252,7 @@ bool Export_InfoPlist(LinearAllocator Arena, const BuildParams* Params, const St
 
             for each (FileVariable, v, ExpandedVariablesDB)
             {
+                // TODO: change :: to .
                 if (String_StartsWith(v.Name, S("Info.plist::"), false))
                 {
                     const String Key = StrShiftF(v.Name, 12);
@@ -398,7 +399,7 @@ bool Export_IconRC(const String Path, const String IconFilePath)
     if (Filesystem_Open(Path, FileMode_Write, &f))
     {
         u32 LastSlashIndex = 0;
-        (void)String_IndexOfLastPathSlash(IconFilePath, &LastSlashIndex);
+        xx String_IndexOfLastPathSlash(IconFilePath, &LastSlashIndex);
 
         // TODO: think about error handling across all write line functions
         Filesystem_WriteLineFormatted(f, S("id ICON \"%S\""), NULL, StrShiftF(IconFilePath, LastSlashIndex == 0 ? 0 : LastSlashIndex+1));
@@ -494,10 +495,9 @@ bool Export_VersionRC(const BuildParams* Params, const String Path)
             String_Empty(&VersionDigit);
         }
 
-        // remove trailing commas
-        (void)String_EatCharInlineFromEnd(&VersionCommas, ',');
+        xx String_EatCharInlineFromEnd(&VersionCommas, ',');
 
-        // we must have at 4 parts otherwise llvm-rc will complain
+        // we must have at least 4 parts otherwise llvm-rc will complain
         u32 NumCommas = String_CountChar(VersionCommas, ',');
         if (NumCommas < 3)
         {
@@ -507,8 +507,7 @@ bool Export_VersionRC(const BuildParams* Params, const String Path)
             }
         }
 
-        // remove trailing commas
-        (void)String_EatCharInlineFromEnd(&VersionCommas, ',');
+        xx String_EatCharInlineFromEnd(&VersionCommas, ',');
 
         STRUCT(FileFlagsEntry)
         {
@@ -570,9 +569,9 @@ bool Export_VersionRC(const BuildParams* Params, const String Path)
 
         // is major version at 0? if so, it's a pre-release build
         u32 FirstDot = 0;
-        (void)String_IndexOfChar(Params->Version, '.', &FirstDot);
+        xx String_IndexOfChar(Params->Version, '.', &FirstDot);
         u64 MajorVersionNumber = 0;
-        (void)String_ToU64(FirstDot == 0 ? Params->Version : StrSlice(Params->Version.Data, FirstDot), &MajorVersionNumber);
+        xx String_ToU64(FirstDot == 0 ? Params->Version : StrSlice(Params->Version.Data, FirstDot), &MajorVersionNumber);
 
         const FileFlagsEntry FileFlag = MajorVersionNumber == 0 ? FileFlags[1] : FileFlags[4];
         const FileFlagsEntry FileOS   = FileOSFlags[4];

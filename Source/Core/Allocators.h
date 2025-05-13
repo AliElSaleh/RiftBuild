@@ -26,6 +26,13 @@ STRUCT(LinearAllocator_Scratch)
 
 //#define SCRATCH(Allocator, Name) LinearAllocator_Scratch Name = {0}; DEFER(LinearAllocator_GetScratchInline(Allocator, &(Name)), LinearAllocator_ReleaseScratch(&(Name)))
 
+        /* todo: make this a macro template
+        LinearAllocator Scratch = {0};
+        i8 ScratchMemory[Kibibytes(16)] = {0};
+        LinearAllocator_Create(Kibibytes(16), ScratchMemory, &Scratch);
+        ScratchLocal(Scratch, Kibibytes(16));
+        */
+
 RIFT_API void LinearAllocator_Create(usize TotalSize, void* Memory, LinearAllocator* OutAllocator);
 RIFT_API void LinearAllocator_Destroy(LinearAllocator* Allocator);
 
