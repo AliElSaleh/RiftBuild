@@ -6,6 +6,8 @@ SharedDefines:debug              _DEBUG DEVELOPER
 SharedDefines:!debug             NDEBUG NO_ASSERT
 SharedDefines:asan               RIFT_ASAN
 
+Linker.Stack                     0x800000 # 8MB
+
 if cl
 {
     TempWarnings /wd4702

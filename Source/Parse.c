@@ -1592,6 +1592,8 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena,
                     {
                         break;
                     }
+
+                    Parser_SkipWhitespace(P);
                 }
             }
 
@@ -2386,6 +2388,7 @@ NO_DISCARD static NodeList* Analyze_IncludeNode(LinearAllocator* Arena, Node* Ro
     {
         // parse the include file
 
+        // TODO: close the file??
         FileHandle f = {0};
         if (!Filesystem_Open(Expanded, FileMode_Read, &f))
         {

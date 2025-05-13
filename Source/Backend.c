@@ -13,13 +13,6 @@
 #include "Core/Log.h"
 #endif
 
-// TODO: handle this cleanly
-/* 
-    LinkerFlags:!cl:!gcc -nostdlib -Wl,-entry:EntryPoint,-subsystem:console -Xlinker /stack:0x800000,0x800000
-    LinkerFlags:gcc      -nostdlib -Wl,--entry,EntryPoint,--subsystem,console,--stack,0x800000
-    LinkerFlags:cl       /ENTRY:EntryPoint /SUBSYSTEM:CONSOLE /STACK:0x800000,0x800000
-*/
-
 bool C_DoCompile(CompileData* Data, const String FullPath, const String RelativePath);
 
 static void LogCompilingFile(u32 Index, u32 NumSources, String FullPath)
@@ -418,7 +411,7 @@ static bool Link_SourceFileDirectoryIterator(const String FullPath, const String
                     
                     // TODO: really should use relative path here
                     u32 LastSlash = 0;
-                    (void)String_IndexOfLastPathSlash(FullPath, &LastSlash);
+                    xx String_IndexOfLastPathSlash(FullPath, &LastSlash);
 
                     StringLocal(FilePath, MAX_PATH_LENGTH);
                     String_Append(&FilePath, StrSlice(FileName.Data, DotIndex));
@@ -675,7 +668,7 @@ bool C_DoCompile(CompileData* Data, const String FullPath, const String Relative
         String_AppendChar(&CmdLine, '"');
 
         String_BuildSeparator(&CmdLine, ' ', FullSourcePath, Params->CompilerFlags, Params->CompilerOutputFlag);
-        (void)String_EatSpacesInlineFromEnd(&CmdLine);
+        xx String_EatSpacesInlineFromEnd(&CmdLine);
         String_Append(&CmdLine, S(" \""));
         String_Append(&CmdLine, ObjectPath);
         String_Append(&CmdLine, S("\""));
@@ -687,7 +680,7 @@ bool C_DoCompile(CompileData* Data, const String FullPath, const String Relative
         String_AppendChar(&CmdLine, '"');
 
         String_BuildSeparator(&CmdLine, ' ', S("-c"), FullSourcePath, Params->CompilerFlags, AdditionalPlatformFlags, Params->DefineFlags, Params->IncludeFlags);
-        (void)String_EatSpacesInlineFromEnd(&CmdLine);
+        xx String_EatSpacesInlineFromEnd(&CmdLine);
         String_Append(&CmdLine, S(" -o \""));
         String_Append(&CmdLine, ObjectPath);
         String_Append(&CmdLine, S("\""));
@@ -722,7 +715,7 @@ bool C_DoCompile(CompileData* Data, const String FullPath, const String Relative
         return true;
     }
 
-    (void)Filesystem_NewFile(ObjectPath);
+    xx Filesystem_NewFile(ObjectPath);
 
     LogCompilingFile(Data->Index, Params->NumSources, FullPath);
 
@@ -803,12 +796,96 @@ bool C_Link(const BuildParams* Params)
         }
         #endif
 
+        // additional linker settings that are annoying to specify in the build file for all 3 major compilers
+        // as clang, gcc and msvc have different ways of doing this
+        // (and for all the different platforms as well)
+        StringLocal(AdditionalFlags, 512);
+        if (Params->Type == AssemblyType_Executable)
+        {
+            const String NoStd         = Params->bLinkerNoStd ? S("-nostdlib -nostdlib++") : String_Null();
+            const String NoDefaultLibs = Params->bLinkerNoDefaultLibs ? S("-nodefaultlibs") : String_Null();
+
+            // TODO: linux, macos and bsd
+            // --entry=entry
+            // -Wl,-stack_size,0x800000
+            #if PLATFORM_WINDOWS
+            bool bCustomEntry     = String_IsValid(Params->LinkerEntryPoint);
+            bool bCustomSubsystem = String_IsValid(Params->LinkerSubsystem);
+            bool bCustomStack     = String_IsValid(Params->LinkerStack);
+            bool bAnyValid        = bCustomEntry || bCustomSubsystem || bCustomStack;
+
+            StringLocal(WlFlags, 256);
+            StringLocal(XlinkerFlags, 256);
+            if (bAnyValid)
+            {
+                bool bIsClang = String_IsEqual(Params->CompilerProgram, S("clang"), false) ||
+                                String_IsEqual(Params->CompilerProgram, S("clang++"), false);
+
+                String_Append(&WlFlags, S("-Wl,"));
+
+                if (bCustomEntry)
+                {
+                    if (bIsClang)
+                    {
+                        String_AppendF(&WlFlags, S("-entry:%S,"), Params->LinkerEntryPoint);
+                    }
+                    else // GCC
+                    {
+                        String_AppendF(&WlFlags, S("--entry,%S,"), Params->LinkerEntryPoint);
+                    }
+                }
+
+                if (bCustomSubsystem)
+                {
+                    if (bIsClang)
+                    {
+                        String_AppendF(&WlFlags, S("-subsystem:%S,"), Params->LinkerSubsystem);
+                    }
+                    else // GCC
+                    {
+                        String_AppendF(&WlFlags, S("--subsystem,%S,"), Params->LinkerSubsystem);
+                    }
+                }
+
+                if (bCustomStack)
+                {
+                    u32 Space = 0;
+                    xx String_IndexOfFirstWhitespace(Params->LinkerStack, &Space);
+
+                    String Reserve = Params->LinkerStack;
+                    String Commit  = Params->LinkerStack;
+                    if (Space)
+                    {
+                        Reserve = StrSlice (Params->LinkerStack.Data, Space);
+                        Commit  = StrShiftF(Params->LinkerStack, Space+1);
+                    }
+
+                    if (bIsClang)
+                    {
+                        String_AppendF(&XlinkerFlags, S("-Xlinker /stack:%S,%S"), Reserve, Commit);
+                    }
+                    else // GCC
+                    {
+                        // i dont know how to add Commit here.
+                        String_AppendF(&WlFlags, S("--stack,%S,"), Reserve);
+                    }
+                }
+            }
+
+            xx String_EatCharInlineFromEnd(&WlFlags, ',');
+
+            String_BuildSeparator(&AdditionalFlags, ' ', NoStd, NoDefaultLibs, WlFlags, XlinkerFlags);
+            #else
+            String_BuildSeparator(&AdditionalFlags, ' ', NoStd, NoDefaultLibs);
+            #endif
+        }
+
         String_Append(&CmdLine, BuildPath);
         String_Append(&CmdLine, Params->AssemblyWithExt);
         String_Append(&CmdLine, S("\" "));
 
-        String_BuildSeparator(&CmdLine, ' ',  Params->LinkerDefineFlags, Params->LinkerFlags, SharedFlag, RunPathLinkFlag, Params->Libraries, Params->LibraryDirectories, Params->bVerbose ? S("-v") : String_Null());
-        (void)String_EatSpacesInlineFromEnd(&CmdLine);
+        String_BuildSeparator(&CmdLine, ' ',  Params->LinkerDefineFlags, Params->LinkerFlags, AdditionalFlags, SharedFlag, RunPathLinkFlag, Params->Libraries, Params->LibraryDirectories, Params->bVerbose ? S("-v") : String_Null());
+        xx String_EatSpacesInlineFromEnd(&CmdLine);
 
         if (bQuietBuild) { Logging_Enable(); }
 
@@ -911,7 +988,7 @@ bool C_Link(const BuildParams* Params)
         Filesystem_IterateDirectory_Ex(SourceDir, &Link_SourceFileDirectoryIterator, true, &Data);
 
         String_BuildSeparator(&CmdLine, ' ', Params->VersionResFilePath);
-        (void)String_EatSpacesInlineFromEnd(&CmdLine);
+        xx String_EatSpacesInlineFromEnd(&CmdLine);
 
         if (bQuietBuild) { Logging_Enable(); }
 
@@ -1134,7 +1211,7 @@ static bool AsmSourceFileDirectoryIterator_MSVC(const String FullPath, const Str
 
                 StringLocal(ObjectPath, MAX_PATH_LENGTH);
                 String_BuildPath(&ObjectPath, Params->IntermediateDirectory);
-                (void)String_EatPathSeparatorsInlineFromEnd(&ObjectPath);
+                xx String_EatPathSeparatorsInlineFromEnd(&ObjectPath);
 
                 String_Append(&CmdLine, ObjectPath);
                 String_Append(&CmdLine, S("\\\\\" "));
@@ -1437,7 +1514,7 @@ bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String Relat
         //String_BuildPath(&ObjectFilePath, Params->RootDirectory, Params->IntermediateDirectory, FilePath);
     }
 
-    (void)Filesystem_ConvertRelativeToAbsolutePath(&ObjectFilePath);
+    xx Filesystem_ConvertRelativeToAbsolutePath(&ObjectFilePath);
 
     //String FinalFullPath     = FullPath;
     String FinalRelativePath = RelativePath;
@@ -1479,7 +1556,7 @@ bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String Relat
                 FileHandle f = FileHandle_Null();
                 if (Filesystem_Open(PchSourceFile, FileMode_Write, &f))
                 {
-                    (void)Filesystem_WriteLineFormatted(f, S("#include \"%S\"\n"), NULL, RelativePath);
+                    xx Filesystem_WriteLineFormatted(f, S("#include \"%S\"\n"), NULL, RelativePath);
                     Filesystem_Close(&f);
                 }
             }
@@ -1512,7 +1589,7 @@ bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String Relat
     String_AppendSpace(&CmdLine);
 
     String_BuildSeparator(&CmdLine, ' ', Params->CompilerFlags, Params->DefineFlags, Params->IncludeFlags);
-    (void)String_EatSpacesInlineFromEnd(&CmdLine);
+    xx String_EatSpacesInlineFromEnd(&CmdLine);
 
     if (Params->Type == AssemblyType_PCH)
     {
@@ -1578,11 +1655,11 @@ bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String Relat
 
     StringLocal(ObjectPath, MAX_PATH_LENGTH);
     String_BuildPath(&ObjectPath, Params->IntermediateDirectory, StrSlice(RelativePath.Data, LastSlash));
-    (void)String_EatPathSeparatorsInlineFromEnd(&ObjectPath);
+    xx String_EatPathSeparatorsInlineFromEnd(&ObjectPath);
 
     StringLocal(FullObjectPath, MAX_PATH_LENGTH);
     String_BuildPath(&FullObjectPath, Params->RootDirectory, ObjectPath);
-    (void)Filesystem_ConvertRelativeToAbsolutePath(&FullObjectPath);
+    xx Filesystem_ConvertRelativeToAbsolutePath(&FullObjectPath);
 
     if (!Filesystem_OpenDirectory(FullObjectPath))
     {
@@ -1670,7 +1747,7 @@ static void Internal_ParseAndLogLinkerOutput_MSVC(String StdOutData)
                         LOG_INLINE_WARNING("[WARNING] %S", bHasColon ? StrSlice(Meta.Data, ColonIndex) : Meta);
 
                         ColonIndex = 0;
-                        (void)String_IndexOfChar(Trimmed, ':', &ColonIndex);
+                        xx String_IndexOfChar(Trimmed, ':', &ColonIndex);
                         String Message = StrShiftF(Trimmed, ColonIndex+1);
 
                         const String SymbolDefineWarningPhrases[3] =
@@ -1742,7 +1819,7 @@ static void Internal_ParseAndLogLinkerOutput_MSVC(String StdOutData)
                         LOG_INLINE_ERROR("[ERROR] %S", bHasColon ? StrSlice(Meta.Data, ColonIndex) : Meta);
 
                         ColonIndex = 0;
-                        (void)String_IndexOfChar(Trimmed, ':', &ColonIndex);
+                        xx String_IndexOfChar(Trimmed, ':', &ColonIndex);
                         String Message = StrShiftF(Trimmed, ColonIndex+1);
                         LOG(" |%S", Message);
                     }
@@ -1789,7 +1866,7 @@ static void Internal_ParseAndLogLinkerOutput_MSVC(String StdOutData)
                                 LOG_INLINE_ERROR("[ERROR] %S", bHasColon ? StrSlice(Meta.Data, ColonIndex) : Meta);
 
                                 ColonIndex = 0;
-                                (void)String_IndexOfChar(Trimmed, ':', &ColonIndex);
+                                xx String_IndexOfChar(Trimmed, ':', &ColonIndex);
                                 String Message = StrShiftF(Trimmed, ColonIndex+1);
 
                                 u32 ReferencedIndex = 0;
@@ -1930,18 +2007,68 @@ bool MSVC_Link(const BuildParams* Params)
 
         if (bIsDLL)
         {
-            String_Append(&CmdLine, S(" /dll"));
+            String_Append(&CmdLine, S(" /DLL"));
         }
 
-        String_Append(&CmdLine, S(" /nologo "));
+        String_Append(&CmdLine, S(" /NOLOGO "));
 
-        String_BuildSeparator(&CmdLine, ' ', Params->LinkerDefineFlags, Params->LinkerFlags, Params->IconResFilePath, Params->VersionResFilePath, Params->Libraries, Params->LibraryDirectories); //, AllObjFiles);
+        // additional linker settings that are annoying to specify in the build file for all 3 major compilers
+        // as clang, gcc and msvc have different ways of doing this
+        // (and for all the different platforms as well)
+        StringLocal(AdditionalFlags, 512);
+        if (bIsExe)
+        {
+            // todo: support
+            // /NODEFAULTLIB:somelibrary /NODEFAULTLIB:anotherlibrary etc..
+            // from this syntax: Linker.NoDefaultLibs somelibrary anotherlibrary
+            const String NoDefaultLibs = Params->bLinkerNoDefaultLibs ? S("/NODEFAULTLIB ") : String_Null();
+
+            String_Append(&AdditionalFlags, NoDefaultLibs);
+
+            bool bCustomEntry     = String_IsValid(Params->LinkerEntryPoint);
+            bool bCustomSubsystem = String_IsValid(Params->LinkerSubsystem);
+            bool bCustomStack     = String_IsValid(Params->LinkerStack);
+            bool bAnyValid        = bCustomEntry || bCustomSubsystem || bCustomStack;
+
+            if (bAnyValid)
+            {
+                if (bCustomEntry)
+                {
+                    String_AppendF(&AdditionalFlags, S("/ENTRY:%S "), Params->LinkerEntryPoint);
+                }
+
+                if (bCustomSubsystem)
+                {
+                    String_AppendF(&AdditionalFlags, S("/SUBSYSTEM:%S "), Params->LinkerSubsystem);
+                }
+
+                if (bCustomStack)
+                {
+                    u32 Space = 0;
+                    xx String_IndexOfFirstWhitespace(Params->LinkerStack, &Space);
+
+                    String Reserve = Params->LinkerStack;
+                    String Commit  = Params->LinkerStack;
+                    if (Space)
+                    {
+                        Reserve = StrSlice (Params->LinkerStack.Data, Space);
+                        Commit  = StrShiftF(Params->LinkerStack, Space+1);
+                    }
+
+                    String_AppendF(&AdditionalFlags, S("/STACK:%S,%S "), Reserve, Commit);
+                }
+            }
+
+            xx String_EatSpacesInlineFromEnd(&AdditionalFlags);
+        }
+
+        String_BuildSeparator(&CmdLine, ' ', Params->LinkerDefineFlags, Params->LinkerFlags, AdditionalFlags, Params->IconResFilePath, Params->VersionResFilePath, Params->Libraries, Params->LibraryDirectories);
         String_AppendSpace(&CmdLine);
 
         LinkData Data = { Params, &CmdLine };
         Filesystem_IterateDirectory_Ex(SourceDir, &Link_SourceFileDirectoryIterator_MSVC, true, &Data);
 
-        (void)String_EatSpacesInlineFromEnd(&CmdLine);
+        xx String_EatSpacesInlineFromEnd(&CmdLine);
 
         if (Params->PCHPath.Length > 0)
         {

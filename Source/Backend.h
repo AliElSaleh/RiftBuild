@@ -168,6 +168,10 @@ STRUCT(BuildParams)
     String Libraries;
     String LibraryDirectories;
 
+    String LinkerEntryPoint;
+    String LinkerSubsystem;
+    String LinkerStack;
+
     String CameFromBuildFile;
 
     String IconFilePath;
@@ -205,9 +209,9 @@ STRUCT(BuildParams)
     bool bVerbose;
     bool bHasCppFiles;
     bool bDumpObjFilesInOneDirectory;
+    bool bLinkerNoStd;
+    bool bLinkerNoDefaultLibs;
 
-    bool bPadding1;
-    bool bPadding2;
     bool bPadding3;
 };
 

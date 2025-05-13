@@ -3417,7 +3417,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     String CompilerProgram                  = GetVariableValue(ExpandedVariablesDB, S("Compiler"));
     const String CompilerOutputFlag         = GetVariableValue(ExpandedVariablesDB, S("CompilerOutputFlag"));
     // TODO: specify a linker program
-    //String LinkerProgram                  = GetVariableValue(ExpandedVariablesDB, S("Linker"));
+    //String LinkerProgram                    = GetVariableValue(ExpandedVariablesDB, S("Linker"));
     String AsmProgram                       = GetVariableValue(ExpandedVariablesDB, S("Assembler"));
     String CompilerFlagPrefixSymbol         = S("-");
     const String CompilerFlags              = GetVariableValue(ExpandedVariablesDB, S("CompilerFlags"));
@@ -3440,6 +3440,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     const String AssertBuildVars            = GetVariableValue(ExpandedVariablesDB, S("Assert.BuildVarExists"));
     //const String AssertLibs                 = GetVariableValue(ExpandedVariablesDB, S("Assert.LibExists"));
     //String AssertWorkingDirectory           = GetVariableValue(ExpandedVariablesDB, S("Assert.WorkingDirectory"));
+    // TODO: delete
     String IncludedSourceFiles              = GetVariableValue(ExpandedVariablesDB, S("IncludedSourceFiles"));
     String ExcludedSourceFiles              = GetVariableValue(ExpandedVariablesDB, S("ExcludedSourceFiles"));
     const String IncludedSourceDir          = GetVariableValue(ExpandedVariablesDB, S("IncludedSourceDirectories"));
@@ -3451,6 +3452,11 @@ static u32 BuildTarget(LinearAllocator* Arena,
     const String PCHPath                    = GetVariableValue(ExpandedVariablesDB, S("PCH"));
     const String PCHHeaderPath              = GetVariableValue(ExpandedVariablesDB, S("PCH.h"));
     const String HelpMessage                = GetVariableValue(ExpandedVariablesDB, S(".Help"));
+
+    if (!IncludedSourceFiles.Length)
+    {
+        IncludedSourceFiles = GetVariableValue(ExpandedVariablesDB, S("SourceFiles"));
+    }
 
     #if PLATFORM_APPLE
     const String CustomInfoPlist            = GetVariableValue(ExpandedVariablesDB, S("Bundle.InfoPlist"));
@@ -3474,6 +3480,12 @@ static u32 BuildTarget(LinearAllocator* Arena,
     const bool bBundleApp                   = DoesBuildVarExist(ExpandedVariablesDB, S("Bundle"));
     const bool bBundleAppIsTerminal         = DoesBuildVarExist(ExpandedVariablesDB, S("Bundle.IsTerminal"));
     #endif
+
+    String LinkerEntryPoint                 = GetVariableValue(ExpandedVariablesDB, S("Linker.EntryPoint"));
+    String LinkerSubsystem                  = GetVariableValue(ExpandedVariablesDB, S("Linker.Subsystem"));
+    String LinkerStack                      = GetVariableValue(ExpandedVariablesDB, S("Linker.Stack"));
+    const bool bLinkerNoStd                 = DoesBuildVarExist(ExpandedVariablesDB, S("Linker.NoStdLib"));
+    const bool bLinkerNoDefaultLibs         = DoesBuildVarExist(ExpandedVariablesDB, S("Linker.NoDefaultLibs"));
 
     if (bHelp && bFoundBuildFile)
     {
@@ -6361,6 +6373,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
     p.LinkerDefineFlags             = ExpandedLinkerDefineFlags;
     p.Libraries                     = ExpandedLibraries;
     p.LibraryDirectories            = ExpandedLibraryDirectories;
+    p.LinkerEntryPoint              = LinkerEntryPoint;
+    p.LinkerSubsystem               = LinkerSubsystem;
+    p.LinkerStack                   = LinkerStack;
     p.bIsAssemblyExe                = bIsAssemblyExe;
     p.bVerbose                      = bVerboseLog;
     p.TitleName                     = TitleName;
@@ -6376,6 +6391,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
     p.bDumpObjFilesInOneDirectory   = bDumpObjFilesInOneDirectory;
     p.CameFromBuildFile             = CameFromBuildFile;
     p.IconFilePath                  = IconFilePath;
+    p.bLinkerNoStd                  = bLinkerNoStd;
+    p.bLinkerNoDefaultLibs          = bLinkerNoDefaultLibs;
 
     // @export feature
     for (u8 i = 0; i < Parameters.Num; i++)

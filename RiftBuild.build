@@ -15,34 +15,33 @@ SourceDirectory          Source
 BuildDirectory:debug     Build/Debug%%32/%%Hood
 BuildDirectory:!debug    Build/Dist%%32/%%Hood
 
+SourceFiles              Memory.c StringUtils.c Globals.c Log.c Platform_Core.c Program.c Backend.c Exporter.c Parse.c Platform_%(_platform).c
+SourceFiles:unix         Platform_Unix.c
+
 CompilerFlags            $SharedCompilerFlags
 LinkerFlags              $SharedLinkerFlags
 Includes                 $SharedIncludeFlags
 Defines                  $SharedDefines %^%hood
-
-IncludedSourceFiles      Memory.c StringUtils.c Globals.c Log.c Platform_Core.c Program.c Backend.c Exporter.c Parse.c Platform_%(_platform).c
-IncludedSourceFiles:unix Platform_Unix.c
-
 Libraries:linux          pthread uuidS
 Libraries:bsd            pthread
 LibraryDirectories       Source/Libraries/%_platform
 
 if windows
 {
-    #todo: remove
-    if !cl if !gcc       LinkerFlags -nostdlib -Wl,-entry:EntryPoint,-subsystem:console -Xlinker /stack:0x800000,0x800000
-    if gcc               LinkerFlags -nostdlib -Wl,--entry,EntryPoint,--subsystem,console,--stack,0x800000
-    if cl                LinkerFlags /ENTRY:EntryPoint /SUBSYSTEM:CONSOLE /STACK:0x800000,0x800000
-    
-    if 32 if !debug      Libraries libcmt libvcruntime
-    if 32 if debug       Libraries libcmtd libvcruntimed
-    if asan              Libraries libucrt
-                         Libraries %_NativeLibs microsoft_craziness%%32
+    Linker.NoStdLib
+    Linker.EntryPoint    EntryPoint
+    Linker.Subsystem     Console
+
+    Libraries            %_NativeLibs microsoft_craziness%%32
+    Libraries:32:!debug  libcmt libvcruntime
+    Libraries:32: debug  libcmtd libvcruntimed
+    Libraries:asan       libucrt
 
     # todo: make riftbuild do this
-    if debug             PreLink.Delete $BuildDirectory/$(Assembly).pdb
+    PreLink.Delete:debug $BuildDirectory/$(Assembly).pdb
 }
 
+# todo: make riftbuild handle this
 if linux
 {
     if @XDG_CURRENT_DESKTOP contains GNOME    Defines __gnome__
