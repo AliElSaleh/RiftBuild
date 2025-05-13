@@ -220,7 +220,7 @@ void LogMessage(u8 LogType, const String LogCat, const String Text, ...)
 
             if (GLoggingSystemState->bLogType)
             {
-                static const String LogTypeString[6] = {SC("[INFO] "), SC("[SUCCESS] "), SC("[WARNING] "), SC("[ERROR] "), SC("[FATAL] "), SC("")};
+                static const String LogTypeString[7] = {SC("[INFO] "), SC("[SUCCESS] "), SC("[WARNING] "), SC("[ERROR] "), SC("[FATAL] "), SC(""), SC("")};
                 String_Append(&LogPrefix, LogTypeString[LogType]);
             }
         }
