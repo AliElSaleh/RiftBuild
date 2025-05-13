@@ -456,7 +456,10 @@ void Platform_ConsoleWrite_CustomLength(const char* Message, u32 Length, u8 Colo
 
     if (UNLIKELY(bIgnoreNewLine))
     {
+        #if _DEBUG
         OutputDebugString("\n");
+        #endif
+
         xx WriteConsole(ConsoleHandle, "\n", 1, NULL, 0);
     }
 }
