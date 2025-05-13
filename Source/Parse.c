@@ -20,17 +20,14 @@
 // how to detect multiple inclusions of a file?
 // prevent including .build files
 
-#define MAX_KEY_LENGTH 64
-#define MAX_VALUE_LENGTH 8192
-#define MAX_META_KEY_LENGTH 64
-#define LINE_BUFFER_SIZE (MAX_KEY_LENGTH+MAX_VALUE_LENGTH+MAX_META_KEY_LENGTH)
+//#define LINE_BUFFER_SIZE (MAX_KEY_LENGTH+MAX_VALUE_LENGTH+MAX_META_KEY_LENGTH)
 
 void AddVariable(LinearAllocator* Arena,
-                                   TArray(FileVariable) VariablesDB,
-                                   const String Name,
-                                   const String Value,
-                                   const String SpecialData,
-                                   bool bHasSpecial)
+                TArray(FileVariable) VariablesDB,
+                const String Name,
+                const String Value,
+                const String SpecialData,
+                bool bHasSpecial)
 {
     // always reserve a fixed limited size so we can override if needed
     FileVariable var = {0};
@@ -43,11 +40,11 @@ void AddVariable(LinearAllocator* Arena,
 }
 
 void AddOrAppendVariable(LinearAllocator* Arena,
-                                   TArray(FileVariable) VariablesDB,
-                                   const String Name,
-                                   const String Value,
-                                   const String SpecialData,
-                                   bool bHasSpecial)
+                        TArray(FileVariable) VariablesDB,
+                        const String Name,
+                        const String Value,
+                        const String SpecialData,
+                        bool bHasSpecial)
 {
     FileVariable* Ref = NULL;
     for each (FileVariable, v, VariablesDB)
@@ -116,13 +113,12 @@ NO_DISCARD RETURN_NON_NULL static FileVariableList* FileVariableList_Create(Line
     return List;
 }
 
-
 static void AddVariableToList(LinearAllocator* Arena, ParsingContext* Context, const String Key, const String Value, const String Params, bool bIsSpecial)
 {
     FileVariable var = {0};
     var.Name         = String_Create(Arena, Key);
     var.Value        = String_Create(Arena, Value);
-    var.SpecialData  = String_IsValid(Params) ? String_Create(Arena, Params) : String_Null();
+    var.SpecialData  = String_Create(Arena, Params);
     var.bHasSpecial  = bIsSpecial;
 
     SLinkedList_Push(Context->VarListTail, FileVariableList_Create(Arena, var));
@@ -199,7 +195,7 @@ STRUCT(Token)
 
 read_only static Token Token_Null = { .Line = 0, .Lexeme = SC(""), .Type = Token_None };
 
-static String TokenTypeEnumStringTable_NoPrefix[Token_Max] =
+read_only static String TokenTypeEnumStringTable_NoPrefix[Token_Max] =
 {
     SC("None"),
 
@@ -254,7 +250,7 @@ static String TokenTypeEnumStringTable_NoPrefix[Token_Max] =
     SC("Newline"),
 };
 
-static String TokenTypeEnumStringTable[Token_Max] =
+read_only static String TokenTypeEnumStringTable[Token_Max] =
 {
     SC("Token_None"),
 
@@ -1515,12 +1511,21 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena,
             if (Parser_Match(P, Token_LParen))
             {
                 StringList** Next = &ParamList;
-                while (Parser_Peek(P).Type == Token_Text ||
+                while (Parser_Peek(P).Type == Token_Text       ||
+                       Parser_Peek(P).Type == Token_Whitespace ||
                        Parser_Peek(P).Type == Token_Colon)
                 {
-                    SLinkedList_Push(Next, StringList_Create(Arena, Parser_Peek(P).Lexeme, NULL));
+                    if (Parser_Peek(P).Type == Token_Whitespace)
+                    {
+                        SLinkedList_Push(Next, StringList_Create(Arena, S(" "), NULL));
+                    }
+                    else
+                    {
+                        SLinkedList_Push(Next, StringList_Create(Arena, Parser_Peek(P).Lexeme, NULL));
+                    }
+
                     Parser_Advance(P);
-                    Parser_SkipWhitespace(P);
+                    //Parser_SkipWhitespace(P);
                 }
 
                 if (!Parser_Match(P, Token_RParen))
@@ -2612,21 +2617,6 @@ NO_DISCARD static bool Analyze_KVNode(LinearAllocator* Arena, Node* Root, Parsin
             String_Append(&Val, It.String);
         }
         String_Copy(&Expanded, Val);
-
-        /*
-        bool bFailed = false;
-        bSuccess = ExpandBuildVariableV2(*Arena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, FinalKey, Val, FinalKey, Context->WorkingDirectory, false, false, &bFailed);
-        if ((bFailed && !Context->bNoFail) || !bSuccess)
-        {
-            //LOG_INLINE_WARNING("<indeterminate>\n");
-            bSuccess = false;
-        }
-        else
-        {
-            //LOG("%S", Expanded);
-            bSuccess = true;
-        }
-        */
     }
 
     if (Root->Parameters)
@@ -2634,8 +2624,9 @@ NO_DISCARD static bool Analyze_KVNode(LinearAllocator* Arena, Node* Root, Parsin
         //LOG_INLINE("PARAMS: ");
         for each_str_list (*Root->Parameters)
         {
-            String_AppendF(&Params, S("%S "), It.String);
+            String_AppendF(&Params, S("%S"), It.String);
         }
+        xx String_EatSpacesInlineFromEnd(&Params);
         //LOG("%S", Params);
     }
 
@@ -2644,21 +2635,10 @@ NO_DISCARD static bool Analyze_KVNode(LinearAllocator* Arena, Node* Root, Parsin
     if (bSuccess)
     {
         AddVariableToList(Arena, Context, FinalKey, Expanded, Params, Root->bIsSpecial);
-
-        /*
-        FileVariable var = {0};
-        var.Name         = String_Create(Arena, FinalKey);
-        var.Value        = String_Create(Arena, Expanded);
-        var.SpecialData  = String_IsValid(Params) ? String_Create(Arena, Params) : String_Null();
-        var.bHasSpecial  = Root->bIsSpecial;
-
-        SLinkedList_Push(Context->VarListTail, FileVariableList_Create(Arena, var));
-        */
     }
 
     return bSuccess;
 }
-
 
 NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, ParsingContext* Context, bool bInIf)
 {

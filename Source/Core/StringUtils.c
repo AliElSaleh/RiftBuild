@@ -129,7 +129,7 @@ NO_DISCARD String String_ReserveAndCopy(LinearAllocator* Arena, u32 Capacity, co
     if (bValid)
     {
         str.Data = LinearAllocator_Allocate(Arena, Capacity+1);
-        if (Source.Length) { MemCopy(str.Data, Source.Data, Source.Length); }
+        MemCopy(str.Data, Source.Data, Source.Length);
         str.Data[Source.Length] = 0;
         str.Length = Source.Length;
         str.Capacity = Capacity;

@@ -332,6 +332,7 @@ static void SuffixVariables(String* Dest, String VariableValue, const String Suf
     }
 }
 
+/*
 static bool VariableHasSpecial(TArray(FileVariable) VariablesDB, const String Name)
 {
     bool bHasSpecial = false;
@@ -346,6 +347,7 @@ static bool VariableHasSpecial(TArray(FileVariable) VariablesDB, const String Na
 
     return bHasSpecial;
 }
+*/
 
 bool LogCustomErrorMessage(TArray(FileVariable) VariablesDB, const String Context, const String Key, const bool bLineBreak)
 {
@@ -866,8 +868,8 @@ static bool EnforceCopyright(CompileData* Data, const String FullPath, const Str
             if (!bEnd) { String_Format(&LineInfo, S("lines %u - %u"), AuxData->FromLine, AuxData->ToLine); }
         }
 
-        LOG_ERROR("Source file \"%S\" does not contain the required copyright notice on %S", RelativePath, LineInfo);
-        LOG("\n    This is the missing notice string -> %S", AuxData->Content);
+        LOG_ERROR("Source file \"%S\" does not contain the required copyright notice on %S\n", RelativePath, LineInfo);
+        LOG("    Expected this on %S: %S", LineInfo, AuxData->Content);
         bContinueSearch = false;
     }
 
@@ -3123,7 +3125,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
         // try expand Version (if it exists)
         if (bDoesVersionVarExist)
         {
-            String ExpandedVar = GetVariableValue(VariablesDB, VersionKey);
+            FileVariable VersionVar = GetVariable(VariablesDB, VersionKey);
+            String ExpandedVar = VersionVar.Value;
+
             /*
             StringLocal(ExpandedVar, 256);
             if (!ExpandBuildVariableV2(*Arena, VariablesDB, CmdOptionsDB, &ExpandedVar,
@@ -3147,7 +3151,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 */
 
                 // add the defines (if desired)
-                if (VariableHasSpecial(VariablesDB, S("Version")))
+                if (String_IsEqual(VersionVar.SpecialData, S("macro"), false))
                 {
                     const String VersionLevels[3] = 
                     {
@@ -6409,15 +6413,19 @@ static u32 BuildTarget(LinearAllocator* Arena,
     // enforce copyright in all source files
     {
         const FileVariable CopyrightVar = GetVariable(ExpandedVariablesDB, S("Copyright"));
-        if (CopyrightVar.bHasSpecial)
+        if (CopyrightVar.Value.Length &&
+            (String_IsEqual(CopyrightVar.SpecialData, S("enforce"), false) ||
+             String_StartsWith(CopyrightVar.SpecialData, S("enforce:"), false)))
         {
-            if (CopyrightVar.Value.Length > 0)
+            u32 FromLine = 1;
+            u32 ToLine = 1;
+
+            u32 ColonIndex = 0;
+            if (String_IndexOfChar(CopyrightVar.SpecialData, ':', &ColonIndex))
             {
-                String SpecialData = CopyrightVar.SpecialData;
+                String SpecialData = StrShiftF(CopyrightVar.SpecialData, ColonIndex+1);
 
                 u32 DashIndex = 0;
-                u32 FromLine = 1;
-                u32 ToLine = 1;
                 if (String_IndexOfChar(SpecialData, '-', &DashIndex))
                 {
                     String From = StrSlice(SpecialData.Data, DashIndex);
@@ -6442,20 +6450,20 @@ static u32 BuildTarget(LinearAllocator* Arena,
                     xx String_ToU32(SpecialData, &FromLine);
                     ToLine = FromLine;
                 }
+            }
 
-                CopyrightEnforceInfo AuxData = {0};
-                AuxData.Content = CopyrightVar.Value;
-                AuxData.FromLine = FromLine;
-                AuxData.ToLine = ToLine;
-                AuxData.bSuccess = true;
-                
-                CompileData UserData = { &EnforceCopyright, &p, NULL, 0, true, &AuxData };
-                Filesystem_IterateDirectory_Ex(SourceDir, &SourceFileDirectoryIterator, true, &UserData);
+            CopyrightEnforceInfo AuxData = {0};
+            AuxData.Content = CopyrightVar.Value;
+            AuxData.FromLine = FromLine;
+            AuxData.ToLine = ToLine;
+            AuxData.bSuccess = true;
+            
+            CompileData UserData = { &EnforceCopyright, &p, NULL, 0, true, &AuxData };
+            Filesystem_IterateDirectory_Ex(SourceDir, &SourceFileDirectoryIterator, true, &UserData);
 
-                if (!AuxData.bSuccess)
-                {
-                    return 1;
-                }
+            if (!AuxData.bSuccess)
+            {
+                return 1;
             }
         }
     }
