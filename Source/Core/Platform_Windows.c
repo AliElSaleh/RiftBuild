@@ -424,12 +424,12 @@ void Platform_ConsoleWrite_CustomLength(const char* Message, u32 Length, u8 Colo
     HANDLE ConsoleHandle = GetStdHandle(OutputHandle);
 
     static u8 GConsoleColorLevels[7] = { CONSOLE_INFO_COLOR, CONSOLE_SUCCESS_COLOR, CONSOLE_WARNING_COLOR, CONSOLE_ERROR_COLOR, CONSOLE_FATAL_COLOR, CONSOLE_INFO_COLOR, CONSOLE_MUTE_COLOR };
+    const u8 ConsoleColor = GConsoleColorLevels[Color];
 
     // SetConsoleTextAttribute is slow, so only call it when the color changes
-    const u8 ConsoleColor = GConsoleColorLevels[Color];
-    if (ConsoleColor != CONSOLE_INFO_COLOR) // Regular white color
+    if (ConsoleColor != CONSOLE_INFO_COLOR)
     {
-        (void)SetConsoleTextAttribute(ConsoleHandle, ConsoleColor);
+        xx SetConsoleTextAttribute(ConsoleHandle, ConsoleColor);
     }
 
     bool bIgnoreNewLine = Color == 4 && Message[Length-1] == '\n';
@@ -439,21 +439,25 @@ void Platform_ConsoleWrite_CustomLength(const char* Message, u32 Length, u8 Colo
     }
 
     #if _DEBUG
-    OutputDebugString(Message);
+    {
+        StringLocal(Temp, 32768);
+        String_Copy(&Temp, StrSlice((uchar*)Message, Length));
+        OutputDebugString((char*)Temp.Data);
+    }
     #endif
 
-    (void)WriteConsole(ConsoleHandle, Message, (DWORD)Length, NULL, 0);
+    xx WriteConsole(ConsoleHandle, Message, (DWORD)Length, NULL, 0);
 
-    // SetConsoleTextAttribute is slow, so only call it when the color changes
-    if (ConsoleColor != CONSOLE_INFO_COLOR) // Regular white color
+    // Reset back to white
+    if (ConsoleColor != CONSOLE_INFO_COLOR)
     {
-        // Reset back to white
-        (void)SetConsoleTextAttribute(ConsoleHandle, CONSOLE_INFO_COLOR);
+        xx SetConsoleTextAttribute(ConsoleHandle, CONSOLE_INFO_COLOR);
     }
 
     if (UNLIKELY(bIgnoreNewLine))
     {
-        (void)WriteConsole(ConsoleHandle, "\n", 1, NULL, 0);
+        OutputDebugString("\n");
+        xx WriteConsole(ConsoleHandle, "\n", 1, NULL, 0);
     }
 }
 

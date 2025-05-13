@@ -3443,7 +3443,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     // TODO: delete
     String IncludedSourceFiles              = GetVariableValue(ExpandedVariablesDB, S("IncludedSourceFiles"));
     String ExcludedSourceFiles              = GetVariableValue(ExpandedVariablesDB, S("ExcludedSourceFiles"));
-    const String IncludedSourceDir          = GetVariableValue(ExpandedVariablesDB, S("IncludedSourceDirectories"));
+    String IncludedSourceDir                = GetVariableValue(ExpandedVariablesDB, S("IncludedSourceDirectories"));
     const String ExcludedSourceDir          = GetVariableValue(ExpandedVariablesDB, S("ExcludedSourceDirectories"));
     const String MaxConcurrentCompilations  = GetVariableValue(ExpandedVariablesDB, S("MaxConcurrentCompilations"));
     //const String OutsideSourceDirectories   = GetExpandedVariableValue(ExpandedVariablesDB, S("ExternalSourceDirectories"));
