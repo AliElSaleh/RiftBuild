@@ -30,7 +30,7 @@ else
 {
     WarningFlags                 -Wall -Wextra -Wshadow -Wconversion -Wmissing-prototypes -Wunused -Wuninitialized -Werror
     WarningFlags:!gcc            -Wpedantic
-    WarningFlagsDisabled         -Wno-typedef-redefinition -Wno-unused-parameter ##-Wno-unused-variable## -Wno-gnu-zero-variadic-macro-arguments
+    WarningFlagsDisabled         -Wno-typedef-redefinition -Wno-unused-parameter ##-Wno-unused-variable## -Wno-gnu-zero-variadic-macro-arguments -Wno-unused-command-line-argument
     WarningFlagsDisabled:mac     -Wno-nonportable-include-path
 
     SharedCompilerFlags          -std=c99 -fno-builtin-memcpy -fno-omit-frame-pointer -fno-exceptions -fno-math-errno -funroll-loops -fno-rtti -fno-strict-overflow -fno-strict-aliasing $WarningFlags $WarningFlagsDisabled
@@ -41,10 +41,11 @@ else
     SharedCompilerFlags:linux    -fstack-clash-protection
     SharedCompilerFlags:debug    -O0 -g3 -MD
     SharedCompilerFlags:!debug   -Os -finline-functions -finline-hint-functions
-    SharedCompilerFlags:asm      -S -Wno-unused-command-line-argument
+    SharedCompilerFlags:asm      -S
     SharedCompilerFlags:trace    -ftime-trace
     SharedCompilerFlags:32       -m32
     SharedCompilerFlags:mac      -mmacosx-version-min=10.12
+    SharedCompilerFlags:analyze  --analyze -funsigned-char
 
     CompilerObjectExtension:asm  .S
 
