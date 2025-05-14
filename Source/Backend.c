@@ -426,7 +426,14 @@ static bool Link_SourceFileDirectoryIterator(const String FullPath, const String
                 {
                     StringLocal(FilePath, MAX_PATH_LENGTH);
                     String_Append(&FilePath, RelativePath);
-                    String_Append(&FilePath, S(".o"));
+
+                    const String Ext = String_IsValid(Data->Params->CompilerObjectExt) ? Data->Params->CompilerObjectExt : S(".o");
+                    if (!String_IsFirst(Ext, '.'))
+                    {
+                        String_AppendChar(&FilePath, '.');
+                    }
+
+                    String_Append(&FilePath, Ext);
 
                     StringLocal(ObjectPath, MAX_PATH_LENGTH);
                     String_BuildPath(&ObjectPath, Data->Params->IntermediateDirectory, FilePath);
@@ -587,7 +594,14 @@ bool C_DoCompile(CompileData* Data, const String FullPath, const String Relative
             String_Append(&FilePath, RelativePath);
         }
 
-        String_Append(&FilePath, S(".o"));
+        // TODO: msvc
+        const String Ext = String_IsValid(Params->CompilerObjectExt) ? Params->CompilerObjectExt : S(".o");
+        if (!String_IsFirst(Ext, '.'))
+        {
+            String_AppendChar(&FilePath, '.');
+        }
+
+        String_Append(&FilePath, Ext);
     }
 
     StringLocal(ObjectPath, MAX_PATH_LENGTH);

@@ -3,7 +3,6 @@
 
 #ifndef UNITY_BUILD
 #include "Memory.h"
-#include "MemoryUtils.h"
 #include "Platform.h"
 #include "Allocators.h"
 #include "Globals.h"
@@ -283,7 +282,7 @@ NO_DISCARD usize Memory_GetEngineMemoryRemaining(void)
     return GEngineAllocator.TotalSize - GEngineAllocator.Allocated;
 }
 
-usize MemoryUtils_CalculatePaddingWithHeader(usize Ptr, usize Alignment, usize HeaderSize)
+NO_DISCARD static usize MemoryUtils_CalculatePaddingWithHeader(usize Ptr, usize Alignment, usize HeaderSize)
 {
     ASSERT(LIKELY(Alignment != 0) && ((Alignment & (Alignment-1)) == 0));
 
@@ -315,16 +314,16 @@ usize MemoryUtils_CalculatePaddingWithHeader(usize Ptr, usize Alignment, usize H
     return Padding;
 }
 
-usize GetAligned(usize Operand, usize Granularity)
+FORCEINLINE NO_DISCARD static usize GetAligned(usize Operand, usize Granularity)
 {
     return ((Operand + (Granularity-1)) & ~(Granularity-1));
 }
 
-MemoryRange GetAlignedRange(usize Offset, usize Size, usize Granularity)
+UNUSED FORCEINLINE NO_DISCARD static MemoryRange GetAlignedRange(usize Offset, usize Size, usize Granularity)
 {
     MemoryRange Result;
     Result.Offset = GetAligned(Offset, Granularity);
-    Result.Size = GetAligned(Size, Granularity);
+    Result.Size   = GetAligned(Size, Granularity);
     
     return Result;
 }
@@ -396,6 +395,11 @@ read_only u8 OutOfMemory[64] = {0};
 
 FORCEINLINE NO_DISCARD RETURN_NON_NULL static void* Internal_LA_Allocate(LinearAllocator* Allocator, usize Size)
 {
+    // i dont know if this is a good idea to wrap this behind debug only...
+    // it does result in fewer instructions and zero branches, which is faster!
+    // but then again, if you run out of memory, you have another problems.
+    // we could switch this to a different flag that can also run in release mode
+    #if _DEBUG
     ASSERT(Size > 0);
 
     if (UNLIKELY(NEVER(Allocator->Allocated + Size > Allocator->TotalSize)))
@@ -404,6 +408,7 @@ FORCEINLINE NO_DISCARD RETURN_NON_NULL static void* Internal_LA_Allocate(LinearA
         _Crash_;
         return OutOfMemory;
     }
+    #endif
     
     void* Block = ((u8*)Allocator->Memory) + Allocator->Allocated;
     Allocator->Allocated += Size;

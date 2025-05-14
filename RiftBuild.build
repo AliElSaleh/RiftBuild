@@ -14,6 +14,7 @@ License                  BSD 3-Clause
 SourceDirectory          Source
 BuildDirectory:debug     Build/Debug%%32/%%Hood
 BuildDirectory:!debug    Build/Dist%%32/%%Hood
+IntermediateDirectory    Intermediate/$SourceDirectory
 
 SourceFiles              Memory.c StringUtils.c Globals.c Log.c Platform_Core.c Program.c Backend.c Exporter.c Parse.c Platform_%(_platform).c
 SourceFiles:unix         Platform_Unix.c
@@ -54,3 +55,5 @@ if rad
     prebuild.exec  raddbg -ipc kill_all
     postbuild.exec raddbg -ipc run
 }
+
+##

@@ -47,7 +47,7 @@ enum
 #define Array_Empty(Array)                            Array_FieldSet(Array, ArrayField_Num, 0)
 #define Array_SetNum(Array, Value)                    Array_FieldSet(Array, ArrayField_Num, Value)
 #define Array_IsValidIndex(Array, Index)              Index < Array_FieldGet(Array, ArrayField_Capacity)
-#define Array_Last(Array)                             (Array)[Array_Num((Array)) == 0 ? 1 : Array_Num((Array)) - 1]
+#define Array_Last(Array)                             (Array)[Array_Num((Array)) == 0 ? 0 : Array_Num((Array)) - 1]
 
 #define SArray_Num(Array)                             CONCAT(Array, _Count)
 #define SArray_Add(Array, Value)                      do { if (CONCAT(Array, _Count) < SArray_Capacity(Array)) { Array[CONCAT(Array, _Count)] = Value; CONCAT(Array, _Count)++; }} while (0)

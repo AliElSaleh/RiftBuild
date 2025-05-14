@@ -149,6 +149,7 @@ STRUCT(BuildParams)
     String Extension_Og;
     String CompilerProgram;
     String CompilerPath;
+    String CompilerObjectExt;
     String LinkerPath;
     String ArchiverPath;
     String DumpBinPath;
@@ -304,17 +305,17 @@ void LogRegularEnvVarTutorialSteps(void);
 
 STRUCT(ParsingContext)
 {
-    LinearAllocator* TempArena;
+    LinearAllocator*     TempArena;
     TArray(FileVariable) VariablesDB;
-    TArray(CmdOption) CmdOptionsDB;
-    TArray(String) Messages;
-    TArray(FileHandle) IncludeFiles;
-    FileVariableList* VarListHead;
-    FileVariableList** VarListTail;
-    String WorkingDirectory;
-    bool bNoFail;
-    u8 Level;
-    u8 Padding[6];
+    TArray(CmdOption)    CmdOptionsDB;
+    TArray(String)       Messages;
+    TArray(FileHandle)   IncludeFiles;
+    FileVariableList*    VarListHead;
+    FileVariableList**   VarListTail;
+    String               WorkingDirectory;
+    bool                 bNoFail;
+    u8                   Level;
+    u8                   Padding[6];
 };
 
 /*

@@ -3409,6 +3409,20 @@ static u32 BuildTarget(LinearAllocator* Arena,
         }
     }
 
+    // TODO: maybe do this? makes things consistent with the other keys
+    // Assembly.Type
+    // Assembly.Extension
+    // Compiler.Flags
+    // Compiler.OutputFlag
+    // Compiler.FlagPrefixSymbol
+    // Compiler.MaxCores 
+    // Assembler.Flags
+    // Linker.Flags
+    // Linker.Defines
+    // Library.Paths
+    // SourceFiles.Exclude
+    // SourceDirectories.Exclude
+
     const String Assembly                   = GetVariableValue(ExpandedVariablesDB, S("Assembly"));
     const String AssemblyPrefix             = GetVariableValue(ExpandedVariablesDB, S("Assembly.Prefix"));
     const String AssemblyPostfix            = GetVariableValue(ExpandedVariablesDB, S("Assembly.Postfix"));
@@ -3416,6 +3430,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     String Type                             = GetVariableValue(ExpandedVariablesDB, S("Type"));
     String CompilerProgram                  = GetVariableValue(ExpandedVariablesDB, S("Compiler"));
     const String CompilerOutputFlag         = GetVariableValue(ExpandedVariablesDB, S("CompilerOutputFlag"));
+    const String CompilerObjectExt          = GetVariableValue(ExpandedVariablesDB, S("CompilerObjectExtension"));
     // TODO: specify a linker program
     //String LinkerProgram                    = GetVariableValue(ExpandedVariablesDB, S("Linker"));
     String AsmProgram                       = GetVariableValue(ExpandedVariablesDB, S("Assembler"));
@@ -3433,9 +3448,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
     const String AssertAssemblers           = GetVariableValue(ExpandedVariablesDB, S("Assert.Assembler"));
     //const String AssertPlatforms            = GetVariableValue(ExpandedVariablesDB, S("Assert.Platform"));
     //const String AssertPlatformVersion      = GetVariableValue(ExpandedVariablesDB, S("Assert.PlatformVersion"));
-    const String AssertVersion              = GetVariableValue(ExpandedVariablesDB, S("Assert.Version"));
+    //const String AssertVersion              = GetVariableValue(ExpandedVariablesDB, S("Assert.Version"));
     //const String AssertArchitecture         = GetVariableValue(ExpandedVariablesDB, S("Assert.Architecture"));
-    const String AssertPrograms             = GetVariableValue(ExpandedVariablesDB, S("Assert.ProgramExists"));
+    //const String AssertPrograms             = GetVariableValue(ExpandedVariablesDB, S("Assert.ProgramExists"));
     const String AssertEnvVars              = GetVariableValue(ExpandedVariablesDB, S("Assert.EnvVarExists"));
     const String AssertBuildVars            = GetVariableValue(ExpandedVariablesDB, S("Assert.BuildVarExists"));
     //const String AssertLibs                 = GetVariableValue(ExpandedVariablesDB, S("Assert.LibExists"));
@@ -4201,13 +4216,14 @@ static u32 BuildTarget(LinearAllocator* Arena,
     // run through the assert lists
     {
         LinearAllocator Scratch = *Arena;
-        StringArray ProgramsArray      = String_ParseIntoArray(&Scratch, AssertPrograms, ' ', 0, 128);
+        //StringArray ProgramsArray      = String_ParseIntoArray(&Scratch, AssertPrograms, ' ', 0, 128);
         StringArray EnvVarsArray       = String_ParseIntoArray(&Scratch, AssertEnvVars, ' ', 0, 128);
         StringArray BuildVarsArray     = String_ParseIntoArray(&Scratch, AssertBuildVars, ' ', 0, 128);
         //StringArray PlatformsArray     = String_ParseIntoArray(&Scratch, AssertPlatforms, ' ', 0, 128);
         //StringArray ArchitecturesArray = String_ParseIntoArray(&Scratch, AssertArchitecture, ' ', 0, 128);
         StringArray CompilersArray     = String_ParseIntoArray(&Scratch, AssertCompilers, ' ', 0, 128);
         
+        /*
         {
             if (String_CountChar(AssertVersion, '.') >= 1) // make sure this is something sensible
             {
@@ -4219,6 +4235,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 }
             }
         }
+        */
 
         /*
         StringLocal(PlatformsLogString, 128);
@@ -4502,6 +4519,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
             }
         }
 
+        /*
         for each_str (S, ProgramsArray)
         {
             String Trimmed = String_EatSpaces(*S);
@@ -4527,6 +4545,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 return 1;
             }
         }
+        */
 
         for each_str (S, EnvVarsArray)
         {
@@ -6334,6 +6353,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     p.CompilerProgram               = bExplicitCompilerPath ? CompilerPath : CompilerProgram;
     p.CompilerPath                  = CompilerPath;
     p.CompilerOutputFlag            = CompilerOutputFlag;
+    p.CompilerObjectExt             = CompilerObjectExt;
     p.LinkerPath                    = LinkerPath;
     p.ArchiverPath                  = ArchiverPath;
     p.DumpBinPath                   = DumpBinPath;

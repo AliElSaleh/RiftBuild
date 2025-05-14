@@ -102,7 +102,7 @@ static bool DoesVarExistInList(FileVariableList* List, const String Slice)
     return bFound;
 }
 
-NO_DISCARD RETURN_NON_NULL static FileVariableList* FileVariableList_Create(LinearAllocator* Arena, FileVariable Var)
+FORCEINLINE NO_DISCARD RETURN_NON_NULL static FileVariableList* FileVariableList_Create(LinearAllocator* Arena, FileVariable Var)
 {
     FileVariableList* List = LinearAllocator_Allocate(Arena, sizeof(struct FileVariableList));
     List->Var  = Var;
@@ -178,12 +178,13 @@ ENUM_TYPED(ETokenType, u32)
     Token_Max
 };
 
+#define MAX_TOKENS        2048
 #define Token_Char_Not    '!'
 #define Token_Char_At     '@'
 #define Token_Char_Mod    '%'
 #define Token_Char_Dollar '$'
 
-STRUCT(Token)
+STRUCT(Token) // 24 bytes
 {
     String     Lexeme;
     u32        Line;
@@ -304,12 +305,12 @@ read_only static String TokenTypeEnumStringTable[Token_Max] =
 
 STRUCT(Lexer)
 {
-    TArray(Token) Tokens;
+    Token* Tokens;
     String Text;
     u32 Current;
     u32 Start;
     u16 Line;
-    u8 Padding[2];
+    u16 NumTokens;
     ETokenType Type;
 };
 
@@ -347,7 +348,7 @@ STRUCT(IfConditionList)
     struct IfConditionList* Next;
 };
 
-NO_DISCARD RETURN_NON_NULL static IfConditionList* IfConditionList_Create(LinearAllocator* Arena, IfConditionData Value)
+FORCEINLINE NO_DISCARD RETURN_NON_NULL static IfConditionList* IfConditionList_Create(LinearAllocator* Arena, IfConditionData Value)
 {
     IfConditionList* List = LinearAllocator_Allocate(Arena, sizeof(struct IfConditionList));
     List->Data     = Value;
@@ -380,21 +381,12 @@ read_only static Node Node_Null = { .Type = Node_None, .Left = &Node_Null, .Righ
 
 STRUCT(Parser)
 {
-    u32 Current;
-    u32 NumTokens;
-    TArray(Token) Tokens;
-    u8          Padding[8];
+    u32    Current;
+    u32    NumTokens;
+    Token* Tokens;
 };
 
-NO_DISCARD static Parser Parser_Create(TArray(Token) Tokens)
-{
-    Parser p    = {0};
-    p.Tokens    = Tokens;
-    p.NumTokens = (u32)Array_Num(Tokens);
-    return p;
-}
-
-NO_DISCARD RETURN_NON_NULL static NodeList* NodeList_Create(LinearAllocator* Arena, Node* Node, NodeList* Next)
+FORCEINLINE NO_DISCARD RETURN_NON_NULL static NodeList* NodeList_Create(LinearAllocator* Arena, Node* Node, NodeList* Next)
 {
     NodeList* List = LinearAllocator_Allocate(Arena, sizeof(struct NodeList));
     List->Node     = Node;
@@ -402,7 +394,7 @@ NO_DISCARD RETURN_NON_NULL static NodeList* NodeList_Create(LinearAllocator* Are
     return List;
 }
 
-NO_DISCARD RETURN_NON_NULL static NodeList* NodeList_CreateNull(LinearAllocator* Arena)
+FORCEINLINE NO_DISCARD RETURN_NON_NULL static NodeList* NodeList_CreateNull(LinearAllocator* Arena)
 {
     NodeList* List = LinearAllocator_Allocate(Arena, sizeof(struct NodeList));
     List->Node     = NULL;
@@ -410,14 +402,14 @@ NO_DISCARD RETURN_NON_NULL static NodeList* NodeList_CreateNull(LinearAllocator*
     return List;
 }
 
-NO_DISCARD RETURN_NON_NULL static Node* Node_Create(LinearAllocator* Arena, ENodeType Type)
+FORCEINLINE NO_DISCARD RETURN_NON_NULL static Node* Node_Create(LinearAllocator* Arena, ENodeType Type)
 {
     Node* Node = LinearAllocator_Allocate(Arena, sizeof(struct Node));
     Node->Type = Type;
     return Node;
 }
 
-NO_DISCARD RETURN_NON_NULL static Node* Node_Create_KeyValue(LinearAllocator* Arena, String Key, StringList* Value, bool bIsSpecial)
+FORCEINLINE NO_DISCARD RETURN_NON_NULL static Node* Node_Create_KeyValue(LinearAllocator* Arena, String Key, StringList* Value, bool bIsSpecial)
 {
     Node* Node       = LinearAllocator_Allocate(Arena, sizeof(struct Node));
     Node->Type       = Node_KeyValue;
@@ -459,30 +451,17 @@ static KeywordTableEntry ReservedEndingKeywordsTable[1] =
     { .Type = Token_ErrorMessage, .Name = SC(".ErrorMessage")},
 };
 
+/*
 static String ReservedKeys[] =
 {
     SC("Compiler"),
-    SC("Compiler"),
-};
-
-static String ReservedKeys_CanMakeScopeBlock[] =
-{
-    SC("Linker"),
-    SC("Assert"),
-    SC("Bundle"),
-    SC("PreDepend"),
-    SC("PreBuild"),
-    SC("PostBuild"),
-    SC("PreCompile"),
-    SC("PostCompile"),
-    SC("PreLink"),
-    SC("PostLink"),
 };
 
 static ETokenType DisallowedInIfElseBlock[1] =
 {
     Token_Help,
 };
+*/
 
 STRUCT(DeferredKVData)
 {
@@ -503,7 +482,8 @@ read_only static DeferredKVData DeferredKVData_Null =
     .bIsSpecial = false,
 };
 
-UNUSED static bool Parser_IsTokenDisallowedInIfElseBlock(ETokenType Type)
+/*
+static bool Parser_IsTokenDisallowedInIfElseBlock(ETokenType Type)
 {
     bool bSuccess = false;
 
@@ -518,6 +498,7 @@ UNUSED static bool Parser_IsTokenDisallowedInIfElseBlock(ETokenType Type)
 
     return bSuccess;
 }
+*/
 
 static String ETokenType_ToString(ETokenType Type)
 {
@@ -543,12 +524,9 @@ static String ETokenTypeNoPrefix_ToString(ETokenType Type)
     return Result;
 }
 
-static void Lexer_Advance(Lexer* L)
+FORCEINLINE static void Lexer_Advance(Lexer* L)
 {
-    if (L->Current < L->Text.Length)
-    {
-        L->Current += 1;
-    }
+    L->Current += 1;
 }
 
 static uchar Lexer_Peek(Lexer* L)
@@ -581,14 +559,19 @@ static bool Lexer_Match(Lexer* L, uchar Expected)
 
 static void Lexer_AddToken(Lexer* L, ETokenType Type)
 {
-    u32 Diff = ClampMin(L->Current - L->Start, 1);
+    ASSERT(L->Current > L->Start);
 
-    Token NewToken  = {0};
-    NewToken.Type   = Type;
-    NewToken.Lexeme = L->Text.Length == 0 ? L->Text : StrSub(L->Text, L->Start, Diff);
-    NewToken.Line   = L->Line;
+    const u32 Diff = L->Current - L->Start;
 
-    Array_Add(L->Tokens, NewToken);
+    Token NewToken;
+    NewToken.Lexeme.Data     = L->Text.Data + L->Start;
+    NewToken.Lexeme.Length   = Diff;
+    NewToken.Lexeme.Capacity = 0;
+    NewToken.Line            = L->Line;
+    NewToken.Type            = Type;
+
+    L->Tokens[L->NumTokens] = NewToken;
+    L->NumTokens++;
 }
 
 static bool IsValidTextToken(uchar Char, bool bAllowWhitespace) CONST_FN;
@@ -604,18 +587,6 @@ static bool IsValidTextToken(uchar Char, bool bAllowWhitespace)
     bool bValid = bWhitespaceValid && !bSymbols && Char != 0;
 
     return bValid;
-}
-
-static ETokenType Lexer_PeekLastTokenType(Lexer* L)
-{
-    ETokenType Result = Token_None;
-
-    if (Array_Num(L->Tokens) > 0)
-    {
-        Result = Array_Last(L->Tokens).Type;
-    }
-
-    return Result;
 }
 
 //
@@ -2072,6 +2043,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
 
     String Text = String_Reserve(Arena, (u32)FileSize);
     
+    bool bLexSuccess = false;
     usize Length = 0;
     if (Filesystem_ReadEntireFile(H, Text.Data, &Length))
     {
@@ -2080,11 +2052,13 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
         bool bAllowWhitespace = false;
         bool bInsideWhitespaceAllowedBlock = false;
 
+        bLexSuccess = true;
+
         // tokenize the text
         Lexer l = {0};
         l.Text = Text;
         l.Line = 1;
-        ArrayLocal_Arena(Token, Tokens, 2048, Arena);
+        Token* Tokens = LinearAllocator_Allocate(Arena, sizeof(struct Token) * MAX_TOKENS);
         l.Tokens = Tokens;
         while (l.Current < l.Text.Length)
         {
@@ -2099,7 +2073,21 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
                 l.Line += 1;
             }
 
-            ETokenType LastTokenType = Lexer_PeekLastTokenType(&l);
+            if (l.NumTokens >= MAX_TOKENS)
+            {
+                LOG_ERROR("[Lexer] Max tokens of 2048 has been reached. Aborting the lexer...\n");
+                LOG("    We have artifically limited the amount of tokens that our lexer can store.\n"
+                    "    So this means you will have to simpily your .build file by reducing the amount of text that is present.\n\n"
+                    "    One way to do this is to make another file, move some text over there, and then add an include statement like so:\n"
+                    "      include my_file.buildvars");
+
+                bLexSuccess = false;
+                break;
+            }
+            
+            //usize Num = Array_Num(l.Tokens);
+            const usize LastIndex = l.NumTokens > 0 ? l.NumTokens-1 : 0;
+            ETokenType LastTokenType = l.Tokens[LastIndex].Type;
 
             if (LastTokenType == Token_Help || LastTokenType == Token_ErrorMessage)
             {
@@ -2276,37 +2264,37 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
                     Peek = Lexer_Peek(&l);
                 }
 
-                u32 Diff = ClampMin(l.Current - l.Start, 1);
-                String Lexeme = StrSub(l.Text, l.Start, Diff);
-
                 ETokenType FinalType = Token_Text;
-
-
-                // TODO: relook at this code
-                for (u8 j = 0; j < SArray_Capacity(ReservedKeywordsTable); j++)
                 {
-                    if (String_IsEqual(Lexeme, ReservedKeywordsTable[j].Name, false))
+                    const u32 Diff = l.Current - l.Start;
+                    String Lexeme = StrSub(l.Text, l.Start, Diff);
+
+                    // TODO: relook at this code
+                    for (u8 j = 0; j < SArray_Capacity(ReservedKeywordsTable); j++)
                     {
-                        FinalType = ReservedKeywordsTable[j].Type;
-                        break;
+                        if (String_IsEqual(Lexeme, ReservedKeywordsTable[j].Name, false))
+                        {
+                            FinalType = ReservedKeywordsTable[j].Type;
+                            break;
+                        }
                     }
-                }
 
-                for (u8 j = 0; j < SArray_Capacity(ReservedStartingKeywordsTable); j++)
-                {
-                    if (String_StartsWith(Lexeme, ReservedStartingKeywordsTable[j].Name, false))
+                    for (u8 j = 0; j < SArray_Capacity(ReservedStartingKeywordsTable); j++)
                     {
-                        FinalType = ReservedStartingKeywordsTable[j].Type;
-                        break;
+                        if (String_StartsWith(Lexeme, ReservedStartingKeywordsTable[j].Name, false))
+                        {
+                            FinalType = ReservedStartingKeywordsTable[j].Type;
+                            break;
+                        }
                     }
-                }
 
-                for (u8 j = 0; j < SArray_Capacity(ReservedEndingKeywordsTable); j++)
-                {
-                    if (String_EndsWith(Lexeme, ReservedEndingKeywordsTable[j].Name, false))
+                    for (u8 j = 0; j < SArray_Capacity(ReservedEndingKeywordsTable); j++)
                     {
-                        FinalType = ReservedEndingKeywordsTable[j].Type;
-                        break;
+                        if (String_EndsWith(Lexeme, ReservedEndingKeywordsTable[j].Name, false))
+                        {
+                            FinalType = ReservedEndingKeywordsTable[j].Type;
+                            break;
+                        }
                     }
                 }
 
@@ -2332,10 +2320,14 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
         */
 
         // Parse the tokens into a tree
+        if (bLexSuccess)
         {
             //Clock_Start(&c);
 
-            Parser p = Parser_Create(Tokens);
+            Parser p    = {0};
+            p.Tokens    = Tokens;
+            p.NumTokens = l.NumTokens;
+
             Result = Parse_Block(Arena, &p, 0, false);
 
             //Clock_Tick(&c);
@@ -2478,17 +2470,24 @@ NO_DISCARD static NodeList* Analyze_IncludeNode(LinearAllocator* Arena, Node* Ro
                 */
 
                 Node* AST = Internal_ParseFile(Arena, f);
-
-                u8 Level = Context->Level;
-                Context->Level = 0;
-
-                NodeList* List = Analyze_List(Arena, AST, Context, false);
-                if (List)
+                if (AST && AST != &Node_Null)
                 {
-                    SLinkedList_Push(IndeterminateNext, List);
-                }
+                    u8 Level = Context->Level;
+                    Context->Level = 0;
 
-                Context->Level = Level;
+                    NodeList* List = Analyze_List(Arena, AST, Context, false);
+                    if (List)
+                    {
+                        SLinkedList_Push(IndeterminateNext, List);
+                    }
+
+                    Context->Level = Level;
+                }
+                else
+                {
+                    // TODO: something better
+                    _Crash_;
+                }
             }
         }
     }
@@ -3247,7 +3246,24 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
 
         if (Var.Name.Data[0] == 'A' || Var.Name.Data[0] == 'a')
         {
-            if (String_IsEqual(Var.Name, S("Assert.Platform"), false))
+            if (String_IsEqual(Var.Name, S("Assert.Version"), false))
+            {
+                //if (String_CountChar(Var.Value, '.') >= 1) // make sure this is something sensible
+                {
+                    ECompareResult Result = String_CompareVersion(S(RIFTBUILD_VERSION_STRING), Var.Value);
+                    if (Result == CompareResult_Less)
+                    {
+                        LOG_INLINE_ERROR(
+                        "[ASSERTION FAILURE] RiftBuild version \"%S\" is less than the required version \"%S\"."
+                        " Please upgrade to \"%S\" or later. Aborting build...\n",
+                        S(RIFTBUILD_VERSION_STRING), Var.Value, Var.Value);
+
+                        bAssertionFailed = true;
+                        break;
+                    }
+                }
+            }
+            else if (String_IsEqual(Var.Name, S("Assert.Platform"), false))
             {
                 StringArray PlatformsArray = String_ParseIntoArray(&Scratch, Var.Value, ' ', 0, 128);
 
@@ -3597,6 +3613,36 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
                     LOG_INLINE_ERROR("[ASSERTION FAILURE] Only one of these arguments can be specified: %S\n", Var.Value);
                     bAssertionFailed = true;
                     break;
+                }
+            }
+            else if (String_IsEqual(Var.Name, S("Assert.Program"), false))
+            {
+                StringArray ProgramsArray = String_ParseIntoArray(&Scratch, Var.Value, ' ', 0, 128);
+
+                for each_str (Program, ProgramsArray)
+                {
+                    String Trimmed = String_EatSpaces(*Program);
+
+                    bool bFound = Platform_FindProgram(Trimmed);
+
+                    if (!bFound)
+                    {
+                        #ifndef HOOD
+                        LOG_INLINE_ERROR("[ASSERTION FAILURE] Program \"%S\" does not exist. Make sure that \"%S\" is installed and that its directory has been set in the path environment variable. Aborting build...\n", Trimmed, Trimmed);
+                        #else
+                        LOG_ERROR("yo dis program \"%S\" don exist cuh. need to be installed and set in da path ma nigga\n", Trimmed);
+                        #endif
+
+                        // todo: try run the program with -v only if they do this: lua|>5.4
+                        // idk maybe not...
+
+                        xx Internal_LogCustomErrorMessage(Context, S("Program"), Trimmed, false);
+                        
+                        //LogPathEnvVarTutorialSteps();
+
+                        bAssertionFailed = true;
+                        break;
+                    }
                 }
             }
             else
@@ -4416,24 +4462,24 @@ bool ExpandBuildVariableV2(LinearAllocator Scratch, FileVariableList* VariablesD
 
                 if (C == '/' || C == '\\')
                 {
-                    const String KeysToCareAbout[16] = 
+                    local_persist const String KeysToCareAbout[16] = 
                     {
-                        S("SourceDirectory"),
-                        S("BuildDirectory"),
-                        S("IntermediateDirectory"),
-                        S("LibraryDirectories"),
-                        S("Includes"),
-                        S("Icon"),
-                        S("Compiler"),
-                        S("PCH"),
-                        S("PCH.h"),
-                        S("IncludedSourceDirectories"),
-                        S("ExcludedSourceDirectories"),
-                        S("ExternalSourceDirectories"),
-                        S("SourceFiles"),
-                        S("SourceDirectories"),
-                        S("IncludedSourceFiles"),
-                        S("ExcludedSourceFiles"),
+                        SC("SourceDirectory"),
+                        SC("BuildDirectory"),
+                        SC("IntermediateDirectory"),
+                        SC("LibraryDirectories"),
+                        SC("Includes"),
+                        SC("Icon"),
+                        SC("Compiler"),
+                        SC("PCH"),
+                        SC("PCH.h"),
+                        SC("IncludedSourceDirectories"),
+                        SC("ExcludedSourceDirectories"),
+                        SC("ExternalSourceDirectories"),
+                        SC("SourceFiles"),
+                        SC("SourceDirectories"),
+                        SC("IncludedSourceFiles"),
+                        SC("ExcludedSourceFiles"),
                     };
 
                     bool bKeyIsPathBased = false;
