@@ -770,17 +770,13 @@ NO_DISCARD bool Filesystem_DoesPathHaveFileExtension(const String Path)
 
 NO_DISCARD String Filesystem_ExtractFileName(const String Path, bool bIncludeExtension)
 {
-    String FileName = String_Null();
+    String FileName = Path;
 
     u32 LastSlash = 0;
-    (void)String_IndexOfLastPathSlash(Path, &LastSlash);
+    xx String_IndexOfLastPathSlash(Path, &LastSlash);
     if (LastSlash)
     {
         FileName = StrShiftF(Path, LastSlash+1);
-    }
-    else
-    {
-        FileName = Path;
     }
 
     if (!bIncludeExtension)

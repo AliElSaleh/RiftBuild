@@ -880,7 +880,6 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena, Parser*
         {
             if (bInlineIf)
             {
-                bInlineIf = false;
                 break;
             }
         }
@@ -967,7 +966,6 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena, Parser*
         {
             if (bInlineIf)
             {
-                bInlineIf = false;
                 break;
             }
 
@@ -1644,8 +1642,6 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena,
         }
         else if (t.Type == Token_Else)
         {
-            bSkipRootTokenUpdate = true;
-
             if (!bInlineIf)
             {
                 LOG_ERROR("[Parser] [Line %u]: Illegal 'else' without matching 'if'", t.Line);
