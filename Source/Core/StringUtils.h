@@ -45,6 +45,7 @@ RIFT_API NO_DISCARD bool StringArray_IsValid(const StringArray Str);
 RIFT_API NO_DISCARD bool StringList_IsValid(const StringList Str);
 
 RIFT_API NO_DISCARD String String_Create(LinearAllocator* Arena, const String Source); // todo: deprecate
+RIFT_API NO_DISCARD String String_CreateMax(LinearAllocator* Arena, const String Source, u32 MaxCapacity); // todo: deprecate
 RIFT_API NO_DISCARD String String_CreateFromList(LinearAllocator* Arena, const StringList Source);
 RIFT_API NO_DISCARD String String_Duplicate(LinearAllocator* Arena, const String Source);
 RIFT_API NO_DISCARD String String_Reserve(LinearAllocator* Arena, u32 Capacity);

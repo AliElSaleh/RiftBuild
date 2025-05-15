@@ -59,7 +59,7 @@ NO_DISCARD bool StringList_IsValid(const StringList Str)
 NO_DISCARD String String_Create(LinearAllocator* Arena, const String Source)
 {
     String str = String_Null();
-    bool bValid = Source.Length > 0 && (Arena->Allocated + Source.Length+1 < Arena->TotalSize);
+    bool bValid = String_IsValid(Source) && (Arena->Allocated + Source.Length+1 < Arena->TotalSize);
     if (bValid)
     {
         str.Data = LinearAllocator_Allocate(Arena, Source.Length+1);
@@ -70,6 +70,12 @@ NO_DISCARD String String_Create(LinearAllocator* Arena, const String Source)
     }
 
     return str;
+}
+
+NO_DISCARD String String_CreateMax(LinearAllocator* Arena, const String Source, u32 MaxCapacity)
+{
+    const u32 MinLength = Min(MaxCapacity, Source.Length);
+    return String_Create(Arena, StrSlice(Source.Data, MinLength));
 }
 
 NO_DISCARD String String_CreateFromList(LinearAllocator* Arena, const StringList Source)

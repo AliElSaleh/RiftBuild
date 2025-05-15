@@ -1102,14 +1102,36 @@ static void ListVariables(LinearAllocator Arena, const String Name, TArray(FileV
     }
 }
 
-static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String Name, const String Value, bool bHasSpecial, u32* ExitCode)
+static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const FileVariable Var, u32* ExitCode)
 {
-    if (!String_IsValid(Value))
-    {
-        return true;
-    }
+    bool bSuccess = true;
 
+    const String Params = Var.Params;
+    const String Name   = Var.Name;
+    const String Value  = Var.Value;
+
+    ASSERT(String_IsValid(Name));
+    ASSERT(String_IsValid(Value));
     ASSERT(ExitCode != NULL);
+
+    LinearAllocator Scratch = Memory_GetScratch();
+    StringList ParamList    = String_SplitIntoList(&Scratch, Params, ' ', true);
+
+    bool bIgnoreErrors  = false;
+    bool bParam_NotExist = false;
+    for each_string_in_list (ParamList)
+    {
+        if (String_IsEqual(It.String, S("ignore_exit_code"), false) ||
+            String_IsEqual(It.String, S("ignore_error"), false) ||
+            String_IsEqual(It.String, S("ignore_errors"), false))
+        {
+            bIgnoreErrors = true;
+        }
+        else if (String_IsEqual(It.String, S("if_not_exist"), false))
+        {
+            bParam_NotExist = true;
+        }
+    }
 
     if (String_EndsWith(Name, S("Cmd"), false) ||
         String_EndsWith(Name, S("Exec"), false) ||
@@ -1134,24 +1156,32 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String
         LOG("da cmd: %S", Cmd);
         #endif
 
-        bool bIgnoreErrors = bHasSpecial;
-
-        PlatformHandle Handle = Platform_RunCommand(CmdLine, WorkingDirectory, String_Null());
-        if (!Platform_IsValidHandle(Handle) && !bIgnoreErrors)
+        bool bNoWait = false;
+        for each_string_in_list (ParamList)
         {
-            *ExitCode = 1;
-            return false;
+            if (String_IsEqual(It.String, S("no_wait"), false))
+            {
+                bNoWait = true;
+                break;
+            }
         }
 
-        bool bDontWait = String_EndsWith(Name, S("_Cmd"), false);
-        if (!bDontWait)
+        PlatformHandle Handle = Platform_RunCommand(CmdLine, WorkingDirectory, String_Null());
+        if (Platform_IsValidHandle(Handle))
         {
-            *ExitCode = Platform_WaitForProcessAndGetExitCode(Handle);
+            if (!bNoWait)
+            {
+                *ExitCode = Platform_WaitForProcessAndGetExitCode(Handle);
+            }
+        }
+        else
+        {
+            *ExitCode = 1;
         }
 
         if (*ExitCode != 0 && !bIgnoreErrors)
         {
-            return false;
+            bSuccess = false;
         }
     }
     else if (String_EndsWith(Name, S("Copy"), false))
@@ -1181,7 +1211,8 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String
         xx Filesystem_ConvertRelativeToAbsolutePath(&FullDestPath);
 
         // only copy if dest does not exist
-        if (bHasSpecial)
+        bool bDestExist = false;
+        if (bParam_NotExist)
         {
             u32 LastDot = 0;
             xx String_IndexOfLastChar(FullDestPath, '.', &LastDot);
@@ -1198,7 +1229,7 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String
                 if (Filesystem_DoesFileExist(FullDestPath))
                 {
                     LOG("[Skipping] Copy: %S", Cmd);
-                    return true;
+                    bDestExist = true;
                 }
             }
             else
@@ -1206,23 +1237,26 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String
                 if (Filesystem_DoesDirectoryExist(FullDestPath))
                 {
                     LOG("[Skipping] Copy: %S", Cmd);
-                    return true;
+                    bDestExist = true;
                 }
             }
         }
 
-        bool bIgnoreErrors = String_EndsWith(Name, S("_Copy"), false);
-
-        LOG(" > Copy: %S", Cmd);
-
-        if (!Filesystem_Copy(FullSourcePath, FullDestPath) && !bIgnoreErrors)
+        bool bContinueWithCopy = !bDestExist;
+        if (bContinueWithCopy)
         {
-            LOG("    You can ignore this error by using ._Copy instead\n"
-            "    or you can use .Copy! to check whether the source files exist\n"
-            "    and gracefully skip the copy operation if they don't.\n");
+            LOG(" > Copy: %S", Cmd);
 
-            *ExitCode = 1;
-            return false;
+            if (!Filesystem_Copy(FullSourcePath, FullDestPath) && !bIgnoreErrors)
+            {
+                LOG(
+                "\n    You can ignore this error by using .Copy(ignore_error)\n"
+                  "    or you can use .Copy(if_not_exist) to check whether the file exists\n"
+                  "    and gracefully skip the copy operation if they don't.\n");
+
+                *ExitCode = 1;
+                bSuccess = false;
+            }
         }
     }
     else if (String_EndsWith(Name, S("Wait"), false) ||
@@ -1259,75 +1293,93 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String
         }
 
         // only move if dest does not exist
-        if (bHasSpecial)
+        bool bDestExist = false;
+        if (bParam_NotExist)
         {
-            u32 LastDot = 0, LastSlash = 0;
-            bool bHasDot = String_IndexOfLastChar(SourceFile, '.', &LastDot);
+            u32 LastSlash = 0;
             bool bHasSlash = String_IndexOfLastPathSlash(SourceFile, &LastSlash);
 
-            bool bHasExtension = false;
-            bool bHasPathSeparator = String_IndexOfFirstPathSlash(StrShiftF(SourceFile, LastDot), NULL);
-            if (bHasDot && !bHasPathSeparator)
-            {
-                bHasExtension = true;
-            }
-
+            bool bCanWe = true;
+            
             StringLocal(FullPath, MAX_PATH_LENGTH);
             String_BuildPath(&FullPath, WorkingDirectory, bHasSlash ? StrSlice(SourceFile.Data, LastSlash) : SourceFile);
             if (!Filesystem_DoesDirectoryExist(FullPath))
             {
-                return true;
+                bCanWe = false;
             }
 
-            String_Empty(&FullPath);
-            String_BuildPath(&FullPath, WorkingDirectory, SourceFile);
-            if (!Filesystem_DoesFileExist(FullPath))
+            if (bCanWe)
             {
-                return true;
-            }
-
-            String FileName = StrShiftF(SourceFile, LastSlash == 0 ? 0 : LastSlash+1);
-            String_BuildPath(&FullPath, WorkingDirectory, DestinationDirectory, FileName);
-
-            if (bHasExtension)
-            {
-                if (Filesystem_DoesFileExist(FullPath))
+                String_Empty(&FullPath);
+                String_BuildPath(&FullPath, WorkingDirectory, SourceFile);
+                if (!Filesystem_DoesFileExist(FullPath))
                 {
-                    return true;
+                    bCanWe = false;
+                }
+            }
+                
+            if (bCanWe)
+            {
+                String_Empty(&FullPath);
+                String FileName = StrShiftF(SourceFile, LastSlash == 0 ? 0 : LastSlash+1);
+                String_BuildPath(&FullPath, WorkingDirectory, DestinationDirectory, FileName);
+
+                u32 LastDot = 0;
+                bool bHasDot = String_IndexOfLastChar(SourceFile, '.', &LastDot);
+
+                bool bHasExtension = false;
+                bool bHasPathSeparator = String_IndexOfFirstPathSlash(StrShiftF(SourceFile, LastDot), NULL);
+                if (bHasDot && !bHasPathSeparator)
+                {
+                    bHasExtension = true;
+                }
+
+                if (bHasExtension)
+                {
+                    if (Filesystem_DoesFileExist(FullPath))
+                    {
+                        bDestExist = true;
+                    }
+                }
+                else
+                {
+                    if (Filesystem_DoesDirectoryExist(FullPath))
+                    {
+                        bDestExist = true;
+                    }
                 }
             }
             else
             {
-                if (Filesystem_DoesDirectoryExist(FullPath))
-                {
-                    return true;
-                }
+                bDestExist = true; // skip the move/rename if the given source file does not exist
             }
         }
 
-        bool bIgnoreErrors = String_EndsWith(Name, S("_Move"), false) ||
-                             String_EndsWith(Name, S("_Rename"), false);
-
-        StringLocal(FullSourcePath, MAX_PATH_LENGTH);
-        String_BuildPath(&FullSourcePath, WorkingDirectory, SourceFile);
-
-        StringLocal(FullDestPath, MAX_PATH_LENGTH);
-        String_BuildPath(&FullDestPath, WorkingDirectory, DestinationDirectory);
-
-        if (bIgnoreErrors) { Logging_Disable(); }
-        bool bResult = Filesystem_Move(FullSourcePath, FullDestPath, bIsRename);
-        if (bIgnoreErrors) { Logging_Enable(); }
-
-        if (!bResult && !bIgnoreErrors)
+        bool bContinueWithMove = !bDestExist;
+        if (bContinueWithMove)
         {
-            LOG("    You can ignore this error by using %S instead\n"
-            "    or you can use %S to check whether the source files exist\n"
-            "    and gracefully skip the move operation if they don't.\n",
-            bIsRename ? S("._Rename") : S("._Move"),
-            bIsRename ? S(".Rename!") : S(".Move!"));
+            StringLocal(FullSourcePath, MAX_PATH_LENGTH);
+            String_BuildPath(&FullSourcePath, WorkingDirectory, SourceFile);
 
-            *ExitCode = 1;
-            return false;
+            StringLocal(FullDestPath, MAX_PATH_LENGTH);
+            String_BuildPath(&FullDestPath, WorkingDirectory, DestinationDirectory);
+
+            if (bIgnoreErrors) { Logging_Disable(); }
+            bool bResult = Filesystem_Move(FullSourcePath, FullDestPath, bIsRename);
+            if (bIgnoreErrors) { Logging_Enable(); }
+
+            if (!bResult && !bIgnoreErrors)
+            {
+                LOG(
+                "\n    You can ignore this error by using %S instead\n"
+                  "    or you can use %S to check whether the source files exist\n"
+                  "    and gracefully skip the move operation if they don't.\n",
+                bIsRename ? S(".Rename(ignore_error)") : S(".Move(ignore_error)"),
+                bIsRename ? S(".Rename(if_not_exist)") : S(".Move(if_not_exist)"));
+
+                *ExitCode = 1;
+                bSuccess = false;
+            }
         }
     }
     else if (String_EndsWith(Name, S("Delete"), false))
@@ -1343,52 +1395,57 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String
             String_IsEqual(Cmd, S(".."), false) ||
             String_IsEqual(Cmd, S("/"), false))
         {
-            return false;
+            bSuccess = false;
         }
 
         // todo: handle wildcards?
 
-        u32 LastDot = 0;
-        bool bHasDot = String_IndexOfLastChar(Cmd, '.', &LastDot);
-
-        bool bHasExtension = false;
-        bool bHasPathSeparator = String_IndexOfFirstPathSlash(StrShiftF(Cmd, LastDot), NULL);
-        if (bHasDot && !bHasPathSeparator)
+        if (bSuccess)
         {
-            bHasExtension = true;
-        }
+            u32 LastDot = 0;
+            bool bHasDot = String_IndexOfLastChar(Cmd, '.', &LastDot);
 
-        bool bIgnoreErrors = String_EndsWith(Name, S("_Delete"), false);
-
-        StringLocal(FullFilePath, MAX_PATH_LENGTH);
-        String_BuildPath(&FullFilePath, WorkingDirectory, Cmd);
-
-        if (bIgnoreErrors) { Logging_Disable(); }
-        bool bResult = false;
-        if (bHasExtension)
-        {
-            if (!Filesystem_DoesFileExist(FullFilePath))
+            bool bHasExtension = false;
+            bool bHasPathSeparator = String_IndexOfFirstPathSlash(StrShiftF(Cmd, LastDot), NULL);
+            if (bHasDot && !bHasPathSeparator)
             {
-                return true;
+                bHasExtension = true;
             }
 
-            bResult = Filesystem_DeleteFile(FullFilePath);
-        }
-        else
-        {
-            if (!Filesystem_DoesDirectoryExist(FullFilePath))
+            StringLocal(FullFilePath, MAX_PATH_LENGTH);
+            String_BuildPath(&FullFilePath, WorkingDirectory, Cmd);
+
+            if (bIgnoreErrors) { Logging_Disable(); }
+            bool bResult = false;
+            if (bHasExtension)
             {
-                return true;
+                if (Filesystem_DoesFileExist(FullFilePath))
+                {
+                    bResult = Filesystem_DeleteFile(FullFilePath);
+                }
+                else
+                {
+                    bResult = true;
+                }
             }
+            else
+            {
+                if (Filesystem_DoesDirectoryExist(FullFilePath))
+                {
+                    bResult = Filesystem_DeleteDirectory(FullFilePath);
+                }
+                else
+                {
+                    bResult = true;
+                }
+            }
+            if (bIgnoreErrors) { Logging_Enable(); }
 
-            bResult = Filesystem_DeleteDirectory(FullFilePath);
-        }
-        if (bIgnoreErrors) { Logging_Enable(); }
-
-        if (!bResult && !bIgnoreErrors)
-        {
-            *ExitCode = 1;
-            return false;
+            if (!bResult && !bIgnoreErrors)
+            {
+                *ExitCode = 1;
+                bSuccess = false;
+            }
         }
     }
     else if (String_EndsWith(Name, S("NewFile"), false))
@@ -1396,8 +1453,6 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String
         const String Cmd = Value;
 
         LOG(" > New File: %S", Cmd);
-
-        bool bIgnoreErrors = String_EndsWith(Name, S("_NewFile"), false);
 
         StringLocal(FullFilePath, MAX_PATH_LENGTH);
         String_BuildPath(&FullFilePath, WorkingDirectory, Cmd);
@@ -1409,7 +1464,7 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String
         if (!bResult && !bIgnoreErrors)
         {
             *ExitCode = 1;
-            return false;
+            bSuccess = false;
         }
     }
     else if (String_EndsWith(Name, S("NewDirectory"), false) ||
@@ -1418,9 +1473,6 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String
         const String Cmd = Value;
 
         LOG(" > New Directory: %S", Cmd);
-
-        bool bIgnoreErrors = String_EndsWith(Name, S("_NewDirectory"), false) ||
-                             String_EndsWith(Name, S("_NewDir"), false);
 
         StringLocal(FullDirPath, MAX_PATH_LENGTH);
         String_BuildPath(&FullDirPath, WorkingDirectory, Cmd);
@@ -1432,7 +1484,7 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String
         if (!bResult && !bIgnoreErrors)
         {
             *ExitCode = 1;
-            return false;
+            bSuccess = false;
         }
     }
     else if (String_EndsWith(Name, S("Log"), false))
@@ -1449,15 +1501,14 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String
     else if (String_EndsWith(Name, S("WriteFile"), false) ||
              String_EndsWith(Name, S("WriteFileLines"), false))
     {
+        bSuccess = false;
         UNIMPLEMENTED;
     }
     else if (String_EndsWith(Name, S("Download"), false))
     {
-        // TODO: release/poison scratch memory (get rid of early return)
-        LinearAllocator Scratch = Memory_GetScratch();
-        StringList ArgList      = String_SplitIntoList(&Scratch, Value, ' ', true);
-        String URL              = StringList_GetStringFromIndex(ArgList, 0);
-        String Destination      = StringList_GetStringFromIndex(ArgList, 1);
+        StringList ArgList = String_SplitIntoList(&Scratch, Value, ' ', true);
+        String URL         = StringList_GetStringFromIndex(ArgList, 0);
+        String Destination = StringList_GetStringFromIndex(ArgList, 1);
 
         // TODO:     PreBuild.Download https://github.com/glfw/glfw/releases/download/3.4/glfw-3.4.zip glfw.zip
         // make it so that we dont have to specify .zip. if we want directory, a slash will be necessary.
@@ -1469,56 +1520,64 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String
 
         if (!Filesystem_DoesPathHaveFileExtension(Destination))
         {
-            if (!Filesystem_OpenDirectory(FinalDestinationPath))
+            if (Filesystem_OpenDirectory(FinalDestinationPath))
             {
-                return false;
+                const String FileName = Filesystem_ExtractFileName(URL, true);
+                String_BuildPath(&FinalDestinationPath, FileName);
             }
-
-            const String FileName = Filesystem_ExtractFileName(URL, true);
-            String_BuildPath(&FinalDestinationPath, FileName);
+            else
+            {
+                bSuccess = false;
+            }
         }
 
-        LOG(" > Download: %S\n -> Destination: %S", URL, FinalDestinationPath);
-
-        if (Filesystem_DoesFileExist(FinalDestinationPath))
+        if (bSuccess)
         {
-            LOG("    File already exists. Skipping download.\n");
-            return true;
+            LOG(" > Download: %S\n -> Destination: %S", URL, FinalDestinationPath);
+
+            if (Filesystem_DoesFileExist(FinalDestinationPath))
+            {
+                LOG("    File already exists. Skipping download...\n");
+            }
+            else
+            {
+                StringLocal(CmdLine, 8192);
+                
+                #if PLATFORM_WINDOWS
+                String_Concat(&CmdLine, S("powershell -Command \"(New-Object Net.WebClient).DownloadFile('"), URL, S("', '"), FinalDestinationPath, S("')\""));
+                #else
+                UNIMPLEMENTED;
+                #endif
+
+                if (bVerboseLog) { LOG("    %S", CmdLine); }
+
+                PlatformHandle H = Platform_RunCommand(CmdLine, WorkingDirectory, String_Null());
+                bSuccess = Platform_IsValidHandle(H);
+                if (bSuccess)
+                {
+                    *ExitCode = Platform_WaitForProcessAndGetExitCode(H);
+                    if (*ExitCode != 0 && !bIgnoreErrors)
+                    {
+                        bSuccess = false;
+                    }
+                    else
+                    {
+                        LOG_LINE_BREAK();
+                    }
+                }
+            }
         }
-
-        StringLocal(CmdLine, 8192);
-        
-        #if PLATFORM_WINDOWS
-        String_Concat(&CmdLine, S("powershell -Command \"(New-Object Net.WebClient).DownloadFile('"), URL, S("', '"), FinalDestinationPath, S("')\""));
-        #else
-        UNIMPLEMENTED;
-        #endif
-
-        if (bVerboseLog) { LOG("    %S", CmdLine); }
-
-        PlatformHandle H = Platform_RunCommand(CmdLine, WorkingDirectory, String_Null());
-        if (!Platform_IsValidHandle(H)) { return false; }
-
-        *ExitCode = Platform_WaitForProcessAndGetExitCode(H);
-        if (*ExitCode != 0)
-        {
-            return false;
-        }
-
-        LOG_LINE_BREAK();
     }
     else if (String_EndsWith(Name, S(".Unzip"), false))
     {
-        // TODO: release/poison scratch memory (get rid of early return)
-        LinearAllocator Scratch = Memory_GetScratch();
-        StringList ArgList      = String_SplitIntoList(&Scratch, Value, ' ', true);
-        String ZipFilePath      = StringList_GetStringFromIndex(ArgList, 0);
-        String Destination      = StringList_GetStringFromIndex(ArgList, 1);
+        StringList ArgList = String_SplitIntoList(&Scratch, Value, ' ', true);
+        String ZipFilePath = StringList_GetStringFromIndex(ArgList, 0);
+        String Destination = StringList_GetStringFromIndex(ArgList, 1);
 
         if (!Filesystem_DoesFileExist(ZipFilePath))
         {
             LOG_ERROR("Zip file \"%S\" does not exist", ZipFilePath);
-            return false;
+            bSuccess = false;
         }
 
         StringLocal(FinalDestinationPath, MAX_PATH_LENGTH);
@@ -1526,39 +1585,44 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String
 
         if (!Filesystem_OpenDirectory(FinalDestinationPath))
         {
-            return false;
+            bSuccess = false;
         }
 
-        StringLocal(CmdLine, 8192);
-        
-        #if PLATFORM_WINDOWS
-        String_Concat(&CmdLine, S("powershell -Command \"Expand-Archive -Force -Path \"\"\""), ZipFilePath, S("\"\"\" -DestinationPath \"\""), FinalDestinationPath, S("\"\"\""));
-        #else
-        UNIMPLEMENTED;
-        #endif
-
-        LOG(" > Unzip: %S\n -> Destination: %S", ZipFilePath, FinalDestinationPath);
-
-        if (bVerboseLog) { LOG("    %S", CmdLine); }
-
-        PlatformHandle H = Platform_RunCommand(CmdLine, WorkingDirectory, String_Null());
-        if (!Platform_IsValidHandle(H)) { return false; }
-
-        *ExitCode = Platform_WaitForProcessAndGetExitCode(H);
-        if (*ExitCode != 0)
+        if (bSuccess)
         {
-            return false;
-        }
+            StringLocal(CmdLine, 8192);
+            
+            #if PLATFORM_WINDOWS
+            String_Concat(&CmdLine, S("powershell -Command \"Expand-Archive -Force -Path \"\"\""), ZipFilePath, S("\"\"\" -DestinationPath \"\""), FinalDestinationPath, S("\"\"\""));
+            #else
+            UNIMPLEMENTED;
+            #endif
 
-        LOG_LINE_BREAK();
+            LOG(" > Unzip: %S\n -> Destination: %S", ZipFilePath, FinalDestinationPath);
+
+            if (bVerboseLog) { LOG("    %S", CmdLine); }
+
+            PlatformHandle H = Platform_RunCommand(CmdLine, WorkingDirectory, String_Null());
+            bSuccess = Platform_IsValidHandle(H);
+            if (bSuccess)
+            {
+                *ExitCode = Platform_WaitForProcessAndGetExitCode(H);
+                if (*ExitCode != 0 && !bIgnoreErrors)
+                {
+                    bSuccess = false;
+                }
+                else
+                {
+                    LOG_LINE_BREAK();
+                }
+            }
+        }
     }
     else if (String_EndsWith(Name, S(".Zip"), false))
     {
-        // TODO: release/poison scratch memory (get rid of early return)
-        LinearAllocator Scratch = Memory_GetScratch();
-        StringList ArgList      = String_SplitIntoList(&Scratch, Value, ' ', true);
-        String FilePath         = StringList_GetStringFromIndex(ArgList, 0);
-        String Destination      = StringList_GetStringFromIndex(ArgList, 1);
+        StringList ArgList = String_SplitIntoList(&Scratch, Value, ' ', true);
+        String FilePath    = StringList_GetStringFromIndex(ArgList, 0);
+        String Destination = StringList_GetStringFromIndex(ArgList, 1);
 
         xx String_EatPathSeparatorsInlineFromEnd(&FilePath);
 
@@ -1566,57 +1630,68 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String
             !Filesystem_DoesDirectoryExist(FilePath))
         {
             LOG_ERROR("File path \"%S\" does not exist", FilePath);
-            return false;
+            bSuccess = false;
         }
 
         StringLocal(FinalDestinationPath, MAX_PATH_LENGTH);
         String_BuildPath(&FinalDestinationPath, WorkingDirectory, Destination);
 
-        if (!String_EndsWith(Destination, S(".zip"), false))
+        if (bSuccess)
         {
-            String FileName = FilePath;
+            if (!String_EndsWith(Destination, S(".zip"), false))
+            {
+                String FileName = FilePath;
+                u32 LastSlash = 0;
+                if (String_IndexOfLastPathSlash(FilePath, &LastSlash))
+                {
+                    FileName = StrShiftF(FilePath, LastSlash+1);
+                }
+
+                String_BuildPath(&FinalDestinationPath, FileName);
+                String_Append(&FinalDestinationPath, S(".zip"));
+            }
+
             u32 LastSlash = 0;
-            if (String_IndexOfLastPathSlash(FilePath, &LastSlash))
+            if (String_IndexOfLastPathSlash(FinalDestinationPath, &LastSlash))
             {
-                FileName = StrShiftF(FilePath, LastSlash+1);
-            }
-
-            String_BuildPath(&FinalDestinationPath, FileName);
-            String_Append(&FinalDestinationPath, S(".zip"));
-        }
-
-        u32 LastSlash = 0;
-        if (String_IndexOfLastPathSlash(FinalDestinationPath, &LastSlash))
-        {
-            if (!Filesystem_OpenDirectory(StrSlice(FinalDestinationPath.Data, LastSlash)))
-            {
-                return false;
+                if (!Filesystem_OpenDirectory(StrSlice(FinalDestinationPath.Data, LastSlash)))
+                {
+                    bSuccess = false;
+                }
             }
         }
 
-        StringLocal(CmdLine, 8192);
-        
-        #if PLATFORM_WINDOWS
-        const bool bFilePathHasExtension = Filesystem_DoesPathHaveFileExtension(FilePath);
-        String_Concat(&CmdLine, S("powershell -Command \"Compress-Archive -Force -Path \"\"\""), FilePath, bFilePathHasExtension ? String_Null() : S("\\*"),  S("\"\"\" -DestinationPath \"\""), FinalDestinationPath, S("\"\"\""));
-        #else
-        UNIMPLEMENTED;
-        #endif
-
-        LOG(" > Zip: %S\n -> Destination: %S", FilePath, FinalDestinationPath);
-
-        if (bVerboseLog) { LOG("    %S", CmdLine); }
-
-        PlatformHandle H = Platform_RunCommand(CmdLine, WorkingDirectory, String_Null());
-        if (!Platform_IsValidHandle(H)) { return false; }
-
-        *ExitCode = Platform_WaitForProcessAndGetExitCode(H);
-        if (*ExitCode != 0)
+        if (bSuccess)
         {
-            return false;
-        }
+            StringLocal(CmdLine, 8192);
+            
+            #if PLATFORM_WINDOWS
+            const bool bFilePathHasExtension = Filesystem_DoesPathHaveFileExtension(FilePath);
+            String_Concat(&CmdLine, S("powershell -Command \"Compress-Archive -Force -Path \"\"\""), FilePath, bFilePathHasExtension ? String_Null() : S("\\*"),  S("\"\"\" -DestinationPath \"\""), FinalDestinationPath, S("\"\"\""));
+            #else
+            UNIMPLEMENTED;
+            #endif
 
-        LOG_LINE_BREAK();
+            LOG(" > Zip: %S\n -> Destination: %S", FilePath, FinalDestinationPath);
+
+            if (bVerboseLog) { LOG("    %S", CmdLine); }
+
+            PlatformHandle H = Platform_RunCommand(CmdLine, WorkingDirectory, String_Null());
+            bSuccess = Platform_IsValidHandle(H);
+            if (bSuccess)
+            {
+                *ExitCode = Platform_WaitForProcessAndGetExitCode(H);
+
+                if (*ExitCode != 0 && !bIgnoreErrors)
+                {
+                    bSuccess = false;
+                }
+                else
+                {
+                    LOG_LINE_BREAK();
+                }
+            }
+        }
     }
     // TODO: implement this
     else if (String_EndsWith(Name, S(".Export"), false))
@@ -1631,7 +1706,7 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String
             LOG("\".Export\" can only be executed under these contexts:");
             LOG("\n    PreCompile\n    PostCompile\n    PreLink\n    PostLink\n    PostBuild");
 
-            return false;
+            bSuccess = false;
         }
 
         //Export_FromArg();
@@ -1641,7 +1716,7 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const String
         // no action required
     }
 
-    return true;
+    return bSuccess;
 }
 
 static bool TryRunBuildCommands(const String Key, const String WorkingPath, TArray(FileVariable) ExpandedVariablesDB, Clock* Timer)
@@ -1684,8 +1759,13 @@ static bool TryRunBuildCommands(const String Key, const String WorkingPath, TArr
         {
             const FileVariable* Var = Cmds[i];
 
+            if (!String_IsValid(Var->Value))
+            {
+                continue;
+            }
+
             u32 ExitCode = 0;
-            bool bResult = Internal_ExecuteBuildCmd(WorkingPath, Var->Name, Var->Value, Var->bHasSpecial, &ExitCode);
+            bool bResult = Internal_ExecuteBuildCmd(WorkingPath, *Var, &ExitCode);
             if (!bResult)
             {
                 #ifndef HOOD
@@ -1760,7 +1840,7 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const File
         FileVariable Expanded;
         Expanded.Name = S("Assembly");
         Expanded.Value = String_Create(Arena, Name);
-        Expanded.bHasSpecial = false;
+        // // Expanded.bHasSpecial = false;
 
         Array_Add(VariablesDB, Expanded);
         //Array_Add(ExpandedVariablesDB, Expanded);
@@ -1773,7 +1853,7 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const File
         
         FileVariable Expanded;
         Expanded.Name = S("Extension");
-        Expanded.bHasSpecial = false;
+        // // Expanded.bHasSpecial = false;
 
         if (String_IsEqual(Type, S("lib"), false) ||
             String_IsEqual(Type, S("library"), false))
@@ -1847,7 +1927,7 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const File
     {
         FileVariable Expanded;
         Expanded.Name = S("Extension");
-        Expanded.bHasSpecial = false;
+        // Expanded.bHasSpecial = false;
 
         #if PLATFORM_WINDOWS
             Expanded.Value = S(".exe");
@@ -1866,7 +1946,7 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const File
         FileVariable Expanded;
         Expanded.Name = S("Compiler");
         Expanded.Value = String_Null();
-        Expanded.bHasSpecial = false;
+        // Expanded.bHasSpecial = false;
 
         Array_Add(VariablesDB, Expanded);
         //Array_Add(ExpandedVariablesDB, Expanded);
@@ -1877,7 +1957,7 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const File
         FileVariable Expanded;
         Expanded.Name = S("Version");
         Expanded.Value = S("1.0.0");
-        Expanded.bHasSpecial = false;
+        // Expanded.bHasSpecial = false;
 
         Array_Add(VariablesDB, Expanded);
         //Array_Add(ExpandedVariablesDB, Expanded);
@@ -1888,7 +1968,7 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const File
         FileVariable Expanded;
         Expanded.Name = S("BuildDirectory");
         Expanded.Value = S("Build");
-        Expanded.bHasSpecial = false;
+        // Expanded.bHasSpecial = false;
 
         Array_Add(VariablesDB, Expanded);
         //Array_Add(ExpandedVariablesDB, Expanded);
@@ -1899,7 +1979,7 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const File
         FileVariable Expanded;
         Expanded.Name = S("IntermediateDirectory");
         Expanded.Value = S("Intermediate");
-        Expanded.bHasSpecial = false;
+        // Expanded.bHasSpecial = false;
 
         Array_Add(VariablesDB, Expanded);
         //Array_Add(ExpandedVariablesDB, Expanded);
@@ -1910,7 +1990,7 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const File
         FileVariable Expanded;
         Expanded.Name = S("SourceDirectory");
         Expanded.Value = String_Null();
-        Expanded.bHasSpecial = false;
+        // Expanded.bHasSpecial = false;
 
         Array_Add(VariablesDB, Expanded);
         //Array_Add(ExpandedVariablesDB, Expanded);
@@ -1980,8 +2060,8 @@ static bool CheckForBuildVariableOverrides(TArray(FileVariable) VariablesDB, TAr
                 FileVariable NewOverride;
                 NewOverride.Name = VarToOverride;
                 NewOverride.Value = o.Value;
-                NewOverride.bHasSpecial = false;
-                NewOverride.SpecialData = String_Null();
+                // NewOverride.bHasSpecial = false;
+                NewOverride.Params = String_Null();
 
                 Internal_AddOrUpdateBuildVariable(VariablesDB, NewOverride);
                 Internal_AddOrUpdateBuildVariable(ExpandedVariablesDB, NewOverride);
@@ -3151,7 +3231,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 */
 
                 // add the defines (if desired)
-                if (String_IsEqual(VersionVar.SpecialData, S("macro"), false))
+                if (String_IsEqual(VersionVar.Params, S("macro"), false))
                 {
                     const String VersionLevels[3] = 
                     {
@@ -3169,7 +3249,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                         StringLocal(VersionDefineString, 256);
                         String_Format(&VersionDefineString, S("%S_VERSION_STRING=\\\"%S\\\""), AssemblyNameUpper, ExpandedVar);
 
-                        AddOrAppendVariable(Arena, VariablesDB, S("Defines"), VersionDefineString, String_Null(), false);
+                        AddOrAppendVariable(Arena, VariablesDB, S("Defines"), VersionDefineString, String_Null());//, false);
                     }
 
                     xx String_ReplaceNonAlphaNumericCharInline(&ExpandedVar, '.');
@@ -3210,7 +3290,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                                     }
                                 }
 
-                                AddOrAppendVariable(Arena, VariablesDB, S("Defines"), VersionDefine, String_Null(), false);
+                                AddOrAppendVariable(Arena, VariablesDB, S("Defines"), VersionDefine, String_Null());//, false);
 
                                 i++;
                             }
@@ -3231,7 +3311,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                             String_Format(&VersionDefine, S("%S_VERSION=%S"), AssemblyNameUpper, ExpandedVar);
                         }
 
-                        AddOrAppendVariable(Arena, VariablesDB, S("Defines"), VersionDefine, String_Null(), false);
+                        AddOrAppendVariable(Arena, VariablesDB, S("Defines"), VersionDefine, String_Null());//, false);
                     }
                 }
             }
@@ -3467,6 +3547,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     const String PCHPath                    = GetVariableValue(ExpandedVariablesDB, S("PCH"));
     const String PCHHeaderPath              = GetVariableValue(ExpandedVariablesDB, S("PCH.h"));
     const String HelpMessage                = GetVariableValue(ExpandedVariablesDB, S(".Help"));
+    const String RPath                      = GetVariableValue(ExpandedVariablesDB, S(".RPath"));
 
     if (!IncludedSourceFiles.Length)
     {
@@ -4728,6 +4809,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 }
             }
 
+            // TODO: do this once, and reuse. so we dont allocate every time we see another "Depend" key
             void* ArenaMemory = Platform_MemAllocZero(Mebibytes(1));
             if (!ArenaMemory)
             {
@@ -4805,14 +4887,12 @@ static u32 BuildTarget(LinearAllocator* Arena,
             Filesystem_Close(&f);
 
             LinearAllocator_Destroy(&NewArena);
-            //Platform_MemFree(ArenaMemory);
-
-            // TODO: support this syntax: Depends!NoRebuildIfDoneSomeWork
-            //                            [     ]![pre-defined phrase   ]
+            Platform_MemFree(ArenaMemory);
 
             if (ExitCode == 2) // special exit code meaning this child build finished successfully (and that it did some work)
             {
-                if (!bIsRebuild && !Var.bHasSpecial)
+                bool bIsSpecial = String_IsEqual(Var.Params, S("No_Rebuild_If_Done_Work"), false);
+                if (!bIsRebuild && !bIsSpecial)
                 {
                     LOG("\nDependency \"%S\" was modified. Forcing rebuild...", BuildFileNameWithExt);
                     bIsRebuild = true;
@@ -6418,6 +6498,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     p.IconFilePath                  = IconFilePath;
     p.bLinkerNoStd                  = bLinkerNoStd;
     p.bLinkerNoDefaultLibs          = bLinkerNoDefaultLibs;
+    p.RPath                         = RPath;
 
     // @export feature
     for (u8 i = 0; i < Parameters.Num; i++)
@@ -6456,16 +6537,16 @@ static u32 BuildTarget(LinearAllocator* Arena,
     {
         const FileVariable CopyrightVar = GetVariable(ExpandedVariablesDB, S("Copyright"));
         if (CopyrightVar.Value.Length &&
-            (String_IsEqual(CopyrightVar.SpecialData, S("enforce"), false) ||
-             String_StartsWith(CopyrightVar.SpecialData, S("enforce:"), false)))
+            (String_IsEqual(CopyrightVar.Params, S("enforce"), false) ||
+             String_StartsWith(CopyrightVar.Params, S("enforce:"), false)))
         {
             u32 FromLine = 1;
             u32 ToLine = 1;
 
             u32 ColonIndex = 0;
-            if (String_IndexOfChar(CopyrightVar.SpecialData, ':', &ColonIndex))
+            if (String_IndexOfChar(CopyrightVar.Params, ':', &ColonIndex))
             {
-                String SpecialData = StrShiftF(CopyrightVar.SpecialData, ColonIndex+1);
+                String SpecialData = StrShiftF(CopyrightVar.Params, ColonIndex+1);
 
                 u32 DashIndex = 0;
                 if (String_IndexOfChar(SpecialData, '-', &DashIndex))
@@ -7662,7 +7743,8 @@ End:
         {
             if (String_IsEqual(v.Name, S(".Run"), false))
             {
-                if (v.bHasSpecial)
+                bool bIsSpecial = String_IsEqual(v.Params, S("Only_Done_Work"), false);
+                if (bIsSpecial)
                 {
                     if (NumCompiled == 0)
                     {
@@ -8932,8 +9014,8 @@ static void InitInternalVars(LinearAllocator* Arena)
 
     FileVariable_Empty.Name = String_Null();
     FileVariable_Empty.Value = String_Null();
-    FileVariable_Empty.SpecialData = String_Null();
-    FileVariable_Empty.bHasSpecial = false;
+    FileVariable_Empty.Params = String_Null();
+    // FileVariable_Empty.bHasSpecial = false;
 }
 
 u32 RunApplication(const StringArray Arguments)

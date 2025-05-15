@@ -15,11 +15,11 @@ global bool bNoWordWrapLogging;
 
 STRUCT(FileVariable)
 {
+    String Params;
     String Name;
     String Value;
-    String SpecialData; // rename to params
-    bool   bHasSpecial;
-    u8     Padding[7];
+    //bool   bHasSpecial;
+    //u8     Padding[7];
 };
 
 STRUCT(FileVariableList)
@@ -185,6 +185,8 @@ STRUCT(BuildParams)
     String Description;
     String Copyright;
     String Version;
+
+    String RPath;
 
     StringList WhitelistFiles, WhitelistDirectories;
     StringList BlacklistFiles, BlacklistDirectories;
@@ -352,18 +354,16 @@ bool ExpandBuildVariableV2(LinearAllocator Scratch, FileVariableList* VariablesD
                          bool bLowerStrings, bool bIsAssemblyExe, bool* bFailed);
 
 void AddVariable(LinearAllocator* Arena,
-                                   TArray(FileVariable) VariablesDB,
-                                   const String Name,
-                                   const String Value,
-                                   const String SpecialData,
-                                   bool bHasSpecial);
+                TArray(FileVariable) VariablesDB,
+                const String Name,
+                const String Value,
+                const String Params);
 
 void AddOrAppendVariable(LinearAllocator* Arena,
-                                   TArray(FileVariable) VariablesDB,
-                                   const String Name,
-                                   const String Value,
-                                   const String SpecialData,
-                                   bool bHasSpecial);
+                        TArray(FileVariable) VariablesDB,
+                        const String Name,
+                        const String Value,
+                        const String Params);
 
 
 bool SourceFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData);

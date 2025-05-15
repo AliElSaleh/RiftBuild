@@ -15,7 +15,6 @@
 
 // todos
 // provide examples with every parser error message
-// .rpath key
 // how to detect multiple inclusions of a file?
 // prevent including .build files
 
@@ -23,16 +22,15 @@ void AddVariable(LinearAllocator* Arena,
                 TArray(FileVariable) VariablesDB,
                 const String Name,
                 const String Value,
-                const String SpecialData,
-                bool bHasSpecial)
+                const String Params)
 {
-    // always reserve a fixed limited size so we can override if needed
-    FileVariable var = {0};
-    var.Name         = String_ReserveAndCopy(Arena, MAX_KEY_LENGTH, Name);
+    FileVariable var;
+    var.Params       = String_Create(Arena, Params);
+    var.Name         = String_CreateMax(Arena, Name, MAX_KEY_LENGTH);
+    // always reserve a fixed limited size so we can append or override if needed
     var.Value        = String_ReserveAndCopy(Arena, MAX_VALUE_LENGTH, Value);
-    var.SpecialData  = String_IsValid(SpecialData) ? String_ReserveAndCopy(Arena, MAX_META_KEY_LENGTH, SpecialData) : String_Null();
-    var.bHasSpecial  = bHasSpecial;
 
+    // todo: can be made static?
     Array_Add(VariablesDB, var);
 }
 
@@ -40,8 +38,7 @@ void AddOrAppendVariable(LinearAllocator* Arena,
                         TArray(FileVariable) VariablesDB,
                         const String Name,
                         const String Value,
-                        const String SpecialData,
-                        bool bHasSpecial)
+                        const String Params)
 {
     FileVariable* Ref = NULL;
     for each (FileVariable, v, VariablesDB)
@@ -62,7 +59,7 @@ void AddOrAppendVariable(LinearAllocator* Arena,
     }
     else
     {
-        AddVariable(Arena, VariablesDB, Name, Value, SpecialData, bHasSpecial);
+        AddVariable(Arena, VariablesDB, Name, Value, Params);
     }
 }
 
@@ -110,13 +107,13 @@ FORCEINLINE NO_DISCARD RETURN_NON_NULL static FileVariableList* FileVariableList
     return List;
 }
 
-static void AddVariableToList(LinearAllocator* Arena, ParsingContext* Context, const String Key, const String Value, const String Params, bool bIsSpecial)
+static void AddVariableToList(LinearAllocator* Arena, ParsingContext* Context, const String Key, const String Value, const String Params)//, bool bIsSpecial)
 {
     FileVariable var = {0};
+    var.Params       = String_Create(Arena, Params);
     var.Name         = String_Create(Arena, Key);
     var.Value        = String_Create(Arena, Value);
-    var.SpecialData  = String_Create(Arena, Params);
-    var.bHasSpecial  = bIsSpecial;
+    //var.bHasSpecial  = bIsSpecial;
 
     SLinkedList_Push(Context->VarListTail, FileVariableList_Create(Arena, var));
 }
@@ -359,11 +356,7 @@ FORCEINLINE NO_DISCARD RETURN_NON_NULL static IfConditionList* IfConditionList_C
 STRUCT(Node)
 {
     ENodeType   Type;
-    ETokenType  ComparisonOp;
-    bool        bIsSpecial;
-    bool        bIsReservedKey;
-    bool        bPreserveOrder;
-    u8          Padding[5];
+    u8          Padding[4];
 
     String      Key;
     StringList* Value;
@@ -375,6 +368,12 @@ STRUCT(Node)
     Node*       Right;
 
     NodeList*   List;
+
+    //ETokenType  ComparisonOp;
+    //bool        bIsSpecial;
+    //bool        bIsReservedKey;
+    bool        bPreserveOrder;
+    u8          Padding2[7];
 };
 
 read_only static Node Node_Null = { .Type = Node_None, .Left = &Node_Null, .Right = &Node_Null };
@@ -409,13 +408,14 @@ FORCEINLINE NO_DISCARD RETURN_NON_NULL static Node* Node_Create(LinearAllocator*
     return Node;
 }
 
+// TODO: remvoe bispecial
 FORCEINLINE NO_DISCARD RETURN_NON_NULL static Node* Node_Create_KeyValue(LinearAllocator* Arena, String Key, StringList* Value, bool bIsSpecial)
 {
     Node* Node       = LinearAllocator_Allocate(Arena, sizeof(struct Node));
     Node->Type       = Node_KeyValue;
     Node->Key        = Key;
     Node->Value      = Value;
-    Node->bIsSpecial = bIsSpecial;
+    //Node->bIsSpecial = bIsSpecial;
     return Node;
 }
 
@@ -1453,6 +1453,12 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena,
                 return &Node_Null;
             }
 
+            if (t.Lexeme.Length > MAX_KEY_LENGTH)
+            {
+                LOG_ERROR("[Parser] [Line %u]: Key '%S' exceeds %u characters. Please shorten to %u or less characters", t.Line, t.Lexeme, MAX_KEY_LENGTH, MAX_KEY_LENGTH);
+                return &Node_Null;
+            }
+
             StringList* ParamList = NULL;
             if (Parser_Match(P, Token_LParen))
             {
@@ -1840,14 +1846,7 @@ static void Print_KVNode(Node* Root, u32 Level)
         String_AppendChar(&Spaces, ' ');
     }
 
-    {
-        LOG("\n%S [KEY]      %S", Spaces, Root->Key);
-
-        if (Root->bIsSpecial)
-        {
-            LOG("%S [SPECIAL MOD]    ", Spaces);
-        }
-    }
+    LOG("\n%S [KEY]      %S", Spaces, Root->Key);
 
     if (Root->Value)
     {
@@ -2553,7 +2552,7 @@ static void Analyze_KVNode(LinearAllocator* Arena, Node* Root, ParsingContext* C
         xx String_EatSpacesInlineFromEnd(&Params);
     }
 
-    AddVariableToList(Arena, Context, FinalKey, Val, Params, Root->bIsSpecial);
+    AddVariableToList(Arena, Context, FinalKey, Val, Params);//, Root->bIsSpecial);
 }
 
 NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, ParsingContext* Context, bool bInIf)
@@ -3168,9 +3167,9 @@ UNUSED static void Internal_PrintVariables(TArray(FileVariable) VariablesDB)
     {
         LOG("KEY:    %S", vo.Name);
         LOG("VALUE:  %S", vo.Value);
-        if (vo.SpecialData.Length)
+        if (vo.Params.Length)
         {
-            LOG("PARAMS: %S", vo.SpecialData);
+            LOG("PARAMS: %S", vo.Params);
         }
 
         LOG_LINE_BREAK();
@@ -3662,18 +3661,20 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, ParsingCon
 
     if (!DoesVarExistInList(Context->VarListHead, S("BuildDirectory")))
     {
-        AddVariableToList(Arena, Context, S("BuildDirectory"), S("Build"), String_Null(), false);
+        AddVariableToList(Arena, Context, S("BuildDirectory"), S("Build"), String_Null());//, false);
     }
 
     if (!DoesVarExistInList(Context->VarListHead, S("IntermediateDirectory")))
     {
-        AddVariableToList(Arena, Context, S("IntermediateDirectory"), S("Intermediate"), String_Null(), false);
+        AddVariableToList(Arena, Context, S("IntermediateDirectory"), S("Intermediate"), String_Null());//, false);
     }
 
+    /*
     if (!DoesVarExistInList(Context->VarListHead, S("Version")))
     {
         AddVariableToList(Arena, Context, S("Version"), S("1.0.0"), String_Null(), false);
     }
+    */
 
     const String Type = GetVarValueInList(Context->VarListHead, S("Type"));
     bool bSetExtension = false;
@@ -3743,7 +3744,7 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, ParsingCon
             // no action required
         }
 
-        AddVariableToList(Arena, Context, S("Extension"), Extension, String_Null(), false);
+        AddVariableToList(Arena, Context, S("Extension"), Extension, String_Null());//, false);
         bSetExtension = true;
     }
 
@@ -3757,7 +3758,7 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, ParsingCon
         String Value = String_Null();
         #endif
 
-        AddVariableToList(Arena, Context, S("Extension"), Value, String_Null(), false);
+        AddVariableToList(Arena, Context, S("Extension"), Value, String_Null());//, false);
     }
 }
 
@@ -3825,7 +3826,7 @@ NO_DISCARD bool ParseBuildFileV2(LinearAllocator* PermanentArena,
             if (!DoesVarExistInList(Context.VarListHead, S("Assembly")))
             {
                 String FinalName = Filesystem_ExtractFileName(BuildFilePath, false);
-                AddVariableToList(Context.TempArena, &Context, S("Assembly"), FinalName, String_Null(), false);
+                AddVariableToList(Context.TempArena, &Context, S("Assembly"), FinalName, String_Null());//, false);
             }
 
             Internal_SetDefaultBuildVariables(Context.TempArena, &Context);
@@ -3906,11 +3907,11 @@ NO_DISCARD bool ParseBuildFileV2(LinearAllocator* PermanentArena,
 
             if (bExcludeFromConcat)
             {
-                AddVariable(PermanentArena, Context.VariablesDB, Var.Name, Expanded, Var.SpecialData, Var.bHasSpecial);
+                AddVariable(PermanentArena, Context.VariablesDB, Var.Name, Expanded, Var.Params);//, Var.bHasSpecial);
             }
             else
             {
-                AddOrAppendVariable(PermanentArena, Context.VariablesDB, Var.Name, Expanded, Var.SpecialData, Var.bHasSpecial);
+                AddOrAppendVariable(PermanentArena, Context.VariablesDB, Var.Name, Expanded, Var.Params);//, Var.bHasSpecial);
             }
         }
 
@@ -4458,7 +4459,7 @@ bool ExpandBuildVariableV2(LinearAllocator Scratch, FileVariableList* VariablesD
 
                 if (C == '/' || C == '\\')
                 {
-                    local_persist const String KeysToCareAbout[16] = 
+                    local_persist const String KeysToCareAbout[17] = 
                     {
                         SC("SourceDirectory"),
                         SC("BuildDirectory"),
@@ -4476,6 +4477,7 @@ bool ExpandBuildVariableV2(LinearAllocator Scratch, FileVariableList* VariablesD
                         SC("SourceDirectories"),
                         SC("IncludedSourceFiles"),
                         SC("ExcludedSourceFiles"),
+                        SC(".rpath"),
                     };
 
                     bool bKeyIsPathBased = false;

@@ -800,13 +800,17 @@ bool C_Link(const BuildParams* Params)
             SharedFlag = S("-shared");
         }
 
-        String RunPathLinkFlag = String_Null();
+        StringLocal(RunPathLinkFlag, MAX_PATH_LENGTH);
 
         #if !PLATFORM_WINDOWS
         if (Params->bIsAssemblyExe)
         {
-            // TODO: specify custom rpath
-            RunPathLinkFlag = S("-Wl,-rpath,'$ORIGIN'");
+            String ChosenRPath = S("$ORIGIN");
+            if (String_IsValid(Params->RPath))
+            {
+                ChosenRPath = Params->RPath;
+            }
+            String_AppendF(&RunPathLinkFlag, S("-Wl,-rpath,\"%S\""), ChosenRPath);
         }
         #endif
 
