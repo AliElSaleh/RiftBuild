@@ -1,4 +1,4 @@
-include Source/Common-Ideal.buildvars
+include Source/Common.buildvars
 
 Compiler                 %%clang %%gcc %%cl
 Assembly                 RiftBuild
