@@ -2192,7 +2192,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
                 }
                 else
                 {
-                    while (!IsNewline(Lexer_Peek(&l)))
+                    while (!IsNewline(Lexer_Peek(&l)) && Lexer_Peek(&l) != 0) // EOF
                     {
                         Lexer_Advance(&l);
                     }
@@ -2541,6 +2541,8 @@ static void Analyze_KVNode(LinearAllocator* Arena, Node* Root, ParsingContext* C
         {
             String_Append(&Val, It.String);
         }
+
+        xx String_EatSpacesInlineFromEnd(&Val);
     }
 
     if (Root->Parameters)
@@ -4008,7 +4010,7 @@ bool ExpandBuildVariableV2(LinearAllocator Scratch, FileVariableList* VariablesD
                     }
                 }
 
-                if (String_IndexOfFirstNonAlphaNumericDot(StrShiftF(StrVal, NumEaten), &Index))
+                if (String_IndexOfFirstNonAlphaNumericDotUnderscore(StrShiftF(StrVal, NumEaten), &Index))
                 {
                     Index += NumEaten;
                 }

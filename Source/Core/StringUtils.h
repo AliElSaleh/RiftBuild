@@ -145,6 +145,7 @@ RIFT_API NO_DISCARD bool String_IndexOfFirstNewline(const String Str, u32* OutIn
 RIFT_API NO_DISCARD bool String_IndexOfFirstSymbol(const String Str, u32* OutIndex);
 RIFT_API NO_DISCARD bool String_IndexOfFirstNonAlphaNumeric(const String Str, u32* OutIndex);
 RIFT_API NO_DISCARD bool String_IndexOfFirstNonAlphaNumericDot(const String Str, u32* OutIndex);
+RIFT_API NO_DISCARD bool String_IndexOfFirstNonAlphaNumericDotUnderscore(const String Str, u32* OutIndex);
 RIFT_API NO_DISCARD bool String_IndexOfSubstring(const String Str, const String Substring, bool bCaseSensitive, u32* OutIndex);
 
 RIFT_API NO_DISCARD bool String_SanitizePath(String* Dest, const String Source);
