@@ -1511,7 +1511,7 @@ bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String Relat
 
     if (Params->Type == AssemblyType_PCH)
     {
-        String_BuildPath(&FilePath, bHasSlash ? StrSlice(RelativePath.Data, LastSlash) : RelativePath, Params->Assembly);
+        String_BuildPath(&FilePath, bHasSlash ? StrSlice(RelativePath.Data, LastSlash) : String_Null(), Params->Assembly);
         String_Append(&FilePath, S(".pch"));
     }
     else
@@ -1606,7 +1606,38 @@ bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String Relat
     String_AppendChar(&CmdLine, '"');
     String_AppendSpace(&CmdLine);
 
-    String_BuildSeparator(&CmdLine, ' ', Params->CompilerFlags, Params->DefineFlags, Params->IncludeFlags);
+    StringLocal(WinSDKInclude, MAX_PATH_LENGTH*4); // 4 paths
+    if (Params->WindowsSDKIncludePath.Length)
+    {
+        String_Append(&WinSDKInclude, S("/I\""));
+        String_Append(&WinSDKInclude, Params->WindowsSDKIncludePath);
+        String_Append(&WinSDKInclude, S("\" "));
+
+        String_Append(&WinSDKInclude, S("/I\""));
+        String_Append(&WinSDKInclude, Params->WindowsSDKIncludePath);
+        String_Append(&WinSDKInclude, S("\\shared\" "));
+
+        String_Append(&WinSDKInclude, S("/I\""));
+        String_Append(&WinSDKInclude, Params->WindowsSDKIncludePath);
+        String_Append(&WinSDKInclude, S("\\ucrt\" "));
+
+        String_Append(&WinSDKInclude, S("/I\""));
+        String_Append(&WinSDKInclude, Params->WindowsSDKIncludePath);
+        String_Append(&WinSDKInclude, S("\\um\" "));
+
+        String_Append(&WinSDKInclude, S("/I\""));
+        String_Append(&WinSDKInclude, Params->WindowsSDKIncludePath);
+        String_Append(&WinSDKInclude, S("\\winrt\" "));
+    }
+
+    if (Params->VisualStudioIncludePath.Length)
+    {
+        String_Append(&WinSDKInclude, S("/I\""));
+        String_Append(&WinSDKInclude, Params->VisualStudioIncludePath);
+        String_Append(&WinSDKInclude, S("\" "));
+    }
+
+    String_BuildSeparator(&CmdLine, ' ', Params->CompilerFlags, Params->DefineFlags, Params->IncludeFlags, WinSDKInclude);
     xx String_EatSpacesInlineFromEnd(&CmdLine);
 
     if (Params->Type == AssemblyType_PCH)
@@ -2015,6 +2046,30 @@ bool MSVC_Link(const BuildParams* Params)
     bool bIsDLL = Params->Type == AssemblyType_Library || Params->Type == AssemblyType_DynamicLibrary;
     bool bIsLib = Params->Type == AssemblyType_Library || Params->Type == AssemblyType_StaticLibrary;
 
+    StringLocal(WinSDKLibPaths, MAX_PATH_LENGTH*3);
+    {
+        if (Params->WindowsSDKLibUmPath.Length)
+        {
+            String_Append(&WinSDKLibPaths, S("/LIBPATH:\""));
+            String_Append(&WinSDKLibPaths, Params->WindowsSDKLibUmPath);
+            String_Append(&WinSDKLibPaths, S("\" "));
+        }
+
+        if (Params->WindowsSDKLibUcrtPath.Length)
+        {
+            String_Append(&WinSDKLibPaths, S("/LIBPATH:\""));
+            String_Append(&WinSDKLibPaths, Params->WindowsSDKLibUcrtPath);
+            String_Append(&WinSDKLibPaths, S("\" "));
+        }
+
+        if (Params->VisualStudioLibraryPath.Length)
+        {
+            String_Append(&WinSDKLibPaths, S("/LIBPATH:\""));
+            String_Append(&WinSDKLibPaths, Params->VisualStudioLibraryPath);
+            String_Append(&WinSDKLibPaths, S("\" "));
+        }
+    }
+
     StringLocal(CmdLine, UINT16_MAX);
 
     if (bIsExe || bIsDLL)
@@ -2080,7 +2135,7 @@ bool MSVC_Link(const BuildParams* Params)
             xx String_EatSpacesInlineFromEnd(&AdditionalFlags);
         }
 
-        String_BuildSeparator(&CmdLine, ' ', Params->LinkerDefineFlags, Params->LinkerFlags, AdditionalFlags, Params->IconResFilePath, Params->VersionResFilePath, Params->Libraries, Params->LibraryDirectories);
+        String_BuildSeparator(&CmdLine, ' ', Params->LinkerDefineFlags, Params->LinkerFlags, AdditionalFlags, Params->IconResFilePath, Params->VersionResFilePath, Params->Libraries, Params->LibraryDirectories, WinSDKLibPaths);
         String_AppendSpace(&CmdLine);
 
         LinkData Data = { Params, &CmdLine };
@@ -2172,7 +2227,7 @@ bool MSVC_Link(const BuildParams* Params)
         String_AppendChar(&CmdLine, '"');
         String_Append(&CmdLine, S(" /nologo "));
 
-        String_BuildSeparator(&CmdLine, ' ', Params->LinkerFlags, Params->Libraries, Params->LibraryDirectories, Params->VersionResFilePath);
+        String_BuildSeparator(&CmdLine, ' ', Params->LinkerFlags, Params->Libraries, Params->LibraryDirectories, Params->VersionResFilePath, WinSDKLibPaths);
         String_AppendSpace(&CmdLine);
 
         LinkData Data = { Params, &CmdLine };

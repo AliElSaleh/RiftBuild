@@ -60,12 +60,14 @@ struct Find_Result {
 
     wchar* windows_sdk_root;
     wchar* windows_sdk_bin_path;
+    wchar* windows_sdk_include_path;
     wchar* windows_sdk_um_library_path;
     wchar* windows_sdk_ucrt_library_path;
     
     wchar* vs_exe_path;
     wchar* vs_library_path;
     wchar* vs_base_path;
+    wchar* vs_include_path;
 
     // new additions
     void* (*allocate)(usize Size);
@@ -499,6 +501,7 @@ void find_windows_kit_root(Find_Result *result) {
         
         bool bFound = false;
 
+        // find lib path
         {
             //defer { free(windows10_root); };
             Version_Data data = {0};
@@ -513,6 +516,7 @@ void find_windows_kit_root(Find_Result *result) {
             }
         }
 
+        // find bin path
         {
             Version_Data data = {0};
             auto windows10_bin = concat(windows10_root, L"bin");
@@ -521,6 +525,19 @@ void find_windows_kit_root(Find_Result *result) {
             if (data.best_name) {
                 result->windows_sdk_version = 10;
                 result->windows_sdk_bin_path = (wchar*)data.best_name;
+                bFound = true;
+            }
+        }
+
+        // find include path
+        {
+            Version_Data data = {0};
+            auto windows10_inc = concat(windows10_root, L"Include");
+
+            visit_files_w(windows10_inc, &data, win10_best);
+            if (data.best_name) {
+                result->windows_sdk_version = 10;
+                result->windows_sdk_include_path = (wchar*)data.best_name;
                 bFound = true;
             }
         }
@@ -536,6 +553,8 @@ void find_windows_kit_root(Find_Result *result) {
 
     if (windows8_root) {
         //defer { free(windows8_root); };
+
+        // TODO: bin and include
         
         auto windows8_lib = concat(windows8_root, L"Lib");
         //defer { free(windows8_lib); };
@@ -660,8 +679,11 @@ bool find_visual_studio_2017_by_fighting_through_microsoft_craziness(Find_Result
         String16Local(version, 64);
         String_ToWide(Line, &version);
 
+        auto include_path = concat(bstr_inst_path, L"\\VC\\Tools\\MSVC\\", (wchar_t*)version.Data, L"\\include");
         auto library_path = concat(bstr_inst_path, L"\\VC\\Tools\\MSVC\\", (wchar_t*)version.Data, L"\\lib\\x64");
         auto library_file = concat(library_path, L"\\vcruntime.lib");  // @Speed: Could have library_path point to this string, with a smaller count, to save on memory flailing!
+
+        result->vs_include_path = (wchar*)include_path;
 
         if (os_file_exists(library_file)) {
             auto link_exe_path = concat(bstr_inst_path, L"\\VC\\Tools\\MSVC\\", (wchar_t*)version.Data, L"\\bin\\Hostx64\\x64");
@@ -717,7 +739,10 @@ void find_visual_studio_by_fighting_through_microsoft_craziness(Find_Result *res
 
         //defer { free(buffer); };
         
+        auto inc_path = concat(buffer, L"VC\\include");
         auto lib_path = concat(buffer, L"VC\\Lib\\amd64");
+
+        result->vs_include_path = (wchar*)inc_path;
 
         // Check to see whether a vcruntime.lib actually exists here.
         auto vcruntime_filename = concat(lib_path, L"\\vcruntime.lib");

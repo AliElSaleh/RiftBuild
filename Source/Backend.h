@@ -18,8 +18,6 @@ STRUCT(FileVariable)
     String Params;
     String Name;
     String Value;
-    //bool   bHasSpecial;
-    //u8     Padding[7];
 };
 
 STRUCT(FileVariableList)
@@ -188,6 +186,12 @@ STRUCT(BuildParams)
 
     String RPath;
 
+    String WindowsSDKIncludePath;
+    String WindowsSDKLibUmPath;
+    String WindowsSDKLibUcrtPath;
+    String VisualStudioIncludePath;
+    String VisualStudioLibraryPath;
+
     StringList WhitelistFiles, WhitelistDirectories;
     StringList BlacklistFiles, BlacklistDirectories;
     StringList SourceFileExtensions;
@@ -320,34 +324,12 @@ STRUCT(ParsingContext)
     u8                   Padding[6];
 };
 
-/*
-bool ParseBuildFile(LinearAllocator* Arena,
-                    const FileHandle H,
-                    const String BuildFilePath,
-                    const String WorkingDirectory,
-                    TArray(FileVariable) VariablesDB,
-                    TArray(CmdOption) CmdOptionsDB,
-                    TArray(String) Messages,
-                    TArray(FileHandle) IncludeFiles,
-                    u32* ReturnCode,
-                    bool bIsIncludeFile,
-                    StringList* Includes,
-                    bool bIsAssemblyExe);
-                    */
-
 NO_DISCARD bool ParseBuildFileV2(LinearAllocator* PermanentArena,
                     const FileHandle H,
                     const String BuildFilePath,
                     ParsingContext Context,
                     bool bIsIncludeFile,
                     StringList* Includes);
-
-
-/*
-bool ExpandBuildVariable(LinearAllocator Scratch, TArray(FileVariable) VariablesDB, TArray(CmdOption) CmdOptionsDB,
-                         String* Dest, const String Key, const String Value, const String Root, const String WorkingDirectory,
-                         bool bLowerStrings, bool bIsAssemblyExe);
-                         */
 
 bool ExpandBuildVariableV2(LinearAllocator Scratch, FileVariableList* VariablesDB, TArray(CmdOption) CmdOptionsDB,
                          String* Dest, const String Key, const String Value, const String Root, const String WorkingDirectory,

@@ -2812,6 +2812,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
     ArrayLocal_Arena(FileVariable,   VariablesDB,         256, Arena); // 8192 bytes
     //ArrayLocal_Arena(FileVariable,   ExpandedVariablesDB, 256, Arena); // 8192 bytes
+
+    // todo: static array? we are not even remvoing or inserting at arbitrary indices... we are just adding
     ArrayLocal_Arena(FileHandle,     IncludeFiles,        64,  Arena); // 1024 bytes
     ArrayLocal_Arena(CmdOption,      CmdOptionsDB,        128, Arena); // 4608 bytes
     ArrayLocal_Arena(String,         Messages,            128, Arena); // 2048 bytes
@@ -3866,7 +3868,12 @@ static u32 BuildTarget(LinearAllocator* Arena,
     StringLocal(DumpBinPath, MAX_PATH_LENGTH);
 
     #if PLATFORM_WINDOWS
-    StringLocal(WindowsSDKPath, MAX_PATH_LENGTH);
+    local_persist StringLocal(WindowsSDKBinaryPath,    MAX_PATH_LENGTH);
+    local_persist StringLocal(WindowsSDKIncludePath,   MAX_PATH_LENGTH);
+    local_persist StringLocal(WindowsSDKLibUmPath,     MAX_PATH_LENGTH);
+    local_persist StringLocal(WindowsSDKLibUcrtPath,   MAX_PATH_LENGTH);
+    local_persist StringLocal(VisualStudioIncludePath, MAX_PATH_LENGTH);
+    local_persist StringLocal(VisualStudioLibraryPath, MAX_PATH_LENGTH);
     #endif
 
     bool bExplicitCompilerPath = false;
@@ -3898,12 +3905,48 @@ static u32 BuildTarget(LinearAllocator* Arena,
     #if PLATFORM_WINDOWS
     GMSVCFindAllocator = *Arena;
 
-    Find_Result MSVC_SDK_Result = {0};
-    MSVC_SDK_Result.allocate = &MSVC_Find_Allocate;
-    MSVC_SDK_Result.release  = &MSVC_Find_Release;
-    find_visual_studio_and_windows_sdk(&MSVC_SDK_Result);
+    // IDEA
+    // .SDKVersion key? to specify an exact version to build with?
+    // 
+    // TODO: figure out a way to only ever run set the strings once
+    local_persist Find_Result MSVC_SDK_Result = {0};
+    // only run this once. ever...
+    if (MSVC_SDK_Result.windows_sdk_version == 0)
+    {
+        MSVC_SDK_Result.allocate = &MSVC_Find_Allocate;
+        MSVC_SDK_Result.release  = &MSVC_Find_Release;
+        find_visual_studio_and_windows_sdk(&MSVC_SDK_Result);
+    }
 
-    if (MSVC_SDK_Result.windows_sdk_bin_path) { String_ToNarrow(CStr16(MSVC_SDK_Result.windows_sdk_bin_path), &WindowsSDKPath); }
+    if (MSVC_SDK_Result.windows_sdk_bin_path)
+    {
+        String_ToNarrow(CStr16Ex(MSVC_SDK_Result.windows_sdk_bin_path, MAX_PATH_LENGTH), &WindowsSDKBinaryPath);
+    }
+
+    if (MSVC_SDK_Result.windows_sdk_include_path)
+    {
+        String_ToNarrow(CStr16Ex(MSVC_SDK_Result.windows_sdk_include_path, MAX_PATH_LENGTH), &WindowsSDKIncludePath);
+    }
+
+    if (MSVC_SDK_Result.windows_sdk_um_library_path)
+    {
+        String_ToNarrow(CStr16Ex(MSVC_SDK_Result.windows_sdk_um_library_path, MAX_PATH_LENGTH), &WindowsSDKLibUmPath);
+    }
+
+    if (MSVC_SDK_Result.windows_sdk_ucrt_library_path)
+    {
+        String_ToNarrow(CStr16Ex(MSVC_SDK_Result.windows_sdk_ucrt_library_path, MAX_PATH_LENGTH), &WindowsSDKLibUcrtPath);
+    }
+
+    if (MSVC_SDK_Result.vs_include_path)
+    {
+        String_ToNarrow(CStr16Ex(MSVC_SDK_Result.vs_include_path, MAX_PATH_LENGTH), &VisualStudioIncludePath);
+    }
+
+    if (MSVC_SDK_Result.vs_library_path)
+    {
+        String_ToNarrow(CStr16Ex(MSVC_SDK_Result.vs_library_path, MAX_PATH_LENGTH), &VisualStudioLibraryPath);
+    }
     #endif
 
     // does the compiler program exist on the user's machine
@@ -3963,9 +4006,11 @@ static u32 BuildTarget(LinearAllocator* Arena,
             }
 
             #ifndef HOOD
-            if (String_IsEqual(CompilerProgram, S("cl"), false))
+            if (String_IsEqual(CompilerProgram, S("cl"), false) ||
+                String_IsEqual(CompilerProgram, S("msvc"), false))
             {
                 #if PLATFORM_WINDOWS
+                /*
                 const bool bShowExtraInfo = StringArray_Contains(Parameters, S("--help-msvc-init"), false);
 
                 if (bQuietBuild) { Logging_Enable(); }
@@ -3978,7 +4023,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
                     if (MSVC_SDK_Result.windows_sdk_root)
                     {
-                        String16 PathWide = CStr16(MSVC_SDK_Result.windows_sdk_root);
+                        String16 PathWide = CStr16Ex(MSVC_SDK_Result.windows_sdk_root, MAX_PATH_LENGTH);
                         StringLocal(Path, MAX_PATH_LENGTH);
                         String_ToNarrow(PathWide, &Path);
                         LOG("   Windows SDK path:      %S", Path);
@@ -3986,7 +4031,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
                     if (MSVC_SDK_Result.windows_sdk_um_library_path)
                     {
-                        String16 PathWide = CStr16(MSVC_SDK_Result.windows_sdk_um_library_path);
+                        String16 PathWide = CStr16Ex(MSVC_SDK_Result.windows_sdk_um_library_path, MAX_PATH_LENGTH);
                         StringLocal(Path, MAX_PATH_LENGTH);
                         String_ToNarrow(PathWide, &Path);
                         LOG("   Windows SDK um path:   %S", Path);
@@ -3994,7 +4039,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
                     if (MSVC_SDK_Result.windows_sdk_ucrt_library_path)
                     {
-                        String16 PathWide = CStr16(MSVC_SDK_Result.windows_sdk_ucrt_library_path);
+                        String16 PathWide = CStr16Ex(MSVC_SDK_Result.windows_sdk_ucrt_library_path, MAX_PATH_LENGTH);
                         StringLocal(Path, MAX_PATH_LENGTH);
                         String_ToNarrow(PathWide, &Path);
                         LOG("   Windows SDK ucrt path: %S", Path);
@@ -4002,7 +4047,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
                     if (MSVC_SDK_Result.vs_exe_path)
                     {
-                        String16 PathWide = CStr16(MSVC_SDK_Result.vs_exe_path);
+                        String16 PathWide = CStr16Ex(MSVC_SDK_Result.vs_exe_path, MAX_PATH_LENGTH);
                         StringLocal(Path, MAX_PATH_LENGTH);
                         String_ToNarrow(PathWide, &Path);
                         LOG("   VS exe path:           %S", Path);
@@ -4010,7 +4055,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
                     if (MSVC_SDK_Result.vs_library_path)
                     {
-                        String16 PathWide = CStr16(MSVC_SDK_Result.vs_library_path);
+                        String16 PathWide = CStr16Ex(MSVC_SDK_Result.vs_library_path, MAX_PATH_LENGTH);
                         StringLocal(Path, MAX_PATH_LENGTH);
                         String_ToNarrow(PathWide, &Path);
                         LOG("   VS library path:       %S", Path);
@@ -4018,7 +4063,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
                     if (MSVC_SDK_Result.vs_base_path)
                     {
-                        String16 PathWide = CStr16(MSVC_SDK_Result.vs_base_path);
+                        String16 PathWide = CStr16Ex(MSVC_SDK_Result.vs_base_path, MAX_PATH_LENGTH);
                         StringLocal(Path, MAX_PATH_LENGTH);
                         String_ToNarrow(PathWide, &Path);
                         LOG("   VS base path:          %S", Path);
@@ -4026,19 +4071,23 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 }
 
                 StringLocal(BasePath, MAX_PATH_LENGTH);
-                if (MSVC_SDK_Result.vs_base_path) { String_ToNarrow(CStr16(MSVC_SDK_Result.vs_base_path), &BasePath); }
+                if (MSVC_SDK_Result.vs_base_path) { String_ToNarrow(CStr16Ex(MSVC_SDK_Result.vs_base_path, MAX_PATH_LENGTH), &BasePath); }
+                */
 
                 StringLocal(ExePath, MAX_PATH_LENGTH);
-                if (MSVC_SDK_Result.vs_exe_path) { String_ToNarrow(CStr16(MSVC_SDK_Result.vs_exe_path), &ExePath); }
+                if (MSVC_SDK_Result.vs_exe_path) { String_ToNarrow(CStr16Ex(MSVC_SDK_Result.vs_exe_path, MAX_PATH_LENGTH), &ExePath); }
 
                 String_Copy(&CompilerPath, ExePath);
                 String_Append(&CompilerPath, S("\\cl.exe"));
+
+                bCompilerProgramFound = true;
 
                 // TODO: .InitMSVCEnvironment in build file to trigger this
                 
                 // Initialize vcvars environment
                 // find the vcvars bat file so we can run cl from a regular cmd line.
                 // luckily the bat file is always in the same place relative to the base path
+                /*
                 if (Filesystem_DoesDirectoryExist(BasePath))
                 {
                     Clock_Start(&MSVCInitClock);
@@ -4120,6 +4169,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
                     Clock_Tick(&MSVCInitClock);
                 }
+                */
                 #endif
 
                 if (!bCompilerProgramFound)
@@ -4809,6 +4859,15 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 }
             }
 
+            // Note(Ali): I would've liked to keep this allocation on the stack but it is very hard to make a 
+            //            gurantee against stackover flow errors (currently the stack size for this program is
+            //            set to 8MB). what happens if we are N "depends" deep? if i keep on allocating 1MB on
+            //            the stack for each depends, then we will defintely overflow, subsequent functions/scopes
+            //            will not have enough space on the stack for them to function properly thus causing a 
+            //            crash :( I want to revist this in the future again to see how i can make a pretty good
+            //            "gurantee" that the program won't get into that state. On the bright side, at least
+            //            we aren't dynamically shitting memory out everytime we need some :P
+            //            So just allocate one big chunk and let our allocator dish out the memory.
             // TODO: do this once, and reuse. so we dont allocate every time we see another "Depend" key
             void* ArenaMemory = Platform_MemAllocZero(Mebibytes(1));
             if (!ArenaMemory)
@@ -5285,7 +5344,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
     Filesystem_IterateDirectory_Ex(SourceDir, &SourceFileCounterDirectoryIterator, true, &CountData);
 
-    const u32 NumSources = AssemblyType == AssemblyType_PCH ? CountData.NumHeaders : CountData.NumSources;
+    //const u32 NumSources = AssemblyType == AssemblyType_PCH ? CountData.NumHeaders : CountData.NumSources;
+    const u32 NumSources = CountData.NumSources;
 
     u32 NumCompiled = 0;
 
@@ -5725,7 +5785,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
             String_BuildPath(&LinkerPath, CompilerBasePath, S("link.exe"));
             String_BuildPath(&ArchiverPath, CompilerBasePath, S("lib.exe"));
             String_BuildPath(&DumpBinPath, CompilerBasePath, S("dumpbin.exe"));
-            String_BuildPath(&RCCompilerPath, WindowsSDKPath, S("\\"CPU_ARCHITECTURE_STRING"\\rc.exe"));
+            String_BuildPath(&RCCompilerPath, WindowsSDKBinaryPath, S("\\"CPU_ARCHITECTURE_STRING"\\rc.exe"));
 
             RCCompilerFlags = S("/nologo");
         }
@@ -5734,9 +5794,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
             String_Copy(&LinkerPath, CompilerPath);
 
             #if PLATFORM_WINDOWS
-            if (WindowsSDKPath.Length > 0)
+            if (WindowsSDKBinaryPath.Length > 0)
             {
-                String_BuildPath(&RCCompilerPath, WindowsSDKPath, S("\\"CPU_ARCHITECTURE_STRING"\\rc.exe"));
+                String_BuildPath(&RCCompilerPath, WindowsSDKBinaryPath, S("\\"CPU_ARCHITECTURE_STRING"\\rc.exe"));
                 RCCompilerFlags = S("/nologo");
             }
             #else
@@ -6499,6 +6559,13 @@ static u32 BuildTarget(LinearAllocator* Arena,
     p.bLinkerNoStd                  = bLinkerNoStd;
     p.bLinkerNoDefaultLibs          = bLinkerNoDefaultLibs;
     p.RPath                         = RPath;
+    #if PLATFORM_WINDOWS
+    p.WindowsSDKIncludePath         = WindowsSDKIncludePath;
+    p.WindowsSDKLibUmPath           = WindowsSDKLibUmPath;
+    p.WindowsSDKLibUcrtPath         = WindowsSDKLibUcrtPath;
+    p.VisualStudioIncludePath       = VisualStudioIncludePath;
+    p.VisualStudioLibraryPath       = VisualStudioLibraryPath;
+    #endif
 
     // @export feature
     for (u8 i = 0; i < Parameters.Num; i++)
@@ -8511,6 +8578,8 @@ static void InitInternalVars(LinearAllocator* Arena)
     AddInternalVariable(S("Unix"),      String_Null());
     #endif
 
+    // TODO: move to msvc backend...
+    // TODO: delete _nativelibs
     const String Win32Libs = S("kernel32 user32 opengl32 shell32 gdi32 comdlg32 comctl32 ws2_32 ntdll winmm netapi32 ole32 advapi32 "
                                "wldap32 crypt32 rpcrt4 shlwapi dbghelp bcrypt version imm32 cfgmgr32 setupapi oleaut32 "
                                "uuid odbc32 odbccp32 delayimp userenv pathcch");
