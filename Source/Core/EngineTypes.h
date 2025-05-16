@@ -173,14 +173,15 @@ STRUCT(StringList)
 
 #define StringN(n)  		                struct { uchar Data[n]; u32 Length; u32 Capacity; }
 
-#define StringLocal(Name, n) 	            u8    MACRO_VAR(CONCAT(Buffer_, Name))[n+1] = {0}; String   Name; Name.Data = (uchar*)MACRO_VAR(CONCAT(Buffer_, Name)); Name.Length = 0; Name.Capacity = (n)
-#define String16Local(Name, n) 	            wchar MACRO_VAR(CONCAT(Buffer_, Name))[n+1] = {0}; String16 Name; Name.Data = (wchar*)MACRO_VAR(CONCAT(Buffer_, Name)), Name.Length = 0, Name.Capacity = (n)
+#define StringLocal(Name, n) 	            uchar MACRO_VAR(CONCAT(Buffer_, Name))[n+1] = {0}; String   Name; Name.Data = MACRO_VAR(CONCAT(Buffer_, Name)); Name.Length = 0; Name.Capacity = (n)
+#define String16Local(Name, n) 	            wchar MACRO_VAR(CONCAT(Buffer_, Name))[n+1] = {0}; String16 Name; Name.Data = MACRO_VAR(CONCAT(Buffer_, Name)), Name.Length = 0, Name.Capacity = (n)
 
-#define CStr(s)                             (String)         {.Data = (uchar*)(s),      .Length = String_GetLength(s),             .Capacity = 0}
-#define CStrEx(s, n)                        (String)         {.Data = (uchar*)(s),      .Length = String_GetLength_Ex(s, n),       .Capacity = 0}
-#define CStrView(s)                         (const String)   {.Data = (uchar*)(s),      .Length = String_GetLength(s),             .Capacity = 0}
-#define CStr16(s)                           (String16)       {.Data = (wchar*)(s),      .Length = String16_GetLength((wchar*)(s)), .Capacity = 0}
-#define CStr16View(s)                       (const String16) {.Data = (wchar*)(s),      .Length = String16_GetLength(s),           .Capacity = 0}
+#define CStr(s)                             (String)         {.Data = (uchar*)(s),      .Length = String_GetLength(s),                   .Capacity = 0}
+#define CStrEx(s, n)                        (String)         {.Data = (uchar*)(s),      .Length = String_GetLength_Ex(s, n),             .Capacity = 0}
+#define CStrView(s)                         (const String)   {.Data = (uchar*)(s),      .Length = String_GetLength(s),                   .Capacity = 0}
+#define CStr16(s)                           (String16)       {.Data = (wchar*)(s),      .Length = String16_GetLength((wchar*)(s)),       .Capacity = 0}
+#define CStr16Ex(s, n)                      (String16)       {.Data = (wchar*)(s),      .Length = String16_GetLength_Ex((wchar*)(s), n), .Capacity = 0}
+#define CStr16View(s)                       (const String16) {.Data = (wchar*)(s),      .Length = String16_GetLength(s),                 .Capacity = 0}
 
 #define S(s)                                (const String)   {.Data = (uchar*)(s),      .Length = sizeof(s)-1, .Capacity = 0}
 #define SC(s)                                                {.Data = (uchar*)(s),      .Length = sizeof(s)-1, .Capacity = 0}
@@ -220,10 +221,9 @@ STRUCT(StringList)
 #define and  &&
 #define or   ||
 #define not  !
-#define in   ,
 
 #define TArray(Type) Type*
-#define SArray(Type, Name, Count) Type Name[Count]; u32 CONCAT(Name, _Count)
+#define SArray(Type, Name, Count) u32 CONCAT(Name, _Count); Type Name[Count]
 #define TMap(KeyType, ValueType)
 
 #define SLinkedList_Push(List, Entry) \
@@ -666,6 +666,9 @@ typedef u32 usize;
     #define PATH_SEPARATOR '/'
 #endif
 
-read_only global String GString_Null;
+read_only global String      GString_Null;
+read_only global String      GString_Null;
+read_only global StringArray GStringArray_Null;
+read_only global StringList  GStringList_Null;
 
 #endif // ENGINE_TYPES_H
