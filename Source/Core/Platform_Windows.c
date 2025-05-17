@@ -1576,13 +1576,15 @@ NO_DISCARD bool Filesystem_GetFileSize(const FileHandle File, usize* OutSize)
 NO_DISCARD bool Filesystem_IsFile(const String Path)
 {
     DWORD Attrib = GetFileAttributes((char*)Path.Data);
-    return (Attrib != INVALID_FILE_ATTRIBUTES && (Attrib & FILE_ATTRIBUTE_NORMAL));
+    bool bIsFile = (Attrib != INVALID_FILE_ATTRIBUTES && (Attrib != FILE_ATTRIBUTE_DIRECTORY));
+    return bIsFile;
 }
 
 NO_DISCARD bool Filesystem_IsDirectory(const String Path)
 {
     DWORD Attrib = GetFileAttributes((char*)Path.Data);
-    return (Attrib != INVALID_FILE_ATTRIBUTES && (Attrib & FILE_ATTRIBUTE_DIRECTORY));
+    bool bIsDir = (Attrib != INVALID_FILE_ATTRIBUTES && (Attrib & FILE_ATTRIBUTE_DIRECTORY));
+    return bIsDir;
 }
 
 NO_DISCARD bool Filesystem_IsPathRelative(const String Path)
@@ -1805,10 +1807,31 @@ NO_DISCARD bool Filesystem_Copy(const String Source, const String Destination)
     String_ConvertSlashToPlatformSlash(&SourceCopy);
     String_ConvertSlashToPlatformSlash(&DestinationCopy);
 
-    u32 LastSlash = 0;
-    if (String_IndexOfLastPathSlash(DestinationCopy, &LastSlash))
     {
-        (void)Filesystem_OpenDirectory(StrSlice(DestinationCopy.Data, LastSlash));
+        u32 LastSlash = 0;
+        if (String_IndexOfLastPathSlash(DestinationCopy, &LastSlash))
+        {
+            (void)Filesystem_OpenDirectory(StrSlice(DestinationCopy.Data, LastSlash));
+        }
+    }
+
+    // handles a case where we dont specify the file on the Destination string, so we handle that for them here.
+    if (Filesystem_IsFile(SourceCopy) && Filesystem_IsDirectory(DestinationCopy))
+    {
+        u32 LastSlash = 0;
+        xx String_IndexOfLastPathSlash(SourceCopy, &LastSlash);
+        
+        String_BuildPath(&DestinationCopy, StrShiftF(SourceCopy, LastSlash == 0 ? 0 : LastSlash+1));
+    }
+
+    // this is an error
+    if (Filesystem_IsFile(DestinationCopy) && Filesystem_IsDirectory(SourceCopy))
+    {
+        StringLocal(Msg, 1024);
+        String_Format(&Msg, S("Destination \"%S\" can not be copied into \"%S\". You likely have the two mixed up."), DestinationCopy, SourceCopy);
+
+        Platform_ConsoleWrite_CustomLength((const char*)Msg.Data, Msg.Length, 3, true);
+        return false;
     }
 
     /*
@@ -1830,7 +1853,8 @@ NO_DISCARD bool Filesystem_Copy(const String Source, const String Destination)
 
     // remove the read only attribute if we're copying from a source which had a readonly attribute set on it,
     // otherwise the copy will fail if the file already exists at the destination
-    if (Filesystem_DoesFileExist(DestinationCopy))
+    // maybe we shouldnt care...
+    if (Filesystem_IsFile(DestinationCopy) && Filesystem_DoesFileExist(DestinationCopy))
     {
         (void)SetFileAttributes((char*)DestinationCopy.Data, (u32)GetFileAttributes((char*)DestinationCopy.Data) & (u32)~FILE_ATTRIBUTE_READONLY);
     }

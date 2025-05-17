@@ -107,13 +107,12 @@ FORCEINLINE NO_DISCARD RETURN_NON_NULL static FileVariableList* FileVariableList
     return List;
 }
 
-static void AddVariableToList(LinearAllocator* Arena, ParsingContext* Context, const String Key, const String Value, const String Params)//, bool bIsSpecial)
+static void AddVariableToList(LinearAllocator* Arena, ParsingContext* Context, const String Key, const String Value, const String Params)
 {
     FileVariable var = {0};
     var.Params       = String_Create(Arena, Params);
     var.Name         = String_Create(Arena, Key);
     var.Value        = String_Create(Arena, Value);
-    //var.bHasSpecial  = bIsSpecial;
 
     SLinkedList_Push(Context->VarListTail, FileVariableList_Create(Arena, var));
 }
@@ -369,9 +368,6 @@ STRUCT(Node)
 
     NodeList*   List;
 
-    //ETokenType  ComparisonOp;
-    //bool        bIsSpecial;
-    //bool        bIsReservedKey;
     bool        bPreserveOrder;
     u8          Padding2[7];
 };
@@ -408,14 +404,12 @@ FORCEINLINE NO_DISCARD RETURN_NON_NULL static Node* Node_Create(LinearAllocator*
     return Node;
 }
 
-// TODO: remvoe bispecial
-FORCEINLINE NO_DISCARD RETURN_NON_NULL static Node* Node_Create_KeyValue(LinearAllocator* Arena, String Key, StringList* Value, bool bIsSpecial)
+FORCEINLINE NO_DISCARD RETURN_NON_NULL static Node* Node_Create_KeyValue(LinearAllocator* Arena, String Key, StringList* Value)
 {
     Node* Node       = LinearAllocator_Allocate(Arena, sizeof(struct Node));
     Node->Type       = Node_KeyValue;
     Node->Key        = Key;
     Node->Value      = Value;
-    //Node->bIsSpecial = bIsSpecial;
     return Node;
 }
 
@@ -469,8 +463,6 @@ STRUCT(DeferredKVData)
     StringList* Params;
     Node* FilterNode;
     Node* LastIfNode;
-    bool bIsSpecial;
-    u8 Padding[7];
 };
 
 read_only static DeferredKVData DeferredKVData_Null = 
@@ -478,8 +470,7 @@ read_only static DeferredKVData DeferredKVData_Null =
     .Key = &Token_Null,
     .Params = NULL,
     .FilterNode = &Node_Null,
-    .LastIfNode = &Node_Null,
-    .bIsSpecial = false,
+    .LastIfNode = &Node_Null
 };
 
 /*
@@ -1169,7 +1160,7 @@ static void Internal_AssignParentToChildrenRecursively(Node* Parent, NodeList* C
 NO_DISCARD RETURN_NON_NULL static NodeList* Internal_CreateNodeListFromDeferred(LinearAllocator* Arena, DeferredKVData Deferred)
 {
     NodeList* List = NodeList_CreateNull(Arena);
-    Node* KV_Node = Node_Create_KeyValue(Arena, Deferred.Key->Lexeme, NULL, Deferred.bIsSpecial);
+    Node* KV_Node = Node_Create_KeyValue(Arena, Deferred.Key->Lexeme, NULL);
     KV_Node->Parameters = Deferred.Params;
 
     if (Deferred.FilterNode != &Node_Null)
@@ -1185,11 +1176,7 @@ NO_DISCARD RETURN_NON_NULL static NodeList* Internal_CreateNodeListFromDeferred(
     return List;
 }
 
-NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena,
-                    Parser* P,
-                    u32 Offset,
-                    bool bInlineIf
-                    )
+NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Parser* P, u32 Offset, bool bInlineIf)
 {
     Node* Root = Node_Create(Arena, Node_Block);
     NodeList** NextNode = &Root->List;
@@ -1336,7 +1323,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena,
 
                 Parser_Advance(P); // go past ']'
 
-                Node* KV_Node = Node_Create_KeyValue(Arena, Deferred.Key->Lexeme, ValueList, Deferred.bIsSpecial);
+                Node* KV_Node = Node_Create_KeyValue(Arena, Deferred.Key->Lexeme, ValueList);
                 KV_Node->Parameters = Deferred.Params;
 
                 if (Deferred.FilterNode != &Node_Null)
@@ -1437,15 +1424,8 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena,
             Parser_SkipWhitespace(P);
 
             // this means we are the key
-            bool bIsSpecial = false;
-            if (Parser_Match(P, Token_Text) ||
-                Parser_Match(P, Token_Assert))
-            {
-                if (Parser_Match(P, Token_Not))
-                {
-                    bIsSpecial = true;
-                }
-            }
+            xx Parser_Match(P, Token_Text);
+            xx Parser_Match(P, Token_Assert);
 
             if (!IsAlphabet(t.Lexeme.Data[0]) && t.Lexeme.Data[0] != '.')
             {
@@ -1582,7 +1562,6 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena,
                 Deferred.Params     = ParamList;
                 Deferred.FilterNode = FilterNode;
                 Deferred.LastIfNode = LastIfNode;
-                Deferred.bIsSpecial = bIsSpecial;
             }
             else
             {
@@ -1607,7 +1586,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena,
                     Parser_Advance(P);
                 }
 
-                Node* KV_Node = Node_Create_KeyValue(Arena, tPtr->Lexeme, ValueList, bIsSpecial);
+                Node* KV_Node = Node_Create_KeyValue(Arena, tPtr->Lexeme, ValueList);
                 KV_Node->Parameters = ParamList;
 
                 if (FilterNode != &Node_Null)
@@ -2049,6 +2028,8 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
 
         bLexSuccess = true;
 
+        // TODO: lexer_addtoken once at the bottom
+
         // tokenize the text
         Lexer l = {0};
         l.Text = Text;
@@ -2071,7 +2052,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
             if (l.NumTokens >= MAX_TOKENS)
             {
                 LOG_ERROR("[Lexer] Max tokens of 2048 has been reached. Aborting the lexer...\n");
-                LOG("    We have artifically limited the amount of tokens that our lexer can store.\n"
+                LOG("    We have purposefully limited the amount of tokens that our lexer can store.\n"
                     "    So this means you will have to simpily your .build file by reducing the amount of text that is present.\n\n"
                     "    One way to do this is to make another file, move some text over there, and then add an include statement like so:\n"
                     "      include my_file.buildvars");
@@ -2079,8 +2060,9 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
                 bLexSuccess = false;
                 break;
             }
+
+            ETokenType TokenToAdd = Token_None;
             
-            //usize Num = Array_Num(l.Tokens);
             const usize LastIndex = l.NumTokens > 0 ? l.NumTokens-1 : 0;
             ETokenType LastTokenType = l.Tokens[LastIndex].Type;
 
@@ -2089,14 +2071,15 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
                 bInsideWhitespaceAllowedBlock = true;
             }
 
-            if      (Char == '(')               { Lexer_AddToken(&l, Token_LParen);    }
-            else if (Char == ')')               { Lexer_AddToken(&l, Token_RParen);    }
-            else if (Char == '^')               { Lexer_AddToken(&l, Token_Caret);     }
-            else if (Char == ';')               { Lexer_AddToken(&l, Token_Semicolon); }
-            else if (Char == Token_Char_Dollar) { Lexer_AddToken(&l, Token_Dollar);    }
-            else if (Char == Token_Char_At)     { Lexer_AddToken(&l, Token_At);        }
-            else if (Char == Token_Char_Mod)    { Lexer_AddToken(&l, Token_Mod);       }
-            else if (Char == '|')               { Lexer_AddToken(&l, Token_Pipe);      }
+            if      (Char == '(')               { TokenToAdd = Token_LParen;    }
+            else if (Char == ')')               { TokenToAdd = Token_RParen;    }
+            else if (Char == '^')               { TokenToAdd = Token_Caret;     }
+            else if (Char == ';')               { TokenToAdd = Token_Semicolon; }
+            else if (Char == ':')               { TokenToAdd = Token_Colon;     }
+            else if (Char == Token_Char_Dollar) { TokenToAdd = Token_Dollar;    }
+            else if (Char == Token_Char_At)     { TokenToAdd = Token_At;        }
+            else if (Char == Token_Char_Mod)    { TokenToAdd = Token_Mod;       }
+            else if (Char == '|')               { TokenToAdd = Token_Pipe;      }
             else if (Char == '\'')
             {
                 if (!bInsideWhitespaceAllowedBlock)
@@ -2107,7 +2090,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
                     }
                 }
 
-                Lexer_AddToken(&l, Token_Quote);
+                TokenToAdd = Token_Quote;
             }
             else if (Char == '"')
             {
@@ -2119,7 +2102,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
                     }
                 }
 
-                Lexer_AddToken(&l, Token_Quote);
+                TokenToAdd = Token_Quote;
             }
             else if (Char == '{')
             {
@@ -2128,7 +2111,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
                     bAllowWhitespace = true;
                 }
 
-                Lexer_AddToken(&l, Token_LCurly);
+                TokenToAdd = Token_LCurly;
             }
             else if (Char == '}')
             {
@@ -2138,7 +2121,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
                     bAllowWhitespace = false;
                 }
 
-                Lexer_AddToken(&l, Token_RCurly);
+                TokenToAdd = Token_RCurly;
             }
             else if (Char == '[')
             { 
@@ -2147,7 +2130,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
                     bAllowWhitespace = true;
                 }
 
-                Lexer_AddToken(&l, Token_LSquare);
+                TokenToAdd = Token_LSquare;
             }
             else if (Char == ']')
             {
@@ -2157,7 +2140,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
                     bAllowWhitespace = false;
                 }
 
-                Lexer_AddToken(&l, Token_RSquare);
+                TokenToAdd = Token_RSquare;
             }
             // TODO: escape #
             else if (Char == '#')
@@ -2198,29 +2181,21 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
                     }
                 }
             }
-            else if (Char == ':')
-            {
-                Lexer_AddToken(&l, Token_Colon);
-            }
             else if (Char == Token_Char_Not)
             {
-                ETokenType Type = Lexer_Match(&l, '=') ? Token_NotEqual : Token_Not;
-                Lexer_AddToken(&l, Type);
+                TokenToAdd = Lexer_Match(&l, '=') ? Token_NotEqual : Token_Not;
             }
             else if (Char == '=')
             {
-                ETokenType Type = Lexer_Match(&l, '=') ? Token_EqualEqual : Token_Equal;
-                Lexer_AddToken(&l, Type);
+                TokenToAdd = Lexer_Match(&l, '=') ? Token_EqualEqual : Token_Equal;
             }
             else if (Char == '<')
             {
-                ETokenType Type = Lexer_Match(&l, '=') ? Token_LessOrEqual : Token_LessThan;
-                Lexer_AddToken(&l, Type);
+                TokenToAdd = Lexer_Match(&l, '=') ? Token_LessOrEqual : Token_LessThan;
             }
             else if (Char == '>')
             {
-                ETokenType Type = Lexer_Match(&l, '=') ? Token_GreaterOrEqual : Token_GreaterThan;
-                Lexer_AddToken(&l, Type);
+                TokenToAdd = Lexer_Match(&l, '=') ? Token_GreaterOrEqual : Token_GreaterThan;
             }
             else if ((!bAllowWhitespace && IsWhitespace(Char)) || IsNewline(Char) || Char == '\0')
             {
@@ -2228,7 +2203,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
                 {
                     if (bAllowWhitespace || LastTokenType != Token_Newline)
                     {
-                        Lexer_AddToken(&l, Token_Newline);
+                        TokenToAdd = Token_Newline;
                     }
                 }
                 else
@@ -2241,7 +2216,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
                             Lexer_Advance(&l);
                         }
 
-                        Lexer_AddToken(&l, Token_Whitespace);
+                        TokenToAdd = Token_Whitespace;
                     }
                 }
             }
@@ -2293,9 +2268,15 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
                     }
                 }
 
-                Lexer_AddToken(&l, FinalType);
+                TokenToAdd = FinalType;
+            }
+
+            if (TokenToAdd != Token_None)
+            {
+                Lexer_AddToken(&l, TokenToAdd);
             }
         }
+
         //Clock_Tick(&c);
         //Clock_PrintElapsedTime(&c, true);
 
@@ -2554,7 +2535,7 @@ static void Analyze_KVNode(LinearAllocator* Arena, Node* Root, ParsingContext* C
         xx String_EatSpacesInlineFromEnd(&Params);
     }
 
-    AddVariableToList(Arena, Context, FinalKey, Val, Params);//, Root->bIsSpecial);
+    AddVariableToList(Arena, Context, FinalKey, Val, Params);
 }
 
 NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, ParsingContext* Context, bool bInIf)
@@ -3851,9 +3832,9 @@ NO_DISCARD bool ParseBuildFileV2(LinearAllocator* PermanentArena,
             const FileVariable Var = (*It)->Var;
             LOG("KEY:    %S", Var.Name);
             LOG("VALUE:  %S", Var.Value);
-            if (Var.SpecialData.Length)
+            if (Var.Params.Length)
             {
-                LOG("PARAMS: %S", Var.SpecialData);
+                LOG("PARAMS: %S", Var.Params);
             }
 
             LOG_LINE_BREAK();
@@ -3909,11 +3890,11 @@ NO_DISCARD bool ParseBuildFileV2(LinearAllocator* PermanentArena,
 
             if (bExcludeFromConcat)
             {
-                AddVariable(PermanentArena, Context.VariablesDB, Var.Name, Expanded, Var.Params);//, Var.bHasSpecial);
+                AddVariable(PermanentArena, Context.VariablesDB, Var.Name, Expanded, Var.Params);
             }
             else
             {
-                AddOrAppendVariable(PermanentArena, Context.VariablesDB, Var.Name, Expanded, Var.Params);//, Var.bHasSpecial);
+                AddOrAppendVariable(PermanentArena, Context.VariablesDB, Var.Name, Expanded, Var.Params);
             }
         }
 

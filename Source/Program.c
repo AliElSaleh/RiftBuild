@@ -24,6 +24,9 @@
 // [ ] for IncludedSourceFiles we shouldnt have to specify the .c or .cpp extension. if the names match.
 //     will be a lot more convienent
 // [ ] enter game mode while we are building
+// [ ] relink if a library file has changed, much like the source file change detection feature
+//     that way we dont have to rebuild the host project again
+// [ ] -show_explorer cmd, opens up explorer to the build file or working dir (if no build file)
 
 const usize GEngineMemoryAmount  = Kibibytes(128);
 const usize GEngineScratchAmount = Kibibytes(8);
@@ -1197,9 +1200,12 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const FileVa
         StringLocal(FullSourcePath, MAX_PATH_LENGTH);
         String_BuildPath(&FullSourcePath, WorkingDirectory, SourceFile);
 
+        xx Filesystem_ConvertRelativeToAbsolutePath(&FullSourcePath);
+
         StringLocal(FullDestPath, MAX_PATH_LENGTH);
         String_BuildPath(&FullDestPath, WorkingDirectory, DestinationDirectory);
 
+        // TODO: remove, handle on linux/mac/bsd. already done on windows
         if (String_IsLast(DestinationDirectory, '/') ||
             String_IsLast(DestinationDirectory, '\\'))
         {
@@ -3909,6 +3915,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
     // .SDKVersion key? to specify an exact version to build with?
     // 
     // TODO: figure out a way to only ever run set the strings once
+    // TODO: dont run this if we already have cl defined in our environment
+    //        or maybe we update this to search for the current environment first and then latest->oldest?
     local_persist Find_Result MSVC_SDK_Result = {0};
     // only run this once. ever...
     if (MSVC_SDK_Result.windows_sdk_version == 0)
@@ -4950,6 +4958,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
             if (ExitCode == 2) // special exit code meaning this child build finished successfully (and that it did some work)
             {
+                // TODO: this should be the default behaviour. make another key for triggering a rebuild
                 bool bIsSpecial = String_IsEqual(Var.Params, S("No_Rebuild_If_Done_Work"), false);
                 if (!bIsRebuild && !bIsSpecial)
                 {
@@ -8580,6 +8589,8 @@ static void InitInternalVars(LinearAllocator* Arena)
 
     // TODO: move to msvc backend...
     // TODO: delete _nativelibs
+    // TODO: update this by looking at the libs directory for winsdk and visual studio
+    // scratch that, just iterate the directory and get all the file names in there... duh
     const String Win32Libs = S("kernel32 user32 opengl32 shell32 gdi32 comdlg32 comctl32 ws2_32 ntdll winmm netapi32 ole32 advapi32 "
                                "wldap32 crypt32 rpcrt4 shlwapi dbghelp bcrypt version imm32 cfgmgr32 setupapi oleaut32 "
                                "uuid odbc32 odbccp32 delayimp userenv pathcch");
