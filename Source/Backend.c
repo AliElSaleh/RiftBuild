@@ -1606,35 +1606,42 @@ bool MSVC_DoCompile(CompileData* Data, const String FullPath, const String Relat
     String_AppendChar(&CmdLine, '"');
     String_AppendSpace(&CmdLine);
 
-    StringLocal(WinSDKInclude, MAX_PATH_LENGTH*4); // 4 paths
-    if (Params->WindowsSDKIncludePath.Length)
+    StringLocal(WinSDKInclude, MAX_PATH_LENGTH*7); // 7 paths
+    if (!Params->bWasVCVarsBatchRan)
     {
-        String_Append(&WinSDKInclude, S("/I\""));
-        String_Append(&WinSDKInclude, Params->WindowsSDKIncludePath);
-        String_Append(&WinSDKInclude, S("\" "));
+        if (Params->WindowsSDKIncludePath.Length)
+        {
+            String_Append(&WinSDKInclude, S("/I\""));
+            String_Append(&WinSDKInclude, Params->WindowsSDKIncludePath);
+            String_Append(&WinSDKInclude, S("\" "));
 
-        String_Append(&WinSDKInclude, S("/I\""));
-        String_Append(&WinSDKInclude, Params->WindowsSDKIncludePath);
-        String_Append(&WinSDKInclude, S("\\shared\" "));
+            String_Append(&WinSDKInclude, S("/I\""));
+            String_Append(&WinSDKInclude, Params->WindowsSDKIncludePath);
+            String_Append(&WinSDKInclude, S("\\shared\" "));
 
-        String_Append(&WinSDKInclude, S("/I\""));
-        String_Append(&WinSDKInclude, Params->WindowsSDKIncludePath);
-        String_Append(&WinSDKInclude, S("\\ucrt\" "));
+            String_Append(&WinSDKInclude, S("/I\""));
+            String_Append(&WinSDKInclude, Params->WindowsSDKIncludePath);
+            String_Append(&WinSDKInclude, S("\\ucrt\" "));
 
-        String_Append(&WinSDKInclude, S("/I\""));
-        String_Append(&WinSDKInclude, Params->WindowsSDKIncludePath);
-        String_Append(&WinSDKInclude, S("\\um\" "));
+            String_Append(&WinSDKInclude, S("/I\""));
+            String_Append(&WinSDKInclude, Params->WindowsSDKIncludePath);
+            String_Append(&WinSDKInclude, S("\\um\" "));
 
-        String_Append(&WinSDKInclude, S("/I\""));
-        String_Append(&WinSDKInclude, Params->WindowsSDKIncludePath);
-        String_Append(&WinSDKInclude, S("\\winrt\" "));
-    }
+            String_Append(&WinSDKInclude, S("/I\""));
+            String_Append(&WinSDKInclude, Params->WindowsSDKIncludePath);
+            String_Append(&WinSDKInclude, S("\\winrt\" "));
 
-    if (Params->VisualStudioIncludePath.Length)
-    {
-        String_Append(&WinSDKInclude, S("/I\""));
-        String_Append(&WinSDKInclude, Params->VisualStudioIncludePath);
-        String_Append(&WinSDKInclude, S("\" "));
+            String_Append(&WinSDKInclude, S("/I\""));
+            String_Append(&WinSDKInclude, Params->WindowsSDKIncludePath);
+            String_Append(&WinSDKInclude, S("\\cppwinrt\" "));
+        }
+
+        if (Params->VisualStudioIncludePath.Length)
+        {
+            String_Append(&WinSDKInclude, S("/I\""));
+            String_Append(&WinSDKInclude, Params->VisualStudioIncludePath);
+            String_Append(&WinSDKInclude, S("\" "));
+        }
     }
 
     String_BuildSeparator(&CmdLine, ' ', Params->CompilerFlags, Params->DefineFlags, Params->IncludeFlags, WinSDKInclude);
@@ -2047,6 +2054,7 @@ bool MSVC_Link(const BuildParams* Params)
     bool bIsLib = Params->Type == AssemblyType_Library || Params->Type == AssemblyType_StaticLibrary;
 
     StringLocal(WinSDKLibPaths, MAX_PATH_LENGTH*3);
+    if (!Params->bWasVCVarsBatchRan)
     {
         if (Params->WindowsSDKLibUmPath.Length)
         {

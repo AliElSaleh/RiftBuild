@@ -130,10 +130,10 @@ ENUM(EBuildMode)
 
 STRUCT(BuildParams)
 {
-    String RootDirectory; // absolute
-    String SourceDirectory; // relative
-    String BuildDirectory; // relative
-    String IntermediateDirectory; // relative
+    String RootDirectory;             // absolute
+    String SourceDirectory;           // relative
+    String BuildDirectory;            // relative
+    String IntermediateDirectory;     // relative
     String IntermediateBaseDirectory; // absolute (it is root + intermediate combined)
 
     String PCHPath;
@@ -218,8 +218,7 @@ STRUCT(BuildParams)
     bool bDumpObjFilesInOneDirectory;
     bool bLinkerNoStd;
     bool bLinkerNoDefaultLibs;
-
-    bool bPadding3;
+    bool bWasVCVarsBatchRan;
 };
 
 STRUCT(CompileData)

@@ -27,6 +27,7 @@
 // [ ] relink if a library file has changed, much like the source file change detection feature
 //     that way we dont have to rebuild the host project again
 // [ ] -show_explorer cmd, opens up explorer to the build file or working dir (if no build file)
+// [ ] windows kits as internal variable?
 
 const usize GEngineMemoryAmount  = Kibibytes(128);
 const usize GEngineScratchAmount = Kibibytes(8);
@@ -3874,12 +3875,13 @@ static u32 BuildTarget(LinearAllocator* Arena,
     StringLocal(DumpBinPath, MAX_PATH_LENGTH);
 
     #if PLATFORM_WINDOWS
-    local_persist StringLocal(WindowsSDKBinaryPath,    MAX_PATH_LENGTH);
-    local_persist StringLocal(WindowsSDKIncludePath,   MAX_PATH_LENGTH);
-    local_persist StringLocal(WindowsSDKLibUmPath,     MAX_PATH_LENGTH);
-    local_persist StringLocal(WindowsSDKLibUcrtPath,   MAX_PATH_LENGTH);
-    local_persist StringLocal(VisualStudioIncludePath, MAX_PATH_LENGTH);
-    local_persist StringLocal(VisualStudioLibraryPath, MAX_PATH_LENGTH);
+    StringLocal(WindowsSDKBinaryPath,    MAX_PATH_LENGTH);
+    StringLocal(WindowsSDKIncludePath,   MAX_PATH_LENGTH);
+    StringLocal(WindowsSDKLibUmPath,     MAX_PATH_LENGTH);
+    StringLocal(WindowsSDKLibUcrtPath,   MAX_PATH_LENGTH);
+    StringLocal(VisualStudioIncludePath, MAX_PATH_LENGTH);
+    StringLocal(VisualStudioLibraryPath, MAX_PATH_LENGTH);
+    StringLocal(VisualStudioExePath,     MAX_PATH_LENGTH);
     #endif
 
     bool bExplicitCompilerPath = false;
@@ -3913,47 +3915,59 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
     // IDEA
     // .SDKVersion key? to specify an exact version to build with?
-    // 
+    // .MSVCVersion key?
     // TODO: figure out a way to only ever run set the strings once
-    // TODO: dont run this if we already have cl defined in our environment
-    //        or maybe we update this to search for the current environment first and then latest->oldest?
-    local_persist Find_Result MSVC_SDK_Result = {0};
-    // only run this once. ever...
-    if (MSVC_SDK_Result.windows_sdk_version == 0)
-    {
-        MSVC_SDK_Result.allocate = &MSVC_Find_Allocate;
-        MSVC_SDK_Result.release  = &MSVC_Find_Release;
-        find_visual_studio_and_windows_sdk(&MSVC_SDK_Result);
-    }
+    // TODO: auxliarry include vs?
 
-    if (MSVC_SDK_Result.windows_sdk_bin_path)
-    {
-        String_ToNarrow(CStr16Ex(MSVC_SDK_Result.windows_sdk_bin_path, MAX_PATH_LENGTH), &WindowsSDKBinaryPath);
-    }
+    bool bWasVCVarsBatchRan = Platform_DoesEnvironmentVariableExist(S("VSCMD_ARG_TGT_ARCH"));
 
-    if (MSVC_SDK_Result.windows_sdk_include_path)
+    if (!bWasVCVarsBatchRan)
     {
-        String_ToNarrow(CStr16Ex(MSVC_SDK_Result.windows_sdk_include_path, MAX_PATH_LENGTH), &WindowsSDKIncludePath);
-    }
+        // find the latest version and extract all the useful directories
 
-    if (MSVC_SDK_Result.windows_sdk_um_library_path)
-    {
-        String_ToNarrow(CStr16Ex(MSVC_SDK_Result.windows_sdk_um_library_path, MAX_PATH_LENGTH), &WindowsSDKLibUmPath);
-    }
+        local_persist Find_Result MSVC_SDK_Result = {0};
+        // only run this once. ever...
+        if (MSVC_SDK_Result.windows_sdk_version == 0)
+        {
+            MSVC_SDK_Result.allocate = &MSVC_Find_Allocate;
+            MSVC_SDK_Result.release  = &MSVC_Find_Release;
+            find_visual_studio_and_windows_sdk(&MSVC_SDK_Result);
+        }
 
-    if (MSVC_SDK_Result.windows_sdk_ucrt_library_path)
-    {
-        String_ToNarrow(CStr16Ex(MSVC_SDK_Result.windows_sdk_ucrt_library_path, MAX_PATH_LENGTH), &WindowsSDKLibUcrtPath);
-    }
+        if (MSVC_SDK_Result.windows_sdk_bin_path)
+        {
+            String_ToNarrow(CStr16Ex(MSVC_SDK_Result.windows_sdk_bin_path, MAX_PATH_LENGTH), &WindowsSDKBinaryPath);
+        }
 
-    if (MSVC_SDK_Result.vs_include_path)
-    {
-        String_ToNarrow(CStr16Ex(MSVC_SDK_Result.vs_include_path, MAX_PATH_LENGTH), &VisualStudioIncludePath);
-    }
+        if (MSVC_SDK_Result.windows_sdk_include_path)
+        {
+            String_ToNarrow(CStr16Ex(MSVC_SDK_Result.windows_sdk_include_path, MAX_PATH_LENGTH), &WindowsSDKIncludePath);
+        }
 
-    if (MSVC_SDK_Result.vs_library_path)
-    {
-        String_ToNarrow(CStr16Ex(MSVC_SDK_Result.vs_library_path, MAX_PATH_LENGTH), &VisualStudioLibraryPath);
+        if (MSVC_SDK_Result.windows_sdk_um_library_path)
+        {
+            String_ToNarrow(CStr16Ex(MSVC_SDK_Result.windows_sdk_um_library_path, MAX_PATH_LENGTH), &WindowsSDKLibUmPath);
+        }
+
+        if (MSVC_SDK_Result.windows_sdk_ucrt_library_path)
+        {
+            String_ToNarrow(CStr16Ex(MSVC_SDK_Result.windows_sdk_ucrt_library_path, MAX_PATH_LENGTH), &WindowsSDKLibUcrtPath);
+        }
+
+        if (MSVC_SDK_Result.vs_include_path)
+        {
+            String_ToNarrow(CStr16Ex(MSVC_SDK_Result.vs_include_path, MAX_PATH_LENGTH), &VisualStudioIncludePath);
+        }
+
+        if (MSVC_SDK_Result.vs_library_path)
+        {
+            String_ToNarrow(CStr16Ex(MSVC_SDK_Result.vs_library_path, MAX_PATH_LENGTH), &VisualStudioLibraryPath);
+        }
+
+        if (MSVC_SDK_Result.vs_exe_path)
+        {
+            String_ToNarrow(CStr16Ex(MSVC_SDK_Result.vs_exe_path, MAX_PATH_LENGTH), &VisualStudioExePath);
+        }
     }
     #endif
 
@@ -4082,10 +4096,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 if (MSVC_SDK_Result.vs_base_path) { String_ToNarrow(CStr16Ex(MSVC_SDK_Result.vs_base_path, MAX_PATH_LENGTH), &BasePath); }
                 */
 
-                StringLocal(ExePath, MAX_PATH_LENGTH);
-                if (MSVC_SDK_Result.vs_exe_path) { String_ToNarrow(CStr16Ex(MSVC_SDK_Result.vs_exe_path, MAX_PATH_LENGTH), &ExePath); }
-
-                String_Copy(&CompilerPath, ExePath);
+                String_Copy(&CompilerPath, VisualStudioExePath);
                 String_Append(&CompilerPath, S("\\cl.exe"));
 
                 bCompilerProgramFound = true;
@@ -4116,15 +4127,15 @@ static u32 BuildTarget(LinearAllocator* Arena,
                     String_AppendChar(&CmdLine, '"');
                     String_Append(&CmdLine, S(" >NUL 2>&1 && set")); // suppress output logs from the bat script
 
-                    if (bShowExtraInfo)
-                    {
-                        LOG_WARNING("\nBuild speed is affected, this may take a few seconds...");
-                        LOG(
-                        "\n    To fix this issue for your next build, exit this terminal"
-                        "\n    and run riftbuild from a different terminal application named"
-                        "\n    \"x64 (or x86) Native Tools Command Prompt for VS\"."
-                        "\n\n    This can be found through Windows Search.\n");
-                    }
+                    // if (bShowExtraInfo)
+                    // {
+                    //     LOG_WARNING("\nBuild speed is affected, this may take a few seconds...");
+                    //     LOG(
+                    //     "\n    To fix this issue for your next build, exit this terminal"
+                    //     "\n    and run riftbuild from a different terminal application named"
+                    //     "\n    \"x64 (or x86) Native Tools Command Prompt for VS\"."
+                    //     "\n\n    This can be found through Windows Search.\n");
+                    // }
 
                     PlatformPipe StdOutHandle = {0};
                     PlatformHandle H = Platform_RunCommand_Ex(CmdLine, WorkingPath, &StdOutHandle);
@@ -5750,8 +5761,6 @@ static u32 BuildTarget(LinearAllocator* Arena,
         }
     }
 
-    String RCCompilerFlags = String_Null();
-
     // resolve linker and archiver paths
     {
         u32 LastSlashIndex = 0;
@@ -5794,19 +5803,31 @@ static u32 BuildTarget(LinearAllocator* Arena,
             String_BuildPath(&LinkerPath, CompilerBasePath, S("link.exe"));
             String_BuildPath(&ArchiverPath, CompilerBasePath, S("lib.exe"));
             String_BuildPath(&DumpBinPath, CompilerBasePath, S("dumpbin.exe"));
-            String_BuildPath(&RCCompilerPath, WindowsSDKBinaryPath, S("\\"CPU_ARCHITECTURE_STRING"\\rc.exe"));
 
-            RCCompilerFlags = S("/nologo");
+            if (bWasVCVarsBatchRan)
+            {
+                xx Platform_FindProgram_Ex(S("rc"), &RCCompilerPath);
+            }
+            else
+            {
+                String_BuildPath(&RCCompilerPath, WindowsSDKBinaryPath, S("\\"CPU_ARCHITECTURE_STRING"\\rc.exe"));
+            }
         }
         else
         {
             String_Copy(&LinkerPath, CompilerPath);
 
             #if PLATFORM_WINDOWS
-            if (WindowsSDKBinaryPath.Length > 0)
+            if (bWasVCVarsBatchRan)
             {
-                String_BuildPath(&RCCompilerPath, WindowsSDKBinaryPath, S("\\"CPU_ARCHITECTURE_STRING"\\rc.exe"));
-                RCCompilerFlags = S("/nologo");
+                xx Platform_FindProgram_Ex(S("rc"), &RCCompilerPath);
+            }
+            else
+            {
+                if (WindowsSDKBinaryPath.Length > 0)
+                {
+                    String_BuildPath(&RCCompilerPath, WindowsSDKBinaryPath, S("\\"CPU_ARCHITECTURE_STRING"\\rc.exe"));
+                }
             }
             #else
             // TODO: find the path
@@ -6511,7 +6532,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     #if PLATFORM_WINDOWS
     p.RCProgram                     = RCProgram;
     p.RCProgramPath                 = RCCompilerPath;
-    p.RCProgramFlags                = RCCompilerFlags;
+    p.RCProgramFlags                = S("/nologo");
     p.bHasRCProgram                 = bHasRcProgram;
     #endif
     p.Assembly                      = AssemblyName;
@@ -6574,6 +6595,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     p.WindowsSDKLibUcrtPath         = WindowsSDKLibUcrtPath;
     p.VisualStudioIncludePath       = VisualStudioIncludePath;
     p.VisualStudioLibraryPath       = VisualStudioLibraryPath;
+    p.bWasVCVarsBatchRan            = bWasVCVarsBatchRan;
     #endif
 
     // @export feature

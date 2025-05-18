@@ -586,7 +586,7 @@ static bool IsValidTextToken(uchar Char, bool bAllowWhitespace)
 
 static void Parser_Advance(Parser* P)
 {
-    if (P->Current < P->NumTokens)
+    //if (P->Current < P->NumTokens)
     {
         P->Current += 1;
     }
@@ -2617,12 +2617,18 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
                 if (!bConditionMet && (bSearchFileVar || !bPrefixedWithSymbol))
                 {
                     // check the condition string against the list of current vars (non-expanded)
-                    String Found = GetVarValueInList(Context->VarListHead, Condition);
-                    if (String_IsValid(Found))
+                    SLinkedList_Each(FileVariableList, This, &Context->VarListHead)
                     {
-                        VarValue = Found;
-                        bConditionMet = c.ComparisonOp == Token_None;
-                        bFoundVar = true;
+                        const FileVariable Var = (*This)->Var;
+
+                        if (String_IsEqual(Var.Name, Condition, false))
+                        {
+                            VarValue = Var.Value;
+                            bConditionMet = c.ComparisonOp == Token_None;
+                            bFoundVar = true;
+
+                            break;
+                        }
                     }
                 }
             }
@@ -3019,6 +3025,9 @@ NO_DISCARD static NodeList* Analyze_List(LinearAllocator* Arena, Node* Block, Pa
     NodeList* IndeterminateList = NULL;
     NodeList** IndeterminateNext = &IndeterminateList;
 
+    usize AllocatedBeforeLoop = Arena->Allocated;
+    FileVariableList** TailBeforeLoop = Context->VarListTail;
+
     NodeList** Next = &Block->List;
     while (*Next)
     {
@@ -3120,6 +3129,11 @@ NO_DISCARD static NodeList* Analyze_List(LinearAllocator* Arena, Node* Block, Pa
                     {
                         ASSERT(IndeterminateList == NULL);
                         IndeterminateList = Block->List;
+
+                        // "free" the memory that was allocated
+                        Context->VarListTail = TailBeforeLoop;
+                        LinearAllocator_Reset(Arena, AllocatedBeforeLoop);
+
                         break;
                     }
                 }
