@@ -5210,7 +5210,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     // actual source path cannot be inside of the build or intermediate directory, this is an error
     {
         StringLocal(Test, MAX_PATH_LENGTH);
-        String_BuildPath(&Test, WorkingPath, BuildDirectory, SourceDirectory);
+        String_BuildPath(&Test, WorkingPath, BuildDirectory);
         String_AppendPathSeparator(&Test);
         xx Filesystem_ConvertRelativeToAbsolutePath(&Test);
         String_Append(&Test, StrShiftF(SourceDir, Test.Length));
@@ -5225,7 +5225,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
         }
 
         String_Empty(&Test);
-        String_BuildPath(&Test, WorkingPath, IntermediateDirectory, SourceDirectory);
+        String_BuildPath(&Test, WorkingPath, IntermediateDirectory);
         String_AppendPathSeparator(&Test);
         xx Filesystem_ConvertRelativeToAbsolutePath(&Test);
         String_Append(&Test, StrShiftF(SourceDir, Test.Length));
