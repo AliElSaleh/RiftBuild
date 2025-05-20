@@ -173,8 +173,8 @@ STRUCT(StringList)
 
 #define StringN(n)  		                struct { uchar Data[n]; u32 Length; u32 Capacity; }
 
-#define StringLocal(Name, n) 	            uchar MACRO_VAR(CONCAT(Buffer_, Name))[n+1] = {0}; String   Name; Name.Data = MACRO_VAR(CONCAT(Buffer_, Name)); Name.Length = 0; Name.Capacity = (n)
-#define String16Local(Name, n) 	            wchar MACRO_VAR(CONCAT(Buffer_, Name))[n+1] = {0}; String16 Name; Name.Data = MACRO_VAR(CONCAT(Buffer_, Name)), Name.Length = 0, Name.Capacity = (n)
+#define StringLocal(Name, n) 	            String   Name; uchar MACRO_VAR(CONCAT(Buffer_, Name))[n+1] = {0}; Name.Data = MACRO_VAR(CONCAT(Buffer_, Name)); Name.Length = 0; Name.Capacity = (n)
+#define String16Local(Name, n) 	            String16 Name; wchar MACRO_VAR(CONCAT(Buffer_, Name))[n+1] = {0}; Name.Data = MACRO_VAR(CONCAT(Buffer_, Name)), Name.Length = 0, Name.Capacity = (n)
 
 #define CStr(s)                             (String)         {.Data = (uchar*)(s),      .Length = String_GetLength(s),                   .Capacity = 0}
 #define CStrEx(s, n)                        (String)         {.Data = (uchar*)(s),      .Length = String_GetLength_Ex(s, n),             .Capacity = 0}
@@ -502,7 +502,7 @@ STRUCT(StringList)
     #define UNLIKELY(Expression) __builtin_expect(!!(Expression), 0)
     #define LIKELY(Expression)   __builtin_expect(!!(Expression), 1)
 
-    #define DEBUG_BREAK()  __builtin_trap()
+    #define DEBUG_BREAK()  do { __builtin_trap() } while (0)
 
 #elif COMPILER_MSVC
     #define PRAGMA_DISABLE_WARNINGS   __pragma(warning(push))
@@ -541,7 +541,7 @@ STRUCT(StringList)
     #define LIKELY(Expression)   Expression
 
     extern void __nop(void);
-    #define DEBUG_BREAK() (__nop(), __debugbreak())
+    #define DEBUG_BREAK() do { __nop(); __debugbreak(); } while (0)
 #endif 
 
 #if DEVELOPER

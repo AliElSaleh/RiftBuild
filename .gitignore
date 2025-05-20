@@ -1,0 +1,12 @@
+*
+
+!.gitignore
+!.github/*
+!Source/*
+!How To/*
+
+!build.bat
+!build.sh
+
+!LICENSE
+!*.build

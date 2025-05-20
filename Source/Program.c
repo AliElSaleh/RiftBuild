@@ -5170,6 +5170,22 @@ static u32 BuildTarget(LinearAllocator* Arena,
     bool bDumpObjFilesInOneDirectory = String_EndsWith(IntermediateDirectory, S("/."), false) ||
                                        String_EndsWith(IntermediateDirectory, S("\\."), false);
 
+    // these directories must be relative
+    if (!Filesystem_IsPathRelative(SourceDirectory))
+    {
+        TODO();
+    }
+
+    if (!Filesystem_IsPathRelative(BuildDirectory))
+    {
+        TODO();
+    }
+
+    if (!Filesystem_IsPathRelative(IntermediateDirectory))
+    {
+        TODO();
+    }
+
     StringLocal(BuildBaseDirectory, MAX_PATH_LENGTH);
     String_BuildPath(&BuildBaseDirectory, WorkingPath, BuildDirectory);
     String_AppendPathSeparator(&BuildBaseDirectory);
@@ -5190,6 +5206,39 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
     const bool bDidIntermediateDirectoryExist = Filesystem_DoesDirectoryExist(IntermediateBaseDirectory);
     const bool bDidBuildDirectoryExist        = Filesystem_DoesDirectoryExist(BuildBaseDirectory);
+
+    // actual source path cannot be inside of the build or intermediate directory, this is an error
+    {
+        StringLocal(Test, MAX_PATH_LENGTH);
+        String_BuildPath(&Test, WorkingPath, BuildDirectory, SourceDirectory);
+        String_AppendPathSeparator(&Test);
+        xx Filesystem_ConvertRelativeToAbsolutePath(&Test);
+        String_Append(&Test, StrShiftF(SourceDir, Test.Length));
+        if (String_IsEqual(Test, SourceDir, false))
+        {
+            LOG_ERROR("%S: Source Directory '%S' must not be nested inside\n"
+                        "        of the given Build Directory '%S'\n\n"
+                        "        You must keep both of these paths separate.",
+                        BuildFileName, SourceDir, BuildBaseDirectory);
+
+            return 1;
+        }
+
+        String_Empty(&Test);
+        String_BuildPath(&Test, WorkingPath, IntermediateDirectory, SourceDirectory);
+        String_AppendPathSeparator(&Test);
+        xx Filesystem_ConvertRelativeToAbsolutePath(&Test);
+        String_Append(&Test, StrShiftF(SourceDir, Test.Length));
+        if (String_IsEqual(Test, SourceDir, false))
+        {
+            LOG_ERROR("%S: Source Directory '%S' must not be nested inside\n"
+                        "        of the given Intermediate Directory '%S'\n\n"
+                        "        You must keep both of these paths separate.",
+                        BuildFileName, SourceDir, IntermediateBaseDirectory);
+
+            return 1;
+        }
+    }
 
     // assert that the given directories exist before proceeding with the build
     // ignoring build/intermediate since they will be created if they don't exist
@@ -6253,6 +6302,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 }
                 else
                 {
+                    // TODO: should we even do this???
                     xx Filesystem_DeleteFiles(IntermediateBaseDirectory, Wildcard, true);
                 }
 

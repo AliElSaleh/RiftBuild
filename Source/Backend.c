@@ -648,6 +648,7 @@ bool C_DoCompile(CompileData* Data, const String FullPath, const String Relative
     {
         String_Empty(&ObjectPath);
 
+        // this is the format we're going for:
         // int/relativepath/assmeblyprefix|filename.no_ext|assemblypostfix|ext
 
         String FileName = RelativePath;
