@@ -98,8 +98,7 @@ static bool AsmSourceFileDirectoryIterator(const String FullPath, const String R
                 StringLocal(SourcePath, MAX_PATH_LENGTH);
                 String_BuildPath(&SourcePath, Params->SourceDirectory, RelativePath);
 
-                // todo: assmembler defines and includes
-                String_BuildSeparator(&CmdLine, ' ', Params->AssemblerFlags, SourcePath);
+                String_BuildSeparator(&CmdLine, ' ', Params->AssemblerFlags, Params->AssemblerIncludes, Params->AssemblerDefines, SourcePath);
 
                 StringLocal(ObjectPath, MAX_PATH_LENGTH);
                 String_BuildPath(&ObjectPath, Params->IntermediateBaseDirectory, FilePath);
@@ -108,7 +107,7 @@ static bool AsmSourceFileDirectoryIterator(const String FullPath, const String R
                 String_Append(&CmdLine, ObjectPath);
                 String_Append(&CmdLine, S("\""));
 
-                if (Params->bVerbose) { LOG("    CMD: %S", CmdLine); }
+                if (Params->bVerbose) { LOG("\n    CMD: %S\n", CmdLine); }
 
                 LOG("Assembling %S", FullPath);
 
@@ -951,33 +950,14 @@ bool C_Link(const BuildParams* Params)
         String_AppendChar(&CmdLine, '"');
         String_Append(&CmdLine, Params->ArchiverPath);
         String_AppendChar(&CmdLine, '"');
-        String_AppendSpace(&CmdLine);
 
         #if PLATFORM_WINDOWS
-        if (String_IsEqual(Params->CompilerProgram, S("clang"), false) ||
-            String_IsEqual(Params->CompilerProgram, S("clang++"), false))
-        {
-            String_Append(&CmdLine, S("r \""));
-        }
+        String_Append(&CmdLine, S(" r "));
         #else
-        String_Append(&CmdLine, S("rcs \""));
+        String_Append(&CmdLine, S(" ar rcs "));
         #endif
 
-        /*
-        #if PLATFORM_WINDOWS
-        if (String_IsEqual(Params->CompilerProgram, S("clang"), false) ||
-            String_IsEqual(Params->CompilerProgram, S("clang++"), false))
-        {
-            String_Append(&CmdLine, S("llvm-ar r \""));
-        }
-        else
-        {
-            String_Append(&CmdLine, S("gcc-ar r \""));
-        }
-        #else
-        String_Append(&CmdLine, S("ar rcs \""));
-        #endif
-        */
+        String_AppendChar(&CmdLine, '"');
 
         StringLocal(BuildPath, MAX_PATH_LENGTH);
         String_BuildPath(&BuildPath, Params->RootDirectory, Params->BuildDirectory);
@@ -986,18 +966,20 @@ bool C_Link(const BuildParams* Params)
         String_Append(&CmdLine, BuildPath);
 
         StringLocal(LibFile, MAX_PATH_LENGTH);
-        String_Append(&LibFile, Params->Assembly);
-
-        if (Params->Type == AssemblyType_Library)
         {
-            String_Append(&LibFile, S("S"));
-        }
+            String_Append(&LibFile, Params->Assembly);
 
-        #if PLATFORM_WINDOWS
-        String_Append(&LibFile, S(".lib"));
-        #else
-        String_Append(&LibFile, S(".a"));
-        #endif
+            if (Params->Type == AssemblyType_Library)
+            {
+                String_AppendChar(&LibFile, 'S');
+            }
+
+            #if PLATFORM_WINDOWS
+            String_Append(&LibFile, S(".lib"));
+            #else
+            String_Append(&LibFile, S(".a"));
+            #endif
+        }
 
         String_Append(&CmdLine, LibFile);
         String_Append(&CmdLine, S("\" "));

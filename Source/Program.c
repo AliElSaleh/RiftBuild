@@ -527,8 +527,6 @@ static bool SourceFileCounterDirectoryIterator(const String FullPath, const Stri
 
             if (FilterSourceFile(Data->WorkingDirectory, Data->SourceDirectory, FullPath, RelativePath, Data->WhitelistArray, Data->BlacklistArray, Data->WhitelistDirArray, Data->BlacklistDirArray))
             {
-                Data->NumSources++;
-
                 if (Data->FirstSourceFileName->Length == 0)
                 {
                     String_Copy(Data->FirstSourceFileName, FileName);
@@ -537,6 +535,10 @@ static bool SourceFileCounterDirectoryIterator(const String FullPath, const Stri
                 if (String_IsEqual(Extension, S(".asm"), false))
                 {
                     Data->NumAsmSources += 1;
+                }
+                else
+                {
+                    Data->NumSources++;
                 }
 
                 if (!Data->bHasCppFiles)
@@ -2240,18 +2242,20 @@ static void PrintUsage(const String WorkingDirectory)
     // -t:help
 
     LOG_INLINE_WARNING("Options\n");
-    LOG("   -h, --help, /?, -?, ? : Display this help message");
-    LOG("   -a, --about           : About this program");
-    LOG("   -v, --verbose         : Enable verbose logging");
-    LOG("   -q, --quiet           : Quiet mode. Disables logging but outputs necessary information, like errors");
-    LOG("   -t, --tutorial        : Display a tutorial on how to set environment variables");
-    LOG("   help                  : Print out custom help message from the build file");
-    LOG("   clean                 : Delete all intermediate and binary files");
-    LOG("   rebuild               : Clean all and build");
-    LOG("   list                  : List all the build files in the current directory");
-    LOG("   override              : Override a build variable");
-    LOG("   export                : Generate a compile_commands.json, visual studio or xcode project");
-    LOG("   preset                : Build with a preset of command line arguments");
+    LOG(
+    "   -h, --help, /?, -?, ? : Display this help message\n"
+    "   -a, --about           : About this program\n"
+    "   -v, --verbose         : Enable verbose logging\n"
+    "   -q, --quiet           : Quiet mode. Disables logging but outputs necessary information, like errors\n"
+    "   -t, --tutorial        : Display a tutorial on how to set environment variables\n"
+    "   help                  : Print out custom help message from the build file\n"
+    "   clean                 : Delete all intermediate and binary files\n"
+    "   rebuild               : Clean all and build\n"
+    "   list                  : List all the build files in the current directory\n"
+    "   override              : Override a build variable\n"
+    "   export                : Generate a compile_commands.json, visual studio or xcode project\n"
+    "   preset                : Build with a preset of command line arguments"
+    );
 
     LOG_LINE_BREAK();
 
@@ -2259,6 +2263,9 @@ static void PrintUsage(const String WorkingDirectory)
     LOG("   Submit a request, issue or bug report: https://github.com/AliElSaleh/RiftBuild/issues");
 }
 
+// TODO: rewrite this
+// TODO: only run this function once. and return a filtered list of source files,
+//       the backend should never call this...
 // TODO: have a relook at this filter code
 bool FilterSourceFile(const String WorkingDirectory, const String SourceDirectory,
                       const String FullPath, const String RelativePath,
@@ -2418,11 +2425,15 @@ bool FilterSourceFile(const String WorkingDirectory, const String SourceDirector
                 }
             }
 
+            // todo: handle ./blah.c <=== this doesnt works
+
+            /*
             if (String_IsEqual(It.String, TrimmedFileName, true))
             {
                 bIsAllowed = true;
                 break;
             }
+            */
 
             if (String_IsEqual(It.String, RelativePath, true))
             {
@@ -2439,6 +2450,17 @@ bool FilterSourceFile(const String WorkingDirectory, const String SourceDirector
             StringLocal(TestPath, MAX_PATH_LENGTH);
             String_BuildPath(&TestPath, WorkingDirectory, SourceDirectory, It.String);
             String_ConvertSlashToPlatformSlash(&TestPath);
+            xx Filesystem_ConvertRelativeToAbsolutePath(&TestPath);
+
+            StringLocal(SourceDir, MAX_PATH_LENGTH);
+            String_BuildPath(&SourceDir, WorkingDirectory, SourceDirectory);
+            String_ConvertSlashToPlatformSlash(&SourceDir);
+            xx Filesystem_ConvertRelativeToAbsolutePath(&SourceDir);
+
+            if (String_IsEqual(TestPath, SourceDir, false))
+            {
+                break;
+            }
 
             u32 Index = 0;
             if (String_IndexOfLastChar(TestPath, '*', &Index))
@@ -3513,6 +3535,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
     // SourceFiles.Exclude
     // SourceDirectories.Exclude
 
+    // TODO: ArchiverFlags/Defines
+
     const String Assembly                   = GetVariableValue(ExpandedVariablesDB, S("Assembly"));
     const String AssemblyPrefix             = GetVariableValue(ExpandedVariablesDB, S("Assembly.Prefix"));
     const String AssemblyPostfix            = GetVariableValue(ExpandedVariablesDB, S("Assembly.Postfix"));
@@ -3525,8 +3549,11 @@ static u32 BuildTarget(LinearAllocator* Arena,
     //String LinkerProgram                    = GetVariableValue(ExpandedVariablesDB, S("Linker"));
     String AsmProgram                       = GetVariableValue(ExpandedVariablesDB, S("Assembler"));
     String CompilerFlagPrefixSymbol         = S("-");
+    //String AssemblerFlagPrefixSymbol        = S("-");
     const String CompilerFlags              = GetVariableValue(ExpandedVariablesDB, S("CompilerFlags"));
     //const String AssemblerFlags             = GetVariableValue(ExpandedVariablesDB, S("AssemblerFlags"));
+    const String AssemblerIncludes          = GetVariableValue(ExpandedVariablesDB, S("Assembler.Includes"));
+    const String AssemblerDefines           = GetVariableValue(ExpandedVariablesDB, S("Assembler.Defines"));
     String IncludeFlags                     = GetVariableValue(ExpandedVariablesDB, S("Includes"));
     const String Libraries                  = GetVariableValue(ExpandedVariablesDB, S("Libraries"));
     String LibraryDirectories               = GetVariableValue(ExpandedVariablesDB, S("LibraryDirectories"));
@@ -5393,7 +5420,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     */
 
     StringLocal(FirstSourceFileName, 256);
-    SourceCountData CountData = {0};
+    SourceCountData CountData             = {0};
     CountData.NumSources                  = 0;
     CountData.NumAsmSources               = 0;
     CountData.NumHeaders                  = 0;
@@ -5415,7 +5442,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     Filesystem_IterateDirectory_Ex(SourceDir, &SourceFileCounterDirectoryIterator, true, &CountData);
 
     //const u32 NumSources = AssemblyType == AssemblyType_PCH ? CountData.NumHeaders : CountData.NumSources;
-    const u32 NumSources = CountData.NumSources;
+    const u32 NumSources = CountData.NumSources + CountData.NumAsmSources;
 
     u32 NumCompiled = 0;
 
@@ -6469,6 +6496,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
     StringLocal(ExpandedDefineFlags, 2048);
     StringLocal(ExpandedUnDefineFlags, 2048);
     StringLocal(ExpandedLinkerDefineFlags, 1024);
+    StringLocal(ExpandedAssemblerIncludeFlags, 4096);
+    StringLocal(ExpandedAssemblerDefineFlags, 2048);
 
     StringLocal(FlagPrefix, 4);
     String_Append(&FlagPrefix, CompilerFlagPrefixSymbol);
@@ -6505,17 +6534,27 @@ static u32 BuildTarget(LinearAllocator* Arena,
     FlagPrefix.Data[1] = 'U';
     PrefixVariables(&ExpandedUnDefineFlags, UnDefines, FlagPrefix, !bExportingSomething);
 
+    // assembler stuff
+    FlagPrefix.Data[0] = '-'; // todo: what does masm use?
+    FlagPrefix.Data[1] = 'I';
+    ExpandPathFlags(*Arena, &ExpandedAssemblerIncludeFlags, AssemblerIncludes, FlagPrefix, !bExportingSomething);
+
+    FlagPrefix.Data[1] = 'D';
+    PrefixVariables(&ExpandedAssemblerDefineFlags, AssemblerDefines, FlagPrefix, !bExportingSomething);
+
     if (!bExportingSomething)
     {
-        LogNameValuePair(*Arena, S("    Compiler  Flags:      "), ExpandedCompilerFlags,      !bNoWordWrapLogging);
-        LogNameValuePair(*Arena, S("    Assembler Flags:      "), ExpandedAssemblerFlags,     !bNoWordWrapLogging);
-        LogNameValuePair(*Arena, S("    Include   Flags:      "), ExpandedIncludeFlags,       !bNoWordWrapLogging);
-        LogNameValuePair(*Arena, S("    Linker    Flags:      "), ExpandedLinkerFlags,        !bNoWordWrapLogging);
-        LogNameValuePair(*Arena, S("    Define    Flags:      "), ExpandedDefineFlags,        !bNoWordWrapLogging);
-        LogNameValuePair(*Arena, S("    UnDefine  Flags:      "), ExpandedUnDefineFlags,      !bNoWordWrapLogging);
-        LogNameValuePair(*Arena, S("    Linker  Defines:      "), ExpandedLinkerDefineFlags,  !bNoWordWrapLogging);
-        LogNameValuePair(*Arena, S("    Library   Flags:      "), ExpandedLibraries,          !bNoWordWrapLogging);
-        LogNameValuePair(*Arena, S("    Library   Paths:      "), ExpandedLibraryDirectories, !bNoWordWrapLogging);
+        LogNameValuePair(*Arena, S("    Compiler  Flags:      "), ExpandedCompilerFlags,         !bNoWordWrapLogging);
+        LogNameValuePair(*Arena, S("    Include   Flags:      "), ExpandedIncludeFlags,          !bNoWordWrapLogging);
+        LogNameValuePair(*Arena, S("    Linker    Flags:      "), ExpandedLinkerFlags,           !bNoWordWrapLogging);
+        LogNameValuePair(*Arena, S("    Define    Flags:      "), ExpandedDefineFlags,           !bNoWordWrapLogging);
+        LogNameValuePair(*Arena, S("    UnDefine  Flags:      "), ExpandedUnDefineFlags,         !bNoWordWrapLogging);
+        LogNameValuePair(*Arena, S("    Linker  Defines:      "), ExpandedLinkerDefineFlags,     !bNoWordWrapLogging);
+        LogNameValuePair(*Arena, S("    Library   Flags:      "), ExpandedLibraries,             !bNoWordWrapLogging);
+        LogNameValuePair(*Arena, S("    Library   Paths:      "), ExpandedLibraryDirectories,    !bNoWordWrapLogging);
+        LogNameValuePair(*Arena, S("    Assembler Flags:      "), ExpandedAssemblerFlags,        !bNoWordWrapLogging);
+        LogNameValuePair(*Arena, S("    Assembler Includes:   "), ExpandedAssemblerIncludeFlags, !bNoWordWrapLogging);
+        LogNameValuePair(*Arena, S("    Assembler Defines:    "), ExpandedAssemblerDefineFlags,  !bNoWordWrapLogging);
     }
 
     Clock IconClock = {0};
@@ -6612,6 +6651,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
     p.bShouldWaitPerCompileProcess  = bSingleThread;
     p.CompilerFlags                 = ExpandedCompilerFlags;
     p.AssemblerFlags                = ExpandedAssemblerFlags;
+    p.AssemblerIncludes             = ExpandedAssemblerIncludeFlags;
+    p.AssemblerDefines              = ExpandedAssemblerDefineFlags;
     p.LinkerFlags                   = ExpandedLinkerFlags;
     p.IncludeFlags                  = ExpandedIncludeFlags;
     p.DefineFlags                   = ExpandedDefineFlags;
@@ -6630,7 +6671,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     p.Description                   = Description;
     p.Copyright                     = Copyright;
     p.Version                       = Version;
-    p.NumSources                    = NumSources;
+    p.NumSources                    = CountData.NumSources;
     p.NumHeaders                    = CountData.NumHeaders;
     p.NumRcSources                  = CountData.NumRcSources;
     p.bHasCppFiles                  = CountData.bHasCppFiles;
@@ -8683,10 +8724,10 @@ static void InitInternalVars(LinearAllocator* Arena)
     
     #if PLATFORM_64_BIT
     AddInternalVariable(S("_Bit"), S("64"));
-    AddInternalVariable(S("64-bit"), String_Null());
+    AddInternalVariable(S("64_bit"), String_Null());
     #else
     AddInternalVariable(S("_Bit"), S("32"));
-    AddInternalVariable(S("32-bit"), String_Null());
+    AddInternalVariable(S("32_bit"), String_Null());
     #endif
 
     const String One  = S("1");
@@ -8751,6 +8792,7 @@ static void InitInternalVars(LinearAllocator* Arena)
     AddInternalVariable(S("x64"),       One);
     #elif CPU_X86
     AddInternalVariable(S("x86"),       One);
+    AddInternalVariable(S("x86_32"),    One);
     #elif CPU_ARM64
     AddInternalVariable(S("ARM"),       One);
     AddInternalVariable(S("ARM32"),     One);
@@ -8765,7 +8807,9 @@ static void InitInternalVars(LinearAllocator* Arena)
     AddInternalVariable(S("PPC64"),     One);
     #elif CPU_PPC
     AddInternalVariable(S("PowerPC"),   One);
+    AddInternalVariable(S("PowerPC32"),   One);
     AddInternalVariable(S("PPC"),       One);
+    AddInternalVariable(S("PPC32"),       One);
     #endif
 
     #if defined(_M_IX86)

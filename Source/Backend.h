@@ -159,6 +159,8 @@ STRUCT(BuildParams)
     String RCProgramFlags;
     String CompilerFlags;
     String AssemblerFlags;
+    String AssemblerIncludes;
+    String AssemblerDefines;
     String LinkerFlags;
     String IncludeFlags;
     String DefineFlags;

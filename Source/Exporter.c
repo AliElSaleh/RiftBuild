@@ -637,6 +637,7 @@ bool Export_VersionRC(const BuildParams* Params, const String Path)
                                     Params->CompanyName, 
                                     Params->Description, Params->Version, Params->Copyright,
                                     AssemblyWithExt, Params->InternalName, Params->TitleName, Params->Version);
+                                    // TODO: add FileVersion to build file. if empty fallback to Version
 
         Filesystem_Write(VersionRCFile, FileData.Length, FileData.Data, NULL);
         Filesystem_Close(&VersionRCFile);

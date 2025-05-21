@@ -16,7 +16,8 @@ BuildDirectory:debug     Build/Debug%%32/%%Hood
 BuildDirectory:!debug    Build/Dist%%32/%%Hood
 IntermediateDirectory    Intermediate/$SourceDirectory
 
-SourceFiles              Memory.c StringUtils.c Log.c Platform_Core.c Platform_%(_platform).c Program.c Backend.c Exporter.c Parse.c
+RiftCoreFiles            Core/Memory.c Core/StringUtils.c Core/Log.c Core/Platform_Core.c Core/Platform_%(_platform).c
+SourceFiles              $RiftCoreFiles Program.c Backend.c Exporter.c Parse.c
 SourceFiles:unix         Platform_Unix.c
 
 CompilerFlags            $SharedCompilerFlags

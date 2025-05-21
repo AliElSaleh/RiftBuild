@@ -17,6 +17,39 @@
 // how to detect multiple inclusions of a file?
 // prevent including .build files
 
+// implement default options
+/*
+option.enable_examples
+{
+    description Build dav1d examples
+}
+
+option.stack_alignment(0)
+
+Assert.Option bitdepth
+option.bitdepth(8 16)
+{
+    description Enable only specified bitdepths
+    errormessage
+    [
+        riftbuild bitdepth=8    or
+        riftbuild bitdepth=16
+    ]
+}
+
+option.fuzzing_engine(none libfuzzer oss-fuzz)
+{
+    description Select the fuzzing engine
+}
+
+option.trim_dsp(true false if-release)
+{
+    default if-release
+    description Eliminate redundant DSP functions where possible
+}
+*/
+
+
 void AddVariable(LinearAllocator* Arena,
                 TArray(FileVariable) VariablesDB,
                 const String Name,
@@ -4390,33 +4423,38 @@ bool ExpandBuildVariableV2(LinearAllocator Scratch, FileVariableList* VariablesD
             String_Append(&CmdLine, Slice);
             #endif
 
+            // TODO: time this
             PlatformPipe StdOutHandle = {0};
             PlatformHandle ShellCmd = Platform_RunCommand_Ex(CmdLine, WorkingDirectory, &StdOutHandle);
-            if (!Platform_IsValidHandle(ShellCmd)) { return false; }
-            Platform_WaitForHandle(ShellCmd, -1);
-
-            StringLocal(StdOutData, 8192);
-            usize BytesRead = 0;
-            if (!Filesystem_ReadPipe(StdOutHandle, StdOutData.Capacity, StdOutData.Data, &BytesRead))
+            if (Platform_IsValidHandle(ShellCmd))
             {
-                LOG_ERROR("Failed to read from standard output pipe for command -> \"%S\"", Slice);
-                return false;
+                u32 ExitCode = Platform_WaitForProcessAndGetExitCode(ShellCmd);
+                if (ExitCode == 0)
+                {
+                    StringLocal(StdOutData, 8192);
+                    usize BytesRead = 0;
+                    if (!Filesystem_ReadPipe(StdOutHandle, StdOutData.Capacity, StdOutData.Data, &BytesRead))
+                    {
+                        LOG_ERROR("Failed to read from standard output pipe for command -> \"%S\"", Slice);
+                        return false;
+                    }
+
+                    StdOutData.Length = Min((u32)BytesRead, StdOutData.Capacity);
+                    xx String_EatNewLinesInlineFromEnd(&StdOutData);
+
+                    String DestEnd = StrShiftF(*Dest, Dest->Length);
+                    u32 DestLengthBefore = Dest->Length;
+
+                    String_Append(Dest, StdOutData);
+                    DestEnd.Length = Dest->Length - DestLengthBefore;
+
+                    if (bWantsToLower) { String_ToLower(&DestEnd); }
+                    if (bWantsToUpper) { String_ToUpper(&DestEnd); }
+
+                    Platform_CloseHandle(StdOutHandle[0]);
+                    Platform_CloseHandle(StdOutHandle[1]);
+                }
             }
-
-            StdOutData.Length = Min((u32)BytesRead, StdOutData.Capacity);
-            xx String_EatNewLinesInlineFromEnd(&StdOutData);
-
-            String DestEnd = StrShiftF(*Dest, Dest->Length);
-            u32 DestLengthBefore = Dest->Length;
-
-            String_Append(Dest, StdOutData);
-            DestEnd.Length = Dest->Length - DestLengthBefore;
-
-            if (bWantsToLower) { String_ToLower(&DestEnd); }
-            if (bWantsToUpper) { String_ToUpper(&DestEnd); }
-
-            Platform_CloseHandle(StdOutHandle[0]);
-            Platform_CloseHandle(StdOutHandle[1]);
         }
         else
         {
