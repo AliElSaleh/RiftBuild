@@ -4,7 +4,6 @@
 #ifndef UNITY_BUILD
 #include "Backend.h"
 
-#include "Core/Globals.h"
 #include "Core/Allocators.h"
 #include "Core/Array.h"
 #include "Core/StringUtils.h"

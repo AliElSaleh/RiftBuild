@@ -236,6 +236,23 @@ RIFT_API void EatSymbols_Backwards(u8** Str);
 
 
 // inline implementations
+
+// todo; remove these and replace with read only global versions
+FORCEINLINE NO_DISCARD static String String_Null(void)
+{
+    return g_String;
+}
+
+FORCEINLINE NO_DISCARD static StringArray StringArray_Null(void)
+{
+    return g_StringArray;
+}
+
+FORCEINLINE NO_DISCARD static StringList StringList_Null(void)
+{
+    return g_StringList;
+}
+
 FORCEINLINE NO_DISCARD static String StrSub(const String s, u32 Offset, u32 Len)
 {
     const u32 MinLength   = Min(Offset, s.Length);

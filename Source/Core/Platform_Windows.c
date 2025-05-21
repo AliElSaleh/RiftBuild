@@ -8,8 +8,6 @@
 #if PLATFORM_WINDOWS
 
 #ifndef UNITY_BUILD
-#include "Globals.h"
-
 #include "Uuid.h"
 #include "Filesystem.h"
 #include "StringUtils.h"

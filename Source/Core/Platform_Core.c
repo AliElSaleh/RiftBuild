@@ -6,10 +6,9 @@
 #include "Clock.h"
 #include "StringUtils.h"
 #include "Filesystem.h"
-#include "Globals.h"
 #endif
 
-read_only FileHandle  GFileHandle_Null = { .Data = &(u8[64]){0}, .Data2 = &(u8[64]){0}, .bBypassSizeCheck = false };
+read_only FileHandle g_FileHandle = { .Data = &(u8[64]){0}, .Data2 = &(u8[64]){0}, .bBypassSizeCheck = false };
 
 #if CPU_X86 || CPU_X64
 
@@ -742,17 +741,12 @@ NO_DISCARD bool IsValidFileHandle(const FileHandle Handle)
 {
     bool bValid = Handle.Data != NULL;
 
-    if (Handle.Data == GFileHandle_Null.Data)
+    if (Handle.Data == g_FileHandle.Data)
     {
         bValid = false;
     }
     
     return bValid;
-}
-
-NO_DISCARD FileHandle FileHandle_Null(void)
-{
-    return GFileHandle_Null;
 }
 
 NO_DISCARD bool Filesystem_IsNewer(const String PathA, const String PathB)

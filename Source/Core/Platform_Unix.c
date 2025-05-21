@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Artisan Softworks
+// Copyright (c) Artisan Softworks
 // Licensed under the BSD 3-Clause License. See the LICENSE file for details.
 
 #include "Platform.h"
@@ -7,7 +7,6 @@
 
 #include "Memory.h"
 #include "StringUtils.h"
-#include "Globals.h"
 #include "Uuid.h"
 #include "Filesystem.h"
 #include "Log.h"

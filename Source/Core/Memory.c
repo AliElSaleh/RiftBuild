@@ -5,7 +5,6 @@
 #include "Memory.h"
 #include "Platform.h"
 #include "Allocators.h"
-#include "Globals.h"
 #include "Log.h"
 #include "StringUtils.h"
 #include "Array.h"

@@ -666,9 +666,8 @@ typedef u32 usize;
     #define PATH_SEPARATOR '/'
 #endif
 
-read_only global String      GString_Null;
-read_only global String      GString_Null;
-read_only global StringArray GStringArray_Null;
-read_only global StringList  GStringList_Null;
+read_only global String      g_String;
+read_only global StringArray g_StringArray;
+read_only global StringList  g_StringList;
 
 #endif // ENGINE_TYPES_H

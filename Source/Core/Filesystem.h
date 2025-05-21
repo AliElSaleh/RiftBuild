@@ -19,7 +19,7 @@ STRUCT(FileHandle)
 #endif
 };
 
-read_only global FileHandle GFileHandle_Null;
+read_only global FileHandle g_FileHandle;
 
 ENUM(EFileMode)
 {
@@ -106,6 +106,9 @@ RIFT_API NO_DISCARD String Filesystem_ExtractFileExtension(const String FilePath
 
 RIFT_API NO_DISCARD bool IsValidFileHandle(const FileHandle Handle);
 
-RIFT_API NO_DISCARD FileHandle FileHandle_Null(void);
+FORCEINLINE NO_DISCARD static FileHandle FileHandle_Null(void)
+{
+    return g_FileHandle;
+}
 
 #endif // FILESYSTEM_H

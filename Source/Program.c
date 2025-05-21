@@ -10,7 +10,6 @@
 #include "Core/Clock.h"
 #include "Core/StringUtils.h"
 #include "Core/Array.h"
-#include "Core/Globals.h"
 #include "Core/Uuid.h"
 #endif
 
