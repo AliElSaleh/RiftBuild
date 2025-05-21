@@ -51,8 +51,8 @@ bool Memory_Initialize(void* Memory, usize MemSize, void* ScratchMemory, usize S
         LinearAllocator_Create(ScratchSize, ScratchMemory, &GEngineScratchAllocator);
     }
 
-    void* GlobalsMemory = FreeListAllocator_Allocate(&GEngineAllocator, Kilobytes(16), NULL);
-    Globals_Init(GlobalsMemory, Kilobytes(16));
+    //void* GlobalsMemory = FreeListAllocator_Allocate(&GEngineAllocator, Kilobytes(16), NULL);
+    //Globals_Init(GlobalsMemory, Kilobytes(16));
 
     GCriticalSection = FreeListAllocator_Allocate(&GEngineAllocator, Platform_GetCriticalSectionMemoryRequirement(), NULL);
     Platform_InitializeCriticalSection(GCriticalSection);
@@ -349,7 +349,6 @@ void LinearAllocator_Create(usize TotalSize, void* Memory, LinearAllocator* OutA
     OutAllocator->TotalSize = TotalSize;
     OutAllocator->Allocated = 0;
     OutAllocator->bOwnsMemory = !Memory;
-    //OutAllocator->bAlignMemory = true;
 
     if (Memory)
     {
@@ -397,7 +396,7 @@ FORCEINLINE NO_DISCARD RETURN_NON_NULL static void* Internal_LA_Allocate(LinearA
 {
     // i dont know if this is a good idea to wrap this behind debug only...
     // it does result in fewer instructions and zero branches, which is faster!
-    // but then again, if you run out of memory, you have another problems.
+    // but then again, if you run out of memory, you have other problems.
     // we could switch this to a different flag that can also run in release mode
     #if _DEBUG
     ASSERT(Size > 0);

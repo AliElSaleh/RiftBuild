@@ -181,7 +181,7 @@ RIFT_API NO_DISCARD StringList String_SplitIntoList(LinearAllocator* Arena, cons
 RIFT_API NO_DISCARD StringArray String_SplitIntoArray(LinearAllocator* Arena, const String Str, const String Delimiter, u32 StartingIndex, u32 MaxCount);
 // rename
 RIFT_API NO_DISCARD StringArray String_ParseIntoArray(LinearAllocator* Arena, const String Str, u8 Delimiter, u32 StartingIndex, u32 MaxCount);
-RIFT_API NO_DISCARD StringArray String_ParseIntoArray_IntoExistingBuffer(String* ArrayBuffer, const String Str, u8 Delimiter, u32 StartingIndex, u32 MaxCount);
+//RIFT_API NO_DISCARD StringArray String_ParseIntoArray_IntoExistingBuffer(String* ArrayBuffer, const String Str, u8 Delimiter, u32 StartingIndex, u32 MaxCount);
 
 RIFT_API NO_DISCARD bool StringArray_Find(StringArray Array, const String Source, u32* FoundIndex);
 RIFT_API NO_DISCARD String StringArray_GetStringFromIndex(StringArray Array, u32 Index);

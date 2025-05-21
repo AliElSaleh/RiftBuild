@@ -502,7 +502,7 @@ STRUCT(StringList)
     #define UNLIKELY(Expression) __builtin_expect(!!(Expression), 0)
     #define LIKELY(Expression)   __builtin_expect(!!(Expression), 1)
 
-    #define DEBUG_BREAK()  do { __builtin_trap() } while (0)
+    #define DEBUG_BREAK()  do { __builtin_trap(); } while (0)
 
 #elif COMPILER_MSVC
     #define PRAGMA_DISABLE_WARNINGS   __pragma(warning(push))

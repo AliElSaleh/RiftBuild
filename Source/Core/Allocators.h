@@ -13,7 +13,6 @@ STRUCT(LinearAllocator)
     usize Allocated;
 
     b64 bOwnsMemory;
-    //b32 bAlignMemory;
 };
 
 /*

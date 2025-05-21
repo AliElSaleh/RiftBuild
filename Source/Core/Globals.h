@@ -5,7 +5,7 @@
 #include "EngineTypes.h"
 #endif
 
-struct EngineGlobals;
+//struct EngineGlobals;
 
 RIFT_API void Globals_Init(void* Memory, usize Size);
 

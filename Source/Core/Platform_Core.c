@@ -9,6 +9,8 @@
 #include "Globals.h"
 #endif
 
+read_only FileHandle  GFileHandle_Null = { .Data = &(u8[64]){0}, .Data2 = &(u8[64]){0}, .bBypassSizeCheck = false };
+
 #if CPU_X86 || CPU_X64
 
 #if !COMPILER_MSVC
@@ -735,6 +737,23 @@ void Clock_PrintElapsedTime(const Clock* C, bool bAutoConvertTimeUnit)
 }
 
 ///////////// Filesystem /////////////
+
+NO_DISCARD bool IsValidFileHandle(const FileHandle Handle)
+{
+    bool bValid = Handle.Data != NULL;
+
+    if (Handle.Data == GFileHandle_Null.Data)
+    {
+        bValid = false;
+    }
+    
+    return bValid;
+}
+
+NO_DISCARD FileHandle FileHandle_Null(void)
+{
+    return GFileHandle_Null;
+}
 
 NO_DISCARD bool Filesystem_IsNewer(const String PathA, const String PathB)
 {

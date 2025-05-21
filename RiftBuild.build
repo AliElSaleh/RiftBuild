@@ -16,7 +16,7 @@ BuildDirectory:debug     Build/Debug%%32/%%Hood
 BuildDirectory:!debug    Build/Dist%%32/%%Hood
 IntermediateDirectory    Intermediate/$SourceDirectory
 
-SourceFiles              Memory.c StringUtils.c Globals.c Log.c Platform_Core.c Program.c Backend.c Exporter.c Parse.c Platform_%(_platform).c
+SourceFiles              Memory.c StringUtils.c Log.c Platform_Core.c Platform_%(_platform).c Program.c Backend.c Exporter.c Parse.c
 SourceFiles:unix         Platform_Unix.c
 
 CompilerFlags            $SharedCompilerFlags
@@ -34,7 +34,7 @@ if windows
     Linker.Subsystem     Console
 
     Libraries            %_NativeLibs microsoft_craziness%%32
-    Libraries:32:!debug  libcmt libvcruntime
+    Libraries:32:!debug  libcmt  libvcruntime
     Libraries:32: debug  libcmtd libvcruntimed
     Libraries:asan       libucrt
 

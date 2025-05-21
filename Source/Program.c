@@ -28,6 +28,8 @@
 //     that way we dont have to rebuild the host project again
 // [ ] -show_explorer cmd, opens up explorer to the build file or working dir (if no build file)
 // [ ] windows kits as internal variable?
+// [ ] add dav1d to github examples
+// [ ] change include to import and ensure it is only loaded once
 
 const usize GEngineMemoryAmount  = Kibibytes(128);
 const usize GEngineScratchAmount = Kibibytes(8);

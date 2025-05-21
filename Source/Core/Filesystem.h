@@ -19,6 +19,8 @@ STRUCT(FileHandle)
 #endif
 };
 
+read_only global FileHandle GFileHandle_Null;
+
 ENUM(EFileMode)
 {
     FileMode_Read = 0x1,

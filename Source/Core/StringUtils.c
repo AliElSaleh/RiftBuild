@@ -12,6 +12,26 @@
 #define STB_SPRINTF_IMPLEMENTATION
 #include "Libraries/Vendor/stb_sprintf.h"
 
+read_only String      GString_Null      = SC("");
+read_only StringArray GStringArray_Null = { .List = &(String){.Data = (uchar*)(""), .Length = 0, .Capacity = 0}, .Num = 0, .IterIndex = 0 };
+read_only StringList  GStringList_Null  = { .String = SC(""), .Next = &GStringList_Null };
+
+// todo; remove these and replace with read only global versions
+NO_DISCARD String String_Null(void)
+{
+    return GString_Null;
+}
+
+NO_DISCARD StringArray StringArray_Null(void)
+{
+    return GStringArray_Null;
+}
+
+NO_DISCARD StringList StringList_Null(void)
+{
+    return GStringList_Null;
+}
+
 NO_DISCARD bool String_IsValid(const String Str)
 {
     bool bValid = true;
