@@ -57,6 +57,9 @@ STRUCT(SourceCountData)
     StringList WhitelistDirArray;
     StringList BlacklistDirArray;
     StringList CustomSourceExtensions;
+    StringList* FilteredFiles;
+    StringList** FilteredFilesNext;
+    LinearAllocator* ArenaForFilterList;
     bool bHasCppFiles;
     bool bIsPCHBuild;
     u8 Padding[6];
@@ -66,7 +69,7 @@ STRUCT(CmdOption)
 {
     String Name;
     String Value;
-    bool   bEqualsToSomething;
+    bool   bEqualsToSomething; // can i get rid of this??
     u8     Padding[7];
 };
 
@@ -194,6 +197,7 @@ STRUCT(BuildParams)
     String VisualStudioIncludePath;
     String VisualStudioLibraryPath;
 
+    StringList SourceFiles;
     StringList WhitelistFiles, WhitelistDirectories;
     StringList BlacklistFiles, BlacklistDirectories;
     StringList SourceFileExtensions;
@@ -221,24 +225,6 @@ STRUCT(BuildParams)
     bool bLinkerNoStd;
     bool bLinkerNoDefaultLibs;
     bool bWasVCVarsBatchRan;
-};
-
-STRUCT(CompileData)
-{
-    bool (*Callback)(CompileData* Data, const String FullPath, const String RelativePath);
-
-    const BuildParams* Params;
-    u32* NumCompiled;
-    u32 Index;
-    b32 bSuccess;
-
-    void* AdditionalData;
-};
-
-STRUCT(LinkData)
-{
-    const BuildParams* Params;
-    String* CmdLine;
 };
 
 /*

@@ -29,6 +29,7 @@
 // [ ] windows kits as internal variable?
 // [ ] add dav1d to github examples
 // [ ] change include to import and ensure it is only loaded once
+// [ ] Copyright(macro) gen ASSEMBLY_COPYRIGHT_STRING
 
 const usize GEngineMemoryAmount  = Kibibytes(128);
 const usize GEngineScratchAmount = Kibibytes(8);
@@ -66,8 +67,6 @@ STRUCT(CopyrightEnforceInfo)
     String Content;
     u32    FromLine;
     u32    ToLine;
-    bool   bSuccess;
-    u8     Padding[7];
 };
 
 static bool IsBuildFile(const String FilePath)
@@ -512,19 +511,6 @@ static bool SourceFileCounterDirectoryIterator(const String FullPath, const Stri
 
         if (bIsSource || bIsCustomSource)
         {
-            // we will build this later
-            if (String_IsEqual(Extension, S(".rc"), false))
-            {
-                bool bIgnore = String_IsEqual(FileName, S("icon.rc"), false);
-
-                if (!bIgnore)
-                {
-                    Data->NumRcSources++;
-                }
-
-                return true;
-            }
-
             if (FilterSourceFile(Data->WorkingDirectory, Data->SourceDirectory, FullPath, RelativePath, Data->WhitelistArray, Data->BlacklistArray, Data->WhitelistDirArray, Data->BlacklistDirArray))
             {
                 if (Data->FirstSourceFileName->Length == 0)
@@ -535,6 +521,15 @@ static bool SourceFileCounterDirectoryIterator(const String FullPath, const Stri
                 if (String_IsEqual(Extension, S(".asm"), false))
                 {
                     Data->NumAsmSources += 1;
+                }
+                else if (String_IsEqual(Extension, S(".rc"), false))
+                {
+                    bool bIgnore = String_IsEqual(FileName, S("icon.rc"), false);
+
+                    if (!bIgnore)
+                    {
+                        Data->NumRcSources++;
+                    }
                 }
                 else
                 {
@@ -548,6 +543,8 @@ static bool SourceFileCounterDirectoryIterator(const String FullPath, const Stri
                         Data->bHasCppFiles = true;
                     }
                 }
+
+                SLinkedList_Push(Data->FilteredFilesNext, StringList_CreateWithCopy(Data->ArenaForFilterList, RelativePath, NULL));
             }
         }
         else if (IsHeader(Extension))
@@ -566,6 +563,8 @@ static bool SourceFileCounterDirectoryIterator(const String FullPath, const Stri
                 
                 if (Data->bIsPCHBuild)
                 {
+                    SLinkedList_Push(Data->FilteredFilesNext, StringList_CreateWithCopy(Data->ArenaForFilterList, RelativePath, NULL));
+
                     Data->NumSources++;
                     String_Copy(Data->FirstSourceFileName, FileName);
                     return false;
@@ -821,9 +820,10 @@ static bool PathFlagDirectoryIterator(const String FullPath, const String Relati
     return true;
 }
 
-static bool EnforceCopyright(CompileData* Data, const String FullPath, const String RelativePath)
+static bool EnforceCopyright(const BuildParams* Params, CopyrightEnforceInfo* AuxData, const String RelativePath)
 {
-    CopyrightEnforceInfo* AuxData = Data->AdditionalData;
+    StringLocal(FullPath, MAX_PATH_LENGTH);
+    String_BuildPath(&FullPath, Params->RootDirectory, Params->SourceDirectory, RelativePath);
 
     u32 LineNum = 0;
     bool bSuccess = false;
@@ -856,8 +856,6 @@ static bool EnforceCopyright(CompileData* Data, const String FullPath, const Str
     }
 
     // TODO: if failed to open file, skip checking this file
-
-    AuxData->bSuccess = bSuccess;
 
     bool bContinueSearch = true;
 
@@ -996,6 +994,7 @@ static void LogNameValuePair(LinearAllocator Scratch, const String Name, const S
     }
 }
 
+/*
 UNUSED static void LogBuildVariable(LinearAllocator Scratch, TArray(FileVariable) VariablesDB, const String Name, const String DisplayName, const bool bWordWrap)
 {
     StringList List = GetVariableValueList(&Scratch, VariablesDB, Name);
@@ -1022,6 +1021,7 @@ UNUSED static void LogBuildVariable(LinearAllocator Scratch, TArray(FileVariable
         }
     }
 }
+*/
 
 void LogString_WordWrapped(LinearAllocator Scratch, const String Name, const String Value, const bool bAddNewLine)
 {
@@ -1752,6 +1752,9 @@ static bool TryRunBuildCommands(const String Key, const String WorkingPath, TArr
 
     if (NumCmds > 0 && !bIsClean)
     {
+        // Hack: dont wanna introduce a bool param right now...
+        if (String_IsEqual(Key, S("PostBuild"), false)) { LOG_LINE_BREAK(); }
+
         #ifndef HOOD
         LOG("%S:", Key);
         #else
@@ -3897,9 +3900,11 @@ static u32 BuildTarget(LinearAllocator* Arena,
     String AssemblyName = FinalAssemblyName;
 
     StringLocal(CompilerPath, MAX_PATH_LENGTH);
+    StringLocal(AsmCompilerPath, MAX_PATH_LENGTH);
     StringLocal(LinkerPath, MAX_PATH_LENGTH);
     StringLocal(ArchiverPath, MAX_PATH_LENGTH);
     StringLocal(RCCompilerPath, MAX_PATH_LENGTH);
+    StringLocal(MTCompilerPath, MAX_PATH_LENGTH);
     StringLocal(DumpBinPath, MAX_PATH_LENGTH);
 
     #if PLATFORM_WINDOWS
@@ -3955,7 +3960,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
         local_persist Find_Result MSVC_SDK_Result = {0};
         // only run this once. ever...
-        if (MSVC_SDK_Result.windows_sdk_version == 0)
+        // TODO: run this once
+        //if (MSVC_SDK_Result.windows_sdk_version == 0)
         {
             MSVC_SDK_Result.allocate = &MSVC_Find_Allocate;
             MSVC_SDK_Result.release  = &MSVC_Find_Release;
@@ -3997,6 +4003,17 @@ static u32 BuildTarget(LinearAllocator* Arena,
             String_ToNarrow(CStr16Ex(MSVC_SDK_Result.vs_exe_path, MAX_PATH_LENGTH), &VisualStudioExePath);
         }
     }
+
+    // this is needed because link.exe tries to call mt.exe if you are using a manifest embed and it cant find it
+    // if you have not ran the vcvarsall.bat file. so just add the directory where mt.exe lives to the path
+    if (WindowsSDKBinaryPath.Length)
+    {
+        StringLocal(PathVar, INT16_MAX);
+        xx Platform_GetEnvironmentVariableValue(S("PATH"), &PathVar);
+        String_AppendF(&PathVar, S(";%S%S"), WindowsSDKBinaryPath, S("\\"CPU_ARCHITECTURE_STRING));
+        xx Platform_SetEnvironmentVariableValue(S("PATH"), PathVar);
+    }
+
     #endif
 
     // does the compiler program exist on the user's machine
@@ -4126,6 +4143,14 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
                 String_Copy(&CompilerPath, VisualStudioExePath);
                 String_Append(&CompilerPath, S("\\cl.exe"));
+
+                String_Copy(&AsmCompilerPath, VisualStudioExePath);
+                // TODO: let the user choose this
+                #if PLATFORM_64_BIT
+                String_Append(&AsmCompilerPath, S("\\ml64.exe"));
+                #else
+                String_Append(&AsmCompilerPath, S("\\ml.exe"));
+                #endif
 
                 bCompilerProgramFound = true;
 
@@ -5323,30 +5348,6 @@ static u32 BuildTarget(LinearAllocator* Arena,
         }
     }
 
-    //LinearAllocator_Create(Kibibytes(512), NULL, &GSourceFilePathAllocator); // todo: don't do this, it's very limiting
-    //GSourceFiles = Array_Reserve(SourceFileData, 32);
-    //GHeaderFiles = Array_Reserve(SourceFileData, 32);
-
-    //Filesystem_IterateDirectory(SourceDir, SourceFileDirectoryIterator, true);
-
-    // also include outside source directories if specified
-    /*
-    if (String_IsValid(OutsideSourceDirectories))
-    {
-        StringArray Dirs = String_ParseIntoArray(Scratch_Search.Allocator, OutsideSourceDirectories, ' ', 0, 128);
-        for each_str (Dir, Dirs)
-        {
-            StringLocal(DirCopy, MAX_PATH_LENGTH);
-            String_Copy(&DirCopy, *Dir);
-            String_EatPathSeparatorsInlineFromEnd(&DirCopy);
-            String_AppendPathSeparator(&DirCopy);
-            String_ConvertSlashToPlatformSlash(&DirCopy);
-
-            Filesystem_IterateDirectory(DirCopy, SourceFileDirectoryIterator, true);
-        }
-    }
-    */
-
     StringList WhitelistArray    = String_SplitIntoList(Arena, IncludedSourceFiles, ' ', true);
     StringList BlacklistArray    = String_SplitIntoList(Arena, ExcludedSourceFiles, ' ', true);
     StringList WhitelistDirArray = String_SplitIntoList(Arena, IncludedSourceDir, ' ', true);
@@ -5436,13 +5437,21 @@ static u32 BuildTarget(LinearAllocator* Arena,
     CountData.WhitelistDirArray           = WhitelistDirArray;
     CountData.BlacklistDirArray           = BlacklistDirArray;
     CountData.CustomSourceExtensions      = CustomExtensionsList;
+    CountData.FilteredFilesNext           = &CountData.FilteredFiles;
+    CountData.ArenaForFilterList          = Arena;
     CountData.bHasCppFiles                = false;
     CountData.bIsPCHBuild                 = AssemblyType == AssemblyType_PCH;
 
     Filesystem_IterateDirectory_Ex(SourceDir, &SourceFileCounterDirectoryIterator, true, &CountData);
 
-    //const u32 NumSources = AssemblyType == AssemblyType_PCH ? CountData.NumHeaders : CountData.NumSources;
-    const u32 NumSources = CountData.NumSources + CountData.NumAsmSources;
+    /*
+    for each_string_in_list (*CountData.FilteredFiles)
+    {
+        LOG("%S", It.String);
+    }
+    */
+
+    const u32 NumSources = CountData.NumSources + CountData.NumAsmSources + CountData.NumRcSources;
 
     u32 NumCompiled = 0;
 
@@ -5460,7 +5469,6 @@ static u32 BuildTarget(LinearAllocator* Arena,
     }
 
     // use the first source file as the assembly name (if none provided or if "untitled" was set)
-    //if (Array_Num(GSourceFiles) == 1)
     if (NumSources == 1)
     {
         if (!String_IsValid(Assembly) ||
@@ -5577,8 +5585,6 @@ static u32 BuildTarget(LinearAllocator* Arena,
     }
 
 
-    StringLocal(AsmCompilerPath, MAX_PATH_LENGTH);
-
     bool bExplicitAsmPath = false;
     if (String_IndexOfFirstPathSlash(AsmProgram, NULL))
     {
@@ -5606,7 +5612,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     }
 
     // does the asm program exist on the user's machine
-    if (!bExplicitAsmPath && CountData.NumAsmSources > 0)
+    if (!String_IsValid(AsmCompilerPath) && CountData.NumAsmSources > 0)
     {
         bool bCompilerProgramFound = Platform_FindProgram_Ex(AsmProgram, &AsmCompilerPath);
 
@@ -5853,11 +5859,13 @@ static u32 BuildTarget(LinearAllocator* Arena,
             String_BuildPath(&ArchiverPath, CompilerBasePath, S("llvm-ar"));
             String_BuildPath(&DumpBinPath, CompilerBasePath, S("llvm-objdump"));
             String_BuildPath(&RCCompilerPath, CompilerBasePath, S("llvm-rc"));
+            String_BuildPath(&MTCompilerPath, CompilerBasePath, S("llvm-mt"));
 
             #if PLATFORM_WINDOWS
             String_Append(&ArchiverPath, S(".exe"));
             String_Append(&DumpBinPath, S(".exe"));
             String_Append(&RCCompilerPath, S(".exe"));
+            String_Append(&MTCompilerPath, S(".exe"));
             #endif
         }
         else if (String_Contains(CompilerExe, S("gcc"), false) ||
@@ -5868,6 +5876,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
             String_BuildPath(&ArchiverPath, CompilerBasePath, S("gcc-ar"));
             String_BuildPath(&DumpBinPath, CompilerBasePath, S("objdump"));
             String_BuildPath(&RCCompilerPath, CompilerBasePath, S("windres"));
+            // TODO: mt.exe
 
             #if PLATFORM_WINDOWS
             String_Append(&ArchiverPath, S(".exe"));
@@ -5884,10 +5893,12 @@ static u32 BuildTarget(LinearAllocator* Arena,
             if (bWasVCVarsBatchRan)
             {
                 xx Platform_FindProgram_Ex(S("rc"), &RCCompilerPath);
+                xx Platform_FindProgram_Ex(S("mt"), &MTCompilerPath);
             }
             else
             {
                 String_BuildPath(&RCCompilerPath, WindowsSDKBinaryPath, S("\\"CPU_ARCHITECTURE_STRING"\\rc.exe"));
+                String_BuildPath(&MTCompilerPath, WindowsSDKBinaryPath, S("\\"CPU_ARCHITECTURE_STRING"\\mt.exe"));
             }
         }
         else
@@ -5898,12 +5909,14 @@ static u32 BuildTarget(LinearAllocator* Arena,
             if (bWasVCVarsBatchRan)
             {
                 xx Platform_FindProgram_Ex(S("rc"), &RCCompilerPath);
+                xx Platform_FindProgram_Ex(S("mt"), &MTCompilerPath);
             }
             else
             {
                 if (WindowsSDKBinaryPath.Length > 0)
                 {
                     String_BuildPath(&RCCompilerPath, WindowsSDKBinaryPath, S("\\"CPU_ARCHITECTURE_STRING"\\rc.exe"));
+                    String_BuildPath(&MTCompilerPath, WindowsSDKBinaryPath, S("\\"CPU_ARCHITECTURE_STRING"\\mt.exe"));
                 }
             }
             #else
@@ -6535,7 +6548,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     PrefixVariables(&ExpandedUnDefineFlags, UnDefines, FlagPrefix, !bExportingSomething);
 
     // assembler stuff
-    FlagPrefix.Data[0] = '-'; // todo: what does masm use?
+    FlagPrefix.Data[0] = '-'; // todo: what does masm use? masm uses /
     FlagPrefix.Data[1] = 'I';
     ExpandPathFlags(*Arena, &ExpandedAssemblerIncludeFlags, AssemblerIncludes, FlagPrefix, !bExportingSomething);
 
@@ -6671,7 +6684,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
     p.Description                   = Description;
     p.Copyright                     = Copyright;
     p.Version                       = Version;
-    p.NumSources                    = CountData.NumSources;
+    p.SourceFiles                   = *CountData.FilteredFiles;
+    p.NumSources                    = NumSources;
     p.NumHeaders                    = CountData.NumHeaders;
     p.NumRcSources                  = CountData.NumRcSources;
     p.bHasCppFiles                  = CountData.bHasCppFiles;
@@ -6766,17 +6780,16 @@ static u32 BuildTarget(LinearAllocator* Arena,
             }
 
             CopyrightEnforceInfo AuxData = {0};
-            AuxData.Content = CopyrightVar.Value;
+            AuxData.Content  = CopyrightVar.Value;
             AuxData.FromLine = FromLine;
-            AuxData.ToLine = ToLine;
-            AuxData.bSuccess = true;
+            AuxData.ToLine   = ToLine;
             
-            CompileData UserData = { &EnforceCopyright, &p, NULL, 0, true, &AuxData };
-            Filesystem_IterateDirectory_Ex(SourceDir, &SourceFileDirectoryIterator, true, &UserData);
-
-            if (!AuxData.bSuccess)
+            for each_string_in_list (p.SourceFiles)
             {
-                return 1;
+                if (!EnforceCopyright(&p, &AuxData, It.String))
+                {
+                    return 1;
+                }
             }
         }
     }

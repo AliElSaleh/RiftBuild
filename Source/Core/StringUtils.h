@@ -171,6 +171,7 @@ RIFT_API NO_DISCARD String* StringArray_Iterate_Next(StringArray* InArray);
 RIFT_API NO_DISCARD String* StringArray_Iterate_Begin(StringArray* InArray);
 
 RIFT_API NO_DISCARD StringList* StringList_Create(LinearAllocator* Arena, String Value, StringList* Next);
+RIFT_API NO_DISCARD StringList* StringList_CreateWithCopy(LinearAllocator* Arena, String Value, StringList* Next);
 RIFT_API NO_DISCARD StringList  StringList_Iterate_Next(StringList InList);
 RIFT_API NO_DISCARD bool        StringList_Iterate_Check(StringList InList);
 
@@ -240,17 +241,17 @@ RIFT_API void EatSymbols_Backwards(u8** Str);
 // todo; remove these and replace with read only global versions
 FORCEINLINE NO_DISCARD static String String_Null(void)
 {
-    return g_String;
+    return g_StringNil;
 }
 
 FORCEINLINE NO_DISCARD static StringArray StringArray_Null(void)
 {
-    return g_StringArray;
+    return g_StringArrayNil;
 }
 
 FORCEINLINE NO_DISCARD static StringList StringList_Null(void)
 {
-    return g_StringList;
+    return g_StringListNil;
 }
 
 FORCEINLINE NO_DISCARD static String StrSub(const String s, u32 Offset, u32 Len)

@@ -11,9 +11,9 @@
 #define STB_SPRINTF_IMPLEMENTATION
 #include "Libraries/Vendor/stb_sprintf.h"
 
-read_only String      g_String      = SC("");
-read_only StringArray g_StringArray = { .List = &(String){.Data = (uchar*)(""), .Length = 0, .Capacity = 0}, .Num = 0, .IterIndex = 0 };
-read_only StringList  g_StringList  = { .String = SC(""), .Next = &g_StringList};
+read_only String      g_StringNil      = SC("");
+read_only StringArray g_StringArrayNil = { .List = &(String){.Data = (uchar*)(""), .Length = 0, .Capacity = 0}, .Num = 0, .IterIndex = 0 };
+read_only StringList  g_StringListNil  = { .String = SC(""), .Next = &g_StringListNil};
 
 NO_DISCARD bool String_IsValid(const String Str)
 {
@@ -2564,6 +2564,14 @@ NO_DISCARD StringList* StringList_Create(LinearAllocator* Arena, String Value, S
 {
     StringList* List = LinearAllocator_Allocate(Arena, sizeof(StringList));
     List->String     = Value;
+    List->Next       = Next;
+    return List;
+}
+
+NO_DISCARD StringList* StringList_CreateWithCopy(LinearAllocator* Arena, String Value, StringList* Next)
+{
+    StringList* List = LinearAllocator_Allocate(Arena, sizeof(StringList));
+    List->String     = String_Create(Arena, Value);
     List->Next       = Next;
     return List;
 }

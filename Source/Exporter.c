@@ -60,13 +60,8 @@ static void WriteFlags(LinearAllocator Scratch, const FileHandle File, const Str
     }
 }
 
-static bool Internal_GenCommandObject(CompileData* Data, const String FullPath, const String RelativePath)
+static void Internal_GenCommandObject(const BuildParams* Params, ExportData* Export, u32 Index, const String RelativePath)
 {
-    UNUSED_PARAM(FullPath);
-
-    const ExportData* Export = Data->AdditionalData;
-    const BuildParams* Params = Data->Params;
-
     String AdditionalPlatformFlags = String_Null();
 
     #if PLATFORM_UNIX
@@ -104,18 +99,16 @@ static bool Internal_GenCommandObject(CompileData* Data, const String FullPath, 
     Filesystem_WriteLineFormatted(Export->File, S("        \"arguments\": [%S"), NULL, Export->bKeepOneLine ? S("") : S("\n"));
     Filesystem_WriteLineFormatted(Export->File, S("%S\"%S\", \"-c\""), NULL, Export->bKeepOneLine ? S(" ") : S("            "), CompilerPathCopy);
     
-    WriteFlags(*Params->Arena, Export->File, Params->CompilerFlags, false, Export->bKeepOneLine);
+    WriteFlags(*Params->Arena, Export->File, Params->CompilerFlags,   false, Export->bKeepOneLine);
     WriteFlags(*Params->Arena, Export->File, AdditionalPlatformFlags, false, Export->bKeepOneLine);
-    WriteFlags(*Params->Arena, Export->File, Params->IncludeFlags, true, Export->bKeepOneLine);
-    WriteFlags(*Params->Arena, Export->File, Params->DefineFlags, false, Export->bKeepOneLine);
-    WriteFlags(*Params->Arena, Export->File, Params->UnDefineFlags, false, Export->bKeepOneLine);
+    WriteFlags(*Params->Arena, Export->File, Params->IncludeFlags,    true,  Export->bKeepOneLine);
+    WriteFlags(*Params->Arena, Export->File, Params->DefineFlags,     false, Export->bKeepOneLine);
+    WriteFlags(*Params->Arena, Export->File, Params->UnDefineFlags,   false, Export->bKeepOneLine);
     
     Filesystem_WriteLineFormatted(Export->File, S("%S]\n"), NULL, Export->bKeepOneLine ? S(" ") : S("\n        "));
-    Filesystem_WriteLineFormatted(Export->File, S("    }%S"), NULL, Data->Index != Params->NumSources-1 || !Export->bIsLastBuild ? S(",\n") : S("\n"));
+    Filesystem_WriteLineFormatted(Export->File, S("    }%S"), NULL, Index != Params->NumSources-1 || !Export->bIsLastBuild ? S(",\n") : S("\n"));
 
-    Data->Index++;
-    
-    return true;
+    Index++;
 }
 
 bool Export_CompileCommands(const BuildParams* Params, const bool bIsLastBuild, const bool bKeepOneLine)
@@ -137,8 +130,12 @@ bool Export_CompileCommands(const BuildParams* Params, const bool bIsLastBuild, 
             Data.bIsLastBuild = bIsLastBuild;
             Data.bKeepOneLine = bKeepOneLine;
 
-            CompileData UserData = { &Internal_GenCommandObject, Params, NULL, 0, true, &Data};
-            Filesystem_IterateDirectory_Ex(Params->SourceDirectory, &SourceFileDirectoryIterator, true, &UserData);
+            u32 i = 0;
+            for each_string_in_list (Params->SourceFiles)
+            {
+                Internal_GenCommandObject(Params, &Data, i, It.String);
+                i++;
+            }
 
             if (bIsLastBuild) { Filesystem_WriteLine(f, S("]\n"), NULL); }
 
