@@ -781,6 +781,44 @@ NO_DISCARD bool Filesystem_DoesPathHaveFileExtension(const String Path)
     return bSuccess;
 }
 
+// Returns the path of where this file lives
+// with the option of including the last slash or not
+// Example:
+//  Case 1
+//   Input:  path/to/some/file.txt
+//   Output: path/to/some
+//  Case 2
+//   Input:  hello.txt
+//   Output: <empty> since there is no path slashes present in the input string
+
+NO_DISCARD String Filesystem_ExtractFilePath(const String Path, bool bIncludeSlash)
+{
+    String Final = String_Null();
+
+    u32 LastSlash = 0;
+    if (String_IndexOfLastPathSlash(Path, &LastSlash))
+    {
+        // edge case for something like:
+        //   /somefile.txt
+        // where "/" is the first one and bIncludeSlash is false
+        // we want to return "/" and not an empty string, so as to not confuse the user
+        // that no "path" was extracted
+        if (LastSlash == 0 && !bIncludeSlash)
+        {
+            LastSlash++;
+        }
+        
+        Final = StrSlice(Path.Data, bIncludeSlash ? LastSlash+1 : LastSlash);
+    }
+
+    return Final;
+}
+
+// Returns the file name of the given path
+// Example:
+//   Input:  path/to/some/file.txt
+//   Output: file or file.txt
+//   with the option of including the extension or not
 NO_DISCARD String Filesystem_ExtractFileName(const String Path, bool bIncludeExtension)
 {
     String FileName = Path;
@@ -817,14 +855,14 @@ NO_DISCARD String Filesystem_StripFileExtension(const String FilePath)
     return Final;
 }
 
-NO_DISCARD String Filesystem_ExtractFileExtension(const String FilePath)
+NO_DISCARD String Filesystem_ExtractFileExtension(const String FilePath, bool bIncludeDot)
 {
     String Final = String_Null();
 
     u32 LastDot = 0;
     if (String_IndexOfLastChar(FilePath, '.', &LastDot))
     {
-        Final = StrShiftF(FilePath, LastDot+1);
+        Final = StrShiftF(FilePath, bIncludeDot ? LastDot : LastDot+1);
     }
 
     return Final;

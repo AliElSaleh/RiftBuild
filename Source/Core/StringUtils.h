@@ -89,6 +89,8 @@ RIFT_API void String_Fill(String* Str, u8 C);
 
 #define String_Concat(Dest, ...)               do { String MACRO_VAR(SArgs)[32] = {__VA_ARGS__}; StringArray MACRO_VAR(TempArray) = {0}; MACRO_VAR(TempArray).List = MACRO_VAR(SArgs); MACRO_VAR(TempArray).Num = SArray_Capacity(MACRO_VAR(SArgs)); StringInternal_Concat(Dest, MACRO_VAR(TempArray)); } while (0)
 #define String_BuildSeparator(Dest, Char, ...) do { String MACRO_VAR(SArgs)[32] = {__VA_ARGS__}; StringArray MACRO_VAR(TempArray) = {0}; MACRO_VAR(TempArray).List = MACRO_VAR(SArgs); MACRO_VAR(TempArray).Num = SArray_Capacity(MACRO_VAR(SArgs)); StringInternal_BuildSeparator(Dest, Char, MACRO_VAR(TempArray)); } while (0)
+// TODO: BuildPathWithExt
+//#define String_BuildPath(Dest, Extension, ...)            do { String MACRO_VAR(SArgs)[32] = {__VA_ARGS__}; StringArray MACRO_VAR(TempArray) = {0}; MACRO_VAR(TempArray).List = MACRO_VAR(SArgs); MACRO_VAR(TempArray).Num = SArray_Capacity(MACRO_VAR(SArgs)); StringInternal_BuildPath(Dest, MACRO_VAR(TempArray)); } while (0)
 #define String_BuildPath(Dest, ...)            do { String MACRO_VAR(SArgs)[32] = {__VA_ARGS__}; StringArray MACRO_VAR(TempArray) = {0}; MACRO_VAR(TempArray).List = MACRO_VAR(SArgs); MACRO_VAR(TempArray).Num = SArray_Capacity(MACRO_VAR(SArgs)); StringInternal_BuildPath(Dest, MACRO_VAR(TempArray)); } while (0)
 
 RIFT_API void StringInternal_Concat(String* Dest, const StringArray Array);

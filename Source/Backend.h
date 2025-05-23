@@ -81,7 +81,7 @@ ENUM(EAssemblyType)
     AssemblyType_StaticLibrary,
     AssemblyType_DynamicLibrary,
     AssemblyType_PCH,
-    AssemblyType_CompilerObject
+    AssemblyType_CustomCompilerObject
 };
 
 ENUM(ECompiler)
@@ -257,7 +257,7 @@ STRUCT(ExportMetaData)
 
 // Compiler/Building functions --------------------
 
-bool MSVC_Compile(const BuildParams* Params, u32* OutNumCompiled);
+//bool MSVC_Compile(const BuildParams* Params, u32* OutNumCompiled);
 bool MSVC_Link(const BuildParams* Params);
 bool C_Compile(const BuildParams* Params, u32* OutNumCompiled);
 bool C_Link(const BuildParams* Params);
@@ -265,6 +265,9 @@ bool C_Link(const BuildParams* Params);
 bool RC_Compile(const BuildParams* Params, const String FullRCPath, String* OutResPath);
 
 bool IsSource(const String Extension);
+bool IsAsmSource(const String Extension);
+bool IsCSource(const String Extension);
+bool IsObjCSource(const String Extension);
 bool IsCppSource(const String Extension);
 bool IsSourceCustom(const String Extension, const StringList CustomExtensions);
 bool IsHeader(const String Extension);
@@ -280,11 +283,6 @@ FileVariable GetVariable(TArray(FileVariable) Variables, const String Name);
 String GetVariableValue(TArray(FileVariable) Variables, const String Name);
 String* GetVariableValue_Ref(TArray(FileVariable) Variables, const String Name);
 StringList GetVariableValueList(LinearAllocator* Arena, TArray(FileVariable) VariablesDB, const String Name);
-
-bool FilterSourceFile(const String WorkingDirectory, const String SourceDirectory, 
-                      const String FullPath, const String RelativePath,
-                      StringList WhitelistFiles, StringList BlacklistFiles,
-                      StringList WhitelistDirectories, StringList BlacklistDirectories);
 
 bool LogStringList_WordWrapped(LinearAllocator Scratch, const String Name, const StringList List);
 void LogString_WordWrapped    (LinearAllocator Scratch, const String Name, const String Value, const bool bAddNewLine);
@@ -334,8 +332,6 @@ void AddOrAppendVariable(LinearAllocator* Arena,
                         const String Value,
                         const String Params);
 
-
-bool SourceFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData);
 
 // Export functions --------------------
 

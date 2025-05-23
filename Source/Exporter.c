@@ -133,7 +133,15 @@ bool Export_CompileCommands(const BuildParams* Params, const bool bIsLastBuild, 
             u32 i = 0;
             for each_string_in_list (Params->SourceFiles)
             {
-                Internal_GenCommandObject(Params, &Data, i, It.String);
+                const String Ext = Filesystem_ExtractFileExtension(It.String, true);
+                if (IsCSource(Ext)    ||
+                    IsCppSource(Ext)  ||
+                    IsObjCSource(Ext) ||
+                    IsAsmSource(Ext))
+                {
+                    Internal_GenCommandObject(Params, &Data, i, It.String);
+                }
+
                 i++;
             }
 
