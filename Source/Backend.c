@@ -58,47 +58,51 @@ bool RC_Compile(const BuildParams* Params, const String FullRCPath, String* OutR
 
         // ergghh i hate this... TODO: something better
         #if PLATFORM_WINDOWS
-        StringLocal(WinSDKInclude, MAX_PATH_LENGTH*7); // 7 paths
-        if (!Params->bWasVCVarsBatchRan)
+
+        if (String_IsEqual(Params->RCProgram, S("rc"), false))
         {
-            if (Params->WindowsSDKIncludePath.Length)
+            StringLocal(WinSDKInclude, MAX_PATH_LENGTH*7); // 7 paths
+            if (!Params->bWasVCVarsBatchRan)
             {
-                String_Append(&WinSDKInclude, S("/I\""));
-                String_Append(&WinSDKInclude, Params->WindowsSDKIncludePath);
-                String_Append(&WinSDKInclude, S("\" "));
+                if (Params->WindowsSDKIncludePath.Length)
+                {
+                    String_Append(&WinSDKInclude, S("/I\""));
+                    String_Append(&WinSDKInclude, Params->WindowsSDKIncludePath);
+                    String_Append(&WinSDKInclude, S("\" "));
 
-                String_Append(&WinSDKInclude, S("/I\""));
-                String_Append(&WinSDKInclude, Params->WindowsSDKIncludePath);
-                String_Append(&WinSDKInclude, S("\\shared\" "));
+                    String_Append(&WinSDKInclude, S("/I\""));
+                    String_Append(&WinSDKInclude, Params->WindowsSDKIncludePath);
+                    String_Append(&WinSDKInclude, S("\\shared\" "));
 
-                String_Append(&WinSDKInclude, S("/I\""));
-                String_Append(&WinSDKInclude, Params->WindowsSDKIncludePath);
-                String_Append(&WinSDKInclude, S("\\ucrt\" "));
+                    String_Append(&WinSDKInclude, S("/I\""));
+                    String_Append(&WinSDKInclude, Params->WindowsSDKIncludePath);
+                    String_Append(&WinSDKInclude, S("\\ucrt\" "));
 
-                String_Append(&WinSDKInclude, S("/I\""));
-                String_Append(&WinSDKInclude, Params->WindowsSDKIncludePath);
-                String_Append(&WinSDKInclude, S("\\um\" "));
+                    String_Append(&WinSDKInclude, S("/I\""));
+                    String_Append(&WinSDKInclude, Params->WindowsSDKIncludePath);
+                    String_Append(&WinSDKInclude, S("\\um\" "));
 
-                String_Append(&WinSDKInclude, S("/I\""));
-                String_Append(&WinSDKInclude, Params->WindowsSDKIncludePath);
-                String_Append(&WinSDKInclude, S("\\winrt\" "));
+                    String_Append(&WinSDKInclude, S("/I\""));
+                    String_Append(&WinSDKInclude, Params->WindowsSDKIncludePath);
+                    String_Append(&WinSDKInclude, S("\\winrt\" "));
 
-                String_Append(&WinSDKInclude, S("/I\""));
-                String_Append(&WinSDKInclude, Params->WindowsSDKIncludePath);
-                String_Append(&WinSDKInclude, S("\\cppwinrt\" "));
+                    String_Append(&WinSDKInclude, S("/I\""));
+                    String_Append(&WinSDKInclude, Params->WindowsSDKIncludePath);
+                    String_Append(&WinSDKInclude, S("\\cppwinrt\" "));
+                }
+
+                if (Params->VisualStudioIncludePath.Length)
+                {
+                    String_Append(&WinSDKInclude, S("/I\""));
+                    String_Append(&WinSDKInclude, Params->VisualStudioIncludePath);
+                    String_Append(&WinSDKInclude, S("\" "));
+                }
             }
 
-            if (Params->VisualStudioIncludePath.Length)
-            {
-                String_Append(&WinSDKInclude, S("/I\""));
-                String_Append(&WinSDKInclude, Params->VisualStudioIncludePath);
-                String_Append(&WinSDKInclude, S("\" "));
-            }
+            xx String_EatSpacesInlineFromEnd(&WinSDKInclude);
+
+            String_Append(&CmdLine, WinSDKInclude);
         }
-
-        xx String_EatSpacesInlineFromEnd(&WinSDKInclude);
-
-        String_Append(&CmdLine, WinSDKInclude);
         #endif
     }
 
@@ -135,7 +139,7 @@ bool RC_Compile(const BuildParams* Params, const String FullRCPath, String* OutR
 
     LOG("Compiling resource %S", FullRCPath);
     
-    if (Params->bVerbose) { LOG("    %S", CmdLine); }
+    if (Params->bVerbose) { LOG("\n    %S\n", CmdLine); }
 
     PlatformHandle H = Platform_RunProcess(Params->RCProgramPath, CmdLine, Params->RootDirectory, String_Null());
     if (!Platform_IsValidHandle(H)) { return false; }
@@ -681,7 +685,7 @@ static void Internal_AppendObjSourceFiles(const BuildParams* Params, String* Cmd
             String_Append(&ResPath, bHasDot ? StrSlice(RelativePath.Data, LastDot) : RelativePath);
             String_Append(&ResPath, S(".res"));
 
-            String_BuildPath(&ObjectPath, ResPath);
+            String_BuildPath(&ObjectPath, Params->SourceDirectory, ResPath);
         }
         else
         #endif

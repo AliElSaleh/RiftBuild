@@ -553,10 +553,14 @@ void Clock_Stop(Clock* C)
 
 void Clock_Tick(Clock* C)
 {
-    if (C->StartTime != 0.0)
-    {
-        C->ElapsedTime = Platform_GetAbsoluteTime() - C->StartTime;
-    }
+    C->ElapsedTime = Platform_GetAbsoluteTime() - C->StartTime;
+}
+
+void Clock_TickAndPrint(Clock* C)
+{
+    C->ElapsedTime = Platform_GetAbsoluteTime() - C->StartTime;
+
+    Clock_PrintElapsedTime(C, true);
 }
 
 NO_DISCARD f64 Clock_GetElapsedTime(const Clock* C, bool bAutoConvertTimeUnit)

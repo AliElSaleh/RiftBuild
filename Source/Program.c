@@ -401,139 +401,120 @@ bool LogCustomErrorMessage(TArray(FileVariable) VariablesDB, const String Contex
     return bLogged;
 }
 
-// TODO: rewrite this
-// TODO: have a relook at this filter code
 static bool FilterSourceFile(const String WorkingDirectory, const String SourceDirectory,
                       const String FullPath, const String RelativePath,
                       StringList WhitelistFiles, StringList BlacklistFiles,
                       StringList WhitelistDirectories, StringList BlacklistDirectories)
 {
-    String TrimmedFileName;
-    String TrimmedDirName = String_Null();
-    u32 SlashIndex = 0;
-    if (String_IndexOfLastPathSlash(RelativePath, &SlashIndex))
-    {
-        TrimmedFileName = StrShiftF(RelativePath, SlashIndex + 1);
-        TrimmedDirName = StrSlice(RelativePath.Data, SlashIndex);
-    }
-    else
-    {
-        TrimmedFileName = RelativePath;
-    }
+    bool bIsAllowed = true;
 
-    // todo: immediate return
-    bool bIsBlacklisted = false;
-    for each_str_list (BlacklistFiles)
+    const String TrimmedFileName = Filesystem_ExtractFileName(RelativePath, true);
+    const String TrimmedDirName  = Filesystem_ExtractFilePath(RelativePath, false);
+
+    // blacklist check
     {
-        u32 Index = 0;
-        if (String_IndexOfLastChar(It.String, '*', &Index))
+        bool bUsingBlacklist = false;
+        bool bFound = false;
+
+        for each_str_list (BlacklistFiles)
         {
-            String Left = StrSlice(It.String.Data, Index);
-            String Right = StrShiftF(It.String, Index+1);
-            if (Index < TrimmedFileName.Length)
+            bUsingBlacklist = true;
+
+            u32 Index = 0;
+            if (String_IndexOfLastChar(It.String, '*', &Index))
             {
-                if ((Index == 0 || String_IsEqual(Left, StrSlice(TrimmedFileName.Data, Index), true)) &&
-                    String_IsEqual(Right, StrSlice(TrimmedFileName.Data+TrimmedFileName.Length-Right.Length, Right.Length), true))
+                String Left = StrSlice(It.String.Data, Index);
+                String Right = StrShiftF(It.String, Index+1);
+                if (Index < TrimmedFileName.Length)
                 {
-                    bIsBlacklisted = true;
-                    break;
-                }
-            }
-        }
-
-        if (String_IsEqual(It.String, TrimmedFileName, true))
-        {
-            bIsBlacklisted = true;
-            break;
-        }
-
-        if (String_IsEqual(It.String, RelativePath, true))
-        {
-            bIsBlacklisted = true;
-            break;
-        }
-    }
-
-    StringLocal(DirPath, MAX_PATH_LENGTH);
-    String_BuildPath(&DirPath, WorkingDirectory, SourceDirectory, TrimmedDirName);
-
-    for each_str_list (BlacklistDirectories)
-    {
-        if (String_IsEqual(It.String, S("*"), false) && TrimmedDirName.Length > 0)
-        {
-            bIsBlacklisted = true;
-            break;
-        }
-
-        StringLocal(TestPath, MAX_PATH_LENGTH);
-        String_BuildPath(&TestPath, WorkingDirectory, SourceDirectory, It.String);
-        String_ConvertSlashToPlatformSlash(&TestPath);
-
-        u32 Index = 0;
-        if (String_IndexOfLastChar(TestPath, '*', &Index))
-        {
-            String Left = StrSlice(TestPath.Data, Index);
-            String Right = StrShiftF(TestPath, Index+1);
-            if (Index < DirPath.Length)
-            {
-                String Left2 = StrSlice(DirPath.Data, Index);
-                String Right2 = StrShiftF(DirPath, Index);
-
-                if ((String_IsEqual(Left, Left2, true) || Left.Length == 0) &&
-                    (String_Contains(Right2, Right, true) || Right.Length == 0))
-                {
-                    if (Filesystem_ArePathsCommon(DirPath, FullPath))
+                    if ((Index == 0 || String_IsEqual(Left, StrSlice(TrimmedFileName.Data, Index), false)) &&
+                        String_IsEqual(Right, StrSlice(TrimmedFileName.Data+TrimmedFileName.Length-Right.Length, Right.Length), false))
                     {
-                        bIsBlacklisted = true;
+                        bFound = true;
                         break;
                     }
                 }
             }
-        }
 
-        if (Filesystem_ArePathsCommon(TestPath, FullPath))
-        {
-            bIsBlacklisted = true;
-            break;
-        }
-
-        // also look in the outside directories
-        /*
-        if (String_IsValid(OutsideSourceDirectories))
-        {
-            StringArray Dirs = String_ParseIntoArray(Scratch_Filter.Allocator, OutsideSourceDirectories, ' ', 0, 128);
-            for each_str (DirO, Dirs)
+            if (String_IsEqual(It.String, RelativePath, false))
             {
-                StringLocal(DirCopy, MAX_PATH_LENGTH);
-                String_Copy(&DirCopy, *DirO);
-                String_EatPathSeparatorsInlineFromEnd(&DirCopy);
-                String_ConvertSlashToPlatformSlash(&DirCopy);
+                bFound = true;
+                break;
+            }
+        }
 
-                if (Filesystem_ArePathsCommon(DirCopy, FullPath))
+        if (bUsingBlacklist)
+        {
+            bIsAllowed = !bFound;
+        }
+
+        if (bIsAllowed)
+        {
+            bUsingBlacklist = false;
+            bFound = false;
+
+            for each_str_list (BlacklistDirectories)
+            {
+                bUsingBlacklist = true;
+
+                if (String_IsEqual(It.String, S("*"), false) && TrimmedDirName.Length > 0)
                 {
-                    bIsBlacklisted = true;
+                    bFound = true;
+                    break;
+                }
+
+                StringLocal(TestPath, MAX_PATH_LENGTH);
+                String_BuildPath(&TestPath, WorkingDirectory, SourceDirectory, It.String);
+                String_ConvertSlashToPlatformSlash(&TestPath);
+
+                u32 Index = 0;
+                if (String_IndexOfLastChar(TestPath, '*', &Index))
+                {
+                    StringLocal(DirPath, MAX_PATH_LENGTH);
+                    String_BuildPath(&DirPath, WorkingDirectory, SourceDirectory, TrimmedDirName);
+
+                    String Left = StrSlice(TestPath.Data, Index);
+                    String Right = StrShiftF(TestPath, Index+1);
+                    if (Index < DirPath.Length)
+                    {
+                        String Left2 = StrSlice(DirPath.Data, Index);
+                        String Right2 = StrShiftF(DirPath, Index);
+
+                        if ((String_IsEqual(Left, Left2, false) || Left.Length == 0) &&
+                            (String_Contains(Right2, Right, false) || Right.Length == 0))
+                        {
+                            if (Filesystem_ArePathsCommon(DirPath, FullPath))
+                            {
+                                bFound = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (Filesystem_ArePathsCommon(TestPath, FullPath))
+                {
+                    bFound = true;
                     break;
                 }
             }
+
+            if (bUsingBlacklist)
+            {
+                bIsAllowed = !bFound;
+            }
         }
-        */
     }
 
-    if (bIsBlacklisted)
+    // whitelist check
+    if (bIsAllowed)
     {
-        return false;
-    }
-
-    // TODO: why am i doing this
-    u32 NumWhitelist = 0, NumWhitelistDir = 0;
-    for each_str_list (WhitelistFiles) { NumWhitelist += 1; }
-    for each_str_list (WhitelistDirectories) { NumWhitelistDir += 1; }
-    bool bIsAllowed = NumWhitelist == 0 && NumWhitelistDir == 0;
-
-    if (NumWhitelist > 0)
-    {
+        bool bUsingWhitelist = false;
+        bool bFound = false;
         for each_str_list (WhitelistFiles)
         {
+            bUsingWhitelist = true;
+
             u32 Index = 0;
             if (String_IndexOfLastChar(It.String, '*', &Index))
             {
@@ -544,126 +525,105 @@ static bool FilterSourceFile(const String WorkingDirectory, const String SourceD
                 bool bHasSlash = String_IndexOfLastPathSlash(Left, &LeftLastSlash);
                 String TrimmedLeft = bHasSlash ? StrShiftF(Left, LeftLastSlash+1) : Left;
 
-                if (String_StartsWith(RelativePath, Left, true) &&
-                    String_EndsWith(RelativePath, Right, true))
+                if (String_StartsWith(RelativePath, Left, false) &&
+                    String_EndsWith(RelativePath, Right, false))
                 {
-                    bIsAllowed = true;
+                    bFound = true;
                     break;
                 }
 
+                if (String_IsEqual(TrimmedLeft, StrSlice(TrimmedFileName.Data, Index), false) &&
+                    String_IsEqual(Right, StrSlice(TrimmedFileName.Data+TrimmedFileName.Length-Right.Length, Right.Length), false))
                 {
-                    if (String_IsEqual(TrimmedLeft, StrSlice(TrimmedFileName.Data, Index), true) &&
-                        String_IsEqual(Right, StrSlice(TrimmedFileName.Data+TrimmedFileName.Length-Right.Length, Right.Length), true))
-                    {
-                        bIsAllowed = true;
-                        break;
-                    }
+                    bFound = true;
+                    break;
                 }
             }
 
-            // todo: handle ./blah.c <=== this doesnt works
-
-            /*
-            if (String_IsEqual(It.String, TrimmedFileName, true))
+            if (String_IsEqual(It.String, RelativePath, false))
             {
-                bIsAllowed = true;
-                break;
-            }
-            */
-
-            if (String_IsEqual(It.String, RelativePath, true))
-            {
-                bIsAllowed = true;
+                bFound = true;
                 break;
             }
         }
-    }
 
-    if (NumWhitelistDir > 0)
-    {
-        for each_str_list (WhitelistDirectories)
+        if (bUsingWhitelist)
         {
-            StringLocal(TestPath, MAX_PATH_LENGTH);
-            String_BuildPath(&TestPath, WorkingDirectory, SourceDirectory, It.String);
-            String_ConvertSlashToPlatformSlash(&TestPath);
-            xx Filesystem_ConvertRelativeToAbsolutePath(&TestPath);
+            bIsAllowed = bFound;
+        }
 
-            StringLocal(SourceDir, MAX_PATH_LENGTH);
-            String_BuildPath(&SourceDir, WorkingDirectory, SourceDirectory);
-            String_ConvertSlashToPlatformSlash(&SourceDir);
-            xx Filesystem_ConvertRelativeToAbsolutePath(&SourceDir);
+        if (bIsAllowed)
+        {
+            bUsingWhitelist = false;
+            bFound = false;
 
-            if (String_IsEqual(TestPath, SourceDir, false))
+            for each_str_list (WhitelistDirectories)
             {
-                break;
-            }
+                bUsingWhitelist = true;
 
-            u32 Index = 0;
-            if (String_IndexOfLastChar(TestPath, '*', &Index))
-            {
-                u32 LastSlash = 0;
-                xx String_IndexOfLastPathSlash(TestPath, &LastSlash);
-                i32 Diff = (i32)(Index-LastSlash+(TestPath.Length-1-Index));
-                if (Diff <= 1 && TrimmedDirName.Length > 0)
+                StringLocal(TestPath, MAX_PATH_LENGTH);
+                String_BuildPath(&TestPath, WorkingDirectory, SourceDirectory, It.String);
+                String_ConvertSlashToPlatformSlash(&TestPath);
+                xx Filesystem_ConvertRelativeToAbsolutePath(&TestPath);
+
+                StringLocal(SourceDir, MAX_PATH_LENGTH);
+                String_BuildPath(&SourceDir, WorkingDirectory, SourceDirectory);
+                String_ConvertSlashToPlatformSlash(&SourceDir);
+                xx Filesystem_ConvertRelativeToAbsolutePath(&SourceDir);
+
+                if (String_IsEqual(TestPath, SourceDir, false))
                 {
-                    //bIsBlacklisted = true;
                     break;
                 }
 
-                String Left = StrSlice(TestPath.Data, Index);
-                String Right = StrShiftF(TestPath, Index+1);
-                if (Index < DirPath.Length)
+                u32 Index = 0;
+                if (String_IndexOfLastChar(TestPath, '*', &Index))
                 {
-                    String Left2 = StrSlice(DirPath.Data, Index);
-                    String Right2 = StrShiftF(DirPath, Index);
+                    StringLocal(DirPath, MAX_PATH_LENGTH);
+                    String_BuildPath(&DirPath, WorkingDirectory, SourceDirectory, TrimmedDirName);
 
-                    if ((String_IsEqual(Left, Left2, true) || Left.Length == 0) &&
-                        (String_Contains(Right2, Right, true) || Right.Length == 0))
+                    u32 LastSlash = 0;
+                    xx String_IndexOfLastPathSlash(TestPath, &LastSlash);
+                    i32 Diff = (i32)(Index-LastSlash+(TestPath.Length-1-Index));
+                    if (Diff <= 1 && TrimmedDirName.Length > 0)
                     {
-                        if (Filesystem_ArePathsCommon(DirPath, FullPath))
+                        break;
+                    }
+
+                    String Left = StrSlice(TestPath.Data, Index);
+                    String Right = StrShiftF(TestPath, Index+1);
+                    if (Index < DirPath.Length)
+                    {
+                        String Left2 = StrSlice(DirPath.Data, Index);
+                        String Right2 = StrShiftF(DirPath, Index);
+
+                        if ((String_IsEqual(Left, Left2, false) || Left.Length == 0) &&
+                            (String_Contains(Right2, Right, false) || Right.Length == 0))
                         {
-                            bIsAllowed = true;
-                            break;
+                            if (Filesystem_ArePathsCommon(DirPath, FullPath))
+                            {
+                                bFound = true;
+                                break;
+                            }
                         }
                     }
                 }
-            }
 
-            if (Filesystem_ArePathsCommon(TestPath, FullPath))
-            {
-                bIsAllowed = true;
-                break;
-            }
-
-            // also look in the outside directories
-            /*
-            if (String_IsValid(OutsideSourceDirectories))
-            {
-                StringArray Dirs = String_ParseIntoArray(Scratch_Filter.Allocator, OutsideSourceDirectories, ' ', 0, 128);
-                for each_str (DirO, Dirs)
+                if (Filesystem_ArePathsCommon(TestPath, FullPath))
                 {
-                    StringLocal(DirCopy, MAX_PATH_LENGTH);
-                    String_Copy(&DirCopy, *DirO);
-                    String_EatPathSeparatorsInlineFromEnd(&DirCopy);
-                    String_ConvertSlashToPlatformSlash(&DirCopy);
-
-                    if (Filesystem_ArePathsCommon(DirCopy, FullPath))
-                    {
-                        bIsAllowed = true;
-                        break;
-                    }
+                    bFound = true;
+                    break;
                 }
             }
-            */
+
+            if (bUsingWhitelist)
+            {
+                bIsAllowed = bFound;
+            }
         }
     }
 
-    if (bIsAllowed)
-    {
-        return true;
-    }
-    
-    return false;
+    return bIsAllowed;
 }
 
 static bool IconFileDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
@@ -766,10 +726,7 @@ static bool SourceFileCounterDirectoryIterator(const String FullPath, const Stri
             }
         }
 
-        u32 DotIndex = 0;
-        bool bHasExt = String_IndexOfLastChar(FileName, '.', &DotIndex);
-
-        const String Extension = bHasExt ? StrShiftF(FileName, DotIndex) : String_Null();
+        String Extension = Filesystem_ExtractFileExtension(FileName, true);
 
         const bool bIsSource = IsSource(Extension);
         const bool bIsCustomSource = IsSourceCustom(Extension, Data->CustomSourceExtensions);
@@ -5440,14 +5397,21 @@ static u32 BuildTarget(LinearAllocator* Arena,
     CountData.bHasCppFiles                = false;
     CountData.bIsPCHBuild                 = AssemblyType == AssemblyType_PCH;
 
+    // Clock temp;
+    // Clock_Start(&temp);
     Filesystem_IterateDirectory_Ex(SourceDir, &SourceFileCounterDirectoryIterator, true, &CountData);
-
     /*
-    for each_string_in_list (*CountData.FilteredFiles)
+    Clock_TickAndPrint(&temp);
+    if (CountData.FilteredFiles)
     {
-        LOG("%S", It.String);
+        for each_string_in_list (*CountData.FilteredFiles)
+        {
+            LOG("%S", It.String);
+        }
     }
     */
+    // return 1;
+
 
     const u32 NumSources = CountData.NumSources + CountData.NumAsmSources + CountData.NumRcSources;
 
@@ -5843,6 +5807,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     }
 
     // resolve linker and archiver paths
+    String RCProgramFlags = String_Null();
     {
         u32 LastSlashIndex = 0;
         xx String_IndexOfLastPathSlash(CompilerPath, &LastSlashIndex);
@@ -5884,6 +5849,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
         }
         else if (String_Contains(CompilerExe, S("cl.exe"), false))
         {
+            RCProgramFlags = S("/nologo");
+
             String_BuildPath(&LinkerPath, CompilerBasePath, S("link.exe"));
             String_BuildPath(&ArchiverPath, CompilerBasePath, S("lib.exe"));
             String_BuildPath(&DumpBinPath, CompilerBasePath, S("dumpbin.exe"));
@@ -6633,7 +6600,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     #if PLATFORM_WINDOWS
     p.RCProgram                     = RCProgram;
     p.RCProgramPath                 = RCCompilerPath;
-    p.RCProgramFlags                = S("/nologo");
+    p.RCProgramFlags                = RCProgramFlags;
     p.bHasRCProgram                 = bHasRcProgram;
     #endif
     p.Assembly                      = AssemblyName;

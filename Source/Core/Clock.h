@@ -15,6 +15,7 @@ RIFT_API void Clock_Start(Clock* C);
 RIFT_API void Clock_Stop(Clock* C);
 
 RIFT_API void Clock_Tick(Clock* C);
+RIFT_API void Clock_TickAndPrint(Clock* C);
 
 RIFT_API NO_DISCARD f64 Clock_GetElapsedTime(const Clock* C, bool bAutoConvertTimeUnit);
 RIFT_API NO_DISCARD f64 Clock_GetElapsedTime_Milliseconds(const Clock* C);
