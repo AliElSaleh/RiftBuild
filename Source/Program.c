@@ -2988,7 +2988,6 @@ static u32 BuildTarget(LinearAllocator* Arena,
     #endif
 
     EAssemblyType AssemblyType = AssemblyType_None;
-    //bool bIsAssemblyExe = false;
 
     #if PLATFORM_WINDOWS
     bool bFallbackVersion = false;
@@ -3003,17 +3002,15 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
     if (bFoundBuildFile)
     {
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////
+        //
+        //
+        //                PARSE AND EXPAND START
+        //
+        //
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////
+
         Clock_Start(&BuildFileParseClock);
-
-
-        ////////////////////////////////////////////////////////////////////////////////////////////////////////
-        //
-        //
-        //                PARSE AND EXPAND
-        //
-        //
-        ////////////////////////////////////////////////////////////////////////////////////////////////////////
-
         {
             LinearAllocator Scratch = {0};
             i8 ScratchMemory[Kibibytes(512)] = {0};
@@ -3032,93 +3029,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 return 1;
             }
         }
-
         Clock_Tick(&BuildFileParseClock);
 
-        /*
-        if (!ParseBuildFile(Arena, BuildFileHandle, BuildFilePath, WorkingPath, VariablesDB,
-                            CmdOptionsDB, Messages, IncludeFiles, NULL, false, NULL, false))
-        {
-            return 1;
-        }
-        */
-
         bAnyVarsOverriden = CheckForBuildVariableOverrides(VariablesDB, ExpandedVariablesDB, CmdOptionsDB);
-
-        // first expand Type and Extension. so on linux we can tell if its an assembly exe and not a library
-        /* todo: relook
-        for each (FileVariable, v, VariablesDB)
-        {
-            if (String_IsEqual(v.Name, S("Extension"), false) ||
-                String_IsEqual(v.Name, S("Type"), false))
-            {
-                StringLocal(ExpandedVar, 64);
-
-                {
-                    LinearAllocator Scratch = *Arena;
-                    StringList List = GetVariableValueList(&Scratch, VariablesDB, v.Name);
-                    for each_str_list (List)
-                    {
-                        if (!ExpandBuildVariableV2(Scratch, VariablesDB, CmdOptionsDB, &ExpandedVar, v.Name, It.String, v.Name, WorkingPath, false, false, NULL))
-                        {
-                            return 1;
-                        }
-
-                        xx String_EatSpacesInlineFromEnd(&ExpandedVar);
-
-                        if (ExpandedVar.Length > 0)
-                        {
-                            String_AppendSpace(&ExpandedVar);
-                        }
-                    }
-                }
-
-                xx String_EatSpacesInlineFromEnd(&ExpandedVar);
-                
-                StringLocal(SanitizedVar, 64);
-                bool bSawSpace = false;
-                for (u32 i = 0; i < ExpandedVar.Length; i++)
-                {
-                    if (ExpandedVar.Data[i] == '.')
-                    {
-                        continue;
-                    }
-
-                    if (IsWhitespace(ExpandedVar.Data[i]))
-                    {
-                        bSawSpace = true;
-                        continue;
-                    }
-
-                    if (bSawSpace)
-                    {
-                        bSawSpace = false;
-                        String_AppendSpace(&SanitizedVar);
-                    }
-
-                    String_AppendChar(&SanitizedVar, ExpandedVar.Data[i]);
-                }
-
-                String Value;
-                StringLocal(Extension, 64);
-                if (String_IsEqual(v.Name, S("Extension"), false) && SanitizedVar.Length > 0)
-                {
-                    PrefixVariables(&Extension, SanitizedVar, S("."), false);
-                    Value = Extension;
-                }
-                else
-                {
-                    Value = SanitizedVar;
-                }
-
-                FileVariable Expanded;
-                Expanded.Name = v.Name;
-                Expanded.Value = String_Create(Arena, Value);
-                //Array_Add(ExpandedVariablesDB, Expanded);
-                Array_Add(VariablesDB, Expanded);
-            }
-        }
-        */
 
         const String Ext  = GetVariableValue(ExpandedVariablesDB, S("Extension"));
         const String Type = GetVariableValue(ExpandedVariablesDB, S("Type"));
@@ -3129,7 +3042,6 @@ static u32 BuildTarget(LinearAllocator* Arena,
             FileVariable Var;
             Var.Name = S("Type");
             Var.Value = S("app");
-            //Array_Add(ExpandedVariablesDB, Var);
             Array_Add(VariablesDB, Var);
         }
 
@@ -3155,27 +3067,6 @@ static u32 BuildTarget(LinearAllocator* Arena,
             AssemblyType = AssemblyType_Executable;
         }
 
-            /*
-        String AssemblyKey = S("Assembly");
-        if (DoesBuildVarExist(VariablesDB, AssemblyKey))
-        {
-            StringLocal(ExpandedVar, 256);
-            if (!ExpandBuildVariable(*Arena, VariablesDB, CmdOptionsDB, &ExpandedVar,
-                                    AssemblyKey, GetVariableValue(VariablesDB, AssemblyKey),
-                                    AssemblyKey, WorkingPath, false, bIsAssemblyExe))
-            {
-                return 1;
-            }
-
-            xx String_EatSpacesInlineFromEnd(&ExpandedVar);
-
-            FileVariable Expanded;
-            Expanded.Name = AssemblyKey;
-            Expanded.Value = String_Create(Arena, ExpandedVar);
-            Array_Add(ExpandedVariablesDB, Expanded);
-        }
-            */
-
         String VersionKey = S("Version");
         bool bDoesVersionVarExist = DoesBuildVarExist(VariablesDB, VersionKey);
 
@@ -3192,208 +3083,96 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
         if (!bAnyVarsOverriden) { bAnyVarsOverriden = bAnyOverriden; }
 
-        // try expand Version (if it exists)
         if (bDoesVersionVarExist)
         {
             FileVariable VersionVar = GetVariable(VariablesDB, VersionKey);
             String ExpandedVar = VersionVar.Value;
 
-            /*
-            StringLocal(ExpandedVar, 256);
-            if (!ExpandBuildVariableV2(*Arena, VariablesDB, CmdOptionsDB, &ExpandedVar,
-                                    VersionKey, GetVariableValue(VariablesDB, VersionKey),
-                                    VersionKey, WorkingPath, false, bIsAssemblyExe, NULL))
+            // add the defines (if desired)
+            if (String_IsEqual(VersionVar.Params, S("macro"), false))
             {
-                return 1;
-            }
-            */
-
-            //(void)String_EatSpacesInlineFromEnd(&ExpandedVar);
-
-            //if (ExpandedVar.Length > 0)
-            {
-                /*
-                FileVariable Expanded;
-                Expanded.Name = VersionKey;
-                Expanded.Value = String_Create(Arena, ExpandedVar);
-                //Array_Add(ExpandedVariablesDB, Expanded);
-                Array_Add(VariablesDB, Expanded);
-                */
-
-                // add the defines (if desired)
-                if (String_IsEqual(VersionVar.Params, S("macro"), false))
+                const String VersionLevels[3] = 
                 {
-                    const String VersionLevels[3] = 
+                    S("MAJOR"),
+                    S("MINOR"),
+                    S("PATCH")
+                };
+
+                StringLocal(AssemblyNameUpper, 128);
+                String_Copy(&AssemblyNameUpper, GetVariableValue(ExpandedVariablesDB, S("Assembly")));
+                xx String_ReplaceCharInline(&AssemblyNameUpper, '-', '_');
+                String_ToUpper(&AssemblyNameUpper);
+
+                {
+                    StringLocal(VersionDefineString, 256);
+                    String_Format(&VersionDefineString, S("%S_VERSION_STRING=\\\"%S\\\""), AssemblyNameUpper, ExpandedVar);
+
+                    AddOrAppendVariable(Arena, VariablesDB, S("Defines"), VersionDefineString, String_Null());
+                }
+
+                xx String_ReplaceNonAlphaNumericCharInline(&ExpandedVar, '.');
+
+                const u32 NumDots = String_CountChar(ExpandedVar, '.');
+                if (NumDots > 0)
+                {
+                    StringArray Versions = String_ParseIntoArray(Arena, ExpandedVar, '.', 0, 128);
+
+                    u8 i = 0;
+                    for each_str (v, Versions)
                     {
-                        S("MAJOR"),
-                        S("MINOR"),
-                        S("PATCH")
-                    };
-
-                    StringLocal(AssemblyNameUpper, 128);
-                    String_Copy(&AssemblyNameUpper, GetVariableValue(ExpandedVariablesDB, S("Assembly")));
-                    xx String_ReplaceCharInline(&AssemblyNameUpper, '-', '_');
-                    String_ToUpper(&AssemblyNameUpper);
-
-                    {
-                        StringLocal(VersionDefineString, 256);
-                        String_Format(&VersionDefineString, S("%S_VERSION_STRING=\\\"%S\\\""), AssemblyNameUpper, ExpandedVar);
-
-                        AddOrAppendVariable(Arena, VariablesDB, S("Defines"), VersionDefineString, String_Null());//, false);
-                    }
-
-                    xx String_ReplaceNonAlphaNumericCharInline(&ExpandedVar, '.');
-
-                    const u32 NumDots = String_CountChar(ExpandedVar, '.');
-                    if (NumDots > 0)
-                    {
-                        StringArray Versions = String_ParseIntoArray(Arena, ExpandedVar, '.', 0, 128);
-
-                        u8 i = 0;
-                        for each_str (v, Versions)
+                        if (v->Length > 0)
                         {
-                            if (v->Length > 0)
-                            {
-                                const bool bContainsNonDigit = String_ContainsNonDigits(*v);
+                            const bool bContainsNonDigit = String_ContainsNonDigits(*v);
 
-                                StringLocal(VersionDefine, 256);
-                                if (i < 3)
+                            StringLocal(VersionDefine, 256);
+                            if (i < 3)
+                            {
+                                if (bContainsNonDigit)
                                 {
-                                    if (bContainsNonDigit)
-                                    {
-                                        String_Format(&VersionDefine, S("%S_%S_VERSION=\\\"%S\\\""), AssemblyNameUpper, VersionLevels[i], *v);
-                                    }
-                                    else
-                                    {
-                                        String_Format(&VersionDefine, S("%S_%S_VERSION=%S"), AssemblyNameUpper, VersionLevels[i], *v);
-                                    }
+                                    String_Format(&VersionDefine, S("%S_%S_VERSION=\\\"%S\\\""), AssemblyNameUpper, VersionLevels[i], *v);
                                 }
                                 else
                                 {
-                                    if (bContainsNonDigit)
-                                    {
-                                        String_Format(&VersionDefine, S("%S_EXTRA_VERSION_%hhu=\\\"%S\\\""), AssemblyNameUpper, i-3, *v);
-                                    }
-                                    else
-                                    {
-                                        String_Format(&VersionDefine, S("%S_EXTRA_VERSION_%hhu=%S"), AssemblyNameUpper, i-3, *v);
-                                    }
+                                    String_Format(&VersionDefine, S("%S_%S_VERSION=%S"), AssemblyNameUpper, VersionLevels[i], *v);
                                 }
-
-                                AddOrAppendVariable(Arena, VariablesDB, S("Defines"), VersionDefine, String_Null());//, false);
-
-                                i++;
                             }
+                            else
+                            {
+                                if (bContainsNonDigit)
+                                {
+                                    String_Format(&VersionDefine, S("%S_EXTRA_VERSION_%hhu=\\\"%S\\\""), AssemblyNameUpper, i-3, *v);
+                                }
+                                else
+                                {
+                                    String_Format(&VersionDefine, S("%S_EXTRA_VERSION_%hhu=%S"), AssemblyNameUpper, i-3, *v);
+                                }
+                            }
+
+                            AddOrAppendVariable(Arena, VariablesDB, S("Defines"), VersionDefine, String_Null());//, false);
+
+                            i++;
                         }
+                    }
+                }
+                else
+                {
+                    const bool bContainsNonDigit = String_ContainsNonDigits(ExpandedVar);
+
+                    StringLocal(VersionDefine, 256);
+
+                    if (bContainsNonDigit)
+                    {
+                        String_Format(&VersionDefine, S("%S_VERSION=\\\"%S\\\""), AssemblyNameUpper, ExpandedVar);
                     }
                     else
                     {
-                        const bool bContainsNonDigit = String_ContainsNonDigits(ExpandedVar);
-
-                        StringLocal(VersionDefine, 256);
-
-                        if (bContainsNonDigit)
-                        {
-                            String_Format(&VersionDefine, S("%S_VERSION=\\\"%S\\\""), AssemblyNameUpper, ExpandedVar);
-                        }
-                        else
-                        {
-                            String_Format(&VersionDefine, S("%S_VERSION=%S"), AssemblyNameUpper, ExpandedVar);
-                        }
-
-                        AddOrAppendVariable(Arena, VariablesDB, S("Defines"), VersionDefine, String_Null());//, false);
+                        String_Format(&VersionDefine, S("%S_VERSION=%S"), AssemblyNameUpper, ExpandedVar);
                     }
+
+                    AddOrAppendVariable(Arena, VariablesDB, S("Defines"), VersionDefine, String_Null());//, false);
                 }
             }
         }
-
-        // expand all build variables
-        /*
-        for each (FileVariable, v, VariablesDB)
-        {
-            // already expanded
-            if (String_IsEqual(v.Name, S("Extension"), false) ||
-                String_IsEqual(v.Name, S("Assembly"), false) ||
-                String_IsEqual(v.Name, S("Version"), false) ||
-                String_IsEqual(v.Name, S("Type"), false))
-            {
-                continue;
-            }
-
-            // TODO: oimplemtn Assert.Admin or Assert.Sudo
-            const String Exclusions[14] =
-            {
-                S("Assert.ProgramExists"),
-                S("Assert.BuildVarExists"),
-                S("Assert.LibExists"),
-                S("Assert.WorkingDirectory"),
-                S("Assert.Arg"),
-                S("Assert.EnvVarExists"),
-                S("Assert.Platform"),
-                S("PreDepend"),
-                S("PreBuild"),
-                S("PostBuild"),
-                S("Depend"),
-                S("Depends"),
-                S("RunAssembly"),
-                S("_"),
-            };
-
-            // do not join the above variables into one long string basically, is what this is for
-            bool bIsExcludedFromMultiVarDeclarations = false;
-            for (u8 i = 0; i < SArray_Capacity(Exclusions); i++)
-            {
-                if (String_StartsWith(v.Name, Exclusions[i], false))
-                {
-                    bIsExcludedFromMultiVarDeclarations = true;
-                    break;
-                }
-            }
-
-            StringLocal(ExpandedVar, 8192);
-
-            if (!bIsExcludedFromMultiVarDeclarations)
-            {
-                bool bAlreadyExpanded = GetVariableValue(ExpandedVariablesDB, v.Name).Length > 0;
-                if (bAlreadyExpanded)
-                {
-                    continue;
-                }
-
-                LinearAllocator Scratch = *Arena;
-                StringList List = GetVariableValueList(&Scratch, VariablesDB, v.Name);
-                for each_str_list (List)
-                {
-                    if (!ExpandBuildVariable(Scratch, VariablesDB, CmdOptionsDB, &ExpandedVar, v.Name, It.String, v.Name, WorkingPath, false, bIsAssemblyExe))
-                    {
-                        return 1;
-                    }
-
-                    if (ExpandedVar.Length > 0)
-                    {
-                        String_AppendSpace(&ExpandedVar);
-                    }
-                }
-            }
-            else
-            {
-                if (!ExpandBuildVariable(*Arena, VariablesDB, CmdOptionsDB, &ExpandedVar, v.Name, v.Value, v.Name, WorkingPath, false, bIsAssemblyExe))
-                {
-                    return 1;
-                }
-            }
-
-            xx String_EatSpacesInlineFromEnd(&ExpandedVar);
-
-            FileVariable Expanded;
-            Expanded.Name = v.Name;
-            Expanded.Value = String_Create(Arena, ExpandedVar);
-            Expanded.SpecialData = v.SpecialData;
-            Expanded.bHasSpecial = v.bHasSpecial;
-
-            Array_Add(ExpandedVariablesDB, Expanded);
-        }
-        */
     }
     else
     {
@@ -3404,7 +3183,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
         // set defaults for a few key build variables
         FileHandle f = {0};
         bool bAnyOverriden = CheckForBuildVariableOverrides(VariablesDB, ExpandedVariablesDB, CmdOptionsDB);
-        Internal_SetDefaultBuildVariables(Arena, f, VariablesDB);//, ExpandedVariablesDB);
+        Internal_SetDefaultBuildVariables(Arena, f, VariablesDB);
 
         bAnyVarsOverriden = bAnyOverriden;
     }
@@ -3509,23 +3288,18 @@ static u32 BuildTarget(LinearAllocator* Arena,
     String CompilerFlagPrefixSymbol         = S("-");
     //String AssemblerFlagPrefixSymbol        = S("-");
     const String CompilerFlags              = GetVariableValue(ExpandedVariablesDB, S("CompilerFlags"));
-    //const String AssemblerFlags             = GetVariableValue(ExpandedVariablesDB, S("AssemblerFlags"));
+    const String AssemblerFlags             = GetVariableValue(ExpandedVariablesDB, S("AssemblerFlags"));
     const String AssemblerIncludes          = GetVariableValue(ExpandedVariablesDB, S("Assembler.Includes"));
     const String AssemblerDefines           = GetVariableValue(ExpandedVariablesDB, S("Assembler.Defines"));
     String IncludeFlags                     = GetVariableValue(ExpandedVariablesDB, S("Includes"));
     const String Libraries                  = GetVariableValue(ExpandedVariablesDB, S("Libraries"));
     String LibraryDirectories               = GetVariableValue(ExpandedVariablesDB, S("LibraryDirectories"));
-    //String LinkerFlags                      = GetVariableValue(ExpandedVariablesDB, S("LinkerFlags"));
+    const String LinkerFlags                = GetVariableValue(ExpandedVariablesDB, S("LinkerFlags"));
     const String Defines                    = GetVariableValue(ExpandedVariablesDB, S("Defines"));
     const String UnDefines                  = GetVariableValue(ExpandedVariablesDB, S("UnDefines"));
     const String LinkerDefines              = GetVariableValue(ExpandedVariablesDB, S("LinkerDefines"));
     const String AssertCompilers            = GetVariableValue(ExpandedVariablesDB, S("Assert.Compiler"));
     const String AssertAssemblers           = GetVariableValue(ExpandedVariablesDB, S("Assert.Assembler"));
-    //const String AssertPlatforms            = GetVariableValue(ExpandedVariablesDB, S("Assert.Platform"));
-    //const String AssertPlatformVersion      = GetVariableValue(ExpandedVariablesDB, S("Assert.PlatformVersion"));
-    //const String AssertVersion              = GetVariableValue(ExpandedVariablesDB, S("Assert.Version"));
-    //const String AssertArchitecture         = GetVariableValue(ExpandedVariablesDB, S("Assert.Architecture"));
-    //const String AssertPrograms             = GetVariableValue(ExpandedVariablesDB, S("Assert.ProgramExists"));
     const String AssertEnvVars              = GetVariableValue(ExpandedVariablesDB, S("Assert.EnvVarExists"));
     const String AssertBuildVars            = GetVariableValue(ExpandedVariablesDB, S("Assert.BuildVarExists"));
     //const String AssertLibs                 = GetVariableValue(ExpandedVariablesDB, S("Assert.LibExists"));
@@ -5397,21 +5171,17 @@ static u32 BuildTarget(LinearAllocator* Arena,
     CountData.bHasCppFiles                = false;
     CountData.bIsPCHBuild                 = AssemblyType == AssemblyType_PCH;
 
-    // Clock temp;
-    // Clock_Start(&temp);
     Filesystem_IterateDirectory_Ex(SourceDir, &SourceFileCounterDirectoryIterator, true, &CountData);
     /*
-    Clock_TickAndPrint(&temp);
     if (CountData.FilteredFiles)
     {
         for each_string_in_list (*CountData.FilteredFiles)
         {
             LOG("%S", It.String);
         }
+        return 1;
     }
     */
-    // return 1;
-
 
     const u32 NumSources = CountData.NumSources + CountData.NumAsmSources + CountData.NumRcSources;
 
@@ -6397,25 +6167,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
             }
             #endif
 
-            /*
-            if (CompilerFlags.Length > 0)      { LogBuildVariable(*Arena, VariablesDB, S("CompilerFlags"),      S("    Compiler Flags:       "), !bNoWordWrapLogging); }
-            if (AssemblerFlags.Length > 0)     { LogBuildVariable(*Arena, VariablesDB, S("AssemblerFlags"),     S("    Assembler Flags:      "), !bNoWordWrapLogging); }
-            if (IncludeFlags.Length > 0)       { LogBuildVariable(*Arena, VariablesDB, S("Includes"),           S("    Includes:             "), !bNoWordWrapLogging); }
-            if (LinkerFlags.Length > 0)        { LogBuildVariable(*Arena, VariablesDB, S("LinkerFlags"),        S("    Linker Flags:         "), !bNoWordWrapLogging); }
-            if (Libraries.Length > 0)          { LogBuildVariable(*Arena, VariablesDB, S("Libraries"),          S("    Libraries:            "), !bNoWordWrapLogging); }
-            if (LibraryDirectories.Length > 0) { LogBuildVariable(*Arena, VariablesDB, S("LibraryDirectories"), S("    Library Directories:  "), !bNoWordWrapLogging); }
-            if (Defines.Length > 0)            { LogBuildVariable(*Arena, VariablesDB, S("Defines"),            S("    Defines:              "), !bNoWordWrapLogging); }
-            if (UnDefines.Length > 0)          { LogBuildVariable(*Arena, VariablesDB, S("UnDefines"),          S("    UnDefines:            "), !bNoWordWrapLogging); }
-            if (LinkerDefines.Length > 0)      { LogBuildVariable(*Arena, VariablesDB, S("LinkerDefines"),      S("    Linker Defines:       "), !bNoWordWrapLogging); }
-            */
-
             LOG_LINE_BREAK();
         }
     }
-
-    const String ExpandedCompilerFlags  = GetVariableValue(ExpandedVariablesDB, S("CompilerFlags"));
-    const String ExpandedAssemblerFlags = GetVariableValue(ExpandedVariablesDB, S("AssemblerFlags"));
-    const String ExpandedLinkerFlags    = GetVariableValue(ExpandedVariablesDB, S("LinkerFlags"));
 
     // TODO: use max value length?
     StringLocal(ExpandedIncludeFlags, 4096);
@@ -6472,15 +6226,15 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
     if (!bExportingSomething)
     {
-        LogNameValuePair(*Arena, S("    Compiler  Flags:      "), ExpandedCompilerFlags,         !bNoWordWrapLogging);
+        LogNameValuePair(*Arena, S("    Compiler  Flags:      "), CompilerFlags,                 !bNoWordWrapLogging);
         LogNameValuePair(*Arena, S("    Include   Flags:      "), ExpandedIncludeFlags,          !bNoWordWrapLogging);
-        LogNameValuePair(*Arena, S("    Linker    Flags:      "), ExpandedLinkerFlags,           !bNoWordWrapLogging);
+        LogNameValuePair(*Arena, S("    Linker    Flags:      "), LinkerFlags,                   !bNoWordWrapLogging);
         LogNameValuePair(*Arena, S("    Define    Flags:      "), ExpandedDefineFlags,           !bNoWordWrapLogging);
         LogNameValuePair(*Arena, S("    UnDefine  Flags:      "), ExpandedUnDefineFlags,         !bNoWordWrapLogging);
         LogNameValuePair(*Arena, S("    Linker  Defines:      "), ExpandedLinkerDefineFlags,     !bNoWordWrapLogging);
         LogNameValuePair(*Arena, S("    Library   Flags:      "), ExpandedLibraries,             !bNoWordWrapLogging);
         LogNameValuePair(*Arena, S("    Library   Paths:      "), ExpandedLibraryDirectories,    !bNoWordWrapLogging);
-        LogNameValuePair(*Arena, S("    Assembler Flags:      "), ExpandedAssemblerFlags,        !bNoWordWrapLogging);
+        LogNameValuePair(*Arena, S("    Assembler Flags:      "), AssemblerFlags,                !bNoWordWrapLogging);
         LogNameValuePair(*Arena, S("    Assembler Includes:   "), ExpandedAssemblerIncludeFlags, !bNoWordWrapLogging);
         LogNameValuePair(*Arena, S("    Assembler Defines:    "), ExpandedAssemblerDefineFlags,  !bNoWordWrapLogging);
     }
@@ -6577,11 +6331,11 @@ static u32 BuildTarget(LinearAllocator* Arena,
     p.MaxCompilersAtOnce            = MaxCompilersAtOnce;
     p.MaxErrors                     = MaxErrorsAllowed;
     p.bShouldWaitPerCompileProcess  = bSingleThread;
-    p.CompilerFlags                 = ExpandedCompilerFlags;
-    p.AssemblerFlags                = ExpandedAssemblerFlags;
+    p.CompilerFlags                 = CompilerFlags;
+    p.AssemblerFlags                = AssemblerFlags;
     p.AssemblerIncludes             = ExpandedAssemblerIncludeFlags;
     p.AssemblerDefines              = ExpandedAssemblerDefineFlags;
-    p.LinkerFlags                   = ExpandedLinkerFlags;
+    p.LinkerFlags                   = LinkerFlags;
     p.IncludeFlags                  = ExpandedIncludeFlags;
     p.DefineFlags                   = ExpandedDefineFlags;
     p.UnDefineFlags                 = ExpandedUnDefineFlags;
