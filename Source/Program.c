@@ -1112,7 +1112,7 @@ bool LogStringList_WordWrapped(LinearAllocator Scratch, const String Name, const
     xx Platform_GetTerminalDimensions(&Rows, &Cols);
     Cols = Clamp(Cols, 30, 1000);
 
-    StringLocal(LogBuffer, 8192);
+    StringLocal(LogBuffer, UINT16_MAX);
     String_Append(&LogBuffer, Name);
 
     for each_str_list (List)
@@ -5775,29 +5775,6 @@ static u32 BuildTarget(LinearAllocator* Arena,
         {
             bool bHasCppFiles = CountData.bHasCppFiles;
 
-            //if (!bHasCppFiles)
-            {
-                // also include outside source directories if specified
-                /*
-                if (String_IsValid(OutsideSourceDirectories))
-                {
-                    StringArray Dirs = String_ParseIntoArray(Scratch_Search.Allocator, OutsideSourceDirectories, ' ', 0, 128);
-                    for each_str (Dir, Dirs)
-                    {
-                        StringLocal(DirCopy, MAX_PATH_LENGTH);
-                        String_Copy(&DirCopy, *Dir);
-                        String_EatPathSeparatorsInlineFromEnd(&DirCopy);
-                        String_AppendPathSeparator(&DirCopy);
-                        String_ConvertSlashToPlatformSlash(&DirCopy);
-
-                        Filesystem_IterateDirectory_Ex(DirCopy, DetectCppFilesDirectoryIterator, true, &bHasCppFiles);
-                        if (bHasCppFiles)
-                            break;
-                    }
-                }
-                */
-            }
-
             if (bHasCppFiles)
             {
                 CompilerProgram = CompilerToUse;
@@ -5891,33 +5868,6 @@ static u32 BuildTarget(LinearAllocator* Arena,
             String_Copy(&DumpBinPath, S("objdump"));
             #endif
         }
-
-        // TODO: delete after verifying new code
-        /*
-        // find the appropriate rc program
-        #if PLATFORM_WINDOWS
-        String RCProgram = S("windres");
-        String RCProgramFlags = String_Null();
-        if (String_IsEqual(CompilerProgram, S("cl"), false))
-        {
-            RCProgram = S("rc");
-            RCProgramFlags = S(" /nologo");
-        }
-        else if (String_IsEqual(CompilerProgram, S("clang"), false) ||
-                String_IsEqual(CompilerProgram, S("clang++"), false ||
-                String_IsEqual(CompilerProgram, S("clang-cl"), false)))
-        {
-            RCProgram = S("llvm-rc");
-        }
-        else
-        {
-            // no action required
-        }
-
-        StringLocal(RCProgramPath, MAX_PATH_LENGTH);
-        bool bHasRcProgram = Platform_FindProgram_Ex(RCProgram, &RCProgramPath);
-        #endif
-        */
     }
 
     const bool bHasRcProgram = RCCompilerPath.Length > 0;
@@ -7018,17 +6968,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
             return 1;
         }
 
-        if (String_IsEqual(CompilerProgram, S("cl"), false) ||
-            String_IsEqual(CompilerProgram, S("msvc"), false))
-        {
-            Clock_Start(&LinkClock);
-            bSuccess = MSVC_Link(&p);
-        }
-        else // if unrecognized, treat as clang/gcc style compiler
-        {
-            Clock_Start(&LinkClock);
-            bSuccess = C_Link(&p);
-        }
+        Clock_Start(&LinkClock);
+
+        bSuccess = C_Link(&p);
 
         Clock_Tick(&LinkClock);
 

@@ -257,8 +257,6 @@ STRUCT(ExportMetaData)
 
 // Compiler/Building functions --------------------
 
-//bool MSVC_Compile(const BuildParams* Params, u32* OutNumCompiled);
-bool MSVC_Link(const BuildParams* Params);
 bool C_Compile(const BuildParams* Params, u32* OutNumCompiled);
 bool C_Link(const BuildParams* Params);
 

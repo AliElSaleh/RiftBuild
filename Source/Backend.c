@@ -316,12 +316,7 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
         }
     }
 
-
-
     // ===============================================================================================
-
-
-
 
     String ProgramPath = Params->CompilerPath;
     StringLocal(CmdLine, UINT16_MAX);
@@ -715,314 +710,6 @@ static void Internal_AppendObjSourceFiles(const BuildParams* Params, String* Cmd
     }
 }
 
-bool C_Link(const BuildParams* Params)
-{
-    if (NEVER(Params == NULL)) { return false; }
-
-    if (Params->Type == AssemblyType_PCH)
-    {
-        return true;
-    }
-
-    StringLocal(SourceDir, MAX_PATH_LENGTH);
-    String_BuildPath(&SourceDir, Params->RootDirectory, Params->SourceDirectory);
-
-    if (Params->Type != AssemblyType_StaticLibrary)
-    {
-        StringLocal(CmdLine, UINT16_MAX);
-        String_AppendChar(&CmdLine, '"');
-        String_Append(&CmdLine, Params->LinkerPath);
-        String_AppendChar(&CmdLine, '"');
-        String_AppendChar(&CmdLine, ' ');
-
-        Internal_AppendObjSourceFiles(Params, &CmdLine, S(".o"));
-
-        String_BuildSeparator(&CmdLine, ' ',  Params->IconResFilePath, Params->VersionResFilePath, S(" -o \" "));
-
-        StringLocal(BuildPath, MAX_PATH_LENGTH*2);
-        String_BuildPath(&BuildPath, Params->RootDirectory, Params->BuildDirectory);
-        String_AppendPathSeparator(&BuildPath);
-
-        String SharedFlag = String_Null();
-
-        if (Params->Type == AssemblyType_Library ||
-            Params->Type == AssemblyType_DynamicLibrary)
-        {
-            SharedFlag = S("-shared");
-        }
-
-        StringLocal(RunPathLinkFlag, MAX_PATH_LENGTH);
-
-        #if !PLATFORM_WINDOWS
-        if (Params->bIsAssemblyExe)
-        {
-            String ChosenRPath = S("$ORIGIN");
-            if (String_IsValid(Params->RPath))
-            {
-                ChosenRPath = Params->RPath;
-            }
-            String_AppendF(&RunPathLinkFlag, S("-Wl,-rpath,\"%S\""), ChosenRPath);
-        }
-        #endif
-
-        // additional linker settings that are annoying to specify in the build file for all 3 major compilers
-        // as clang, gcc and msvc have different ways of doing this
-        // (and for all the different platforms as well)
-        StringLocal(AdditionalFlags, 512);
-        if (Params->Type == AssemblyType_Executable)
-        {
-            const String NoStd         = Params->bLinkerNoStd ? S("-nostdlib -nostdlib++") : String_Null();
-            const String NoDefaultLibs = Params->bLinkerNoDefaultLibs ? S("-nodefaultlibs") : String_Null();
-
-            // TODO: linux, macos and bsd
-            // --entry=entry
-            // -Wl,-stack_size,0x800000
-            #if PLATFORM_WINDOWS
-            bool bCustomEntry     = String_IsValid(Params->LinkerEntryPoint);
-            bool bCustomSubsystem = String_IsValid(Params->LinkerSubsystem);
-            bool bCustomStack     = String_IsValid(Params->LinkerStack);
-            bool bAnyValid        = bCustomEntry || bCustomSubsystem || bCustomStack;
-
-            StringLocal(WlFlags, 256);
-            StringLocal(XlinkerFlags, 256);
-            if (bAnyValid)
-            {
-                bool bIsClang = String_IsEqual(Params->CompilerProgram, S("clang"), false) ||
-                                String_IsEqual(Params->CompilerProgram, S("clang++"), false);
-
-                String_Append(&WlFlags, S("-Wl,"));
-
-                if (bCustomEntry)
-                {
-                    if (bIsClang)
-                    {
-                        String_AppendF(&WlFlags, S("-entry:%S,"), Params->LinkerEntryPoint);
-                    }
-                    else // GCC
-                    {
-                        String_AppendF(&WlFlags, S("--entry,%S,"), Params->LinkerEntryPoint);
-                    }
-                }
-
-                if (bCustomSubsystem)
-                {
-                    if (bIsClang)
-                    {
-                        String_AppendF(&WlFlags, S("-subsystem:%S,"), Params->LinkerSubsystem);
-                    }
-                    else // GCC
-                    {
-                        String_AppendF(&WlFlags, S("--subsystem,%S,"), Params->LinkerSubsystem);
-                    }
-                }
-
-                if (bCustomStack)
-                {
-                    u32 Space = 0;
-                    xx String_IndexOfFirstWhitespace(Params->LinkerStack, &Space);
-
-                    String Reserve = Params->LinkerStack;
-                    String Commit  = Params->LinkerStack;
-                    if (Space)
-                    {
-                        Reserve = StrSlice (Params->LinkerStack.Data, Space);
-                        Commit  = StrShiftF(Params->LinkerStack, Space+1);
-                    }
-
-                    if (bIsClang)
-                    {
-                        String_AppendF(&XlinkerFlags, S("-Xlinker /stack:%S,%S"), Reserve, Commit);
-                    }
-                    else // GCC
-                    {
-                        // i dont know how to add Commit here.
-                        String_AppendF(&WlFlags, S("--stack,%S,"), Reserve);
-                    }
-                }
-            }
-
-            xx String_EatCharInlineFromEnd(&WlFlags, ',');
-
-            String_BuildSeparator(&AdditionalFlags, ' ', NoStd, NoDefaultLibs, WlFlags, XlinkerFlags);
-            #else
-            String_BuildSeparator(&AdditionalFlags, ' ', NoStd, NoDefaultLibs);
-            #endif
-        }
-
-        String_Append(&CmdLine, BuildPath);
-        String_Append(&CmdLine, Params->AssemblyWithExt);
-        String_Append(&CmdLine, S("\" "));
-
-        String_BuildSeparator(&CmdLine, ' ',  Params->LinkerDefineFlags, Params->LinkerFlags, AdditionalFlags, SharedFlag, RunPathLinkFlag, Params->Libraries, Params->LibraryDirectories, Params->bVerbose ? S("-v") : String_Null());
-        xx String_EatSpacesInlineFromEnd(&CmdLine);
-
-        if (bQuietBuild) { Logging_Enable(); }
-
-        #ifndef HOOD
-        LOG("Linking %S", Params->AssemblyWithExt);
-        #else
-        LOG("link'n it up: %S", Params->AssemblyWithExt);
-        #endif
-
-        if (bQuietBuild) { Logging_Disable(); }
-
-        if (Params->bVerbose)
-        {
-            if (bNoWordWrapLogging)
-            {
-                LOG("    %S", CmdLine);
-            }
-            else
-            {
-                LogString_WordWrapped(*Params->Arena, S("    "), CmdLine, false);
-            }
-        }
-
-        PlatformHandle H = Platform_RunProcess(Params->CompilerPath, CmdLine, Params->RootDirectory, String_Null());
-        if (!Platform_IsValidHandle(H)) { return false; }
-        const u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
-        if (ExitCode != 0)
-        {
-            #ifndef HOOD
-            LOG_ERROR("\nLinker errors detected. See above errors to fix. Exit code for process: %u. Aborting build...", ExitCode);
-            #else
-            LOG_ERROR("seen some linker errors homie. fix yo shit up, something aint linkin' right");
-            #endif
-
-            return false;
-        }
-    }
-
-    // compile a static library if we're trying to make a shared one as well (for convenience sake)
-    if (Params->Type == AssemblyType_Library ||
-        Params->Type == AssemblyType_StaticLibrary)
-    {
-        StringLocal(CmdLine, UINT16_MAX);
-        
-        String_AppendChar(&CmdLine, '"');
-        String_Append(&CmdLine, Params->ArchiverPath);
-        String_AppendChar(&CmdLine, '"');
-
-        #if PLATFORM_WINDOWS
-        String_Append(&CmdLine, S(" r "));
-        #else
-        String_Append(&CmdLine, S(" ar rcs "));
-        #endif
-
-        String_AppendChar(&CmdLine, '"');
-
-        StringLocal(BuildPath, MAX_PATH_LENGTH);
-        String_BuildPath(&BuildPath, Params->RootDirectory, Params->BuildDirectory);
-        String_AppendPathSeparator(&BuildPath);
-
-        String_Append(&CmdLine, BuildPath);
-
-        StringLocal(LibFile, MAX_PATH_LENGTH);
-        {
-            String_Append(&LibFile, Params->Assembly);
-
-            if (Params->Type == AssemblyType_Library)
-            {
-                String_AppendChar(&LibFile, 'S');
-            }
-
-            #if PLATFORM_WINDOWS
-            String_Append(&LibFile, S(".lib"));
-            #else
-            String_Append(&LibFile, S(".a"));
-            #endif
-        }
-
-        String_Append(&CmdLine, LibFile);
-        String_Append(&CmdLine, S("\" "));
-
-        Internal_AppendObjSourceFiles(Params, &CmdLine, S(".o"));
-
-        String_BuildSeparator(&CmdLine, ' ', Params->VersionResFilePath);
-        xx String_EatSpacesInlineFromEnd(&CmdLine);
-
-        if (bQuietBuild) { Logging_Enable(); }
-
-        #ifndef HOOD
-        LOG("Linking %S [static]", LibFile);
-        #else
-        LOG("static link'n it up: %S", LibFile);
-        #endif
-
-        if (bQuietBuild) { Logging_Disable(); }
-        
-        if (Params->bVerbose)
-        {
-            if (bNoWordWrapLogging)
-            {
-                LOG("    %S", CmdLine);
-            }
-            else
-            {
-                LogString_WordWrapped(*Params->Arena, S("    "), CmdLine, false);
-            }
-        }
-
-        PlatformHandle H = Platform_RunProcess(Params->ArchiverPath, CmdLine, Params->RootDirectory, String_Null());
-        if (!Platform_IsValidHandle(H)) { return false; }
-        u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
-        if (ExitCode != 0)
-        {
-            #ifndef HOOD
-            LOG_ERROR("\nLinker errors detected. See above errors to fix. Exit code for process: %u. Aborting build...", ExitCode);
-            #else
-            LOG_ERROR("seen some linker errors homie. fix yo shit up, something aint linkin' right");
-            #endif
-            return false;
-        }
-    }
-
-    // generate a .def file if we are building a dll file (windows only)
-    // TODO: get the full path to this
-    #if PLATFORM_WINDOWS
-    if (Platform_FindProgram(S("dumpbin")))
-    {
-        if (Params->Type == AssemblyType_Library ||
-            Params->Type == AssemblyType_DynamicLibrary)
-        {
-            StringLocal(CmdLine, 8192);
-            //String_AppendChar(&CmdLine, '"');
-            //String_Append(&CmdLine, Params->DumpBinPath);
-            //String_AppendChar(&CmdLine, '"');
-            String_Append(&CmdLine, S("dumpbin /EXPORTS /NOLOGO /OUT:\""));
-
-            StringLocal(BuildPath, 512);
-            String_BuildPath(&BuildPath, Params->RootDirectory, Params->BuildDirectory);
-            String_AppendPathSeparator(&BuildPath);
-
-            String_Append(&CmdLine, BuildPath);
-            String_Append(&CmdLine, Params->Assembly);
-            String_Append(&CmdLine, S(".def\" "));
-
-            String_Append(&CmdLine, S("\""));
-            String_Append(&CmdLine, BuildPath);
-            String_Append(&CmdLine, Params->Assembly);
-            String_Append(&CmdLine, S(".dll\""));
-
-            PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
-            if (!Platform_IsValidHandle(H)) { return false; }
-            u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
-            if (ExitCode != 0)
-            {
-                #ifndef HOOD
-                LOG_ERROR("Dumpbin errors detected. See above errors to fix. Aborting build...");
-                #else
-                LOG_ERROR("seen some dump bin errors homie. fix yo shit up, something aint right");
-                #endif
-                return false;
-            }
-        }
-    }
-    #endif // PLATFORM_WINDOWS
-
-    return true;
-}
-
 bool IsSourceCustom(const String Extension, const StringList CustomExtensions)
 {
     for each_str_list (CustomExtensions)
@@ -1110,20 +797,11 @@ bool IsCppHeader(const String Extension)
 
 
 
-
-
-
-
-
 ////////////////////////////////////
 
 // MSVC BACKEND
 
 ////////////////////////////////////
-
-
-
-
 
 
 
@@ -1404,11 +1082,168 @@ static void Internal_ProcessLinkerOutput_MSVC(PlatformPipe StdOutHandle)
     Platform_CloseHandle(StdOutHandle[0]);
 }
 
-bool MSVC_Link(const BuildParams* Params)
+void* MSVC_Find_Allocate(usize Size)
+{
+    return LinearAllocator_Allocate(&GMSVCFindAllocator, Size);
+}
+
+void MSVC_Find_Release(void* Memory)
+{
+    UNUSED_PARAM(Memory);
+
+    // don't free anything
+}
+
+#else
+void* MSVC_Find_Allocate(usize Size) { return NULL; }
+void MSVC_Find_Release(void* Memory) {}
+#endif // PLATFORM_WINDOWS
+
+
+static void GetAdditionalLinkerFlags(const BuildParams* Params, String* AdditionalFlags)
+{
+    bool bIsMicrosoftLinker = String_EndsWith(Params->LinkerPath, S("link.exe"), false);
+
+    // additional linker settings that are annoying to specify in the build file for all 3 major compilers
+    // as clang, gcc and msvc have different ways of doing this
+    // (and for all the different platforms as well)
+    if (Params->Type == AssemblyType_Executable)
+    {
+        String NoDefaultLibs = String_Null();
+        String NoStd         = String_Null();
+
+        if (bIsMicrosoftLinker)
+        {
+            // todo: support
+            // /NODEFAULTLIB:somelibrary /NODEFAULTLIB:anotherlibrary etc..
+            // from this syntax: Linker.NoDefaultLibs somelibrary anotherlibrary            
+            NoDefaultLibs = Params->bLinkerNoDefaultLibs ? S("/NODEFAULTLIB ") : String_Null();
+
+            // TODO: what is the nostd flag for msvc?
+        }
+        else
+        {
+            NoStd         = Params->bLinkerNoStd ? S("-nostdlib -nostdlib++") : String_Null();
+            NoDefaultLibs = Params->bLinkerNoDefaultLibs ? S("-nodefaultlibs") : String_Null();
+        }
+
+        bool bCustomEntry     = String_IsValid(Params->LinkerEntryPoint);
+        bool bCustomSubsystem = String_IsValid(Params->LinkerSubsystem);
+        bool bCustomStack     = String_IsValid(Params->LinkerStack);
+        bool bAnyValid        = bCustomEntry || bCustomSubsystem || bCustomStack;
+
+        // TODO: linux, macos and bsd
+        // --entry=entry
+        // -Wl,-stack_size,0x800000
+        #if PLATFORM_WINDOWS
+        if (bIsMicrosoftLinker)
+        {
+            if (bAnyValid)
+            {
+                if (bCustomEntry)
+                {
+                    String_AppendF(AdditionalFlags, S("/ENTRY:%S "), Params->LinkerEntryPoint);
+                }
+
+                if (bCustomSubsystem)
+                {
+                    String_AppendF(AdditionalFlags, S("/SUBSYSTEM:%S "), Params->LinkerSubsystem);
+                }
+
+                if (bCustomStack)
+                {
+                    u32 Space = 0;
+                    xx String_IndexOfFirstWhitespace(Params->LinkerStack, &Space);
+
+                    String Reserve = Params->LinkerStack;
+                    String Commit  = Params->LinkerStack;
+                    if (Space)
+                    {
+                        Reserve = StrSlice (Params->LinkerStack.Data, Space);
+                        Commit  = StrShiftF(Params->LinkerStack, Space+1);
+                    }
+
+                    String_AppendF(AdditionalFlags, S("/STACK:%S,%S "), Reserve, Commit);
+                }
+            }
+        }
+        else
+        {
+            StringLocal(WlFlags, 256);
+            StringLocal(XlinkerFlags, 256);
+            if (bAnyValid)
+            {
+                bool bIsClang = String_IsEqual(Params->CompilerProgram, S("clang"), false) ||
+                                String_IsEqual(Params->CompilerProgram, S("clang++"), false);
+
+                String_Append(&WlFlags, S("-Wl,"));
+
+                if (bCustomEntry)
+                {
+                    if (bIsClang)
+                    {
+                        String_AppendF(&WlFlags, S("-entry:%S,"), Params->LinkerEntryPoint);
+                    }
+                    else // GCC
+                    {
+                        String_AppendF(&WlFlags, S("--entry,%S,"), Params->LinkerEntryPoint);
+                    }
+                }
+
+                if (bCustomSubsystem)
+                {
+                    if (bIsClang)
+                    {
+                        String_AppendF(&WlFlags, S("-subsystem:%S,"), Params->LinkerSubsystem);
+                    }
+                    else // GCC
+                    {
+                        String_AppendF(&WlFlags, S("--subsystem,%S,"), Params->LinkerSubsystem);
+                    }
+                }
+
+                if (bCustomStack)
+                {
+                    u32 Space = 0;
+                    xx String_IndexOfFirstWhitespace(Params->LinkerStack, &Space);
+
+                    String Reserve = Params->LinkerStack;
+                    String Commit  = Params->LinkerStack;
+                    if (Space)
+                    {
+                        Reserve = StrSlice (Params->LinkerStack.Data, Space);
+                        Commit  = StrShiftF(Params->LinkerStack, Space+1);
+                    }
+
+                    if (bIsClang)
+                    {
+                        String_AppendF(&XlinkerFlags, S("-Xlinker /stack:%S,%S"), Reserve, Commit);
+                    }
+                    else // GCC
+                    {
+                        // i dont know how to add Commit here.
+                        String_AppendF(&WlFlags, S("--stack,%S,"), Reserve);
+                    }
+                }
+            }
+
+            xx String_EatCharInlineFromEnd(&WlFlags, ',');
+
+            String_BuildSeparator(AdditionalFlags, ' ', NoStd, NoDefaultLibs, WlFlags, XlinkerFlags);
+        }
+        #else
+        String_BuildSeparator(&AdditionalFlags, ' ', NoStd, NoDefaultLibs);
+        #endif
+    }
+
+    xx String_EatSpacesInlineFromEnd(AdditionalFlags);
+}
+
+bool C_Link(const BuildParams* Params)
 {
     if (NEVER(Params == NULL)) { return false; }
 
-    if (Params->Type == AssemblyType_PCH)
+    if (Params->Type == AssemblyType_PCH || Params->Type == AssemblyType_CustomCompilerObject)
     {
         return true;
     }
@@ -1420,10 +1255,14 @@ bool MSVC_Link(const BuildParams* Params)
     String_BuildPath(&BuildPath, Params->RootDirectory, Params->BuildDirectory);
     String_AppendPathSeparator(&BuildPath);
 
+    bool bIsMicrosoftLinker   = String_EndsWith(Params->LinkerPath, S("link.exe"), false);
+    bool bIsMicrosoftArchiver = String_EndsWith(Params->ArchiverPath, S("lib.exe"), false);
+
     bool bIsExe = Params->Type == AssemblyType_Executable;
     bool bIsDLL = Params->Type == AssemblyType_Library || Params->Type == AssemblyType_DynamicLibrary;
     bool bIsLib = Params->Type == AssemblyType_Library || Params->Type == AssemblyType_StaticLibrary;
 
+    #if PLATFORM_WINDOWS
     StringLocal(WinSDKLibPaths, MAX_PATH_LENGTH*3);
     if (!Params->bWasVCVarsBatchRan)
     {
@@ -1448,104 +1287,102 @@ bool MSVC_Link(const BuildParams* Params)
             String_Append(&WinSDKLibPaths, S("\" "));
         }
     }
+    #else
+    String WinSDKLibPaths = String_Null();
+    #endif
+
+
+    String ProgramPath = Params->LinkerPath;
+    String OutputFlag = S("-o ");
+    String VerboseFlag = S("-v");
+
+    StringLocal(RunPathLinkFlag, MAX_PATH_LENGTH);
 
     StringLocal(CmdLine, UINT16_MAX);
+    String_AppendChar(&CmdLine, '"');
+    String_Append    (&CmdLine, ProgramPath);
+    String_AppendChar(&CmdLine, '"');
+    String_AppendSpace(&CmdLine);
+
+    if (bIsMicrosoftLinker || bIsMicrosoftArchiver)
+    {
+        String_Append(&CmdLine, S("/nologo "));
+
+        OutputFlag = S("/OUT:");
+    }
+
+    if (Params->bVerbose)
+    {
+        if (bIsMicrosoftLinker || bIsMicrosoftArchiver)
+        {
+            VerboseFlag = String_Null();
+        }
+    }
+    else
+    {
+        VerboseFlag = String_Null();
+    }
 
     if (bIsExe || bIsDLL)
     {
-        String_AppendChar(&CmdLine, '"');
-        String_Append(&CmdLine, Params->LinkerPath);
-        String_AppendChar(&CmdLine, '"');
+        String DefaultObjExtension = bIsMicrosoftLinker ? S(".obj") : S(".o");
+        
+        String SharedFlag = String_Null();
 
         if (bIsDLL)
         {
-            String_Append(&CmdLine, S(" /DLL"));
+            if (bIsMicrosoftLinker)
+            {
+                SharedFlag = S("/DLL");
+            }
+            else
+            {
+                SharedFlag = S("-shared");
+            }
         }
 
-        String_Append(&CmdLine, S(" /NOLOGO "));
-
-        // additional linker settings that are annoying to specify in the build file for all 3 major compilers
-        // as clang, gcc and msvc have different ways of doing this
-        // (and for all the different platforms as well)
-        StringLocal(AdditionalFlags, 512);
+        #if !PLATFORM_WINDOWS
         if (bIsExe)
         {
-            // todo: support
-            // /NODEFAULTLIB:somelibrary /NODEFAULTLIB:anotherlibrary etc..
-            // from this syntax: Linker.NoDefaultLibs somelibrary anotherlibrary
-            const String NoDefaultLibs = Params->bLinkerNoDefaultLibs ? S("/NODEFAULTLIB ") : String_Null();
-
-            String_Append(&AdditionalFlags, NoDefaultLibs);
-
-            bool bCustomEntry     = String_IsValid(Params->LinkerEntryPoint);
-            bool bCustomSubsystem = String_IsValid(Params->LinkerSubsystem);
-            bool bCustomStack     = String_IsValid(Params->LinkerStack);
-            bool bAnyValid        = bCustomEntry || bCustomSubsystem || bCustomStack;
-
-            if (bAnyValid)
+            String ChosenRPath = S("$ORIGIN");
+            if (String_IsValid(Params->RPath))
             {
-                if (bCustomEntry)
-                {
-                    String_AppendF(&AdditionalFlags, S("/ENTRY:%S "), Params->LinkerEntryPoint);
-                }
-
-                if (bCustomSubsystem)
-                {
-                    String_AppendF(&AdditionalFlags, S("/SUBSYSTEM:%S "), Params->LinkerSubsystem);
-                }
-
-                if (bCustomStack)
-                {
-                    u32 Space = 0;
-                    xx String_IndexOfFirstWhitespace(Params->LinkerStack, &Space);
-
-                    String Reserve = Params->LinkerStack;
-                    String Commit  = Params->LinkerStack;
-                    if (Space)
-                    {
-                        Reserve = StrSlice (Params->LinkerStack.Data, Space);
-                        Commit  = StrShiftF(Params->LinkerStack, Space+1);
-                    }
-
-                    String_AppendF(&AdditionalFlags, S("/STACK:%S,%S "), Reserve, Commit);
-                }
+                ChosenRPath = Params->RPath;
             }
-
-            xx String_EatSpacesInlineFromEnd(&AdditionalFlags);
+            String_AppendF(&RunPathLinkFlag, S("-Wl,-rpath,\"%S\""), ChosenRPath);
         }
+        #endif
 
-        String_BuildSeparator(&CmdLine, ' ', Params->LinkerDefineFlags, Params->LinkerFlags, AdditionalFlags, Params->IconResFilePath, Params->VersionResFilePath, Params->Libraries, Params->LibraryDirectories, WinSDKLibPaths);
+        StringLocal(AdditionalFlags, 512);
+        GetAdditionalLinkerFlags(Params, &AdditionalFlags);
+
+        String_BuildSeparator(&CmdLine, ' ', VerboseFlag, SharedFlag, AdditionalFlags, Params->LinkerFlags, Params->LinkerDefineFlags, Params->Libraries, Params->LibraryDirectories, RunPathLinkFlag, bIsMicrosoftLinker ? WinSDKLibPaths : String_Null(), Params->IconResFilePath, Params->VersionResFilePath);
+        xx String_EatSpacesInlineFromEnd(&CmdLine);
         String_AppendSpace(&CmdLine);
 
-        Internal_AppendObjSourceFiles(Params, &CmdLine, S(".obj"));
-
-        xx String_EatSpacesInlineFromEnd(&CmdLine);
-
-        if (Params->PCHPath.Length > 0)
+        if (Params->PCHPath.Length > 0 || Params->PCHHeaderPath.Length > 0)
         {
-            String_AppendSpace(&CmdLine);
-
             String_Append(&CmdLine, S("\""));
 
             if (Params->PCHHeaderPath.Length > 0)
             {
                 const String Trimmed = Filesystem_StripFileExtension(Params->PCHHeaderPath);
-
                 String_Append(&CmdLine, Trimmed);
-                String_Append(&CmdLine, S(".obj"));
             }
             else
             {
                 const String Trimmed = Filesystem_StripFileExtension(Params->PCHPath);
-
                 String_Append(&CmdLine, Trimmed);
-                String_Append(&CmdLine, S(".obj"));
             }
 
-            String_Append(&CmdLine, S("\""));
+            String_Append(&CmdLine, DefaultObjExtension);
+            String_Append(&CmdLine, S("\" "));
         }
 
-        String_Concat(&CmdLine, S(" /OUT:\""), BuildPath, Params->AssemblyWithExt, S("\"")); // make this first then the flags?
+        Internal_AppendObjSourceFiles(Params, &CmdLine, DefaultObjExtension);
+
+        String_Concat(&CmdLine, OutputFlag, S("\""), BuildPath, Params->AssemblyWithExt, S("\""));
+
 
         if (bQuietBuild) { Logging_Enable(); }
 
@@ -1557,7 +1394,7 @@ bool MSVC_Link(const BuildParams* Params)
         {
             if (bNoWordWrapLogging)
             {
-                LOG("    %S", CmdLine);
+                LOG("\n    %S\n", CmdLine);
             }
             else
             {
@@ -1565,62 +1402,100 @@ bool MSVC_Link(const BuildParams* Params)
             }
         }
 
-        // TODO: switch between fancy and non fancy logging
-
-        /*
-        PlatformHandle Handle = Platform_RunProcess(Params->LinkerPath, CmdLine, Params->RootDirectory, String_Null());
-        //PlatformHandle Handle = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
-        if (!Platform_IsValidHandle(Handle)) return false;
-        */
 
         PlatformPipe StdOutHandle = {0};
-        PlatformHandle Handle = Platform_RunProcess_Ex(Params->LinkerPath, CmdLine, Params->RootDirectory, &StdOutHandle);
-        if (!Platform_IsValidHandle(Handle)) { return false; }
-
-        Internal_ProcessLinkerOutput_MSVC(StdOutHandle);
-
-        u32 ExitCode = Platform_WaitForProcessAndGetExitCode(Handle);
-
-        if (ExitCode != 0)
+        PlatformHandle Handle = {0};
+        if (bIsMicrosoftLinker)
         {
-            #ifndef HOOD
-            LOG_ERROR("\nLinker errors detected. See above errors to fix. Exit code for process: %u. Aborting build...", ExitCode);
-            #else
-            LOG_ERROR("seen some linker errors homie. fix yo shit up, something aint linkin' right");
+            Handle = Platform_RunProcess_Ex(ProgramPath, CmdLine, Params->RootDirectory, &StdOutHandle);
+        }
+        else
+        {
+            Handle = Platform_RunProcess(ProgramPath, CmdLine, Params->RootDirectory, String_Null());
+        }
+
+        if (Platform_IsValidHandle(Handle))
+        {
+            // TODO: switch between fancy and non fancy logging
+            #if PLATFORM_WINDOWS
+            if (bIsMicrosoftLinker)
+            {
+                Internal_ProcessLinkerOutput_MSVC(StdOutHandle);
+            }
             #endif
-            
+
+            u32 ExitCode = Platform_WaitForProcessAndGetExitCode(Handle);
+            if (ExitCode != 0)
+            {
+                #ifndef HOOD
+                LOG_ERROR("\nLinker errors detected. See above errors to fix. Exit code for process: %u. Aborting build...", ExitCode);
+                #else
+                LOG_ERROR("seen some linker errors homie. fix yo shit up, something aint linkin' right");
+                #endif
+                
+                return false;
+            }
+        }
+        else
+        {
             return false;
         }
     }
-    
+
+
     if (bIsLib)
     {
+        String DefaultObjExtension = bIsMicrosoftArchiver ? S(".obj") : S(".o");
+
+        OutputFlag = S("-o ");
+
+        ProgramPath = Params->ArchiverPath;
+
         String_Empty(&CmdLine);
         String_AppendChar(&CmdLine, '"');
-        String_Append(&CmdLine, Params->ArchiverPath);
+        String_Append    (&CmdLine, ProgramPath);
         String_AppendChar(&CmdLine, '"');
-        String_Append(&CmdLine, S(" /nologo "));
-
-        String_BuildSeparator(&CmdLine, ' ', Params->LinkerFlags, Params->Libraries, Params->LibraryDirectories, Params->VersionResFilePath, WinSDKLibPaths);
         String_AppendSpace(&CmdLine);
 
-        Internal_AppendObjSourceFiles(Params, &CmdLine, S(".obj"));
+        if (bIsMicrosoftArchiver)
+        {
+            String_Append(&CmdLine, S("/nologo "));
 
-        String_Append(&CmdLine, S("/OUT:\""));
-        String_Append(&CmdLine, BuildPath);
+            OutputFlag = S("/OUT:");
+        }
+        else
+        {
+            #if PLATFORM_WINDOWS
+            OutputFlag = S("r ");
+            #else
+            OutputFlag = S("ar rcs ");
+            #endif
+        }
 
         StringLocal(LibFile, MAX_PATH_LENGTH);
-        String_Append(&LibFile, Params->Assembly);
-
-        if (Params->Type == AssemblyType_Library)
         {
-            String_Append(&LibFile, S("S"));
-        }
-        
-        String_Append(&LibFile, S(".lib"));
+            String_Append(&LibFile, Params->Assembly);
 
-        String_Append(&CmdLine, LibFile);
-        String_AppendChar(&CmdLine, '"');
+            if (Params->Type == AssemblyType_Library)
+            {
+                String_AppendChar(&LibFile, 'S'); // todo: rename to _static ?
+            }
+
+            #if PLATFORM_WINDOWS
+            String_Append(&LibFile, S(".lib"));
+            #else
+            String_Append(&LibFile, S(".a"));
+            #endif
+        }
+
+        String_Concat(&CmdLine, OutputFlag, S("\""), BuildPath, LibFile, S("\" "));
+
+
+        String_BuildSeparator(&CmdLine, ' ', VerboseFlag, Params->LinkerFlags, Params->Libraries, Params->LibraryDirectories, Params->VersionResFilePath, bIsMicrosoftArchiver ? WinSDKLibPaths : String_Null());
+        String_AppendSpace(&CmdLine);
+
+        Internal_AppendObjSourceFiles(Params, &CmdLine, DefaultObjExtension);
+
 
         if (bQuietBuild) { Logging_Enable(); }
 
@@ -1632,7 +1507,7 @@ bool MSVC_Link(const BuildParams* Params)
         {
             if (bNoWordWrapLogging)
             {
-                LOG("    %S", CmdLine);
+                LOG("\n    %S\n", CmdLine);
             }
             else
             {
@@ -1640,72 +1515,70 @@ bool MSVC_Link(const BuildParams* Params)
             }
         }
 
-        PlatformHandle Handle = Platform_RunProcess(Params->ArchiverPath, CmdLine, Params->RootDirectory, String_Null());
-        if (!Platform_IsValidHandle(Handle)) { return false; }
-        u32 ExitCode = Platform_WaitForProcessAndGetExitCode(Handle);
-        if (ExitCode != 0)
+        PlatformHandle Handle = Platform_RunProcess(ProgramPath, CmdLine, Params->RootDirectory, String_Null());
+        if (Platform_IsValidHandle(Handle))
         {
-            #ifndef HOOD
-            LOG_ERROR("\nLinker errors detected. See above errors to fix. Exit code for process: %u. Aborting build...", ExitCode);
-            #else
-            LOG_ERROR("seen some linker errors homie. fix yo shit up, something aint linkin' right");
-            #endif
-            
+            u32 ExitCode = Platform_WaitForProcessAndGetExitCode(Handle);
+            if (ExitCode != 0)
+            {
+                #ifndef HOOD
+                LOG_ERROR("\nLinker errors detected. See above errors to fix. Exit code for process: %u. Aborting build...", ExitCode);
+                #else
+                LOG_ERROR("seen some linker errors homie. fix yo shit up, something aint linkin' right");
+                #endif
+                
+                return false;
+            }
+        }
+        else
+        {
             return false;
         }
     }
 
-    // generate a .def file if we are building a dll file
-    // TODO: get the full path to this
-    if (bIsDLL && Platform_FindProgram(S("dumpbin")))
+
+    // =========================================================================================
+
+
+    // generate a .def file if we are building a dll file (windows only)
+    #if PLATFORM_WINDOWS
+    if (bIsDLL && bIsMicrosoftLinker) // todo: for clang and gcc as well?
     {
         String_Empty(&CmdLine);
-        //String_AppendChar(&CmdLine, '"');
-        //String_Append(&CmdLine, Params->DumpBinPath);
-        //String_AppendChar(&CmdLine, '"');
-        String_Append(&CmdLine, S("dumpbin /EXPORTS /NOLOGO /OUT:\""));
+        String_AppendChar(&CmdLine, '"');
+        String_Append(&CmdLine, Params->DumpBinPath);
+        String_AppendChar(&CmdLine, '"');
+        String_Append(&CmdLine, S(" /EXPORTS /NOLOGO /OUT:\""));
 
         String_Append(&CmdLine, BuildPath);
         String_Append(&CmdLine, Params->Assembly);
-        String_Append(&CmdLine, S(".def\" \""));
+        String_Append(&CmdLine, S(".def\" "));
 
+        String_Append(&CmdLine, S("\""));
         String_Append(&CmdLine, BuildPath);
         String_Append(&CmdLine, Params->Assembly);
         String_Append(&CmdLine, S(".dll\""));
 
-        PlatformHandle H = Platform_RunCommand(CmdLine, Params->RootDirectory, String_Null());
-        if (!Platform_IsValidHandle(H)) { return false; }
-        u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
-
-        if (ExitCode != 0)
+        PlatformHandle H = Platform_RunProcess(Params->DumpBinPath, CmdLine, Params->RootDirectory, String_Null());
+        if (Platform_IsValidHandle(H))
         {
-            #ifndef HOOD
-            LOG_ERROR("Dumpbin errors detected. See above errors to fix. Aborting build...");
-            #else
-            LOG_ERROR("seen some dumpbin errors homie. fix yo shit up, something aint right");
-            #endif
+            u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
+            if (ExitCode != 0)
+            {
+                #ifndef HOOD
+                LOG_ERROR("Dumpbin errors detected. See above errors to fix. Aborting build...");
+                #else
+                LOG_ERROR("seen some dump bin errors homie. fix yo shit up, something aint right");
+                #endif
+                return false;
+            }
+        }
+        else
+        {
             return false;
         }
     }
+    #endif // PLATFORM_WINDOWS
 
     return true;
 }
-
-void* MSVC_Find_Allocate(usize Size)
-{
-    return LinearAllocator_Allocate(&GMSVCFindAllocator, Size);
-}
-
-void MSVC_Find_Release(void* Memory)
-{
-    UNUSED_PARAM(Memory);
-
-    // don't free anything
-}
-
-#else
-bool MSVC_Compile(UNUSED const BuildParams* Params, UNUSED u32* OutNumCompiled) { return true; }
-bool MSVC_Link(UNUSED const BuildParams* Params) { return true; }
-void* MSVC_Find_Allocate(usize Size) { return NULL; }
-void MSVC_Find_Release(void* Memory) {}
-#endif // PLATFORM_WINDOWS
