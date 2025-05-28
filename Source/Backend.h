@@ -20,6 +20,8 @@ STRUCT(FileVariable)
     String Value;
 };
 
+global FileVariable FileVariable_Empty;
+
 STRUCT(FileVariableList)
 {
     FileVariable Var;
@@ -330,6 +332,8 @@ void AddOrAppendVariable(LinearAllocator* Arena,
                         const String Value,
                         const String Params);
 
+void AddCmdOption(TArray(CmdOption)* CmdOptionsDB, const String Name, const String Value);
+void AddInternalVariable(const String Name, const String Value);
 
 // Export functions --------------------
 

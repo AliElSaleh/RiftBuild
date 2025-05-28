@@ -37,10 +37,10 @@ const usize GEngineScratchAmount = Kibibytes(8);
 TArray(InternalVariable) InternalVariablesDB = NULL;
 bool bQuietBuild = false;
 bool bNoWordWrapLogging = false;
+FileVariable FileVariable_Empty = {0};
 
 //static ExportMetaData ExportMetaData_Null = {.StringParam_1 = S(""), .StringParam_2 = S("")};
 
-static FileVariable FileVariable_Empty = {0};
 static bool bSingleThread = false;
 static bool bIsRebuild = false;
 static bool bIsClean = false;
@@ -2238,7 +2238,8 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const File
     }
 }
 
-static void AddCmdOption(TArray(CmdOption)* CmdOptionsDB, const String Name, const String Value)
+// TODO: get rid of this double pointer bullshit. cringe...
+void AddCmdOption(TArray(CmdOption)* CmdOptionsDB, const String Name, const String Value)
 {
     CmdOption c;
     c.Name = Name;
@@ -2248,7 +2249,7 @@ static void AddCmdOption(TArray(CmdOption)* CmdOptionsDB, const String Name, con
     Array_Add(*CmdOptionsDB, c);
 }
 
-inline static void AddInternalVariable(const String Name, const String Value)
+void AddInternalVariable(const String Name, const String Value)
 {
     InternalVariable c;
     c.Name = Name;
@@ -2480,6 +2481,7 @@ static void PrintUsage(const String WorkingDirectory)
     "   -q, --quiet           : Quiet mode. Disables logging but outputs necessary information, like errors\n"
     "   -t, --tutorial        : Display a tutorial on how to set environment variables\n"
     "   help                  : Print out custom help message from the build file\n"
+    "   options               : Print out custom options from the build file\n"
     "   clean                 : Delete all intermediate and binary files\n"
     "   rebuild               : Clean all and build\n"
     "   list                  : List all the build files in the current directory\n"

@@ -95,6 +95,35 @@ void AddOrAppendVariable(LinearAllocator* Arena,
     }
 }
 
+static FileVariable* GetVarInList(FileVariableList* List, const String Key, bool bStartsWith)
+{
+    FileVariable* Result = &FileVariable_Empty;
+    {
+        SLinkedList_Each(FileVariableList, This, &List)
+        {
+            FileVariable* Var = &(*This)->Var;
+
+            if (bStartsWith)
+            {
+                if (String_StartsWith(Var->Name, Key, false))
+                {
+                    Result = Var;
+                    break;
+                }
+            }
+            else
+            {
+                if (String_IsEqual(Var->Name, Key, false))
+                {
+                    Result = Var;
+                    break;
+                }
+            }
+        }
+    }
+    return Result;
+}
+
 static String GetVarValueInList(FileVariableList* List, const String Key)
 {
     String Result = String_Null();
@@ -1269,6 +1298,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Pars
             if (bIsDeferring)
             {
                 BlockNode->Key = Deferred.Key->Lexeme;
+                BlockNode->Parameters = Deferred.Params;
 
                 if (Deferred.FilterNode != &Node_Null)
                 {
@@ -2564,10 +2594,39 @@ static void Analyze_KVNode(LinearAllocator* Arena, Node* Root, ParsingContext* C
         {
             String_Append(&Params, It.String);
         }
+
         xx String_EatSpacesInlineFromEnd(&Params);
     }
 
-    AddVariableToList(Arena, Context, FinalKey, Val, Params);
+    if (String_IsEqual(FinalKey, S("default.options"), false))
+    {
+        LinearAllocator Scratch = {0};
+        i8 ScratchMemory[MAX_VALUE_LENGTH] = {0};
+        LinearAllocator_Create(MAX_VALUE_LENGTH, ScratchMemory, &Scratch);
+
+        StringList List = String_SplitIntoList(&Scratch, Val, ' ', true);
+        for each_string_in_list (List)
+        {
+            String Option = It.String;
+
+            u32 Equals = 0;
+            if (String_IndexOfChar(Option, '=', &Equals))
+            {
+                String Key   = Equals > 0 ? StrSlice(Option.Data, Equals) : Option;
+                String Value = Equals > 0 ? StrShiftF(Option, Equals+1) : String_Null();
+
+                AddCmdOption(&Context->CmdOptionsDB, String_Create(Arena, Key), String_Create(Arena, Value));
+            }
+            else
+            {
+                AddCmdOption(&Context->CmdOptionsDB, String_Create(Arena, Option), S("@#@")); // this gets evaluated on the second pass
+            }
+        }
+    }
+    else
+    {
+        AddVariableToList(Arena, Context, FinalKey, Val, Params);
+    }
 }
 
 NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, ParsingContext* Context, bool bInIf)
@@ -3073,6 +3132,12 @@ NO_DISCARD static NodeList* Analyze_List(LinearAllocator* Arena, Node* Block, Pa
 
             if (Root->Type == Node_Block)
             {
+                // does this block have a params list? if so, add it as a KV_Node with a null value
+                if (Root->Parameters)
+                {
+                    Analyze_KVNode(Arena, Root, Context);
+                }
+
                 NodeList* Tree = Analyze_List(Arena, Root, Context, bInIf);
                 if (Tree)
                 {
@@ -3278,7 +3343,7 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
                     if (Result == CompareResult_Less)
                     {
                         LOG_INLINE_ERROR(
-                        "[ASSERTION FAILURE] RiftBuild version \"%S\" is less than the required version \"%S\"."
+                        "\n[ASSERTION FAILURE] RiftBuild version \"%S\" is less than the required version \"%S\"."
                         " Please upgrade to \"%S\" or later. Aborting build...\n",
                         S(RIFTBUILD_VERSION_STRING), Var.Value, Var.Value);
 
@@ -3352,12 +3417,11 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
 
                     if (!bAnyPlatformMatch)
                     {
-                        const String BuildFileName = Filesystem_ExtractFileName(BuildFilePath, true);
-
                         #ifndef HOOD
-                        LOG_INLINE_ERROR("[ASSERTION FAILURE] %S can only be built on %S. You are on %S. Aborting build...\n", BuildFileName, PlatformsLogString, S(PLATFORM_STRING));
+                        const String BuildFileName = Filesystem_ExtractFileName(BuildFilePath, true);
+                        LOG_INLINE_ERROR("\n[ASSERTION FAILURE] %S can only be built on %S. You are on %S. Aborting build...\n", BuildFileName, PlatformsLogString, S(PLATFORM_STRING));
                         #else
-                        LOG_ERROR("yo u cant build on dis platform nigga\n");
+                        LOG_ERROR("yo u cant build on dis platform nigga. %S aint supportd bro\n", S(PLATFORM_STRING));
                         #endif
 
                         StringArray AdditionalPlatforms = String_ParseIntoArray(&Scratch, HostPlatform, ' ', 0, 128);
@@ -3384,7 +3448,7 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
                     ECompareResult Result = String_CompareVersion(VersionString, Var.Value);
                     if (Result == CompareResult_Less)
                     {
-                        LOG_INLINE_ERROR("[ASSERTION FAILURE] Unsupported platform version \"%u.%u.%u\" is less than the required version \"%S\" or later. Aborting build...\n", OSVersion.Major, OSVersion.Minor, OSVersion.Patch, Var.Value);
+                        LOG_INLINE_ERROR("\n[ASSERTION FAILURE] Unsupported platform version \"%u.%u.%u\" is less than the required version \"%S\" or later. Aborting build...\n", OSVersion.Major, OSVersion.Minor, OSVersion.Patch, Var.Value);
 
                         bAssertionFailed = true;
                         break;
@@ -3445,12 +3509,11 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
 
                     if (!bAnyArchMatch)
                     {
-                        const String BuildFileName = Filesystem_ExtractFileName(BuildFilePath, true);
-
                         #ifndef HOOD
-                        LOG_INLINE_ERROR("[ASSERTION FAILURE] %S can only be built on %S architectures. You are on %S. Aborting build...\n", BuildFileName, ArchitecturesLogString, S(CPU_ARCHITECTURE_STRING));
+                        const String BuildFileName = Filesystem_ExtractFileName(BuildFilePath, true);
+                        LOG_INLINE_ERROR("\n[ASSERTION FAILURE] %S can only be built on %S architectures. You are on %S. Aborting build...\n", BuildFileName, ArchitecturesLogString, S(CPU_ARCHITECTURE_STRING));
                         #else
-                        LOG_ERROR("yo u cant build on dis platform nigga\n");
+                        LOG_ERROR("yo u cant build on dis platform nigga. %S aint supportd bro\n", S(CPU_ARCHITECTURE_STRING));
                         #endif
 
                         StringArray AdditionalArchs = String_ParseIntoArray(&Scratch, S(CPU_ARCHITECTURE_STRING_EX), '|', 0, 128);
@@ -3506,10 +3569,10 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
 
                     if (AssertPath.Length > 0 && !String_IsEqual(Context->WorkingDirectory, AssertPath, false))
                     {
+                        #ifndef HOOD
                         const String BuildFileName = Filesystem_ExtractFileName(BuildFilePath, true);
 
-                        #ifndef HOOD
-                        LOG_INLINE_ERROR("[ASSERTION FAILURE] %S must be ran from this directory:\n\n"
+                        LOG_INLINE_ERROR("\n[ASSERTION FAILURE] %S must be ran from this directory:\n\n"
                                          "                      \"%S\"\n\n"
                                          "                    but we are in\n\n"
                                          "                      \"%S\"\n", BuildFileName, AssertPath, Context->WorkingDirectory);
@@ -3549,7 +3612,7 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
                     if (!bFound)
                     {
                         #ifndef HOOD
-                        LOG_INLINE_ERROR("[ASSERTION FAILURE] Command line argument \"%S\" or \"%S=VALUE\" was not given."
+                        LOG_INLINE_ERROR("\n[ASSERTION FAILURE] Command line argument \"%S\" or \"%S=VALUE\" was not given."
                                         "\n                    This is needed for the build to work properly. Aborting build...\n", Trimmed, Trimmed);
                         #else
                         LOG_ERROR("yo da cmd line var \"%S\" don exist cuh. dat shit not there nigga", Trimmed);
@@ -3598,7 +3661,7 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
 
                 if (!bFound)
                 {
-                    LOG_INLINE_ERROR("[ASSERTION FAILURE] Any one of these arguments must be specified: %S\n", Var.Value);
+                    LOG_INLINE_ERROR("\n[ASSERTION FAILURE] Any one of these arguments must be specified: %S\n", Var.Value);
                     bAssertionFailed = true;
                     break;
                 }
@@ -3634,7 +3697,7 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
                 MultipleArgsFound:
                 if (!bFound)
                 {
-                    LOG_INLINE_ERROR("[ASSERTION FAILURE] Only one of these arguments can be specified: %S\n", Var.Value);
+                    LOG_INLINE_ERROR("\n[ASSERTION FAILURE] Only one of these arguments can be specified: %S\n", Var.Value);
                     bAssertionFailed = true;
                     break;
                 }
@@ -3652,7 +3715,7 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
                     if (!bFound)
                     {
                         #ifndef HOOD
-                        LOG_INLINE_ERROR("[ASSERTION FAILURE] Program \"%S\" does not exist. Make sure that \"%S\" is installed and that its directory has been set in the path environment variable. Aborting build...\n", Trimmed, Trimmed);
+                        LOG_INLINE_ERROR("\n[ASSERTION FAILURE] Program \"%S\" does not exist. Make sure that \"%S\" is installed and that its directory has been set in the path environment variable. Aborting build...\n", Trimmed, Trimmed);
                         #else
                         LOG_ERROR("yo dis program \"%S\" don exist cuh. need to be installed and set in da path ma nigga\n", Trimmed);
                         #endif
@@ -3839,6 +3902,101 @@ NO_DISCARD bool ParseBuildFileV2(LinearAllocator* PermanentArena,
         // 1. First pass
         Context.VarListTail = &Context.VarListHead;
         NodeList* IndeterminateList = Analyze_List(Context.TempArena, AST, &Context, false);
+
+        // 1.5. Default options pass
+        // In the first pass we added "@#@" to cmd options that need to be evaluated. This is that time.
+        // Before we do the second pass, make sure to search for 'Option.' keys and use their values (if available),
+        // so that when analyzing if nodes, the options will exist and they can evaluate to something.
+
+        // TODO: scan for accepted values from params and error
+        // TODO: when expanding % look for option. keys as well
+
+        for each (CmdOption, o, Context.CmdOptionsDB)
+        {
+            if (String_IsEqual(o.Value, S("@#@"), false))
+            {
+                bool bStartsWithPrefix = String_StartsWith(o.Name, S("option."), false);
+
+                StringLocal(Name, MAX_KEY_LENGTH);
+                String_Append(&Name, bStartsWithPrefix ? String_Null() : S("option."));
+                String_Append(&Name, o.Name);
+
+                FileVariable* Ref = GetVarInList(Context.VarListHead, Name, true);
+                if (Ref == &FileVariable_Empty)
+                {
+                    // didnt find it
+
+                    o_->Value = String_Null();
+                    o_->bEqualsToSomething = false;
+                }
+                else
+                {
+                    // found it
+
+                    // option value search order:
+                    //  1. .Default key
+                    //  2. actual key's value
+                    //  3. key's first param
+                    //  4. the key name itself if no value
+
+                    String FinalValue = String_Null();
+
+                    // search order 1. find .Default key (if available)
+                    StringLocal(Default, MAX_KEY_LENGTH);
+                    String_Append(&Default, Name);
+                    String_Append(&Default, S(".Default"));
+                    FileVariable* DefaultRef = GetVarInList(Context.VarListHead, Default, false);
+                    if (DefaultRef == &FileVariable_Empty)
+                    {
+                        // no default found
+                    }
+                    else
+                    {
+                        // default found
+                        FinalValue = DefaultRef->Value;
+                    }
+
+                    if (String_IsEqual(Ref->Name, Name, false)) // only if exact so we dont read its subkeys
+                    {
+                        // search order 2. use the key's value
+                        if (!String_IsValid(FinalValue))
+                        {
+                            FinalValue = Ref->Value;
+                        }
+
+                        // search order 3. use the key's first param
+                        if (!String_IsValid(FinalValue))
+                        {
+                            String First = Ref->Params;
+                            u32 Space = 0;
+                            if (String_IndexOfFirstWhitespace(Ref->Params, &Space))
+                            {
+                                First = StrSlice(Ref->Params.Data, Space);
+                            }
+
+                            FinalValue = First;
+                        }
+                    }
+
+                    o_->Value = FinalValue;
+                    o_->bEqualsToSomething = FinalValue.Length > 0;
+                }
+
+                if (String_StartsWith(o.Name, S("option."), false))
+                {
+                    o_->Name = StrShiftF(o.Name, 7);
+                }
+            }
+        }
+
+        SLinkedList_Each(FileVariableList, This, &Context.VarListHead)
+        {
+            const FileVariable Var = (*This)->Var;
+            if (String_StartsWith(Var.Name, S("Option."), false))
+            {
+                
+            }
+        }
 
         // 2. Second pass
         Context.bNoFail = true;
