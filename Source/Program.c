@@ -29,7 +29,7 @@
 // [ ] windows kits as internal variable?
 // [ ] add dav1d to github examples
 // [ ] change include to import and ensure it is only loaded once
-// [ ] Copyright(macro) gen ASSEMBLY_COPYRIGHT_STRING
+// [ ] Copyright(macro) generates ASSEMBLY_COPYRIGHT_STRING
 
 const usize GEngineMemoryAmount  = Kibibytes(128);
 const usize GEngineScratchAmount = Kibibytes(8);
@@ -336,23 +336,6 @@ static void SuffixVariables(String* Dest, String VariableValue, const String Suf
     }
 }
 
-/*
-static bool VariableHasSpecial(TArray(FileVariable) VariablesDB, const String Name)
-{
-    bool bHasSpecial = false;
-
-    for each (FileVariable, Var, VariablesDB)
-    {
-        if (String_IsEqual(Var.Name, Name, false))
-        {
-            bHasSpecial = Var.bHasSpecial;
-        }
-    }
-
-    return bHasSpecial;
-}
-*/
-
 bool LogCustomErrorMessage(TArray(FileVariable) VariablesDB, const String Context, const String Key, const bool bLineBreak)
 {
     if (bQuietBuild) { Logging_Enable(); }
@@ -436,7 +419,18 @@ static bool FilterSourceFile(const String WorkingDirectory, const String SourceD
                 }
             }
 
-            if (String_IsEqual(It.String, RelativePath, false))
+            // Note: see comment in the whitelist version of this code
+            String File = It.String;
+            if (String_StartsWith(File, SourceDirectory, false))
+            {
+                String a = StrShiftF(File, SourceDirectory.Length);
+                if (String_EatPathSeparatorsInline(&a))
+                {
+                    File = a;
+                }
+            }
+
+            if (String_IsEqual(File, RelativePath, false))
             {
                 bFound = true;
                 break;
@@ -540,7 +534,20 @@ static bool FilterSourceFile(const String WorkingDirectory, const String SourceD
                 }
             }
 
-            if (String_IsEqual(It.String, RelativePath, false))
+            // Note(Ali): this is here for convenience when you specify a SourceDirectory key and
+            //            when you specify a list of source files that start with the SourceDirectory's value,
+            //            we can just chop that off and continue on with the check below.
+            String File = It.String;
+            if (String_StartsWith(File, SourceDirectory, false))
+            {
+                String a = StrShiftF(File, SourceDirectory.Length);
+                if (String_EatPathSeparatorsInline(&a))
+                {
+                    File = a;
+                }
+            }
+
+            if (String_IsEqual(File, RelativePath, false))
             {
                 bFound = true;
                 break;
@@ -809,11 +816,10 @@ static bool HeaderFileRebuildCheckDirectoryIterator(const String FullPath, const
 
     if (FileSize > 0)
     {
-        u32 DotIndex = 0;
-        bool bHasExt = String_IndexOfLastChar(FileName, '.', &DotIndex);
+        String Extension = Filesystem_ExtractFileExtension(FileName, true);
 
-        const String Extension = bHasExt ? StrShiftF(FileName, DotIndex) : String_Null();
-
+        // Note: this is a problem, because it just will look for any header filer within the search
+        //       directory, we need to filter this somehow...
         if (IsHeader(Extension))
         {
             // todo??
@@ -2413,7 +2419,7 @@ static bool BuildFilesIterator(const String FullPath, const String RelativePath,
     return true;
 }
 
-static void PrintAbout(const String WorkingDirectory)
+static void PrintAbout(void)
 {
     LOG_INLINE_WARNING("About\n");
 
@@ -2429,7 +2435,7 @@ static void PrintAbout(const String WorkingDirectory)
 
     LOG("   A simpler build tool for C/C++, because fuck CMake.\n");
     LOG("   Copyright (c) %hu Artisan Softworks", TimeNow.Year);
-    LOG("   Licensed under the BSD 3-Clause License. See the LICENSE file for details.", TimeNow.Year);
+    LOG("   Licensed under the BSD 3-Clause License. See the LICENSE file for details.\n", TimeNow.Year);
     LOG("   Compiled with %S on %S", String_EatSpacesFromEnd(CompiledWith), S(__TIMESTAMP__));
     LOG_LINE_BREAK();
     LOG("   Repository Link: https://github.com/AliElSaleh/RiftBuild");
@@ -2799,7 +2805,6 @@ static u32 BuildTarget(LinearAllocator* Arena,
     StringLocal(VersionResFilePath, MAX_PATH_LENGTH);
 
     ArrayLocal_Arena(FileVariable,   VariablesDB,         256, Arena); // 8192 bytes
-    //ArrayLocal_Arena(FileVariable,   ExpandedVariablesDB, 256, Arena); // 8192 bytes
 
     // todo: static array? we are not even remvoing or inserting at arbitrary indices... we are just adding
     ArrayLocal_Arena(FileHandle,     IncludeFiles,        64,  Arena); // 1024 bytes
@@ -2808,7 +2813,6 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
     // 256 is a reasonable max number of compilers to run in parrallel. if you have more than 256 cores then what the fuck lol
     ArrayLocal_Arena(PlatformHandle, Processes,           256, Arena); // 2048 bytes
-    //ArrayLocal_Arena(PlatformPipe,   Pipes,               256, Arena); // 4096 bytes
 
     // store custom command line options to be referenced inside a .build file
     for (u8 i = 0; i < Parameters.Num; i++)
@@ -2981,10 +2985,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
     #ifndef HOOD
     LOG("Working Directory: %S", WorkingPath);
-    LOG("Timestamp:         %S\n", TimeStamp);
     #else
     LOG("dis da work'n directory bro: %S", WorkingPath);
-    LOG("Timestamp: %S\n", TimeStamp);
     #endif
 
     EAssemblyType AssemblyType = AssemblyType_None;
@@ -3202,6 +3204,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     ////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     // build file variable listing feature. list:all or list:varname
+    // TODO: if we do this: list:somekey.   with a . at the end, then print out all keys that start with that
     for (u8 i = 0; i < Parameters.Num; i++)
     {
         const String Arg = Parameters.List[i];
@@ -3359,7 +3362,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
     if (bHelp && bFoundBuildFile)
     {
-        LOG_INLINE_WARNING("Help\n");
+        LOG_INLINE_WARNING("\nHelp\n");
         if (HelpMessage.Length > 0)
         {
             LOG("%S", HelpMessage);
@@ -3371,6 +3374,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
         return 0;
     }
+
+    LOG("Timestamp:         %S\n", TimeStamp);
 
     u8 MaxErrorsAllowed = 1; // default to 1 error (for the people's sanity)
     if (String_IsValid(MaxCompilerErrors))
@@ -7805,7 +7810,7 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments, const 
         return 1;
     }
 
-    // prevent riftbuild from running in a root drive directory like C:/ (or / on linux).
+    // prevent riftbuild from running in a root drive directory like C:/ (or / on unix).
     // it's non-sensical anyway, it has no business running in those places
     {
         StringLocal(RootCopy, MAX_PATH_LENGTH);
@@ -7840,7 +7845,7 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments, const 
     if (StringArray_Contains(Arguments, S("-a"), false) ||
         StringArray_Contains(Arguments, S("--about"), false))
     {
-        PrintAbout(WorkingDirectory);
+        PrintAbout();
 
         #if !PLATFORM_WINDOWS
         LOG_LINE_BREAK();
@@ -7885,13 +7890,13 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments, const 
                     StringArray_Contains(Arguments, S("-s"), false);
 
     BuildFileDirectoryIteratorData Data = {0};
-    Data.bNoBuildFileSpecifiedInCmd = bNoBuildFileSpecifiedInCmd;
-    Data.BuildFileIndex = BuildFileIndex;
-    Data.RootPathIndex = RootPathIndex;
-    Data.Name = &BuildFileName;
-    Data.Path = &BuildFilePath;
-    Data.Arguments = Arguments;
-    Data.bSearchOnlyBuildBatch = true;
+    Data.bNoBuildFileSpecifiedInCmd     = bNoBuildFileSpecifiedInCmd;
+    Data.BuildFileIndex                 = BuildFileIndex;
+    Data.RootPathIndex                  = RootPathIndex;
+    Data.Name                           = &BuildFileName;
+    Data.Path                           = &BuildFilePath;
+    Data.Arguments                      = Arguments;
+    Data.bSearchOnlyBuildBatch          = true;
 
     // first, find .buildbatch files
     {
