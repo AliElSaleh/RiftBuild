@@ -14,7 +14,7 @@ set CompilerFlags= -std=c99 -Os -mstack-probe-size=999999999 -fno-builtin-memcpy
 
 echo Compiling sources (Windows)
 
-clang "Source/Core/Memory.c" "Source/Core/StringUtils.c" "Source/Core/Log.c" "Source/Core/Globals.c" "Source/Core/Platform_Core.c" "Source/Core/Platform_Windows.c" "Source/Program.c" "Source/Backend.c" "Source/Parse.c" "Source/Exporter.c" %CompilerFlags% -o RiftBuild.exe -nostdlib -Wl,-entry:EntryPoint,-subsystem:console -Xlinker /stack:0x800000,0x800000 -LSource\Libraries\Windows -lkernel32 -luser32 -lopengl32 -lshell32 -lgdi32 -lcomdlg32 -lcomctl32 -lws2_32 -lwinmm -lnetapi32 -lole32 -ladvapi32 -lwldap32 -lcrypt32 -lntdll -lrpcrt4 -lshlwapi -ldbghelp -lbcrypt -lversion -limm32 -lcfgmgr32 -lsetupapi -loleaut32 -luuid -lodbc32 -lodbccp32 -ldelayimp -lmicrosoft_craziness || goto end
+clang "Source/Core/Memory.c" "Source/Core/StringUtils.c" "Source/Core/Log.c" "Source/Core/Platform_Core.c" "Source/Core/Platform_Windows.c" "Source/Program.c" "Source/Backend.c" "Source/Parse.c" "Source/Exporter.c" %CompilerFlags% -o RiftBuild.exe -nostdlib -Wl,-entry:EntryPoint,-subsystem:console -Xlinker /stack:0x800000,0x800000 -LSource\Libraries\Windows -lkernel32 -luser32 -lopengl32 -lshell32 -lgdi32 -lcomdlg32 -lcomctl32 -lws2_32 -lwinmm -lnetapi32 -lole32 -ladvapi32 -lwldap32 -lcrypt32 -lntdll -lrpcrt4 -lshlwapi -ldbghelp -lbcrypt -lversion -limm32 -lcfgmgr32 -lsetupapi -loleaut32 -luuid -lodbc32 -lodbccp32 -ldelayimp -lmicrosoft_craziness || goto end
 
 echo [32m  Done: %ScriptPath%RiftBuild.exe[0m
 
