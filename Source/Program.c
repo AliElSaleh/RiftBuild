@@ -3543,6 +3543,19 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
                 if (!String_IsValid(FinalValue))
                 {
+                    bool bExists = DoesCmdOptionExist(CmdOptionsDB, Trimmed);
+                    if (bExists)
+                    {
+                        FinalValue = GetCmdOptionValue(CmdOptionsDB, Trimmed);
+                        if (!FinalValue.Length)
+                        {
+                            FinalValue = S("on");
+                        }
+                    }
+                }
+
+                if (!String_IsValid(FinalValue))
+                {
                     FinalValue = DefaultVar.Value;
                 }
 
