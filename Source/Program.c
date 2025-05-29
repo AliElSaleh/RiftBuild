@@ -2520,21 +2520,27 @@ static void PrintUsage(const String WorkingDirectory)
     // -t:general
     // -t:help
 
+    // TODO: better documentation
     LOG_INLINE_WARNING("Options\n");
     LOG(
-    "   -h, --help, /?, -?, ? : Display this help message\n"
-    "   -a, --about           : About this program\n"
-    "   -v, --verbose         : Enable verbose logging\n"
-    "   -q, --quiet           : Quiet mode. Disables logging but outputs necessary information, like errors\n"
-    "   -t, --tutorial        : Display a tutorial on how to set environment variables\n"
-    "   help                  : Print out custom help message from the build file\n"
-    "   options               : Print out custom options from the build file\n"
-    "   clean                 : Delete all intermediate and binary files\n"
-    "   rebuild               : Clean all and build\n"
-    "   list                  : List all the build files in the current directory\n"
-    "   override              : Override a build variable\n"
-    "   export                : Generate a compile_commands.json, visual studio or xcode project\n"
-    "   preset                : Build with a preset of command line arguments"
+      "   -h, --help, /?, -?, ? : Display this help message\n"
+      "   -a, --about           : About this program\n"
+      "   -v, --verbose         : Enable verbose logging\n"
+      "   -q, --quiet           : Quiet mode. Disables logging but outputs necessary information, like errors\n"
+      "   -t, --tutorial        : Display a tutorial on how to set environment variables\n"
+    "\n   help                  : Print out custom help message from the build file\n"
+    "\n   options               : Print out custom options from the build file\n"
+    "\n   clean                 : Delete all intermediate and binary files\n"
+    "\n   rebuild               : Clean all and build\n"
+    "\n   list                  : List variables given this syntax -> list:name\n"
+    "                           special names like \"list:all\" will list all variables\n"
+    "\n   override              : Override a build variable given this syntax -> override:Name=Value\n"
+    "\n   export                : Generate a wide variety of files given this syntax -> export:type.\n"
+    "                           for example export:compile_commands will export a compile_commands.json file.\n"
+    "                           you can also generate .bat or .sh files, license files, .plist files, etc.\n"
+    "                           type export: to view a list of all the things that you can export.\n"
+    "                           Note: this only works if you are using a .build file\n"
+    "\n   preset                : Build with a preset of command line arguments, given this syntax -> preset:name"
     );
 
     LOG_LINE_BREAK();
