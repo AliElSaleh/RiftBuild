@@ -4282,6 +4282,7 @@ bool ExpandBuildVariableV2(LinearAllocator Scratch, FileVariableList* VariablesD
         bool bWantsToLower = false;
         bool bWantsToUpper = false;
         bool bWantsPaste   = false;
+        bool bWantsPaste_Number = false;
 
         if (String_EndsWith(Key, S(".errormessage"), false) ||
             String_StartsWith(Key, S(".help"), false) ||
@@ -4319,6 +4320,15 @@ bool ExpandBuildVariableV2(LinearAllocator Scratch, FileVariableList* VariablesD
             {
                 Offset++;
                 bWantsPaste = true; 
+            }
+
+            if (!bWantsPaste)
+            {
+                if (String_EatCharInline(&StrVal, '*'))
+                {
+                    Offset++;
+                    bWantsPaste_Number = true; 
+                }
             }
 
             if (Index == 0)
@@ -4423,24 +4433,44 @@ bool ExpandBuildVariableV2(LinearAllocator Scratch, FileVariableList* VariablesD
 
             if (String_IsValid(VarValue))
             {
-                // if the first letter is capitalized, then also make the first letter of the value capitalized. revert back when done
-                bool bIsVarUpper = IsAlphabetUpper(Slice.Data[0]);
-                if (bIsVarUpper)
+                if (bWantsPaste)
                 {
-                    VarValue.Data[0] = ToUpper(VarValue.Data[0]);
+                    String DestEnd = StrShiftF(*Dest, Dest->Length);
+                    String_Append(Dest, Slice);
+                    DestEnd.Length = Slice.Length;
+
+                    if (bWantsToLower) { String_ToLower(&DestEnd); }
+                    if (bWantsToUpper) { String_ToUpper(&DestEnd); }
                 }
-
-                String DestEnd = StrShiftF(*Dest, Dest->Length);
-                u32 DestLengthBefore = Dest->Length;
-
-                if (!ExpandBuildVariableV2(Scratch, VariablesDB, CmdOptionsDB, Dest, Slice, VarValue, Root, WorkingDirectory, false, bIsAssemblyExe, bFailed))
+                else if (bWantsPaste_Number)
                 {
-                    return false;
+                    String_AppendChar(Dest, '1');
                 }
+                else
+                {
+                    // if the first letter is capitalized, then also make the first letter of the value capitalized. revert back when done
+                    bool bIsVarUpper = IsAlphabetUpper(Slice.Data[0]);
+                    if (bIsVarUpper)
+                    {
+                        VarValue.Data[0] = ToUpper(VarValue.Data[0]);
+                    }
 
-                DestEnd.Length = Dest->Length - DestLengthBefore;
-                if (bWantsToLower) { String_ToLower(&DestEnd); }
-                if (bWantsToUpper) { String_ToUpper(&DestEnd); }
+                    String DestEnd = StrShiftF(*Dest, Dest->Length);
+                    u32 DestLengthBefore = Dest->Length;
+
+                    /*
+                    if (!ExpandBuildVariableV2(Scratch, VariablesDB, CmdOptionsDB, Dest, Slice, VarValue, Root, WorkingDirectory, false, bIsAssemblyExe, bFailed))
+                    {
+                        return false;
+                    }
+                    */
+
+                    String_Append(Dest, VarValue);
+
+                    DestEnd.Length = Dest->Length - DestLengthBefore;
+                    if (bWantsToLower) { String_ToLower(&DestEnd); }
+                    if (bWantsToUpper) { String_ToUpper(&DestEnd); }
+                }
             }
             else
             {

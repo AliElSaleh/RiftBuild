@@ -2616,6 +2616,69 @@ NO_DISCARD StringList String_SplitIntoList(LinearAllocator* Arena, const String 
     if (Value.Length > 0)
     {
         bool bInsideQuote = false;
+        u32 Offset = 0;
+        u32 Length = 0;
+        for (u32 i = 0; i < Value.Length; i++)
+        {
+            u8 C = Value.Data[i];
+            if (C != Delimiter)
+            {
+                Length += 1;
+
+                if (C == '"' && bHandleQuotes)
+                {
+                    bInsideQuote = !bInsideQuote;
+                }
+            }
+
+            if (C == Delimiter || i == Value.Length-1)
+            {
+                if (!bInsideQuote)
+                {
+                    String Slice = String_EatSpacesFromEnd(StrSlice(Value.Data+Offset, Length));
+
+                    if (List.String.Data == NULL)
+                    {
+                        List.String = String_Create(Arena, Slice);
+                    }
+                    else
+                    {
+                        StringList* Entry = LinearAllocator_Allocate(Arena, sizeof(StringList));
+                        Entry->String = String_Create(Arena, Slice);
+                        Entry->Next = NULL;
+
+                        StringList** Next = &List.Next;
+                        while (*Next)
+                        {
+                            Next = &(*Next)->Next;
+                        }
+
+                        *Next = Entry;
+                    }
+
+                    Offset += Length+1;
+                    Length = 0;
+                }
+                else
+                {
+                    Length += 1;
+                }
+            }
+        }
+    }
+
+    return List;
+}
+
+/*
+NO_DISCARD StringList _String_SplitIntoList(LinearAllocator* Arena, const String Value, u8 Delimiter, bool bHandleQuotes)
+{
+    StringList List = {0};
+    List.Next = NULL;
+
+    if (Value.Length > 0)
+    {
+        bool bInsideQuote = false;
         bool bSawDelimiter = false;
         u32 Offset = 0;
         u32 CurrentLength = 0;
@@ -2624,18 +2687,18 @@ NO_DISCARD StringList String_SplitIntoList(LinearAllocator* Arena, const String 
             u8 C = i < Value.Length ? Value.Data[i] : 0;
 
             bool bLastChar = i == Value.Length-1;
-            if (C == Delimiter || bLastChar)
+            if (!bSawDelimiter && (C == Delimiter || bLastChar))
             {
                 bSawDelimiter = true;
 
-                if (bLastChar)
+                //if (bLastChar)
                 {
                     CurrentLength++;
                 }
             }
-            else
+            else if (bSawDelimiter || bLastChar)
             {
-                if (bSawDelimiter)
+                //if (bSawDelimiter)
                 {
                     bSawDelimiter = false;
 
@@ -2662,7 +2725,7 @@ NO_DISCARD StringList String_SplitIntoList(LinearAllocator* Arena, const String 
                             *Next = Entry;
                         }
 
-                        Offset += CurrentLength;
+                        Offset += CurrentLength-1;
                         CurrentLength = 0;
                     }
                 }
@@ -2679,6 +2742,7 @@ NO_DISCARD StringList String_SplitIntoList(LinearAllocator* Arena, const String 
 
     return List;
 }
+*/
 
 NO_DISCARD StringArray String_SplitIntoArray(LinearAllocator* Arena, const String Str, const String Delimiter, u32 StartingIndex, u32 MaxCount)
 {
