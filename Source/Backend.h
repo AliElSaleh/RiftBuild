@@ -216,7 +216,6 @@ STRUCT(BuildParams)
     EAssemblyType Type;
 
     u8 MaxCompilersAtOnce;
-    u8 MaxErrors;
 
     bool bHasRCProgram;
     bool bShouldWaitPerCompileProcess;
@@ -227,6 +226,7 @@ STRUCT(BuildParams)
     bool bLinkerNoStd;
     bool bLinkerNoDefaultLibs;
     bool bWasVCVarsBatchRan;
+    bool _bPadding;
 };
 
 /*
@@ -277,6 +277,7 @@ bool IsCppHeader(const String Extension);
 // Util functions --------------------
 
 bool DoesBuildVarExist(TArray(FileVariable) VariablesDB, const String Name);
+bool DoesCmdOptionExist(TArray(CmdOption) CmdOptionsDB, const String Name);
 
 String GetCmdOptionValue(TArray(CmdOption) CmdOptionsDB, const String Name);
 FileVariable GetVariable(TArray(FileVariable) Variables, const String Name);
@@ -305,8 +306,9 @@ STRUCT(ParsingContext)
     FileVariableList**   VarListTail;
     String               WorkingDirectory;
     bool                 bNoFail;
+    bool                 bPresetCmdLineGiven;
     u8                   Level;
-    u8                   Padding[6];
+    u8                   Padding[5];
 };
 
 NO_DISCARD bool ParseBuildFileV2(LinearAllocator* PermanentArena,

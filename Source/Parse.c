@@ -17,39 +17,6 @@
 // how to detect multiple inclusions of a file?
 // prevent including .build files
 
-// implement default options
-/*
-option.enable_examples
-{
-    description Build dav1d examples
-}
-
-option.stack_alignment(0)
-
-Assert.Option bitdepth
-option.bitdepth(8 16)
-{
-    description Enable only specified bitdepths
-    errormessage
-    [
-        riftbuild bitdepth=8    or
-        riftbuild bitdepth=16
-    ]
-}
-
-option.fuzzing_engine(none libfuzzer oss-fuzz)
-{
-    description Select the fuzzing engine
-}
-
-option.trim_dsp(true false if-release)
-{
-    default if-release
-    description Eliminate redundant DSP functions where possible
-}
-*/
-
-
 void AddVariable(LinearAllocator* Arena,
                 TArray(FileVariable) VariablesDB,
                 const String Name,
@@ -481,19 +448,20 @@ STRUCT(KeywordTableEntry)
     u8         Padding[4];
 };
 
-static KeywordTableEntry ReservedKeywordsTable[11] =
+static KeywordTableEntry ReservedKeywordsTable[12] =
 {
-    { .Type = Token_If,          .Name = SC("if")          },
-    { .Type = Token_Else,        .Name = SC("else")        },
-    { .Type = Token_Include,     .Name = SC("include")     },
-    { .Type = Token_Or,          .Name = SC("or")          },
-    { .Type = Token_Contains ,   .Name = SC("contains")    },
-    { .Type = Token_StartsWith,  .Name = SC("starts_with") },
-    { .Type = Token_EndsWith,    .Name = SC("ends_with")   },
-    { .Type = Token_Stop,        .Name = SC(".stop")       },
-    { .Type = Token_Abort,       .Name = SC(".abort")      },
-    { .Type = Token_Help,        .Name = SC(".help")       },
-    { .Type = Token_Assert,      .Name = SC("assert")      },
+    { .Type = Token_If,           .Name = SC("if")          },
+    { .Type = Token_Else,         .Name = SC("else")        },
+    { .Type = Token_Include,      .Name = SC("include")     },
+    { .Type = Token_Or,           .Name = SC("or")          },
+    { .Type = Token_Contains ,    .Name = SC("contains")    },
+    { .Type = Token_StartsWith,   .Name = SC("starts_with") },
+    { .Type = Token_EndsWith,     .Name = SC("ends_with")   },
+    { .Type = Token_Stop,         .Name = SC(".stop")       },
+    { .Type = Token_Abort,        .Name = SC(".abort")      },
+    { .Type = Token_Help,         .Name = SC(".help")       },
+    { .Type = Token_Assert,       .Name = SC("assert")      },
+    { .Type = Token_ErrorMessage, .Name = SC("ErrorMessage")},
 };
 
 static KeywordTableEntry ReservedStartingKeywordsTable[1] =
@@ -2378,6 +2346,78 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
     return Result;
 }
 
+NO_DISCARD static String GetOptionParamsFromVarList(FileVariableList* VarList, String OptionName, bool* bFound)
+{
+    String Params = String_Null();
+    if (bFound) { *bFound = false; }
+
+    FileVariable* Ref = GetVarInList(VarList, OptionName, false);
+    if (Ref == &FileVariable_Empty)
+    {
+        // not found
+    }
+    else
+    {
+        Params = Ref->Params;
+
+        if (bFound) { *bFound = true; }
+    }
+
+    return Params;
+}
+
+NO_DISCARD static String GetOptionValueFromVarList(FileVariableList* VarList, String OptionName, bool* bFound)
+{
+    String FinalValue = String_Null();
+    if (bFound) { *bFound = false; }
+
+    FileVariable* Ref = GetVarInList(VarList, OptionName, true);
+    if (Ref != &FileVariable_Empty)
+    {
+        // search order 1. find .Default key (if available)
+        StringLocal(Default, MAX_KEY_LENGTH);
+        String_Append(&Default, OptionName);
+        String_Append(&Default, S(".Default"));
+
+        FileVariable* DefaultRef = GetVarInList(VarList, Default, false);
+        if (DefaultRef == &FileVariable_Empty)
+        {
+            // no default found
+        }
+        else
+        {
+            // default found
+            FinalValue = DefaultRef->Value;
+        }
+
+        if (String_IsEqual(Ref->Name, OptionName, false)) // only if exact so we dont read its subkeys
+        {
+            // search order 2. use the key's value
+            if (!String_IsValid(FinalValue))
+            {
+                FinalValue = Ref->Value;
+            }
+
+            // search order 3. use the key's first param
+            if (!String_IsValid(FinalValue))
+            {
+                String First = Ref->Params;
+                u32 Space = 0;
+                if (String_IndexOfFirstWhitespace(Ref->Params, &Space))
+                {
+                    First = StrSlice(Ref->Params.Data, Space);
+                }
+
+                FinalValue = First;
+            }
+        }
+
+        if (bFound && FinalValue.Length > 0) { *bFound = true; }
+    }
+
+    return FinalValue;
+}
+
 NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, ParsingContext* Context, bool bInIf);
 NO_DISCARD static NodeList* Analyze_List(LinearAllocator* Arena, Node* Block, ParsingContext* Context, bool bInIf);
 NO_DISCARD static bool      Analyze_Indeterminates(LinearAllocator* Arena, NodeList* List, ParsingContext* Context);
@@ -2598,7 +2638,7 @@ static void Analyze_KVNode(LinearAllocator* Arena, Node* Root, ParsingContext* C
         xx String_EatSpacesInlineFromEnd(&Params);
     }
 
-    if (String_IsEqual(FinalKey, S("default.options"), false))
+    if (String_IsEqual(FinalKey, S("default.options"), false) && !Context->bPresetCmdLineGiven)
     {
         LinearAllocator Scratch = {0};
         i8 ScratchMemory[MAX_VALUE_LENGTH] = {0};
@@ -2615,11 +2655,37 @@ static void Analyze_KVNode(LinearAllocator* Arena, Node* Root, ParsingContext* C
                 String Key   = Equals > 0 ? StrSlice(Option.Data, Equals) : Option;
                 String Value = Equals > 0 ? StrShiftF(Option, Equals+1) : String_Null();
 
-                AddCmdOption(&Context->CmdOptionsDB, String_Create(Arena, Key), String_Create(Arena, Value));
+                // does this option already exist?
+                String Key_NoPrefix = Key;
+                if (String_StartsWith(Key, S("option."), false))
+                {
+                    Key_NoPrefix = StrShiftF(Key, 7);
+                }
+
+                bool bExists = DoesCmdOptionExist(Context->CmdOptionsDB, Key_NoPrefix);
+                if (!bExists)
+                {
+                    StringLocal(Temp, MAX_KEY_LENGTH);
+                    String_Append(&Temp, S("#doption."));
+                    String_Append(&Temp, Key);
+
+                    AddCmdOption(&Context->CmdOptionsDB, String_Create(Arena, Temp), String_Create(Arena, Value));
+                }
             }
             else
             {
-                AddCmdOption(&Context->CmdOptionsDB, String_Create(Arena, Option), S("@#@")); // this gets evaluated on the second pass
+                // does this option already exist?
+                String Option_NoPrefix = Option;
+                if (String_StartsWith(Option, S("option."), false))
+                {
+                    Option_NoPrefix = StrShiftF(Option, 7);
+                }
+
+                bool bExists = DoesCmdOptionExist(Context->CmdOptionsDB, Option_NoPrefix);
+                if (!bExists)
+                {
+                    AddCmdOption(&Context->CmdOptionsDB, String_Create(Arena, Option), S("@#@")); // this gets evaluated on the second pass
+                }
             }
         }
     }
@@ -2660,6 +2726,8 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
             bool bIsPath = String_ContainsPathSeparators(Condition);
             if (!bIsPath)
             {
+                bool bFoundSomething = false;
+
                 if (bSearchEnvironmentVar)
                 {
                     if (Platform_GetEnvironmentVariableValue(Condition, &EnvVar))
@@ -2667,10 +2735,11 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
                         bConditionMet = c.ComparisonOp == Token_None;
                         VarValue = EnvVar;
                         bFoundVar = true;
+                        bFoundSomething = true;
                     }
                 }
 
-                if (!bConditionMet && (bSearchInternalVar || !bPrefixedWithSymbol))
+                if (!bFoundSomething && !bConditionMet && (bSearchInternalVar || !bPrefixedWithSymbol))
                 {
                     // check the condition string against the internal build vars passed in from the command line
                     for each (CmdOption, o, Context->CmdOptionsDB)
@@ -2684,12 +2753,13 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
                                 VarValue = o.Value;
                                 bConditionMet = c.ComparisonOp == Token_None;
                                 bFoundVar = true;
+                                bFoundSomething = true;
                                 break;
                             }
                         }
                     }
 
-                    if (!bConditionMet)
+                    if (!bFoundSomething && !bConditionMet)
                     {
                         // check the condition string against the internal build vars native to this program
                         for each (InternalVariable, v, InternalVariablesDB)
@@ -2699,13 +2769,31 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
                                 VarValue = v.Value;
                                 bConditionMet = c.ComparisonOp == Token_None;
                                 bFoundVar = true;
+                                bFoundSomething = true;
                                 break;
                             }
                         }
                     }
+
+                    if (!bFoundSomething && !bConditionMet)
+                    {
+                        StringLocal(OptionName, MAX_KEY_LENGTH);
+                        String_Append(&OptionName, S("Option."));
+                        String_Append(&OptionName, Condition);
+
+                        bool bExists = false;
+                        String OptionValue = GetOptionValueFromVarList(Context->VarListHead, OptionName, &bExists);
+                        if (bExists)
+                        {
+                            bFoundVar = OptionValue.Length > 0; // no-value options should not succeed
+                            VarValue = OptionValue;
+                            bConditionMet = bFoundVar;
+                            bFoundSomething = true;
+                        }
+                    }
                 }
 
-                if (!bConditionMet && (bSearchFileVar || !bPrefixedWithSymbol))
+                if (!bFoundSomething && !bConditionMet && (bSearchFileVar || !bPrefixedWithSymbol))
                 {
                     // check the condition string against the list of current vars (non-expanded)
                     SLinkedList_Each(FileVariableList, This, &Context->VarListHead)
@@ -2717,6 +2805,7 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
                             VarValue = Var.Value;
                             bConditionMet = c.ComparisonOp == Token_None;
                             bFoundVar = true;
+                            bFoundSomething = true;
 
                             break;
                         }
@@ -3737,6 +3826,47 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
                 // no action is required
             }
         }
+        else
+        {
+            if (String_StartsWith(Var.Name, S("Option."), false) && String_EndsWith(Var.Name, S(".Assert"), false))
+            {
+                String Trimmed = StrShiftF(Var.Name, 7);
+                u32 LastDot = 0;
+                xx String_IndexOfLastChar(Trimmed, '.', &LastDot);
+                Trimmed = StrSlice(Trimmed.Data, LastDot);
+
+                bool bFound = false;
+                // TODO: extract into a function. replace all the other cmdoptionsdb loops
+                for each (CmdOption, o, Context->CmdOptionsDB)
+                {
+                    if (String_IsEqual(o.Name, Trimmed, false))
+                    {
+                        bFound = true;
+                        if (o.bEqualsToSomething && o.Value.Length == 0)
+                        {
+                            bFound = false;
+                        }
+                        
+                        break;
+                    }
+                }
+
+                if (!bFound)
+                {
+                    #ifndef HOOD
+                    LOG_INLINE_ERROR("\n[ASSERTION FAILURE] Command line argument \"%S\" or \"%S=VALUE\" was not given."
+                                    "\n                    This is needed for the build to work properly. Aborting build...\n", Trimmed, Trimmed);
+                    #else
+                    LOG_ERROR("yo da cmd line var \"%S\" don exist cuh. dat shit not there nigga", Trimmed);
+                    #endif
+
+                    xx Internal_LogCustomErrorMessage(Context, S("Option"), Trimmed, true);
+
+                    bAssertionFailed = true;
+                    break;
+                }
+            }
+        }
 
         if (bAssertionFailed)
         {
@@ -3908,8 +4038,85 @@ NO_DISCARD bool ParseBuildFileV2(LinearAllocator* PermanentArena,
         // Before we do the second pass, make sure to search for 'Option.' keys and use their values (if available),
         // so that when analyzing if nodes, the options will exist and they can evaluate to something.
 
-        // TODO: scan for accepted values from params and error
-        // TODO: when expanding % look for option. keys as well
+        // scan for accepted values from params and error
+        bool bInvalidParam = false;
+        for each (CmdOption, o, Context.CmdOptionsDB)
+        {
+            if (String_IsFirst(o.Name, '_')) { continue; }
+
+            String Name = o.Name;
+            u32 ShiftAmount = 0;
+            if (String_StartsWith(o.Name, S("#doption."), false))
+            {
+                Name = StrShiftF(o.Name, 2);
+                ShiftAmount = 7;
+                
+                o_->Name = StrShiftF(o.Name, 9);
+            }
+
+            {
+                StringLocal(SearchName, MAX_KEY_LENGTH);
+                if (!String_StartsWith(Name, S("Option."), false))
+                {
+                    String_Append(&SearchName, S("option."));
+                }
+                String_Append(&SearchName, Name);
+
+                bool bFoundParams = false;
+                String Params = GetOptionParamsFromVarList(Context.VarListHead, SearchName, &bFoundParams);
+                if (bFoundParams)
+                {
+                    LinearAllocator Scratch = *Context.TempArena;
+                    StringList List = String_SplitIntoList(&Scratch, Params, ' ', true);
+                    bool bMatchesAny = false;
+                    for each_string_in_list (List)
+                    {
+                        if (String_IsEqual(It.String, o.Value, false))
+                        {
+                            bMatchesAny = true;
+                            break;
+                        }
+                    }
+
+                    if (!bMatchesAny)
+                    {
+                        bInvalidParam = true;
+
+                        String Trimmed = StrShiftF(Name, ShiftAmount);
+                        u32 LastDot = 0;
+                        if (String_IndexOfLastChar(Trimmed, '.', &LastDot))
+                        {
+                            Trimmed = StrSlice(Trimmed.Data, LastDot);
+                        }
+
+                        #ifndef HOOD
+                        LOG_INLINE_ERROR("\n[ASSERTION FAILURE] Command line option \"%S=%S\" is invalid.\n", Trimmed, o.Value);
+                        #else
+                        LOG_ERROR("yo da cmd line var \"%S\" don exist cuh. dat shit not there nigga", Trimmed);
+                        #endif
+
+                        LOG("\n    Here are the accepted options:");
+                        for each_string_in_list (List)
+                        {
+                            LOG("      - %S=%S", Trimmed, It.String);
+                        }
+
+                        xx Internal_LogCustomErrorMessage(&Context, S("Option"), Trimmed, true);
+                    }
+                }
+            }
+
+            if (bInvalidParam)
+            {
+                break;
+            }
+        }
+
+        // todo: remove early return
+        if (bInvalidParam)
+        {
+            return false;
+        }
 
         for each (CmdOption, o, Context.CmdOptionsDB)
         {
@@ -3921,80 +4128,14 @@ NO_DISCARD bool ParseBuildFileV2(LinearAllocator* PermanentArena,
                 String_Append(&Name, bStartsWithPrefix ? String_Null() : S("option."));
                 String_Append(&Name, o.Name);
 
-                FileVariable* Ref = GetVarInList(Context.VarListHead, Name, true);
-                if (Ref == &FileVariable_Empty)
-                {
-                    // didnt find it
+                String OptionValue = GetOptionValueFromVarList(Context.VarListHead, Name, NULL);
+                o_->Value = OptionValue;
+                o_->bEqualsToSomething = OptionValue.Length > 0;
 
-                    o_->Value = String_Null();
-                    o_->bEqualsToSomething = false;
-                }
-                else
-                {
-                    // found it
-
-                    // option value search order:
-                    //  1. .Default key
-                    //  2. actual key's value
-                    //  3. key's first param
-                    //  4. the key name itself if no value
-
-                    String FinalValue = String_Null();
-
-                    // search order 1. find .Default key (if available)
-                    StringLocal(Default, MAX_KEY_LENGTH);
-                    String_Append(&Default, Name);
-                    String_Append(&Default, S(".Default"));
-                    FileVariable* DefaultRef = GetVarInList(Context.VarListHead, Default, false);
-                    if (DefaultRef == &FileVariable_Empty)
-                    {
-                        // no default found
-                    }
-                    else
-                    {
-                        // default found
-                        FinalValue = DefaultRef->Value;
-                    }
-
-                    if (String_IsEqual(Ref->Name, Name, false)) // only if exact so we dont read its subkeys
-                    {
-                        // search order 2. use the key's value
-                        if (!String_IsValid(FinalValue))
-                        {
-                            FinalValue = Ref->Value;
-                        }
-
-                        // search order 3. use the key's first param
-                        if (!String_IsValid(FinalValue))
-                        {
-                            String First = Ref->Params;
-                            u32 Space = 0;
-                            if (String_IndexOfFirstWhitespace(Ref->Params, &Space))
-                            {
-                                First = StrSlice(Ref->Params.Data, Space);
-                            }
-
-                            FinalValue = First;
-                        }
-                    }
-
-                    o_->Value = FinalValue;
-                    o_->bEqualsToSomething = FinalValue.Length > 0;
-                }
-
-                if (String_StartsWith(o.Name, S("option."), false))
+                if (bStartsWithPrefix)
                 {
                     o_->Name = StrShiftF(o.Name, 7);
                 }
-            }
-        }
-
-        SLinkedList_Each(FileVariableList, This, &Context.VarListHead)
-        {
-            const FileVariable Var = (*This)->Var;
-            if (String_StartsWith(Var.Name, S("Option."), false))
-            {
-                
             }
         }
 
@@ -4075,6 +4216,7 @@ NO_DISCARD bool ParseBuildFileV2(LinearAllocator* PermanentArena,
                     SC("PostLink"),
                     SC("Depend"),
                     SC("Depends"),
+                    SC("Option."),
                 };
 
                 for EachE(i, ConcatExclusions)
@@ -4255,134 +4397,29 @@ bool ExpandBuildVariableV2(LinearAllocator Scratch, FileVariableList* VariablesD
                     }
                 }
             }
+            
+            // search for Option. keys in the build file
+            if (!bFoundCmd)
+            {
+                StringLocal(OptionName, MAX_KEY_LENGTH);
+                String_Append(&OptionName, S("Option."));
+                String_Append(&OptionName, Slice);
+
+                bool bExists = false;
+                String OptionValue = GetOptionValueFromVarList(VariablesDB, OptionName, &bExists);
+                if (bExists)
+                {
+                    bFoundCmd = OptionValue.Length > 0;
+                    VarValue = OptionValue;
+                    bEqualsToSomething = OptionValue.Length > 0;
+                }
+            }
 
             if (!bFoundCmd)
             {
                 if (bFailed) { *bFailed = true; }
                 //return false;
             }
-
-            // run through the cmd var assert list
-            // TODO: something better
-            /*
-            {
-                for each (FileVariable, Var, VariablesDB)
-                {
-                    if (String_IsEqual(Var.Name, S("Assert.Arg"), false))
-                    {
-                        StringArray CmdVarsArray = String_ParseIntoArray(&Scratch, Var.Value, ' ', 0, 128);
-
-                        for each_str (S, CmdVarsArray)
-                        {
-                            const String Trimmed = String_EatSpaces(*S);
-
-                            bool bFound = false;
-                            for each (CmdOption, o, CmdOptionsDB)
-                            {
-                                if (String_IsEqual(o.Name, Trimmed, false))
-                                {
-                                    bFound = true;
-                                    if (o.bEqualsToSomething && o.Value.Length == 0)
-                                    {
-                                        bFound = false;
-                                    }
-                                    
-                                    break;
-                                }
-                            }
-
-                            if (!bFound)
-                            {
-                                #ifndef HOOD
-                                LOG_INLINE_ERROR("[ASSERTION FAILURE] Command line argument \"%S\" or \"%S=VALUE\" was not given."
-                                               "\n                    This is needed for the build to work properly. Aborting build...\n", Trimmed, Trimmed);
-                                #else
-                                LOG_ERROR("yo da cmd line var \"%S\" don exist cuh. dat shit not there nigga", Trimmed);
-                                #endif
-
-                                LogCustomErrorMessage(VariablesDB, S("Arg"), Trimmed, true);
-
-                                return false;
-                            }
-                        }
-                    }
-                    else if (String_IsEqual(Var.Name, S("Assert.Arg.Any"), false))
-                    {
-                        StringArray ArgArray = String_ParseIntoArray(&Scratch, Var.Value, ' ', 0, 128);
-
-                        bool bFound = false;
-                        for each_str (Arg, ArgArray)
-                        {
-                            const String Trimmed = String_EatSpaces(*Arg);
-
-                            for each (CmdOption, o, CmdOptionsDB)
-                            {
-                                if (String_IsEqual(o.Name, Trimmed, false))
-                                {
-                                    bFound = true;
-
-                                    // TODO: this might confuse people if they specify 'arg' but not 'arg=VALUE'?
-                                    if (o.bEqualsToSomething && o.Value.Length == 0)
-                                    {
-                                        bFound = false;
-                                    }
-
-                                    if (bFound)
-                                    {
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-
-                        if (!bFound)
-                        {
-                            LOG_INLINE_ERROR("[ASSERTION FAILURE] Any one of these arguments must be specified: %S\n", Var.Value);
-                            return false;
-                        }
-                    }
-                    else if (String_IsEqual(Var.Name, S("Assert.Arg.OnlyOne"), false)) // TODO: make dynamic
-                    {
-                        StringArray ArgArray = String_ParseIntoArray(&Scratch, Var.Value, ' ', 0, 128);
-
-                        bool bFound = false;
-                        for each_str (Arg, ArgArray)
-                        {
-                            const String Trimmed = String_EatSpaces(*Arg);
-
-                            for each (CmdOption, o, CmdOptionsDB)
-                            {
-                                if (String_IsEqual(o.Name, Trimmed, false))
-                                {
-                                    if (bFound)
-                                    {
-                                        bFound = false;
-                                        goto MultipleArgsFound;
-                                    }
-
-                                    bFound = true;
-                                    if (o.bEqualsToSomething && o.Value.Length == 0)
-                                    {
-                                        bFound = false;
-                                    }
-                                }
-                            }
-                        }
-                        
-                        MultipleArgsFound:
-                        if (!bFound)
-                        {
-                            LOG_INLINE_ERROR("[ASSERTION FAILURE] Only one of these arguments can be specified: %S\n", Var.Value);
-                            return false;
-                        }
-                    }
-                    else
-                    {
-                        // no action is required
-                    }
-                }
-            }
-            */
 
             if (String_IsValid(VarValue))
             {

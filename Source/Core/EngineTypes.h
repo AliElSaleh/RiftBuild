@@ -223,7 +223,7 @@ STRUCT(StringList)
 #define not  !
 
 #define TArray(Type) Type*
-#define SArray(Type, Name, Count) u32 CONCAT(Name, _Count); Type Name[Count]
+#define SArray(Type, Name, Count) u32 CONCAT(Name, _Count) = 0; Type Name[Count]
 #define TMap(KeyType, ValueType)
 
 #define SLinkedList_Push(List, Entry) \

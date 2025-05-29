@@ -47,6 +47,7 @@ static bool bIsClean = false;
 static bool bVerboseLog = false;
 
 static bool bHelp = false;
+static bool bOptions = false;
 
 STRUCT(BuildFileDirectoryIteratorData)
 {
@@ -77,6 +78,22 @@ static bool IsBuildFile(const String FilePath)
 static bool IsBuildBatchFile(const String FilePath)
 {
     return String_EndsWith(FilePath, S(".buildbatch"), false);
+}
+
+bool DoesCmdOptionExist(TArray(CmdOption) CmdOptionsDB, const String Name)
+{
+    bool bFound = false;
+
+    for each (CmdOption, o, CmdOptionsDB)
+    {
+        if (String_IsEqual(o.Name, Name, false))
+        {
+            bFound = true;
+            break;
+        }
+    }
+
+    return bFound;
 }
 
 String GetCmdOptionValue(TArray(CmdOption) CmdOptionsDB, const String Name)
@@ -1109,6 +1126,65 @@ static bool EnforceCopyright(const BuildParams* Params, CopyrightEnforceInfo* Au
     return bContinueSearch;
 }
 
+static void LogOptionData_WordWrapped(LinearAllocator Scratch, const String Name, u32 NamePadding, const String Value, u32 ValuePadding, const String Description)
+{
+    u32 Rows = 0, Cols = 0;
+    xx Platform_GetTerminalDimensions(&Rows, &Cols);
+    Cols = Clamp(Cols, 30, 1000);
+
+    StringLocal(LogBuffer, MAX_VALUE_LENGTH);
+
+    StringLocal(Spaces, MAX_KEY_LENGTH);
+    Spaces.Length = NamePadding;
+    String_Fill(&Spaces, ' ');
+
+    StringLocal(Spaces2, MAX_KEY_LENGTH);
+    Spaces2.Length = ValuePadding;
+    String_Fill(&Spaces2, ' ');
+
+    u32 BaseLength = 4 + Name.Length + NamePadding + 2 + Value.Length + ValuePadding + 2;
+    u32 FirstPipe = 4 + Name.Length + NamePadding;
+    u32 SecondPipe = FirstPipe + 2 + Value.Length + ValuePadding;
+
+    u32 TerminalWidth = (u32)((f32)Cols/1.25);
+
+    if ((Description.Length + BaseLength) > TerminalWidth)
+    {
+        u32 Fit = (TerminalWidth-BaseLength);
+        u32 Loops = (u32)((f32)Description.Length / (f32)Fit);
+
+        String_Append(&LogBuffer, StrSlice(Description.Data, Fit));
+
+
+        for (u32 i = 0; i < Loops; i++)
+        {
+            String_AppendNewline(&LogBuffer);
+            StringLocal(Padding, 256);
+            Padding.Length = BaseLength;
+            String_Fill(&Padding, ' ');
+            Padding.Data[FirstPipe] = '|';
+            Padding.Data[SecondPipe] = '|';
+            String_Append(&LogBuffer, Padding);
+            String_Append(&LogBuffer, StrSlice(StrShiftF(Description, Fit*(i+1)).Data, Fit));
+        }
+
+    }
+    else
+    {
+        LogBuffer = Description;
+    }
+
+    if (ValuePadding)
+    {
+        LOG("    %S%S| %S%S| %S", Name, Spaces, Value, Spaces2, LogBuffer);
+    }
+    else
+    {
+        LOG("    %S%S| %S", Name, Spaces, LogBuffer);
+    }
+
+}
+
 bool LogStringList_WordWrapped(LinearAllocator Scratch, const String Name, const StringList List)
 {
     StringList History = {0};
@@ -1221,35 +1297,6 @@ static void LogNameValuePair(LinearAllocator Scratch, const String Name, const S
         }
     }
 }
-
-/*
-UNUSED static void LogBuildVariable(LinearAllocator Scratch, TArray(FileVariable) VariablesDB, const String Name, const String DisplayName, const bool bWordWrap)
-{
-    StringList List = GetVariableValueList(&Scratch, VariablesDB, Name);
-
-    if (bWordWrap)
-    {
-        xx LogStringList_WordWrapped(Scratch, DisplayName, List);
-    }
-    else
-    {
-        StringLocal(LogBuffer, 8192);
-        String_Append(&LogBuffer, DisplayName);
-        for each_str_list (List)
-        {
-            if (String_IsValid(It.String))
-            {
-                String_Append(&LogBuffer, It.String);
-            }
-        }
-
-        if (LogBuffer.Length > 0)
-        {
-            LOG_INLINE("%S\n", LogBuffer);
-        }
-    }
-}
-*/
 
 void LogString_WordWrapped(LinearAllocator Scratch, const String Name, const String Value, const bool bAddNewLine)
 {
@@ -2779,6 +2826,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
     Clock BuildRuntime;
     Clock_Start(&BuildRuntime);
 
+    bool bPresetCmdLineGiven = false;
+
     StringLocal(RiftCmdLine, 2048);
     for (u8 i = 0; i < Parameters.Num; i++)
     {
@@ -2794,6 +2843,11 @@ static u32 BuildTarget(LinearAllocator* Arena,
             String_StartsWith(Parameters.List[i], S("export:"), false))
         {
             continue;
+        }
+
+        if (String_IsEqual(Parameters.List[i], S("preset:"), false))
+        {
+            bPresetCmdLineGiven = true;
         }
 
         String_Append     (&RiftCmdLine, Parameters.List[i]);
@@ -3020,13 +3074,14 @@ static u32 BuildTarget(LinearAllocator* Arena,
             i8 ScratchMemory[Kibibytes(512)] = {0};
             LinearAllocator_Create(Kibibytes(512), ScratchMemory, &Scratch);
 
-            ParsingContext Context   = {0};
-            Context.TempArena        = &Scratch;
-            Context.VariablesDB      = VariablesDB;
-            Context.CmdOptionsDB     = CmdOptionsDB;
-            Context.Messages         = Messages;
-            Context.IncludeFiles     = IncludeFiles;
-            Context.WorkingDirectory = WorkingPath;
+            ParsingContext Context      = {0};
+            Context.TempArena           = &Scratch;
+            Context.VariablesDB         = VariablesDB;
+            Context.CmdOptionsDB        = CmdOptionsDB;
+            Context.Messages            = Messages;
+            Context.IncludeFiles        = IncludeFiles;
+            Context.WorkingDirectory    = WorkingPath;
+            Context.bPresetCmdLineGiven = bPresetCmdLineGiven;
 
             if (!ParseBuildFileV2(Arena, BuildFileHandle, BuildFilePath, Context, false, NULL))
             {
@@ -3317,7 +3372,6 @@ static u32 BuildTarget(LinearAllocator* Arena,
     const String MaxConcurrentCompilations  = GetVariableValue(ExpandedVariablesDB, S("MaxConcurrentCompilations"));
     //const String OutsideSourceDirectories   = GetExpandedVariableValue(ExpandedVariablesDB, S("ExternalSourceDirectories"));
     String Icon                             = GetVariableValue(ExpandedVariablesDB, S("Icon"));
-    const String MaxCompilerErrors          = GetVariableValue(ExpandedVariablesDB, S("MaxCompilerErrors"));
     const String PCHPath                    = GetVariableValue(ExpandedVariablesDB, S("PCH"));
     const String PCHHeaderPath              = GetVariableValue(ExpandedVariablesDB, S("PCH.h"));
     const String HelpMessage                = GetVariableValue(ExpandedVariablesDB, S(".Help"));
@@ -3362,7 +3416,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     const bool bLinkerNoStd                 = DoesBuildVarExist(ExpandedVariablesDB, S("Linker.NoStdLib"));
     const bool bLinkerNoDefaultLibs         = DoesBuildVarExist(ExpandedVariablesDB, S("Linker.NoDefaultLibs"));
 
-    if (bHelp && bFoundBuildFile)
+    if (bHelp)
     {
         LOG_INLINE_WARNING("\nHelp\n");
         if (HelpMessage.Length > 0)
@@ -3377,13 +3431,170 @@ static u32 BuildTarget(LinearAllocator* Arena,
         return 0;
     }
 
-    LOG("Timestamp:         %S\n", TimeStamp);
-
-    u8 MaxErrorsAllowed = 1; // default to 1 error (for the people's sanity)
-    if (String_IsValid(MaxCompilerErrors))
+    if (bOptions)
     {
-        xx String_ToU8(MaxCompilerErrors, &MaxErrorsAllowed);
+        LOG_INLINE_WARNING("\nOptions\n\n");
+
+        SArray(FileVariable, OptionVars, 64) = {0};
+        
+        u32 LongestName = 8;
+
+        bool bAnyOptions = false;
+        for each (FileVariable, v, ExpandedVariablesDB)
+        {
+            if (String_StartsWith(v.Name, S("Option."), false))
+            {
+                bAnyOptions = true;
+
+                String Trimmed = v.Name;
+                u32 LastDot = 0;
+                if (String_IndexOfLastChar(StrShiftF(v.Name, 7), '.', &LastDot))
+                {
+                    Trimmed = StrSlice(Trimmed.Data, LastDot+7);
+                }
+
+                // did we already add this?
+                bool bAlready = false;
+                for EachElement(i, OptionVars)
+                {
+                    if (String_IsEqual(OptionVars[i].Name, Trimmed, false))
+                    {
+                        bAlready = true;
+                        break;
+                    }
+                }
+
+                if (bAlready)
+                {
+                    continue;
+                }
+
+                FileVariable NewVar = v;
+                NewVar.Name = Trimmed;
+
+                SArray_Add(OptionVars, NewVar);
+
+                if (StrShiftF(Trimmed, 7).Length > LongestName)
+                {
+                    LongestName = StrShiftF(Trimmed, 7).Length;
+                }
+            }
+        }
+
+
+        u32 LongestDefault = 7;
+        bool bAnyDefault = false;
+        for EachElement(i, OptionVars)
+        {
+            FileVariable Var = OptionVars[i];
+            if (String_IsValid(Var.Name))
+            {
+                // get the default key
+                StringLocal(Default, MAX_KEY_LENGTH);
+                String_Append(&Default, Var.Name);
+                String_Append(&Default, S(".Default"));
+                FileVariable DefaultVar = GetVariable(ExpandedVariablesDB, Default);
+
+                if (DefaultVar.Value.Length > LongestDefault)
+                {
+                    LongestDefault = DefaultVar.Value.Length;
+                    bAnyDefault = true;
+                }
+            }
+        }
+
+        StringLocal(Spaces, MAX_KEY_LENGTH);
+        Spaces.Length = LongestName+1;
+        String_Fill(&Spaces, ' ');
+
+        StringLocal(Spaces2, MAX_KEY_LENGTH);
+        Spaces2.Length = (LongestDefault-7)+1;
+        String_Fill(&Spaces2, ' ');
+
+        if (bAnyDefault)
+        {
+            //LOG("    %S  Default%S  Description\n", Spaces, Spaces2);
+            //LOG("    %S  %S  ", Spaces, Spaces2);
+        }
+        else
+        {
+            //LOG("    %S  Description\n", Spaces);
+            //LOG("    %S  ", Spaces);
+        }
+
+        for EachElement(i, OptionVars)
+        {
+            FileVariable Var = OptionVars[i];
+            if (String_IsValid(Var.Name))
+            {
+                String Trimmed = StrShiftF(Var.Name, 7);
+
+                String FinalValue = String_Null();
+
+                // get the base key
+                FileVariable Base = GetVariable(ExpandedVariablesDB, Var.Name);
+                FinalValue = Base.Value;
+
+                // get the default key
+                StringLocal(Default, MAX_KEY_LENGTH);
+                String_Append(&Default, Var.Name);
+                String_Append(&Default, S(".Default"));
+                FileVariable DefaultVar = GetVariable(ExpandedVariablesDB, Default);
+
+                if (!String_IsValid(FinalValue))
+                {
+                    FinalValue = DefaultVar.Value;
+                }
+
+                if (!String_IsValid(FinalValue))
+                {
+                    String First = Base.Params;
+                    u32 Space = 0;
+                    if (String_IndexOfFirstWhitespace(Base.Params, &Space))
+                    {
+                        First = StrSlice(Base.Params.Data, Space);
+                    }
+
+                    FinalValue = First;
+                }
+
+                if (!String_IsValid(FinalValue))
+                {
+                    FinalValue = S("off");
+                }
+
+                // get the description key
+                StringLocal(Desc, MAX_KEY_LENGTH);
+                String_Append(&Desc, Var.Name);
+                String_Append(&Desc, S(".Description"));
+                FileVariable DescriptionVar = GetVariable(ExpandedVariablesDB, Desc);
+
+                String FinalDesc = DescriptionVar.Value;
+                if (!String_IsValid(FinalDesc))
+                {
+                    FinalDesc = S("No description provided");
+                }
+
+                u32 NameLength = (LongestName - Trimmed.Length) + 1;
+                u32 ValueLength = (LongestDefault - FinalValue.Length) + 1;
+                if (!bAnyDefault)
+                {
+                    ValueLength = 0;
+                }
+
+                LogOptionData_WordWrapped(*Arena, Trimmed, NameLength, FinalValue, ValueLength, FinalDesc);
+            }
+        }
+
+        if (!bAnyOptions)
+        {
+            LOG("    No options provided. Use -h to view this program's usage help instead.");
+        }
+
+        return 0;
     }
+
+    LOG("Timestamp:         %S\n", TimeStamp);
 
     String RequireCompilerVersion = String_Null();
     EComparisonType CompilerVersionComparisonType = Cmp_Equal;
@@ -6336,7 +6547,6 @@ static u32 BuildTarget(LinearAllocator* Arena,
     p.PCHPath                       = PCHPath;
     p.PCHHeaderPath                 = PCHHeaderPath;
     p.MaxCompilersAtOnce            = MaxCompilersAtOnce;
-    p.MaxErrors                     = MaxErrorsAllowed;
     p.bShouldWaitPerCompileProcess  = bSingleThread;
     p.CompilerFlags                 = CompilerFlags;
     p.AssemblerFlags                = AssemblerFlags;
@@ -7885,6 +8095,7 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments, const 
     }
 
     bHelp         = StringArray_Contains(Arguments, S("help"), false);
+    bOptions      = StringArray_Contains(Arguments, S("options"), false);
     bIsClean      = StringArray_Contains(Arguments, S("clean"), false);
     bIsRebuild    = StringArray_Contains(Arguments, S("rebuild"), false);
     bVerboseLog   = StringArray_Contains(Arguments, S("-v"), false);
