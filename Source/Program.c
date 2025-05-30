@@ -37,6 +37,8 @@ const usize GEngineScratchAmount = Kibibytes(8);
 TArray(InternalVariable) InternalVariablesDB = NULL;
 bool bQuietBuild = false;
 bool bNoWordWrapLogging = false;
+bool bHelp = false;
+bool bOptions = false;
 FileVariable FileVariable_Empty = {0};
 
 //static ExportMetaData ExportMetaData_Null = {.StringParam_1 = S(""), .StringParam_2 = S("")};
@@ -45,9 +47,6 @@ static bool bSingleThread = false;
 static bool bIsRebuild = false;
 static bool bIsClean = false;
 static bool bVerboseLog = false;
-
-static bool bHelp = false;
-static bool bOptions = false;
 
 STRUCT(BuildFileDirectoryIteratorData)
 {
@@ -3096,6 +3095,200 @@ static u32 BuildTarget(LinearAllocator* Arena,
         }
         Clock_Tick(&BuildFileParseClock);
 
+        if (bHelp)
+        {
+            const String HelpMessage = GetVariableValue(ExpandedVariablesDB, S(".Help"));
+
+            LOG_INLINE_WARNING("\nHelp\n");
+            if (HelpMessage.Length > 0)
+            {
+                LOG("%S", HelpMessage);
+            }
+            else
+            {
+                LOG("    No help message provided. Use -h to view this program's usage help instead.");
+            }
+
+            return 0;
+        }
+
+
+        if (bOptions)
+        {
+            LOG_INLINE_WARNING("\nOptions\n\n");
+
+            SArray(FileVariable, OptionVars, 64) = {0};
+            
+            u32 LongestName = 8;
+
+            bool bAnyOptions = false;
+            for each (FileVariable, v, ExpandedVariablesDB)
+            {
+                if (String_StartsWith(v.Name, S("Option."), false))
+                {
+                    bAnyOptions = true;
+
+                    String Trimmed = v.Name;
+                    u32 LastDot = 0;
+                    if (String_IndexOfLastChar(StrShiftF(v.Name, 7), '.', &LastDot))
+                    {
+                        Trimmed = StrSlice(Trimmed.Data, LastDot+7);
+                    }
+
+                    // did we already add this?
+                    bool bAlready = false;
+                    for EachElement(i, OptionVars)
+                    {
+                        if (String_IsEqual(OptionVars[i].Name, Trimmed, false))
+                        {
+                            bAlready = true;
+                            break;
+                        }
+                    }
+
+                    if (bAlready)
+                    {
+                        continue;
+                    }
+
+                    FileVariable NewVar = v;
+                    NewVar.Name = Trimmed;
+
+                    SArray_Add(OptionVars, NewVar);
+
+                    if (StrShiftF(Trimmed, 7).Length > LongestName)
+                    {
+                        LongestName = StrShiftF(Trimmed, 7).Length;
+                    }
+                }
+            }
+
+
+            u32 LongestDefault = 7;
+            bool bAnyDefault = false;
+            for EachElement(i, OptionVars)
+            {
+                FileVariable Var = OptionVars[i];
+                if (String_IsValid(Var.Name))
+                {
+                    // get the default key
+                    StringLocal(Default, MAX_KEY_LENGTH);
+                    String_Append(&Default, Var.Name);
+                    String_Append(&Default, S(".Default"));
+                    FileVariable DefaultVar = GetVariable(ExpandedVariablesDB, Default);
+
+                    if (DefaultVar.Value.Length > LongestDefault)
+                    {
+                        LongestDefault = DefaultVar.Value.Length;
+                        bAnyDefault = true;
+                    }
+                }
+            }
+
+            StringLocal(Spaces, MAX_KEY_LENGTH);
+            Spaces.Length = LongestName+1;
+            String_Fill(&Spaces, ' ');
+
+            StringLocal(Spaces2, MAX_KEY_LENGTH);
+            Spaces2.Length = (LongestDefault-7)+1;
+            String_Fill(&Spaces2, ' ');
+
+            if (bAnyDefault)
+            {
+                //LOG("    %S  Default%S  Description\n", Spaces, Spaces2);
+                //LOG("    %S  %S  ", Spaces, Spaces2);
+            }
+            else
+            {
+                //LOG("    %S  Description\n", Spaces);
+                //LOG("    %S  ", Spaces);
+            }
+
+            for EachElement(i, OptionVars)
+            {
+                FileVariable Var = OptionVars[i];
+                if (String_IsValid(Var.Name))
+                {
+                    String Trimmed = StrShiftF(Var.Name, 7);
+
+                    String FinalValue = String_Null();
+
+                    // get the base key
+                    FileVariable Base = GetVariable(ExpandedVariablesDB, Var.Name);
+                    FinalValue = Base.Value;
+
+                    // get the default key
+                    StringLocal(Default, MAX_KEY_LENGTH);
+                    String_Append(&Default, Var.Name);
+                    String_Append(&Default, S(".Default"));
+                    FileVariable DefaultVar = GetVariable(ExpandedVariablesDB, Default);
+
+                    if (!String_IsValid(FinalValue))
+                    {
+                        bool bExists = DoesCmdOptionExist(CmdOptionsDB, Trimmed);
+                        if (bExists)
+                        {
+                            FinalValue = GetCmdOptionValue(CmdOptionsDB, Trimmed);
+                            if (!FinalValue.Length)
+                            {
+                                FinalValue = S("on");
+                            }
+                        }
+                    }
+
+                    if (!String_IsValid(FinalValue))
+                    {
+                        FinalValue = DefaultVar.Value;
+                    }
+
+                    if (!String_IsValid(FinalValue))
+                    {
+                        String First = Base.Params;
+                        u32 Space = 0;
+                        if (String_IndexOfFirstWhitespace(Base.Params, &Space))
+                        {
+                            First = StrSlice(Base.Params.Data, Space);
+                        }
+
+                        FinalValue = First;
+                    }
+
+                    if (!String_IsValid(FinalValue))
+                    {
+                        FinalValue = S("off");
+                    }
+
+                    // get the description key
+                    StringLocal(Desc, MAX_KEY_LENGTH);
+                    String_Append(&Desc, Var.Name);
+                    String_Append(&Desc, S(".Description"));
+                    FileVariable DescriptionVar = GetVariable(ExpandedVariablesDB, Desc);
+
+                    String FinalDesc = DescriptionVar.Value;
+                    if (!String_IsValid(FinalDesc))
+                    {
+                        FinalDesc = S("No description provided");
+                    }
+
+                    u32 NameLength = (LongestName - Trimmed.Length) + 1;
+                    u32 ValueLength = (LongestDefault - FinalValue.Length) + 1;
+                    if (!bAnyDefault)
+                    {
+                        ValueLength = 0;
+                    }
+
+                    LogOptionData_WordWrapped(*Arena, Trimmed, NameLength, FinalValue, ValueLength, FinalDesc);
+                }
+            }
+
+            if (!bAnyOptions)
+            {
+                LOG("    No options provided. Use -h to view this program's usage help instead.");
+            }
+
+            return 0;
+        }
+
         bAnyVarsOverriden = CheckForBuildVariableOverrides(VariablesDB, ExpandedVariablesDB, CmdOptionsDB);
 
         const String Ext  = GetVariableValue(ExpandedVariablesDB, S("Extension"));
@@ -3380,7 +3573,6 @@ static u32 BuildTarget(LinearAllocator* Arena,
     String Icon                             = GetVariableValue(ExpandedVariablesDB, S("Icon"));
     const String PCHPath                    = GetVariableValue(ExpandedVariablesDB, S("PCH"));
     const String PCHHeaderPath              = GetVariableValue(ExpandedVariablesDB, S("PCH.h"));
-    const String HelpMessage                = GetVariableValue(ExpandedVariablesDB, S(".Help"));
     const String RPath                      = GetVariableValue(ExpandedVariablesDB, S(".RPath"));
 
     if (!IncludedSourceFiles.Length)
@@ -3421,197 +3613,6 @@ static u32 BuildTarget(LinearAllocator* Arena,
     String LinkerStack                      = GetVariableValue(ExpandedVariablesDB, S("Linker.Stack"));
     const bool bLinkerNoStd                 = DoesBuildVarExist(ExpandedVariablesDB, S("Linker.NoStdLib"));
     const bool bLinkerNoDefaultLibs         = DoesBuildVarExist(ExpandedVariablesDB, S("Linker.NoDefaultLibs"));
-
-    if (bHelp)
-    {
-        LOG_INLINE_WARNING("\nHelp\n");
-        if (HelpMessage.Length > 0)
-        {
-            LOG("%S", HelpMessage);
-        }
-        else
-        {
-            LOG("    No help message provided. Use -h to view this program's usage help instead.");
-        }
-
-        return 0;
-    }
-
-    if (bOptions)
-    {
-        LOG_INLINE_WARNING("\nOptions\n\n");
-
-        SArray(FileVariable, OptionVars, 64) = {0};
-        
-        u32 LongestName = 8;
-
-        bool bAnyOptions = false;
-        for each (FileVariable, v, ExpandedVariablesDB)
-        {
-            if (String_StartsWith(v.Name, S("Option."), false))
-            {
-                bAnyOptions = true;
-
-                String Trimmed = v.Name;
-                u32 LastDot = 0;
-                if (String_IndexOfLastChar(StrShiftF(v.Name, 7), '.', &LastDot))
-                {
-                    Trimmed = StrSlice(Trimmed.Data, LastDot+7);
-                }
-
-                // did we already add this?
-                bool bAlready = false;
-                for EachElement(i, OptionVars)
-                {
-                    if (String_IsEqual(OptionVars[i].Name, Trimmed, false))
-                    {
-                        bAlready = true;
-                        break;
-                    }
-                }
-
-                if (bAlready)
-                {
-                    continue;
-                }
-
-                FileVariable NewVar = v;
-                NewVar.Name = Trimmed;
-
-                SArray_Add(OptionVars, NewVar);
-
-                if (StrShiftF(Trimmed, 7).Length > LongestName)
-                {
-                    LongestName = StrShiftF(Trimmed, 7).Length;
-                }
-            }
-        }
-
-
-        u32 LongestDefault = 7;
-        bool bAnyDefault = false;
-        for EachElement(i, OptionVars)
-        {
-            FileVariable Var = OptionVars[i];
-            if (String_IsValid(Var.Name))
-            {
-                // get the default key
-                StringLocal(Default, MAX_KEY_LENGTH);
-                String_Append(&Default, Var.Name);
-                String_Append(&Default, S(".Default"));
-                FileVariable DefaultVar = GetVariable(ExpandedVariablesDB, Default);
-
-                if (DefaultVar.Value.Length > LongestDefault)
-                {
-                    LongestDefault = DefaultVar.Value.Length;
-                    bAnyDefault = true;
-                }
-            }
-        }
-
-        StringLocal(Spaces, MAX_KEY_LENGTH);
-        Spaces.Length = LongestName+1;
-        String_Fill(&Spaces, ' ');
-
-        StringLocal(Spaces2, MAX_KEY_LENGTH);
-        Spaces2.Length = (LongestDefault-7)+1;
-        String_Fill(&Spaces2, ' ');
-
-        if (bAnyDefault)
-        {
-            //LOG("    %S  Default%S  Description\n", Spaces, Spaces2);
-            //LOG("    %S  %S  ", Spaces, Spaces2);
-        }
-        else
-        {
-            //LOG("    %S  Description\n", Spaces);
-            //LOG("    %S  ", Spaces);
-        }
-
-        for EachElement(i, OptionVars)
-        {
-            FileVariable Var = OptionVars[i];
-            if (String_IsValid(Var.Name))
-            {
-                String Trimmed = StrShiftF(Var.Name, 7);
-
-                String FinalValue = String_Null();
-
-                // get the base key
-                FileVariable Base = GetVariable(ExpandedVariablesDB, Var.Name);
-                FinalValue = Base.Value;
-
-                // get the default key
-                StringLocal(Default, MAX_KEY_LENGTH);
-                String_Append(&Default, Var.Name);
-                String_Append(&Default, S(".Default"));
-                FileVariable DefaultVar = GetVariable(ExpandedVariablesDB, Default);
-
-                if (!String_IsValid(FinalValue))
-                {
-                    bool bExists = DoesCmdOptionExist(CmdOptionsDB, Trimmed);
-                    if (bExists)
-                    {
-                        FinalValue = GetCmdOptionValue(CmdOptionsDB, Trimmed);
-                        if (!FinalValue.Length)
-                        {
-                            FinalValue = S("on");
-                        }
-                    }
-                }
-
-                if (!String_IsValid(FinalValue))
-                {
-                    FinalValue = DefaultVar.Value;
-                }
-
-                if (!String_IsValid(FinalValue))
-                {
-                    String First = Base.Params;
-                    u32 Space = 0;
-                    if (String_IndexOfFirstWhitespace(Base.Params, &Space))
-                    {
-                        First = StrSlice(Base.Params.Data, Space);
-                    }
-
-                    FinalValue = First;
-                }
-
-                if (!String_IsValid(FinalValue))
-                {
-                    FinalValue = S("off");
-                }
-
-                // get the description key
-                StringLocal(Desc, MAX_KEY_LENGTH);
-                String_Append(&Desc, Var.Name);
-                String_Append(&Desc, S(".Description"));
-                FileVariable DescriptionVar = GetVariable(ExpandedVariablesDB, Desc);
-
-                String FinalDesc = DescriptionVar.Value;
-                if (!String_IsValid(FinalDesc))
-                {
-                    FinalDesc = S("No description provided");
-                }
-
-                u32 NameLength = (LongestName - Trimmed.Length) + 1;
-                u32 ValueLength = (LongestDefault - FinalValue.Length) + 1;
-                if (!bAnyDefault)
-                {
-                    ValueLength = 0;
-                }
-
-                LogOptionData_WordWrapped(*Arena, Trimmed, NameLength, FinalValue, ValueLength, FinalDesc);
-            }
-        }
-
-        if (!bAnyOptions)
-        {
-            LOG("    No options provided. Use -h to view this program's usage help instead.");
-        }
-
-        return 0;
-    }
 
     LOG("Timestamp:         %S\n", TimeStamp);
 
@@ -6551,13 +6552,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     p.Extension                     = Extension;
     p.Extension_Og                  = Extension_Og;
     p.Type                          = AssemblyType;
-    p.WhitelistFiles                = WhitelistArray;
-    p.WhitelistDirectories          = WhitelistDirArray;
-    p.BlacklistFiles                = BlacklistArray;
-    p.BlacklistDirectories          = BlacklistDirArray;
-    p.SourceFileExtensions          = CustomExtensionsList;
     p.Processes                     = &Processes;
-    //p.Pipes                         = &Pipes;
     p.RootDirectory                 = WorkingPath;
     p.SourceDirectory               = SourceDirectory;
     p.BuildDirectory                = BuildDirectory;
@@ -6591,8 +6586,6 @@ static u32 BuildTarget(LinearAllocator* Arena,
     p.Version                       = Version;
     p.SourceFiles                   = *CountData.FilteredFiles;
     p.NumSources                    = NumSources;
-    p.NumHeaders                    = CountData.NumHeaders;
-    p.NumRcSources                  = CountData.NumRcSources;
     p.bHasCppFiles                  = CountData.bHasCppFiles;
     p.bDumpObjFilesInOneDirectory   = bDumpObjFilesInOneDirectory;
     p.CameFromBuildFile             = CameFromBuildFile;
@@ -7763,7 +7756,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
         PrintClockTimeToBuffer(&TimingBuffer, &DependencyBuildClock, &BuildRuntime, S(  "Dependency  time: "), true);
         PrintClockTimeToBuffer(&TimingBuffer, &ExternalClock,        &BuildRuntime, S(  "External    time: "), true);
         PrintClockTimeToBuffer(&TimingBuffer, &OverheadClock,        &BuildRuntime, S(  "Overhead    time: "), true);
-        PrintClockTimeToBuffer(&TimingBuffer, &BuildRuntime,         NULL         , S(  "Total build time: "), false);
+        PrintClockTimeToBuffer(&TimingBuffer, &BuildRuntime,         NULL,          S(  "Total build time: "), false);
 
         LOG("%S", TimingBuffer);
     }

@@ -1491,7 +1491,15 @@ bool C_Link(const BuildParams* Params)
         String_Concat(&CmdLine, OutputFlag, S("\""), BuildPath, LibFile, S("\" "));
 
 
-        String_BuildSeparator(&CmdLine, ' ', VerboseFlag, Params->LinkerFlags, Params->Libraries, Params->LibraryDirectories, Params->VersionResFilePath, bIsMicrosoftArchiver ? WinSDKLibPaths : String_Null());
+        if (bIsMicrosoftArchiver)
+        {
+            String_BuildSeparator(&CmdLine, ' ', VerboseFlag, Params->LinkerFlags, Params->Libraries, Params->LibraryDirectories, Params->VersionResFilePath, WinSDKLibPaths);
+        }
+        else
+        {
+            String_BuildSeparator(&CmdLine, ' ', VerboseFlag, Params->ArchiverFlags, Params->VersionResFilePath);
+        }
+
         String_AppendSpace(&CmdLine);
 
         Internal_AppendObjSourceFiles(Params, &CmdLine, DefaultObjExtension);

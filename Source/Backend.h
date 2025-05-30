@@ -12,6 +12,8 @@
 
 global bool bQuietBuild;
 global bool bNoWordWrapLogging;
+global bool bHelp;
+global bool bOptions;
 
 STRUCT(FileVariable)
 {
@@ -167,6 +169,7 @@ STRUCT(BuildParams)
     String AssemblerIncludes;
     String AssemblerDefines;
     String LinkerFlags;
+    String ArchiverFlags;
     String IncludeFlags;
     String DefineFlags;
     String UnDefineFlags;
@@ -200,18 +203,12 @@ STRUCT(BuildParams)
     String VisualStudioLibraryPath;
 
     StringList SourceFiles;
-    StringList WhitelistFiles, WhitelistDirectories;
-    StringList BlacklistFiles, BlacklistDirectories;
-    StringList SourceFileExtensions;
 
     LinearAllocator* Arena;
 
     TArray(PlatformHandle)* Processes;
-    TArray(PlatformPipe)* Pipes;
 
     u32 NumSources;
-    u32 NumHeaders;
-    u32 NumRcSources;
 
     EAssemblyType Type;
 

@@ -855,7 +855,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Include(LinearAllocator* Arena, Pa
 
     if (!bFoundTokens)
     {
-        LOG_ERROR("[Parser] [Line %u]: '%S' was unexpected after 'include'. Expected a file path or expression.", Parser_Peek(P).Line, Parser_Peek(P).Lexeme);
+        LOG_ERROR("\n[Parser] [Line %u]: '%S' was unexpected after 'include'. Expected a file path or expression.", Parser_Peek(P).Line, Parser_Peek(P).Lexeme);
         return &Node_Null;
     }
 
@@ -924,7 +924,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena, Parser*
             if (!Parser_Match(P, Token_RCurly))
             {
                 // todo get line number for the else token
-                LOG_ERROR("[Parser] [Line %u]: '}' is missing for '%S' block.", Parser_LookBack(P).Line, LastTokenType == Token_If ? S("if") : S("else"));
+                LOG_ERROR("\n[Parser] [Line %u]: '}' is missing for '%S' block.", Parser_LookBack(P).Line, LastTokenType == Token_If ? S("if") : S("else"));
                 return &Node_Null;
             }
 
@@ -950,7 +950,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena, Parser*
                 bool bHasCurly = Parser_Match(P, Token_LCurly);
                 if (bHasCurly)
                 {
-                    LOG_ERROR("[Parser] [Line %u]: '{' are not allowed for inline if statements.", Parser_LookBack(P).Line);
+                    LOG_ERROR("\n[Parser] [Line %u]: '{' are not allowed for inline if statements.", Parser_LookBack(P).Line);
                     return &Node_Null;
                 }
 
@@ -1017,7 +1017,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena, Parser*
 
                 if (Parser_Peek(P).Type != Token_Text)
                 {
-                    LOG_ERROR("[Parser] [Line %u]: '%S' are not allowed within 'if' statements. Please delete.", Parser_Peek(P).Line, Parser_Peek(P).Lexeme);
+                    LOG_ERROR("\n[Parser] [Line %u]: '%S' are not allowed within 'if' statements. Please delete.", Parser_Peek(P).Line, Parser_Peek(P).Lexeme);
                     return &Node_Null;
                 }
 
@@ -1050,7 +1050,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena, Parser*
                     Comparison.Type == Token_StartsWith     || Comparison.Type == Token_EndsWith    ||
                     Comparison.Type == Token_Contains))
                 {
-                    LOG_ERROR("[Parser] [Line %u]: '%S' was unexpected after '%S'. Expected either another 'if', comparison operator, Key Value, or new block after '%S'. Please delete.", Comparison.Line,Comparison.Lexeme, Parser_LookBack(P).Lexeme, Parser_LookBack(P).Lexeme);
+                    LOG_ERROR("\n[Parser] [Line %u]: '%S' was unexpected after '%S'. Expected either another 'if', comparison operator, Key Value, or new block after '%S'. Please delete.", Comparison.Line,Comparison.Lexeme, Parser_LookBack(P).Lexeme, Parser_LookBack(P).Lexeme);
                     return &Node_Null;
                 }
 
@@ -1090,7 +1090,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena, Parser*
                         }
                         else
                         {
-                            LOG_ERROR("[Parser] [Line %u]: '%S' was unexpected after '%S'. Please delete.", TestToken.Line, TestToken.Lexeme, Comparison.Lexeme);
+                            LOG_ERROR("\n[Parser] [Line %u]: '%S' was unexpected after '%S'. Please delete.", TestToken.Line, TestToken.Lexeme, Comparison.Lexeme);
                             return &Node_Null;
                         }
                     }
@@ -1132,11 +1132,11 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena, Parser*
         {
             if (t.Lexeme.Length > 0)
             {
-                LOG_ERROR("[Parser] [Line %u]: '%S' was unexpected after 'if'", t.Line, t.Lexeme);
+                LOG_ERROR("\n[Parser] [Line %u]: '%S' was unexpected after 'if'", t.Line, t.Lexeme);
             }
             else
             {
-                LOG_ERROR("[Parser] [Line %u]: Missing expression after 'if'", t.Line);
+                LOG_ERROR("\n[Parser] [Line %u]: Missing expression after 'if'", t.Line);
             }
 
             return &Node_Null;
@@ -1245,7 +1245,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Pars
             if (PrevTokenType != Token_Text &&
                 PrevTokenType != Token_Assert)
             {
-                LOG_ERROR("[Parser] [Line %u]: Anonymous blocks are not allowed. Missing <key> before '{'.", t.Line);
+                LOG_ERROR("\n[Parser] [Line %u]: Anonymous blocks are not allowed. Missing <key> before '{'.", t.Line);
                 return &Node_Null;
             }
 
@@ -1258,7 +1258,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Pars
 
             if (!Parser_Match(P, Token_RCurly))
             {
-                LOG_ERROR("[Parser] [Line %u]: '}' is missing for '%S' block.", Parser_LookBack(P).Line, ETokenTypeNoPrefix_ToString(PrevTokenType));
+                LOG_ERROR("\n[Parser] [Line %u]: '}' is missing for '%S' block.", Parser_LookBack(P).Line, ETokenTypeNoPrefix_ToString(PrevTokenType));
                 return &Node_Null;
             }
 
@@ -1377,7 +1377,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Pars
             }
             else
             {
-                LOG_ERROR("[Parser] [Line %u]: Unexpected token '['. Please delete.", t.Line);
+                LOG_ERROR("\n[Parser] [Line %u]: Unexpected token '['. Please delete.", t.Line);
                 return &Node_Null;
             }
         }
@@ -1427,7 +1427,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Pars
             // this is an error
             if (String_IsEqual(t.Lexeme, S(".ErrorMessage"), false))
             {
-                LOG_ERROR("[Parser] [Line %u]: '%S' must be paired with a key.", t.Line, t.Lexeme);
+                LOG_ERROR("\n[Parser] [Line %u]: '%S' must be paired with a key.", t.Line, t.Lexeme);
                 
                 String Spaces = S("     ");
                 LOG_INLINE_WARNING("\n%SExample of valid syntax\n\n", Spaces);
@@ -1459,13 +1459,13 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Pars
 
             if (!IsAlphabet(t.Lexeme.Data[0]) && t.Lexeme.Data[0] != '.')
             {
-                LOG_ERROR("[Parser] [Line %u]: Key '%S' can only start with an alphabet character or '.'. Please remove '%c'", t.Line, t.Lexeme, t.Lexeme.Data[0]);
+                LOG_ERROR("\n[Parser] [Line %u]: Key '%S' can only start with an alphabet character or '.'. Please remove '%c'", t.Line, t.Lexeme, t.Lexeme.Data[0]);
                 return &Node_Null;
             }
 
             if (t.Lexeme.Length > MAX_KEY_LENGTH)
             {
-                LOG_ERROR("[Parser] [Line %u]: Key '%S' exceeds %u characters. Please shorten to %u or less characters", t.Line, t.Lexeme, MAX_KEY_LENGTH, MAX_KEY_LENGTH);
+                LOG_ERROR("\n[Parser] [Line %u]: Key '%S' exceeds %u characters. Please shorten to %u or less characters", t.Line, t.Lexeme, MAX_KEY_LENGTH, MAX_KEY_LENGTH);
                 return &Node_Null;
             }
 
@@ -1492,7 +1492,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Pars
 
                 if (!Parser_Match(P, Token_RParen))
                 {
-                    LOG_ERROR("[Parser] [Line %u]: '%S' was unexpected within parameter list. Missing enclosing ')'", Parser_Peek(P).Line, Parser_Peek(P).Lexeme);
+                    LOG_ERROR("\n[Parser] [Line %u]: '%S' was unexpected within parameter list. Missing enclosing ')'", Parser_Peek(P).Line, Parser_Peek(P).Lexeme);
                     return &Node_Null;
                 }
             }
@@ -1531,7 +1531,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Pars
 
                         if (!Parser_Match(P, Token_Text))
                         {
-                            LOG_ERROR("[Parser] [Line %u]: Text was expected after '%S'. Please delete '%S'", Parser_Peek(P).Line, Parser_LookBack(P).Lexeme, Parser_Peek(P).Lexeme);
+                            LOG_ERROR("\n[Parser] [Line %u]: Text was expected after '%S'. Please delete '%S'", Parser_Peek(P).Line, Parser_LookBack(P).Lexeme, Parser_Peek(P).Lexeme);
                             return &Node_Null;
                         }
 
@@ -1659,7 +1659,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Pars
         {
             if (!bInlineIf)
             {
-                LOG_ERROR("[Parser] [Line %u]: Illegal 'else' without matching 'if'", t.Line);
+                LOG_ERROR("\n[Parser] [Line %u]: Illegal 'else' without matching 'if'", t.Line);
                 return &Node_Null;
             }
 
@@ -1681,7 +1681,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Pars
         }
         else
         {
-            LOG_ERROR("[Parser] [Line %u]: Keys can not start with '%S'. Please delete.", t.Line, t.Lexeme);
+            LOG_ERROR("\n[Parser] [Line %u]: Keys can not start with '%S'. Please delete.", t.Line, t.Lexeme);
             return &Node_Null;
         }
 
@@ -4147,7 +4147,7 @@ NO_DISCARD bool ParseBuildFileV2(LinearAllocator* PermanentArena,
         //Clock_PrintElapsedTime(&c, true);
     }
 
-    if (bSuccess)
+    if (bSuccess && !bHelp && !bOptions)
     {
         // 3. check for certain keys if they exist, if they dont, add the default value
         {
