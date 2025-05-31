@@ -793,12 +793,13 @@ NO_DISCARD bool Filesystem_Open(const String FilePath, EFileMode Mode, FileHandl
     }
     else
     {
-        // Invalid mode passed (%u) while trying to open file: %S", Mode, FilePath
+        // Invalid mode passed
         ENSURE(0);
         bSuccess = false;
     }
 
-    if (bSuccess)
+    // make the directory if we are not in read only mode
+    if (bSuccess && Mode != FileMode_Read)
     {
         bool bFoundPathSeparator = false;
         u32 NextSlashIndex = 0;
