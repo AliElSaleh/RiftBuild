@@ -2638,7 +2638,7 @@ static void Analyze_KVNode(LinearAllocator* Arena, Node* Root, ParsingContext* C
         xx String_EatSpacesInlineFromEnd(&Params);
     }
 
-    if (String_IsEqual(FinalKey, S("default.options"), false) && !Context->bPresetCmdLineGiven)
+    if (String_IsEqual(FinalKey, S("default.options"), false) && !Context->bIgnoreDefaultOptions)
     {
         LinearAllocator Scratch = {0};
         i8 ScratchMemory[MAX_VALUE_LENGTH] = {0};
@@ -3831,9 +3831,11 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
             if (String_StartsWith(Var.Name, S("Option."), false) && String_EndsWith(Var.Name, S(".Assert"), false))
             {
                 String Trimmed = StrShiftF(Var.Name, 7);
-                u32 LastDot = 0;
-                xx String_IndexOfLastChar(Trimmed, '.', &LastDot);
-                Trimmed = StrSlice(Trimmed.Data, LastDot);
+                {
+                    u32 LastDot = 0;
+                    xx String_IndexOfLastChar(Trimmed, '.', &LastDot);
+                    Trimmed = StrSlice(Trimmed.Data, LastDot);
+                }
 
                 bool bFound = false;
                 // TODO: extract into a function. replace all the other cmdoptionsdb loops
@@ -3859,6 +3861,28 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
                     #else
                     LOG_ERROR("yo da cmd line var \"%S\" don exist cuh. dat shit not there nigga", Trimmed);
                     #endif
+
+                    // TODO: make fucntion, this is duplicated code
+                    // TODO: do this for the other assert
+                    String SearchName = Var.Name;
+                    u32 LastDot = 0;
+                    if (String_IndexOfLastChar(StrShiftF(SearchName, 7), '.', &LastDot))
+                    {
+                        SearchName = StrSlice(SearchName.Data, LastDot+7);
+                    }
+
+                    bool bFoundParams = false;
+                    String Params = GetOptionParamsFromVarList(Context->VarListHead, SearchName, &bFoundParams);
+                    if (bFoundParams)
+                    {
+                        StringList List = String_SplitIntoList(&Scratch, Params, ' ', true);
+
+                        LOG("\n    Here are the accepted options:");
+                        for each_string_in_list (List)
+                        {
+                            LOG("      - %S=%S", Trimmed, It.String);
+                        }
+                    }
 
                     xx Internal_LogCustomErrorMessage(Context, S("Option"), Trimmed, true);
 

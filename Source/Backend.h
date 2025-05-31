@@ -303,7 +303,7 @@ STRUCT(ParsingContext)
     FileVariableList**   VarListTail;
     String               WorkingDirectory;
     bool                 bNoFail;
-    bool                 bPresetCmdLineGiven;
+    bool                 bIgnoreDefaultOptions;
     u8                   Level;
     u8                   Padding[5];
 };

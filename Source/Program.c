@@ -48,6 +48,35 @@ static bool bIsRebuild = false;
 static bool bIsClean = false;
 static bool bVerboseLog = false;
 
+read_only String BuiltinOptions[] =
+{
+    SC("-h"),
+    SC("-a"),
+    SC("-v"),
+    SC("-q"),
+    SC("-s"),
+    SC("-t"),
+    SC("-?"),
+    SC("/?"),
+    SC("-?"),
+    SC("?"),
+    SC("--help"),
+    SC("--about"),
+    SC("--verbose"),
+    SC("--quiet"),
+    SC("--tutorial"), // todo: different types of tutorials like --tutorial:name
+    SC("--from-desktop"),
+    SC("help"),
+    SC("options"),
+    SC("clean"),
+    SC("rebuild"),
+    SC("run"),
+    SC("list:"),
+    SC("override:"),
+    SC("export:"),
+    SC("preset:"),
+};
+
 STRUCT(BuildFileDirectoryIteratorData)
 {
     String*     Name;
@@ -1125,7 +1154,7 @@ static bool EnforceCopyright(const BuildParams* Params, CopyrightEnforceInfo* Au
     return bContinueSearch;
 }
 
-static void LogOptionData_WordWrapped(LinearAllocator Scratch, const String Name, u32 NamePadding, const String Value, u32 ValuePadding, const String Description)
+static void LogOptionData_WordWrapped(LinearAllocator Scratch, const String Name, u32 NamePadding, const String Value, u32 ValuePadding, const String Params, u32 ParamPadding, const String Description)
 {
     u32 Rows = 0, Cols = 0;
     xx Platform_GetTerminalDimensions(&Rows, &Cols);
@@ -1133,8 +1162,10 @@ static void LogOptionData_WordWrapped(LinearAllocator Scratch, const String Name
 
     StringLocal(LogBuffer, MAX_VALUE_LENGTH);
 
+    u32 ParamsLength = ParamPadding > 0 ? ParamPadding + 1 : 0;
+
     StringLocal(Spaces, MAX_KEY_LENGTH);
-    Spaces.Length = NamePadding;
+    Spaces.Length = NamePadding + ParamsLength - (Params.Length > 0 ? 3 : 0);
     String_Fill(&Spaces, ' ');
 
     StringLocal(Spaces2, MAX_KEY_LENGTH);
@@ -1154,7 +1185,6 @@ static void LogOptionData_WordWrapped(LinearAllocator Scratch, const String Name
 
         String_Append(&LogBuffer, StrSlice(Description.Data, Fit));
 
-
         for (u32 i = 0; i < Loops; i++)
         {
             String_AppendNewline(&LogBuffer);
@@ -1166,22 +1196,34 @@ static void LogOptionData_WordWrapped(LinearAllocator Scratch, const String Name
             String_Append(&LogBuffer, Padding);
             String_Append(&LogBuffer, StrSlice(StrShiftF(Description, Fit*(i+1)).Data, Fit));
         }
-
     }
     else
     {
         LogBuffer = Description;
     }
 
-    if (ValuePadding)
+    if (ValuePadding) // we have defaults to show...
     {
-        LOG("    %S%S| %S%S| %S", Name, Spaces, Value, Spaces2, LogBuffer);
+        if (Params.Length)
+        {
+            LOG("    %S=[%S]%S| %S%S| %S", Name, Params, Spaces, Value, Spaces2, LogBuffer);
+        }
+        else
+        {
+            LOG("    %S%S| %S%S| %S", Name, Spaces, Value, Spaces2, LogBuffer);
+        }
     }
     else
     {
-        LOG("    %S%S| %S", Name, Spaces, LogBuffer);
+        if (Params.Length)
+        {
+            LOG("    %S=[%S]%S| %S", Name, Params, Spaces, LogBuffer);
+        }
+        else
+        {
+            LOG("    %S%S| %S", Name, Spaces, LogBuffer);
+        }
     }
-
 }
 
 bool LogStringList_WordWrapped(LinearAllocator Scratch, const String Name, const StringList List)
@@ -2520,6 +2562,7 @@ static void PrintUsage(const String WorkingDirectory)
     // -t:help
 
     // TODO: better documentation
+    // TODO: use the BuiltinOptions global var. make some kinda structure out of this and not hardcoded
     LOG_INLINE_WARNING("Options\n");
     LOG(
       "   -h, --help, /?, -?, ? : Display this help message\n"
@@ -2531,6 +2574,7 @@ static void PrintUsage(const String WorkingDirectory)
     "\n   options               : Print out custom options from the build file\n"
     "\n   clean                 : Delete all intermediate and binary files\n"
     "\n   rebuild               : Clean all and build\n"
+    "\n   run                   : If building an executable, immediately run it after the build has succeeded.\n"
     "\n   list                  : List variables given this syntax -> list:name\n"
     "                           special names like \"list:all\" will list all variables\n"
     "\n   override              : Override a build variable given this syntax -> override:Name=Value\n"
@@ -2831,28 +2875,34 @@ static u32 BuildTarget(LinearAllocator* Arena,
     Clock BuildRuntime;
     Clock_Start(&BuildRuntime);
 
-    bool bPresetCmdLineGiven = false;
+    bool bIgnoreDefaultOptions = false;
+
+    u8 UniqueCmdLineArgs = 0;
 
     StringLocal(RiftCmdLine, 2048);
     for (u8 i = 0; i < Parameters.Num; i++)
     {
-        // todo: something better, ignore certain parameters
-        // todo: allow the user to specify which args can be ignored for rebuild?
-        if (String_IsEqual(Parameters.List[i], S("rebuild"), false) ||
-            String_IsEqual(Parameters.List[i], S("clean"), false) ||
-            String_IsEqual(Parameters.List[i], S("run"), false) ||
-            String_IsEqual(Parameters.List[i], S("-v"), false) ||
-            String_IsEqual(Parameters.List[i], S("-q"), false) ||
-            String_IsEqual(Parameters.List[i], S("-s"), false) ||
-            String_IsEqual(Parameters.List[i], S("--from-desktop"), false) ||
-            String_StartsWith(Parameters.List[i], S("export:"), false))
-        {
-            continue;
-        }
-
         if (String_IsEqual(Parameters.List[i], S("preset:"), false))
         {
-            bPresetCmdLineGiven = true;
+            UniqueCmdLineArgs += 1;
+        }
+
+        // todo: allow the user to specify which args can be ignored for rebuild?
+        bool bIsBuiltin = false;
+        for (u8 j = 0; j < SArray_Capacity(BuiltinOptions); j++)
+        {
+            String Option = BuiltinOptions[j];
+            if (String_IsEqual(Parameters.List[i], Option, false) ||
+                String_StartsWith(Parameters.List[i], Option, false))
+            {
+                bIsBuiltin = true;
+                break;
+            }
+        }
+
+        if (bIsBuiltin)
+        {
+            continue;
         }
 
         String_Append     (&RiftCmdLine, Parameters.List[i]);
@@ -2880,11 +2930,28 @@ static u32 BuildTarget(LinearAllocator* Arena,
     {
         const String Param = Parameters.List[i];
 
+        // TODO: something better. this is duplicated code...
+        bool bIsBuiltin = false;
+        for (u8 j = 0; j < SArray_Capacity(BuiltinOptions); j++)
+        {
+            String Option = BuiltinOptions[j];
+            if (String_IsEqual(Parameters.List[i], Option, false) ||
+                String_StartsWith(Parameters.List[i], Option, false))
+            {
+                bIsBuiltin = true;
+                break;
+            }
+        }
+
+        if (bIsBuiltin)
+        {
+            continue;
+        }
+
+        // ignore .build file and paths as they're not gonna be referenced anywhere
         if (i != BuildFileIndex &&
             i != RootPathIndex)
         {
-            //const String P = String_EatChar(Param, '-');
-
             u32 EqualIndex = 0;
             bool bFoundEqual = String_IndexOfChar(Param, '=', &EqualIndex);
 
@@ -2906,7 +2973,14 @@ static u32 BuildTarget(LinearAllocator* Arena,
             }
 
             Array_Add(CmdOptionsDB, c);
+
+            UniqueCmdLineArgs += 1;
         }
+    }
+
+    if (UniqueCmdLineArgs > 0)
+    {
+        bIgnoreDefaultOptions = true;
     }
 
     String BuildFileName;
@@ -3079,14 +3153,14 @@ static u32 BuildTarget(LinearAllocator* Arena,
             i8 ScratchMemory[Kibibytes(512)] = {0};
             LinearAllocator_Create(Kibibytes(512), ScratchMemory, &Scratch);
 
-            ParsingContext Context      = {0};
-            Context.TempArena           = &Scratch;
-            Context.VariablesDB         = VariablesDB;
-            Context.CmdOptionsDB        = CmdOptionsDB;
-            Context.Messages            = Messages;
-            Context.IncludeFiles        = IncludeFiles;
-            Context.WorkingDirectory    = WorkingPath;
-            Context.bPresetCmdLineGiven = bPresetCmdLineGiven;
+            ParsingContext Context        = {0};
+            Context.TempArena             = &Scratch;
+            Context.VariablesDB           = VariablesDB;
+            Context.CmdOptionsDB          = CmdOptionsDB;
+            Context.Messages              = Messages;
+            Context.IncludeFiles          = IncludeFiles;
+            Context.WorkingDirectory      = WorkingPath;
+            Context.bIgnoreDefaultOptions = bIgnoreDefaultOptions;
 
             if (!ParseBuildFileV2(Arena, BuildFileHandle, BuildFilePath, Context, false, NULL))
             {
@@ -3120,6 +3194,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
             SArray(FileVariable, OptionVars, 64) = {0};
             
             u32 LongestName = 8;
+            u32 LongestParams = 0;
 
             bool bAnyOptions = false;
             for each (FileVariable, v, ExpandedVariablesDB)
@@ -3159,6 +3234,13 @@ static u32 BuildTarget(LinearAllocator* Arena,
                     if (StrShiftF(Trimmed, 7).Length > LongestName)
                     {
                         LongestName = StrShiftF(Trimmed, 7).Length;
+                    }
+
+                    // get the base key
+                    FileVariable Base = GetVariable(ExpandedVariablesDB, Trimmed);
+                    if (Base.Params.Length > LongestParams)
+                    {
+                        LongestParams = Base.Params.Length;
                     }
                 }
             }
@@ -3272,12 +3354,13 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
                     u32 NameLength = (LongestName - Trimmed.Length) + 1;
                     u32 ValueLength = (LongestDefault - FinalValue.Length) + 1;
+                    u32 ParamLength = (LongestParams - Base.Params.Length) + 1;
                     if (!bAnyDefault)
                     {
                         ValueLength = 0;
                     }
 
-                    LogOptionData_WordWrapped(*Arena, Trimmed, NameLength, FinalValue, ValueLength, FinalDesc);
+                    LogOptionData_WordWrapped(*Arena, Trimmed, NameLength, FinalValue, ValueLength, Base.Params, ParamLength, FinalDesc);
                 }
             }
 
@@ -3525,13 +3608,15 @@ static u32 BuildTarget(LinearAllocator* Arena,
     // Compiler.FlagPrefixSymbol
     // Compiler.MaxCores 
     // Assembler.Flags
+    // Linker
     // Linker.Flags
     // Linker.Defines
+    // Archiver
+    // Archiver.Flags
+    // Archiver.Defines
     // Library.Paths
     // SourceFiles.Exclude
     // SourceDirectories.Exclude
-
-    // TODO: ArchiverFlags/Defines
 
     const String Assembly                   = GetVariableValue(ExpandedVariablesDB, S("Assembly"));
     const String AssemblyPrefix             = GetVariableValue(ExpandedVariablesDB, S("Assembly.Prefix"));
@@ -3561,8 +3646,6 @@ static u32 BuildTarget(LinearAllocator* Arena,
     const String AssertAssemblers           = GetVariableValue(ExpandedVariablesDB, S("Assert.Assembler"));
     const String AssertEnvVars              = GetVariableValue(ExpandedVariablesDB, S("Assert.EnvVarExists"));
     const String AssertBuildVars            = GetVariableValue(ExpandedVariablesDB, S("Assert.BuildVarExists"));
-    //const String AssertLibs                 = GetVariableValue(ExpandedVariablesDB, S("Assert.LibExists"));
-    //String AssertWorkingDirectory           = GetVariableValue(ExpandedVariablesDB, S("Assert.WorkingDirectory"));
     // TODO: delete
     String IncludedSourceFiles              = GetVariableValue(ExpandedVariablesDB, S("IncludedSourceFiles"));
     String ExcludedSourceFiles              = GetVariableValue(ExpandedVariablesDB, S("ExcludedSourceFiles"));
@@ -8329,6 +8412,19 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments, const 
             Filesystem_IterateDirectory(WorkingDirectory, &MultipleBuildFileDirectoryIterator, true);
 
             return 1;
+        }
+
+        // set the build file index, so it can be ignored and not be stored in the cmd options db array
+        if (bNoBuildFileSpecifiedInCmd)
+        {
+            for (u32 i = 0; i < Arguments.Num; i++)
+            {
+                if (String_IsEqual(Filesystem_ExtractFileName(BuildFileName, false), Arguments.List[i], false))
+                {
+                    BuildFileIndex = (i8)i;
+                    break;
+                }
+            }
         }
 
         StringLocal(BuildFilePathFull, MAX_PATH_LENGTH);

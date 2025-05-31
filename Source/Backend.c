@@ -1491,11 +1491,13 @@ bool C_Link(const BuildParams* Params)
         String_Concat(&CmdLine, OutputFlag, S("\""), BuildPath, LibFile, S("\" "));
 
 
+        /*
         if (bIsMicrosoftArchiver)
         {
             String_BuildSeparator(&CmdLine, ' ', VerboseFlag, Params->LinkerFlags, Params->Libraries, Params->LibraryDirectories, Params->VersionResFilePath, WinSDKLibPaths);
         }
         else
+        */
         {
             String_BuildSeparator(&CmdLine, ' ', VerboseFlag, Params->ArchiverFlags, Params->VersionResFilePath);
         }
