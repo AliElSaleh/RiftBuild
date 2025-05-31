@@ -29,13 +29,13 @@ RiftCoreFiles            Core/Memory.c Core/StringUtils.c Core/Log.c Core/Platfo
 SourceFiles              $RiftCoreFiles Program.c Backend.c Exporter.c Parse.c
 SourceFiles:unix         Platform_Unix.c
 
-CompilerFlags            $SharedCompilerFlags
-LinkerFlags              $SharedLinkerFlags
+Compiler.Flags           $SharedCompilerFlags
+Linker.Flags             $SharedLinkerFlags
 Includes                 $SharedIncludeFlags
 Defines                  $SharedDefines %^%hood
 Libraries:linux          pthread uuidS
 Libraries:bsd            pthread
-LibraryDirectories       Source/Libraries/%_platform
+Library.Paths            Source/Libraries/%_platform
 
 if windows
 {

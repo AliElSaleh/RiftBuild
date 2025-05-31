@@ -3600,73 +3600,49 @@ static u32 BuildTarget(LinearAllocator* Arena,
         }
     }
 
-    // TODO: maybe do this? makes things consistent with the other keys
-    // Assembly.Type
-    // Assembly.Extension
-    // Compiler.Flags
-    // Compiler.OutputFlag
-    // Compiler.FlagPrefixSymbol
-    // Compiler.MaxCores 
-    // Assembler.Flags
-    // Linker
-    // Linker.Flags
-    // Linker.Defines
-    // Archiver
-    // Archiver.Flags
-    // Archiver.Defines
-    // Library.Paths
-    // SourceFiles.Exclude
-    // SourceDirectories.Exclude
-
     const String Assembly                   = GetVariableValue(ExpandedVariablesDB, S("Assembly"));
     const String AssemblyPrefix             = GetVariableValue(ExpandedVariablesDB, S("Assembly.Prefix"));
     const String AssemblyPostfix            = GetVariableValue(ExpandedVariablesDB, S("Assembly.Postfix"));
     String Extension                        = GetVariableValue(ExpandedVariablesDB, S("Extension"));
     String Type                             = GetVariableValue(ExpandedVariablesDB, S("Type"));
+
     String CompilerProgram                  = GetVariableValue(ExpandedVariablesDB, S("Compiler"));
-    const String CompilerOutputFlag         = GetVariableValue(ExpandedVariablesDB, S("CompilerOutputFlag"));
-    const String CompilerObjectExt          = GetVariableValue(ExpandedVariablesDB, S("CompilerObjectExtension"));
+    const String CompilerFlags              = GetVariableValue(ExpandedVariablesDB, S("Compiler.Flags"));
+    const String MaxConcurrentCompilations  = GetVariableValue(ExpandedVariablesDB, S("Compiler.MaxCores"));
+    const String CompilerOutputFlag         = GetVariableValue(ExpandedVariablesDB, S("Compiler.OutputFlag"));
+    const String CompilerObjectExt          = GetVariableValue(ExpandedVariablesDB, S("Compiler.ObjectExtension"));
     // TODO: specify a linker program
     //String LinkerProgram                    = GetVariableValue(ExpandedVariablesDB, S("Linker"));
+    const String LinkerFlags                = GetVariableValue(ExpandedVariablesDB, S("Linker.Flags"));
+    const String LinkerDefines              = GetVariableValue(ExpandedVariablesDB, S("Linker.Defines"));
+
     String AsmProgram                       = GetVariableValue(ExpandedVariablesDB, S("Assembler"));
-    String CompilerFlagPrefixSymbol         = S("-");
-    //String AssemblerFlagPrefixSymbol        = S("-");
-    const String CompilerFlags              = GetVariableValue(ExpandedVariablesDB, S("CompilerFlags"));
-    const String AssemblerFlags             = GetVariableValue(ExpandedVariablesDB, S("AssemblerFlags"));
+    const String AssemblerFlags             = GetVariableValue(ExpandedVariablesDB, S("Assembler.Flags"));
     const String AssemblerIncludes          = GetVariableValue(ExpandedVariablesDB, S("Assembler.Includes"));
     const String AssemblerDefines           = GetVariableValue(ExpandedVariablesDB, S("Assembler.Defines"));
-    String IncludeFlags                     = GetVariableValue(ExpandedVariablesDB, S("Includes"));
-    const String Libraries                  = GetVariableValue(ExpandedVariablesDB, S("Libraries"));
-    String LibraryDirectories               = GetVariableValue(ExpandedVariablesDB, S("LibraryDirectories"));
-    const String LinkerFlags                = GetVariableValue(ExpandedVariablesDB, S("LinkerFlags"));
+
+    // String AsmProgram                       = GetVariableValue(ExpandedVariablesDB, S("Archiver"));
+    // const String AssemblerFlags             = GetVariableValue(ExpandedVariablesDB, S("Archiver.Flags"));
+
+    String CompilerFlagPrefixSymbol         = S("-");
     const String Defines                    = GetVariableValue(ExpandedVariablesDB, S("Defines"));
     const String UnDefines                  = GetVariableValue(ExpandedVariablesDB, S("UnDefines"));
-    const String LinkerDefines              = GetVariableValue(ExpandedVariablesDB, S("LinkerDefines"));
+    String IncludeFlags                     = GetVariableValue(ExpandedVariablesDB, S("Includes"));
+    const String Libraries                  = GetVariableValue(ExpandedVariablesDB, S("Libraries"));
+    String LibraryDirectories               = GetVariableValue(ExpandedVariablesDB, S("Library.Paths"));
     const String AssertCompilers            = GetVariableValue(ExpandedVariablesDB, S("Assert.Compiler"));
     const String AssertAssemblers           = GetVariableValue(ExpandedVariablesDB, S("Assert.Assembler"));
     const String AssertEnvVars              = GetVariableValue(ExpandedVariablesDB, S("Assert.EnvVarExists"));
     const String AssertBuildVars            = GetVariableValue(ExpandedVariablesDB, S("Assert.BuildVarExists"));
     // TODO: delete
-    String IncludedSourceFiles              = GetVariableValue(ExpandedVariablesDB, S("IncludedSourceFiles"));
-    String ExcludedSourceFiles              = GetVariableValue(ExpandedVariablesDB, S("ExcludedSourceFiles"));
-    String IncludedSourceDir                = GetVariableValue(ExpandedVariablesDB, S("IncludedSourceDirectories"));
-    const String ExcludedSourceDir          = GetVariableValue(ExpandedVariablesDB, S("ExcludedSourceDirectories"));
-    const String MaxConcurrentCompilations  = GetVariableValue(ExpandedVariablesDB, S("MaxConcurrentCompilations"));
-    //const String OutsideSourceDirectories   = GetExpandedVariableValue(ExpandedVariablesDB, S("ExternalSourceDirectories"));
+    String IncludedSourceFiles              = GetVariableValue(ExpandedVariablesDB, S("SourceFiles"));
+    String ExcludedSourceFiles              = GetVariableValue(ExpandedVariablesDB, S("SourceFiles.Exclude"));
+    String IncludedSourceDir                = GetVariableValue(ExpandedVariablesDB, S("SourceDirectories"));
+    const String ExcludedSourceDir          = GetVariableValue(ExpandedVariablesDB, S("SourceDirectories.Exclude"));
     String Icon                             = GetVariableValue(ExpandedVariablesDB, S("Icon"));
     const String PCHPath                    = GetVariableValue(ExpandedVariablesDB, S("PCH"));
     const String PCHHeaderPath              = GetVariableValue(ExpandedVariablesDB, S("PCH.h"));
     const String RPath                      = GetVariableValue(ExpandedVariablesDB, S(".RPath"));
-
-    if (!IncludedSourceFiles.Length)
-    {
-        IncludedSourceFiles = GetVariableValue(ExpandedVariablesDB, S("SourceFiles"));
-    }
-
-    if (!IncludedSourceDir.Length)
-    {
-        IncludedSourceDir = GetVariableValue(ExpandedVariablesDB, S("SourceDirectories"));
-    }
 
     #if PLATFORM_APPLE
     const String CustomInfoPlist            = GetVariableValue(ExpandedVariablesDB, S("Bundle.InfoPlist"));

@@ -47,7 +47,7 @@ else
     SharedCompilerFlags:mac      -mmacosx-version-min=10.12
     SharedCompilerFlags:analyze  --analyze -funsigned-char
 
-    CompilerObjectExtension:asm  .S
+    Compiler.ObjectExtension:asm .S
 
     SharedLinkerFlags            
     SharedLinkerFlags:32         --target=i386-pc-windows-msvc

@@ -2058,8 +2058,6 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
 
         bLexSuccess = true;
 
-        // TODO: lexer_addtoken once at the bottom
-
         // tokenize the text
         Lexer l = {0};
         l.Text = Text;
@@ -2617,7 +2615,6 @@ static void Analyze_KVNode(LinearAllocator* Arena, Node* Root, ParsingContext* C
         }
     }
 
-    // TODO: debate whether or not we should even store?
     if (Root->Value)
     {
         for each_string_in_list (*Root->Value)
@@ -3245,13 +3242,6 @@ NO_DISCARD static NodeList* Analyze_List(LinearAllocator* Arena, Node* Block, Pa
             }
             else if (Root->Type == Node_Help)
             {
-                // TODO: exit out fully
-                if (Context->Level > 1)
-                {
-                    //LOG_ERROR("'.Help' can not be inside an 'if' or 'else' block");
-                    //return NULL;
-                }
-
                 Analyze_KVNode(Arena, Root, Context);
             }
             else if (Root->Type == Node_Include)
@@ -3265,12 +3255,6 @@ NO_DISCARD static NodeList* Analyze_List(LinearAllocator* Arena, Node* Block, Pa
             }
             else if (Root->Type == Node_ErrorMessage)
             {
-                if (Context->Level > 1)
-                {
-                    //LOG_ERROR("'%S' can not be inside an 'if' or 'else' block", Root->Key);
-                    //return NULL;
-                }
-
                 Analyze_KVNode(Arena, Root, Context);
             }
             else if (Root->Type == Node_LogMessage)
@@ -3729,7 +3713,6 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
                         {
                             bFound = true;
 
-                            // TODO: this might confuse people if they specify 'arg' but not 'arg=VALUE'?
                             if (o.bEqualsToSomething && o.Value.Length == 0)
                             {
                                 bFound = false;
@@ -3809,13 +3792,8 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
                         LOG_ERROR("yo dis program \"%S\" don exist cuh. need to be installed and set in da path ma nigga\n", Trimmed);
                         #endif
 
-                        // todo: try run the program with -v only if they do this: lua|>5.4
-                        // idk maybe not...
-
                         xx Internal_LogCustomErrorMessage(Context, S("Program"), Trimmed, false);
                         
-                        //LogPathEnvVarTutorialSteps();
-
                         bAssertionFailed = true;
                         break;
                     }
@@ -3907,20 +3885,13 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, ParsingCon
 
     if (!DoesVarExistInList(Context->VarListHead, S("BuildDirectory")))
     {
-        AddVariableToList(Arena, Context, S("BuildDirectory"), S("Build"), String_Null());//, false);
+        AddVariableToList(Arena, Context, S("BuildDirectory"), S("Build"), String_Null());
     }
 
     if (!DoesVarExistInList(Context->VarListHead, S("IntermediateDirectory")))
     {
-        AddVariableToList(Arena, Context, S("IntermediateDirectory"), S("Intermediate"), String_Null());//, false);
+        AddVariableToList(Arena, Context, S("IntermediateDirectory"), S("Intermediate"), String_Null());
     }
-
-    /*
-    if (!DoesVarExistInList(Context->VarListHead, S("Version")))
-    {
-        AddVariableToList(Arena, Context, S("Version"), S("1.0.0"), String_Null(), false);
-    }
-    */
 
     const String Type = GetVarValueInList(Context->VarListHead, S("Type"));
     bool bSetExtension = false;
@@ -3990,7 +3961,7 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, ParsingCon
             // no action required
         }
 
-        AddVariableToList(Arena, Context, S("Extension"), Extension, String_Null());//, false);
+        AddVariableToList(Arena, Context, S("Extension"), Extension, String_Null());
         bSetExtension = true;
     }
 
@@ -4039,7 +4010,7 @@ NO_DISCARD bool ParseBuildFileV2(LinearAllocator* PermanentArena,
         // this can almost become a general language that others may find useful, it has basic support for
         // if's and namespacing keys. so all we would do is just parse the file and give you key:value array
         // that the program can use and interpret how it wants.
-        // TODO: think about making this a library?
+        // IDEA: think about making this a library?
 
         // High level flow:
         // 1. (first pass) store all keys possible (skip indeterminates)
@@ -4139,33 +4110,36 @@ NO_DISCARD bool ParseBuildFileV2(LinearAllocator* PermanentArena,
         // todo: remove early return
         if (bInvalidParam)
         {
-            return false;
+            bSuccess = false;
         }
 
-        for each (CmdOption, o, Context.CmdOptionsDB)
+        if (bSuccess)
         {
-            if (String_IsEqual(o.Value, S("@#@"), false))
+            for each (CmdOption, o, Context.CmdOptionsDB)
             {
-                bool bStartsWithPrefix = String_StartsWith(o.Name, S("option."), false);
-
-                StringLocal(Name, MAX_KEY_LENGTH);
-                String_Append(&Name, bStartsWithPrefix ? String_Null() : S("option."));
-                String_Append(&Name, o.Name);
-
-                String OptionValue = GetOptionValueFromVarList(Context.VarListHead, Name, NULL);
-                o_->Value = OptionValue;
-                o_->bEqualsToSomething = OptionValue.Length > 0;
-
-                if (bStartsWithPrefix)
+                if (String_IsEqual(o.Value, S("@#@"), false))
                 {
-                    o_->Name = StrShiftF(o.Name, 7);
+                    bool bStartsWithPrefix = String_StartsWith(o.Name, S("option."), false);
+
+                    StringLocal(Name, MAX_KEY_LENGTH);
+                    String_Append(&Name, bStartsWithPrefix ? String_Null() : S("option."));
+                    String_Append(&Name, o.Name);
+
+                    String OptionValue = GetOptionValueFromVarList(Context.VarListHead, Name, NULL);
+                    o_->Value = OptionValue;
+                    o_->bEqualsToSomething = OptionValue.Length > 0;
+
+                    if (bStartsWithPrefix)
+                    {
+                        o_->Name = StrShiftF(o.Name, 7);
+                    }
                 }
             }
-        }
 
-        // 2. Second pass
-        Context.bNoFail = true;
-        bSuccess = Analyze_Indeterminates(Context.TempArena, IndeterminateList, &Context);
+            // 2. Second pass
+            Context.bNoFail = true;
+            bSuccess = Analyze_Indeterminates(Context.TempArena, IndeterminateList, &Context);
+        }
 
         //Clock_Tick(&c);
         //Clock_PrintElapsedTime(&c, true);
@@ -4209,8 +4183,6 @@ NO_DISCARD bool ParseBuildFileV2(LinearAllocator* PermanentArena,
             LOG_LINE_BREAK();
         }
         */
-
-        // TODO: do not store include variables
 
         SLinkedList_Each(FileVariableList, This, &Context.VarListHead)
         {
@@ -4747,19 +4719,16 @@ bool ExpandBuildVariableV2(LinearAllocator Scratch, FileVariableList* VariablesD
                         SC("SourceDirectory"),
                         SC("BuildDirectory"),
                         SC("IntermediateDirectory"),
-                        SC("LibraryDirectories"),
+                        SC("Library.Paths"),
                         SC("Includes"),
                         SC("Icon"),
                         SC("Compiler"),
                         SC("PCH"),
                         SC("PCH.h"),
-                        SC("IncludedSourceDirectories"),
-                        SC("ExcludedSourceDirectories"),
-                        SC("ExternalSourceDirectories"),
-                        SC("SourceFiles"),
                         SC("SourceDirectories"),
-                        SC("IncludedSourceFiles"),
-                        SC("ExcludedSourceFiles"),
+                        SC("SourceDirectories.Exclude"),
+                        SC("SourceFiles"),
+                        SC("SourceFiles.Exclude"),
                         SC(".rpath"),
                     };
 
