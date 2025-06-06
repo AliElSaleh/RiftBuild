@@ -62,4 +62,17 @@ RIFT_API            void  Array_RemoveLast(void* Array, void* ValuePtr);
 RIFT_API            void  Array_RemoveAt(void* Array, void* ValuePtr, usize Index);
 RIFT_API            void  Array_Destroy(void* Array);
 
+
+/// Stack
+
+#define StackLocal(Type, Name, Capacity) u16 CONCAT(Name, _Count) = 0; Type Name[Capacity] = {0}
+
+#define Stack_PushZero(Stack) do { if (CONCAT(Stack, _Count) < SArray_Capacity(Stack)) { CONCAT(Stack, _Count) += 1; } } while (0)
+#define Stack_Push(Stack, Value) do { if (CONCAT(Stack, _Count) < SArray_Capacity(Stack)) { Platform_MemCopy(&((Stack)[CONCAT(Stack, _Count)]), &Value, sizeof(Value)); CONCAT(Stack, _Count) += 1; } } while (0)
+#define Stack_Pop(Stack, Value)  do { if (CONCAT(Stack, _Count)) { Value = Stack[CONCAT(Stack, _Count)-1]; CONCAT(Stack, _Count) -= 1; } } while (0)
+#define Stack_Peek(Stack, Value) do { if (CONCAT(Stack, _Count)) { Value = Stack[CONCAT(Stack, _Count)-1]; } } while (0)
+#define Stack_PeekRef(Stack, Value) do { if (CONCAT(Stack, _Count)) { Value = &Stack[CONCAT(Stack, _Count)-1]; } } while (0)
+
+///
+
 #endif // ARRAY_H

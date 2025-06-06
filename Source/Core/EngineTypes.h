@@ -241,6 +241,10 @@ STRUCT(StringList)
 #define local_persist static
 #define thread_local _Thread_local
 
+#define constant_begin enum {
+#define constant_end };
+#define constant(X, Value) enum { X = Value };
+
 #define UNUSED_PARAM(Param) (void)Param
 
 #define FUNCTION_NAME __func__

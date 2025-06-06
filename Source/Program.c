@@ -3904,34 +3904,15 @@ static u32 BuildTarget(LinearAllocator* Arena,
     String_Append(&FinalAssemblyName, AssemblyPostfix);
     #endif
 
-    StringLocal(AssemblyNameWithExt, 256);
-    String_Copy(&AssemblyNameWithExt, FinalAssemblyName);
-    if (Extension.Length > 0)
-    {
-        if (Extension.Data[0] != '.')
-        {
-            String_AppendChar(&AssemblyNameWithExt, '.');
-        }
-
-        String_Append(&AssemblyNameWithExt, Extension);
-    }
-
-    #if !PLATFORM_WINDOWS
-    if (bIsAssemblyExe)
-    {
-        String_ToLower(&AssemblyNameWithExt);
-    }
-    #endif
-
     String AssemblyName = FinalAssemblyName;
 
-    StringLocal(CompilerPath, MAX_PATH_LENGTH);
+    StringLocal(CompilerPath,    MAX_PATH_LENGTH);
     StringLocal(AsmCompilerPath, MAX_PATH_LENGTH);
-    StringLocal(LinkerPath, MAX_PATH_LENGTH);
-    StringLocal(ArchiverPath, MAX_PATH_LENGTH);
-    StringLocal(RCCompilerPath, MAX_PATH_LENGTH);
-    StringLocal(MTCompilerPath, MAX_PATH_LENGTH);
-    StringLocal(DumpBinPath, MAX_PATH_LENGTH);
+    StringLocal(LinkerPath,      MAX_PATH_LENGTH);
+    StringLocal(ArchiverPath,    MAX_PATH_LENGTH);
+    StringLocal(RCCompilerPath,  MAX_PATH_LENGTH);
+    StringLocal(MTCompilerPath,  MAX_PATH_LENGTH);
+    StringLocal(DumpBinPath,     MAX_PATH_LENGTH);
 
     #if PLATFORM_WINDOWS
     StringLocal(WindowsSDKBinaryPath,    MAX_PATH_LENGTH);
@@ -4841,16 +4822,55 @@ static u32 BuildTarget(LinearAllocator* Arena,
         return 1;
     }
 
+    bool bDependenciesDoneWork = false;
+
     Clock DependencyBuildClock;
     Clock_Start(&DependencyBuildClock);
 
     // run build depenencies
-    bool bRanAnyDependencies = false;
-    for each (FileVariable, Var, ExpandedVariablesDB)
     {
-        if (String_IsEqual(Var.Name, S("Depend"), false) ||
-            String_IsEqual(Var.Name, S("Depends"), false))
+        SArray(FileVariable*, Depends, 256) = {0};
+
+        bool bRanAnyDependencies = false;
+        for each (FileVariable, Var, ExpandedVariablesDB)
         {
+            if (String_IsEqual(Var.Name, S("Depend"), false) ||
+                String_IsEqual(Var.Name, S("Depends"), false))
+            {
+                SArray_Add(Depends, Var_);
+            }
+        }
+
+        // Note(Ali): I would've liked to keep this allocation on the stack but it is very hard to make a 
+        //            gurantee against stackover flow errors (currently the stack size for this program is
+        //            set to 8MB). what happens if we are N "depends" deep? if i keep on allocating 1MB on
+        //            the stack for each depends, then we will defintely overflow, subsequent functions/scopes
+        //            will not have enough space on the stack for them to function properly thus causing a 
+        //            crash :( I want to revist this in the future again to see how i can make a pretty good
+        //            "gurantee" that the program won't get into that state. On the bright side, at least
+        //            we aren't dynamically shitting memory out everytime we need some :P
+        //            So just allocate one big chunk and let our allocator dish out the memory.
+        //i8 ArenaMemory[Mebibytes(1)] = {0};
+        usize TotalMem = Mebibytes(1);
+        void* ArenaMemory = Platform_MemAlloc(TotalMem);
+
+        if (!ArenaMemory)
+        {
+            LOG_FATAL("Failed to allocate memory from the operating system!");
+            return 1;
+        }
+
+        LinearAllocator NewArena = {0};
+        LinearAllocator_Create(TotalMem, ArenaMemory, &NewArena);
+
+        for (u32 i = 0; i < Depends_Count; i++)
+        {
+            //MemZero(ArenaMemory, TotalMem);
+
+            NewArena.Allocated = 0; // "free" the memory
+
+            FileVariable Var = *Depends[i];
+
             String Value = Var.Value;
 
             String BuildFile;
@@ -4957,27 +4977,6 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 }
             }
 
-            // Note(Ali): I would've liked to keep this allocation on the stack but it is very hard to make a 
-            //            gurantee against stackover flow errors (currently the stack size for this program is
-            //            set to 8MB). what happens if we are N "depends" deep? if i keep on allocating 1MB on
-            //            the stack for each depends, then we will defintely overflow, subsequent functions/scopes
-            //            will not have enough space on the stack for them to function properly thus causing a 
-            //            crash :( I want to revist this in the future again to see how i can make a pretty good
-            //            "gurantee" that the program won't get into that state. On the bright side, at least
-            //            we aren't dynamically shitting memory out everytime we need some :P
-            //            So just allocate one big chunk and let our allocator dish out the memory.
-            // TODO: do this once, and reuse. so we dont allocate every time we see another "Depend" key
-            void* ArenaMemory = Platform_MemAllocZero(Mebibytes(1));
-            if (!ArenaMemory)
-            {
-                LOG_ERROR("Failed to allocate memory from the operating system for %S", BuildFileNameWithExt);
-                return 1;
-            }
-
-            LinearAllocator NewArena = {0};
-            //i8 ArenaMemory[Mebibytes(1)] = {0};
-            LinearAllocator_Create(Mebibytes(1), ArenaMemory, &NewArena);
-
             StringList List = String_SplitIntoList(&NewArena, SpecifiedParams, ' ', true);
             u8 Num = 0;
             for each_str_list (List)
@@ -4992,11 +4991,11 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 NewParams.List = LinearAllocator_Allocate(&NewArena, sizeof(String) * Num);
                 NewParams.Num = Num;
 
-                u8 i = 0;
+                u8 j = 0;
                 for each_str_list (List)
                 {
-                    NewParams.List[i] = It.String;
-                    i++;
+                    NewParams.List[j] = It.String;
+                    j++;
                 }
             }
             
@@ -5043,14 +5042,13 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
             Filesystem_Close(&f);
 
-            LinearAllocator_Destroy(&NewArena);
-            Platform_MemFree(ArenaMemory);
-
             if (ExitCode == 2) // special exit code meaning this child build finished successfully (and that it did some work)
             {
-                // TODO: this should be the default behaviour. make another key for triggering a rebuild
-                bool bIsSpecial = String_IsEqual(Var.Params, S("No_Rebuild_If_Done_Work"), false);
-                if (!bIsRebuild && !bIsSpecial)
+                // TODO: fuck... i need a way to just link and not rebuild the child. Implement this...
+                bDependenciesDoneWork = true;
+
+                bool bIsSpecial = String_IsEqual(Var.Params, S("Rebuild_If_Done_Work"), false);
+                if (!bIsRebuild && bIsSpecial)
                 {
                     LOG("\nDependency \"%S\" was modified. Forcing rebuild...", BuildFileNameWithExt);
                     bIsRebuild = true;
@@ -5071,16 +5069,17 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 // no action required
             }
 
-            // TODO: postdepend.
-
             LOG_LINE_BREAK();
         }
-    }
 
-    if (bRanAnyDependencies && !bIsClean)
-    {
-        Clock_Tick(&DependencyBuildClock);
-        LOG("[All build dependencies complete. Continuing with %S]\n", BuildFileName);
+        LinearAllocator_Destroy(&NewArena);
+        Platform_MemFree(ArenaMemory);
+
+        if (bRanAnyDependencies && !bIsClean)
+        {
+            Clock_Tick(&DependencyBuildClock);
+            LOG("[All build dependencies complete. Continuing with %S]\n", BuildFileName);
+        }
     }
 
     // TODO: time this
@@ -5088,6 +5087,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
     {
         return 1;
     }
+
+    // TODO: make use of this. for example. do a link only build instead of compile and link
+    xx bDependenciesDoneWork;
 
     // assert libraries exist
     if (!bIsClean)
@@ -5400,52 +5402,6 @@ static u32 BuildTarget(LinearAllocator* Arena,
         CustomExtensionsList = String_SplitIntoList(Arena, SourceFileExtensions, ' ', false);
     }
 
-    // assert that these files exist
-    // TODO: black list files and directories too
-    /*
-    for each_str (File, WhitelistArray)
-    {
-        if (String_IndexOfChar(*File, '*', NULL))
-        {
-            continue;
-        }
-
-        bool bExists = false;
-        for each (SFile, GSourceFiles)
-        {
-            String TrimmedFileName = String_Null();
-            u32 SlashIndex = 0;
-            if (String_IndexOfLastPathSlash(SFile.RelativePath, &SlashIndex))
-            {
-                u32 Len = SFile.RelativePath.Length - SlashIndex;
-                TrimmedFileName = StrCompC(SFile.RelativePath.Data + (SlashIndex+1), Len-1, Len);
-            }
-            else
-            {
-                TrimmedFileName = SFile.RelativePath;
-            }
-        
-            if (String_IsEqual(*File, TrimmedFileName, true) ||
-                String_IsEqual(*File, SFile.RelativePath, true))
-            {
-                bExists = true;
-                break;
-            }
-        }
-
-        if (!bExists)
-        {
-            #ifndef HOOD
-            LOG_ERROR("Given source file \"%S\" from \"IncludedSourceFiles\" does not exist. Aborting build...", *File);
-            #else
-            LOG_ERROR("yo dis file \"%S\" dont exist cuhh", *File);
-            #endif
-
-            return 1;
-        }
-    }
-    */
-
     StringLocal(FirstSourceFileName, 256);
     SourceCountData CountData             = {0};
     CountData.NumSources                  = 0;
@@ -5468,7 +5424,11 @@ static u32 BuildTarget(LinearAllocator* Arena,
     CountData.bHasCppFiles                = false;
     CountData.bIsPCHBuild                 = AssemblyType == AssemblyType_PCH;
 
+    // Clock c;
+    // Clock_Start(&c);
     Filesystem_IterateDirectory_Ex(SourceDir, &SourceFileCounterDirectoryIterator, true, &CountData);
+    // Clock_Tick(&c);
+
     /*
     if (CountData.FilteredFiles)
     {
@@ -5476,11 +5436,46 @@ static u32 BuildTarget(LinearAllocator* Arena,
         {
             LOG("%S", It.String);
         }
+        Clock_PrintElapsedTime(&c, true);
         return 1;
     }
     */
 
     const u32 NumSources = CountData.NumSources + CountData.NumAsmSources + CountData.NumRcSources;
+
+    // use the first source file as the assembly name (if none provided or if "untitled" was set)
+    if (NumSources == 1)
+    {
+        if (!String_IsValid(Assembly) ||
+            String_IsEqual(Assembly, S("Untitled"), false))
+        {
+            String Trimmed = Filesystem_ExtractFileName(FirstSourceFileName, false);
+
+            String_Copy(&FinalAssemblyName, AssemblyPrefix);
+            String_Append(&FinalAssemblyName, Trimmed);
+            String_Append(&FinalAssemblyName, AssemblyPostfix);
+        }
+    }
+
+    StringLocal(AssemblyNameWithExt, 256);
+    String_Copy(&AssemblyNameWithExt, FinalAssemblyName);
+    if (Extension.Length > 0)
+    {
+        if (Extension.Data[0] != '.')
+        {
+            String_AppendChar(&AssemblyNameWithExt, '.');
+        }
+
+        String_Append(&AssemblyNameWithExt, Extension);
+    }
+
+    #if !PLATFORM_WINDOWS
+    if (bIsAssemblyExe)
+    {
+        String_ToLower(&AssemblyNameWithExt);
+    }
+    #endif
+
 
     u32 NumCompiled = 0;
 
@@ -5495,28 +5490,6 @@ static u32 BuildTarget(LinearAllocator* Arena,
         #endif
 
         goto End;
-    }
-
-    // use the first source file as the assembly name (if none provided or if "untitled" was set)
-    if (NumSources == 1)
-    {
-        if (!String_IsValid(Assembly) ||
-            String_IsEqual(Assembly, S("Untitled"), false))
-        {
-            String TrimmedFileName = FirstSourceFileName;
-
-            // todo: left chop function
-            u32 DotIndex = 0;
-            if (String_IndexOfLastChar(TrimmedFileName, '.', &DotIndex))
-            {
-                TrimmedFileName.Length -= TrimmedFileName.Length-DotIndex;
-            }
-
-            String_Copy(&FinalAssemblyName, AssemblyPrefix);
-            String_Append(&FinalAssemblyName, TrimmedFileName);
-            String_Append(&FinalAssemblyName, AssemblyPostfix);
-            AssemblyName = FinalAssemblyName;
-        }
     }
 
     // save the directory state
@@ -5687,12 +5660,11 @@ static u32 BuildTarget(LinearAllocator* Arena,
         {
             if (bNoAsmCompilerProgramExplicityGiven)
             {
-                // todo: prettier log messaging
                 #if PLATFORM_WINDOWS
                 LOG_ERROR(
-                    "You don't seem to have an assember installed on your machine."
-                    " Install either \"nasm\", \"yasm\" or \"ml (MSVC)\" and add to the path environment"
-                    " before using RiftBuild, as we require a working assembler program to function properly. Aborting build...\n");
+                    "You don't seem to have an assember installed on your machine.\n"
+                    "        Install either \"nasm\", \"yasm\" or \"ml (MSVC)\" and add to the path environment\n"
+                    "        before using RiftBuild, as we require a working assembler program to function properly. Aborting build...\n");
                 #else
                 LOG_ERROR(
                     "You don't seem to have an assmebler installed on your machine."
@@ -5740,13 +5712,13 @@ static u32 BuildTarget(LinearAllocator* Arena,
         
         {
             LinearAllocator Scratch = *Arena;
-            StringArray AssemblersArray    = String_ParseIntoArray(&Scratch, AssertAssemblers, ' ', 0, 128);
+            StringArray AssemblersArray = String_ParseIntoArray(&Scratch, AssertAssemblers, ' ', 0, 128);
             if (AssemblersArray.Num > 0)
             {
                 bool bAnyAssemblerMatch = false;
-                for each_str (S, AssemblersArray)
+                for each_str (str, AssemblersArray)
                 {
-                    String Trimmed = String_EatSpaces(*S);
+                    String Trimmed = String_EatSpaces(*str);
 
                     // todo: asm path
                     if (String_IsEqual(Trimmed, AsmProgram, false))
@@ -5883,7 +5855,6 @@ static u32 BuildTarget(LinearAllocator* Arena,
             String_BuildPath(&ArchiverPath, CompilerBasePath, S("gcc-ar"));
             String_BuildPath(&DumpBinPath, CompilerBasePath, S("objdump"));
             String_BuildPath(&RCCompilerPath, CompilerBasePath, S("windres"));
-            // TODO: mt.exe
 
             #if PLATFORM_WINDOWS
             String_Append(&ArchiverPath, S(".exe"));
@@ -6357,18 +6328,35 @@ static u32 BuildTarget(LinearAllocator* Arena,
         {
             // write the cmd line of this program to a file in the intermediate directory for comparison between subsequent runs
             Filesystem_Write(f, RiftCmdLine.Length, RiftCmdLine.Data, NULL);
-            Filesystem_WriteLine(f, S("\n"), NULL);
 
-            // TODO: Speed: fill a buffer first, then write to file
+            StringLocal(Spaces, 64);
+            Spaces.Length = 64;
+            String_Fill(&Spaces, ' ');
+
+            StringLocal(Buffer, Kibibytes(32));
+            String_AppendChar(&Buffer, '\n');
+
+            u32 LongestName = 4;
             for each (FileVariable, v, ExpandedVariablesDB)
             {
-                StringLocal(Line, 4096);
-                String_Append(&Line, v.Name);
-                String_AppendSpace(&Line);
-                String_Append(&Line, v.Value);
-                String_AppendChar(&Line, '\n');
-                Filesystem_WriteLine(f, Line, NULL);
+                u32 Length = v.Name.Length;
+                if (Length > LongestName)
+                {
+                    LongestName = Length;
+                }
             }
+
+            for each (FileVariable, v, ExpandedVariablesDB)
+            {
+                Spaces.Length = (LongestName - v.Name.Length) + 1; // +1 for extra space
+
+                String_Append(&Buffer, v.Name);
+                String_Append(&Buffer, Spaces);
+                String_Append(&Buffer, v.Value);
+                String_AppendChar(&Buffer, '\n');
+            }
+
+            Filesystem_WriteLine(f, Buffer, NULL);
         }
 
         Filesystem_Close(&f);
@@ -6468,15 +6456,14 @@ static u32 BuildTarget(LinearAllocator* Arena,
         }
     }
 
-    // TODO: use max value length?
     StringLocal(ExpandedIncludeFlags, 4096);
     StringLocal(ExpandedLibraries, 2048);
     StringLocal(ExpandedLibraryDirectories, 4096);
     StringLocal(ExpandedDefineFlags, 2048);
-    StringLocal(ExpandedUnDefineFlags, 2048);
+    StringLocal(ExpandedUnDefineFlags, 1024);
     StringLocal(ExpandedLinkerDefineFlags, 1024);
     StringLocal(ExpandedAssemblerIncludeFlags, 4096);
-    StringLocal(ExpandedAssemblerDefineFlags, 2048);
+    StringLocal(ExpandedAssemblerDefineFlags, 1024);
 
     StringLocal(FlagPrefix, 4);
     String_Append(&FlagPrefix, CompilerFlagPrefixSymbol);
@@ -6514,7 +6501,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     PrefixVariables(&ExpandedUnDefineFlags, UnDefines, FlagPrefix, !bExportingSomething);
 
     // assembler stuff
-    FlagPrefix.Data[0] = '-'; // todo: what does masm use? masm uses /
+    FlagPrefix.Data[0] = '-'; // todo: masm uses /
     FlagPrefix.Data[1] = 'I';
     ExpandPathFlags(*Arena, &ExpandedAssemblerIncludeFlags, AssemblerIncludes, FlagPrefix, !bExportingSomething);
 
@@ -6584,8 +6571,6 @@ static u32 BuildTarget(LinearAllocator* Arena,
             return 1;
         }
     }
-
-    // TODO: get rid of CompilerProgram and use CompilerPath instead to avoid the shell having to search for it again
 
     BuildParams p = {0};
     p.Arena                         = Arena;
@@ -7880,10 +7865,10 @@ End:
     // run the assembly (if an executable)
     if (bIsAssemblyExe)
     {
-        // todo:if we have run assembly's ignore this shit
+        // todo:if we have .run keys ignore this shit
         if (StringArray_Contains(Parameters, S("Run"), false))
         {
-            // todo: args like runassembly key
+            // todo: args like .run key
             
             Internal_RunAssembly(*Arena, WorkingPath, BuildBaseDirectory, AssemblyNameWithExt, String_Null());
         }
@@ -8612,7 +8597,6 @@ static void InitInternalVars(LinearAllocator* Arena)
     }
 
     // TODO _Ram
-    // TODO
     //AddInternalVariable(S("_Platform.KernelVersion"), OSVersionString);
     //AddInternalVariable(S("_Platform.BuildVersion"), OSVersionString);
 
@@ -8674,8 +8658,8 @@ static void InitInternalVars(LinearAllocator* Arena)
     AddInternalVariable(S("Unix"),      String_Null());
     #endif
 
+    // I dont know what to do, ignore these comments below
     // TODO: move to msvc backend...
-    // TODO: delete _nativelibs
     // TODO: update this by looking at the libs directory for winsdk and visual studio
     // scratch that, just iterate the directory and get all the file names in there... duh
     const String Win32Libs = S("kernel32 user32 opengl32 shell32 gdi32 comdlg32 comctl32 ws2_32 ntdll winmm netapi32 ole32 advapi32 "
@@ -9174,7 +9158,6 @@ static void InitInternalVars(LinearAllocator* Arena)
         AddInternalVariable(S("_UserDirectory"), AllocatedHome);
     }
 
-    // TODO: think about if this errors?
     StringLocal(ComputerName, 256);
     Platform_GetComputerName(&ComputerName);
     Allocated = String_Create(Arena, ComputerName);

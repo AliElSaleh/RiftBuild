@@ -511,6 +511,7 @@ NO_DISCARD bool String_EndsWith(const String Str, const String SubString, bool b
 void String_Copy(String* Dest, const String Source)
 {
     u32 NumToCopy = Dest->Capacity == 0 ? Source.Length : Min(Dest->Capacity, Source.Length);
+    // u32 NumToCopy = Min(Dest->Capacity, Source.Length); // TODO: might wanna only do this
     MemCopy(Dest->Data, Source.Data, NumToCopy);
     Dest->Length = NumToCopy;
     Dest->Data[NumToCopy] = 0;

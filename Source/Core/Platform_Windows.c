@@ -562,7 +562,7 @@ NO_DISCARD u64 Platform_GetMainThreadID(void)
 
 void Platform_GetComputerName(String* OutName)
 {
-    enum { MAX_NAME_LENGTH = 256 };
+    constant(MAX_NAME_LENGTH, 256);
 	local_persist char Result[MAX_NAME_LENGTH] = {0};
 
     BOOL bSuccess = Result[0] != 0;
@@ -1605,6 +1605,272 @@ NO_DISCARD bool Filesystem_ConvertRelativeToAbsolutePath(String* OutFullPath)
     return bResult;
 }
 
+/*
+
+// Using the low level Nt version of FindFirstFile. tested on debug and release mode.
+// there is literally no noticable difference.
+
+UNUSED NO_DISCARD static bool _Internal_IterateDirectory(const String RootPath, const String DirectoryPath, DirectoryIterator Callback, bool bRecursive, void* UserData)
+{
+    bool bSuccess = true;
+
+    StringLocal(Test, MAX_PATH);
+    String_Copy(&Test, DirectoryPath.Length == 0 ? S(".") : DirectoryPath);
+
+    // Open the directory with backup semantics
+    HANDLE hDir = CreateFile(
+        (char*)Test.Data,
+        FILE_LIST_DIRECTORY | SYNCHRONIZE,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        NULL,
+        OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS, // Required to open directories
+        NULL
+    );
+
+    BYTE buffer[64 * 1024]; // 64KB buffer for many entries
+    IO_STATUS_BLOCK iosb = {0};
+
+    NTSTATUS status = {0};
+    BOOL restart = TRUE;
+
+    do
+    {
+        status = NtQueryDirectoryFile(
+            hDir,
+            NULL,
+            NULL,
+            NULL,
+            &iosb,
+            buffer,
+            sizeof(buffer),
+            FileDirectoryInformation,
+            FALSE,
+            NULL,
+            restart
+        );
+
+        if (status == STATUS_NO_MORE_FILES)
+        {
+            break;
+        }
+
+        if (status != 0)
+        {
+            break;
+        }
+
+        restart = FALSE;
+
+        bool bShouldBreak = false;
+
+        // Walk all entries in this buffer
+        BYTE* ptr = buffer;
+        do
+        {
+            FILE_DIRECTORY_INFORMATION* info = (FILE_DIRECTORY_INFORMATION*)ptr;
+
+            String16 FileNameWide = {0};
+            FileNameWide.Data = info->FileName;
+            FileNameWide.Length = ClampMax(info->FileNameLength / sizeof(WCHAR), MAX_PATH - 1);
+
+            StringLocal(FileName, MAX_PATH);
+            String_ToNarrow(FileNameWide, &FileName);
+
+            if (String_IsEqual(FileName, S("."), false) ||
+                String_IsEqual(FileName, S(".."), false))
+            {
+            }
+            else
+            {
+                StringLocal(FilePath, MAX_PATH);
+                String_BuildPath(&FilePath, Test, FileName);
+
+                String FullPath = FilePath;
+                xx String_EatPathSeparatorsInline(&FullPath);
+
+                String RelativePath = StrShiftF(FilePath, RootPath.Length);
+                xx String_EatPathSeparatorsInline(&RelativePath);
+
+                if (info->FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+                {
+                    bool bResult = Callback(FullPath, RelativePath, FileName, 0, true, UserData);
+                    if (bResult)
+                    {
+                        if (bRecursive)
+                        {
+                            if (!_Internal_IterateDirectory(RootPath, FullPath, Callback, true, UserData))
+                            {
+                                bSuccess = false;
+                                bShouldBreak = true;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        bSuccess = false;
+                        bShouldBreak = true;
+                    }
+                }
+                else
+                {
+                    u64 FileSize = (u64)info->EndOfFile.QuadPart;
+                    bool bResult = Callback(FullPath, RelativePath, FileName, FileSize, false, UserData);
+
+                    if (!bResult) // the user wants to end the iteration
+                    {
+                        bSuccess = false;
+                        bShouldBreak = true;
+                    }
+                }
+
+            }
+
+            if (bShouldBreak)
+            {
+                break;
+            }
+
+            if (info->NextEntryOffset == 0)
+            {
+                break;
+            }
+
+            ptr += info->NextEntryOffset;
+
+        }
+        while (1);
+
+        if (bShouldBreak)
+        {
+            break;
+        }
+    }
+    while (1);
+
+    return bSuccess;
+}
+*/
+
+/*
+
+// Iterative approach instead of recursive. tested on debug and release mode. there is literally no noticable difference
+
+NO_DISCARD static bool Internal_IterateDirectory(const String RootPath, const String DirectoryPath, DirectoryIterator Callback, bool bRecursive, void* UserData)
+{
+    bool bSuccess = true;
+
+    STRUCT(DirectoryStackFrameData)
+    {
+        WIN32_FIND_DATA ffd;
+        HANDLE FindHandle;
+        uchar PathBuffer[MAX_PATH+4]; // +4 for alignment stuff
+        String Path;
+    };
+
+    StackLocal(DirectoryStackFrameData, Stack, 32); // 32 = max directory depth we will support
+
+    // push the initial frame
+    {
+        Stack_PushZero(Stack);
+
+        DirectoryStackFrameData* Frame = &Stack[0];
+        Frame->Path.Data = Frame->PathBuffer;
+        Frame->Path.Capacity = MAX_PATH;
+
+        String_Copy(&Frame->Path, DirectoryPath.Length == 0 ? S(".") : DirectoryPath);
+        String_Append(&Frame->Path, S("\\*"));
+
+        Frame->FindHandle = FindFirstFile((char*)Frame->Path.Data, &Frame->ffd);
+        Frame->Path.Length -= 2; // ignore \*
+    }
+
+    bool bShouldBreak = false;
+
+    while (Stack_Count)
+    {
+        DirectoryStackFrameData Current = {0};
+        Stack_Pop(Stack, Current);
+
+        if (Current.FindHandle != INVALID_HANDLE_VALUE)
+        {
+            do
+            {
+                String FileName = CStrEx(Current.ffd.cFileName, 259);
+
+                if (String_IsEqual(FileName, S("."), false) ||
+                    String_IsEqual(FileName, S(".."), false))
+                {
+                    continue;
+                }
+
+                StringLocal(FilePath, MAX_PATH);
+                String_BuildPath(&FilePath, Current.Path, FileName);
+
+                String FullPath = FilePath;
+                xx String_EatPathSeparatorsInline(&FullPath);
+
+                String RelativePath = StrShiftF(FilePath, RootPath.Length);
+                xx String_EatPathSeparatorsInline(&RelativePath);
+
+                if (Current.ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+                {
+                    bool bResult = Callback(FullPath, RelativePath, FileName, 0, true, UserData);
+                    if (bResult)
+                    {
+                        if (bRecursive)
+                        {
+                            Stack_PushZero(Stack);
+
+                            DirectoryStackFrameData* Frame = &Stack[Stack_Count-1];
+                            Frame->Path.Data = Frame->PathBuffer;
+                            Frame->Path.Capacity = MAX_PATH;
+
+                            String_Copy(&Frame->Path, FullPath);
+                            String_Append(&Frame->Path, S("\\*"));
+
+                            Frame->FindHandle = FindFirstFile((char*)Frame->Path.Data, &Frame->ffd);
+                            Frame->Path.Length -= 2; // ignore \*
+                        }
+                    }
+                    else
+                    {
+                        bSuccess = false;
+                        bShouldBreak = true;
+                    }
+                }
+                else
+                {
+                    DWORD FileSize = (Current.ffd.nFileSizeHigh * (MAXDWORD+1)) + Current.ffd.nFileSizeLow;
+                    bool bResult = Callback(FullPath, RelativePath, FileName, FileSize, false, UserData);
+                    if (!bResult) // the user wants to end the iteration
+                    {
+                        bSuccess = false;
+                        bShouldBreak = true;
+                    }
+                }
+
+                if (bShouldBreak)
+                {
+                    break;
+                }
+            }
+            while (FindNextFile(Current.FindHandle, &Current.ffd) != 0);
+
+            FindClose(Current.FindHandle);
+
+            if (bShouldBreak)
+            {
+                break;
+            }
+        }
+    }
+
+    return bSuccess;
+}
+*/
+
+
 NO_DISCARD static bool Internal_IterateDirectory(const String RootPath, const String DirectoryPath, DirectoryIterator Callback, bool bRecursive, void* UserData)
 {
     const String RealDirectoryPath = DirectoryPath.Length == 0 ? S(".") : DirectoryPath;
@@ -1636,10 +1902,10 @@ NO_DISCARD static bool Internal_IterateDirectory(const String RootPath, const St
             String_BuildPath(&FilePath, RealDirectoryPath, FileName);
 
             String FullPath = FilePath;
-            (void)String_EatPathSeparatorsInline(&FullPath);
+            xx String_EatPathSeparatorsInline(&FullPath);
 
             String RelativePath = StrShiftF(FilePath, RootPath.Length);
-            (void)String_EatPathSeparatorsInline(&RelativePath);
+            xx String_EatPathSeparatorsInline(&RelativePath);
 
             bool bShouldBreak = false;
 
@@ -1689,12 +1955,12 @@ NO_DISCARD static bool Internal_IterateDirectory(const String RootPath, const St
 
 void Filesystem_IterateDirectory(const String BasePath, DirectoryIterator Callback, bool bRecursive)
 {
-    (void)Internal_IterateDirectory(BasePath, BasePath, Callback, bRecursive, NULL);
+    xx Internal_IterateDirectory(BasePath, BasePath, Callback, bRecursive, NULL);
 }
 
 void Filesystem_IterateDirectory_Ex(const String BasePath, DirectoryIterator Callback, bool bRecursive, void* UserData)
 {
-    (void)Internal_IterateDirectory(BasePath, BasePath, Callback, bRecursive, UserData);
+    xx Internal_IterateDirectory(BasePath, BasePath, Callback, bRecursive, UserData);
 }
 
 NO_DISCARD bool Filesystem_DeleteFiles(const String FilePath, const String Wildcard, bool bRecursive)
@@ -1924,7 +2190,7 @@ NO_DISCARD PlatformHandle Platform_RunCommand(const String CmdLine, const String
     STARTUPINFO StartupInfo = {0};
     StartupInfo.cb = sizeof(StartupInfo);
 
-    // todo: verify parent env gets included
+    // @verify: verify parent env gets included
     StringLocal(Copy, MAX_PATH_LENGTH);
     String_Copy(&Copy, WorkingDirectory);
 
@@ -1955,7 +2221,7 @@ NO_DISCARD PlatformHandle Platform_RunProcess(const String ProcessExePath, const
     STARTUPINFO StartupInfo = {0};
     StartupInfo.cb = sizeof(StartupInfo);
 
-    // todo: verify parent env gets included
+    // @verify: verify parent env gets included
     StringLocal(Copy, MAX_PATH_LENGTH);
     String_Copy(&Copy, WorkingDirectory);
 

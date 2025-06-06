@@ -606,6 +606,139 @@ typedef POSVERSIONINFOA POSVERSIONINFO;
 typedef LPOSVERSIONINFOA LPOSVERSIONINFO;
 #endif // UNICODE
 
+
+/*
+
+typedef struct _FILE_DIRECTORY_INFORMATION {
+    ULONG NextEntryOffset;
+    ULONG FileIndex;
+    LARGE_INTEGER CreationTime;
+    LARGE_INTEGER LastAccessTime;
+    LARGE_INTEGER LastWriteTime;
+    LARGE_INTEGER ChangeTime;
+    LARGE_INTEGER EndOfFile;
+    LARGE_INTEGER AllocationSize;
+    ULONG FileAttributes;
+    ULONG FileNameLength;
+    WCHAR FileName[1];
+} FILE_DIRECTORY_INFORMATION;
+
+typedef LONG NTSTATUS;
+
+//
+// Unicode strings are counted 16-bit character strings. If they are
+// NULL terminated, Length does not include trailing NULL.
+//
+
+typedef struct _UNICODE_STRING {
+    USHORT Length;
+    USHORT MaximumLength;
+} UNICODE_STRING;
+typedef UNICODE_STRING *PUNICODE_STRING;
+typedef const UNICODE_STRING *PCUNICODE_STRING;
+
+
+typedef enum _FILE_INFORMATION_CLASS {
+  FileDirectoryInformation = 1,
+  FileFullDirectoryInformation = 2,
+  FileBothDirectoryInformation = 3,
+  FileBasicInformation = 4,
+  FileStandardInformation = 5,
+  FileInternalInformation = 6,
+  FileEaInformation = 7,
+  FileAccessInformation = 8,
+  FileNameInformation = 9,
+  FileRenameInformation = 10,
+  FileLinkInformation = 11,
+  FileNamesInformation = 12,
+  FileDispositionInformation = 13,
+  FilePositionInformation = 14,
+  FileFullEaInformation = 15,
+  FileModeInformation = 16,
+  FileAlignmentInformation = 17,
+  FileAllInformation = 18,
+  FileAllocationInformation = 19,
+  FileEndOfFileInformation = 20,
+  FileAlternateNameInformation = 21,
+  FileStreamInformation = 22,
+  FilePipeInformation = 23,
+  FilePipeLocalInformation = 24,
+  FilePipeRemoteInformation = 25,
+  FileMailslotQueryInformation = 26,
+  FileMailslotSetInformation = 27,
+  FileCompressionInformation = 28,
+  FileObjectIdInformation = 29,
+  FileCompletionInformation = 30,
+  FileMoveClusterInformation = 31,
+  FileQuotaInformation = 32,
+  FileReparsePointInformation = 33,
+  FileNetworkOpenInformation = 34,
+  FileAttributeTagInformation = 35,
+  FileTrackingInformation = 36,
+  FileIdBothDirectoryInformation = 37,
+  FileIdFullDirectoryInformation = 38,
+  FileValidDataLengthInformation = 39,
+  FileShortNameInformation = 40,
+  FileIoCompletionNotificationInformation = 41,
+  FileIoStatusBlockRangeInformation = 42,
+  FileIoPriorityHintInformation = 43,
+  FileSfioReserveInformation = 44,
+  FileSfioVolumeInformation = 45,
+  FileHardLinkInformation = 46,
+  FileProcessIdsUsingFileInformation = 47,
+  FileNormalizedNameInformation = 48,
+  FileNetworkPhysicalNameInformation = 49,
+  FileIdGlobalTxDirectoryInformation = 50,
+  FileIsRemoteDeviceInformation = 51,
+  FileUnusedInformation = 52,
+  FileNumaNodeInformation = 53,
+  FileStandardLinkInformation = 54,
+  FileRemoteProtocolInformation = 55,
+  FileRenameInformationBypassAccessCheck = 56,
+  FileLinkInformationBypassAccessCheck = 57,
+  FileVolumeNameInformation = 58,
+  FileIdInformation = 59,
+  FileIdExtdDirectoryInformation = 60,
+  FileReplaceCompletionInformation = 61,
+  FileHardLinkFullIdInformation = 62,
+  FileIdExtdBothDirectoryInformation = 63,
+  FileDispositionInformationEx = 64,
+  FileRenameInformationEx = 65,
+  FileRenameInformationExBypassAccessCheck = 66,
+  FileDesiredStorageClassInformation = 67,
+  FileStatInformation = 68,
+  FileMemoryPartitionInformation = 69,
+  FileStatLxInformation = 70,
+  FileCaseSensitiveInformation = 71,
+  FileLinkInformationEx = 72,
+  FileLinkInformationExBypassAccessCheck = 73,
+  FileStorageReserveIdInformation = 74,
+  FileCaseSensitiveInformationForceAccessCheck = 75,
+  FileKnownFolderInformation = 76,
+  FileStatBasicInformation = 77,
+  FileId64ExtdDirectoryInformation = 78,
+  FileId64ExtdBothDirectoryInformation = 79,
+  FileIdAllExtdDirectoryInformation = 80,
+  FileIdAllExtdBothDirectoryInformation = 81,
+  FileStreamReservationInformation,
+  FileMupProviderInfo,
+  FileMaximumInformation
+} FILE_INFORMATION_CLASS, *PFILE_INFORMATION_CLASS;
+
+typedef struct _IO_STATUS_BLOCK {
+    union {
+        NTSTATUS Status;
+        PVOID Pointer;
+    } _;
+    ULONG_PTR Information;
+} IO_STATUS_BLOCK, *PIO_STATUS_BLOCK;
+
+typedef void (WINAPI *PIO_APC_ROUTINE)(PVOID ApcContext, PIO_STATUS_BLOCK IoStatusBlock, ULONG Reserved);
+
+#define STATUS_NO_MORE_FILES             ((NTSTATUS)0x80000006L)
+*/
+
+
 #ifndef _WIN32_WINNT
 #define  _WIN32_WINNT   0x0A00
 #endif
@@ -877,11 +1010,93 @@ typedef LPOSVERSIONINFOA LPOSVERSIONINFO;
 #define SECTION_EXTEND_SIZE          0x0010
 #define SECTION_MAP_EXECUTE_EXPLICIT 0x0020 // not included in SECTION_ALL_ACCESS
 
+//
+// Define access rights to files and directories
+//
+
+//
+// The FILE_READ_DATA and FILE_WRITE_DATA constants are also defined in
+// devioctl.h as FILE_READ_ACCESS and FILE_WRITE_ACCESS. The values for these
+// constants *MUST* always be in sync.
+// The values are redefined in devioctl.h because they must be available to
+// both DOS and NT.
+//
+
+#define FILE_READ_DATA            ( 0x0001 )    // file & pipe
+#define FILE_LIST_DIRECTORY       ( 0x0001 )    // directory
+
+#define FILE_WRITE_DATA           ( 0x0002 )    // file & pipe
+#define FILE_ADD_FILE             ( 0x0002 )    // directory
+
+#define FILE_APPEND_DATA          ( 0x0004 )    // file
+#define FILE_ADD_SUBDIRECTORY     ( 0x0004 )    // directory
+#define FILE_CREATE_PIPE_INSTANCE ( 0x0004 )    // named pipe
+
+
+#define FILE_READ_EA              ( 0x0008 )    // file & directory
+
+#define FILE_WRITE_EA             ( 0x0010 )    // file & directory
+
+#define FILE_EXECUTE              ( 0x0020 )    // file
+#define FILE_TRAVERSE             ( 0x0020 )    // directory
+
+#define FILE_DELETE_CHILD         ( 0x0040 )    // directory
+
+#define FILE_READ_ATTRIBUTES      ( 0x0080 )    // all
+
+#define FILE_WRITE_ATTRIBUTES     ( 0x0100 )    // all
+
+#define FILE_ALL_ACCESS (STANDARD_RIGHTS_REQUIRED | SYNCHRONIZE | 0x1FF)
+
+#define FILE_GENERIC_READ         (STANDARD_RIGHTS_READ     |\
+                                   FILE_READ_DATA           |\
+                                   FILE_READ_ATTRIBUTES     |\
+                                   FILE_READ_EA             |\
+                                   SYNCHRONIZE)
+
+
+#define FILE_GENERIC_WRITE        (STANDARD_RIGHTS_WRITE    |\
+                                   FILE_WRITE_DATA          |\
+                                   FILE_WRITE_ATTRIBUTES    |\
+                                   FILE_WRITE_EA            |\
+                                   FILE_APPEND_DATA         |\
+                                   SYNCHRONIZE)
+
+
+#define FILE_GENERIC_EXECUTE      (STANDARD_RIGHTS_EXECUTE  |\
+                                   FILE_READ_ATTRIBUTES     |\
+                                   FILE_EXECUTE             |\
+                                   SYNCHRONIZE)
+
 #define SECTION_ALL_ACCESS (STANDARD_RIGHTS_REQUIRED|SECTION_QUERY|\
                             SECTION_MAP_WRITE |      \
                             SECTION_MAP_READ |       \
                             SECTION_MAP_EXECUTE |    \
                             SECTION_EXTEND_SIZE)
+
+
+// begin_wdm
+//
+//  The following are masks for the predefined standard access types
+//
+
+#define DELETE                           (0x00010000L)
+#define READ_CONTROL                     (0x00020000L)
+#define WRITE_DAC                        (0x00040000L)
+#define WRITE_OWNER                      (0x00080000L)
+#define SYNCHRONIZE                      (0x00100000L)
+
+#define STANDARD_RIGHTS_REQUIRED         (0x000F0000L)
+
+#define STANDARD_RIGHTS_READ             (READ_CONTROL)
+#define STANDARD_RIGHTS_WRITE            (READ_CONTROL)
+#define STANDARD_RIGHTS_EXECUTE          (READ_CONTROL)
+
+#define STANDARD_RIGHTS_ALL              (0x001F0000L)
+
+#define SPECIFIC_RIGHTS_ALL              (0x0000FFFFL)
+
+// end_wdm
 
 #define FILE_MAP_WRITE            SECTION_MAP_WRITE
 #define FILE_MAP_READ             SECTION_MAP_READ
@@ -1462,5 +1677,24 @@ WINBASEAPI NO_DISCARD BOOL       WINAPI GetComputerNameW(LPWSTR lpBuffer, LPDWOR
 
 WINBASEAPI            void       WINAPI Sleep(DWORD dwMilliseconds);
 
+
+// NT Kernel Functions
+
+/*
+__declspec(dllimport) NTSTATUS NtQueryDirectoryFile(
+  HANDLE                 FileHandle,
+  HANDLE                 Event,
+  PIO_APC_ROUTINE        ApcRoutine,
+  PVOID                  ApcContext,
+  PIO_STATUS_BLOCK       IoStatusBlock,
+  PVOID                  FileInformation,
+  ULONG                  Length,
+  FILE_INFORMATION_CLASS FileInformationClass,
+  BOOL                   ReturnSingleEntry,
+  PUNICODE_STRING        FileName,
+  BOOL                   RestartScan
+);
+
+*/
 
 #endif // WIN32TYPES_H

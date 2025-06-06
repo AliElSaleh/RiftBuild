@@ -95,7 +95,6 @@ ENUM(ECompiler)
     Compiler_MSVC
 };
 
-// TODO: delete
 ENUM(EComparisonType)
 {
     Cmp_None,
