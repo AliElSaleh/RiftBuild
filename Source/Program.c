@@ -3448,7 +3448,11 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
                 {
                     StringLocal(VersionDefineString, 256);
+                    #if PLATFORM_WINDOWS
                     String_Format(&VersionDefineString, S("%S_VERSION_STRING=\\\"%S\\\""), AssemblyNameUpper, ExpandedVar);
+                    #else
+                    String_Format(&VersionDefineString, S("%S_VERSION_STRING=\"%S\""), AssemblyNameUpper, ExpandedVar);
+                    #endif
 
                     AddOrAppendVariable(Arena, VariablesDB, S("Defines"), VersionDefineString, String_Null());
                 }
@@ -3472,7 +3476,11 @@ static u32 BuildTarget(LinearAllocator* Arena,
                             {
                                 if (bContainsNonDigit)
                                 {
+                                    #if PLATFORM_WINDOWS
                                     String_Format(&VersionDefine, S("%S_%S_VERSION=\\\"%S\\\""), AssemblyNameUpper, VersionLevels[i], *v);
+                                    #else
+                                    String_Format(&VersionDefine, S("%S_%S_VERSION=\"%S\""), AssemblyNameUpper, VersionLevels[i], *v);
+                                    #endif
                                 }
                                 else
                                 {
@@ -3483,7 +3491,11 @@ static u32 BuildTarget(LinearAllocator* Arena,
                             {
                                 if (bContainsNonDigit)
                                 {
+                                    #if PLATFORM_WINDOWS
                                     String_Format(&VersionDefine, S("%S_EXTRA_VERSION_%hhu=\\\"%S\\\""), AssemblyNameUpper, i-3, *v);
+                                    #else
+                                    String_Format(&VersionDefine, S("%S_EXTRA_VERSION_%hhu=\"%S\""), AssemblyNameUpper, i-3, *v);
+                                    #endif
                                 }
                                 else
                                 {
@@ -3505,7 +3517,11 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
                     if (bContainsNonDigit)
                     {
+                        #if PLATFORM_WINDOWS
                         String_Format(&VersionDefine, S("%S_VERSION=\\\"%S\\\""), AssemblyNameUpper, ExpandedVar);
+                        #else
+                        String_Format(&VersionDefine, S("%S_VERSION=\"%S\""), AssemblyNameUpper, ExpandedVar);
+                        #endif
                     }
                     else
                     {
