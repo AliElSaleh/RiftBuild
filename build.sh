@@ -20,7 +20,7 @@ if [ "$unamestr" = 'Linux' ]; then
    fi
 
 elif [ "$unamestr" = 'Darwin' ]; then
-    Platform='Mac'
+    Platform='macOS'
     MacLinkerFlags="-framework Foundation"
 elif [ "$unamestr" = 'OpenBSD' ]; then
     Platform='BSD'
@@ -49,7 +49,7 @@ CompilerFlags="-std=c99 -Os ${MiscFlags} -fno-omit-frame-pointer -fno-exceptions
 
 printf "Compiling sources (${Platform})\n"
 
-clang "Source/Core/Memory.c" "Source/Core/StringUtils.c" "Source/Core/Log.c" "Source/Core/Globals.c" "Source/Core/Platform_Core.c" "Source/Core/Platform_Unix.c" "Source/Core/Platform_${Platform}.c" "Source/Program.c" "Source/Backend.c" "Source/Parse.c" "Source/Exporter.c" ${CompilerFlags} ${LinuxDEDefines} ${CoverageCompilerFlags} -o riftbuild ${LinuxLinkerFlags} ${BSDLinkerFlags} ${MacLinkerFlags} -Wl,-rpath,'$ORIGIN'
+clang "Source/Core/Memory.c" "Source/Core/StringUtils.c" "Source/Core/Log.c" "Source/Core/Platform_Core.c" "Source/Core/Platform_Unix.c" "Source/Core/Platform_${Platform}.c" "Source/Program.c" "Source/Backend.c" "Source/Parse.c" "Source/Exporter.c" ${CompilerFlags} ${LinuxDEDefines} ${CoverageCompilerFlags} -o riftbuild ${LinuxLinkerFlags} ${BSDLinkerFlags} ${MacLinkerFlags} -Wl,-rpath,'$ORIGIN'
 
 SCRIPT_PATH="$(cd "$(dirname "$0")" && pwd)"
 printf "\033[0;32m  Done: ${SCRIPT_PATH}/riftbuild\033[0m\n"

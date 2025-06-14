@@ -6,9 +6,11 @@
 #if PLATFORM_UNIX
 
 #include "Memory.h"
+#include "Allocators.h"
 #include "StringUtils.h"
 #include "Uuid.h"
 #include "Filesystem.h"
+#include "Clock.h"
 #include "Log.h"
 
 #if PLATFORM_LINUX
@@ -314,23 +316,6 @@ extern char** environ;
 
 PlatformHandle Platform_RunProcess(const String ProcessExePath, const String Parameters, const String WorkingDirectory, const String EnvBlock)
 {
-    String Command;
-    StringLocal(Copy, Kibibytes(32));
-    if (WorkingDirectory.Length > 0)
-    {
-        String_Append(&Copy, S("cd \""));
-        String_Append(&Copy, WorkingDirectory);
-        (void)String_EatPathSeparatorsInlineFromEnd(&Copy);
-        String_Append(&Copy, S("\"; "));
-        String_Append(&Copy, Parameters);
-
-        Command = Copy;
-    }
-    else
-    {
-        Command = Parameters;
-    }
-
     pid_t pid = fork();
 
     if (pid < 0)
@@ -343,6 +328,13 @@ PlatformHandle Platform_RunProcess(const String ProcessExePath, const String Par
     }
     else // child path
     {
+        bool bChangeSuccess = Platform_SetWorkingDirectory(WorkingDirectory);
+        if (!bChangeSuccess)
+        {
+            exit(1);
+            return 1;
+        }
+
         StringLocal(EnvArgs, 4096);
         char* envp[256] = { NULL };
 
@@ -371,9 +363,33 @@ PlatformHandle Platform_RunProcess(const String ProcessExePath, const String Par
             }
         }
 
-        execve(ProcessExePath.Data, (char*[]){(char*)Command.Data, NULL}, EnvArgs.Length == 0 ? environ : envp);
-        exit(0);
+        i8 ArenaMemory[UINT16_MAX] = {0};
+        LinearAllocator TempArena = {0};
+        LinearAllocator_Create(UINT16_MAX, ArenaMemory, &TempArena);
+
+        StringList List = String_SplitIntoList(&TempArena, Parameters, ' ', true);
+
+        char* Args[256] = {0};
+        u8 i = 0;
+        for each_string_in_list (List)
+        {
+            String Trimmed = String_TrimQuotes(It.String);
+            // stomp on the data
+            Trimmed.Data[Trimmed.Length] = 0;
+
+            Args[i] = (char*)Trimmed.Data;
+            i++;
+            if (i == 255)
+            {
+                break;
+            }
+        }
+
+        i32 Result = execve((char*)ProcessExePath.Data, Args, EnvArgs.Length == 0 ? environ : envp);
+        exit(Result);
     }
+
+    return pid;
 }
 
 PlatformHandle Platform_RunCommand(const String CmdLine, const String WorkingDirectory, const String EnvBlock)
@@ -644,7 +660,7 @@ u32 Platform_WaitForProcessAndGetExitCode(PlatformHandle Handle)
     if (Handle == 0)
         return 0;
 
-    i32 PidStatus;
+    i32 PidStatus = 0;
     pid_t pid = waitpid(Handle, &PidStatus, 0);
     if (pid == -1)
     {
@@ -857,6 +873,20 @@ bool Platform_GetUserName(String* OutName)
     return true;
 }
 
+void Platform_GetComputerName(String* OutName)
+{
+    char HostName[256] = {0};
+    i32 Result = gethostname(HostName, sizeof(HostName));
+    if (Result == 0)
+    {
+        String_Copy(OutName, CStrEx(HostName, 255));
+    }
+    else
+    {
+        String_Copy(OutName, S("__unknown__"));
+    }
+}
+
 // TODO: test and verify
 bool Platform_GetUserDirectory(String* OutDirectory)
 {
@@ -887,7 +917,7 @@ void Platform_GetHomeDirectory(String* OutDirectory)
         {
             if (String_IsValid(Result))
             {
-                if (access(Result.Data, F_OK))
+                if (access((char*)Result.Data, F_OK))
                 {
                     String_Copy(OutDirectory, Result);
                     return;
@@ -903,7 +933,7 @@ void Platform_GetHomeDirectory(String* OutDirectory)
         {
             if (String_IsValid(Result))
             {
-                if (access(Result.Data, F_OK))
+                if (access((char*)Result.Data, F_OK))
                 {
                     String_Copy(OutDirectory, Result);
                     return;
@@ -1821,7 +1851,7 @@ bool Filesystem_DeleteDirectory(const String DirectoryPath)
 bool Filesystem_Copy(const String Source, const String Destination)
 {
     StringLocal(Cmd, MAX_PATH_LENGTH);
-    String_Append(&Cmd, S("cp \""));
+    String_Append(&Cmd, S("cp -r \""));
     String_Append(&Cmd, Source);
     String_AppendChar(&Cmd, '"');
     String_AppendSpace(&Cmd);

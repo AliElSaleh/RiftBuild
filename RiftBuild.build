@@ -26,8 +26,8 @@ BuildDirectory:!debug    Build/Dist%%32/%%Hood
 IntermediateDirectory    Intermediate/$SourceDirectory
 
 RiftCoreFiles            Core/Memory.c Core/StringUtils.c Core/Log.c Core/Platform_Core.c Core/Platform_%(_platform).c
+RiftCoreFiles:unix       Core/Platform_Unix.c
 SourceFiles              $RiftCoreFiles Program.c Backend.c Exporter.c Parse.c
-SourceFiles:unix         Platform_Unix.c
 
 Compiler.Flags           $SharedCompilerFlags
 Linker.Flags             $SharedLinkerFlags
@@ -35,7 +35,7 @@ Includes                 $SharedIncludeFlags
 Defines                  $SharedDefines %^%hood
 Libraries:linux          pthread uuidS
 Libraries:bsd            pthread
-Library.Paths            Source/Libraries/%_platform
+Library.Paths:linux      Source/Libraries/Linux
 
 if windows
 {
@@ -47,6 +47,8 @@ if windows
     Libraries:32:!debug  libcmt  libvcruntime
     Libraries:32: debug  libcmtd libvcruntimed
     Libraries:asan       libucrt
+
+    Library.Paths        Source/Libraries/Windows
 
     # todo: make riftbuild do this
     PreLink.Delete:debug $BuildDirectory/$(Assembly).pdb

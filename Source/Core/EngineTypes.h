@@ -435,7 +435,14 @@ STRUCT(StringList)
 #endif
 
 #ifdef __GNUC__
-#define GCC_SECTION(x)   __attribute__((__section__(x)))
+//#define GCC_SECTION(x)   __attribute__((__section__(x)))
+#if defined(__APPLE__) && defined(__MACH__)
+    // Use Mach-O format: segment,section
+    #define GCC_SECTION(x) __attribute__((section(x)))
+    #else
+    #define GCC_SECTION(x) __attribute__((__section__(x)))
+#endif
+
 #define GCC_ATTRIBUTE(x) __attribute__((x))
 #define GCC_PRAGMA(x)    _Pragma(STRINGIFY(x))
 #else
@@ -448,13 +455,18 @@ STRUCT(StringList)
     MSVC_SECTION(x) \
     GCC_SECTION(x)
 
-#ifdef _MSC_VER
-#pragma section(".roglob", read)
-#endif
-
 // Old: GCC_SECTION(".roglob,\"l\",@progbits#")
 
-#define read_only SECTION(".roglob")
+#ifdef _MSC_VER
+    #pragma section(".roglob", read)
+    #define read_only SECTION(".roglob")
+#else
+    #if defined(__APPLE__) && defined(__MACH__)
+    #define read_only SECTION("__DATA,__roglob")
+    #else
+    #define read_only SECTION(".roglob")
+    #endif
+#endif
 
 #if COMPILER_CLANG || COMPILER_GCC
 
@@ -615,8 +627,8 @@ STATIC_ASSERT(sizeof(i32)   == 4, "Expected size of i32 to be 4 bytes.");
 STATIC_ASSERT(sizeof(i64)   == 8, "Expected size of i64 to be 8 bytes.");
 STATIC_ASSERT(sizeof(f32)   == 4, "Expected size of f32 to be 4 bytes.");
 STATIC_ASSERT(sizeof(f64)   == 8, "Expected size of f64 to be 8 bytes.");
-STATIC_ASSERT(sizeof(ulong) == 4, "Expected size of ulong to be 4 bytes.");
-STATIC_ASSERT(sizeof(ilong) == 4, "Expected size of ilong to be 4 bytes.");
+//STATIC_ASSERT(sizeof(ulong) == 4, "Expected size of ulong to be 4 bytes.");
+//STATIC_ASSERT(sizeof(ilong) == 4, "Expected size of ilong to be 4 bytes.");
 
 #if PLATFORM_WINDOWS
 typedef void* PlatformHandle;

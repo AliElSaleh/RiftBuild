@@ -117,10 +117,12 @@ RIFT_API NO_DISCARD bool String_ReplaceNonAlphaNumericCharInline(String* Str, u8
 RIFT_API NO_DISCARD bool String_CollapseMatching(String* Dest, const String A, const String B, bool bCaseSensitive);
 
 RIFT_API NO_DISCARD String String_EatChar(String Str, u8 Char); // maybe make an s version or single version?
+RIFT_API NO_DISCARD String String_EatChar_Single(String Str, u8 Char);
 RIFT_API NO_DISCARD String String_EatSpaces(String Str);
 RIFT_API NO_DISCARD String String_EatNewLines(String Str);
 RIFT_API NO_DISCARD String String_EatPathSeparators(String Str);
 RIFT_API NO_DISCARD String String_EatCharFromEnd(String Str, u8 Char);
+RIFT_API NO_DISCARD String String_EatCharFromEnd_Single(String Str, u8 Char);
 RIFT_API NO_DISCARD String String_EatSpacesFromEnd(String Str);
 RIFT_API NO_DISCARD String String_EatNewLinesFromEnd(String Str);
 RIFT_API NO_DISCARD String String_EatPathSeparatorsFromEnd(String Str);
@@ -153,6 +155,8 @@ RIFT_API NO_DISCARD bool String_IndexOfSubstring(const String Str, const String 
 RIFT_API NO_DISCARD bool String_SanitizePath(String* Dest, const String Source);
 RIFT_API NO_DISCARD bool String_SanitizePathAndWrap(String* Dest, const String Source);
 RIFT_API NO_DISCARD bool String_SanitizeQuotes(String* Dest, const String Source);
+
+RIFT_API NO_DISCARD String String_TrimQuotes(const String Source);
 
 RIFT_API NO_DISCARD bool String_IsFirst(const String Str, u8 C);
 RIFT_API NO_DISCARD bool String_IsLast(const String Str, u8 C);

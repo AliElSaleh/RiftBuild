@@ -1044,6 +1044,13 @@ NO_DISCARD String String_EatChar(String Str, u8 Char)
     return StrShiftF(Str, i);
 }
 
+NO_DISCARD String String_EatChar_Single(String Str, u8 Char)
+{
+    u32 i = String_IsFirst(Str, Char) ? 1 : 0;
+
+    return StrShiftF(Str, i);
+}
+
 NO_DISCARD String String_EatPathSeparatorsFromEnd(String Str)
 {
     i32 i = ((i32)Str.Length)-1;
@@ -1145,6 +1152,16 @@ NO_DISCARD String String_EatCharFromEnd(String Str, u8 Char)
     }
 
     return Result;
+}
+
+NO_DISCARD String String_EatCharFromEnd_Single(String Str, u8 Char)
+{
+    u32 i = String_IsLast(Str, Char) ? 1 : 0;
+
+    String Copy = Str;
+    Str.Length -= i;
+
+    return Copy;
 }
 
 NO_DISCARD bool String_EatCharInlineFromEnd(String* Str, u8 Char)
@@ -1767,6 +1784,29 @@ NO_DISCARD bool String_IndexOfSubstring(const String Str, const String Substring
     }
 
     return bFound;
+}
+
+NO_DISCARD String String_TrimQuotes(const String Source)
+{
+    String Copy = Source;
+    if (Copy.Length)
+    {
+        if (Copy.Data[0] == '"')
+        {
+            Copy.Data++;
+            Copy.Length--;
+
+            if (Copy.Length)
+            {
+                if (Copy.Data[Copy.Length-1] == '"')
+                {
+                    Copy.Length--;
+                }
+            }
+        }
+    }
+
+    return Copy;
 }
 
 // transforms paths with " in them to paths without them

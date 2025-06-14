@@ -584,6 +584,7 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
         }
         else
         {
+            LOG_ERROR("Failed to spawn compiler process: \"%S\"", ProgramPath);
             return false;
         }
     }
@@ -1232,7 +1233,8 @@ static void GetAdditionalLinkerFlags(const BuildParams* Params, String* Addition
             String_BuildSeparator(AdditionalFlags, ' ', NoStd, NoDefaultLibs, WlFlags, XlinkerFlags);
         }
         #else
-        String_BuildSeparator(&AdditionalFlags, ' ', NoStd, NoDefaultLibs);
+        xx bAnyValid;
+        String_BuildSeparator(AdditionalFlags, ' ', NoStd, NoDefaultLibs);
         #endif
     }
 
@@ -1403,13 +1405,15 @@ bool C_Link(const BuildParams* Params)
         }
 
 
-        PlatformPipe StdOutHandle = {0};
         PlatformHandle Handle = {0};
+        #if PLATFORM_WINDOWS
+        PlatformPipe StdOutHandle = {0};
         if (bIsMicrosoftLinker)
         {
             Handle = Platform_RunProcess_Ex(ProgramPath, CmdLine, Params->RootDirectory, &StdOutHandle);
         }
         else
+        #endif
         {
             Handle = Platform_RunProcess(ProgramPath, CmdLine, Params->RootDirectory, String_Null());
         }

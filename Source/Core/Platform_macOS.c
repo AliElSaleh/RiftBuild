@@ -7,7 +7,6 @@
 
 #include "Memory.h"
 #include "StringUtils.h"
-#include "Globals.h"
 #include "Uuid.h"
 #include "Filesystem.h"
 #include "Log.h"

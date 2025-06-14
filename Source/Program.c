@@ -2882,7 +2882,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
     StringLocal(RiftCmdLine, 2048);
     for (u8 i = 0; i < Parameters.Num; i++)
     {
-        if (String_IsEqual(Parameters.List[i], S("preset:"), false))
+        const String Param = Parameters.List[i];
+
+        if (String_IsEqual(Param, S("preset:"), false))
         {
             UniqueCmdLineArgs += 1;
         }
@@ -2891,9 +2893,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
         bool bIsBuiltin = false;
         for (u8 j = 0; j < SArray_Capacity(BuiltinOptions); j++)
         {
-            String Option = BuiltinOptions[j];
-            if (String_IsEqual(Parameters.List[i], Option, false) ||
-                String_StartsWith(Parameters.List[i], Option, false))
+            const String Option = BuiltinOptions[j];
+            if (String_IsEqual(Param, Option, false) ||
+                String_StartsWith(Param, Option, false))
             {
                 bIsBuiltin = true;
                 break;
@@ -2905,7 +2907,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
             continue;
         }
 
-        String_Append     (&RiftCmdLine, Parameters.List[i]);
+        String_Append     (&RiftCmdLine, Param);
         String_AppendSpace(&RiftCmdLine);
     }
 
@@ -5822,8 +5824,11 @@ static u32 BuildTarget(LinearAllocator* Arena,
         }
     }
 
-    // resolve linker and archiver paths
+    #if PLATFORM_WINDOWS
     String RCProgramFlags = String_Null();
+    #endif
+
+    // resolve linker and archiver paths
     {
         u32 LastSlashIndex = 0;
         xx String_IndexOfLastPathSlash(CompilerPath, &LastSlashIndex);
@@ -5862,6 +5867,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
             String_Append(&RCCompilerPath, S(".exe"));
             #endif
         }
+        #if PLATFORM_WINDOWS
         else if (String_Contains(CompilerExe, S("cl.exe"), false))
         {
             RCProgramFlags = S("/nologo");
@@ -5881,6 +5887,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 String_BuildPath(&MTCompilerPath, WindowsSDKBinaryPath, S("\\"CPU_ARCHITECTURE_STRING"\\mt.exe"));
             }
         }
+        #endif
         else
         {
             String_Copy(&LinkerPath, CompilerPath);
@@ -6469,7 +6476,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
     String_Append(&FlagPrefix, CompilerFlagPrefixSymbol);
     String_Append(&FlagPrefix, S("I"));
 
-    ExpandPathFlags(*Arena, &ExpandedIncludeFlags, IncludeFlags, FlagPrefix, !bExportingSomething);
+    bool bWrapWithQuotes = false; // !bExportingSomething;
+
+    ExpandPathFlags(*Arena, &ExpandedIncludeFlags, IncludeFlags, FlagPrefix, false);
 
     FlagPrefix.Data[1] = 'l';
     if (String_IsEqual(CompilerProgram, S("cl"), false) ||
@@ -6479,34 +6488,34 @@ static u32 BuildTarget(LinearAllocator* Arena,
     }
     else
     {
-        PrefixVariables(&ExpandedLibraries, Libraries, FlagPrefix, !bExportingSomething);
+        PrefixVariables(&ExpandedLibraries, Libraries, FlagPrefix, bWrapWithQuotes);
     }
 
     FlagPrefix.Data[1] = 'L';
     if (String_IsEqual(CompilerProgram, S("cl"), false) ||
         String_IsEqual(CompilerProgram, S("msvc"), false)) // todo: something better
     {
-        ExpandPathFlags(*Arena, &ExpandedLibraryDirectories, LibraryDirectories, S("/LIBPATH:"), !bExportingSomething);
+        ExpandPathFlags(*Arena, &ExpandedLibraryDirectories, LibraryDirectories, S("/LIBPATH:"), bWrapWithQuotes);
     }
     else
     {
-        ExpandPathFlags(*Arena, &ExpandedLibraryDirectories, LibraryDirectories, FlagPrefix, !bExportingSomething);
+        ExpandPathFlags(*Arena, &ExpandedLibraryDirectories, LibraryDirectories, FlagPrefix, bWrapWithQuotes);
     }
 
     FlagPrefix.Data[1] = 'D';
-    PrefixVariables(&ExpandedDefineFlags, Defines, FlagPrefix, !bExportingSomething);
-    PrefixVariables(&ExpandedLinkerDefineFlags, LinkerDefines, FlagPrefix, !bExportingSomething);
+    PrefixVariables(&ExpandedDefineFlags, Defines, FlagPrefix, false);
+    PrefixVariables(&ExpandedLinkerDefineFlags, LinkerDefines, FlagPrefix, false);
 
     FlagPrefix.Data[1] = 'U';
-    PrefixVariables(&ExpandedUnDefineFlags, UnDefines, FlagPrefix, !bExportingSomething);
+    PrefixVariables(&ExpandedUnDefineFlags, UnDefines, FlagPrefix, false);
 
     // assembler stuff
     FlagPrefix.Data[0] = '-'; // todo: masm uses /
     FlagPrefix.Data[1] = 'I';
-    ExpandPathFlags(*Arena, &ExpandedAssemblerIncludeFlags, AssemblerIncludes, FlagPrefix, !bExportingSomething);
+    ExpandPathFlags(*Arena, &ExpandedAssemblerIncludeFlags, AssemblerIncludes, FlagPrefix, bWrapWithQuotes);
 
     FlagPrefix.Data[1] = 'D';
-    PrefixVariables(&ExpandedAssemblerDefineFlags, AssemblerDefines, FlagPrefix, !bExportingSomething);
+    PrefixVariables(&ExpandedAssemblerDefineFlags, AssemblerDefines, FlagPrefix, bWrapWithQuotes);
 
     if (!bExportingSomething)
     {
