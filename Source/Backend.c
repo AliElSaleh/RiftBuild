@@ -1358,7 +1358,18 @@ bool C_Link(const BuildParams* Params)
         StringLocal(AdditionalFlags, 512);
         GetAdditionalLinkerFlags(Params, &AdditionalFlags);
 
-        String_BuildSeparator(&CmdLine, ' ', VerboseFlag, SharedFlag, AdditionalFlags, Params->LinkerFlags, Params->LinkerDefineFlags, Params->Libraries, Params->LibraryDirectories, RunPathLinkFlag, bIsMicrosoftLinker ? WinSDKLibPaths : String_Null(), Params->IconResFilePath, Params->VersionResFilePath);
+        String_BuildSeparator(&CmdLine, ' ', VerboseFlag,
+                                             SharedFlag,
+                                             AdditionalFlags,
+                                             Params->LinkerFlags,
+                                             Params->LinkerDefineFlags,
+                                             Params->Libraries,
+                                             Params->LibraryDirectories,
+                                             RunPathLinkFlag,
+                                             bIsMicrosoftLinker ? WinSDKLibPaths : String_Null(),
+                                             Params->IconResFilePath,
+                                             Params->VersionResFilePath);
+
         xx String_EatSpacesInlineFromEnd(&CmdLine);
         String_AppendSpace(&CmdLine);
 

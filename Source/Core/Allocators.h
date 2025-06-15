@@ -32,6 +32,12 @@ STRUCT(LinearAllocator_Scratch)
         ScratchLocal(Scratch, Kibibytes(16));
         */
 
+
+#define ScratchLocal(Name, Amount) \
+        i8 Name##_Memory[Amount] = {0}; \
+        LinearAllocator Name = {0}; \
+        LinearAllocator_Create(Amount, Name##_Memory, &Name); \
+
 RIFT_API void LinearAllocator_Create(usize TotalSize, void* Memory, LinearAllocator* OutAllocator);
 RIFT_API void LinearAllocator_Destroy(LinearAllocator* Allocator);
 

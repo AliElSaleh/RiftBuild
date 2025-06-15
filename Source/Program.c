@@ -313,7 +313,6 @@ static void PrefixVariables(String* Dest, String VariableValue, const String Pre
             bInsideQuote = !bInsideQuote;
         }
 
-        // TODO: look at other parts of code base for C == ' '
         if (IsWhitespace(C) && !bInsideQuote)
         {
             if (bWrapWithQuotes)
@@ -2592,6 +2591,65 @@ static void PrintUsage(const String WorkingDirectory)
     LOG("   Submit a request, issue or bug report: https://github.com/AliElSaleh/RiftBuild/issues");
 }
 
+static void ExpandDefineFlags(String* Dest, const String Flags, const String FlagPrefix)
+{
+    // Note(Ali): on windows, wrap the define in quotes so that we can have spaces for the string defines
+    //            like so: "-DVAR=\"va lue\"". the createprocess() argument parser splits up the arguments 
+    //            by default where as unix doesn't. if only there was a way to fucking bypass this shit. sigh... :(
+    //            on unix we just do this: -DVAR="va lue". so we dont actually need to do any processing
+
+    if (Flags.Length)
+    {
+        #if PLATFORM_WINDOWS
+        // TODO: verify compile_commands.json export?
+        ScratchLocal(Scratch, Kibibytes(8));
+        StringList List = String_SplitIntoList(&Scratch, Flags, ' ', true);
+
+        for each_string_in_list (List)
+        {
+            String_AppendChar(Dest, '"');
+            String_Append    (Dest, FlagPrefix);
+
+            u32 Equals = 0;
+            if (String_IndexOfChar(It.String, '=', &Equals))
+            {
+                // is this define a string?
+
+                String Name = StrSlice(It.String.Data, Equals);
+                String Value = StrShiftF(It.String, Equals+1);
+                bool bIsString = String_IsFirst(Value, '"') && String_IsLast(Value, '"');
+
+                String_Append    (Dest, Name);
+                String_AppendChar(Dest, '=');
+                
+                // if its a string, insert a literal backslash so that the argument parser
+                // for createprocess() understands that this is a nested string.
+
+                if (bIsString)
+                {
+                    String_AppendChar(Dest, '\\');
+                    String_Append    (Dest, Value);
+                    Dest->Length--;
+                    String_AppendChar(Dest, '\\');
+                }
+                else
+                {
+                    String_Append    (Dest, Value);
+                }
+            }
+            else
+            {
+                String_Append(Dest, It.String);
+            }
+
+            String_AppendChar(Dest, '"');
+        }
+        #else
+        PrefixVariables(Dest, Flags, FlagPrefix, false);
+        #endif
+    }
+}
+
 static void ExpandPathFlags(LinearAllocator Scratch, String* Dest, const String Flags, const String FlagPrefix, bool bWrapWithQuotes)
 {
     // expand include flags with * and ** wildcards
@@ -3448,11 +3506,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
                 {
                     StringLocal(VersionDefineString, 256);
-                    #if PLATFORM_WINDOWS
-                    String_Format(&VersionDefineString, S("%S_VERSION_STRING=\\\"%S\\\""), AssemblyNameUpper, ExpandedVar);
-                    #else
                     String_Format(&VersionDefineString, S("%S_VERSION_STRING=\"%S\""), AssemblyNameUpper, ExpandedVar);
-                    #endif
 
                     AddOrAppendVariable(Arena, VariablesDB, S("Defines"), VersionDefineString, String_Null());
                 }
@@ -3476,11 +3530,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                             {
                                 if (bContainsNonDigit)
                                 {
-                                    #if PLATFORM_WINDOWS
-                                    String_Format(&VersionDefine, S("%S_%S_VERSION=\\\"%S\\\""), AssemblyNameUpper, VersionLevels[i], *v);
-                                    #else
                                     String_Format(&VersionDefine, S("%S_%S_VERSION=\"%S\""), AssemblyNameUpper, VersionLevels[i], *v);
-                                    #endif
                                 }
                                 else
                                 {
@@ -3491,11 +3541,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                             {
                                 if (bContainsNonDigit)
                                 {
-                                    #if PLATFORM_WINDOWS
-                                    String_Format(&VersionDefine, S("%S_EXTRA_VERSION_%hhu=\\\"%S\\\""), AssemblyNameUpper, i-3, *v);
-                                    #else
                                     String_Format(&VersionDefine, S("%S_EXTRA_VERSION_%hhu=\"%S\""), AssemblyNameUpper, i-3, *v);
-                                    #endif
                                 }
                                 else
                                 {
@@ -3517,11 +3563,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
                     if (bContainsNonDigit)
                     {
-                        #if PLATFORM_WINDOWS
-                        String_Format(&VersionDefine, S("%S_VERSION=\\\"%S\\\""), AssemblyNameUpper, ExpandedVar);
-                        #else
                         String_Format(&VersionDefine, S("%S_VERSION=\"%S\""), AssemblyNameUpper, ExpandedVar);
-                        #endif
                     }
                     else
                     {
@@ -6519,11 +6561,15 @@ static u32 BuildTarget(LinearAllocator* Arena,
     }
 
     FlagPrefix.Data[1] = 'D';
-    PrefixVariables(&ExpandedDefineFlags, Defines, FlagPrefix, false);
-    PrefixVariables(&ExpandedLinkerDefineFlags, LinkerDefines, FlagPrefix, false);
+    ExpandDefineFlags(&ExpandedDefineFlags, Defines, FlagPrefix);
+    ExpandDefineFlags(&ExpandedLinkerDefineFlags, LinkerDefines, FlagPrefix);
+    //PrefixVariables(&ExpandedDefineFlags, Defines, FlagPrefix, false);
+    //PrefixVariables(&ExpandedLinkerDefineFlags, LinkerDefines, FlagPrefix, false);
 
     FlagPrefix.Data[1] = 'U';
-    PrefixVariables(&ExpandedUnDefineFlags, UnDefines, FlagPrefix, false);
+    //PrefixVariables(&ExpandedUnDefineFlags, UnDefines, FlagPrefix, false);
+    ExpandDefineFlags(&ExpandedUnDefineFlags, UnDefines, FlagPrefix);
+    
 
     // assembler stuff
     FlagPrefix.Data[0] = '-'; // todo: masm uses /
@@ -6531,7 +6577,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
     ExpandPathFlags(*Arena, &ExpandedAssemblerIncludeFlags, AssemblerIncludes, FlagPrefix, bWrapWithQuotes);
 
     FlagPrefix.Data[1] = 'D';
-    PrefixVariables(&ExpandedAssemblerDefineFlags, AssemblerDefines, FlagPrefix, bWrapWithQuotes);
+    //PrefixVariables(&ExpandedAssemblerDefineFlags, AssemblerDefines, FlagPrefix, bWrapWithQuotes);
+    ExpandDefineFlags(&ExpandedAssemblerDefineFlags, AssemblerDefines, FlagPrefix);
 
     if (!bExportingSomething)
     {
@@ -9231,6 +9278,7 @@ u32 RunApplication(const StringArray Arguments)
     const PlatformVersion OSVersion = Platform_GetVersion();
 
     LOG("\nRift Build System v%S (%S %u.%u.%u %S) %S\n", S(RIFTBUILD_VERSION_STRING), S(PLATFORM_STRING), OSVersion.Major, OSVersion.Minor, OSVersion.Patch, S(CPU_ARCHITECTURE_STRING), ExtraFlags);
+    //LOG("%S", S(YO_DAWG));
 
     #ifdef HOOD
     LOG("\nwasssup yo. les get build'n...\n");

@@ -369,6 +369,8 @@ PlatformHandle Platform_RunProcess(const String ProcessExePath, const String Par
 
         StringList List = String_SplitIntoList(&TempArena, Parameters, ' ', true);
 
+        // TODO: remove the program from the parameters from all the backend.c cmdline strings. match this behviour on windows
+        // Args[0] = ProcessExePath.Data;
         char* Args[256] = {0};
         u8 i = 0;
         for each_string_in_list (List)
@@ -376,6 +378,7 @@ PlatformHandle Platform_RunProcess(const String ProcessExePath, const String Par
             String Trimmed = String_TrimQuotes(It.String);
             // stomp on the data
             Trimmed.Data[Trimmed.Length] = 0;
+            //LOG("%S", Trimmed);
 
             Args[i] = (char*)Trimmed.Data;
             i++;
