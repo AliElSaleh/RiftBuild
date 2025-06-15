@@ -66,6 +66,7 @@ read_only String BuiltinOptions[] =
     SC("--quiet"),
     SC("--tutorial"), // todo: different types of tutorials like --tutorial:name
     SC("--from-desktop"),
+    SC("--no-mutex"),
     SC("help"),
     SC("options"),
     SC("clean"),
