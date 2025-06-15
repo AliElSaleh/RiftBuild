@@ -1,3 +1,5 @@
+#!/usr/bin/env riftbuild
+
 .Help
 {
    Below is a non-exhaustive list of possible ways to build this program:
@@ -5,6 +7,12 @@
     > riftbuild cl
     > riftbuild asan debug gcc
     > riftbuild hood
+   
+   -- Cool thing for Linux users ---------------
+    If you have this build file's execute permission set and riftbuild is in your path,
+    you can execute this file directly like a regular shell script:
+     > ./RiftBuild.build
+   ----------------------------------
 }
 
 include Source/Common.buildvars
