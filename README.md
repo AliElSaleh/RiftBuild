@@ -1,4 +1,4 @@
-<h1 align="center">Rift Build (ALPHA)</h1>
+<h1 align="center">Rift Build (CLOSED BETA)</h1>
 <p align="center">A simpler build tool for C/C++, because fuck CMake.</p>
 
 <p align="center">
