@@ -6,7 +6,6 @@
 #if PLATFORM_LINUX
 
 #ifndef UNITY_BUILD
-#include "Globals.h"
 #include "Log.h"
 
 #include "Uuid.h"

@@ -1361,11 +1361,9 @@ bool C_Link(const BuildParams* Params)
         String_BuildSeparator(&CmdLine, ' ', VerboseFlag,
                                              SharedFlag,
                                              AdditionalFlags,
+                                             RunPathLinkFlag,
                                              Params->LinkerFlags,
                                              Params->LinkerDefineFlags,
-                                             Params->Libraries,
-                                             Params->LibraryDirectories,
-                                             RunPathLinkFlag,
                                              bIsMicrosoftLinker ? WinSDKLibPaths : String_Null(),
                                              Params->IconResFilePath,
                                              Params->VersionResFilePath);
@@ -1393,6 +1391,11 @@ bool C_Link(const BuildParams* Params)
         }
 
         Internal_AppendObjSourceFiles(Params, &CmdLine, DefaultObjExtension);
+
+        String_BuildSeparator(&CmdLine, ' ', Params->Libraries,
+                                             Params->LibraryDirectories);
+
+        String_AppendSpace(&CmdLine);
 
         String_Concat(&CmdLine, OutputFlag, S("\""), BuildPath, Params->AssemblyWithExt, S("\""));
 
