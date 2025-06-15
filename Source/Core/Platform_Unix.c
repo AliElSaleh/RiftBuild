@@ -1180,7 +1180,7 @@ void Filesystem_Close(FileHandle* Handle)
         return;
 
     //bool bFailedUnmap = false;
-    if (Handle->Data2)
+    if (Handle->Data2 && Handle->Data2 != g_FileHandle.Data2)
     {
         Handle->Data2 = NULL;
 

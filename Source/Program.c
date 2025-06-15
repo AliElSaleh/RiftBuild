@@ -9301,7 +9301,7 @@ u32 RunApplication(const StringArray Arguments)
         Platform_BeginNonBlockingMode();
         while (true)
         {
-            Platform_Sleep(10);
+            Platform_Wait(10);
             if (Platform_IsWindowFocused() && Platform_AnyKeyPressed())
             {
                 break;
