@@ -527,7 +527,7 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
             }
         }
 
-        String_BuildSeparator(&CmdLine, ' ', CompileFlag, FullSourcePath, Params->CompilerFlags, Params->DefineFlags, Params->IncludeFlags, WinSDKInclude, AdditionalFlags, PCHFlags, OutputFlag);
+        String_BuildSeparator(&CmdLine, ' ', CompileFlag, FullSourcePath, Params->CompilerFlags, Params->IncludeFlags, Params->DefineFlags, WinSDKInclude, AdditionalFlags, PCHFlags, OutputFlag);
         xx String_EatSpacesInlineFromEnd(&CmdLine);
 
         String_Append(&CmdLine, S(" \""));

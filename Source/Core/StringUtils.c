@@ -547,7 +547,6 @@ void String_AppendF(String* Dest, const String Format, ...)
 void String_AppendChar(String* Dest, const u8 Source)
 {
     u32 NumToCopy = Min(Dest->Capacity, 1);
-    NumToCopy = Min(Dest->Capacity - Dest->Length, NumToCopy);
     MemCopy(&Dest->Data[Dest->Length], &Source, NumToCopy);
     Dest->Length += NumToCopy;
     Dest->Data[Dest->Length] = 0;

@@ -245,6 +245,11 @@ static void PrefixVariables(String* Dest, String VariableValue, const String Pre
 
     if (VariableValue.Length > 0)
     {
+        if (bWrapWithQuotes && VariableValue.Data[0] != '"')
+        {
+            String_AppendChar(Dest, '"');
+        }
+
         if (!String_StartsWith(VariableValue, Prefix, false))
         {
             String_Append(Dest, Prefix);
@@ -257,11 +262,6 @@ static void PrefixVariables(String* Dest, String VariableValue, const String Pre
                 String_AppendChar(Dest, ':');
             }
             #endif
-        }
-
-        if (bWrapWithQuotes && VariableValue.Data[0] != '"')
-        {
-            String_AppendChar(Dest, '"');
         }
     }
 
@@ -287,6 +287,11 @@ static void PrefixVariables(String* Dest, String VariableValue, const String Pre
 
                 if (!bInsideQuote)
                 {
+                    if (bWrapWithQuotes && C != '"')
+                    {
+                        String_AppendChar(Dest, '"');
+                    }
+
                     if (!String_StartsWith(StrShiftF(VariableValue, i), Prefix, false))
                     {
                         String_Append(Dest, Prefix);
@@ -298,11 +303,6 @@ static void PrefixVariables(String* Dest, String VariableValue, const String Pre
                             String_AppendChar(Dest, ':');
                         }
                         #endif
-                    }
-
-                    if (bWrapWithQuotes && C != '"')
-                    {
-                        String_AppendChar(Dest, '"');
                     }
                 }
             }
@@ -2631,6 +2631,7 @@ static void ExpandDefineFlags(String* Dest, const String Flags, const String Fla
                     String_Append    (Dest, Value);
                     Dest->Length--;
                     String_AppendChar(Dest, '\\');
+                    String_AppendChar(Dest, '"');
                 }
                 else
                 {
@@ -2643,6 +2644,7 @@ static void ExpandDefineFlags(String* Dest, const String Flags, const String Fla
             }
 
             String_AppendChar(Dest, '"');
+            String_AppendSpace(Dest);
         }
         #else
         PrefixVariables(Dest, Flags, FlagPrefix, false);
@@ -6534,9 +6536,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
     String_Append(&FlagPrefix, CompilerFlagPrefixSymbol);
     String_Append(&FlagPrefix, S("I"));
 
-    bool bWrapWithQuotes = false; // !bExportingSomething;
+    bool bWrapWithQuotes = true; // !bExportingSomething;
 
-    ExpandPathFlags(*Arena, &ExpandedIncludeFlags, IncludeFlags, FlagPrefix, false);
+    ExpandPathFlags(*Arena, &ExpandedIncludeFlags, IncludeFlags, FlagPrefix, bWrapWithQuotes);
 
     FlagPrefix.Data[1] = 'l';
     if (String_IsEqual(CompilerProgram, S("cl"), false) ||
@@ -6546,7 +6548,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     }
     else
     {
-        PrefixVariables(&ExpandedLibraries, Libraries, FlagPrefix, bWrapWithQuotes);
+        PrefixVariables(&ExpandedLibraries, Libraries, FlagPrefix, false);
     }
 
     FlagPrefix.Data[1] = 'L';
@@ -6563,21 +6565,16 @@ static u32 BuildTarget(LinearAllocator* Arena,
     FlagPrefix.Data[1] = 'D';
     ExpandDefineFlags(&ExpandedDefineFlags, Defines, FlagPrefix);
     ExpandDefineFlags(&ExpandedLinkerDefineFlags, LinkerDefines, FlagPrefix);
-    //PrefixVariables(&ExpandedDefineFlags, Defines, FlagPrefix, false);
-    //PrefixVariables(&ExpandedLinkerDefineFlags, LinkerDefines, FlagPrefix, false);
 
     FlagPrefix.Data[1] = 'U';
-    //PrefixVariables(&ExpandedUnDefineFlags, UnDefines, FlagPrefix, false);
     ExpandDefineFlags(&ExpandedUnDefineFlags, UnDefines, FlagPrefix);
     
-
     // assembler stuff
     FlagPrefix.Data[0] = '-'; // todo: masm uses /
     FlagPrefix.Data[1] = 'I';
     ExpandPathFlags(*Arena, &ExpandedAssemblerIncludeFlags, AssemblerIncludes, FlagPrefix, bWrapWithQuotes);
 
     FlagPrefix.Data[1] = 'D';
-    //PrefixVariables(&ExpandedAssemblerDefineFlags, AssemblerDefines, FlagPrefix, bWrapWithQuotes);
     ExpandDefineFlags(&ExpandedAssemblerDefineFlags, AssemblerDefines, FlagPrefix);
 
     if (!bExportingSomething)
