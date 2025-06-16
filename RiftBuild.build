@@ -8,7 +8,7 @@
     > riftbuild asan debug gcc
     > riftbuild hood
    
-   -- Cool thing for Linux users ---------------
+   -- Cool thing for Unix users ---------------
     If you have this build file's execute permission set and riftbuild is in your path,
     you can execute this file directly like a regular shell script:
      > ./RiftBuild.build
@@ -35,6 +35,7 @@ IntermediateDirectory    Intermediate/$SourceDirectory
 
 RiftCoreFiles            Core/Memory.c Core/StringUtils.c Core/Log.c Core/Platform_Core.c Core/Platform_%(_platform).c
 RiftCoreFiles:unix       Core/Platform_Unix.c
+RiftCoreFiles:bsd        Core/Platform_BSD.c
 SourceFiles              $RiftCoreFiles Program.c Backend.c Exporter.c Parse.c
 
 Compiler.Flags           $SharedCompilerFlags
