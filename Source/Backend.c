@@ -1524,6 +1524,7 @@ bool C_Link(const BuildParams* Params)
             String_BuildSeparator(&CmdLine, ' ', VerboseFlag, Params->ArchiverFlags, Params->VersionResFilePath);
         }
 
+        xx String_EatSpacesInlineFromEnd(&CmdLine);
         String_AppendSpace(&CmdLine);
 
         Internal_AppendObjSourceFiles(Params, &CmdLine, DefaultObjExtension);
