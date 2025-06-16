@@ -1490,7 +1490,7 @@ bool C_Link(const BuildParams* Params)
             #if PLATFORM_WINDOWS
             OutputFlag = S("r ");
             #else
-            OutputFlag = S("ar rcs ");
+            OutputFlag = S("rcs ");
             #endif
         }
 
