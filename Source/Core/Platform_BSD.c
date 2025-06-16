@@ -4,7 +4,6 @@
 #include "Platform.h"
 
 #if PLATFORM_BSD
-#include "Globals.h"
 #include "Log.h"
 
 #include "Uuid.h"

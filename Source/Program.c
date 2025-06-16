@@ -8723,6 +8723,7 @@ static void InitInternalVars(LinearAllocator* Arena)
     #elif PLATFORM_BSD
     AddInternalVariable(S("_Platform"), S("BSD " PLATFORM_STRING));
     AddInternalVariable(S("BSD"),       String_Null());
+    AddInternalVariable(S("Unix"),      String_Null());
     #else
     AddInternalVariable(S("_Platform"), S("Unix"));
     AddInternalVariable(S("Unix"),      String_Null());
