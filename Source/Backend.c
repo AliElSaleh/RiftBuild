@@ -1351,7 +1351,7 @@ bool C_Link(const BuildParams* Params)
             {
                 ChosenRPath = Params->RPath;
             }
-            String_AppendF(&RunPathLinkFlag, S("-Wl,-rpath,\"%S\""), ChosenRPath);
+            String_AppendF(&RunPathLinkFlag, S("-Wl,-rpath,'%S'"), ChosenRPath);
         }
         #endif
 
@@ -1360,10 +1360,6 @@ bool C_Link(const BuildParams* Params)
 
         String_BuildSeparator(&CmdLine, ' ', VerboseFlag,
                                              SharedFlag,
-                                             AdditionalFlags,
-                                             RunPathLinkFlag,
-                                             Params->LinkerFlags,
-                                             Params->LinkerDefineFlags,
                                              bIsMicrosoftLinker ? WinSDKLibPaths : String_Null(),
                                              Params->IconResFilePath,
                                              Params->VersionResFilePath);
@@ -1392,9 +1388,17 @@ bool C_Link(const BuildParams* Params)
 
         Internal_AppendObjSourceFiles(Params, &CmdLine, DefaultObjExtension);
 
-        String_BuildSeparator(&CmdLine, ' ', Params->Libraries,
+	// These must come after obj files because on some operating systems
+	// the linker is sensitive to the order of how the flags are positioned
+	// 
+        String_BuildSeparator(&CmdLine, ' ', AdditionalFlags,
+                                             RunPathLinkFlag,
+                                             Params->LinkerFlags,
+                                             Params->LinkerDefineFlags,
+			                     Params->Libraries,
                                              Params->LibraryDirectories);
 
+        xx String_EatSpacesInlineFromEnd(&CmdLine);
         String_AppendSpace(&CmdLine);
 
         String_Concat(&CmdLine, OutputFlag, S("\""), BuildPath, Params->AssemblyWithExt, S("\""));
