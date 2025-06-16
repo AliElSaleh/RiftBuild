@@ -720,7 +720,8 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Special_ErrorMessage(LinearAllocat
     if (Parser_Match(P, Token_LCurly) || 
         Parser_Match(P, Token_LSquare))
     {
-        while (Parser_Peek(P).Type != Token_RCurly &&
+        while (Parser_Peek(P).Type != Token_None &&
+               Parser_Peek(P).Type != Token_RCurly &&
                Parser_Peek(P).Type != Token_RSquare)
         {
             Token Peek = Parser_Peek(P);
@@ -748,8 +749,9 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Special_ErrorMessage(LinearAllocat
     }
     else
     {
-        while (!(Parser_Peek(P).Type == Token_Newline   ||
-                Parser_Peek(P).Type == Token_Semicolon))
+        while (Parser_Peek(P).Type != Token_None &&
+               !(Parser_Peek(P).Type == Token_Newline ||
+                 Parser_Peek(P).Type == Token_Semicolon))
         {
             String Lexeme = Parser_Peek(P).Lexeme;
             SLinkedList_Push(Next, StringList_Create(Arena, Lexeme, NULL));
@@ -807,7 +809,8 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Special_Help(LinearAllocator* Aren
     }
     else
     {
-        while (!(Parser_Peek(P).Type == Token_Newline   ||
+        while (Parser_Peek(P).Type != Token_None &&
+               !(Parser_Peek(P).Type == Token_Newline ||
                 Parser_Peek(P).Type == Token_Semicolon))
         {
             String Lexeme = Parser_Peek(P).Lexeme;
