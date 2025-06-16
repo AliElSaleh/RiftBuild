@@ -648,8 +648,10 @@ u32 Platform_GetExitCodeForProcess(PlatformHandle Handle)
     if (Handle == 0)
         return 0;
 
-    i32 PidStatus;
-    pid_t pid = waitpid(Handle, &PidStatus, 0); // if you call this twice on the same pid, linux wont return the same exit code like windows does... sadge :(
+    i32 PidStatus = 0;
+    // if you call this twice on the same pid, linux wont return the
+    // same exit code like windows does... sadge :(
+    pid_t pid = waitpid(Handle, &PidStatus, 0);
     if (pid == -1)
     {
         return 0;

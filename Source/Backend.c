@@ -1490,7 +1490,7 @@ bool C_Link(const BuildParams* Params)
             #if PLATFORM_WINDOWS
             OutputFlag = S("r ");
             #else
-            OutputFlag = S("ar rcs ");
+            OutputFlag = S("rcs ");
             #endif
         }
 
@@ -1524,6 +1524,7 @@ bool C_Link(const BuildParams* Params)
             String_BuildSeparator(&CmdLine, ' ', VerboseFlag, Params->ArchiverFlags, Params->VersionResFilePath);
         }
 
+        xx String_EatSpacesInlineFromEnd(&CmdLine);
         String_AppendSpace(&CmdLine);
 
         Internal_AppendObjSourceFiles(Params, &CmdLine, DefaultObjExtension);
