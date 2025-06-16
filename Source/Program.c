@@ -2592,7 +2592,7 @@ static void PrintUsage(const String WorkingDirectory)
     LOG("   Submit a request, issue or bug report: https://github.com/AliElSaleh/RiftBuild/issues");
 }
 
-static void ExpandDefineFlags(String* Dest, const String Flags, const String FlagPrefix)
+static void ExpandDefineFlags(String* Dest, const String Flags, const String FlagPrefix, bool bExportingSomething)
 {
     // Note(Ali): on windows, wrap the define in quotes so that we can have spaces for the string defines
     //            like so: "-DVAR=\"va lue\"". the createprocess() argument parser splits up the arguments 
@@ -2608,7 +2608,7 @@ static void ExpandDefineFlags(String* Dest, const String Flags, const String Fla
 
         for each_string_in_list (List)
         {
-            String_AppendChar(Dest, '"');
+            if (!bExportingSomething) { String_AppendChar(Dest, '"'); }
             String_Append    (Dest, FlagPrefix);
 
             u32 Equals = 0;
@@ -2644,7 +2644,7 @@ static void ExpandDefineFlags(String* Dest, const String Flags, const String Fla
                 String_Append(Dest, It.String);
             }
 
-            String_AppendChar(Dest, '"');
+            if (!bExportingSomething) { String_AppendChar(Dest, '"'); }
             String_AppendSpace(Dest);
         }
         #else
@@ -2992,6 +2992,11 @@ static u32 BuildTarget(LinearAllocator* Arena,
     for (u8 i = 0; i < Parameters.Num; i++)
     {
         const String Param = Parameters.List[i];
+
+        if (String_IsEqual(Param, S("_args"), false))
+        {
+            continue;
+        }
 
         // TODO: something better. this is duplicated code...
         bool bIsBuiltin = false;
@@ -6537,7 +6542,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     String_Append(&FlagPrefix, CompilerFlagPrefixSymbol);
     String_Append(&FlagPrefix, S("I"));
 
-    bool bWrapWithQuotes = true; // !bExportingSomething;
+    bool bWrapWithQuotes = !bExportingSomething;
 
     ExpandPathFlags(*Arena, &ExpandedIncludeFlags, IncludeFlags, FlagPrefix, bWrapWithQuotes);
 
@@ -6564,11 +6569,11 @@ static u32 BuildTarget(LinearAllocator* Arena,
     }
 
     FlagPrefix.Data[1] = 'D';
-    ExpandDefineFlags(&ExpandedDefineFlags, Defines, FlagPrefix);
-    ExpandDefineFlags(&ExpandedLinkerDefineFlags, LinkerDefines, FlagPrefix);
+    ExpandDefineFlags(&ExpandedDefineFlags, Defines, FlagPrefix, bExportingSomething);
+    ExpandDefineFlags(&ExpandedLinkerDefineFlags, LinkerDefines, FlagPrefix, bExportingSomething);
 
     FlagPrefix.Data[1] = 'U';
-    ExpandDefineFlags(&ExpandedUnDefineFlags, UnDefines, FlagPrefix);
+    ExpandDefineFlags(&ExpandedUnDefineFlags, UnDefines, FlagPrefix, bExportingSomething);
     
     // assembler stuff
     FlagPrefix.Data[0] = '-'; // todo: masm uses /
@@ -6576,7 +6581,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     ExpandPathFlags(*Arena, &ExpandedAssemblerIncludeFlags, AssemblerIncludes, FlagPrefix, bWrapWithQuotes);
 
     FlagPrefix.Data[1] = 'D';
-    ExpandDefineFlags(&ExpandedAssemblerDefineFlags, AssemblerDefines, FlagPrefix);
+    ExpandDefineFlags(&ExpandedAssemblerDefineFlags, AssemblerDefines, FlagPrefix, bExportingSomething);
 
     if (!bExportingSomething)
     {
@@ -8723,7 +8728,6 @@ static void InitInternalVars(LinearAllocator* Arena)
     #elif PLATFORM_BSD
     AddInternalVariable(S("_Platform"), S("BSD " PLATFORM_STRING));
     AddInternalVariable(S("BSD"),       String_Null());
-    AddInternalVariable(S("Unix"),      String_Null());
     #else
     AddInternalVariable(S("_Platform"), S("Unix"));
     AddInternalVariable(S("Unix"),      String_Null());
@@ -8734,7 +8738,7 @@ static void InitInternalVars(LinearAllocator* Arena)
     // TODO: update this by looking at the libs directory for winsdk and visual studio
     // scratch that, just iterate the directory and get all the file names in there... duh
     const String Win32Libs = S("kernel32 user32 opengl32 shell32 gdi32 comdlg32 comctl32 ws2_32 ntdll winmm netapi32 ole32 advapi32 "
-                               "wldap32 crypt32 rpcrt4 shlwapi dbghelp bcrypt version imm32 cfgmgr32 setupapi oleaut32 "
+                               "wldap32 crypt32 rpcrt4 shlwapi dbghelp bcrypt version imm32 cfgmgr32 setupapi oleaut32 shcore "
                                "uuid odbc32 odbccp32 delayimp userenv pathcch");
 
     const String LinuxLibs = S("m");

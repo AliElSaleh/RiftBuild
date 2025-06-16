@@ -2468,6 +2468,11 @@ NO_DISCARD static NodeList* Analyze_IncludeNode(LinearAllocator* Arena, Node* Ro
 
         if (bSuccess)
         {
+            Array_Add(Context->IncludeFiles, f);
+        }
+
+        if (bSuccess)
+        {
             usize Size = 0;
             bool bResult = Filesystem_GetFileSize(f, &Size);
 
