@@ -41,7 +41,7 @@ SourceFiles              $RiftCoreFiles Program.c Backend.c Exporter.c Parse.c
 Compiler.Flags           $SharedCompilerFlags
 Linker.Flags             $SharedLinkerFlags
 Includes                 $SharedIncludeFlags
-Defines                  $SharedDefines %^%hood PRINT_BUILD_CONFIGURATION=%!no_print_config
+Defines                  $SharedDefines %^%hood NO_PRINT_BUILD_CONFIG=%no_print_config
 Libraries:linux          pthread uuidS
 Libraries:bsd            pthread
 Library.Paths:linux      Source/Libraries/Linux
@@ -84,4 +84,4 @@ option.debug.description           build the debug version of this program
 option.32.description              build for 32 bit mode
 option.asan.description            enable address sanitizer for memory debugging purposes
 option.hood.description            enable hood mode, the program will talk to you like a gangster!
-option.no_print_config.description enable printing of the build configuration flags
+option.no_print_config.description disable printing of the build configuration flags

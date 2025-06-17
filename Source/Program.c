@@ -1322,7 +1322,7 @@ bool LogStringList_WordWrapped(LinearAllocator Scratch, const String Name, const
     return bLogged;
 }
 
-#if PRINT_BUILD_CONFIGURATION
+#if !NO_PRINT_BUILD_CONFIG
 static void LogNameValuePair(LinearAllocator Scratch, const String Name, const String Value, const bool bWordWrap)
 {
     if (Value.Length > 0)
@@ -6490,7 +6490,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
         LOG_LINE_BREAK();
     }
 
-    #if PRINT_BUILD_CONFIGURATION
+    #if !NO_PRINT_BUILD_CONFIG
     if (!bExportingSomething)
     {
         if (bFoundBuildFile)
@@ -6632,7 +6632,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     FlagPrefix.Data[1] = 'D';
     ExpandDefineFlags(&ExpandedAssemblerDefineFlags, AssemblerDefines, FlagPrefix, bExportingSomething);
 
-    #if PRINT_BUILD_CONFIGURATION
+    #if !NO_PRINT_BUILD_CONFIG
     if (!bExportingSomething)
     {
         LogNameValuePair(*Arena, S("    Compiler  Flags:      "), CompilerFlags,                 !bNoWordWrapLogging);
