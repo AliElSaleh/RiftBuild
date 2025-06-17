@@ -1156,24 +1156,22 @@ static bool EnforceCopyright(const BuildParams* Params, CopyrightEnforceInfo* Au
 
 static void LogOptionData_WordWrapped(LinearAllocator Scratch, const String Name, u32 NamePadding, const String Value, u32 ValuePadding, const String Params, u32 ParamPadding, const String Description)
 {
-    u32 Rows = 0, Cols = 0;
+    u32 Rows = 30, Cols = 1000;
     xx Platform_GetTerminalDimensions(&Rows, &Cols);
     Cols = Clamp(Cols, 30, 1000);
 
     StringLocal(LogBuffer, MAX_VALUE_LENGTH);
 
-    u32 ParamsLength = ParamPadding > 0 ? ParamPadding + 1 : 0;
-
     StringLocal(Spaces, MAX_KEY_LENGTH);
-    Spaces.Length = NamePadding + ParamsLength - (Params.Length > 0 ? 3 : 0);
+    Spaces.Length = NamePadding;
     String_Fill(&Spaces, ' ');
 
     StringLocal(Spaces2, MAX_KEY_LENGTH);
     Spaces2.Length = ValuePadding;
     String_Fill(&Spaces2, ' ');
 
-    u32 BaseLength = 4 + Name.Length + NamePadding + 2 + Value.Length + ValuePadding + 2;
-    u32 FirstPipe = 4 + Name.Length + NamePadding;
+    u32 BaseLength = 4 + Name.Length + NamePadding + 3 + Value.Length + ValuePadding + 4;
+    u32 FirstPipe  = 4 + Name.Length + NamePadding + 3;
     u32 SecondPipe = FirstPipe + 2 + Value.Length + ValuePadding;
 
     u32 TerminalWidth = (u32)((f32)Cols/1.25);
@@ -1210,7 +1208,7 @@ static void LogOptionData_WordWrapped(LinearAllocator Scratch, const String Name
         }
         else
         {
-            LOG("    %S%S| %S%S| %S", Name, Spaces, Value, Spaces2, LogBuffer);
+            LOG("    %S%S   | %S%S| %S", Name, Spaces, Value, Spaces2, LogBuffer);
         }
     }
     else
@@ -3230,7 +3228,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
             Context.WorkingDirectory      = WorkingPath;
             Context.bIgnoreDefaultOptions = bIgnoreDefaultOptions;
 
-            if (!ParseBuildFileV2(Arena, BuildFileHandle, BuildFilePath, Context, false, NULL))
+            if (!ParseBuildFile(Arena, BuildFileHandle, BuildFilePath, Context, false, NULL))
             {
                 return 1;
             }
@@ -3261,9 +3259,30 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
             SArray(FileVariable, OptionVars, 64) = {0};
             
-            u32 LongestName = 8;
             u32 LongestParams = 0;
+            {
+                for each (FileVariable, v, ExpandedVariablesDB)
+                {
+                    if (String_StartsWith(v.Name, S("Option."), false))
+                    {
+                        String Trimmed = v.Name;
+                        u32 LastDot = 0;
+                        if (String_IndexOfLastChar(StrShiftF(v.Name, 7), '.', &LastDot))
+                        {
+                            Trimmed = StrSlice(Trimmed.Data, LastDot+7);
+                        }
+                        
+                        // get the base key
+                        FileVariable Base = GetVariable(ExpandedVariablesDB, Trimmed);
+                        if (Base.Params.Length > LongestParams)
+                        {
+                            LongestParams = Base.Params.Length;
+                        }
+                    }
+                }
+            }
 
+            u32 LongestName = 8;
             bool bAnyOptions = false;
             for each (FileVariable, v, ExpandedVariablesDB)
             {
@@ -3299,20 +3318,15 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
                     SArray_Add(OptionVars, NewVar);
 
-                    if (StrShiftF(Trimmed, 7).Length > LongestName)
-                    {
-                        LongestName = StrShiftF(Trimmed, 7).Length;
-                    }
-
-                    // get the base key
                     FileVariable Base = GetVariable(ExpandedVariablesDB, Trimmed);
-                    if (Base.Params.Length > LongestParams)
+
+                    u32 NameLength = StrShiftF(Trimmed, 7).Length + Base.Params.Length;
+                    if (NameLength > LongestName)
                     {
-                        LongestParams = Base.Params.Length;
+                        LongestName = NameLength;
                     }
                 }
             }
-
 
             u32 LongestDefault = 7;
             bool bAnyDefault = false;
@@ -3321,6 +3335,16 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 FileVariable Var = OptionVars[i];
                 if (String_IsValid(Var.Name))
                 {
+                    bool bValid = false;
+
+                    FileVariable Base = GetVariable(ExpandedVariablesDB, Var.Name);
+
+                    if (Base.Value.Length > LongestDefault)
+                    {
+                        LongestDefault = Base.Value.Length;
+                        bAnyDefault = true;
+                    }
+
                     // get the default key
                     StringLocal(Default, MAX_KEY_LENGTH);
                     String_Append(&Default, Var.Name);
@@ -3331,6 +3355,22 @@ static u32 BuildTarget(LinearAllocator* Arena,
                     {
                         LongestDefault = DefaultVar.Value.Length;
                         bAnyDefault = true;
+                        bValid = true;
+                    }
+
+                    // look at the cmd option list if we couldnt find it in the regular list
+                    if (!bValid)
+                    {
+                        bool bExists = DoesCmdOptionExist(CmdOptionsDB, Var.Name);
+                        if (bExists)
+                        {
+                            String FinalValue = GetCmdOptionValue(CmdOptionsDB, Var.Name);
+                            if (FinalValue.Length > LongestDefault)
+                            {
+                                LongestDefault = FinalValue.Length;
+                                bAnyDefault = true;
+                            }
+                        }
                     }
                 }
             }
@@ -3420,13 +3460,16 @@ static u32 BuildTarget(LinearAllocator* Arena,
                         FinalDesc = S("No description provided");
                     }
 
-                    u32 NameLength = (LongestName - Trimmed.Length) + 1;
+                    u32 Actual = Trimmed.Length + Base.Params.Length ;
+                    u32 NameLength  = (LongestName - Actual) + 1;
                     u32 ValueLength = (LongestDefault - FinalValue.Length) + 1;
                     u32 ParamLength = (LongestParams - Base.Params.Length) + 1;
+                    /*
                     if (!bAnyDefault)
                     {
                         ValueLength = 0;
                     }
+                    */
 
                     LogOptionData_WordWrapped(*Arena, Trimmed, NameLength, FinalValue, ValueLength, Base.Params, ParamLength, FinalDesc);
                 }
@@ -3640,8 +3683,6 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 {
                     if (String_IsEqual(*var, S("all"), false))
                     {
-                        LOG("Listing all build variables...\n");
-
                         ListVariables(Scratch, String_Null(), ExpandedVariablesDB);
                     }
                     else
@@ -3652,6 +3693,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
                             LOG_ERROR("Failed to list \"%S\". It does not exist in \"%S\" (within the context of the given build parameters)", *var, BuildFilePath);
                             return 1;
                         }
+
+                        LOG_LINE_BREAK();
 
                         ListVariables(Scratch, *var, ExpandedVariablesDB);
                     }

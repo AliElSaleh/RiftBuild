@@ -83,15 +83,15 @@ NO_DISCARD String String_CreateMax(LinearAllocator* Arena, const String Source, 
 
 NO_DISCARD String String_CreateFromList(LinearAllocator* Arena, const StringList Source)
 {
-    String Result = String_Null();
-
     u32 TotalLength = 0;
     for each_string_in_list (Source)
     {
         TotalLength += It.String.Length;
     }
 
-    Result.Data = LinearAllocator_Allocate(Arena, TotalLength+1);
+    String Result   = String_Null();
+    Result.Data     = LinearAllocator_Allocate(Arena, TotalLength+1);
+    Result.Capacity = TotalLength;
 
     for each_string_in_list (Source)
     {

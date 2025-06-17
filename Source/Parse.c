@@ -985,7 +985,8 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena, Parser*
                  t.Type is Token_Not          or
                  t.Type is Token_At           or
                  t.Type is Token_Mod          or
-                 t.Type is Token_Dollar)
+                 t.Type is Token_Dollar       or
+                 t.Type is Token_Quote)
         {
             if (bInlineIf)
             {
@@ -998,7 +999,8 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena, Parser*
                    NextToken.Type == Token_Not    ||
                    NextToken.Type == Token_At     ||
                    NextToken.Type == Token_Mod    ||
-                   NextToken.Type == Token_Dollar)
+                   NextToken.Type == Token_Dollar ||
+                   NextToken.Type == Token_Quote)
             {
                 IfConditionData Condition = {0};
 
@@ -1045,6 +1047,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena, Parser*
                     Comparison.Type != Token_LCurly &&
                     Comparison.Type != Token_Pipe &&
                     Comparison.Type != Token_Or &&
+                    Comparison.Type != Token_Quote &&
                     Comparison.Type != Token_Newline &&
 
                     !(Comparison.Type == Token_EqualEqual   || Comparison.Type == Token_NotEqual    ||
@@ -1106,6 +1109,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena, Parser*
                     if (Parser_Peek(P).Type == Token_Text ||
                         Parser_Peek(P).Type == Token_Assert ||
                         Parser_Peek(P).Type == Token_ErrorMessage ||
+                        Parser_Peek(P).Type == Token_Quote ||
                         Parser_Peek(P).Type == Token_Help ||
                         Parser_Peek(P).Type == Token_Include ||
                         Parser_Peek(P).Type == Token_Stop ||
@@ -2441,7 +2445,7 @@ NO_DISCARD static NodeList* Analyze_IncludeNode(LinearAllocator* Arena, Node* Ro
         }
 
         bool bFailed = false;
-        bSuccess = ExpandBuildVariableV2(*Arena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, Root->Key, Val, Root->Key, Context->WorkingDirectory, false, false, &bFailed);
+        bSuccess = ExpandBuildVariable(*Arena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, Root->Key, Val, Root->Key, Context->WorkingDirectory, false, false, &bFailed);
         if (bFailed || !bSuccess)
         {
             bSuccess = false;
@@ -2828,7 +2832,7 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
                 StringLocal(Expanded, MAX_PATH_LENGTH);
                 if (bFoundVar)
                 {
-                    xx ExpandBuildVariableV2(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, String_Null(), VarValue, String_Null(), Context->WorkingDirectory, false, false, NULL);
+                    xx ExpandBuildVariable(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, String_Null(), VarValue, String_Null(), Context->WorkingDirectory, false, false, NULL);
                 }
                 else
                 {
@@ -2840,7 +2844,7 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
                         if (Symbol) { String_AppendChar(&ConditionPrefixed, Symbol); }
                         String_Append(&ConditionPrefixed, Condition);
 
-                        xx ExpandBuildVariableV2(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, String_Null(), ConditionPrefixed, String_Null(), Context->WorkingDirectory, false, false, NULL);
+                        xx ExpandBuildVariable(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, String_Null(), ConditionPrefixed, String_Null(), Context->WorkingDirectory, false, false, NULL);
                     }
                     else
                     {
@@ -3176,21 +3180,6 @@ NO_DISCARD static bool Analyze_Indeterminates(LinearAllocator* Arena, NodeList* 
             {
                 Analyze_KVNode(Arena, Root, Context);
             }
-            else if (Root->Type == Node_LogMessage)
-            {
-                // TODO: this looks wrong, we should expand this later, not here.
-
-                StringLocal(Expanded, MAX_VALUE_LENGTH);
-
-                LinearAllocator Scratch = *Arena;
-                {
-                    String Message = String_CreateFromList(&Scratch, *Root->Value);
-                    xx ExpandBuildVariableV2(Scratch, Context->VarListHead, Context->CmdOptionsDB, &Expanded, String_Null(), Message, String_Null(), Context->WorkingDirectory, false, false, NULL);
-                }
-
-                String Message = String_Create(Arena, Expanded);
-                Array_Add(Context->Messages, Message);
-            }
             else if (Root->Type == Node_KeyValue)
             {
                 Analyze_KVNode(Arena, Root, Context);
@@ -3267,31 +3256,10 @@ NO_DISCARD static NodeList* Analyze_List(LinearAllocator* Arena, Node* Block, Pa
             }
             else if (Root->Type == Node_LogMessage)
             {
-                // TODO: this looks wrong, we should expand this later, not here.
+                String Message = String_CreateFromList(Arena, *Root->Value);
+                Array_Add(Context->Messages, Message);
 
-                StringLocal(Expanded, MAX_VALUE_LENGTH);
-
-                LinearAllocator Scratch = *Arena;
-                {
-                    String Message = String_CreateFromList(&Scratch, *Root->Value);
-
-                    bool bFailed = false;
-                    bSuccess = ExpandBuildVariableV2(Scratch, Context->VarListHead, Context->CmdOptionsDB, &Expanded, S(""), Message, S(""), Context->WorkingDirectory, false, false, &bFailed);
-                    if (bFailed || !bSuccess)
-                    {
-                        bSuccess = false;
-                    }
-                    else
-                    {
-                        bSuccess = true;
-                    }
-                }
-
-                if (bSuccess)
-                {
-                    String Message = String_Create(Arena, Expanded);
-                    Array_Add(Context->Messages, Message);
-                }
+                bSuccess = true;
             }
             else if (Root->Type == Node_KeyValue)
             {
@@ -3383,7 +3351,7 @@ static bool Internal_LogCustomErrorMessage(ParsingContext* Context, const String
                    (ContextKey.Length == 0 || String_StartsWith(Var.Name, ContextKey, false))))
                 {
                     StringLocal(Expanded, MAX_VALUE_LENGTH);
-                    xx ExpandBuildVariableV2(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, Var.Name, Var.Value, Var.Name, Context->WorkingDirectory, false, false, NULL);
+                    xx ExpandBuildVariable(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, Var.Name, Var.Value, Var.Name, Context->WorkingDirectory, false, false, NULL);
 
                     LOG("%S", Expanded);
                     bLogged = true;
@@ -3987,7 +3955,7 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, ParsingCon
     }
 }
 
-NO_DISCARD bool ParseBuildFileV2(LinearAllocator* PermanentArena,
+NO_DISCARD bool ParseBuildFile(LinearAllocator* PermanentArena,
                     const FileHandle H,
                     const String BuildFilePath,
                     ParsingContext Context,
@@ -4115,7 +4083,6 @@ NO_DISCARD bool ParseBuildFileV2(LinearAllocator* PermanentArena,
             }
         }
 
-        // todo: remove early return
         if (bInvalidParam)
         {
             bSuccess = false;
@@ -4236,7 +4203,7 @@ NO_DISCARD bool ParseBuildFileV2(LinearAllocator* PermanentArena,
             }
 
             StringLocal(Expanded, MAX_VALUE_LENGTH);
-            xx ExpandBuildVariableV2(*Context.TempArena, Context.VarListHead, Context.CmdOptionsDB, &Expanded, Var.Name, Var.Value, Var.Name, Context.WorkingDirectory, false, false, NULL);
+            xx ExpandBuildVariable(*Context.TempArena, Context.VarListHead, Context.CmdOptionsDB, &Expanded, Var.Name, Var.Value, Var.Name, Context.WorkingDirectory, false, false, NULL);
 
             if (bExcludeFromConcat)
             {
@@ -4248,13 +4215,22 @@ NO_DISCARD bool ParseBuildFileV2(LinearAllocator* PermanentArena,
             }
         }
 
+        for each (String, m, Context.Messages)
+        {
+            StringLocal(Expanded, MAX_VALUE_LENGTH);
+            xx ExpandBuildVariable(*Context.TempArena, Context.VarListHead, Context.CmdOptionsDB, &Expanded, String_Null(), m, String_Null(), Context.WorkingDirectory, false, false, NULL);
+
+            // reassign to new memory, the old memory is in a temporary buffer so we dont need to worry about leaks here.
+            *m_ = String_Create(PermanentArena, Expanded);
+        }
+
         //Internal_PrintVariables(Context.VariablesDB);
     }
 
     return bSuccess;
 }
 
-bool ExpandBuildVariableV2(LinearAllocator Scratch, FileVariableList* VariablesDB, TArray(CmdOption) CmdOptionsDB,
+bool ExpandBuildVariable(LinearAllocator Scratch, FileVariableList* VariablesDB, TArray(CmdOption) CmdOptionsDB,
                             String* Dest, const String Key, const String Value, const String Root, const String WorkingDirectory,
                             bool bLowerStrings, bool bIsAssemblyExe, bool* bFailed)
 {
@@ -4287,6 +4263,7 @@ bool ExpandBuildVariableV2(LinearAllocator Scratch, FileVariableList* VariablesD
         bool bWantsToUpper = false;
         bool bWantsPaste   = false;
         bool bWantsPaste_Number = false;
+        bool bHasNot       = false;
 
         if (String_EndsWith(Key, S(".errormessage"), false) ||
             String_StartsWith(Key, S(".help"), false) ||
@@ -4304,6 +4281,9 @@ bool ExpandBuildVariableV2(LinearAllocator Scratch, FileVariableList* VariablesD
             u32 Index = 0;
 
             StrVal = StrShiftF(StrVal, 1);
+
+            bHasNot = String_EatCharInline(&StrVal, '!');
+            if (bHasNot) { Offset++; }
             
             bWantsToLower = String_EatCharInline_Single(&StrVal, '-');
             if (bWantsToLower) { Offset++; }
@@ -4381,9 +4361,6 @@ bool ExpandBuildVariableV2(LinearAllocator Scratch, FileVariableList* VariablesD
         if (C == Token_Char_Mod)
         {
             String VarValue = String_Null();
-
-            const bool bHasNot     = Slice.Length > 1 ? String_EatCharInline(&Slice, '!') : false; // TODO: remove, this wont work
-            //const bool bWantsPaste = Slice.Length > 1 ? String_EatCharInline(&Slice, '%') : false;
 
             bool bFoundCmd = false;
             bool bEqualsToSomething = false;
@@ -4587,7 +4564,7 @@ bool ExpandBuildVariableV2(LinearAllocator Scratch, FileVariableList* VariablesD
                     }
 
                     String TempDest = String_Reserve(&Scratch, Dest->Capacity);
-                    if (!ExpandBuildVariableV2(Scratch, VariablesDB, CmdOptionsDB, &TempDest, Slice, Var.Value, Root, WorkingDirectory, bLowerStrings, bIsAssemblyExe, bFailed))
+                    if (!ExpandBuildVariable(Scratch, VariablesDB, CmdOptionsDB, &TempDest, Slice, Var.Value, Root, WorkingDirectory, bLowerStrings, bIsAssemblyExe, bFailed))
                     {
                         return false;
                     }
@@ -4631,7 +4608,7 @@ bool ExpandBuildVariableV2(LinearAllocator Scratch, FileVariableList* VariablesD
             String DestEnd = StrShiftF(*Dest, Dest->Length);
             u32 DestLengthBefore = Dest->Length;
 
-            if (!ExpandBuildVariableV2(Scratch, VariablesDB, CmdOptionsDB, Dest, Slice, VarValue, Root, WorkingDirectory, false, bIsAssemblyExe, bFailed))
+            if (!ExpandBuildVariable(Scratch, VariablesDB, CmdOptionsDB, Dest, Slice, VarValue, Root, WorkingDirectory, false, bIsAssemblyExe, bFailed))
             {
                 return false;
             }
