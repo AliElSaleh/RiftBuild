@@ -41,7 +41,7 @@ SourceFiles              $RiftCoreFiles Program.c Backend.c Exporter.c Parse.c
 Compiler.Flags           $SharedCompilerFlags
 Linker.Flags             $SharedLinkerFlags
 Includes                 $SharedIncludeFlags
-Defines                  $SharedDefines %^%hood
+Defines                  $SharedDefines %^%hood PRINT_BUILD_CONFIGURATION=%!no_print_config
 Libraries:linux          pthread uuidS
 Libraries:bsd            pthread
 Library.Paths:linux      Source/Libraries/Linux
@@ -77,10 +77,11 @@ if rad
     postbuild.exec raddbg -ipc run
 }
 
-option.clang.description     use clang
-option.gcc.description       use gcc
-option.cl.description        use cl (windows only)
-option.debug.description     build the debug version of this program
-option.32.description        build for 32 bit mode
-option.asan.description      enable address sanitizer for memory debugging purposes
-option.hood.description      enable hood mode, the program will talk to you like a gangster!
+option.clang.description           use clang
+option.gcc.description             use gcc
+option.cl.description              use cl (windows only)
+option.debug.description           build the debug version of this program
+option.32.description              build for 32 bit mode
+option.asan.description            enable address sanitizer for memory debugging purposes
+option.hood.description            enable hood mode, the program will talk to you like a gangster!
+option.no_print_config.description enable printing of the build configuration flags

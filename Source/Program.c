@@ -1322,6 +1322,7 @@ bool LogStringList_WordWrapped(LinearAllocator Scratch, const String Name, const
     return bLogged;
 }
 
+#if PRINT_BUILD_CONFIGURATION
 static void LogNameValuePair(LinearAllocator Scratch, const String Name, const String Value, const bool bWordWrap)
 {
     if (Value.Length > 0)
@@ -1336,6 +1337,7 @@ static void LogNameValuePair(LinearAllocator Scratch, const String Name, const S
         }
     }
 }
+#endif
 
 void LogString_WordWrapped(LinearAllocator Scratch, const String Name, const String Value, const bool bAddNewLine)
 {
@@ -6488,6 +6490,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
         LOG_LINE_BREAK();
     }
 
+    #if PRINT_BUILD_CONFIGURATION
     if (!bExportingSomething)
     {
         if (bFoundBuildFile)
@@ -6571,6 +6574,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
             LOG_LINE_BREAK();
         }
     }
+    #else
+    xx bExplicitAsmPath;
+    #endif
 
     StringLocal(ExpandedIncludeFlags, 4096);
     StringLocal(ExpandedLibraries, 2048);
@@ -6626,6 +6632,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     FlagPrefix.Data[1] = 'D';
     ExpandDefineFlags(&ExpandedAssemblerDefineFlags, AssemblerDefines, FlagPrefix, bExportingSomething);
 
+    #if PRINT_BUILD_CONFIGURATION
     if (!bExportingSomething)
     {
         LogNameValuePair(*Arena, S("    Compiler  Flags:      "), CompilerFlags,                 !bNoWordWrapLogging);
@@ -6640,6 +6647,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
         LogNameValuePair(*Arena, S("    Assembler Includes:   "), ExpandedAssemblerIncludeFlags, !bNoWordWrapLogging);
         LogNameValuePair(*Arena, S("    Assembler Defines:    "), ExpandedAssemblerDefineFlags,  !bNoWordWrapLogging);
     }
+    #endif
 
     Clock IconClock = {0};
     Clock ResourceCompileClock = {0};
