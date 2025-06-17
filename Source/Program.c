@@ -5951,7 +5951,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
         {
             String_Copy(&LinkerPath, CompilerPath);
 
-            String_BuildPath(&ArchiverPath, CompilerBasePath, S("llvm-ar"));
+            xx Platform_FindProgram_Ex(S("ar"), &ArchiverPath);
+            //String_BuildPath(&ArchiverPath, CompilerBasePath, S("llvm-ar"));
             String_BuildPath(&DumpBinPath, CompilerBasePath, S("llvm-objdump"));
             String_BuildPath(&RCCompilerPath, CompilerBasePath, S("llvm-rc"));
             String_BuildPath(&MTCompilerPath, CompilerBasePath, S("llvm-mt"));
@@ -5968,7 +5969,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
         {
             String_Copy(&LinkerPath, CompilerPath);
 
-            String_BuildPath(&ArchiverPath, CompilerBasePath, S("gcc-ar"));
+            xx Platform_FindProgram_Ex(S("ar"), &ArchiverPath);
+            //String_BuildPath(&ArchiverPath, CompilerBasePath, S("gcc-ar"));
             String_BuildPath(&DumpBinPath, CompilerBasePath, S("objdump"));
             String_BuildPath(&RCCompilerPath, CompilerBasePath, S("windres"));
 
@@ -6019,8 +6021,10 @@ static u32 BuildTarget(LinearAllocator* Arena,
             }
             #else
             // TODO: find the path
+
+            xx Platform_FindProgram_Ex(S("ar"), &ArchiverPath);
             //String_Copy(&ArchiverPath, CompilerBasePath);
-            String_Copy(&ArchiverPath, S("ar"));
+            //String_Copy(&ArchiverPath, S("ar"));
             String_Copy(&DumpBinPath, S("objdump"));
             #endif
         }
