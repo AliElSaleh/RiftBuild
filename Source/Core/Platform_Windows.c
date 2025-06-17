@@ -2062,6 +2062,47 @@ NO_DISCARD bool Filesystem_DeleteDirectory(const String DirectoryPath)
     return bResult;
 }
 
+STRUCT(CopyDirectoryMetadata)
+{
+    String DestinationDirectory;
+    b64 bSuccess;
+};
+
+static bool Internal_CopyFilesToDirectory_Recursive(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
+{
+    bool bResult = true;
+
+    CopyDirectoryMetadata* Meta = UserData;
+
+    if (bIsDirectory)
+    {
+        StringLocal(Destination, MAX_PATH);
+        String_BuildPath(&Destination, Meta->DestinationDirectory, RelativePath);
+        
+        xx Filesystem_OpenDirectory(Destination);
+    }
+    else
+    {
+        StringLocal(Source, MAX_PATH);
+        String_BuildPath(&Source, FullPath);
+
+        StringLocal(Destination, MAX_PATH);
+        String_BuildPath(&Destination, Meta->DestinationDirectory, RelativePath);
+
+        bResult = CopyFileEx((char*)Source.Data, (char*)Destination.Data, NULL, NULL, NULL, COPY_FILE_NO_BUFFERING);
+        if (bResult == false)
+        {
+            StringLocal(Msg, 512);
+            String_Format(&Msg, S("Failed to copy \"%S\" to \"%S\""), Source, Destination);
+            LogLastError(Msg);
+        }
+
+        Meta->bSuccess = bResult;
+    }
+
+    return bResult;
+}
+
 NO_DISCARD bool Filesystem_Copy(const String Source, const String Destination)
 {
     StringLocal(SourceCopy, MAX_PATH);
@@ -2072,24 +2113,39 @@ NO_DISCARD bool Filesystem_Copy(const String Source, const String Destination)
     String_ConvertSlashToPlatformSlash(&SourceCopy);
     String_ConvertSlashToPlatformSlash(&DestinationCopy);
 
+    // the source file must exist
+    if (!(Filesystem_IsFile(SourceCopy) || Filesystem_IsDirectory(SourceCopy)))
+    {
+        StringLocal(Msg, 512);
+        String_Format(&Msg, S("\n    Source path \"%S\" does not exist.\n"), SourceCopy);
+        Platform_ConsoleWrite_CustomLength((const char*)Msg.Data, Msg.Length, 3, true);
+        return false;
+    }
+
+    // handles a case where we dont specify the file/directory on the Destination string,
+    // so we handle that for them here.
+    {
+        u32 LastSlash = 0;
+        xx String_IndexOfLastPathSlash(SourceCopy, &LastSlash);
+
+        String LastPart = StrShiftF(SourceCopy, LastSlash == 0 ? 0 : LastSlash+1);
+
+        if (!String_EndsWith(DestinationCopy, LastPart, false))
+        {
+            String_BuildPath(&DestinationCopy, LastPart);
+        }
+    }
+
+    // now that the destination string is fully built, open the directories
     {
         u32 LastSlash = 0;
         if (String_IndexOfLastPathSlash(DestinationCopy, &LastSlash))
         {
-            (void)Filesystem_OpenDirectory(StrSlice(DestinationCopy.Data, LastSlash));
+            xx Filesystem_OpenDirectory(StrSlice(DestinationCopy.Data, LastSlash));
         }
     }
 
-    // handles a case where we dont specify the file on the Destination string, so we handle that for them here.
-    if (Filesystem_IsFile(SourceCopy) && Filesystem_IsDirectory(DestinationCopy))
-    {
-        u32 LastSlash = 0;
-        xx String_IndexOfLastPathSlash(SourceCopy, &LastSlash);
-        
-        String_BuildPath(&DestinationCopy, StrShiftF(SourceCopy, LastSlash == 0 ? 0 : LastSlash+1));
-    }
-
-    // this is an error
+    // it is an error to try to copy a directory into a file
     if (Filesystem_IsFile(DestinationCopy) && Filesystem_IsDirectory(SourceCopy))
     {
         StringLocal(Msg, 1024);
@@ -2099,37 +2155,50 @@ NO_DISCARD bool Filesystem_Copy(const String Source, const String Destination)
         return false;
     }
 
-    /*
-    u32 LastSlash = 0;
-    String_IndexOfLastPathSlash(SourceCopy, &LastSlash);
+    bool bResult = false;
 
-    const String FileName = StrShiftF(SourceCopy, LastSlash);
-    if (!String_EndsWith(DestinationCopy, FileName, false))
+    // recursively copy all files within the source directory to the destination directory
+    if (Filesystem_IsDirectory(SourceCopy))
     {
-        String_BuildPath(&DestinationCopy, FileName);
+        if (Filesystem_IsFile(DestinationCopy))
+        {
+            StringLocal(Msg, 1024);
+            String_Format(&Msg, S("Source \"%S\" can not be copied into destination \"%S\" because the destination is a file. You likely have the two mixed up."), SourceCopy, DestinationCopy);
+            Platform_ConsoleWrite_CustomLength((const char*)Msg.Data, Msg.Length, 3, true);
+            bResult = false;
+        }
+        else
+        {
+            bResult = true;
+            xx Filesystem_OpenDirectory(DestinationCopy);
+        }
+
+        if (bResult)
+        {
+            CopyDirectoryMetadata Meta = {DestinationCopy, true};
+            Filesystem_IterateDirectory_Ex(SourceCopy, Internal_CopyFilesToDirectory_Recursive, true, &Meta);
+
+            bResult = (bool)Meta.bSuccess;
+        }
     }
-
-    // TODO: allow source to be a direcotry and copy everything from there
-
-    // try to create the directory if it doesn't exist
-    String_IndexOfLastPathSlash(DestinationCopy, &LastSlash);
-    Filesystem_OpenDirectory(StrSlice(DestinationCopy.Data, LastSlash));
-    */
-
-    // remove the read only attribute if we're copying from a source which had a readonly attribute set on it,
-    // otherwise the copy will fail if the file already exists at the destination
-    // maybe we shouldnt care...
-    if (Filesystem_IsFile(DestinationCopy) && Filesystem_DoesFileExist(DestinationCopy))
+    // copy single file to the destination directory
+    else
     {
-        (void)SetFileAttributes((char*)DestinationCopy.Data, (u32)GetFileAttributes((char*)DestinationCopy.Data) & (u32)~FILE_ATTRIBUTE_READONLY);
-    }
+        // remove the read only attribute if we're copying from a source which had a readonly attribute set on it,
+        // otherwise the copy will fail if the file already exists at the destination
+        // maybe we shouldnt care...
+        if (Filesystem_IsFile(DestinationCopy) && Filesystem_DoesFileExist(DestinationCopy))
+        {
+            xx SetFileAttributes((char*)DestinationCopy.Data, (u32)GetFileAttributes((char*)DestinationCopy.Data) & (u32)~FILE_ATTRIBUTE_READONLY);
+        }
 
-    BOOL bResult = CopyFileEx((char*)SourceCopy.Data, (char*)DestinationCopy.Data, NULL, NULL, NULL, COPY_FILE_NO_BUFFERING);
-    if (bResult == 0)
-    {
-        StringLocal(Msg, 512);
-        String_Format(&Msg, S("Failed to copy \"%S\" to \"%S\""), Source, Destination);
-        LogLastError(Msg);
+        bResult = CopyFileEx((char*)SourceCopy.Data, (char*)DestinationCopy.Data, NULL, NULL, NULL, COPY_FILE_NO_BUFFERING);
+        if (bResult == 0)
+        {
+            StringLocal(Msg, 512);
+            String_Format(&Msg, S("Failed to copy \"%S\" to \"%S\""), Source, Destination);
+            LogLastError(Msg);
+        }
     }
 
     return bResult;
