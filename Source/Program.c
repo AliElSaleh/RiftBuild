@@ -8723,7 +8723,8 @@ static void InitInternalVars(LinearAllocator* Arena)
     {
         String Temp = String_Reserve(Arena, 8);
         String_Format(&Temp, S("%u"), PosixVersion);
-        AddInternalVariable(S("_POSIX"), Temp);
+        AddInternalVariable(S("Posix.Version"), Temp);
+        AddInternalVariable(S("Posix"), String_Null());
     }
 
     // TODO _Ram
