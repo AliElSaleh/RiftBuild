@@ -792,7 +792,7 @@ static bool SourceFileCounterDirectoryIterator(const String FullPath, const Stri
                     String_Copy(Data->FirstSourceFileName, FileName);
                 }
 
-                if (String_IsEqual(Extension, S(".asm"), false))
+                if (IsAsmSource(Extension))
                 {
                     Data->NumAsmSources += 1;
                 }

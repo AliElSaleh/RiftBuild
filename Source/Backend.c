@@ -746,7 +746,12 @@ bool IsSource(const String Extension)
 bool IsAsmSource(const String Extension)
 {
     return  String_IsEqual(Extension, S(".asm"), false) ||
-            String_IsEqual(Extension, S(".s"), false);
+            String_IsEqual(Extension, S(".s"), true);
+}
+
+bool IsAsmCSource(const String Extension)
+{
+    return  String_IsEqual(Extension, S(".S"), true);
 }
 
 bool IsCSource(const String Extension)

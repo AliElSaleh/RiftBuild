@@ -262,6 +262,7 @@ bool RC_Compile(const BuildParams* Params, const String FullRCPath, String* OutR
 
 bool IsSource(const String Extension);
 bool IsAsmSource(const String Extension);
+bool IsAsmCSource(const String Extension);
 bool IsCSource(const String Extension);
 bool IsObjCSource(const String Extension);
 bool IsCppSource(const String Extension);
