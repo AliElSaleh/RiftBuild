@@ -69,6 +69,7 @@ They work on Windows, macOS and Linux (where appropriate).
 | [libjpeg-turbo](https://github.com/AliElSaleh/libjpeg-turbo) | JPEG Library                       |
 | [libpng](https://github.com/AliElSaleh/libpng)               | PNG Library                        |
 | [zlib](https://github.com/AliElSaleh/zlib)                   | Data Compression Library           |
+| [dav1d](https://github.com/AliElSaleh/dav1d)                 | AV1 Decoder                        |
 | [PCSX2 TODO](https://google.com)                             | PS2 Emulator                       |
 | [RPCS3 TODO](https://google.com)                             | PS3 Emulator                       |
 | [Raylib TODO](https://google.com)                            | Game Framework Library             |
