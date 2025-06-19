@@ -73,7 +73,6 @@ static bool Internal_TryOpenLogFile(void)
                     Platform_ConsoleWrite_CustomLength((char*)FormattedMessage.Data, FormattedMessage.Length, LOG_TYPE_ERROR, true);
                 }
             }
-            LinearAllocator_Reset(&Scratch, GLoggingMemoryAllocator.Allocated);
         }
     }
 
@@ -234,7 +233,6 @@ void LogMessage(u8 LogType, const String LogCat, const String Text, ...)
             Platform_ConsoleWrite_CustomLength((char*)FinalMsg.Data, FinalMsg.Length, LogType, LogType > LOG_TYPE_WARNING);
             Internal_WriteToLogFile(FinalMsg);
         }
-        LinearAllocator_Reset(&Scratch, GLoggingMemoryAllocator.Allocated);
     }
 }
 
