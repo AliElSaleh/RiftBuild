@@ -2911,19 +2911,19 @@ static u32 BuildTarget(LinearAllocator* Arena,
         {
             const String BuildPath = bFoundBuildFile ? BuildFilePathFull : WorkingPath;
 
-            u32 LastSlash = 0;
-            bool bHasSlash = String_IndexOfLastPathSlash(BuildPath, &LastSlash);
-            String BuildFileName = bHasSlash ? StrShiftF(BuildPath, LastSlash+1) : BuildPath;
+            // u32 LastSlash = 0;
+            // bool bHasSlash = String_IndexOfLastPathSlash(BuildPath, &LastSlash);
+            // String BuildFileName = bHasSlash ? StrShiftF(BuildPath, LastSlash+1) : BuildPath;
 
             LOG_ERROR("Failed to acquire a build mutex. Aborting build...");
             
             if (BuildMutex->ID > 0)
             {
-                LOG("\n    An existing riftbuild process is running for \"%S\" [Process ID: %i]", BuildFileName.Length > 0 ? BuildFileName : WorkingPath, BuildMutex->ID);
+                LOG("\n    An existing riftbuild process is running for \"%S\" [Process ID: %i]", BuildPath, BuildMutex->ID);
             } 
             else
             {
-                LOG("\n    An existing riftbuild process is running for \"%S\"", BuildFileName.Length > 0 ? BuildFileName : WorkingPath);
+                LOG("\n    An existing riftbuild process is running for \"%S\"", BuildPath);
             }
 
             LOG("    To prevent conflicts, please wait for the existing build to finish before trying again.\n");
@@ -3257,6 +3257,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
         if (bOptions)
         {
+            // TODO: fix long descriptions breaking layout
+
             LOG_INLINE_WARNING("\nOptions\n\n");
 
             SArray(FileVariable, OptionVars, 64) = {0};
@@ -4537,6 +4539,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     }
 
     // run through the assert lists
+    // TODO: These wont work anymore, move to Parse.c
     {
         LinearAllocator Scratch = *Arena;
         //StringArray ProgramsArray      = String_ParseIntoArray(&Scratch, AssertPrograms, ' ', 0, 128);
@@ -4928,11 +4931,26 @@ static u32 BuildTarget(LinearAllocator* Arena,
         }
     }
 
+    bool bExportingSomething = false;
+    for (u8 i = 0; i < Parameters.Num; i++)
+    {
+        const String Arg = Parameters.List[i];
+
+        if (String_StartsWith(Arg, S("export:"), false))
+        {
+            bExportingSomething = true;
+            break;
+        }
+    }
+
     // pre depend
     // TODO: time this
-    if (!TryRunBuildCommands(S("PreDepend"), WorkingPath, ExpandedVariablesDB, NULL))
+    if (!bExportingSomething)
     {
-        return 1;
+        if (!TryRunBuildCommands(S("PreDepend"), WorkingPath, ExpandedVariablesDB, NULL))
+        {
+            return 1;
+        }
     }
 
     bool bDependenciesDoneWork = false;
@@ -4941,6 +4959,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     Clock_Start(&DependencyBuildClock);
 
     // run build depenencies
+    if (!bExportingSomething)
     {
         SArray(FileVariable*, Depends, 256) = {0};
 
@@ -5007,14 +5026,14 @@ static u32 BuildTarget(LinearAllocator* Arena,
             else
             {
                 BuildFile = Value;
+            }
 
-                // if someone wants to not specify a build file, they can specify the path instead
-                if (String_CountPathSeparators(BuildFile) > 0)
-                {
-                    BuildFile = String_Null();
-                    Directory = Value;
-                    bDirectoryOnly = true;
-                }
+            // if someone wants to not specify a build file, they can specify the path instead
+            if (String_CountPathSeparators(BuildFile) > 0)
+            {
+                //BuildFile = String_Null();
+                Directory = BuildFile;//Value;
+                bDirectoryOnly = true;
             }
 
             // circular dependency. abort, this is bad...
@@ -5031,44 +5050,44 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
             StringLocal(CustomWorkingPath, MAX_PATH_LENGTH);
 
-            if (SpaceIndex > 0)
+            if (bDirectoryOnly)
             {
-                String CustomPath;
-
-                if (PipeIndex > 0)
+                if (Filesystem_IsPathRelative(Directory))
                 {
-                    CustomPath = String_EatSpacesFromEnd(StrSlice(Value.Data+SpaceIndex+1, PipeIndex-SpaceIndex-1));
-                }
-                else
-                {
-                    CustomPath = String_EatSpacesFromEnd(StrSlice(Value.Data+SpaceIndex+1, Value.Length-SpaceIndex-1));
-                }
-
-                xx String_EatPathSeparatorsInlineFromEnd(&CustomPath);
-                String_ConvertSlashToPlatformSlash(&CustomPath);
-
-                if (Filesystem_IsPathRelative(CustomPath))
-                {
-                    String_BuildPath(&CustomWorkingPath, WorkingPath, CustomPath);
+                    String_BuildPath(&CustomWorkingPath, WorkingPath, Directory);
                     xx Filesystem_ConvertRelativeToAbsolutePath(&CustomWorkingPath);
                 }
                 else
                 {
-                    String_Copy(&CustomWorkingPath, CustomPath);
+                    String_Copy(&CustomWorkingPath, Directory);
                 }
             }
             else
             {
-                if (bDirectoryOnly)
+                if (SpaceIndex > 0)
                 {
-                    if (Filesystem_IsPathRelative(Directory))
+                    String CustomPath;
+
+                    if (PipeIndex > 0)
                     {
-                        String_BuildPath(&CustomWorkingPath, WorkingPath, Directory);
+                        CustomPath = String_EatSpacesFromEnd(StrSlice(Value.Data+SpaceIndex+1, PipeIndex-SpaceIndex-1));
+                    }
+                    else
+                    {
+                        CustomPath = String_EatSpacesFromEnd(StrSlice(Value.Data+SpaceIndex+1, Value.Length-SpaceIndex-1));
+                    }
+
+                    xx String_EatPathSeparatorsInlineFromEnd(&CustomPath);
+                    String_ConvertSlashToPlatformSlash(&CustomPath);
+
+                    if (Filesystem_IsPathRelative(CustomPath))
+                    {
+                        String_BuildPath(&CustomWorkingPath, WorkingPath, CustomPath);
                         xx Filesystem_ConvertRelativeToAbsolutePath(&CustomWorkingPath);
                     }
                     else
                     {
-                        String_Copy(&CustomWorkingPath, Directory);
+                        String_Copy(&CustomWorkingPath, CustomPath);
                     }
                 }
                 else
@@ -5196,9 +5215,13 @@ static u32 BuildTarget(LinearAllocator* Arena,
     }
 
     // TODO: time this
-    if (!TryRunBuildCommands(S("PreBuild"), WorkingPath, ExpandedVariablesDB, NULL))
+
+    if (!bExportingSomething)
     {
-        return 1;
+        if (!TryRunBuildCommands(S("PreBuild"), WorkingPath, ExpandedVariablesDB, NULL))
+        {
+            return 1;
+        }
     }
 
     // TODO: make use of this. for example. do a link only build instead of compile and link
@@ -5951,8 +5974,12 @@ static u32 BuildTarget(LinearAllocator* Arena,
         {
             String_Copy(&LinkerPath, CompilerPath);
 
+            #if PLATFORM_WINDOWS
+            String_BuildPath(&ArchiverPath, CompilerBasePath, S("llvm-ar"));
+            #else
             xx Platform_FindProgram_Ex(S("ar"), &ArchiverPath);
-            //String_BuildPath(&ArchiverPath, CompilerBasePath, S("llvm-ar"));
+            #endif
+
             String_BuildPath(&DumpBinPath, CompilerBasePath, S("llvm-objdump"));
             String_BuildPath(&RCCompilerPath, CompilerBasePath, S("llvm-rc"));
             String_BuildPath(&MTCompilerPath, CompilerBasePath, S("llvm-mt"));
@@ -5969,8 +5996,12 @@ static u32 BuildTarget(LinearAllocator* Arena,
         {
             String_Copy(&LinkerPath, CompilerPath);
 
+            #if PLATFORM_WINDOWS
+            String_BuildPath(&ArchiverPath, CompilerBasePath, S("gcc-ar"));
+            #else
             xx Platform_FindProgram_Ex(S("ar"), &ArchiverPath);
-            //String_BuildPath(&ArchiverPath, CompilerBasePath, S("gcc-ar"));
+            #endif
+
             String_BuildPath(&DumpBinPath, CompilerBasePath, S("objdump"));
             String_BuildPath(&RCCompilerPath, CompilerBasePath, S("windres"));
 
@@ -6041,18 +6072,6 @@ static u32 BuildTarget(LinearAllocator* Arena,
         if (String_IndexOfLastChar(RCProgram, '.', &Index))
         {
             RCProgram = StrSlice(RCProgram.Data, Index);
-        }
-    }
-
-    bool bExportingSomething = false;
-    for (u8 i = 0; i < Parameters.Num; i++)
-    {
-        const String Arg = Parameters.List[i];
-
-        if (String_StartsWith(Arg, S("export:"), false))
-        {
-            bExportingSomething = true;
-            break;
         }
     }
 
@@ -8726,6 +8745,9 @@ static void InitInternalVars(LinearAllocator* Arena)
         AddInternalVariable(S("Posix.Version"), Temp);
         AddInternalVariable(S("Posix"), String_Null());
     }
+    // TODO: lib c detection, glibc musl bsd macos
+    // TODO: exe type. "elf" "pe"
+    // TODO: exe extension. ".elf" ".exe"
 
     // TODO _Ram
     //AddInternalVariable(S("_Platform.KernelVersion"), OSVersionString);
@@ -9324,7 +9346,7 @@ u32 RunApplication(const StringArray Arguments)
     Logging_ToggleLogFile(bOutputToLog);
 
     StringLocal(ExtraFlags, 128);
-    #ifdef DEVELOPER
+    #ifdef _DEBUG
     String_BuildSeparator(&ExtraFlags, ' ', S("[DEBUG]"));
     #endif
     #ifdef RIFT_ASAN

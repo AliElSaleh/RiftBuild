@@ -2365,7 +2365,7 @@ NO_DISCARD static String GetOptionParamsFromVarList(FileVariableList* VarList, S
     {
         Params = Ref->Params;
 
-        if (bFound) { *bFound = true; }
+        if (bFound) { *bFound = Params.Length > 0; }
     }
 
     return Params;
@@ -2647,7 +2647,7 @@ static void Analyze_KVNode(LinearAllocator* Arena, Node* Root, ParsingContext* C
         xx String_EatSpacesInlineFromEnd(&Params);
     }
 
-    if (String_IsEqual(FinalKey, S("default.options"), false) && !Context->bIgnoreDefaultOptions)
+    if (String_IsEqual(FinalKey, S("default.options"), false))// && !Context->bIgnoreDefaultOptions) // this is a bad idea. TODO: revisit
     {
         LinearAllocator Scratch = {0};
         i8 ScratchMemory[MAX_VALUE_LENGTH] = {0};
