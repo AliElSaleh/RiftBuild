@@ -6,6 +6,7 @@
 #include "Clock.h"
 #include "StringUtils.h"
 #include "Filesystem.h"
+#include "Uuid.h"
 #endif
 
 read_only FileHandle g_FileHandle = { .Data = &(u8[64]){0}, .Data2 = &(u8[64]){0}, .bBypassSizeCheck = false };
@@ -870,4 +871,144 @@ NO_DISCARD String Filesystem_ExtractFileExtension(const String FilePath, bool bI
     }
 
     return Final;
+}
+
+// UUID Version 4 - Random based
+NO_DISCARD Uuid UUID_Generate(void)
+{
+    Uuid Result = {0};
+
+    Result.TimeLow               = (u32)Rand();
+    Result.TimeMid               = (u16)Rand();
+    
+    Result.TimeHiAndVersion      = (u16)Rand();
+    Result.TimeHiAndVersion      &= 0x0FFF;
+    Result.TimeHiAndVersion      |= 0x4000;
+
+    Result.ClockSeqHiAndReserved = (u8)Rand();
+    Result.ClockSeqHiAndReserved &= 0x3F;
+    Result.ClockSeqHiAndReserved |= 0x80;
+
+    Result.ClockSeqLow           = (u8)Rand();
+
+    for (u8 i = 0; i < 6; i++)
+    {
+        Result.Node[i] = (u8)Rand();
+    }
+
+    return Result;
+}
+
+NO_DISCARD bool UUID_IsEqual(Uuid First, Uuid Second)
+{
+    bool bMatch = Platform_MemEqual(&First, &Second, sizeof(struct Uuid));
+    return bMatch;
+}
+
+NO_DISCARD Uuid UUID_FromString(const String IDString)
+{
+    Uuid Result = {0};
+
+    if (IDString.Length >= 36)
+    {
+
+    }
+
+    return Result;
+}
+
+NO_DISCARD static uchar U8ToHexChar(u8 Val)
+{
+    uchar Char = Val < 10 ? (uchar)('0' + Val) : (uchar)('a' + (Val - 10));
+    return Char;
+}
+
+void UUID_ToString(Uuid ID, String* OutString)
+{
+    String_Format(OutString, S("%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x"),
+                ID.TimeLow, ID.TimeMid, ID.TimeHiAndVersion, ID.ClockSeqHiAndReserved, ID.ClockSeqLow,
+                ID.Node[0], ID.Node[1], ID.Node[2], ID.Node[3], ID.Node[4], ID.Node[5]);
+}
+
+void UUID_ToStringFast(Uuid ID, String* OutString)
+{
+    ENSURE(OutString->Capacity >= 36);
+
+    OutString->Data[0] = U8ToHexChar((ID.TimeLow >> 28) & 0x0F);
+    OutString->Data[1] = U8ToHexChar((ID.TimeLow >> 24) & 0x0F);
+    OutString->Data[2] = U8ToHexChar((ID.TimeLow >> 20) & 0x0F);
+    OutString->Data[3] = U8ToHexChar((ID.TimeLow >> 16) & 0x0F);
+    OutString->Data[4] = U8ToHexChar((ID.TimeLow >> 12) & 0x0F);
+    OutString->Data[5] = U8ToHexChar((ID.TimeLow >> 8 ) & 0x0F);
+    OutString->Data[6] = U8ToHexChar((ID.TimeLow >> 4 ) & 0x0F);
+    OutString->Data[7] = U8ToHexChar((ID.TimeLow >> 0 ) & 0x0F);
+
+    OutString->Data[8] = '-';
+
+    OutString->Data[9] = U8ToHexChar((ID.TimeMid >> 12) & 0x0F);
+    OutString->Data[10] = U8ToHexChar((ID.TimeMid >> 8 ) & 0x0F);
+    OutString->Data[11] = U8ToHexChar((ID.TimeMid >> 4 ) & 0x0F);
+    OutString->Data[12] = U8ToHexChar((ID.TimeMid >> 0 ) & 0x0F);
+
+    OutString->Data[13] = '-';
+
+    OutString->Data[14] = U8ToHexChar((ID.TimeHiAndVersion >> 12) & 0x0F);
+    OutString->Data[15] = U8ToHexChar((ID.TimeHiAndVersion >> 8 ) & 0x0F);
+    OutString->Data[16] = U8ToHexChar((ID.TimeHiAndVersion >> 4 ) & 0x0F);
+    OutString->Data[17] = U8ToHexChar((ID.TimeHiAndVersion >> 0 ) & 0x0F);
+
+    OutString->Data[18] = '-';
+
+    OutString->Data[19] = U8ToHexChar((ID.ClockSeqHiAndReserved >> 4) & 0x0F);
+    OutString->Data[20] = U8ToHexChar((ID.ClockSeqHiAndReserved >> 0) & 0x0F);
+    OutString->Data[21] = U8ToHexChar((ID.ClockSeqLow           >> 4) & 0x0F);
+    OutString->Data[22] = U8ToHexChar((ID.ClockSeqLow           >> 0) & 0x0F);
+
+    OutString->Data[23] = '-';
+
+    for (u8 i = 0; i < 6; i++)
+    {
+        OutString->Data[24 + i*2]     = U8ToHexChar((ID.Node[i] >> 4) & 0x0F);
+        OutString->Data[24 + i*2 + 1] = U8ToHexChar((ID.Node[i] >> 0) & 0x0F);
+    }
+
+    OutString->Length = 36;
+}
+
+// https://stackoverflow.com/questions/4768180/rand-implementation
+static u32 Seed = 1;
+
+void RandSeed(void)
+{
+	Seed = (u32)Platform_GetAbsoluteTime();
+}
+
+i32 RandFast(void)
+{
+    Seed = (u32)Platform_GetAbsoluteTime();
+    Seed *= 1103515245 + 12345;
+
+    return (Seed/65536) % 32768;
+}
+
+f32 FRand(void)
+{
+    // inline Absi32 function
+    i32 Value = Rand();
+	i32 Temp = Value >> 31;
+	Value ^= Temp;
+	Value += Temp & 1;
+
+	return (f32)Value / (f32)INT32_MAX;
+}
+
+f32 FRandFast(void)
+{
+    #define RAND_MAX 0x7fff
+
+    Seed = (u32)Platform_GetAbsoluteTime();
+    Seed *= 1103515245 + 12345;
+    
+    f32 RandFastResult = (f32)((Seed/65536) % 32768);
+	return RandFastResult / (f32)RAND_MAX;
 }

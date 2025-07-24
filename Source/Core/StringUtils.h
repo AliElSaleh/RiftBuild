@@ -226,6 +226,7 @@ RIFT_API NO_DISCARD u8   ToUpper(u8 Char)         CONST_FN;
 RIFT_API NO_DISCARD u8   ToLower(u8 Char)         CONST_FN;
 RIFT_API NO_DISCARD u8   ToForwardSlash(u8 Char)  CONST_FN;
 RIFT_API NO_DISCARD u8   ToBackSlash(u8 Char)     CONST_FN;
+RIFT_API NO_DISCARD uchar DigitToHexChar(u8 Val)  CONST_FN;
 
 RIFT_API NO_DISCARD u8 Integer_CountDigits(u64 Value) CONST_FN;
 

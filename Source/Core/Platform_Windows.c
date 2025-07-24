@@ -728,6 +728,7 @@ NO_DISCARD u32 Platform_GetNumLogicalProcessors(void)
     return info.dwNumberOfProcessors;
 }
 
+#if 0
 NO_DISCARD Uuid UUID_Generate(void)
 {
     uuid_t id = {0};
@@ -761,6 +762,7 @@ NO_DISCARD Uuid UUID_FromString(const String IDString)
 
     return *(Uuid*)&id;
 }
+#endif
 
 NO_DISCARD bool Filesystem_Open(const String FilePath, EFileMode Mode, FileHandle* OutHandle)
 {
@@ -2715,6 +2717,18 @@ NO_DISCARD bool Platform_IsWindowFocused(void)
 NO_DISCARD u32 Platform_GetPosixVersion(void)
 {
     return 0;
+}
+
+i32 Rand(void)
+{
+    i32 Buffer = 0;
+
+    BCRYPT_ALG_HANDLE Prov = {0};
+    xx BCryptOpenAlgorithmProvider(&Prov, BCRYPT_RNG_ALGORITHM, NULL, 0);
+    xx BCryptGenRandom(Prov, (PUCHAR)(&Buffer), sizeof(Buffer), 0);
+    xx BCryptCloseAlgorithmProvider(Prov, 0);
+
+    return Buffer;
 }
 
 /*

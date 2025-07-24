@@ -3027,6 +3027,12 @@ NO_DISCARD u8 ToBackSlash(u8 Char)
     return Char == '/' ? '\\' : Char;
 }
 
+NO_DISCARD uchar HexDigitToChar(u8 Val)
+{
+    uchar Char = Val < 10 ? (uchar)('0' + Val) : (uchar)('a' + (Val - 10));
+    return Char;
+}
+
 // TODO: remove from this file
 NO_DISCARD u8 Integer_CountDigits(u64 Value)
 {

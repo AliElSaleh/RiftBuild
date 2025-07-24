@@ -219,6 +219,14 @@ typedef HANDLE              HLOCAL;
 typedef HANDLE              GLOBALHANDLE;
 typedef HANDLE              LOCALHANDLE;
 
+typedef LONG NTSTATUS;
+
+typedef PVOID BCRYPT_HANDLE;
+typedef PVOID BCRYPT_ALG_HANDLE;
+typedef PVOID BCRYPT_KEY_HANDLE;
+typedef PVOID BCRYPT_HASH_HANDLE;
+typedef PVOID BCRYPT_SECRET_HANDLE;
+
 typedef unsigned long long ULONG64, *PULONG64;
 typedef unsigned long long DWORD64, *PDWORD64;
 
@@ -398,10 +406,10 @@ typedef struct _GUID {
     unsigned char  Data4[ 8 ];
 } GUID;
 
-typedef GUID UUID;
-#ifndef uuid_t
-#define uuid_t UUID
-#endif
+// typedef GUID UUID;
+// #ifndef uuid_t
+// #define uuid_t UUID
+// #endif
 
 typedef unsigned char* RPC_CSTR;
 typedef unsigned short* RPC_WSTR;
@@ -1382,6 +1390,40 @@ PRAGMA_ENABLE_WARNINGS
 #endif
 #endif
 
+//
+// Common algorithm identifiers.
+//
+
+#define BCRYPT_RSA_ALGORITHM                    L"RSA"
+#define BCRYPT_RSA_SIGN_ALGORITHM               L"RSA_SIGN"
+#define BCRYPT_DH_ALGORITHM                     L"DH"
+#define BCRYPT_DSA_ALGORITHM                    L"DSA"
+#define BCRYPT_RC2_ALGORITHM                    L"RC2"
+#define BCRYPT_RC4_ALGORITHM                    L"RC4"
+#define BCRYPT_AES_ALGORITHM                    L"AES"
+#define BCRYPT_DES_ALGORITHM                    L"DES"
+#define BCRYPT_DESX_ALGORITHM                   L"DESX"
+#define BCRYPT_3DES_ALGORITHM                   L"3DES"
+#define BCRYPT_3DES_112_ALGORITHM               L"3DES_112"
+#define BCRYPT_MD2_ALGORITHM                    L"MD2"
+#define BCRYPT_MD4_ALGORITHM                    L"MD4"
+#define BCRYPT_MD5_ALGORITHM                    L"MD5"
+#define BCRYPT_SHA1_ALGORITHM                   L"SHA1"
+#define BCRYPT_SHA256_ALGORITHM                 L"SHA256"
+#define BCRYPT_SHA384_ALGORITHM                 L"SHA384"
+#define BCRYPT_SHA512_ALGORITHM                 L"SHA512"
+#define BCRYPT_AES_GMAC_ALGORITHM               L"AES-GMAC"
+#define BCRYPT_AES_CMAC_ALGORITHM               L"AES-CMAC"
+#define BCRYPT_ECDSA_P256_ALGORITHM             L"ECDSA_P256"
+#define BCRYPT_ECDSA_P384_ALGORITHM             L"ECDSA_P384"
+#define BCRYPT_ECDSA_P521_ALGORITHM             L"ECDSA_P521"
+#define BCRYPT_ECDH_P256_ALGORITHM              L"ECDH_P256"
+#define BCRYPT_ECDH_P384_ALGORITHM              L"ECDH_P384"
+#define BCRYPT_ECDH_P521_ALGORITHM              L"ECDH_P521"
+#define BCRYPT_RNG_ALGORITHM                    L"RNG"
+#define BCRYPT_RNG_FIPS186_DSA_ALGORITHM        L"FIPS186DSARNG"
+#define BCRYPT_RNG_DUAL_EC_ALGORITHM            L"DUALECRNG"
+
 // TODO: get rid of these
 #ifdef UNICODE
     #define PeekMessage          PeekMessageW
@@ -1595,13 +1637,13 @@ WINBASEAPI NO_DISCARD USHORT     WINAPI RtlCaptureStackBackTrace(ULONG FramesToS
 WINBASEAPI NO_DISCARD BOOL       WINAPI SymFromAddr(HANDLE hProcess, DWORD64 Address, PDWORD64 Displacement, PSYMBOL_INFO Symbol);
 WINBASEAPI            void       WINAPI GetSystemInfo(LPSYSTEM_INFO lpSystemInfo);
 WINBASEAPI NO_DISCARD HRESULT    WINAPI GetThreadDescription(HANDLE hThread, PWSTR* ppszThreadDescription);
-WINBASEAPI NO_DISCARD RPC_STATUS WINAPI UuidCreate(UUID *Uuid);
-WINBASEAPI NO_DISCARD RPC_STATUS WINAPI UuidToStringA(const UUID *Uuid, RPC_CSTR* StringUuid);
-WINBASEAPI NO_DISCARD RPC_STATUS WINAPI UuidToStringW(const UUID *Uuid, RPC_WSTR* StringUuid);
-WINBASEAPI NO_DISCARD RPC_STATUS WINAPI RpcStringFreeA(RPC_CSTR *String);
-WINBASEAPI NO_DISCARD RPC_STATUS WINAPI RpcStringFreeW(RPC_WSTR *String);
-WINBASEAPI NO_DISCARD RPC_STATUS WINAPI UuidFromStringA(RPC_CSTR StringUuid, UUID *Uuid);
-WINBASEAPI NO_DISCARD RPC_STATUS WINAPI UuidFromStringW(RPC_WSTR StringUuid, UUID *Uuid);
+// WINBASEAPI NO_DISCARD RPC_STATUS WINAPI UuidCreate(UUID *Uuid);
+// WINBASEAPI NO_DISCARD RPC_STATUS WINAPI UuidToStringA(const UUID *Uuid, RPC_CSTR* StringUuid);
+// WINBASEAPI NO_DISCARD RPC_STATUS WINAPI UuidToStringW(const UUID *Uuid, RPC_WSTR* StringUuid);
+// WINBASEAPI NO_DISCARD RPC_STATUS WINAPI RpcStringFreeA(RPC_CSTR *String);
+// WINBASEAPI NO_DISCARD RPC_STATUS WINAPI RpcStringFreeW(RPC_WSTR *String);
+// WINBASEAPI NO_DISCARD RPC_STATUS WINAPI UuidFromStringA(RPC_CSTR StringUuid, UUID *Uuid);
+// WINBASEAPI NO_DISCARD RPC_STATUS WINAPI UuidFromStringW(RPC_WSTR StringUuid, UUID *Uuid);
 WINBASEAPI NO_DISCARD BOOL       WINAPI CreateDirectoryA(LPCTSTR lpPathName, LPSECURITY_ATTRIBUTES lpSecurityAttributes);
 WINBASEAPI NO_DISCARD BOOL       WINAPI CreateDirectoryW(LPCTSTR lpPathName, LPSECURITY_ATTRIBUTES lpSecurityAttributes);
 WINBASEAPI NO_DISCARD HANDLE     WINAPI CreateFileA(LPCSTR lpFileName, DWORD dwDesiredAccess, DWORD dwShareMode, LPSECURITY_ATTRIBUTES lpSecurityAttributes, DWORD dwCreationDisposition, DWORD dwFlagsAndAttributes, HANDLE hTemplateFile);
@@ -1676,6 +1718,10 @@ WINBASEAPI NO_DISCARD BOOL       WINAPI GetComputerNameA(LPSTR lpBuffer, LPDWORD
 WINBASEAPI NO_DISCARD BOOL       WINAPI GetComputerNameW(LPWSTR lpBuffer, LPDWORD lpnSize);
 
 WINBASEAPI            void       WINAPI Sleep(DWORD dwMilliseconds);
+
+WINBASEAPI NO_DISCARD NTSTATUS   WINAPI BCryptGenRandom(BCRYPT_ALG_HANDLE hAlgorithm, PUCHAR pbBuffer, ULONG cbBuffer, ULONG dwFlags);
+WINBASEAPI NO_DISCARD NTSTATUS   WINAPI BCryptOpenAlgorithmProvider(BCRYPT_ALG_HANDLE* phAlgorithm, LPCWSTR pszAlgId, LPCWSTR pszImplementation, ULONG dwFlags);
+WINBASEAPI NO_DISCARD NTSTATUS   WINAPI BCryptCloseAlgorithmProvider(BCRYPT_ALG_HANDLE hAlgorithm, ULONG dwFlags);
 
 
 // NT Kernel Functions
