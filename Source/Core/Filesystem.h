@@ -81,6 +81,8 @@ RIFT_API NO_DISCARD bool Filesystem_GetFileSize(const FileHandle File, usize* Ou
 RIFT_API NO_DISCARD bool Filesystem_IsFile(const String Path);
 RIFT_API NO_DISCARD bool Filesystem_IsDirectory(const String Path);
 
+RIFT_API NO_DISCARD bool Filesystem_IsHidden(const String Path);
+
 RIFT_API NO_DISCARD bool Filesystem_IsNewer(const String PathA, const String PathB);
 RIFT_API NO_DISCARD bool Filesystem_IsOlder(const String PathA, const String PathB);
 

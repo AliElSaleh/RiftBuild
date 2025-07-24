@@ -2623,7 +2623,7 @@ static void ExpandDefineFlags(String* Dest, const String Flags, const String Fla
                 String_Append    (Dest, Name);
                 String_AppendChar(Dest, '=');
                 
-                // if its a string, insert a literal backslash so that the argument parser
+                // if its a string, insert a backslash so that the argument parser
                 // for createprocess() understands that this is a nested string.
 
                 if (bIsString)
@@ -3174,8 +3174,10 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
     if (bFoundBuildFile)
     {
+        bool bHidden = Filesystem_IsHidden(BuildFilePath);
+
         #ifndef HOOD
-        LOG("Using build file:  %S", BuildFilePath);
+        LOG("Using build file:  %S %S", BuildFilePath, bHidden ? S("[hidden]") : String_Null());
         #else
         LOG("alright sweet, using this build file btw: %S", BuildFilePath);
         #endif
@@ -8748,6 +8750,7 @@ static void InitInternalVars(LinearAllocator* Arena)
     // TODO: lib c detection, glibc musl bsd macos
     // TODO: exe type. "elf" "pe"
     // TODO: exe extension. ".elf" ".exe"
+    // TODO: if little_endian or big_endian
 
     // TODO _Ram
     //AddInternalVariable(S("_Platform.KernelVersion"), OSVersionString);

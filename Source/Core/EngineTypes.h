@@ -109,6 +109,17 @@ typedef struct LinearAllocator LinearAllocator;
 #define BIT(x)        (1UL << x##UL)
 #define BITX(x)       (1UL << (x))
 
+#define BYTE_TO_BINARY_PATTERN "%c%c%c%c%c%c%c%c"
+#define BYTE_TO_BINARY(byte)   \
+  ((byte) & 0x80 ? '1' : '0'), \
+  ((byte) & 0x40 ? '1' : '0'), \
+  ((byte) & 0x20 ? '1' : '0'), \
+  ((byte) & 0x10 ? '1' : '0'), \
+  ((byte) & 0x08 ? '1' : '0'), \
+  ((byte) & 0x04 ? '1' : '0'), \
+  ((byte) & 0x02 ? '1' : '0'), \
+  ((byte) & 0x01 ? '1' : '0') 
+
 #define xx (void)
 
 #define Kilobytes(x) ((x)*(usize)1000)
@@ -241,9 +252,8 @@ STRUCT(StringList)
 #define local_persist static
 #define thread_local _Thread_local
 
-#define constant_begin enum {
-#define constant_end };
-#define constant(X, Value) enum { X = Value };
+#define constant enum
+#define constant_x(X, Value) enum { X = Value };
 
 #define UNUSED_PARAM(Param) (void)Param
 

@@ -562,7 +562,7 @@ NO_DISCARD u64 Platform_GetMainThreadID(void)
 
 void Platform_GetComputerName(String* OutName)
 {
-    constant(MAX_NAME_LENGTH, 256);
+    constant { MAX_NAME_LENGTH = 256 };
 	local_persist char Result[MAX_NAME_LENGTH] = {0};
 
     BOOL bSuccess = Result[0] != 0;
@@ -1584,6 +1584,13 @@ NO_DISCARD bool Filesystem_IsDirectory(const String Path)
     DWORD Attrib = GetFileAttributes((char*)Path.Data);
     bool bIsDir = (Attrib != INVALID_FILE_ATTRIBUTES && (Attrib & FILE_ATTRIBUTE_DIRECTORY));
     return bIsDir;
+}
+
+NO_DISCARD bool Filesystem_IsHidden(const String Path)
+{
+    DWORD Attrib = GetFileAttributes((char*)Path.Data);
+    bool bIsHidden = (Attrib != INVALID_FILE_ATTRIBUTES && (Attrib & FILE_ATTRIBUTE_HIDDEN));
+    return bIsHidden;
 }
 
 NO_DISCARD bool Filesystem_IsPathRelative(const String Path)

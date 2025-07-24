@@ -1703,6 +1703,22 @@ bool Filesystem_IsDirectory(const String Path)
     return S_ISDIR(filestat.st_mode);
 }
 
+bool Filesystem_IsHidden(const String Path)
+{
+    // On Unix systems, a file is considered hidden if its name starts with a dot (.)
+    // There is no separate hidden attribute in the file metadata.
+
+    bool bHidden = false;
+
+    String FileName = Filesystem_ExtractFileName(Path, true);
+    if (String_IsFirst(FileName, '.'))
+    {
+        bHidden = true;
+    }
+
+    return bHidden;
+}
+
 bool Filesystem_ConvertRelativeToAbsolutePath(String* OutFullPath)
 {
     StringLocal(Copy, MAX_PATH_LENGTH);

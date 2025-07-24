@@ -14,7 +14,7 @@
  * void* Data;
  */
 
-enum
+constant
 {
     ArrayField_Capacity   = 0,
     ArrayField_Num        = 1,
