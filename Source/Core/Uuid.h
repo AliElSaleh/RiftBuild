@@ -7,6 +7,7 @@
 
 #define GUID_LENGTH 37
 
+// https://datatracker.ietf.org/doc/html/rfc4122#section-4.1.2
 STRUCT(Uuid)
 {
     u32 TimeLow;

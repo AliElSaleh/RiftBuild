@@ -329,6 +329,5 @@ RIFT_API NO_DISCARD i32 Rand(void);
 RIFT_API NO_DISCARD i32 RandFast(void);
 RIFT_API NO_DISCARD f32 FRand(void);
 RIFT_API NO_DISCARD f32 FRandFast(void);
-RIFT_API            void RandSeed(void);
 
 #endif // PLATFORM_H

@@ -874,6 +874,7 @@ NO_DISCARD String Filesystem_ExtractFileExtension(const String FilePath, bool bI
 }
 
 // UUID Version 4 - Random based
+// https://datatracker.ietf.org/doc/html/rfc4122#section-4.4
 NO_DISCARD Uuid UUID_Generate(void)
 {
     Uuid Result = {0};
@@ -905,13 +906,86 @@ NO_DISCARD bool UUID_IsEqual(Uuid First, Uuid Second)
     return bMatch;
 }
 
+NO_DISCARD static u8 HexCharToU8(uchar c)
+{
+    uchar Char = 0xFF;
+
+    if (c >= '0' && c <= '9')
+    {
+        Char = (u8)(c - '0');
+    }
+    else if (c >= 'a' && c <= 'f')
+    {
+        Char = (u8)(c - 'a' + 10);
+    }
+    else if (c >= 'A' && c <= 'F')
+    {
+        Char = (u8)(c - 'A' + 10);
+    }
+    else
+    {
+    }
+
+    return Char;
+}
+
 NO_DISCARD Uuid UUID_FromString(const String IDString)
 {
     Uuid Result = {0};
 
     if (IDString.Length >= 36)
     {
+        u8 b = 0;
+        u8 Bytes[16] = {0};
 
+        for (u32 i = 0; i < IDString.Length;)
+        {
+            if (i >= 36)
+            {
+                // just in case a string longer than this was given. ignore the rest...
+                break;
+            }
+
+            if (IDString.Data[i] == '-') // skip the dashes
+            {
+                i++;
+                continue;
+            }
+
+            u8 High = HexCharToU8(IDString.Data[i]);
+            u8 Low  = HexCharToU8(IDString.Data[i+1]);
+
+            // stop if we get invalid hex conversions
+            if (High == 0xFF || Low == 0xFF)
+            {
+                break;
+            }
+
+            Bytes[b++] = (u8)((High << 4) | Low);
+
+            i += 2;
+        }
+
+        // only do this if we converted everything
+        if (b == 16)
+        {
+            Result.TimeLow = (u32)(((u32)Bytes[0] << 24) |
+                                   ((u32)Bytes[1] << 16) |
+                                   ((u32)Bytes[2] << 8)  |
+                                   ((u32)Bytes[3]));
+
+            Result.TimeMid = (u16)(((u16)Bytes[4] << 8) | ((u16)Bytes[5]));
+
+            Result.TimeHiAndVersion = (u16)(((u16)Bytes[6] << 8) | ((u16)Bytes[7]));
+
+            Result.ClockSeqHiAndReserved = Bytes[8];
+            Result.ClockSeqLow           = Bytes[9];
+
+            for (u8 i = 0; i < 6; ++i)
+            {
+                Result.Node[i] = Bytes[10 + i];
+            }
+        }
     }
 
     return Result;
@@ -976,19 +1050,14 @@ void UUID_ToStringFast(Uuid ID, String* OutString)
 }
 
 // https://stackoverflow.com/questions/4768180/rand-implementation
-static u32 Seed = 1;
-
-void RandSeed(void)
-{
-	Seed = (u32)Platform_GetAbsoluteTime();
-}
+static u64 Seed = 1;
 
 i32 RandFast(void)
 {
-    Seed = (u32)Platform_GetAbsoluteTime();
+    Seed = (u64)Platform_GetAbsoluteTime();
     Seed *= 1103515245 + 12345;
 
-    return (Seed/65536) % 32768;
+    return (i32)(Seed/65536) % 32768;
 }
 
 f32 FRand(void)
@@ -1006,7 +1075,7 @@ f32 FRandFast(void)
 {
     #define RAND_MAX 0x7fff
 
-    Seed = (u32)Platform_GetAbsoluteTime();
+    Seed = (u64)Platform_GetAbsoluteTime();
     Seed *= 1103515245 + 12345;
     
     f32 RandFastResult = (f32)((Seed/65536) % 32768);
