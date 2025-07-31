@@ -13,6 +13,8 @@
 #include "Array.h"
 #endif
 
+#undef constant // time.h uses this phrase
+
 #define _XOPEN_SOURCE 700
 
 PRAGMA_DISABLE_WARNINGS
