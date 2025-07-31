@@ -210,6 +210,16 @@ RIFT_API NO_DISCARD bool String_ToI64(const String Str, i64* OutInt);
 
 RIFT_API NO_DISCARD bool String_ToBool(const String Str);
 
+RIFT_API NO_DISCARD bool String_FromI8(String* Str, i8 Int);
+RIFT_API NO_DISCARD bool String_FromI16(String* Str, i16 Int);
+RIFT_API NO_DISCARD bool String_FromI32(String* Str, i32 Int);
+RIFT_API NO_DISCARD bool String_FromI64(String* Str, i64 Int);
+
+RIFT_API NO_DISCARD bool String_FromU8(String* Str, u8 Int);
+RIFT_API NO_DISCARD bool String_FromU16(String* Str, u16 Int);
+RIFT_API NO_DISCARD bool String_FromU32(String* Str, u32 Int);
+RIFT_API NO_DISCARD bool String_FromU64(String* Str, u64 Int);
+
 RIFT_API NO_DISCARD u32 String_GetLength(const char* Str)                       PURE_FN;
 RIFT_API NO_DISCARD u32 String_GetLength_Ex(const char* Str, u32 MaxLength)     PURE_FN;
 RIFT_API NO_DISCARD u32 String16_GetLength(const wchar* Str)                    PURE_FN;
@@ -229,6 +239,7 @@ RIFT_API NO_DISCARD u8   ToBackSlash(u8 Char)     CONST_FN;
 RIFT_API NO_DISCARD uchar DigitToHexChar(u8 Val)  CONST_FN;
 
 RIFT_API NO_DISCARD u8 Integer_CountDigits(u64 Value) CONST_FN;
+RIFT_API NO_DISCARD u8 Integer_CountDigits_Signed(i64 Value) CONST_FN;
 
 // TODO: possibly delete all these functions below
 /*

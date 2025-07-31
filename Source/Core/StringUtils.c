@@ -2569,6 +2569,131 @@ NO_DISCARD bool String_ToBool(const String Str)
     return String_IsEqual(Str, S("1"), false) || String_IsEqual(Str, S("true"), false);
 }
 
+// IntType
+// 0 - u8
+// 1 - u16
+// 2 - u32
+// 3 - u64
+NO_DISCARD static bool Internal_FromUnsignedInt(String* Str, u64 Int, u8 IntType)
+{
+    bool bSuccess = false;
+
+    u64 MaxDigits = 20; // 20 digits in u64 -> 18446744073709551615
+    switch (IntType)
+    {
+        case 0:  MaxDigits = 3; break;  // u8  -> 255
+        case 1:  MaxDigits = 5; break;  // u16 -> 65535
+        case 2:  MaxDigits = 10; break; // u32 -> 4294967295
+    }
+
+    if (Str->Capacity >= MaxDigits) // make sure we have enough room
+    {
+        u8 Count = Integer_CountDigits(Int);
+        
+        u64 IntCopy = Int;
+        for (u8 i = 0; i < Count; i++)
+        {
+            u8 Digit = IntCopy % 10;
+            IntCopy /= 10;
+
+            Str->Data[Count-i-1] = '0' + Digit;
+        }
+
+        Str->Length = Count;
+        bSuccess = true;
+    }
+
+    return bSuccess;
+}
+
+// IntType
+// 0 - i8
+// 1 - i16
+// 2 - i32
+// 3 - i64
+NO_DISCARD static bool Internal_FromSignedInt(String* Str, i64 Int, u8 IntType)
+{
+    bool bSuccess = false;
+
+    i64 MaxDigits = 19; // 19 digits in i64 -> 9223372036854775807
+    switch (IntType)
+    {
+        case 0:  MaxDigits = 3; break;  // i8  -> 127
+        case 1:  MaxDigits = 5; break;  // i16 -> 32767
+        case 2:  MaxDigits = 10; break; // i32 -> 2147483647
+    }
+
+    bool bIsNegative = Int < 0;
+    if (bIsNegative)
+    {
+        MaxDigits++; // for the negative sign char
+    }
+
+    if (Str->Capacity >= MaxDigits) // make sure we have enough room
+    {
+        u8 Count = Integer_CountDigits_Signed(Int);
+
+        if (bIsNegative)
+        {
+            Str->Data[0] = '-';
+        }
+        
+        i64 IntCopy = bIsNegative ? Int * -1 : Int;
+        for (u8 i = 0; i < Count; i++)
+        {
+            u8 Digit = (u8)(IntCopy % 10);
+            IntCopy /= 10;
+
+            Str->Data[(Count + bIsNegative) - i - 1] = '0' + Digit;
+        }
+
+        Str->Length = Count + bIsNegative;
+        bSuccess = true;
+    }
+
+    return bSuccess;
+}
+
+NO_DISCARD bool String_FromU8(String* Str, u8 Int)
+{
+    return Internal_FromUnsignedInt(Str, Int, 0);
+}
+
+NO_DISCARD bool String_FromU16(String* Str, u16 Int)
+{
+    return Internal_FromUnsignedInt(Str, Int, 1);
+}
+
+NO_DISCARD bool String_FromU32(String* Str, u32 Int)
+{
+    return Internal_FromUnsignedInt(Str, Int, 2);
+}
+
+NO_DISCARD bool String_FromU64(String* Str, u64 Int)
+{
+    return Internal_FromUnsignedInt(Str, Int, 3);
+}
+
+NO_DISCARD bool String_FromI8(String* Str, i8 Int)
+{
+    return Internal_FromSignedInt(Str, Int, 0);
+}
+
+NO_DISCARD bool String_FromI16(String* Str, i16 Int)
+{
+    return Internal_FromSignedInt(Str, Int, 1);
+}
+
+NO_DISCARD bool String_FromI32(String* Str, i32 Int)
+{
+    return Internal_FromSignedInt(Str, Int, 2);
+}
+
+NO_DISCARD bool String_FromI64(String* Str, i64 Int)
+{
+    return Internal_FromSignedInt(Str, Int, 3);
+}
+
 NO_DISCARD String* StringArray_Iterate_Next(StringArray *InArray)
 {
     String* Current = NULL;
@@ -3027,20 +3152,44 @@ NO_DISCARD u8 ToBackSlash(u8 Char)
     return Char == '/' ? '\\' : Char;
 }
 
-NO_DISCARD uchar HexDigitToChar(u8 Val)
+NO_DISCARD uchar DigitToHexChar(u8 Val)
 {
     uchar Char = Val < 10 ? (uchar)('0' + Val) : (uchar)('a' + (Val - 10));
     return Char;
 }
 
 // TODO: remove from this file
-NO_DISCARD u8 Integer_CountDigits(u64 Value)
+inline NO_DISCARD u8 Integer_CountDigits(u64 Value)
 {
     u8 Count = 0;
     while (Value > 0)
     {
         Value /= 10;
         Count++;
+    }
+
+    // if Value was just 0. then the above wouldn't have caught this
+    if (Count == 0)
+    {
+        Count = 1;
+    }
+
+    return Count;
+}
+
+inline NO_DISCARD u8 Integer_CountDigits_Signed(i64 Value)
+{
+    u8 Count = 0;
+    while (Value != 0)
+    {
+        Value /= 10;
+        Count++;
+    }
+
+    // if Value was just 0. then the above wouldn't have caught this
+    if (Count == 0)
+    {
+        Count = 1;
     }
 
     return Count;
