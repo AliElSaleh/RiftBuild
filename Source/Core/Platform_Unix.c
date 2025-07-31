@@ -1929,4 +1929,19 @@ u32 Platform_GetPosixVersion(void)
     #endif
 }
 
+static FileHandle DevUrandomFile = {0};
+
+i32 Rand(void)
+{
+    if (!IsValidFileHandle(DevUrandomFile))
+    {
+        xx Filesystem_Open(S("/dev/urandom"), FileMode_Read, &DevUrandomFile);
+    }
+
+    u32 Value = 0;
+    xx Filesystem_Read(DevUrandomFile, sizeof(Value), &Value, NULL);
+
+    return (i32)(Value & 0x7FFFFFFF); // 31-bit positive int
+}
+
 #endif // PLATFORM_UNIX

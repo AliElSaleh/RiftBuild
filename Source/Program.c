@@ -8755,6 +8755,19 @@ static void InitInternalVars(LinearAllocator* Arena)
     // TODO _Ram
     //AddInternalVariable(S("_Platform.KernelVersion"), OSVersionString);
     //AddInternalVariable(S("_Platform.BuildVersion"), OSVersionString);
+    
+    /*
+    StringLocal(temp, 64);
+    Uuid id = UUID_Generate();
+    UUID_ToString(id, &temp);
+    Uuid id2 = UUID_FromString(temp);
+    bool bIsEqual = UUID_IsEqual(id, id2);
+    LOG("A: %S", temp);
+    String_Empty(&temp);
+    UUID_ToString(id2, &temp);
+    LOG("B: %S", temp);
+    LOG("equal? %S", bIsEqual ? S("true") : S("false"));
+    */
 
     #if PLATFORM_WINDOWS
     AddInternalVariable(S("_Platform"), S("Windows"));

@@ -7,7 +7,6 @@
 
 #include "Memory.h"
 #include "StringUtils.h"
-#include "Uuid.h"
 #include "Filesystem.h"
 #include "Log.h"
 
@@ -288,41 +287,6 @@ PlatformVersion Platform_GetVersion(void)
     CFRelease(plist);
 
     return Result;
-}
-
-Uuid UUID_Generate(void)
-{
-    uuid_t id;
-    uuid_generate(id);
-
-    return *(Uuid*)id;
-}
-
-bool UUID_IsEqual(Uuid First, Uuid Second)
-{
-    u8* a = (u8*)&First;
-    u8* b = (u8*)&Second;
-
-    const bool bSame = uuid_compare(a, b) == 0;
-    return bSame;
-}
-
-void UUID_ToString(Uuid ID, String* OutString)
-{
-    StringLocal(Temp, GUID_LENGTH);
-
-    u8* a = (u8*)&ID;
-    uuid_unparse(a, (char*)Temp.Data);
-
-    String_Copy(OutString, Temp);
-}
-
-Uuid UUID_FromString(const String IDString)
-{
-    uuid_t id;
-    uuid_parse((const char*)IDString.Data, id);
-
-    return *(Uuid*)id;
 }
 
 #endif // PLATFORM_MAC
