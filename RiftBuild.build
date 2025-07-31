@@ -85,3 +85,4 @@ option.32.description              build for 32 bit mode
 option.asan.description            enable address sanitizer for memory debugging purposes
 option.hood.description            enable hood mode, the program will talk to you like a gangster!
 option.no_print_config.description disable printing of the build configuration flags
+option.asm.description             generate disassembly (.S) files
