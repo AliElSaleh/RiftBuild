@@ -42,9 +42,8 @@ Compiler.Flags           $SharedCompilerFlags
 Linker.Flags             $SharedLinkerFlags
 Includes                 $SharedIncludeFlags
 Defines                  $SharedDefines %^%hood NO_PRINT_BUILD_CONFIG=%no_print_config
-Libraries:linux          pthread uuidS
+Libraries:linux          pthread
 Libraries:bsd            pthread
-Library.Paths:linux      Source/Libraries/Linux
 
 if windows
 {

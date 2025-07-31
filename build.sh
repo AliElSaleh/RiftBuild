@@ -11,7 +11,7 @@ Platform="Unknown"
 unamestr=$(uname)
 if [ "$unamestr" = 'Linux' ]; then
     Platform='Linux'
-    LinuxLinkerFlags="-LSource/Libraries/Linux -luuidS -lpthread"
+    LinuxLinkerFlags="-lpthread"
 
    if [ -f /usr/bin/gnome-terminal ]; then
         LinuxDEDefines="-DPLATFORM_LINUX_GNOME"
