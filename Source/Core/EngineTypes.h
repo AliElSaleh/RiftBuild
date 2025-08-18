@@ -188,10 +188,10 @@ STRUCT(StringList)
 #define String16Local(Name, n) 	            String16 Name; wchar MACRO_VAR(CONCAT(Buffer_, Name))[n+1] = {0}; Name.Data = MACRO_VAR(CONCAT(Buffer_, Name)), Name.Length = 0, Name.Capacity = (n)
 
 #define CStr(s)                             (String)         {.Data = (uchar*)(s),      .Length = String_GetLength(s),                   .Capacity = 0}
-#define CStrEx(s, n)                        (String)         {.Data = (uchar*)(s),      .Length = String_GetLength_Ex(s, n),             .Capacity = 0}
+#define CStrEx(s, n)                        (String)         {.Data = (uchar*)(s),      .Length = String_GetLength_N(s, n),             .Capacity = 0}
 #define CStrView(s)                         (const String)   {.Data = (uchar*)(s),      .Length = String_GetLength(s),                   .Capacity = 0}
 #define CStr16(s)                           (String16)       {.Data = (wchar*)(s),      .Length = String16_GetLength((wchar*)(s)),       .Capacity = 0}
-#define CStr16Ex(s, n)                      (String16)       {.Data = (wchar*)(s),      .Length = String16_GetLength_Ex((wchar*)(s), n), .Capacity = 0}
+#define CStr16Ex(s, n)                      (String16)       {.Data = (wchar*)(s),      .Length = String16_GetLength_N((wchar*)(s), n), .Capacity = 0}
 #define CStr16View(s)                       (const String16) {.Data = (wchar*)(s),      .Length = String16_GetLength(s),                 .Capacity = 0}
 
 #define S(s)                                (const String)   {.Data = (uchar*)(s),      .Length = sizeof(s)-1, .Capacity = 0}
@@ -431,7 +431,7 @@ STRUCT(StringList)
         #endif
     #endif
 #else
-    #define RIFT_API extern
+    #define RIFT_API
 #endif // RIFT_STATIC
 
 #ifdef _MSC_VER

@@ -220,10 +220,10 @@ RIFT_API NO_DISCARD bool String_FromU16(String* Str, u16 Int);
 RIFT_API NO_DISCARD bool String_FromU32(String* Str, u32 Int);
 RIFT_API NO_DISCARD bool String_FromU64(String* Str, u64 Int);
 
-RIFT_API NO_DISCARD u32 String_GetLength(const char* Str)                       PURE_FN;
-RIFT_API NO_DISCARD u32 String_GetLength_Ex(const char* Str, u32 MaxLength)     PURE_FN;
-RIFT_API NO_DISCARD u32 String16_GetLength(const wchar* Str)                    PURE_FN;
-RIFT_API NO_DISCARD u32 String16_GetLength_Ex(const wchar* Str, u32 MaxLength)  PURE_FN;
+RIFT_API NO_DISCARD u32 String_GetLength(const char* Str)                      PURE_FN;
+RIFT_API NO_DISCARD u32 String_GetLength_N(const char* Str, u32 MaxLength)     PURE_FN;
+RIFT_API NO_DISCARD u32 String16_GetLength(const wchar* Str)                   PURE_FN;
+RIFT_API NO_DISCARD u32 String16_GetLength_N(const wchar* Str, u32 MaxLength)  PURE_FN;
 
 RIFT_API NO_DISCARD bool IsAlphabet(u8 Char)      CONST_FN;
 RIFT_API NO_DISCARD bool IsAlphabetUpper(u8 Char) CONST_FN;

@@ -3057,7 +3057,7 @@ NO_DISCARD u32 String_GetLength(const char* Str)
     return Len;
 }
 
-NO_DISCARD u32 String_GetLength_Ex(const char* Str, u32 MaxLength)
+NO_DISCARD u32 String_GetLength_N(const char* Str, u32 MaxLength)
 {
     register u32 Len = 0;
     while (Len < MaxLength && Str[Len])
@@ -3079,7 +3079,7 @@ NO_DISCARD u32 String16_GetLength(const wchar* Str)
     return Len;
 }
 
-NO_DISCARD u32 String16_GetLength_Ex(const wchar* Str, u32 MaxLength)
+NO_DISCARD u32 String16_GetLength_N(const wchar* Str, u32 MaxLength)
 {
     register u32 Len = 0;
     while (Len < MaxLength && Str[Len])
@@ -3092,7 +3092,7 @@ NO_DISCARD u32 String16_GetLength_Ex(const wchar* Str, u32 MaxLength)
 
 NO_DISCARD bool IsAlphabet(u8 Char)
 {
-    return ((Char >= 'A' && Char <= 'Z') || (Char >= 'a' && Char <= 'z'));
+    return (Char >= 'A' && Char <= 'Z') || (Char >= 'a' && Char <= 'z');
 }
 
 NO_DISCARD bool IsAlphabetUpper(u8 Char)
@@ -3159,7 +3159,7 @@ NO_DISCARD uchar DigitToHexChar(u8 Val)
 }
 
 // TODO: remove from this file
-inline NO_DISCARD u8 Integer_CountDigits(u64 Value)
+NO_DISCARD u8 Integer_CountDigits(u64 Value)
 {
     u8 Count = 0;
     while (Value > 0)
@@ -3177,7 +3177,7 @@ inline NO_DISCARD u8 Integer_CountDigits(u64 Value)
     return Count;
 }
 
-inline NO_DISCARD u8 Integer_CountDigits_Signed(i64 Value)
+NO_DISCARD u8 Integer_CountDigits_Signed(i64 Value)
 {
     u8 Count = 0;
     while (Value != 0)

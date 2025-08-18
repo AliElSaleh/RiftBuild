@@ -771,8 +771,8 @@ NO_DISCARD bool Filesystem_IsOlder(const String PathA, const String PathB)
 NO_DISCARD bool Filesystem_DoesPathHaveFileExtension(const String Path)
 {
     u32 LastDot = 0, LastSlash = 0;
-    (void)String_IndexOfLastChar(Path, '.', &LastDot);
-    (void)String_IndexOfLastPathSlash(Path, &LastSlash);
+    xx String_IndexOfLastChar(Path, '.', &LastDot);
+    xx String_IndexOfLastPathSlash(Path, &LastSlash);
 
     bool bSomeCharAfterDot = false;
     if (LastDot+1 < Path.Length)
@@ -1008,18 +1008,18 @@ void UUID_ToStringFast(Uuid ID, String* OutString)
 {
     ENSURE(OutString->Capacity >= 36);
 
-    OutString->Data[0] = U8ToHexChar((ID.TimeLow >> 28) & 0x0F);
-    OutString->Data[1] = U8ToHexChar((ID.TimeLow >> 24) & 0x0F);
-    OutString->Data[2] = U8ToHexChar((ID.TimeLow >> 20) & 0x0F);
-    OutString->Data[3] = U8ToHexChar((ID.TimeLow >> 16) & 0x0F);
-    OutString->Data[4] = U8ToHexChar((ID.TimeLow >> 12) & 0x0F);
-    OutString->Data[5] = U8ToHexChar((ID.TimeLow >> 8 ) & 0x0F);
-    OutString->Data[6] = U8ToHexChar((ID.TimeLow >> 4 ) & 0x0F);
-    OutString->Data[7] = U8ToHexChar((ID.TimeLow >> 0 ) & 0x0F);
+    OutString->Data[0]  = U8ToHexChar((ID.TimeLow >> 28) & 0x0F);
+    OutString->Data[1]  = U8ToHexChar((ID.TimeLow >> 24) & 0x0F);
+    OutString->Data[2]  = U8ToHexChar((ID.TimeLow >> 20) & 0x0F);
+    OutString->Data[3]  = U8ToHexChar((ID.TimeLow >> 16) & 0x0F);
+    OutString->Data[4]  = U8ToHexChar((ID.TimeLow >> 12) & 0x0F);
+    OutString->Data[5]  = U8ToHexChar((ID.TimeLow >> 8 ) & 0x0F);
+    OutString->Data[6]  = U8ToHexChar((ID.TimeLow >> 4 ) & 0x0F);
+    OutString->Data[7]  = U8ToHexChar((ID.TimeLow >> 0 ) & 0x0F);
 
-    OutString->Data[8] = '-';
+    OutString->Data[8]  = '-';
 
-    OutString->Data[9] = U8ToHexChar((ID.TimeMid >> 12) & 0x0F);
+    OutString->Data[9]  = U8ToHexChar((ID.TimeMid >> 12) & 0x0F);
     OutString->Data[10] = U8ToHexChar((ID.TimeMid >> 8 ) & 0x0F);
     OutString->Data[11] = U8ToHexChar((ID.TimeMid >> 4 ) & 0x0F);
     OutString->Data[12] = U8ToHexChar((ID.TimeMid >> 0 ) & 0x0F);
@@ -1050,11 +1050,10 @@ void UUID_ToStringFast(Uuid ID, String* OutString)
 }
 
 // https://stackoverflow.com/questions/4768180/rand-implementation
-static u64 Seed = 1;
 
 i32 RandFast(void)
 {
-    Seed = (u64)Platform_GetAbsoluteTime();
+    u64 Seed = (u64)Platform_GetAbsoluteTime();
     Seed *= 1103515245 + 12345;
 
     return (i32)(Seed/65536) % 32768;
@@ -1075,7 +1074,7 @@ f32 FRandFast(void)
 {
     #define RAND_MAX 0x7fff
 
-    Seed = (u64)Platform_GetAbsoluteTime();
+    u64 Seed = (u64)Platform_GetAbsoluteTime();
     Seed *= 1103515245 + 12345;
     
     f32 RandFastResult = (f32)((Seed/65536) % 32768);

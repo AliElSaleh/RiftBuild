@@ -1610,7 +1610,7 @@ NO_DISCARD bool Filesystem_ConvertRelativeToAbsolutePath(String* OutFullPath)
     String_Copy(&Copy, *OutFullPath);
 
     bool bResult = PathCanonicalize((char*)OutFullPath->Data, (char*)Copy.Data);
-    OutFullPath->Length = String_GetLength_Ex((char*)OutFullPath->Data, MAX_PATH);
+    OutFullPath->Length = String_GetLength_N((char*)OutFullPath->Data, MAX_PATH);
     return bResult;
 }
 
