@@ -13,6 +13,8 @@
 #include "Clock.h"
 #include "Log.h"
 
+#undef constant // time.h uses this phrase
+
 #if PLATFORM_LINUX
 #define _XOPEN_SOURCE 700
 #endif
