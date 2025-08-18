@@ -119,12 +119,12 @@ void pre_main(int argc, char* argv[], char* env[])
     for (int i = 1; i < argc; ++i)
     {
         GArgV[i-1].Data = (uchar*)argv[i];
-        GArgV[i-1].Length = String_GetLength_Ex(argv[i], UINT16_MAX);
+        GArgV[i-1].Length = String_GetLength_N(argv[i], UINT16_MAX);
         GArgV[i-1].Capacity = GArgV[i-1].Length;
     }
 
     GProgramName.Data = (uchar*)argv[0];
-    GProgramName.Length = String_GetLength_Ex(argv[0], UINT16_MAX);
+    GProgramName.Length = String_GetLength_N(argv[0], UINT16_MAX);
     GProgramName.Capacity = GProgramName.Length;
 }
 
@@ -795,7 +795,7 @@ void Platform_GetWorkingDirectory(String* OutPath)
 {
     char* Result = getcwd((char*)OutPath->Data, MAX_PATH_LENGTH);
     if (Result == NULL) return;
-    OutPath->Length = String_GetLength_Ex((const char*)OutPath->Data, MAX_PATH_LENGTH);
+    OutPath->Length = String_GetLength_N((const char*)OutPath->Data, MAX_PATH_LENGTH);
 }
 
 bool Platform_GetEnvironmentVariableValue(String Name, String* OutVariable)
@@ -1737,7 +1737,7 @@ bool Filesystem_ConvertRelativeToAbsolutePath(String* OutFullPath)
         return false;
     }
 
-    OutFullPath->Length = String_GetLength_Ex(Result, MAX_PATH_LENGTH);
+    OutFullPath->Length = String_GetLength_N(Result, MAX_PATH_LENGTH);
 
     // realpath() doesnt append a '/' (even if the original string had that)
     if (bLastIsSeparator) String_AppendPathSeparator_Checked(OutFullPath);
