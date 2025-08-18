@@ -481,9 +481,13 @@ NO_DISCARD SystemTime Platform_GetSystemLocalTime(void)
     SYSTEMTIME SysTime = {0};
     GetLocalTime(&SysTime);
 
+    u16 DayOfYear = Platform_GetDayOfYear(SysTime.wDay, SysTime.wMonth, SysTime.wYear);
+
     SystemTime Result  = {0};
     Result.Year        = SysTime.wYear;
     Result.Month       = SysTime.wMonth;
+    Result.Week        = DayOfYear / 7;
+    Result.DayOfYear   = DayOfYear;
     Result.DayOfWeek   = SysTime.wDayOfWeek;
     Result.Day         = SysTime.wDay;
     Result.Hour        = SysTime.wHour;

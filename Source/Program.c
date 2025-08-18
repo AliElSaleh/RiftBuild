@@ -78,6 +78,17 @@ read_only String BuiltinOptions[] =
     SC("preset:"),
 };
 
+STRUCT(BuildResult)
+{
+    String BuildPath;
+    String IntermediatePath;
+    String Includes;
+    String Libraries;
+    String LibraryPaths;
+
+    u32 ExitCode;
+};
+
 STRUCT(BuildFileDirectoryIteratorData)
 {
     String*     Name;
@@ -1100,9 +1111,12 @@ static bool EnforceCopyright(const BuildParams* Params, CopyrightEnforceInfo* Au
 
     u32 LineNum = 0;
     bool bSuccess = false;
+    bool bFileSuccess = false;
     FileHandle f = FileHandle_Null();
     if (Filesystem_Open(FullPath, FileMode_Read, &f))
     {
+        bFileSuccess = true;
+
         StringLocal(Line, 4096);
         while (Filesystem_ReadLine(f, &Line))
         {
@@ -1128,11 +1142,10 @@ static bool EnforceCopyright(const BuildParams* Params, CopyrightEnforceInfo* Au
         Filesystem_Close(&f);
     }
 
-    // TODO: if failed to open file, skip checking this file
-
     bool bContinueSearch = true;
 
-    if (!bSuccess)
+    // if failed to open file, skip checking this file
+    if (bFileSuccess && !bSuccess)
     {
         StringLocal(LineInfo, 32);
         if (AuxData->FromLine == AuxData->ToLine)
@@ -2864,6 +2877,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
                         const String WorkingPath, const StringArray Parameters, const String CameFromBuildFile,
                         i8 BuildFileIndex, i8 RootPathIndex)
 {
+    // BuildResult BuildOutputResult = {0};
+
     if (!Platform_SetWorkingDirectory(WorkingPath))
     {
         #ifndef HOOD
@@ -3097,58 +3112,77 @@ static u32 BuildTarget(LinearAllocator* Arena,
     String_Format(&TimeStamp, S("%hu-%.2hu-%.2hu %.2hu:%.2hu:%.2hu [%S]"), TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second, TimeZone);
 
     {
-        StringLocal(TimeStampVar, 64);
-        String_Format(&TimeStampVar, S("%hu-%.2hu-%.2hu %.2hu:%.2hu:%.2hu"), TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
-        String a = String_Create(Arena, TimeStampVar);
+        StringLocal(Temp, 64);
+        String_Format(&Temp, S("%hu-%.2hu-%.2hu %.2hu:%.2hu:%.2hu"), TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
+        String a = String_Create(Arena, Temp);
         AddCmdOption(&CmdOptionsDB, S("_Timestamp"), a);
 
         // add another for time zone information
-        String_Format(&TimeStampVar, S("%hu-%.2hu-%.2hu %.2hu:%.2hu:%.2hu [%S]"), TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second, TimeZone);
-        a = String_Create(Arena, TimeStampVar);
+        String_Format(&Temp, S("%hu-%.2hu-%.2hu %.2hu:%.2hu:%.2hu [%S]"), TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second, TimeZone);
+        a = String_Create(Arena, Temp);
         AddCmdOption(&CmdOptionsDB, S("_Timestamp.Zone"), a);
 
-        String_Format(&TimeStampVar, S("%hu%.2hu%.2hu%.2hu%.2hu%.2hu"), TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
-        a = String_Create(Arena, TimeStampVar);
+        String_Format(&Temp, S("%hu%.2hu%.2hu%.2hu%.2hu%.2hu"), TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
+        a = String_Create(Arena, Temp);
         AddCmdOption(&CmdOptionsDB, S("_Timestamp.NoSep"), a);
 
-        String_Format(&TimeStampVar, S("%hu-%.2hu-%.2hu"), TimeNow.Year, TimeNow.Month, TimeNow.Day);
-        a = String_Create(Arena, TimeStampVar);
+        String_Format(&Temp, S("%hu-%.2hu-%.2hu"), TimeNow.Year, TimeNow.Month, TimeNow.Day);
+        a = String_Create(Arena, Temp);
         AddCmdOption(&CmdOptionsDB, S("_Date"), a);
 
-        String_Format(&TimeStampVar, S("%hu"), TimeNow.Year);
-        a = String_Create(Arena, TimeStampVar);
+        String_Format(&Temp, S("%hu"), TimeNow.Year);
+        a = String_Create(Arena, Temp);
         AddCmdOption(&CmdOptionsDB, S("_Date.Year"), a);
-        String_Format(&TimeStampVar, S("%.2hu"), TimeNow.Month);
-        a = String_Create(Arena, TimeStampVar);
+        String_Format(&Temp, S("%.2hu"), TimeNow.Month);
+        a = String_Create(Arena, Temp);
         AddCmdOption(&CmdOptionsDB, S("_Date.Month"), a);
-        String_Format(&TimeStampVar, S("%.2hu"), TimeNow.Day);
-        a = String_Create(Arena, TimeStampVar);
+        String_Format(&Temp, S("%hu"), TimeNow.Week);
+        a = String_Create(Arena, Temp);
+        AddCmdOption(&CmdOptionsDB, S("_Date.Week"), a);
+        String_Format(&Temp, S("%.2hu"), TimeNow.Day);
+        a = String_Create(Arena, Temp);
         AddCmdOption(&CmdOptionsDB, S("_Date.Day"), a);
-        // TODO: month name and day name, week number 0-52, day of week 0-6, day number 0-365
 
-        String_Format(&TimeStampVar, S("%hu%.2hu%.2hu"), TimeNow.Year, TimeNow.Month, TimeNow.Day);
-        a = String_Create(Arena, TimeStampVar);
+        String_Format(&Temp, S("%S"), Platform_GetMonthName(TimeNow.Month));
+        a = String_Create(Arena, Temp);
+        AddCmdOption(&CmdOptionsDB, S("_Date.MonthName"), a);
+
+        String_Format(&Temp, S("%S"), Platform_GetDayName(TimeNow.DayOfWeek));
+        a = String_Create(Arena, Temp);
+        AddCmdOption(&CmdOptionsDB, S("_Date.DayName"), a);
+
+        String_Format(&Temp, S("%hu"), TimeNow.DayOfWeek);
+        a = String_Create(Arena, Temp);
+        AddCmdOption(&CmdOptionsDB, S("_Date.DayOfWeek"), a);
+
+        u16 DayOfYear = Platform_GetDayOfYear(TimeNow.Day, TimeNow.Month, TimeNow.Year);
+        String_Format(&Temp, S("%hu"), DayOfYear);
+        a = String_Create(Arena, Temp);
+        AddCmdOption(&CmdOptionsDB, S("_Date.DayOfYear"), a);
+
+        String_Format(&Temp, S("%hu%.2hu%.2hu"), TimeNow.Year, TimeNow.Month, TimeNow.Day);
+        a = String_Create(Arena, Temp);
         AddCmdOption(&CmdOptionsDB, S("_Date.NoSep"), a);
 
-        String_Format(&TimeStampVar, S("%.2hu:%.2hu:%.2hu"), TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
-        a = String_Create(Arena, TimeStampVar);
+        String_Format(&Temp, S("%.2hu:%.2hu:%.2hu"), TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
+        a = String_Create(Arena, Temp);
         AddCmdOption(&CmdOptionsDB, S("_Time"), a);
 
-        String_Format(&TimeStampVar, S("%.2hu"), TimeNow.Hour);
-        a = String_Create(Arena, TimeStampVar);
+        String_Format(&Temp, S("%.2hu"), TimeNow.Hour);
+        a = String_Create(Arena, Temp);
         AddCmdOption(&CmdOptionsDB, S("_Time.Hour"), a);
-        String_Format(&TimeStampVar, S("%.2hu"), TimeNow.Minute);
-        a = String_Create(Arena, TimeStampVar);
+        String_Format(&Temp, S("%.2hu"), TimeNow.Minute);
+        a = String_Create(Arena, Temp);
         AddCmdOption(&CmdOptionsDB, S("_Time.Minute"), a);
-        String_Format(&TimeStampVar, S("%.2hu"), TimeNow.Second);
-        a = String_Create(Arena, TimeStampVar);
+        String_Format(&Temp, S("%.2hu"), TimeNow.Second);
+        a = String_Create(Arena, Temp);
         AddCmdOption(&CmdOptionsDB, S("_Time.Second"), a);
-        String_Format(&TimeStampVar, S("%.3hu"), TimeNow.Millisecond);
-        a = String_Create(Arena, TimeStampVar);
+        String_Format(&Temp, S("%.3hu"), TimeNow.Millisecond);
+        a = String_Create(Arena, Temp);
         AddCmdOption(&CmdOptionsDB, S("_Time.Millisecond"), a);
 
-        String_Format(&TimeStampVar, S("%.2hu%.2hu%.2hu"), TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
-        a = String_Create(Arena, TimeStampVar);
+        String_Format(&Temp, S("%.2hu%.2hu%.2hu"), TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
+        a = String_Create(Arena, Temp);
         AddCmdOption(&CmdOptionsDB, S("_Time.NoSep"), a);
     }
 
@@ -4544,238 +4578,10 @@ static u32 BuildTarget(LinearAllocator* Arena,
     // TODO: These wont work anymore, move to Parse.c
     {
         LinearAllocator Scratch = *Arena;
-        //StringArray ProgramsArray      = String_ParseIntoArray(&Scratch, AssertPrograms, ' ', 0, 128);
-        StringArray EnvVarsArray       = String_ParseIntoArray(&Scratch, AssertEnvVars, ' ', 0, 128);
-        StringArray BuildVarsArray     = String_ParseIntoArray(&Scratch, AssertBuildVars, ' ', 0, 128);
-        //StringArray PlatformsArray     = String_ParseIntoArray(&Scratch, AssertPlatforms, ' ', 0, 128);
-        //StringArray ArchitecturesArray = String_ParseIntoArray(&Scratch, AssertArchitecture, ' ', 0, 128);
-        StringArray CompilersArray     = String_ParseIntoArray(&Scratch, AssertCompilers, ' ', 0, 128);
+        StringArray EnvVarsArray   = String_ParseIntoArray(&Scratch, AssertEnvVars, ' ', 0, 128);
+        StringArray BuildVarsArray = String_ParseIntoArray(&Scratch, AssertBuildVars, ' ', 0, 128);
+        StringArray CompilersArray = String_ParseIntoArray(&Scratch, AssertCompilers, ' ', 0, 128);
         
-        /*
-        {
-            if (String_CountChar(AssertVersion, '.') >= 1) // make sure this is something sensible
-            {
-                ECompareResult Result = String_CompareVersion(S(RIFTBUILD_VERSION_STRING), AssertVersion);
-                if (Result == CompareResult_Less)
-                {
-                    LOG_INLINE_ERROR("[ASSERTION FAILURE] RiftBuild version \"%S\" is less than the required version \"%S\". Please upgrade to \"%S\" or later. Aborting build...\n", S(RIFTBUILD_VERSION_STRING), AssertVersion, AssertVersion);
-                    return 1;
-                }
-            }
-        }
-        */
-
-        /*
-        StringLocal(PlatformsLogString, 128);
-        {
-            u8 i = 0;
-            for each_str_i (i, p, PlatformsArray)
-            {
-                String_Append(&PlatformsLogString, *p);
-                if (PlatformsArray.Num > 1 && i != PlatformsArray.Num-1)
-                {
-                    if (i == PlatformsArray.Num-2)
-                    {
-                        String_Append(&PlatformsLogString, S(" and "));
-                    }
-                    else
-                    {
-                        String_AppendChar(&PlatformsLogString, ',');
-                        String_AppendSpace(&PlatformsLogString);
-                    }
-                }
-            }
-        }
-
-        #if PLATFORM_WINDOWS
-        const String HostPlatform = S("Windows");
-        #elif PLATFORM_MAC
-        const String HostPlatform = S("Apple Mac MacOS OSX Unix");
-        #elif PLATFORM_LINUX
-        const String HostPlatform = S("Linux Unix");
-        #elif PLATFORM_BSD
-        const String HostPlatform = S("BSD " PLATFORM_STRING);
-        #else
-        const String HostPlatform = S("Unix");
-        #endif
-
-        if (PlatformsArray.Num > 0)
-        {
-            bool bAnyPlatformMatch = false;
-            for each_str (s, PlatformsArray)
-            {
-                String Trimmed = String_EatSpaces(*s);
-
-                bool bMatch = String_IsEqual(Trimmed, HostPlatform, false);
-                if (bMatch)
-                {
-                    bAnyPlatformMatch = true;
-                    break;
-                }
-
-                StringArray AdditionalPlatforms = String_ParseIntoArray(&Scratch, HostPlatform, ' ', 0, 128);
-                for each_str (p, AdditionalPlatforms)
-                {
-                    bMatch = String_IsEqual(Trimmed, *p, false);
-                    if (bMatch)
-                    {
-                        bAnyPlatformMatch = true;
-                        break;
-                    }
-                }
-            }
-
-            if (!bAnyPlatformMatch)
-            {
-                #ifndef HOOD
-                LOG_INLINE_ERROR("[ASSERTION FAILURE] %S can only be built on %S. You are on %S. Aborting build...\n", BuildFileName, PlatformsLogString, S(PLATFORM_STRING));
-                #else
-                LOG_ERROR("yo u cant build on dis platform nigga\n");
-                #endif
-
-                StringArray AdditionalPlatforms = String_ParseIntoArray(&Scratch, HostPlatform, ' ', 0, 128);
-                for each_str (p, AdditionalPlatforms)
-                {
-                    if (LogCustomErrorMessage(ExpandedVariablesDB, S("Platform"), *p, true))
-                    {
-                        break;
-                    }
-                }
-
-                return 1;
-            }
-        }
-
-        {
-            if (String_CountChar(AssertPlatformVersion, '.') >= 1) // make sure this is something sensible
-            {
-                PlatformVersion OSVersion = Platform_GetVersion();
-                StringLocal(VersionString, 32);
-                String_Format(&VersionString, S("%u.%u.%u"), OSVersion.Major, OSVersion.Minor, OSVersion.Patch);
-                ECompareResult Result = String_CompareVersion(VersionString, AssertPlatformVersion);
-                if (Result == CompareResult_Less)
-                {
-                    LOG_INLINE_ERROR("[ASSERTION FAILURE] Unsupported platform version \"%u.%u.%u\" is less than the required version \"%S\" or later. Aborting build...\n", OSVersion.Major, OSVersion.Minor, OSVersion.Patch, AssertPlatformVersion);
-                    return 1;
-                }
-            }
-        }
-        */
-
-        /*
-        StringLocal(ArchitecturesLogString, 128);
-        {
-            u8 i = 0;
-            for each_str_i (i, a, ArchitecturesArray)
-            {
-                String_Append(&ArchitecturesLogString, *a);
-                if (ArchitecturesArray.Num > 1 && i != ArchitecturesArray.Num-1)
-                {
-                    if (i == ArchitecturesArray.Num-2)
-                    {
-                        String_Append(&ArchitecturesLogString, S(" and "));
-                    }
-                    else
-                    {
-                        String_AppendChar (&ArchitecturesLogString, ',');
-                        String_AppendSpace(&ArchitecturesLogString);
-                    }
-                }
-            }
-        }
-
-        if (ArchitecturesArray.Num > 0)
-        {
-            bool bAnyArchMatch = false;
-            for each_str (S, ArchitecturesArray)
-            {
-                String Trimmed = String_EatSpaces(*S);
-
-                bool bMatch = String_IsEqual(Trimmed, S(CPU_ARCHITECTURE_STRING), false);
-                if (bMatch)
-                {
-                    bAnyArchMatch = true;
-                    break;
-                }
-
-                StringArray AdditionalArchs = String_ParseIntoArray(&Scratch, S(CPU_ARCHITECTURE_STRING_EX), '|', 0, 128);
-                for each_str (p, AdditionalArchs)
-                {
-                    bMatch = String_IsEqual(Trimmed, *p, false);
-                    if (bMatch)
-                    {
-                        bAnyArchMatch = true;
-                        break;
-                    }
-                }
-            }
-
-            if (!bAnyArchMatch)
-            {
-                #ifndef HOOD
-                LOG_INLINE_ERROR("[ASSERTION FAILURE] %S can only be built on %S architectures. You are on %S. Aborting build...\n", BuildFileName, ArchitecturesLogString, S(CPU_ARCHITECTURE_STRING));
-                #else
-                LOG_ERROR("yo u cant build on dis platform nigga\n");
-                #endif
-
-                StringArray AdditionalArchs = String_ParseIntoArray(&Scratch, S(CPU_ARCHITECTURE_STRING_EX), '|', 0, 128);
-                for each_str (p, AdditionalArchs)
-                {
-                    if (LogCustomErrorMessage(ExpandedVariablesDB, S("Arch"), *p, true))
-                    {
-                        break;
-                    }
-                }
-
-                return 1;
-            }
-        }
-        */
-
-        /*
-        if (AssertWorkingDirectory.Length > 0)
-        {
-            // did we get a relative directory?
-            #if PLATFORM_WINDOWS
-            bool bDriveSymbol = String_IndexOfChar(AssertWorkingDirectory, ':', NULL);
-            #else
-            bool bDriveSymbol = AssertWorkingDirectory.Data[0] == '/';
-            #endif
-
-            bool bRelative = !bDriveSymbol;
-
-            StringLocal(AssertPath, MAX_PATH_LENGTH);
-
-            if (bRelative)
-            {
-                u32 LastSlash = 0;
-                if (String_IndexOfLastPathSlash(BuildFilePathFull, &LastSlash))
-                {
-                    String_Append(&AssertPath, StrSlice(BuildFilePathFull.Data, LastSlash+1));
-                    String_Append(&AssertPath, AssertWorkingDirectory);
-                }
-            }
-            else
-            {
-                String_Copy(&AssertPath, AssertWorkingDirectory);
-            }
-
-            xx Filesystem_ConvertRelativeToAbsolutePath(&AssertPath);
-            xx String_EatPathSeparatorsInlineFromEnd(&AssertPath);
-
-            if (AssertPath.Length > 0 && !String_IsEqual(WorkingPath, AssertPath, false))
-            {
-                #ifndef HOOD
-                LOG_INLINE_ERROR("[ASSERTION FAILURE] %S must be ran from this directory -> \"%S\"\n                    but we are in \"%S\". Aborting build...\n", BuildFileName, AssertPath, WorkingPath);
-                #else
-                LOG_ERROR("yo we cant run from this dir cuh \"%S\" you gotta run from \"%S\"", WorkingPath, AssertPath);
-                #endif
-
-                return 1;
-            }
-        }
-        */
-
         if (CompilersArray.Num > 0)
         {
             bool bAnyCompilerMatch = false;
@@ -4847,34 +4653,6 @@ static u32 BuildTarget(LinearAllocator* Arena,
             }
         }
 
-        /*
-        for each_str (S, ProgramsArray)
-        {
-            String Trimmed = String_EatSpaces(*S);
-
-            bool bFound = Platform_FindProgram(Trimmed);
-
-            if (!bFound)
-            {
-                #ifndef HOOD
-                LOG_INLINE_ERROR("[ASSERTION FAILURE] Program \"%S\" does not exist. Make sure that \"%S\" is installed and that its directory has been set in the path environment variable. Aborting build...\n\n", Trimmed, Trimmed);
-                #else
-                LOG_ERROR("yo dis program \"%S\" don exist cuh. need to be installed and set in da path ma nigga", Trimmed);
-                #endif
-
-                // todo: try run the program with -v only if they do this: lua|>5.4
-                if (LogCustomErrorMessage(ExpandedVariablesDB, S("Program"), Trimmed, false))
-                {
-                    LOG_LINE_BREAK();
-                }
-                
-                LogPathEnvVarTutorialSteps();
-
-                return 1;
-            }
-        }
-        */
-
         for each_str (S, EnvVarsArray)
         {
             String Trimmed = String_EatSpaces(*S);
@@ -4901,9 +4679,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
             }
         }
 
-        for each_str (S, BuildVarsArray)
+        for each_str (Str, BuildVarsArray)
         {
-            String Trimmed = String_EatSpaces(*S);
+            String Trimmed = String_EatSpaces(*Str);
 
             bool bFound = DoesBuildVarExist(VariablesDB, Trimmed);
 

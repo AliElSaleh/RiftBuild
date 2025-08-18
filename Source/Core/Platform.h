@@ -9,7 +9,9 @@ STRUCT(SystemTime)
 {
     u16 Year;
     u16 Month;
+    u16 Week;
     u16 DayOfWeek;
+    u16 DayOfYear;
     u16 Day;
     u16 Hour;
     u16 Minute;
@@ -286,6 +288,9 @@ RIFT_API NO_DISCARD u32  Platform_GetConsoleProcessCount(void);
 
 RIFT_API NO_DISCARD f64 Platform_GetAbsoluteTime(void);
 RIFT_API NO_DISCARD SystemTime Platform_GetSystemLocalTime(void);
+RIFT_API NO_DISCARD u16 Platform_GetDayOfYear(u16 Day, u16 Month, u16 Year);
+RIFT_API NO_DISCARD String Platform_GetDayName(u16 Day);
+RIFT_API NO_DISCARD String Platform_GetMonthName(u16 Month);
 RIFT_API NO_DISCARD bool Platform_GetTimeZone(String* OutTimeZone);
 
 RIFT_API            void Platform_Wait(f64 ms);
@@ -329,5 +334,7 @@ RIFT_API NO_DISCARD i32 Rand(void);
 RIFT_API NO_DISCARD i32 RandFast(void);
 RIFT_API NO_DISCARD f32 FRand(void);
 RIFT_API NO_DISCARD f32 FRandFast(void);
+
+RIFT_API NO_DISCARD bool IsLeapYear(u16 Year);
 
 #endif // PLATFORM_H

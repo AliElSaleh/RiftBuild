@@ -1051,7 +1051,7 @@ void UUID_ToStringFast(Uuid ID, String* OutString)
 
 // https://stackoverflow.com/questions/4768180/rand-implementation
 
-i32 RandFast(void)
+NO_DISCARD i32 RandFast(void)
 {
     u64 Seed = (u64)Platform_GetAbsoluteTime();
     Seed *= 1103515245 + 12345;
@@ -1059,7 +1059,7 @@ i32 RandFast(void)
     return (i32)(Seed/65536) % 32768;
 }
 
-f32 FRand(void)
+NO_DISCARD f32 FRand(void)
 {
     // inline Absi32 function
     i32 Value = Rand();
@@ -1070,7 +1070,7 @@ f32 FRand(void)
 	return (f32)Value / (f32)INT32_MAX;
 }
 
-f32 FRandFast(void)
+NO_DISCARD f32 FRandFast(void)
 {
     #define RAND_MAX 0x7fff
 
@@ -1079,4 +1079,65 @@ f32 FRandFast(void)
     
     f32 RandFastResult = (f32)((Seed/65536) % 32768);
 	return RandFastResult / (f32)RAND_MAX;
+}
+
+// https://stackoverflow.com/questions/19377396/c-get-day-of-year-from-date
+NO_DISCARD bool IsLeapYear(u16 Year)
+{
+    return (Year % 4 == 0 && Year % 100 != 0) || (Year % 400 == 0);
+}
+
+NO_DISCARD u16 Platform_GetDayOfYear(u16 Day, u16 Month, u16 Year)
+{
+    static const u16 Days[2][13] =
+    {
+        {0, 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334},
+        {0, 0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335}
+    };
+
+    bool Leap = IsLeapYear(Year);
+
+    return Days[Leap][Month] + Day;
+}
+
+static String DayNames[7] =
+{
+    SC("Sunday"),
+    SC("Monday"),
+    SC("Tuesday"),
+    SC("Wednesday"),
+    SC("Thursday"),
+    SC("Friday"),
+    SC("Saturday")
+};
+
+static String MonthNames[13] =
+{
+    SC(""),
+    SC("January"),
+    SC("Februrary"),
+    SC("March"),
+    SC("April"),
+    SC("May"),
+    SC("June"),
+    SC("July"),
+    SC("August"),
+    SC("September"),
+    SC("October"),
+    SC("November"),
+    SC("December")
+};
+
+NO_DISCARD String Platform_GetDayName(u16 DayOfWeek)
+{
+    u16 Clamped = ClampMax(DayOfWeek, 6);
+    String DayName = DayNames[Clamped];
+    return DayName;
+}
+
+NO_DISCARD String Platform_GetMonthName(u16 Month)
+{
+    u16 Clamped = ClampMax(Month, 12);
+    String MonthName = MonthNames[Clamped];
+    return MonthName;
 }
