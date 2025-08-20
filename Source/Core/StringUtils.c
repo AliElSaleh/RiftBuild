@@ -2644,10 +2644,10 @@ NO_DISCARD static bool Internal_FromSignedInt(String* Str, i64 Int, u8 IntType)
             u8 Digit = (u8)(IntCopy % 10);
             IntCopy /= 10;
 
-            Str->Data[(Count + bIsNegative) - i - 1] = '0' + Digit;
+            Str->Data[(Count + (u8)bIsNegative) - i - 1] = '0' + Digit;
         }
 
-        Str->Length = Count + bIsNegative;
+        Str->Length = Count + (u8)bIsNegative;
         bSuccess = true;
     }
 

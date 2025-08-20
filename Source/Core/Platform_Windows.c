@@ -2723,7 +2723,7 @@ NO_DISCARD u32 Platform_GetPosixVersion(void)
     return 0;
 }
 
-i32 Rand(void)
+NO_DISCARD i32 Rand(void)
 {
     i32 Buffer = 0;
 
