@@ -382,43 +382,4 @@ bool Platform_IsWindowFocused(void)
     return true;
 }
 
-Uuid UUID_Generate(void)
-{
-    uuid_t id;
-    u32 status = 0;
-    uuid_create(&id, &status);
-
-    return *(Uuid*)&id;
-}
-
-bool UUID_IsEqual(Uuid First, Uuid Second)
-{
-    uuid_t* a = (uuid_t*)&First;
-    uuid_t* b = (uuid_t*)&Second;
-
-    u32 status = 0;
-    const bool bSame = uuid_compare(a, b, &status) == 0;
-    return bSame;
-}
-
-void UUID_ToString(Uuid ID, String* OutString)
-{
-    StringLocal(Temp, GUID_LENGTH);
-
-    uuid_t* a = (uuid_t*)&ID;
-    u32 status = 0;
-    uuid_to_string(a, (char**)&Temp.Data, &status);
-
-    String_Copy(OutString, Temp);
-}
-
-Uuid UUID_FromString(const String IDString)
-{
-    uuid_t id;
-    u32 status = 0;
-    uuid_from_string((const char*)IDString.Data, &id, &status);
-
-    return *(Uuid*)&id;
-}
-
 #endif // PLATFORM_BSD

@@ -732,42 +732,6 @@ NO_DISCARD u32 Platform_GetNumLogicalProcessors(void)
     return info.dwNumberOfProcessors;
 }
 
-#if 0
-NO_DISCARD Uuid UUID_Generate(void)
-{
-    uuid_t id = {0};
-    (void)UuidCreate(&id);
-
-    return *(Uuid*)&id;
-}
-
-NO_DISCARD bool UUID_IsEqual(Uuid First, Uuid Second)
-{
-    return Platform_MemEqual(&First, &Second, sizeof(Uuid));
-}
-
-void UUID_ToString(Uuid ID, String* OutString)
-{
-    // @Speed: Make our own uuid to string converter and not use windows heap allocating string
-
-    RPC_CSTR str = {0};
-    RPC_STATUS Status = UuidToString((uuid_t*)&ID, &str);
-    if (Status == RPC_S_OK)
-    {
-        String_Copy(OutString, StrSlice((uchar*)str, GUID_LENGTH-1));
-        (void)RpcStringFree(&str);
-    }
-}
-
-NO_DISCARD Uuid UUID_FromString(const String IDString)
-{
-    uuid_t id = {0};
-    (void)UuidFromString((const RPC_CSTR)IDString.Data, &id);
-
-    return *(Uuid*)&id;
-}
-#endif
-
 NO_DISCARD bool Filesystem_Open(const String FilePath, EFileMode Mode, FileHandle* OutHandle)
 {
     bool bSuccess = false;
