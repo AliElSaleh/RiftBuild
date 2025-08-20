@@ -2371,6 +2371,28 @@ NO_DISCARD static String GetOptionParamsFromVarList(FileVariableList* VarList, S
     return Params;
 }
 
+NO_DISCARD static String GetOptionDefaultValue(FileVariableList* VarList, String OptionName)
+{
+    String Found = String_Null();
+
+    StringLocal(Default, MAX_KEY_LENGTH);
+    String_Append(&Default, OptionName);
+    String_Append(&Default, S(".Default"));
+
+    FileVariable* DefaultRef = GetVarInList(VarList, Default, false);
+    if (DefaultRef == &FileVariable_Empty)
+    {
+        // no default found
+    }
+    else
+    {
+        // default found
+        Found = DefaultRef->Value;
+    }
+
+    return Found;
+}
+
 NO_DISCARD static String GetOptionValueFromVarList(FileVariableList* VarList, String OptionName, bool* bFound)
 {
     String FinalValue = String_Null();
@@ -2380,19 +2402,10 @@ NO_DISCARD static String GetOptionValueFromVarList(FileVariableList* VarList, St
     if (Ref != &FileVariable_Empty)
     {
         // search order 1. find .Default key (if available)
-        StringLocal(Default, MAX_KEY_LENGTH);
-        String_Append(&Default, OptionName);
-        String_Append(&Default, S(".Default"));
-
-        FileVariable* DefaultRef = GetVarInList(VarList, Default, false);
-        if (DefaultRef == &FileVariable_Empty)
+        String DefaultValue = GetOptionDefaultValue(VarList, OptionName);
+        if (String_IsValid(DefaultValue))
         {
-            // no default found
-        }
-        else
-        {
-            // default found
-            FinalValue = DefaultRef->Value;
+            FinalValue = DefaultValue;
         }
 
         if (String_IsEqual(Ref->Name, OptionName, false)) // only if exact so we dont read its subkeys
@@ -2417,7 +2430,8 @@ NO_DISCARD static String GetOptionValueFromVarList(FileVariableList* VarList, St
             }
         }
 
-        if (bFound && FinalValue.Length > 0) { *bFound = true; }
+        // if (bFound && FinalValue.Length > 0) { *bFound = true; }
+        if (bFound ) { *bFound = true; }
     }
 
     return FinalValue;
@@ -2750,10 +2764,16 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
 
                 if (!bFoundSomething && !bConditionMet && (bSearchInternalVar || !bPrefixedWithSymbol))
                 {
+                    String Trimmed = Condition;
+                    if (String_StartsWith(Condition, S("Option."), false))
+                    {
+                        Trimmed = StrShiftF(Condition, 7);
+                    }
+
                     // check the condition string against the internal build vars passed in from the command line
                     for each (CmdOption, o, Context->CmdOptionsDB)
                     {
-                        bool bMatch = String_IsEqual(o.Name, Condition, false);
+                        bool bMatch = String_IsEqual(o.Name, Trimmed, false);
                         if (bMatch)
                         {
                             // make sure we have some value if we specified an '=' sign
@@ -2787,7 +2807,10 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
                     if (!bFoundSomething && !bConditionMet)
                     {
                         StringLocal(OptionName, MAX_KEY_LENGTH);
-                        String_Append(&OptionName, S("Option."));
+                        if (!String_StartsWith(Condition, S("Option."), false))
+                        {
+                            String_Append(&OptionName, S("Option."));
+                        }
                         String_Append(&OptionName, Condition);
 
                         bool bExists = false;
@@ -2876,7 +2899,7 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
                 bFoundVar = true;
             }
 
-            if (c.ComparisonOp != Token_None)
+            if (bFoundVar && c.ComparisonOp != Token_None)
             {
                 LinearAllocator Scratch = *Arena;
 
@@ -4362,11 +4385,17 @@ bool ExpandBuildVariable(LinearAllocator Scratch, FileVariableList* VariablesDB,
         {
             String VarValue = String_Null();
 
+            String Trimmed = Slice;
+            if (String_StartsWith(Slice, S("Option."), false))
+            {
+                Trimmed = StrShiftF(Slice, 7);
+            }
+
             bool bFoundCmd = false;
             bool bEqualsToSomething = false;
             for each (CmdOption, o, CmdOptionsDB)
             {
-                if (String_IsEqual(o.Name, Slice, false))
+                if (String_IsEqual(o.Name, Trimmed, false))
                 {
                     bFoundCmd = true;
                     VarValue = o.Value;
@@ -4393,7 +4422,10 @@ bool ExpandBuildVariable(LinearAllocator Scratch, FileVariableList* VariablesDB,
             if (!bFoundCmd)
             {
                 StringLocal(OptionName, MAX_KEY_LENGTH);
-                String_Append(&OptionName, S("Option."));
+                if (!String_StartsWith(Slice, S("Option."), false))
+                {
+                    String_Append(&OptionName, S("Option."));
+                }
                 String_Append(&OptionName, Slice);
 
                 bool bExists = false;
