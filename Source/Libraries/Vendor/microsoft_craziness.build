@@ -1,9 +1,9 @@
 Compiler                clang++
 Assembly                %_FileName%%32
 Type                    static_lib
-SourceFiles             microsoft_craziness.cpp
+Source.Files            microsoft_craziness.cpp
 Includes                ../../
-CompilerFlags           -Os -Wno-writable-strings -nostdlib -nostdlib++
+Compiler.Flags          -Os -Wno-writable-strings -nostdlib -nostdlib++
 Defines                 RIFT_STATIC
 BuildDirectory          ../Windows
 IntermediateDirectory   ../../../Intermediate/microsoft_craziness
@@ -11,6 +11,6 @@ Assert.WorkingDirectory .
 
 if 32 
 {
-    CompilerFlags -m32
-    LinkerFlags   --target=i386-pc-windows-msvc 
+    Compiler.Flags -m32
+    Linker.Flags   --target=i386-pc-windows-msvc 
 }
