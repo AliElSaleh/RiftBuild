@@ -3108,7 +3108,7 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
         }
     }
 
-    if (bFoundVar)
+    if (bFoundVar || Context->bNoFail)
     {
         Node* Left = Root->Left;
         Node* Right = Root->Right;

@@ -33,10 +33,10 @@ BuildDirectory:debug     Build/Debug%%32/%%Hood
 BuildDirectory:!debug    Build/Dist%%32/%%Hood
 IntermediateDirectory    Intermediate/$SourceDirectory
 
-RiftCoreFiles            Core/Memory.c Core/StringUtils.c Core/Log.c Core/Platform_Core.c Core/Platform_%(_platform).c
-RiftCoreFiles:unix       Core/Platform_Unix.c
-RiftCoreFiles:bsd        Core/Platform_BSD.c
-SourceFiles              $RiftCoreFiles Program.c Backend.c Exporter.c Parse.c
+RiftCoreFiles            Core/Memory Core/StringUtils Core/Log Core/Platform_Core Core/Platform_%(_platform)
+RiftCoreFiles:unix       Core/Platform_Unix
+RiftCoreFiles:bsd        Core/Platform_BSD
+SourceFiles              $RiftCoreFiles Program Backend Exporter Parse
 
 Compiler.Flags           $SharedCompilerFlags
 Linker.Flags             $SharedLinkerFlags

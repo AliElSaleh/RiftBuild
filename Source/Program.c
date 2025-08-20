@@ -486,10 +486,32 @@ static bool FilterSourceFile(const String WorkingDirectory, const String SourceD
                 }
             }
 
+            // Depending if the "File" string has an extension specified by the user, choose a comparison path.
+            // The true branch will do an exact comparison, preserving the extension.
+            // The false branch will strip the extension of the string we are comparing "File" to
+
+            // Reasoning:
+            // This is so the user can specify if they want to exactly match with the extension
+            // if they know that two files with the same name in the same path would conflict.
+            // or if the user of the build file was too lazy to type some extra characters, like me :P
+
+            bool bWantsExact = Filesystem_DoesPathHaveFileExtension(File);
+            if (bWantsExact)
+            {
             if (String_IsEqual(File, RelativePath, false))
             {
                 bFound = true;
                 break;
+                }
+            }
+            else
+            {
+                String RelativePathNoExt = Filesystem_StripFileExtension(RelativePath);
+                if (String_IsEqual(File, RelativePathNoExt, false))
+                {
+                    bFound = true;
+                    break;
+                }
             }
         }
 
@@ -603,10 +625,32 @@ static bool FilterSourceFile(const String WorkingDirectory, const String SourceD
                 }
             }
 
+            // Depending if the "File" string has an extension specified by the user, choose a comparison path.
+            // The true branch will do an exact comparison, preserving the extension.
+            // The false branch will strip the extension of the string we are comparing "File" to
+
+            // Reasoning:
+            // This is so the user can specify if they want to exactly match with the extension
+            // if they know that two files with the same name in the same path would conflict.
+            // or if the user of the build file was too lazy to type some extra characters, like me :P
+
+            bool bWantsExact = Filesystem_DoesPathHaveFileExtension(File);
+            if (bWantsExact)
+            {
             if (String_IsEqual(File, RelativePath, false))
             {
                 bFound = true;
                 break;
+                }
+            }
+            else
+            {
+                String RelativePathNoExt = Filesystem_StripFileExtension(RelativePath);
+                if (String_IsEqual(File, RelativePathNoExt, false))
+                {
+                    bFound = true;
+                    break;
+                }
             }
         }
 
