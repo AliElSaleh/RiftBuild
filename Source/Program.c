@@ -6968,6 +6968,14 @@ static u32 BuildTarget(LinearAllocator* Arena,
             return 1;
         }
 
+        #if PLATFORM_WINDOWS
+        // try to delete any .pdb files before we try to link
+        StringLocal(AssemblyWildcard, MAX_PATH_LENGTH);
+        String_Append(&AssemblyWildcard, AssemblyName);
+        String_Append(&AssemblyWildcard, S("*.pdb"));
+        xx Filesystem_DeleteFiles(BuildBaseDirectory, AssemblyWildcard, true);
+        #endif
+
         Clock_Start(&LinkClock);
 
         bSuccess = C_Link(&p);
