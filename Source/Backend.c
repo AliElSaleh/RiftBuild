@@ -1427,7 +1427,11 @@ bool C_Link(const BuildParams* Params)
 
         if (bQuietBuild) { Logging_Enable(); }
 
+        #ifndef HOOD
         LOG("Linking %S", Params->AssemblyWithExt);
+        #else
+        LOG("linkn' shit up %S", Params->AssemblyWithExt);
+        #endif
 
         if (bQuietBuild) { Logging_Disable(); }
 
@@ -1553,7 +1557,11 @@ bool C_Link(const BuildParams* Params)
 
         if (bQuietBuild) { Logging_Enable(); }
 
+        #ifndef HOOD
         LOG("Linking %S [static]", LibFile);
+        #else
+        LOG("linkn' shit up %S [static]", LibFile);
+        #endif
 
         if (bQuietBuild) { Logging_Disable(); }
 

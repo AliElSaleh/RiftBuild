@@ -3257,7 +3257,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
         #ifndef HOOD
         LOG("Using build file:  %S %S", BuildFilePath, bHidden ? S("[hidden]") : String_Null());
         #else
-        LOG("alright sweet, using this build file btw: %S", BuildFilePath);
+        LOG("alright sweet, using this build file btw: %S %S", BuildFilePath, bHidden ? S("[why the fuck is the hidden bro, idk dont care]") : String_Null());
         #endif
     }
 
@@ -3868,7 +3868,11 @@ static u32 BuildTarget(LinearAllocator* Arena,
     const bool bLinkerNoStd                 = DoesBuildVarExist(ExpandedVariablesDB, S("Linker.NoStdLib"));
     const bool bLinkerNoDefaultLibs         = DoesBuildVarExist(ExpandedVariablesDB, S("Linker.NoDefaultLibs"));
 
+    #ifndef HOOD
     LOG("Timestamp:         %S\n", TimeStamp);
+    #else
+    LOG("stamp of da time yo:         %S\n", TimeStamp);
+    #endif
 
     String RequireCompilerVersion = String_Null();
     EComparisonType CompilerVersionComparisonType = Cmp_Equal;
@@ -6184,7 +6188,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                     #ifndef HOOD
                     LOG("Cleaning %S%S%S", BuildBaseDirectory, AssemblyName, Wildcard);
                     #else
-                    LOG("cleaning dis shit %S%S%S", BuildBaseDirectory, AssemblyName, Wildcard);
+                    LOG("cleaning dis fuckin' shit %S%S%S", BuildBaseDirectory, AssemblyName, Wildcard);
                     #endif
 
                     if (bBuildDirSameAsSource)
@@ -6242,7 +6246,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 #ifndef HOOD
                 LOG("Cleaning %S%S", IntermediateBaseDirectory, Wildcard);
                 #else
-                LOG("cleaning dis shit %S%S", IntermediateBaseDirectory, Wildcard);
+                LOG("cleaning dis stoopid shit %S%S", IntermediateBaseDirectory, Wildcard);
                 #endif
 
                 if (bIntermediateDirSameAsSource)
@@ -6818,12 +6822,12 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 #else
                 if (bIsAssemblyExe || !bHasSpace)
                 {
-                    LOG("build'n %S\n", AssemblyNameWithExt);
+                    LOG("build'n dis fooo %S\n", AssemblyNameWithExt);
                 }
                 else
                 {
                     String NextExt = StrShiftF(Extension_Og, WhitespaceIndex+1);
-                    LOG("build'n %S and %S%S\n", AssemblyNameWithExt, AssemblyName, NextExt);
+                    LOG("build'n dis fooo %S and %S%S\n", AssemblyNameWithExt, AssemblyName, NextExt);
                 }
                 #endif
             }
@@ -7797,7 +7801,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
         #ifndef HOOD
         LOG_SUCCESS("Build complete", OutputPath);
         #else
-        LOG_SUCCESS("lessss goooo", OutputPath);
+        LOG_SUCCESS("lessss fuckinggg goooo", OutputPath);
         #endif
     }
     else
@@ -7810,7 +7814,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
             #ifndef HOOD
             LOG_SUCCESS("Build complete: %S", OutputPath);
             #else
-            LOG_SUCCESS("lessss goooo: %S", OutputPath);
+            LOG_SUCCESS("lessss fuckinggg goooo: %S", OutputPath);
             #endif
         }
         else
@@ -7827,7 +7831,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
             #ifndef HOOD
             LOG_SUCCESS("Build complete: %S\n                          %S", OutputPath, OutputPath2);
             #else
-            LOG_SUCCESS("lessss goooo: %S\n                         %S", OutputPath, OutputPath2);
+            LOG_SUCCESS("lessss fuckinggg goooo: %S\n                         %S", OutputPath, OutputPath2);
             #endif
         }
     }
@@ -9205,10 +9209,9 @@ u32 RunApplication(const StringArray Arguments)
     const PlatformVersion OSVersion = Platform_GetVersion();
 
     LOG("\nRift Build System v%S (%S %u.%u.%u %S) %S\n", S(RIFTBUILD_VERSION_STRING), S(PLATFORM_STRING), OSVersion.Major, OSVersion.Minor, OSVersion.Patch, S(CPU_ARCHITECTURE_STRING), ExtraFlags);
-    //LOG("%S", S(YO_DAWG));
 
     #ifdef HOOD
-    LOG("\nwasssup yo. les get build'n...\n");
+    LOG("\nwasssup ma nigga. les get build'n cuh...\n");
     #endif
 
     StringLocal(WorkingDirectory, MAX_PATH_LENGTH);
@@ -9226,7 +9229,14 @@ u32 RunApplication(const StringArray Arguments)
     const bool bLaunchedFromDesktop = StringArray_Contains(Arguments, S("--from-desktop"), false);
     if (Platform_GetConsoleProcessCount() == 1 || bLaunchedFromDesktop)
     {
-        LOG_INLINE_WARNING("\nLaunched outside an existing terminal, suspending until user exit.\nPress any key to exit ... ");
+        #ifndef HOOD
+        // LOG_INLINE_WARNING("\nLaunched outside an existing terminal, suspending until user exit.\nPress any key to exit ... ");
+        // LOG_INLINE_WARNING("\nLaunched outside an existing terminal, waiting until you press any key to exit ... ");
+        // LOG_INLINE_WARNING("\nLaunched outside an existing terminal. Press any key to exit ... ");
+        LOG_INLINE_WARNING("\nLaunched outside an existing terminal. Waiting for any key press to exit ... ");
+        #else
+        LOG_INLINE_WARNING("\nyo i noticed we aren't in a terminal. press any key to shoot me nigga ... ");
+        #endif
 
         Platform_BeginNonBlockingMode();
         while (true)
