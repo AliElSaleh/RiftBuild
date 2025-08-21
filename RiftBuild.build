@@ -51,7 +51,7 @@ if windows
     Linker.EntryPoint    EntryPoint
     Linker.Subsystem     Console
 
-    Libraries            %_NativeLibs microsoft_craziness%%32
+    Libraries            kernel32 user32 shell32 ole32 advapi32 ntdll shlwapi bcrypt oleaut32 microsoft_craziness%%32
     Libraries:32:!debug  libcmt  libvcruntime
     Libraries:32: debug  libcmtd libvcruntimed
     Libraries:asan       libucrt
@@ -59,7 +59,7 @@ if windows
     Library.Paths        Source/Libraries/Windows
 
     # todo: make riftbuild do this
-    PreLink.Delete:debug $BuildDirectory/$(Assembly).pdb
+    #PreLink.Delete:debug $BuildDirectory/$(Assembly).pdb
 }
 
 # todo: make riftbuild handle this
