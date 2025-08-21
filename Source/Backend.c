@@ -45,9 +45,17 @@ bool RC_Compile(const BuildParams* Params, const String FullRCPath, String* OutR
 
     #if PLATFORM_WINDOWS
     StringLocal(CmdLine, 1024);
-    String_AppendChar(&CmdLine, '"');
+
+    // we are intentionally adding a backslash here for the windres compiler specifically, because
+    // the developers behind this are incompetent assholes who don't know how to properly handle
+    // spaces within paths... like holy shit man... so depressing
+    // https://sourceware.org/bugzilla/show_bug.cgi?id=4933
+    // https://sourceware.org/bugzilla/show_bug.cgi?id=4356
+    // https://github.com/msys2/MINGW-packages/issues/1035
+    // https://github.com/msys2/MINGW-packages/issues/1035#issuecomment-3208735163
+    String_Append(&CmdLine, S("\\\""));
     String_Append(&CmdLine, Params->RCProgramPath);
-    String_AppendChar(&CmdLine, '"');
+    String_Append(&CmdLine, S("\\\""));
 
     if (Params->RCProgramFlags.Length > 0)
     {
@@ -106,8 +114,6 @@ bool RC_Compile(const BuildParams* Params, const String FullRCPath, String* OutR
         #endif
     }
 
-    const bool bWindres = String_IsEqual(Params->RCProgram, S("windres"), false);
-
     u32 LastDot = 0;
     bool bHasDot = String_IndexOfLastChar(FullRCPath, '.', &LastDot);
 
@@ -122,20 +128,31 @@ bool RC_Compile(const BuildParams* Params, const String FullRCPath, String* OutR
         String_Copy(OutResPath, ResPath);
     }
 
-    if (bWindres)
-    {
-        String_Append(&CmdLine, S(" -O coff"));
-        String_Append(&CmdLine, S(" -o "));
-        String_Append(&CmdLine, ResPath);
-
-        String_Append(&CmdLine, S(" -i"));
-    }
+    const bool bWindres = String_IsEqual(Params->RCProgram, S("windres"), false);
 
     // todo: resource defines
 
-    String_Append(&CmdLine, S(" \""));
-    String_Append(&CmdLine, FullRCPath);
-    String_AppendChar(&CmdLine, '"');
+    if (bWindres)
+    {
+        // for windres specifically, args must be in this form
+        // <FLAGS> -O coff <DEFINES> -i <SOURCE> -o <OBJECT>
+
+        String_Append(&CmdLine, S(" -O coff"));
+
+        String_Append(&CmdLine, S(" -i"));
+        String_Append(&CmdLine, S(" \""));
+        String_Append(&CmdLine, FullRCPath);
+        String_AppendChar(&CmdLine, '"');
+
+        String_Append(&CmdLine, S(" -o "));
+        String_Append(&CmdLine, ResPath);
+    }
+    else
+    {
+        String_Append(&CmdLine, S(" \""));
+        String_Append(&CmdLine, FullRCPath);
+        String_AppendChar(&CmdLine, '"');
+    }
 
     LOG("Compiling resource %S", FullRCPath);
     
@@ -152,7 +169,6 @@ bool RC_Compile(const BuildParams* Params, const String FullRCPath, String* OutR
 
     return bSuccess;
 }
-
 
 static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
 {
