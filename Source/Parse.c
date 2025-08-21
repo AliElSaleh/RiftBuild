@@ -3775,7 +3775,11 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
             }
             else if (String_IsEqual(Var.Name, S("Assert.Program"), false))
             {
-                StringArray ProgramsArray = String_ParseIntoArray(&Scratch, Var.Value, ' ', 0, 128);
+                // expand them here
+                StringLocal(Expanded, MAX_VALUE_LENGTH);
+                xx ExpandBuildVariable(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, Var.Name, Var.Value, Var.Name, Context->WorkingDirectory, false, false, NULL);
+
+                StringArray ProgramsArray = String_ParseIntoArray(&Scratch, Expanded, ' ', 0, 128);
 
                 for each_str (Program, ProgramsArray)
                 {

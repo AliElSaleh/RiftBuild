@@ -3007,8 +3007,13 @@ static u32 BuildTarget(LinearAllocator* Arena,
         for (u8 j = 0; j < SArray_Capacity(BuiltinOptions); j++)
         {
             const String Option = BuiltinOptions[j];
-            if (String_IsEqual(Param, Option, false) ||
-                String_StartsWith(Param, Option, false))
+            if (String_IsEqual(Option, S("run"), false))
+            {
+                // make an exception for "run"
+                continue;
+            }
+
+            if (String_IsEqual(Param, Option, false))
             {
                 bIsBuiltin = true;
                 break;
@@ -3055,8 +3060,13 @@ static u32 BuildTarget(LinearAllocator* Arena,
         for (u8 j = 0; j < SArray_Capacity(BuiltinOptions); j++)
         {
             String Option = BuiltinOptions[j];
-            if (String_IsEqual(Parameters.List[i], Option, false) ||
-                String_StartsWith(Parameters.List[i], Option, false))
+            if (String_IsEqual(Option, S("run"), false))
+            {
+                // make an exception for "run"
+                continue;
+            }
+
+            if (String_IsEqual(Parameters.List[i], Option, false))
             {
                 bIsBuiltin = true;
                 break;
@@ -3562,7 +3572,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
         bAnyVarsOverriden = CheckForBuildVariableOverrides(VariablesDB, ExpandedVariablesDB, CmdOptionsDB);
 
-        const String Ext  = GetVariableValue(ExpandedVariablesDB, S("Extension"));
+        const String Ext  = String_EatChar(GetVariableValue(ExpandedVariablesDB, S("Extension")), '.');
         const String Type = GetVariableValue(ExpandedVariablesDB, S("Type"));
 
         bool bIsAssemblyExe = Type.Length == 0 && Ext.Length == 0;
@@ -3585,10 +3595,10 @@ static u32 BuildTarget(LinearAllocator* Arena,
         if (!bIsAssemblyExe && Type.Length == 0)
         {
             bIsAssemblyExe = Ext.Length == 0 || 
-                             String_IsEqual(Ext, S(".elf"), false) ||
-                             String_IsEqual(Ext, S(".out"), false) ||
-                             String_IsEqual(Ext, S(".exe"), false) ||
-                             String_IsEqual(Ext, S(".com"), false);
+                             String_IsEqual(Ext, S("elf"), false) ||
+                             String_IsEqual(Ext, S("out"), false) ||
+                             String_IsEqual(Ext, S("exe"), false) ||
+                             String_IsEqual(Ext, S("com"), false);
         }
 
         if (bIsAssemblyExe)
@@ -4837,7 +4847,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
         {
             //MemZero(ArenaMemory, TotalMem);
 
-            NewArena.Allocated = 0; // "free" the memory
+            LinearAllocator_Reset(&NewArena, 0); // "free" the memory
 
             FileVariable Var = *Depends[i];
 
