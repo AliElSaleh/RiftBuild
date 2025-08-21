@@ -25,7 +25,7 @@ TitleName                Rift Build %^%debug
 Description              A simpler build tool for C/C++, because fuck cmake
 Version(macro)           0.1.0-beta-%_date.nosep
 CompanyName              Artisan Softworks
-Copyright(enforce macro) Copyright (c) $CompanyName
+Copyright(enforce)       Copyright (c) $CompanyName
 License(generate)        BSD 3-Clause
 
 SourceDirectory          Source

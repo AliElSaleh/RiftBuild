@@ -3007,24 +3007,61 @@ NO_DISCARD String StringArray_GetStringFromIndex(StringArray Array, u32 Index)
     return Result;
 }
 
-NO_DISCARD bool StringList_Find(StringList List, const String Source, u32* FoundIndex)
+NO_DISCARD static bool Internal_StringList_Find(StringList List, const String Source, bool bCaseSensitive, EStringCompare ComparisonType, u32* FoundIndex, String* FoundString)
 {
     u32 Index = 0;
     bool bFound = false;
 
     for each_str_list_i (Index, List)
     {
-        if (String_IsEqual(It.String, Source, true))
+        bool bMatch = false;
+        if (ComparisonType == StringCompare_Equal)
+        {
+            bMatch = String_IsEqual(It.String, Source, bCaseSensitive);
+        }
+        else if (ComparisonType == StringCompare_StartsWith)
+        {
+            bMatch = String_StartsWith(It.String, Source, bCaseSensitive);
+        }
+        else if (ComparisonType == StringCompare_EndsWith)
+        {
+            bMatch = String_EndsWith(It.String, Source, bCaseSensitive);
+        }
+        else
+        {
+        }
+
+        if (bMatch)
         {
             if (FoundIndex)
             {
                 *FoundIndex = Index;
             }
 
+            if (FoundString)
+            {
+                *FoundString = It.String;
+            }
+
             bFound = true;
             break;
         }
     }
+
+    return bFound;
+}
+
+NO_DISCARD String StringList_Find(StringList List, const String Source, bool bCaseSensitive, EStringCompare ComparisonType, u32* FoundIndex)
+{
+    String Found = String_Null();
+    xx Internal_StringList_Find(List, Source, bCaseSensitive, ComparisonType, FoundIndex, &Found);
+
+    return Found;
+}
+
+NO_DISCARD bool StringList_FindIndex(StringList List, const String Source, bool bCaseSensitive, EStringCompare ComparisonType, u32* FoundIndex)
+{
+    bool bFound = Internal_StringList_Find(List, Source, bCaseSensitive, ComparisonType, FoundIndex, NULL);
 
     return bFound;
 }

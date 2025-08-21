@@ -767,7 +767,6 @@ bool GenerateSolutionFile(const String ProjectName, const String ProjectPath)
 
 // -----------------------------------------------------------
 // License Generator
-// todo: if no copyright key was specified, make one
 
 static bool Internal_Export_License_BSD2(const BuildParams* Params, const String OutputPath)
 {
@@ -775,6 +774,12 @@ static bool Internal_Export_License_BSD2(const BuildParams* Params, const String
     bool bSuccess = false;
     if (Filesystem_Open(OutputPath, FileMode_Write, &f))
     {
+        String Copyright = S("<missing copyright string>");
+        if (String_IsValid(Params->Copyright))
+        {
+            Copyright = Params->Copyright;
+        }
+
         static const String Text = SC("BSD 3-Clause License\n\
 \n\
 %S\n\
@@ -801,7 +806,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE\n\
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.\n\
 ");
 
-        Filesystem_WriteLineFormatted(f, Text, NULL, Params->Copyright);
+        Filesystem_WriteLineFormatted(f, Text, NULL, Copyright);
         Filesystem_Close(&f);
         bSuccess = true;
     }
@@ -815,6 +820,12 @@ static bool Internal_Export_License_BSD3(const BuildParams* Params, const String
     bool bSuccess = false;
     if (Filesystem_Open(OutputPath, FileMode_Write, &f))
     {
+        String Copyright = S("<missing copyright string>");
+        if (String_IsValid(Params->Copyright))
+        {
+            Copyright = Params->Copyright;
+        }
+
         static const String Text = SC("BSD 3-Clause License\n\
 \n\
 %S\n\
@@ -845,7 +856,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE\n\
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.\n\
 ");
 
-        Filesystem_WriteLineFormatted(f, Text, NULL, Params->Copyright);
+        Filesystem_WriteLineFormatted(f, Text, NULL, Copyright);
         Filesystem_Close(&f);
         bSuccess = true;
     }
@@ -860,6 +871,12 @@ static bool Internal_Export_License_MIT(const BuildParams* Params, const String 
     bool bSuccess = false;
     if (Filesystem_Open(OutputPath, FileMode_Write, &f))
     {
+        String Copyright = S("<missing copyright string>");
+        if (String_IsValid(Params->Copyright))
+        {
+            Copyright = Params->Copyright;
+        }
+
         static const String Text = SC("\
 MIT License\n\
 \n\
@@ -884,7 +901,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\n\
 SOFTWARE.\n\
 ");
 
-        Filesystem_WriteLineFormatted(f, Text, NULL, Params->Copyright);
+        Filesystem_WriteLineFormatted(f, Text, NULL, Copyright);
         Filesystem_Close(&f);
         bSuccess = true;
     }
@@ -898,6 +915,12 @@ static bool Internal_Export_License_DoWhatTheFuckYouWantTo(const BuildParams* Pa
     bool bSuccess = false;
     if (Filesystem_Open(OutputPath, FileMode_Write, &f))
     {
+        String Copyright = S("<missing copyright string>");
+        if (String_IsValid(Params->Copyright))
+        {
+            Copyright = Params->Copyright;
+        }
+
         static const String Text = SC("\
         DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE\n\
             Version 2, December 2004\n\
@@ -914,7 +937,7 @@ TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION\n\
 0. You just DO WHAT THE FUCK YOU WANT TO.\n\
 ");
 
-        Filesystem_WriteLineFormatted(f, Text, NULL, Params->Copyright);
+        Filesystem_WriteLineFormatted(f, Text, NULL, Copyright);
         Filesystem_Close(&f);
         bSuccess = true;
     }

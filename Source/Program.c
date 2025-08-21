@@ -18,16 +18,11 @@
 #endif
 
 // TODO:
-// [ ] we should generate a license if specified in a build file
-//        License   BSD3
-// [X] for IncludedSourceFiles we shouldnt have to specify the .c or .cpp extension. if the names match.
-//     will be a lot more convienent
 // [ ] relink if a library file has changed, much like the source file change detection feature
 //     that way we dont have to rebuild the host project again
 // [ ] windows kits as internal variable?
 // [ ] add dav1d to github examples
 // [ ] change include to import and ensure it is only loaded once
-// [ ] Copyright(macro) generates ASSEMBLY_COPYRIGHT_STRING
 
 const usize GEngineMemoryAmount  = Kibibytes(128);
 const usize GEngineScratchAmount = Kibibytes(8);
@@ -3601,6 +3596,11 @@ static u32 BuildTarget(LinearAllocator* Arena,
             AssemblyType = AssemblyType_Executable;
         }
 
+        StringLocal(AssemblyNameUpper, 128);
+        String_Copy(&AssemblyNameUpper, GetVariableValue(ExpandedVariablesDB, S("Assembly")));
+        xx String_ReplaceCharInline(&AssemblyNameUpper, '-', '_');
+        String_ToUpper(&AssemblyNameUpper);
+
         String VersionKey = S("Version");
         bool bDoesVersionVarExist = DoesBuildVarExist(VariablesDB, VersionKey);
 
@@ -3623,7 +3623,10 @@ static u32 BuildTarget(LinearAllocator* Arena,
             String ExpandedVar = VersionVar.Value;
 
             // add the defines (if desired)
-            if (String_IsEqual(VersionVar.Params, S("macro"), false))
+
+            LinearAllocator Scratch = *Arena;
+            StringList ParamList = String_SplitIntoList(&Scratch, VersionVar.Params, ' ', false);
+            if (StringList_FindIndex(ParamList, S("macro"), false, StringCompare_Equal, NULL))
             {
                 const String VersionLevels[3] = 
                 {
@@ -3631,11 +3634,6 @@ static u32 BuildTarget(LinearAllocator* Arena,
                     S("MINOR"),
                     S("PATCH")
                 };
-
-                StringLocal(AssemblyNameUpper, 128);
-                String_Copy(&AssemblyNameUpper, GetVariableValue(ExpandedVariablesDB, S("Assembly")));
-                xx String_ReplaceCharInline(&AssemblyNameUpper, '-', '_');
-                String_ToUpper(&AssemblyNameUpper);
 
                 {
                     StringLocal(VersionDefineString, 256);
@@ -3705,6 +3703,20 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
                     AddOrAppendVariable(Arena, VariablesDB, S("Defines"), VersionDefine, String_Null());//, false);
                 }
+            }
+        }
+
+        FileVariable CopyrightVar = GetVariable(VariablesDB, S("Copyright"));
+        if (CopyrightVar.Value.Length)
+        {
+            LinearAllocator Scratch = *Arena;
+            StringList ParamList = String_SplitIntoList(&Scratch, CopyrightVar.Params, ' ', false);
+            if (StringList_FindIndex(ParamList, S("macro"), false, StringCompare_Equal, NULL))
+            {
+                StringLocal(CopyrightDefine, 256);
+                String_Format(&CopyrightDefine, S("%S_COPYRIGHT_STRING=\"%S\""), AssemblyNameUpper, CopyrightVar.Value);
+
+                AddOrAppendVariable(Arena, VariablesDB, S("Defines"), CopyrightDefine, String_Null());
             }
         }
     }
@@ -6657,61 +6669,70 @@ static u32 BuildTarget(LinearAllocator* Arena,
     // enforce copyright in all source files
     {
         const FileVariable CopyrightVar = GetVariable(ExpandedVariablesDB, S("Copyright"));
-        if (CopyrightVar.Value.Length &&
-            (String_IsEqual(CopyrightVar.Params, S("enforce"), false) ||
-             String_StartsWith(CopyrightVar.Params, S("enforce:"), false)))
+        if (CopyrightVar.Value.Length)
         {
-            u32 FromLine = 1;
-            u32 ToLine = 1;
-
-            u32 ColonIndex = 0;
-            if (String_IndexOfChar(CopyrightVar.Params, ':', &ColonIndex))
+            LinearAllocator Scratch = *Arena;
+            StringList ParamList = String_SplitIntoList(&Scratch, CopyrightVar.Params, ' ', false);
+            String EnforceParam = StringList_Find(ParamList, S("enforce"), false, StringCompare_Equal, NULL);
+            if (!String_IsValid(EnforceParam))
             {
-                String SpecialData = StrShiftF(CopyrightVar.Params, ColonIndex+1);
-
-                u32 DashIndex = 0;
-                if (String_IndexOfChar(SpecialData, '-', &DashIndex))
-                {
-                    String From = StrSlice(SpecialData.Data, DashIndex);
-                    String To   = StrShiftF(SpecialData, DashIndex+1);
-
-                    xx String_ToU32(From, &FromLine);
-                    bool bHasTo = String_ToU32(To, &ToLine);
-
-                    FromLine = Max(1, FromLine);
-                    ToLine   = Max(1, ToLine);
-                    if (!bHasTo) { ToLine = UINT32_MAX; } // end of file
-
-                    if (FromLine > ToLine)
-                    {
-                        u32 Temp = FromLine;
-                        FromLine = ToLine;
-                        ToLine = Temp;
-                    }
-                }
-                else
-                {
-                    xx String_ToU32(SpecialData, &FromLine);
-                    ToLine = FromLine;
-                }
+                EnforceParam = StringList_Find(ParamList, S("enforce:"), false, StringCompare_StartsWith, NULL);
             }
 
-            CopyrightEnforceInfo AuxData = {0};
-            AuxData.Content  = CopyrightVar.Value;
-            AuxData.FromLine = FromLine;
-            AuxData.ToLine   = ToLine;
-            
-            for each_string_in_list (p.SourceFiles)
+            if (String_IsValid(EnforceParam))
             {
-                const String Ext = Filesystem_ExtractFileExtension(It.String, true);
-                if (IsCSource(Ext)    ||
-                    IsCppSource(Ext)  ||
-                    IsObjCSource(Ext) ||
-                    IsAsmSource(Ext))
+                u32 FromLine = 1;
+                u32 ToLine = 1;
+
+                u32 ColonIndex = 0;
+                if (String_IndexOfChar(EnforceParam, ':', &ColonIndex))
                 {
-                    if (!EnforceCopyright(&p, &AuxData, It.String))
+                    String SpecialData = StrShiftF(EnforceParam, ColonIndex+1);
+
+                    u32 DashIndex = 0;
+                    if (String_IndexOfChar(SpecialData, '-', &DashIndex))
                     {
-                        return 1;
+                        String From = StrSlice(SpecialData.Data, DashIndex);
+                        String To   = StrShiftF(SpecialData, DashIndex+1);
+
+                        xx String_ToU32(From, &FromLine);
+                        bool bHasTo = String_ToU32(To, &ToLine);
+
+                        FromLine = Max(1, FromLine);
+                        ToLine   = Max(1, ToLine);
+                        if (!bHasTo) { ToLine = UINT32_MAX; } // end of file
+
+                        if (FromLine > ToLine)
+                        {
+                            u32 Temp = FromLine;
+                            FromLine = ToLine;
+                            ToLine = Temp;
+                        }
+                    }
+                    else
+                    {
+                        xx String_ToU32(SpecialData, &FromLine);
+                        ToLine = FromLine;
+                    }
+                }
+
+                CopyrightEnforceInfo AuxData = {0};
+                AuxData.Content  = CopyrightVar.Value;
+                AuxData.FromLine = FromLine;
+                AuxData.ToLine   = ToLine;
+                
+                for each_string_in_list (p.SourceFiles)
+                {
+                    const String Ext = Filesystem_ExtractFileExtension(It.String, true);
+                    if (IsCSource(Ext)    ||
+                        IsCppSource(Ext)  ||
+                        IsObjCSource(Ext) ||
+                        IsAsmSource(Ext))
+                    {
+                        if (!EnforceCopyright(&p, &AuxData, It.String))
+                        {
+                            return 1;
+                        }
                     }
                 }
             }
@@ -6721,68 +6742,73 @@ static u32 BuildTarget(LinearAllocator* Arena,
     // generate a license file in the same directory as the .build file
     {
         const FileVariable LicenseVar = GetVariable(ExpandedVariablesDB, S("License"));
-        if (LicenseVar.Value.Length &&
-            String_IsEqual(LicenseVar.Params, S("generate"), false))
+        if (LicenseVar.Value.Length)
         {
-            const String CustomLicensePath = GetVariableValue(ExpandedVariablesDB, S("License.Path"));
-            const String CustomLicenseFileName = GetVariableValue(ExpandedVariablesDB, S("License.FileName"));
-
-            String LicenseFileName = S("LICENSE");
-            if (String_IsValid(CustomLicenseFileName))
+            LinearAllocator Scratch = *Arena;
+            StringList ParamList = String_SplitIntoList(&Scratch, LicenseVar.Params, ' ', false);
+            if (StringList_FindIndex(ParamList, S("generate"), false, StringCompare_Equal, NULL))
             {
-                LicenseFileName = CustomLicenseFileName;
-            }
+                const String CustomLicensePath = GetVariableValue(ExpandedVariablesDB, S("License.Path"));
+                const String CustomLicenseFileName = GetVariableValue(ExpandedVariablesDB, S("License.FileName"));
 
-            StringLocal(OutputPath, MAX_PATH_LENGTH);
-            if (Filesystem_IsPathRelative(CustomLicensePath))
-            {
-                String_BuildPath(&OutputPath, Filesystem_ExtractFilePath(BuildFilePathFull, false), CustomLicensePath, LicenseFileName);
-            }
-            else
-            {
-                String_BuildPath(&OutputPath, CustomLicensePath, LicenseFileName);
-            }
+                String LicenseFileName = S("LICENSE");
+                if (String_IsValid(CustomLicenseFileName))
+                {
+                    LicenseFileName = CustomLicenseFileName;
+                }
 
-            // make sure the file does not already exist
-            if (!Filesystem_DoesFileExist(OutputPath))
-            {
-                bool bLicenseExported = false;
-
-                if (String_IsEqual(LicenseVar.Value, S("BSD"), false) ||
-                    String_StartsWith(LicenseVar.Value, S("BSD-3"), false) ||
-                    String_StartsWith(LicenseVar.Value, S("BSD 3"), false) ||
-                    String_StartsWith(LicenseVar.Value, S("BSD3"), false))
+                StringLocal(OutputPath, MAX_PATH_LENGTH);
+                if (Filesystem_IsPathRelative(CustomLicensePath))
                 {
-                    bLicenseExported = Export_License(S("BSD3"), &p, OutputPath);
-                }
-                else if (String_StartsWith(LicenseVar.Value, S("BSD-2"), false) ||
-                        String_StartsWith(LicenseVar.Value, S("BSD 2"), false) ||
-                        String_StartsWith(LicenseVar.Value, S("BSD2"), false))
-                {
-                    bLicenseExported = Export_License(S("BSD2"), &p, OutputPath);
-                }
-                else if (String_IsEqual(LicenseVar.Value, S("MIT"), false))
-                {
-                    bLicenseExported = Export_License(S("MIT"), &p, OutputPath);
-                }
-                else if (String_IsEqual(LicenseVar.Value, S("Fuck You"), false) ||
-                        String_IsEqual(LicenseVar.Value, S("FuckYou"), false))
-                {
-                    bLicenseExported = Export_License(S("FuckYou"), &p, OutputPath);
-                }
-                else if (String_IsEqual(LicenseVar.Value, S("Unlicense"), false) ||
-                        String_IsEqual(LicenseVar.Value, S("Un-license"), false))
-                {
-                    bLicenseExported = Export_License(S("Unlicense"), &p, OutputPath);
+                    String_BuildPath(&OutputPath, Filesystem_ExtractFilePath(BuildFilePathFull, false), CustomLicensePath, LicenseFileName);
                 }
                 else
                 {
-                    LOG_WARNING("Unable to generate a %S %S file. Skipping...", LicenseVar.Value, LicenseFileName);
+                    String_BuildPath(&OutputPath, CustomLicensePath, LicenseFileName);
                 }
 
-                if (!bLicenseExported)
+                // make sure the file does not already exist
+                // force re-gen if we are rebuilding or cleaning
+                if (!Filesystem_DoesFileExist(OutputPath) || bIsRebuild || bIsClean)
                 {
-                    LOG_WARNING("Failed to write a %S file to \"%S\". Skipping...", OutputPath, LicenseFileName);
+                    bool bLicenseExported = false;
+
+                    if (String_IsEqual(LicenseVar.Value, S("BSD"), false) ||
+                        String_StartsWith(LicenseVar.Value, S("BSD-3"), false) ||
+                        String_StartsWith(LicenseVar.Value, S("BSD 3"), false) ||
+                        String_StartsWith(LicenseVar.Value, S("BSD3"), false))
+                    {
+                        bLicenseExported = Export_License(S("BSD3"), &p, OutputPath);
+                    }
+                    else if (String_StartsWith(LicenseVar.Value, S("BSD-2"), false) ||
+                            String_StartsWith(LicenseVar.Value, S("BSD 2"), false) ||
+                            String_StartsWith(LicenseVar.Value, S("BSD2"), false))
+                    {
+                        bLicenseExported = Export_License(S("BSD2"), &p, OutputPath);
+                    }
+                    else if (String_IsEqual(LicenseVar.Value, S("MIT"), false))
+                    {
+                        bLicenseExported = Export_License(S("MIT"), &p, OutputPath);
+                    }
+                    else if (String_IsEqual(LicenseVar.Value, S("Fuck You"), false) ||
+                            String_IsEqual(LicenseVar.Value, S("FuckYou"), false))
+                    {
+                        bLicenseExported = Export_License(S("FuckYou"), &p, OutputPath);
+                    }
+                    else if (String_IsEqual(LicenseVar.Value, S("Unlicense"), false) ||
+                            String_IsEqual(LicenseVar.Value, S("Un-license"), false))
+                    {
+                        bLicenseExported = Export_License(S("Unlicense"), &p, OutputPath);
+                    }
+                    else
+                    {
+                        LOG_WARNING("Unable to generate a %S %S file. Skipping...", LicenseVar.Value, LicenseFileName);
+                    }
+
+                    if (!bLicenseExported)
+                    {
+                        LOG_WARNING("Failed to write a %S file to \"%S\". Skipping...", OutputPath, LicenseFileName);
+                    }
                 }
             }
         }

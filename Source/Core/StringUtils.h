@@ -13,6 +13,13 @@ ENUM(ECompareResult)
     CompareResult_Greater
 };
 
+ENUM(EStringCompare)
+{
+    StringCompare_Equal,
+    StringCompare_StartsWith,
+    StringCompare_EndsWith,
+};
+
 // C String Helpers
 // ----------------------------------
 
@@ -193,7 +200,8 @@ RIFT_API NO_DISCARD StringArray String_ParseIntoArray(LinearAllocator* Arena, co
 RIFT_API NO_DISCARD bool StringArray_Find(StringArray Array, const String Source, u32* FoundIndex);
 RIFT_API NO_DISCARD String StringArray_GetStringFromIndex(StringArray Array, u32 Index);
 
-RIFT_API NO_DISCARD bool StringList_Find(StringList List, const String Source, u32* FoundIndex);
+RIFT_API NO_DISCARD String StringList_Find(StringList List, const String Source, bool bCaseSensitive, EStringCompare ComparisonType, u32* FoundIndex);
+RIFT_API NO_DISCARD bool StringList_FindIndex(StringList List, const String Source, bool bCaseSensitive, EStringCompare ComparisonType, u32* FoundIndex);
 RIFT_API NO_DISCARD String StringList_GetStringFromIndex(StringList List, u32 Index);
 
 RIFT_API NO_DISCARD bool String_ToF32(const String Str, f32* OutFloat);
