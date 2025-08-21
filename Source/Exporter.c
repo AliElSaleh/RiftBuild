@@ -769,11 +769,11 @@ bool GenerateSolutionFile(const String ProjectName, const String ProjectPath)
 // License Generator
 // todo: if no copyright key was specified, make one
 
-static bool Internal_Export_License_BSD2(const BuildParams* Params, const String Path)
+static bool Internal_Export_License_BSD2(const BuildParams* Params, const String OutputPath)
 {
     FileHandle f = FileHandle_Null();
     bool bSuccess = false;
-    if (Filesystem_Open(Path, FileMode_Write, &f))
+    if (Filesystem_Open(OutputPath, FileMode_Write, &f))
     {
         static const String Text = SC("BSD 3-Clause License\n\
 \n\
@@ -809,11 +809,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.\n\
     return bSuccess;
 }
 
-static bool Internal_Export_License_BSD3(const BuildParams* Params, const String Path)
+static bool Internal_Export_License_BSD3(const BuildParams* Params, const String OutputPath)
 {
     FileHandle f = FileHandle_Null();
     bool bSuccess = false;
-    if (Filesystem_Open(Path, FileMode_Write, &f))
+    if (Filesystem_Open(OutputPath, FileMode_Write, &f))
     {
         static const String Text = SC("BSD 3-Clause License\n\
 \n\
@@ -853,12 +853,12 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.\n\
     return bSuccess;
 }
 
-static bool Internal_Export_License_MIT(const BuildParams* Params, const String Path)
+static bool Internal_Export_License_MIT(const BuildParams* Params, const String OutputPath)
 {
     FileHandle f = FileHandle_Null();
 
     bool bSuccess = false;
-    if (Filesystem_Open(Path, FileMode_Write, &f))
+    if (Filesystem_Open(OutputPath, FileMode_Write, &f))
     {
         static const String Text = SC("\
 MIT License\n\
@@ -892,11 +892,11 @@ SOFTWARE.\n\
     return bSuccess;
 }
 
-static bool Internal_Export_License_DoWhatTheFuckYouWantTo(const BuildParams* Params, const String Path)
+static bool Internal_Export_License_DoWhatTheFuckYouWantTo(const BuildParams* Params, const String OutputPath)
 {
     FileHandle f = FileHandle_Null();
     bool bSuccess = false;
-    if (Filesystem_Open(Path, FileMode_Write, &f))
+    if (Filesystem_Open(OutputPath, FileMode_Write, &f))
     {
         static const String Text = SC("\
         DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE\n\
@@ -922,11 +922,11 @@ TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION\n\
     return bSuccess;
 }
 
-static bool Internal_Export_License_TheUnlicense(const String Path)
+static bool Internal_Export_License_TheUnlicense(const String OutputPath)
 {
     FileHandle f = FileHandle_Null();
     bool bSuccess = false;
-    if (Filesystem_Open(Path, FileMode_Write, &f))
+    if (Filesystem_Open(OutputPath, FileMode_Write, &f))
     {
         static const String Text = SC("\
 This is free and unencumbered software released into the public domain.\n\
@@ -963,29 +963,29 @@ For more information, please refer to <https://unlicense.org>\n\
     return bSuccess;
 }
 
-bool Export_License(const String LicenseType, const BuildParams* Params, const String Path)
+bool Export_License(const String LicenseType, const BuildParams* Params, const String OutputPath)
 {
     bool bSuccess = false;
 
     if (String_IsEqual(LicenseType, S("BSD2"), false))
     {
-        bSuccess = Internal_Export_License_BSD2(Params, Path);
+        bSuccess = Internal_Export_License_BSD2(Params, OutputPath);
     }
     else if (String_IsEqual(LicenseType, S("BSD3"), false))
     {
-        bSuccess = Internal_Export_License_BSD3(Params, Path);
+        bSuccess = Internal_Export_License_BSD3(Params, OutputPath);
     }
     else if (String_IsEqual(LicenseType, S("MIT"), false))
     {
-        bSuccess = Internal_Export_License_MIT(Params, Path);
+        bSuccess = Internal_Export_License_MIT(Params, OutputPath);
     }
     else if (String_IsEqual(LicenseType, S("FuckYou"), false))
     {
-        bSuccess = Internal_Export_License_DoWhatTheFuckYouWantTo(Params, Path);
+        bSuccess = Internal_Export_License_DoWhatTheFuckYouWantTo(Params, OutputPath);
     }
     else if (String_IsEqual(LicenseType, S("Unlicense"), false))
     {
-        bSuccess = Internal_Export_License_TheUnlicense(Path);
+        bSuccess = Internal_Export_License_TheUnlicense(OutputPath);
     }
     else
     {

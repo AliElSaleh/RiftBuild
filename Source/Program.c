@@ -20,12 +20,10 @@
 // TODO:
 // [ ] we should generate a license if specified in a build file
 //        License   BSD3
-// [ ] for IncludedSourceFiles we shouldnt have to specify the .c or .cpp extension. if the names match.
+// [X] for IncludedSourceFiles we shouldnt have to specify the .c or .cpp extension. if the names match.
 //     will be a lot more convienent
-// [ ] enter game mode while we are building
 // [ ] relink if a library file has changed, much like the source file change detection feature
 //     that way we dont have to rebuild the host project again
-// [ ] -show_explorer cmd, opens up explorer to the build file or working dir (if no build file)
 // [ ] windows kits as internal variable?
 // [ ] add dav1d to github examples
 // [ ] change include to import and ensure it is only loaded once
@@ -498,10 +496,10 @@ static bool FilterSourceFile(const String WorkingDirectory, const String SourceD
             bool bWantsExact = Filesystem_DoesPathHaveFileExtension(File);
             if (bWantsExact)
             {
-            if (String_IsEqual(File, RelativePath, false))
-            {
-                bFound = true;
-                break;
+                if (String_IsEqual(File, RelativePath, false))
+                {
+                    bFound = true;
+                    break;
                 }
             }
             else
@@ -637,10 +635,10 @@ static bool FilterSourceFile(const String WorkingDirectory, const String SourceD
             bool bWantsExact = Filesystem_DoesPathHaveFileExtension(File);
             if (bWantsExact)
             {
-            if (String_IsEqual(File, RelativePath, false))
-            {
-                bFound = true;
-                break;
+                if (String_IsEqual(File, RelativePath, false))
+                {
+                    bFound = true;
+                    break;
                 }
             }
             else
@@ -6715,6 +6713,76 @@ static u32 BuildTarget(LinearAllocator* Arena,
                     {
                         return 1;
                     }
+                }
+            }
+        }
+    }
+    
+    // generate a license file in the same directory as the .build file
+    {
+        const FileVariable LicenseVar = GetVariable(ExpandedVariablesDB, S("License"));
+        if (LicenseVar.Value.Length &&
+            String_IsEqual(LicenseVar.Params, S("generate"), false))
+        {
+            const String CustomLicensePath = GetVariableValue(ExpandedVariablesDB, S("License.Path"));
+            const String CustomLicenseFileName = GetVariableValue(ExpandedVariablesDB, S("License.FileName"));
+
+            String LicenseFileName = S("LICENSE");
+            if (String_IsValid(CustomLicenseFileName))
+            {
+                LicenseFileName = CustomLicenseFileName;
+            }
+
+            StringLocal(OutputPath, MAX_PATH_LENGTH);
+            if (Filesystem_IsPathRelative(CustomLicensePath))
+            {
+                String_BuildPath(&OutputPath, Filesystem_ExtractFilePath(BuildFilePathFull, false), CustomLicensePath, LicenseFileName);
+            }
+            else
+            {
+                String_BuildPath(&OutputPath, CustomLicensePath, LicenseFileName);
+            }
+
+            // make sure the file does not already exist
+            if (!Filesystem_DoesFileExist(OutputPath))
+            {
+                bool bLicenseExported = false;
+
+                if (String_IsEqual(LicenseVar.Value, S("BSD"), false) ||
+                    String_StartsWith(LicenseVar.Value, S("BSD-3"), false) ||
+                    String_StartsWith(LicenseVar.Value, S("BSD 3"), false) ||
+                    String_StartsWith(LicenseVar.Value, S("BSD3"), false))
+                {
+                    bLicenseExported = Export_License(S("BSD3"), &p, OutputPath);
+                }
+                else if (String_StartsWith(LicenseVar.Value, S("BSD-2"), false) ||
+                        String_StartsWith(LicenseVar.Value, S("BSD 2"), false) ||
+                        String_StartsWith(LicenseVar.Value, S("BSD2"), false))
+                {
+                    bLicenseExported = Export_License(S("BSD2"), &p, OutputPath);
+                }
+                else if (String_IsEqual(LicenseVar.Value, S("MIT"), false))
+                {
+                    bLicenseExported = Export_License(S("MIT"), &p, OutputPath);
+                }
+                else if (String_IsEqual(LicenseVar.Value, S("Fuck You"), false) ||
+                        String_IsEqual(LicenseVar.Value, S("FuckYou"), false))
+                {
+                    bLicenseExported = Export_License(S("FuckYou"), &p, OutputPath);
+                }
+                else if (String_IsEqual(LicenseVar.Value, S("Unlicense"), false) ||
+                        String_IsEqual(LicenseVar.Value, S("Un-license"), false))
+                {
+                    bLicenseExported = Export_License(S("Unlicense"), &p, OutputPath);
+                }
+                else
+                {
+                    LOG_WARNING("Unable to generate a %S %S file. Skipping...", LicenseVar.Value, LicenseFileName);
+                }
+
+                if (!bLicenseExported)
+                {
+                    LOG_WARNING("Failed to write a %S file to \"%S\". Skipping...", OutputPath, LicenseFileName);
                 }
             }
         }

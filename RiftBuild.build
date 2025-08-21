@@ -12,7 +12,7 @@
     If you have this build file's execute permission set and riftbuild is in your path,
     you can execute this file directly like a regular shell script:
      > ./RiftBuild.build
-   ----------------------------------
+   --------------------------------------------
 }
 
 include Source/Common.buildvars
@@ -25,8 +25,8 @@ TitleName                Rift Build %^%debug
 Description              A simpler build tool for C/C++, because fuck cmake
 Version(macro)           0.1.0-beta-%_date.nosep
 CompanyName              Artisan Softworks
-Copyright(enforce)       Copyright (c) $CompanyName
-License                  BSD 3-Clause
+Copyright(enforce macro) Copyright (c) $CompanyName
+License(generate)        BSD 3-Clause
 
 SourceDirectory          Source
 BuildDirectory:debug     Build/Debug%%32/%%Hood
@@ -73,9 +73,9 @@ if rad
     postbuild.exec raddbg -ipc run
 }
 
-option.clang.description           use clang
-option.gcc.description             use gcc
-option.cl.description              use cl (windows only)
+option.clang.description           use clang compiler
+option.gcc.description             use gcc compiler
+option.cl.description              use cl compiler (windows only)
 option.debug.description           build the debug version of this program
 option.32.description              build for 32 bit mode
 option.asan.description            enable address sanitizer for memory debugging purposes

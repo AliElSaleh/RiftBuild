@@ -346,7 +346,7 @@ bool Export_VersionRC(const BuildParams* Params, const String Path);
 bool Export_IconRC(const String Path, const String IconFilePath);
 
 // LicenseType: BSD2, BSD3, MIT, FuckYou, Unlicense
-bool Export_License(const String LicenseType, const BuildParams* Params, const String Path);
+bool Export_License(const String LicenseType, const BuildParams* Params, const String OutputPath);
 
 bool Export_FromArg(LinearAllocator Scratch, const BuildParams* Params, const String Arg, TArray(FileVariable) ExpandedVariablesDB);
 

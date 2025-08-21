@@ -1409,14 +1409,14 @@ bool C_Link(const BuildParams* Params)
 
         Internal_AppendObjSourceFiles(Params, &CmdLine, DefaultObjExtension);
 
-	// These must come after obj files because on some operating systems
-	// the linker is sensitive to the order of how the flags are positioned
-	// 
+        // These must come after obj files because on some operating systems
+        // the linker is sensitive to the order of how the flags are positioned
+        // 
         String_BuildSeparator(&CmdLine, ' ', AdditionalFlags,
                                              RunPathLinkFlag,
                                              Params->LinkerFlags,
                                              Params->LinkerDefineFlags,
-			                     Params->Libraries,
+                                             Params->Libraries,
                                              Params->LibraryDirectories);
 
         xx String_EatSpacesInlineFromEnd(&CmdLine);
