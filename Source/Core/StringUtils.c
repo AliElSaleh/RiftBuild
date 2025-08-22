@@ -3083,6 +3083,92 @@ NO_DISCARD String StringList_GetStringFromIndex(StringList List, u32 Index)
     return Result;
 }
 
+NO_DISCARD ASAN_NO_SANITIZE u32 String_GetLength_Fast(const char* Str)
+{
+    char* StrCopy = (char*)Str;
+
+    // First, move the StrCopy ptr along to get up to the 8-byte boundary, if needed
+    while (((uptr)StrCopy & (sizeof(usize)-1)) != 0)
+    {
+        if (*StrCopy == 0)
+        {
+            return (u32)(StrCopy - Str);
+        }
+
+        ++StrCopy;
+    }
+
+    // Next, scan 8 bytes (or 4 bytes for 32-bit) at a time, and test if there is a 0 byte in there.
+    while (1)
+    {
+        usize Buffer = *(usize*)StrCopy;
+        #if PLATFORM_64_BIT
+        if ((Buffer - 0x0101010101010101) & (~Buffer) & 0x8080808080808080UL)
+        #else
+        if ((Buffer - 0x01010101) & (~Buffer) & 0x80808080UL)
+        #endif
+        {
+            break;
+        }
+
+        StrCopy += sizeof(usize);
+    }
+
+    // Finally, increment until we hit the null terminator, to get actual size
+    while (*StrCopy)
+    {
+        ++StrCopy;
+    }
+
+    u32 Len = (u32)(StrCopy - Str);
+    return Len;
+}
+
+NO_DISCARD ASAN_NO_SANITIZE u32 String_GetLength_N_Fast(const char* Str, u32 MaxLength)
+{
+    char* StrCopy = (char*)Str;
+    u32 Limit = MaxLength;
+
+    // First, move the StrCopy ptr along to get up to the 8-byte boundary, if needed
+    while (((uptr)StrCopy & (sizeof(usize)-1)) != 0)
+    {
+        if (!Limit || *StrCopy == 0)
+        {
+            return (u32)(StrCopy - Str);
+        }
+
+        ++StrCopy;
+        --Limit;
+    }
+
+    // Next, scan 8 bytes (or 4 bytes for 32-bit) at a time, and test if there is a 0 byte in there.
+    while (Limit >= sizeof(usize))
+    {
+        usize Buffer = *(usize*)StrCopy;
+        #if PLATFORM_64_BIT
+        if ((Buffer - 0x0101010101010101) & (~Buffer) & 0x8080808080808080UL)
+        #else
+        if ((Buffer - 0x01010101) & (~Buffer) & 0x80808080UL)
+        #endif
+        {
+            break;
+        }
+
+        StrCopy += sizeof(usize);
+        Limit -= sizeof(usize);
+    }
+
+    // Finally, increment until we hit the null terminator, to get actual size
+    while (Limit && *StrCopy)
+    {
+        ++StrCopy;
+        --Limit;
+    }
+
+    u32 Len = (u32)(StrCopy - Str);
+    return Len;
+}
+
 NO_DISCARD u32 String_GetLength(const char* Str)
 {
     register u32 Len = 0;

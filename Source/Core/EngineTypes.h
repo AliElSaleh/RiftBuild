@@ -187,20 +187,17 @@ STRUCT(StringList)
 #define StringLocal(Name, n) 	            String   Name; uchar MACRO_VAR(CONCAT(Buffer_, Name))[n+1] = {0}; Name.Data = MACRO_VAR(CONCAT(Buffer_, Name)); Name.Length = 0; Name.Capacity = (n)
 #define String16Local(Name, n) 	            String16 Name; wchar MACRO_VAR(CONCAT(Buffer_, Name))[n+1] = {0}; Name.Data = MACRO_VAR(CONCAT(Buffer_, Name)), Name.Length = 0, Name.Capacity = (n)
 
-#define CStr(s)                             (String)         {.Data = (uchar*)(s),      .Length = String_GetLength(s),                   .Capacity = 0}
-#define CStrEx(s, n)                        (String)         {.Data = (uchar*)(s),      .Length = String_GetLength_N(s, n),             .Capacity = 0}
-#define CStrView(s)                         (const String)   {.Data = (uchar*)(s),      .Length = String_GetLength(s),                   .Capacity = 0}
+#define CStr(s)                             (String)         {.Data = (uchar*)(s),      .Length = String_GetLength_Fast(s),              .Capacity = 0}
+#define CStrEx(s, n)                        (String)         {.Data = (uchar*)(s),      .Length = String_GetLength_N_Fast(s, n),         .Capacity = 0}
 #define CStr16(s)                           (String16)       {.Data = (wchar*)(s),      .Length = String16_GetLength((wchar*)(s)),       .Capacity = 0}
-#define CStr16Ex(s, n)                      (String16)       {.Data = (wchar*)(s),      .Length = String16_GetLength_N((wchar*)(s), n), .Capacity = 0}
-#define CStr16View(s)                       (const String16) {.Data = (wchar*)(s),      .Length = String16_GetLength(s),                 .Capacity = 0}
+#define CStr16Ex(s, n)                      (String16)       {.Data = (wchar*)(s),      .Length = String16_GetLength_N((wchar*)(s), n),  .Capacity = 0}
 
 #define S(s)                                (const String)   {.Data = (uchar*)(s),      .Length = sizeof(s)-1, .Capacity = 0}
 #define SC(s)                                                {.Data = (uchar*)(s),      .Length = sizeof(s)-1, .Capacity = 0}
 #define S16(s)                              (const String16) {.Data = (wchar*)(s),      .Length = sizeof(s)-1, .Capacity = 0}
+#define SC16(s)                                              {.Data = (wchar*)(s),      .Length = sizeof(s)-1, .Capacity = 0}
 
-#define StrMake(s)                          (String)         {.Data = (s).Data,         .Length = (s).Length, .Capacity = (s).Capacity}
-#define StrView(s)                          (const String)   {.Data = (uchar*)(s).Data, .Length = (s).Length, .Capacity = (s).Capacity}
-#define Str16Slice(s, Len)                  (String16)       {.Data = (wchar*)(s),      .Length = Len,        .Capacity = Len}
+#define StrMake(s)                          (String)         {.Data = (uchar*)(s).Data, .Length = (s).Length, .Capacity = (s).Capacity}
 
 #define StrArray(...)                       (StringArray)    {.List = ((String[]){__VA_ARGS__}), .Num = SArray_Capacity(((String[]){__VA_ARGS__}))}
 
@@ -433,6 +430,28 @@ STRUCT(StringList)
 #else
     #define RIFT_API
 #endif // RIFT_STATIC
+
+#if COMPILER_CLANG
+    #if defined(__has_feature) && defined(__has_attribute)
+        #if __has_feature(address_sanitizer)
+            #if __has_attribute(__no_sanitize__)
+                #define ASAN_NO_SANITIZE __attribute__((__no_sanitize__("address")))
+            #elif __has_attribute(__no_sanitize_address__)
+                #define ASAN_NO_SANITIZE __attribute__((__no_sanitize_address__))
+            #elif __has_attribute(__no_address_safety_analysis__)
+                #define ASAN_NO_SANITIZE __attribute__((__no_address_safety_analysis__))
+            #endif
+        #endif
+    #endif
+#elif COMPILER_GCC && (__GNUC__ >= 5 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 8))
+    #if defined(__SANITIZE_ADDRESS__) && __SANITIZE_ADDRESS__
+        #define ASAN_NO_SANITIZE __attribute__((__no_sanitize_address__))
+    #endif
+#endif
+
+#ifndef ASAN_NO_SANITIZE
+#define ASAN_NO_SANITIZE
+#endif
 
 #ifdef _MSC_VER
 #define MSVC_SECTION(x)   __declspec(allocate(x))

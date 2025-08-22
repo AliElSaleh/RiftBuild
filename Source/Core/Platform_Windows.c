@@ -411,7 +411,7 @@ NO_DISCARD bool Platform_SetWorkingDirectory(const String Path)
 
 void Platform_ConsoleWrite(const char* Message, u8 Color, bool bIsError)
 {
-    Platform_ConsoleWrite_CustomLength(Message, String_GetLength(Message), Color, bIsError);
+    Platform_ConsoleWrite_CustomLength(Message, String_GetLength_Fast(Message), Color, bIsError);
 }
 
 void Platform_ConsoleWrite_CustomLength(const char* Message, u32 Length, u8 Color, bool bIsError)
