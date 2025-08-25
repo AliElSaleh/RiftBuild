@@ -245,6 +245,7 @@ PRAGMA_DISABLE_WARNINGS
 
 #ifndef stbsp__uintptr
 #if defined(__ppc64__) || defined(__powerpc64__) || defined(__aarch64__) || defined(_M_X64) || defined(__x86_64__) || defined(__x86_64) || defined(__s390x__)
+#define STB_64_BIT_MODE
 #define stbsp__uintptr stbsp__uint64
 #else
 #define stbsp__uintptr stbsp__uint32
@@ -324,9 +325,9 @@ static STBSP__ASAN stbsp__uint32 stbsp__strlen_limited(char const *s, stbsp__uin
 {
    char const * sn = s;
 
-   // get up to 4-byte alignment
+   // get up to 4 or 8-byte alignment
    for (;;) {
-      if (((stbsp__uintptr)sn & 3) == 0)
+      if (((stbsp__uintptr)sn & (sizeof(stbsp__uintptr) -1)) == 0)
          break;
 
       if (!limit || *sn == 0)
@@ -336,19 +337,25 @@ static STBSP__ASAN stbsp__uint32 stbsp__strlen_limited(char const *s, stbsp__uin
       --limit;
    }
 
-   // scan over 4 bytes at a time to find terminating 0
+   // scan over 4 (or 8) bytes at a time to find terminating 0
    // this will intentionally scan up to 3 bytes past the end of buffers,
    // but becase it works 4B aligned, it will never cross page boundaries
    // (hence the STBSP__ASAN markup; the over-read here is intentional
    // and harmless)
-   while (limit >= 4) {
-      stbsp__uint32 v = *(stbsp__uint32 *)sn;
+   while (limit >= sizeof(stbsp__uintptr)) {
+      stbsp__uintptr v = *(stbsp__uintptr *)sn;
+
       // bit hack to find if there's a 0 byte in there
+      #ifdef STB_64_BIT_MODE
+      if ((v - 0x0101010101010101) & (~v) & 0x8080808080808080UL)
+         break;
+      #else
       if ((v - 0x01010101) & (~v) & 0x80808080UL)
          break;
+      #endif
 
-      sn += 4;
-      limit -= 4;
+      sn += sizeof(stbsp__uintptr);
+      limit -= sizeof(stbsp__uintptr);
    }
 
    // handle the last few characters to find actual size
