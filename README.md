@@ -23,7 +23,7 @@ That's it
 Writing a .build file is simple. It almost has no syntax.
 
 ```make
-Compiler  clang # or gcc/cl or specify an absolute or relative path to your C compiler
+Compiler clang # or gcc/cl or specify an absolute or relative path to your C compiler
 
 Assembly SomeName
 Extension exe # or dll/lib/a/so/dylib/elf or replace this line with -> Type app or lib
