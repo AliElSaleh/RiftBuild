@@ -165,6 +165,7 @@ RIFT_API NO_DISCARD bool String_SanitizeQuotes(String* Dest, const String Source
 
 RIFT_API NO_DISCARD String String_TrimQuotes(const String Source);
 
+RIFT_API NO_DISCARD uchar String_GetCharFromIndex(const String Str, u32 Index);
 RIFT_API NO_DISCARD bool String_IsFirst(const String Str, u8 C);
 RIFT_API NO_DISCARD bool String_IsLast(const String Str, u8 C);
 

@@ -133,18 +133,9 @@ NO_DISCARD String String_Reserve(LinearAllocator* Arena, u32 Capacity)
 
 NO_DISCARD String String_ReserveAndCopy(LinearAllocator* Arena, u32 Capacity, const String Source)
 {
-    String str = String_Null();
-    bool bValid = Arena->Allocated + Capacity < Arena->TotalSize;
-    if (bValid)
-    {
-        str.Data = LinearAllocator_Allocate(Arena, Capacity+1);
-        MemCopy(str.Data, Source.Data, Source.Length);
-        str.Data[Source.Length] = 0;
-        str.Length = Source.Length;
-        str.Capacity = Capacity;
-    }
-
-    return str;
+    String Str = String_Reserve(Arena, Capacity);
+    String_Copy(&Str, Source);
+    return Str;
 }
 
 NO_DISCARD StringArray String_CreateArray(LinearAllocator* Arena, const StringArray Array)
@@ -510,8 +501,7 @@ NO_DISCARD bool String_EndsWith(const String Str, const String SubString, bool b
 
 void String_Copy(String* Dest, const String Source)
 {
-    u32 NumToCopy = Dest->Capacity == 0 ? Source.Length : Min(Dest->Capacity, Source.Length);
-    // u32 NumToCopy = Min(Dest->Capacity, Source.Length); // TODO: might wanna only do this
+    u32 NumToCopy = Min(Dest->Capacity, Source.Length);
     MemCopy(Dest->Data, Source.Data, NumToCopy);
     Dest->Length = NumToCopy;
     Dest->Data[NumToCopy] = 0;
@@ -519,7 +509,10 @@ void String_Copy(String* Dest, const String Source)
 
 void String_CopyN(String* Dest, const String Source, const u32 Length)
 {
-    u32 NumToCopy = Dest->Capacity == 0 ? Min(Source.Length, Length) : Min(Dest->Capacity, Min(Source.Length, Length));
+    i32 Diff = (i32)Dest->Capacity - (i32)Dest->Length;
+    ASSERT_MSG(Diff >= 0, "%s", __FUNCTION__);
+
+    u32 NumToCopy = Min((u32)Diff, Length);
     MemCopy(Dest->Data, Source.Data, NumToCopy);
     Dest->Length = NumToCopy;
     Dest->Data[NumToCopy] = 0;
@@ -527,8 +520,10 @@ void String_CopyN(String* Dest, const String Source, const u32 Length)
 
 void String_Append(String* Dest, const String Source)
 {
-    u32 NumToCopy = Min(Dest->Capacity, Source.Length);
-    NumToCopy = Min(Dest->Capacity - Dest->Length, NumToCopy);
+    i32 Diff = (i32)Dest->Capacity - (i32)Dest->Length;
+    ASSERT_MSG(Diff >= 0, "%s", __FUNCTION__);
+
+    u32 NumToCopy = Min((u32)Diff, Source.Length);
     MemCopy(&Dest->Data[Dest->Length], Source.Data, NumToCopy);
     Dest->Length += NumToCopy;
     Dest->Data[Dest->Length] = 0;
@@ -538,15 +533,23 @@ void String_AppendF(String* Dest, const String Format, ...)
 {
     va_list Args = {0};
     va_start(Args, Format);
-    const i32 NewCap = (i32)Min(Dest->Capacity-Dest->Length, INT32_MAX); 
-    const i32 Written = stbsp_vsnprintf((char*)Dest->Data+Dest->Length, NewCap, (char*)Format.Data, Args);
+
+    i32 Diff = (i32)Dest->Capacity - (i32)Dest->Length;
+    ASSERT_MSG(Diff >= 0, "%s", __FUNCTION__);
+
+    i32 NewCap = (i32)Min((u32)Diff, INT32_MAX); 
+    i32 Written = stbsp_vsnprintf((char*)Dest->Data+Dest->Length, NewCap, (char*)Format.Data, Args);
     Dest->Length += (u32)Clamp(Written, 0, INT32_MAX);
+
     va_end(Args);
 }
 
 void String_AppendChar(String* Dest, const u8 Source)
 {
-    u32 NumToCopy = Min(Dest->Capacity, 1);
+    i32 Diff = (i32)Dest->Capacity - (i32)Dest->Length;
+    ASSERT_MSG(Diff >= 0, "%s", __FUNCTION__);
+
+    u32 NumToCopy = Min((u32)Diff, 1);
     MemCopy(&Dest->Data[Dest->Length], &Source, NumToCopy);
     Dest->Length += NumToCopy;
     Dest->Data[Dest->Length] = 0;
@@ -1546,6 +1549,17 @@ NO_DISCARD bool String_IndexOfChar(const String Str, u8 C, u32* OutIndex)
     }
     
     return bFound;
+}
+
+NO_DISCARD uchar String_GetCharFromIndex(const String Str, u32 Index)
+{
+    uchar Found = 0;
+    if (Index < Str.Length)
+    {
+        Found = Str.Data[Index];
+    }
+
+    return Found;
 }
 
 NO_DISCARD bool String_IsFirst(const String Str, u8 C)
