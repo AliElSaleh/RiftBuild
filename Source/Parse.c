@@ -4042,7 +4042,7 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, ParsingCon
         String Value = String_Null();
         #endif
 
-        AddVariableToList(Arena, Context, S("Extension"), Value, String_Null());//, false);
+        AddVariableToList(Arena, Context, S("Extension"), Value, String_Null());
     }
 }
 
@@ -4084,9 +4084,9 @@ NO_DISCARD bool ParseBuildFile(LinearAllocator* PermanentArena,
         //  1a. parse include files (get the ast trees) and repeat step 1
         // 2. (second pass) go through the indeterminate list and store all keys possible
         //  2a. parse include files (get the ast trees) and repeat step 1 independently then continue again with the second pass
-        // 3. store default values of keys that we're mentioned in the tree
+        // 3. store default values of keys that were not mentioned in the tree
         // 4. run asserts
-        // 5. finally expand all keys
+        // 5. finally expand all known keys that we care about
 
         //Clock c;
         //Clock_Start(&c);
@@ -4400,11 +4400,13 @@ bool ExpandBuildVariable(LinearAllocator Scratch, FileVariableList* VariablesDB,
             bWantsToUpper = String_EatCharInline_Single(&StrVal, '^');
             if (bWantsToUpper) { Offset++; }
 
-            if (String_EatCharInline(&StrVal, '('))
+            if (String_EatCharInline(&StrVal, '(') ||
+                String_EatCharInline(&StrVal, '{'))
             {
                 Offset++;
 
-                if (String_IndexOfChar(StrVal, ')', &Index))
+                if (String_IndexOfChar(StrVal, ')', &Index) ||
+                    String_IndexOfChar(StrVal, '}', &Index))
                 {
                     Offset++;
                 }
