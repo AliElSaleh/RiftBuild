@@ -104,8 +104,9 @@ RIFT_API void StringInternal_Concat(String* Dest, const StringArray Array);
 RIFT_API void StringInternal_BuildSeparator(String* Dest, u8 Separator, const StringArray Array);
 RIFT_API void StringInternal_BuildPath(String* Dest, const StringArray Array);
 
+// RIFT_API void String_FormatOld(String* Dest, const String Format, ...);
 RIFT_API void String_Format(String* Dest, const String Format, ...);
-RIFT_API void String_FormatV(String* Dest, const String Format, u32 Capacity, void* VAList);
+RIFT_API void String_FormatV(String* Dest, const String Format, void* VAList);
 
 RIFT_API void String_Empty(String* Str);
 
@@ -166,6 +167,7 @@ RIFT_API NO_DISCARD bool String_SanitizeQuotes(String* Dest, const String Source
 RIFT_API NO_DISCARD String String_TrimQuotes(const String Source);
 
 RIFT_API NO_DISCARD uchar String_GetCharFromIndex(const String Str, u32 Index);
+RIFT_API NO_DISCARD uchar String_GetCharFromIndexOrLast(const String Str, u32 Index);
 RIFT_API NO_DISCARD bool String_IsFirst(const String Str, u8 C);
 RIFT_API NO_DISCARD bool String_IsLast(const String Str, u8 C);
 
@@ -224,6 +226,7 @@ RIFT_API NO_DISCARD bool String_FromI16(String* Str, i16 Int);
 RIFT_API NO_DISCARD bool String_FromI32(String* Str, i32 Int);
 RIFT_API NO_DISCARD bool String_FromI64(String* Str, i64 Int);
 
+// TODO: rename to IntType_ToString()
 RIFT_API NO_DISCARD bool String_FromU8(String* Str, u8 Int);
 RIFT_API NO_DISCARD bool String_FromU16(String* Str, u16 Int);
 RIFT_API NO_DISCARD bool String_FromU32(String* Str, u32 Int);
@@ -249,6 +252,7 @@ RIFT_API NO_DISCARD u8   ToLower(u8 Char)         CONST_FN;
 RIFT_API NO_DISCARD u8   ToForwardSlash(u8 Char)  CONST_FN;
 RIFT_API NO_DISCARD u8   ToBackSlash(u8 Char)     CONST_FN;
 RIFT_API NO_DISCARD uchar DigitToHexChar(u8 Val)  CONST_FN;
+RIFT_API NO_DISCARD uchar DigitToHexCharUpper(u8 Val)  CONST_FN;
 
 RIFT_API NO_DISCARD u8 Integer_CountDigits(u64 Value) CONST_FN;
 RIFT_API NO_DISCARD u8 Integer_CountDigits_Signed(i64 Value) CONST_FN;

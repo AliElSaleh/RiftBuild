@@ -6,10 +6,12 @@
 #include "Memory.h"
 #include "Allocators.h"
 #include "Log.h"
+
+#include <stdarg.h> // for va_arg(), va_list()
 #endif
 
-#define STB_SPRINTF_IMPLEMENTATION
-#include "Libraries/Vendor/stb_sprintf.h"
+// #define STB_SPRINTF_IMPLEMENTATION
+// #include "Libraries/Vendor/stb_sprintf.h"
 
 read_only String      g_StringNil      = SC("");
 read_only StringArray g_StringArrayNil = { .List = &(String){.Data = (uchar*)(""), .Length = 0, .Capacity = 0}, .Num = 0, .IterIndex = 0 };
@@ -499,6 +501,417 @@ NO_DISCARD bool String_EndsWith(const String Str, const String SubString, bool b
     return bSuccess;
 }
 
+// based on: https://cplusplus.com/reference/cstdio/printf/
+static void Internal_Format(String* Dest, const String Format, va_list List)
+{
+    u32 FormatIndex = 0;
+    while (FormatIndex < Format.Length)
+    {
+        uchar Char = Format.Data[FormatIndex++];
+
+        if (Char == '%')
+        {
+            Char = String_GetCharFromIndexOrLast(Format, FormatIndex++);
+
+            // parse the optional sub-specifiers first, like flags, width, .precision and length modifiers (in this specific order)
+            // flags
+            bool bHash = false;
+            {
+                // TODO: + - 
+
+
+                if (Char == '#')
+                {
+                    bHash = true;
+                    Char = String_GetCharFromIndexOrLast(Format, FormatIndex++);
+                }
+            }
+
+            // width (min characters to be printed)
+            i32 MinChars = 0;
+            {
+                if (Char == '*')
+                {
+                    MinChars = va_arg(List, i32);
+                    Char = String_GetCharFromIndexOrLast(Format, FormatIndex++);
+                }
+                else
+                {
+                    StringLocal(Temp, 16);
+                    while (IsDigit(Char))
+                    {
+                        String_AppendChar(&Temp, Char);
+                        Char = String_GetCharFromIndex(Format, FormatIndex++);
+                    }
+
+                    xx String_ToI32(Temp, &MinChars);
+                }
+            }
+
+            // .precision
+            i32 Precision = 0;
+            {
+                if (Char == '.')
+                {
+                    Char = String_GetCharFromIndexOrLast(Format, FormatIndex++);
+
+                    StringLocal(Temp, 16);
+                    while (IsDigit(Char))
+                    {
+                        String_AppendChar(&Temp, Char);
+                        Char = String_GetCharFromIndex(Format, FormatIndex++);
+                    }
+
+                    xx String_ToI32(Temp, &Precision);
+                }
+                else if (Char == '*')
+                {
+                    Precision = va_arg(List, i32);
+                    Char = String_GetCharFromIndexOrLast(Format, FormatIndex++);
+                }
+            }
+
+            // length modifiers
+            i8 LengthMod = 2; // 0 = 8 | 1 = 16 | 2 = 32 | 3 = 64
+            {
+                if (Char == 'h')
+                {
+                    Char = String_GetCharFromIndexOrLast(Format, FormatIndex++);
+                    if (Char == 'h')
+                    {
+                        LengthMod = 0;
+                        Char = String_GetCharFromIndexOrLast(Format, FormatIndex++);
+                    }
+                    else
+                    {
+                        LengthMod = 1;
+                    }
+                }
+                else if (Char == 'l')
+                {
+                    Char = String_GetCharFromIndexOrLast(Format, FormatIndex++);
+                    if (Char == 'l')
+                    {
+                        LengthMod = 2;
+                        Char = String_GetCharFromIndexOrLast(Format, FormatIndex++);
+                    }
+                    else
+                    {
+                        LengthMod = 3;
+                    }
+                }
+            }
+
+            // parse the specifiers
+            switch (Char)
+            {
+                // signed integer
+                case 'i':
+                case 'd':
+                {
+                    StringLocal(Temp, 20);
+                    switch (LengthMod)
+                    {
+                        case 0:  { xx String_FromI8 (&Temp, (i8) va_arg(List, i32)); } break;
+                        case 1:  { xx String_FromI16(&Temp, (i16)va_arg(List, i32)); } break;
+                        case 2:  { xx String_FromI32(&Temp,      va_arg(List, i32)); } break;
+                        case 3:  { xx String_FromI64(&Temp,      va_arg(List, i64)); } break;
+                        default: { xx String_FromI32(&Temp,      va_arg(List, i32)); } break;
+                    }
+
+                    // pad with leading zeros if Int is shorter than what the user has specified
+                    i32 Diff = Precision - (i32)Temp.Length;
+                    while (Diff > 0)
+                    {
+                        Diff--;;
+                        String_AppendChar(Dest, '0');
+                    }
+
+                    i32 Blanks = MinChars - (i32)Temp.Length;
+                    while (Blanks > 0)
+                    {
+                        Blanks--;
+                        String_AppendSpace(Dest);
+                    }
+
+                    String_Append(Dest, Temp);
+                }
+                break;
+
+                // unsigned integer
+                case 'u':
+                {
+                    StringLocal(Temp, 20);
+                    switch (LengthMod)
+                    {
+                        case 0:  { xx String_FromU8 (&Temp, (u8) va_arg(List, u32)); } break;
+                        case 1:  { xx String_FromU16(&Temp, (u16)va_arg(List, u32)); } break;
+                        case 2:  { xx String_FromU32(&Temp,      va_arg(List, u32)); } break;
+                        case 3:  { xx String_FromU64(&Temp,      va_arg(List, u64)); } break;
+                        default: { xx String_FromU32(&Temp,      va_arg(List, u32)); } break;
+                    }
+
+                    // pad with leading zeros if Int is shorter than what the user has specified
+                    i32 Diff = Precision - (i32)Temp.Length;
+                    while (Diff > 0)
+                    {
+                        Diff--;
+                        String_AppendChar(Dest, '0');
+                    }
+
+                    i32 Blanks = MinChars - (i32)Temp.Length;
+                    while (Blanks > 0)
+                    {
+                        Blanks--;
+                        String_AppendSpace(Dest);
+                    }
+
+                    String_Append(Dest, Temp);
+                }
+                break;
+
+                // float
+                case 'f':
+                {
+                    f64 Value = va_arg(List, f64);
+
+                    i64 IntPart = (i64)Value;
+                    f64 FracPart = Value - (f64)IntPart;
+
+                    StringLocal(Temp, 64);
+
+                    // make them absolute
+                    if (Value < 0)
+                    {
+                        String_AppendChar(&Temp, '-');
+                        IntPart = -IntPart;
+                        FracPart = -FracPart;
+                    }
+
+                    // integer part
+                    StringLocal(IntStr, 32);
+                    if (String_FromI64(&IntStr, IntPart))
+                    {
+                        String_Append(&Temp, IntStr);
+                    }
+
+                    // decimal point + fractional part
+                    {
+                        String_AppendChar(&Temp, '.');
+
+                        if (Precision <= 0)
+                        {
+                            Precision = 6;
+                        }
+
+                        for (i32 i = 0; i < Precision; i++)
+                        {
+                            FracPart *= 10.0;
+                            u8 Digit = (u8)FracPart;
+                            uchar DigitAsChar = '0' + Digit;
+                            String_AppendChar(&Temp, DigitAsChar);
+                            FracPart -= Digit;
+                        }
+                    }
+
+                    i32 Blanks = MinChars - (i32)Temp.Length;
+                    while (Blanks > 0)
+                    {
+                        Blanks--;
+                        String_AppendSpace(Dest);
+                    }
+
+                    String_Append(Dest, Temp);
+                }
+                break;
+
+                // pointer address
+                case 'p':
+                {
+                    usize Address = va_arg(List, usize);
+                    StringLocal(Temp, 20);
+                    if (String_FromU64(&Temp, (u64)Address))
+                    {
+                        i32 Blanks = MinChars - (i32)Temp.Length;
+                        while (Blanks > 0)
+                        {
+                            Blanks--;
+                            String_AppendSpace(Dest);
+                        }
+
+                        String_Append(Dest, Temp);
+                    }
+                }
+                break;
+
+                // x - hexadecimal integer (lowercase)
+                // X - hexadecimal integer (uppercase)
+                case 'x':
+                case 'X':
+                {
+                    u64 Int = 0;
+
+                    switch (LengthMod)
+                    {
+                        case 0:  { Int = (u8) va_arg(List, u32); } break;
+                        case 1:  { Int = (u16)va_arg(List, u32); } break;
+                        case 2:  { Int = va_arg(List, u32); } break;
+                        case 3:  { Int = va_arg(List, u64); } break;
+                        default: { Int = va_arg(List, u32); } break;
+                    }
+
+                    bool bLower = Char == 'x';
+
+                    StringLocal(Temp, 32);
+
+                    if (bHash)
+                    {
+                        String_Append(&Temp, bLower ? S("0x") : S("0X"));
+                    }
+
+                    u64 Value = Int;
+                    StringLocal(HexBuffer, 32);
+                    while (Value > 0)
+                    {
+                        u8 Digit = (u8)(Value & 0xF);
+                        uchar HexChar = bLower ? DigitToHexChar(Digit) : DigitToHexCharUpper(Digit);
+                        String_AppendChar(&HexBuffer, HexChar);
+                        Value >>= 4;
+                    }
+
+                    // pad with leading zeros
+                    i32 Diff = MinChars - (i32)HexBuffer.Length;
+                    while (Diff > 0)
+                    {
+                        Diff--;
+                        String_AppendChar(&Temp, '0');
+                    }
+
+                    // add the hex chars
+                    for (i32 i = (i32)HexBuffer.Length-1; i >=0; i--)
+                    {
+                        String_AppendChar(&Temp, HexBuffer.Data[i]);
+                    }
+
+                    // pad with leading blanks
+                    i32 Blanks = MinChars - (i32)Temp.Length;
+                    while (Blanks > 0)
+                    {
+                        Blanks--;
+                        String_AppendSpace(Dest);
+                    }
+
+                    String_Append(Dest, Temp);
+                }
+                break;
+
+                // char
+                case 'c':
+                {
+                    uchar c = (uchar)va_arg(List, int);
+                    
+                    i32 Blanks = MinChars - 1;
+                    while (Blanks > 0)
+                    {
+                        Blanks--;
+                        String_AppendSpace(Dest);
+                    }
+
+                    String_AppendChar(Dest, c);
+                }
+                break;
+
+                // c-string (null terminated)
+                case 's':
+                {
+                    char* Str = va_arg(List, char*);
+                    if (Str)
+                    {
+                        String Str2;
+                        Str2.Data     = (uchar*)Str;
+                        Str2.Length   = Precision > 0 ? (u32)Precision : String_GetLength_Fast(Str);
+                        Str2.Capacity = 0;
+
+                        i32 Blanks = MinChars - (i32)Str2.Length;
+                        while (Blanks > 0)
+                        {
+                            Blanks--;
+                            String_AppendSpace(Dest);
+                        }
+
+                        String_Append(Dest, Str2);
+                    }
+                    else
+                    {
+                        String_Append(Dest, S("null"));
+                    }
+                }
+                break;
+
+                // String (length terminated)
+                case 'S':
+                {
+                    String Str = va_arg(List, String);
+                    if (Precision > 0)
+                    {
+                        Str.Length = (u32)Precision;
+                    }
+
+                    i32 Blanks = MinChars - (i32)Str.Length;
+                    while (Blanks > 0)
+                    {
+                        Blanks--;
+                        String_AppendSpace(Dest);
+                    }
+
+                    String_Append(Dest, Str);
+                }
+                break;
+                
+                default:
+                {
+                    String_AppendChar(Dest, Char);
+                }
+                break;
+            }
+        }
+        else
+        {
+            String_AppendChar(Dest, Char);
+        }
+    }
+}
+
+void String_Format(String* Dest, const String Format, ...)
+{
+    va_list Args = {0};
+    va_start(Args, Format);
+    Dest->Length = 0;
+    Internal_Format(Dest, Format, Args);
+    va_end(Args);
+}
+
+/*
+void String_FormatOld(String* Dest, const String Format, ...)
+{
+    va_list Args = {0};
+    va_start(Args, Format);
+    const i32 NewCap = (i32)Min(Dest->Capacity, INT32_MAX); 
+    const i32 Written = stbsp_vsnprintf((char*)Dest->Data, NewCap, (char*)Format.Data, Args);
+    Dest->Length = (u32)Clamp(Written, 0, INT32_MAX);
+    va_end(Args);
+}
+*/
+
+void String_FormatV(String* Dest, const String Format, void* VAList)
+{
+    Dest->Length = 0;
+    Internal_Format(Dest, Format, VAList);
+
+    // const i32 Written = stbsp_vsnprintf((char*)Dest->Data, (i32)Dest->Capacity, (char*)Format.Data, VAList);
+    // Dest->Length = (u32)Clamp(Written, 0, INT32_MAX);
+}
+
 void String_Copy(String* Dest, const String Source)
 {
     u32 NumToCopy = Min(Dest->Capacity, Source.Length);
@@ -510,7 +923,7 @@ void String_Copy(String* Dest, const String Source)
 void String_CopyN(String* Dest, const String Source, const u32 Length)
 {
     i32 Diff = (i32)Dest->Capacity - (i32)Dest->Length;
-    ASSERT_MSG(Diff >= 0, "%s", __FUNCTION__);
+    ASSERT_MSG(Diff >= 0, "%S", S(__FUNCTION__));
 
     u32 NumToCopy = Min((u32)Diff, Length);
     MemCopy(Dest->Data, Source.Data, NumToCopy);
@@ -521,7 +934,7 @@ void String_CopyN(String* Dest, const String Source, const u32 Length)
 void String_Append(String* Dest, const String Source)
 {
     i32 Diff = (i32)Dest->Capacity - (i32)Dest->Length;
-    ASSERT_MSG(Diff >= 0, "%s", __FUNCTION__);
+    ASSERT_MSG(Diff >= 0, "%S", S(__FUNCTION__));
 
     u32 NumToCopy = Min((u32)Diff, Source.Length);
     MemCopy(&Dest->Data[Dest->Length], Source.Data, NumToCopy);
@@ -535,11 +948,16 @@ void String_AppendF(String* Dest, const String Format, ...)
     va_start(Args, Format);
 
     i32 Diff = (i32)Dest->Capacity - (i32)Dest->Length;
-    ASSERT_MSG(Diff >= 0, "%s", __FUNCTION__);
+    ASSERT_MSG(Diff >= 0, "%S", S(__FUNCTION__));
 
-    i32 NewCap = (i32)Min((u32)Diff, INT32_MAX); 
-    i32 Written = stbsp_vsnprintf((char*)Dest->Data+Dest->Length, NewCap, (char*)Format.Data, Args);
-    Dest->Length += (u32)Clamp(Written, 0, INT32_MAX);
+    if (Diff > 0)
+    {
+        Internal_Format(Dest, Format, Args);
+    }
+
+    // i32 NewCap = (i32)Min((u32)Diff, INT32_MAX); 
+    // i32 Written = stbsp_vsnprintf((char*)Dest->Data+Dest->Length, NewCap, (char*)Format.Data, Args);
+    // Dest->Length += (u32)Clamp(Written, 0, INT32_MAX);
 
     va_end(Args);
 }
@@ -547,7 +965,7 @@ void String_AppendF(String* Dest, const String Format, ...)
 void String_AppendChar(String* Dest, const u8 Source)
 {
     i32 Diff = (i32)Dest->Capacity - (i32)Dest->Length;
-    ASSERT_MSG(Diff >= 0, "%s", __FUNCTION__);
+    ASSERT_MSG(Diff >= 0, "%S", S(__FUNCTION__));
 
     u32 NumToCopy = Min((u32)Diff, 1);
     MemCopy(&Dest->Data[Dest->Length], &Source, NumToCopy);
@@ -699,23 +1117,6 @@ NO_DISCARD ECompareResult String_CompareVersion(const String VersionA, const Str
     }
 
     return Result;
-}
-
-void String_Format(String* Dest, const String Format, ...)
-{
-    va_list Args = {0};
-    va_start(Args, Format);
-    const i32 NewCap = (i32)Min(Dest->Capacity, INT32_MAX); 
-    const i32 Written = stbsp_vsnprintf((char*)Dest->Data, NewCap, (char*)Format.Data, Args);
-    Dest->Length = (u32)Clamp(Written, 0, INT32_MAX);
-    va_end(Args);
-}
-
-void String_FormatV(String* Dest, const String Format, u32 Capacity, void* VAList)
-{
-    const i32 NewCap = (i32)Min(Capacity, INT32_MAX); 
-    const i32 Written = stbsp_vsnprintf((char*)Dest->Data, NewCap, (char*)Format.Data, VAList);
-    Dest->Length = (u32)Clamp(Written, 0, INT32_MAX);
 }
 
 void StringInternal_Concat(String* Dest, const StringArray Array)
@@ -1551,10 +1952,29 @@ NO_DISCARD bool String_IndexOfChar(const String Str, u8 C, u32* OutIndex)
     return bFound;
 }
 
+NO_DISCARD uchar String_GetCharFromIndexOrLast(const String Str, u32 Index)
+{
+    uchar Found = 0;
+    if (Str.Length > 0)
+    {
+        if (Index < Str.Length)
+        {
+            Found = Str.Data[Index];
+        }
+        
+        if (Found == 0)
+        {
+            Found = Str.Data[Str.Length-1];
+        }
+    }
+
+    return Found;
+}
+
 NO_DISCARD uchar String_GetCharFromIndex(const String Str, u32 Index)
 {
     uchar Found = 0;
-    if (Index < Str.Length)
+    if (Str.Length > 0 && Index < Str.Length)
     {
         Found = Str.Data[Index];
     }
@@ -3292,6 +3712,12 @@ NO_DISCARD u8 ToBackSlash(u8 Char)
 NO_DISCARD uchar DigitToHexChar(u8 Val)
 {
     uchar Char = Val < 10 ? (uchar)('0' + Val) : (uchar)('a' + (Val - 10));
+    return Char;
+}
+
+NO_DISCARD uchar DigitToHexCharUpper(u8 Val)
+{
+    uchar Char = Val < 10 ? (uchar)('0' + Val) : (uchar)('A' + (Val - 10));
     return Char;
 }
 

@@ -2,7 +2,7 @@ SharedIncludeFlags               Source
 
 SharedDefines                    RIFT_STATIC _NO_CRT_STDIO_INLINE
 SharedDefines:warn_leaks         WARN_MEMLEAKS
-SharedDefines:debug              _DEBUG
+SharedDefines:debug              _DEBUG RIFT_DEBUG
 SharedDefines:!debug             NDEBUG NO_ASSERT
 SharedDefines:asan               RIFT_ASAN
 

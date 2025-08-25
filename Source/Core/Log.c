@@ -185,7 +185,7 @@ void LogMessage(u8 LogType, const String LogCat, const String Text, ...)
         va_list Args = {0};
         va_start(Args, Text);
         String Buffer = {.Data = GLoggingSystemState->Buffer, .Length = 0, .Capacity = MAX_LOG_MSG_LENGTH };
-        String_FormatV(&Buffer, Text, MAX_LOG_MSG_LENGTH, Args);
+        String_FormatV(&Buffer, Text, Args);
         va_end(Args);
 
         String_AppendChar(&Buffer, '\n');
@@ -244,8 +244,8 @@ void LogDirectMessage(u8 LogType, const String Text, ...)
     {
         va_list Args = {0};
         va_start(Args, Text);
-        String Buffer = {.Data = GLoggingSystemState->Buffer, .Length = 0 };
-        String_FormatV(&Buffer, Text, MAX_LOG_MSG_LENGTH, Args);
+        String Buffer = {.Data = GLoggingSystemState->Buffer, .Length = 0, .Capacity = MAX_LOG_MSG_LENGTH };
+        String_FormatV(&Buffer, Text, Args);
         va_end(Args);
 
         GLoggingSystemState->Buffer[Buffer.Length+1] = 0;

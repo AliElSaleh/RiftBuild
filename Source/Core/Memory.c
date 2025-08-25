@@ -187,7 +187,7 @@ NO_DISCARD void* MemAlloc(usize Size, EMemoryTag Tag)
 
     Platform_EnterCriticalSection(GCriticalSection);
 
-    #ifdef _DEBUG
+    #ifdef RIFT_DEBUG
     if (UNLIKELY(Tag == MemoryTag_Unknown))
     {
         LOG_WARNING("MemAlloc called using MemoryTag_Unknown. Re-class this allocation");
@@ -225,7 +225,7 @@ void MemFree(void* Block, EMemoryTag Tag)
 
     Platform_EnterCriticalSection(GCriticalSection);
 
-    #ifdef _DEBUG
+    #ifdef RIFT_DEBUG
     if (UNLIKELY(Tag == MemoryTag_Unknown))
     {
         LOG_WARNING("MemFree called using MemoryTag_Unknown. Re-class this allocation");
@@ -397,7 +397,7 @@ FORCEINLINE NO_DISCARD RETURN_NON_NULL static void* Internal_LA_Allocate(LinearA
     // it does result in fewer instructions and zero branches, which is faster!
     // but then again, if you run out of memory, you have other problems.
     // we could switch this to a different flag that can also run in release mode
-    #if _DEBUG
+    #ifdef RIFT_DEBUG
     ASSERT(Size > 0);
 
     if (UNLIKELY(NEVER(Allocator->Allocated + Size > Allocator->TotalSize)))

@@ -661,11 +661,14 @@ STBSP__PUBLICDEF int STB_SPRINTF_DECORATE(vsprintfcb)(STBSP_SPRINTFCB *callback,
          cs = 0;
          goto scopy;
 
+      // Note(Ali): i disable this because i don't need it, this really is weird...
+      /*
       case 'n': // weird write-bytes specifier
       {
          int *d = va_arg(va, int *);
          *d = tlen + (int)(bf - buf);
       } break;
+      */
 
 #ifdef STB_SPRINTF_NOFLOAT
       case 'A':              // float
