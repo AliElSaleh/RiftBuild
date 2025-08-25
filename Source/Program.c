@@ -34,8 +34,6 @@ bool bHelp = false;
 bool bOptions = false;
 FileVariable FileVariable_Empty = {0};
 
-//static ExportMetaData ExportMetaData_Null = {.StringParam_1 = S(""), .StringParam_2 = S("")};
-
 static bool bSingleThread = false;
 static bool bIsRebuild = false;
 static bool bIsClean = false;
@@ -735,7 +733,7 @@ static bool IconFileDirectoryIterator(const String FullPath, const String Relati
     {
         struct Data
         {
-            TArray(FileVariable) ExpandedVarsArray;
+            TArray(FileVariable) VariablesDB;
             String* IconFilePath;
             bool bSuccess;
             u8 Padding[7];
@@ -743,7 +741,7 @@ static bool IconFileDirectoryIterator(const String FullPath, const String Relati
 
         struct Data* D = UserData;
 
-        const String IconName = GetVariableValue(D->ExpandedVarsArray, S("Icon"));
+        const String IconName = GetVariableValue(D->VariablesDB, S("Icon"));
 
         u32 LastSlash = 0;
         const bool bNameOnly = !String_IndexOfLastPathSlash(IconName, &LastSlash);
@@ -1402,9 +1400,9 @@ void LogString_WordWrapped(LinearAllocator Scratch, const String Name, const Str
     }
 }
 
-static void ListVariables(LinearAllocator Arena, const String Name, TArray(FileVariable) ExpandedVariablesDB) 
+static void ListVariables(LinearAllocator Arena, const String Name, TArray(FileVariable) VariablesDB) 
 {
-    const String Exclusions[30] =
+    const String Exclusions[31] =
     {
         S("Assert.ProgramExists"),
         S("Assert.LibExists"),
@@ -1434,10 +1432,12 @@ static void ListVariables(LinearAllocator Arena, const String Name, TArray(FileV
         S("SourceDirectory"),
         S("IntermediateDirectory"),
         S("BuildDirectory"),
-        S("Icon")
+        S("Icon"),
+        S("Option."),
+        S(".Help"),
     };
 
-    for each (FileVariable, v, ExpandedVariablesDB)
+    for each (FileVariable, v, VariablesDB)
     {
         if (Name.Length == 0 || String_IsEqual(v.Name, Name, false))
         {
@@ -2096,14 +2096,14 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const FileVa
     return bSuccess;
 }
 
-static bool TryRunBuildCommands(const String Key, const String WorkingPath, TArray(FileVariable) ExpandedVariablesDB, Clock* Timer)
+static bool TryRunBuildCommands(const String Key, const String WorkingPath, TArray(FileVariable) VariablesDB, Clock* Timer)
 {
     bool bSuccess = true;
 
     FileVariable* Cmds[64] = {0}; // reasonable max limit
 
     u8 NumCmds = 0;
-    for each (FileVariable, Var, ExpandedVariablesDB)
+    for each (FileVariable, Var, VariablesDB)
     {
         if (String_StartsWith(Var.Name, Key, false))
         {
@@ -2190,7 +2190,7 @@ static void Internal_AddOrUpdateBuildVariable(TArray(FileVariable) VariablesDB, 
     Array_Add(VariablesDB, Expanded);
 }
 
-static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const FileHandle BuildFileHandle, TArray(FileVariable) VariablesDB)//, TArray(FileVariable) ExpandedVariablesDB)
+static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const FileHandle BuildFileHandle, TArray(FileVariable) VariablesDB)//, TArray(FileVariable) VariablesDB)
 {
     if (!DoesBuildVarExist(VariablesDB, S("Assembly")))
     {
@@ -2220,10 +2220,8 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const File
         FileVariable Expanded;
         Expanded.Name = S("Assembly");
         Expanded.Value = String_Create(Arena, Name);
-        // // Expanded.bHasSpecial = false;
 
         Array_Add(VariablesDB, Expanded);
-        //Array_Add(ExpandedVariablesDB, Expanded);
     }
 
     const String Type = GetVariableValue(VariablesDB, S("Type"));
@@ -2300,7 +2298,6 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const File
         Expanded.Value = Extension;
 
         Array_Add(VariablesDB, Expanded);
-        //Array_Add(ExpandedVariablesDB, Expanded);
     }
 
     if (!DoesBuildVarExist(VariablesDB, S("Extension")))
@@ -2318,7 +2315,6 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const File
         #endif
 
         Array_Add(VariablesDB, Expanded);
-        //Array_Add(ExpandedVariablesDB, Expanded);
     }
 
     if (!DoesBuildVarExist(VariablesDB, S("Compiler")))
@@ -2326,10 +2322,8 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const File
         FileVariable Expanded;
         Expanded.Name = S("Compiler");
         Expanded.Value = String_Null();
-        // Expanded.bHasSpecial = false;
 
         Array_Add(VariablesDB, Expanded);
-        //Array_Add(ExpandedVariablesDB, Expanded);
     }
 
     if (!DoesBuildVarExist(VariablesDB, S("Version")))
@@ -2337,10 +2331,8 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const File
         FileVariable Expanded;
         Expanded.Name = S("Version");
         Expanded.Value = S("1.0.0");
-        // Expanded.bHasSpecial = false;
 
         Array_Add(VariablesDB, Expanded);
-        //Array_Add(ExpandedVariablesDB, Expanded);
     }
 
     if (!DoesBuildVarExist(VariablesDB, S("BuildDirectory")))
@@ -2348,10 +2340,8 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const File
         FileVariable Expanded;
         Expanded.Name = S("BuildDirectory");
         Expanded.Value = S("Build");
-        // Expanded.bHasSpecial = false;
 
         Array_Add(VariablesDB, Expanded);
-        //Array_Add(ExpandedVariablesDB, Expanded);
     }
 
     if (!DoesBuildVarExist(VariablesDB, S("IntermediateDirectory")))
@@ -2359,10 +2349,8 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const File
         FileVariable Expanded;
         Expanded.Name = S("IntermediateDirectory");
         Expanded.Value = S("Intermediate");
-        // Expanded.bHasSpecial = false;
 
         Array_Add(VariablesDB, Expanded);
-        //Array_Add(ExpandedVariablesDB, Expanded);
     }
 
     if (!DoesBuildVarExist(VariablesDB, S("SourceDirectory")))
@@ -2370,10 +2358,8 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const File
         FileVariable Expanded;
         Expanded.Name = S("SourceDirectory");
         Expanded.Value = String_Null();
-        // Expanded.bHasSpecial = false;
 
         Array_Add(VariablesDB, Expanded);
-        //Array_Add(ExpandedVariablesDB, Expanded);
     }
 }
 
@@ -2397,7 +2383,7 @@ void AddInternalVariable(const String Name, const String Value)
     Array_Add(InternalVariablesDB, c);
 }
 
-static bool CheckForBuildVariableOverrides(TArray(FileVariable) VariablesDB, TArray(FileVariable) ExpandedVariablesDB, TArray(CmdOption) CmdOptionsDB)
+static bool CheckForBuildVariableOverrides(TArray(FileVariable) VariablesDB, TArray(CmdOption) CmdOptionsDB)
 {
     bool bAnyOverriden = false;
 
@@ -2421,18 +2407,6 @@ static bool CheckForBuildVariableOverrides(TArray(FileVariable) VariablesDB, TAr
                 }
             }
 
-            // also update the expanded version
-            for each (FileVariable, Var, ExpandedVariablesDB)
-            {
-                if (String_IsEqual(Var.Name, VarToOverride, false))
-                {
-                    Var_->Value = o.Value;
-                    bOverriden = true;
-                    bAnyOverriden = true;
-                    break;
-                }
-            }
-
             // add it if not found
             if (!bOverriden)
             {
@@ -2445,7 +2419,6 @@ static bool CheckForBuildVariableOverrides(TArray(FileVariable) VariablesDB, TAr
                 NewOverride.Params = String_Null();
 
                 Internal_AddOrUpdateBuildVariable(VariablesDB, NewOverride);
-                Internal_AddOrUpdateBuildVariable(ExpandedVariablesDB, NewOverride);
 
                 bAnyOverriden = true;
             }
@@ -2660,7 +2633,7 @@ static void ExpandDefineFlags(String* Dest, const String Flags, const String Fla
         for each_string_in_list (List)
         {
             if (!bExportingSomething) { String_AppendChar(Dest, '"'); }
-            String_Append    (Dest, FlagPrefix);
+            String_Append(Dest, FlagPrefix);
 
             u32 Equals = 0;
             if (String_IndexOfChar(It.String, '=', &Equals))
@@ -2912,6 +2885,86 @@ static void PrintClockTimeToBuffer(String* Buffer, Clock* Timer, Clock* MasterTi
     }
 }
 
+static bool Parameters_TryListVariables(LinearAllocator Scratch, const StringArray Parameters, TArray(FileVariable) VariablesDB, const String BuildFilePath, u32* ExitCode)
+{
+    bool bTried = false;
+    
+    if (ExitCode)
+    {
+        *ExitCode = 0;
+    }
+
+    for (u8 i = 0; i < Parameters.Num; i++)
+    {
+        const String Arg = Parameters.List[i];
+
+        if (String_StartsWith(Arg, S("list:"), false))
+        {
+            bTried = true;
+
+            LOG_LINE_BREAK();
+
+            // TODO: if we do this: list:somekey.   with a . at the end, then print out all keys that start with that
+            u32 Colon = 0;
+            if (String_IndexOfChar(Arg, ':', &Colon))
+            {
+                const String VarToList = StrShiftF(Arg, Colon+1);
+
+                if (VarToList.Length == 0)
+                {
+                    LOG_ERROR("Failed to list build variable. No variable name was given after ':'");
+                    LOG_INLINE_WARNING("\nUsage\n");
+                    LOG("     list:all");
+                    LOG("     list:varname");
+                    LOG("     list:varname,othername,anotherone");
+                    if (ExitCode)
+                    {
+                        *ExitCode = 1;
+                    }
+                    break;
+                }
+
+                StringArray Vars = String_ParseIntoArray(&Scratch, VarToList, ',', 0, 128);
+            
+                for each_str (var, Vars)
+                {
+                    if (String_IsEqual(*var, S("all"), false))
+                    {
+                        ListVariables(Scratch, String_Null(), VariablesDB);
+                    }
+                    else
+                    {
+                        if (!DoesBuildVarExist(VariablesDB, *var))
+                        {
+                            LOG_WARNING("Failed to list \"%S\". It does not exist in \"%S\" after expansion (within the context of the given build parameters)", *var, BuildFilePath);
+                            if (ExitCode)
+                            {
+                                *ExitCode = 1;
+                            }
+                            break;
+                        }
+
+                        ListVariables(Scratch, *var, VariablesDB);
+                    }
+                }
+
+                // todo: put in function? clean up code routine?
+                // shouldnt be here. remove
+                /*
+                for each (FileHandle, File, IncludeFiles)
+                {
+                    Filesystem_Close(&File);
+                }
+                */
+
+                break;
+            }
+        }
+    }
+
+    return bTried;
+}
+
 static u32 BuildTarget(LinearAllocator* Arena,
                         const FileHandle BuildFileHandle, PlatformMutex* BuildMutex,
                         const String WorkingPath, const StringArray Parameters, const String CameFromBuildFile,
@@ -3033,10 +3086,6 @@ static u32 BuildTarget(LinearAllocator* Arena,
     }
 
     xx String_EatSpacesInlineFromEnd(&RiftCmdLine);
-
-    StringLocal(IconFilePath, MAX_PATH_LENGTH);
-    StringLocal(IconResFilePath, MAX_PATH_LENGTH);
-    StringLocal(VersionResFilePath, MAX_PATH_LENGTH);
 
     ArrayLocal_Arena(FileVariable,   VariablesDB,         256, Arena); // 8192 bytes
 
@@ -3289,8 +3338,6 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
     bool bAnyVarsOverriden = false;
 
-    TArray(FileVariable) ExpandedVariablesDB = VariablesDB; // this is just an alias, will remove soon
-
     if (bFoundBuildFile)
     {
         ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -3325,7 +3372,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
         if (bHelp)
         {
-            const String HelpMessage = GetVariableValue(ExpandedVariablesDB, S(".Help"));
+            const String HelpMessage = GetVariableValue(VariablesDB, S(".Help"));
 
             LOG_INLINE_WARNING("\nHelp\n");
             if (HelpMessage.Length > 0)
@@ -3351,7 +3398,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
             
             u32 LongestParams = 0;
             {
-                for each (FileVariable, v, ExpandedVariablesDB)
+                for each (FileVariable, v, VariablesDB)
                 {
                     if (String_StartsWith(v.Name, S("Option."), false))
                     {
@@ -3363,7 +3410,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                         }
                         
                         // get the base key
-                        FileVariable Base = GetVariable(ExpandedVariablesDB, Trimmed);
+                        FileVariable Base = GetVariable(VariablesDB, Trimmed);
                         if (Base.Params.Length > LongestParams)
                         {
                             LongestParams = Base.Params.Length;
@@ -3374,7 +3421,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
             u32 LongestName = 8;
             bool bAnyOptions = false;
-            for each (FileVariable, v, ExpandedVariablesDB)
+            for each (FileVariable, v, VariablesDB)
             {
                 if (String_StartsWith(v.Name, S("Option."), false))
                 {
@@ -3408,7 +3455,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
                     SArray_Add(OptionVars, NewVar);
 
-                    FileVariable Base = GetVariable(ExpandedVariablesDB, Trimmed);
+                    FileVariable Base = GetVariable(VariablesDB, Trimmed);
 
                     u32 NameLength = StrShiftF(Trimmed, 7).Length + Base.Params.Length;
                     if (NameLength > LongestName)
@@ -3427,7 +3474,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 {
                     bool bValid = false;
 
-                    FileVariable Base = GetVariable(ExpandedVariablesDB, Var.Name);
+                    FileVariable Base = GetVariable(VariablesDB, Var.Name);
 
                     if (Base.Value.Length > LongestDefault)
                     {
@@ -3439,7 +3486,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                     StringLocal(Default, MAX_KEY_LENGTH);
                     String_Append(&Default, Var.Name);
                     String_Append(&Default, S(".Default"));
-                    FileVariable DefaultVar = GetVariable(ExpandedVariablesDB, Default);
+                    FileVariable DefaultVar = GetVariable(VariablesDB, Default);
 
                     if (DefaultVar.Value.Length > LongestDefault)
                     {
@@ -3494,14 +3541,14 @@ static u32 BuildTarget(LinearAllocator* Arena,
                     String FinalValue = String_Null();
 
                     // get the base key
-                    FileVariable Base = GetVariable(ExpandedVariablesDB, Var.Name);
+                    FileVariable Base = GetVariable(VariablesDB, Var.Name);
                     FinalValue = Base.Value;
 
                     // get the default key
                     StringLocal(Default, MAX_KEY_LENGTH);
                     String_Append(&Default, Var.Name);
                     String_Append(&Default, S(".Default"));
-                    FileVariable DefaultVar = GetVariable(ExpandedVariablesDB, Default);
+                    FileVariable DefaultVar = GetVariable(VariablesDB, Default);
 
                     if (!String_IsValid(FinalValue))
                     {
@@ -3542,7 +3589,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                     StringLocal(Desc, MAX_KEY_LENGTH);
                     String_Append(&Desc, Var.Name);
                     String_Append(&Desc, S(".Description"));
-                    FileVariable DescriptionVar = GetVariable(ExpandedVariablesDB, Desc);
+                    FileVariable DescriptionVar = GetVariable(VariablesDB, Desc);
 
                     String FinalDesc = DescriptionVar.Value;
                     if (!String_IsValid(FinalDesc))
@@ -3573,10 +3620,10 @@ static u32 BuildTarget(LinearAllocator* Arena,
             return 0;
         }
 
-        bAnyVarsOverriden = CheckForBuildVariableOverrides(VariablesDB, ExpandedVariablesDB, CmdOptionsDB);
+        bAnyVarsOverriden = CheckForBuildVariableOverrides(VariablesDB, CmdOptionsDB);
 
-        const String Ext  = String_EatChar(GetVariableValue(ExpandedVariablesDB, S("Extension")), '.');
-        const String Type = GetVariableValue(ExpandedVariablesDB, S("Type"));
+        const String Ext  = String_EatChar(GetVariableValue(VariablesDB, S("Extension")), '.');
+        const String Type = GetVariableValue(VariablesDB, S("Type"));
 
         bool bIsAssemblyExe = Type.Length == 0 && Ext.Length == 0;
         if (bIsAssemblyExe)
@@ -3610,7 +3657,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
         }
 
         StringLocal(AssemblyNameUpper, 128);
-        String_Copy(&AssemblyNameUpper, GetVariableValue(ExpandedVariablesDB, S("Assembly")));
+        String_Copy(&AssemblyNameUpper, GetVariableValue(VariablesDB, S("Assembly")));
         xx String_ReplaceCharInline(&AssemblyNameUpper, '-', '_');
         String_ToUpper(&AssemblyNameUpper);
 
@@ -3625,8 +3672,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
         #endif
 
         // set defaults for a few key build variables
-        bool bAnyOverriden = CheckForBuildVariableOverrides(VariablesDB, ExpandedVariablesDB, CmdOptionsDB);
-        //Internal_SetDefaultBuildVariables(Arena, BuildFileHandle, VariablesDB);//, ExpandedVariablesDB);
+        bool bAnyOverriden = CheckForBuildVariableOverrides(VariablesDB, CmdOptionsDB);
+        //Internal_SetDefaultBuildVariables(Arena, BuildFileHandle, VariablesDB);//, VariablesDB);
 
         if (!bAnyVarsOverriden) { bAnyVarsOverriden = bAnyOverriden; }
 
@@ -3741,7 +3788,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
         // set defaults for a few key build variables
         FileHandle f = {0};
-        bool bAnyOverriden = CheckForBuildVariableOverrides(VariablesDB, ExpandedVariablesDB, CmdOptionsDB);
+        bool bAnyOverriden = CheckForBuildVariableOverrides(VariablesDB, CmdOptionsDB);
         Internal_SetDefaultBuildVariables(Arena, f, VariablesDB);
 
         bAnyVarsOverriden = bAnyOverriden;
@@ -3761,13 +3808,20 @@ static u32 BuildTarget(LinearAllocator* Arena,
     ////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     // build file variable listing feature. list:all or list:varname
-    // TODO: if we do this: list:somekey.   with a . at the end, then print out all keys that start with that
+    u32 ListingSuccess = 0;
+    if (Parameters_TryListVariables(*Arena, Parameters, VariablesDB, BuildFilePath, &ListingSuccess))
+    {
+        return ListingSuccess;
+    }
+
+    #if 0
     for (u8 i = 0; i < Parameters.Num; i++)
     {
         const String Arg = Parameters.List[i];
 
         if (String_StartsWith(Arg, S("list:"), false))
         {
+            // TODO: if we do this: list:somekey.   with a . at the end, then print out all keys that start with that
             u32 Colon = 0;
             if (String_IndexOfChar(Arg, ':', &Colon))
             {
@@ -3790,7 +3844,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 {
                     if (String_IsEqual(*var, S("all"), false))
                     {
-                        ListVariables(Scratch, String_Null(), ExpandedVariablesDB);
+                        ListVariables(Scratch, String_Null(), VariablesDB);
                     }
                     else
                     {
@@ -3803,7 +3857,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
                         LOG_LINE_BREAK();
 
-                        ListVariables(Scratch, *var, ExpandedVariablesDB);
+                        ListVariables(Scratch, *var, VariablesDB);
                     }
                 }
 
@@ -3817,79 +3871,80 @@ static u32 BuildTarget(LinearAllocator* Arena,
             }
         }
     }
+    #endif
 
-    const String Assembly                   = GetVariableValue(ExpandedVariablesDB, S("Assembly"));
-    const String AssemblyPrefix             = GetVariableValue(ExpandedVariablesDB, S("Assembly.Prefix"));
-    const String AssemblyPostfix            = GetVariableValue(ExpandedVariablesDB, S("Assembly.Postfix"));
-    String Extension                        = GetVariableValue(ExpandedVariablesDB, S("Extension"));
-    String Type                             = GetVariableValue(ExpandedVariablesDB, S("Type"));
+    const String Assembly                   = GetVariableValue(VariablesDB, S("Assembly"));
+    const String AssemblyPrefix             = GetVariableValue(VariablesDB, S("Assembly.Prefix"));
+    const String AssemblyPostfix            = GetVariableValue(VariablesDB, S("Assembly.Postfix"));
+    String Extension                        = GetVariableValue(VariablesDB, S("Extension"));
+    String Type                             = GetVariableValue(VariablesDB, S("Type"));
 
-    String CompilerProgram                  = GetVariableValue(ExpandedVariablesDB, S("Compiler"));
-    const String CompilerFlags              = GetVariableValue(ExpandedVariablesDB, S("Compiler.Flags"));
-    const String MaxConcurrentCompilations  = GetVariableValue(ExpandedVariablesDB, S("Compiler.MaxCores"));
-    const String CompilerOutputFlag         = GetVariableValue(ExpandedVariablesDB, S("Compiler.OutputFlag"));
-    const String CompilerObjectExt          = GetVariableValue(ExpandedVariablesDB, S("Compiler.ObjectExtension"));
+    String CompilerProgram                  = GetVariableValue(VariablesDB, S("Compiler"));
+    const String CompilerFlags              = GetVariableValue(VariablesDB, S("Compiler.Flags"));
+    const String MaxConcurrentCompilations  = GetVariableValue(VariablesDB, S("Compiler.MaxCores"));
+    const String CompilerOutputFlag         = GetVariableValue(VariablesDB, S("Compiler.OutputFlag"));
+    const String CompilerObjectExt          = GetVariableValue(VariablesDB, S("Compiler.ObjectExtension"));
     // TODO: specify a linker program
-    //String LinkerProgram                    = GetVariableValue(ExpandedVariablesDB, S("Linker"));
-    const String LinkerFlags                = GetVariableValue(ExpandedVariablesDB, S("Linker.Flags"));
-    const String LinkerDefines              = GetVariableValue(ExpandedVariablesDB, S("Linker.Defines"));
+    //String LinkerProgram                    = GetVariableValue(VariablesDB, S("Linker"));
+    const String LinkerFlags                = GetVariableValue(VariablesDB, S("Linker.Flags"));
+    const String LinkerDefines              = GetVariableValue(VariablesDB, S("Linker.Defines"));
 
-    String AsmProgram                       = GetVariableValue(ExpandedVariablesDB, S("Assembler"));
-    const String AssemblerFlags             = GetVariableValue(ExpandedVariablesDB, S("Assembler.Flags"));
-    const String AssemblerIncludes          = GetVariableValue(ExpandedVariablesDB, S("Assembler.Includes"));
-    const String AssemblerDefines           = GetVariableValue(ExpandedVariablesDB, S("Assembler.Defines"));
+    String AsmProgram                       = GetVariableValue(VariablesDB, S("Assembler"));
+    const String AssemblerFlags             = GetVariableValue(VariablesDB, S("Assembler.Flags"));
+    const String AssemblerIncludes          = GetVariableValue(VariablesDB, S("Assembler.Includes"));
+    const String AssemblerDefines           = GetVariableValue(VariablesDB, S("Assembler.Defines"));
 
-    // String AsmProgram                       = GetVariableValue(ExpandedVariablesDB, S("Archiver"));
-    // const String AssemblerFlags             = GetVariableValue(ExpandedVariablesDB, S("Archiver.Flags"));
+    // String AsmProgram                       = GetVariableValue(VariablesDB, S("Archiver"));
+    // const String AssemblerFlags             = GetVariableValue(VariablesDB, S("Archiver.Flags"));
 
     String CompilerFlagPrefixSymbol         = S("-");
-    const String Defines                    = GetVariableValue(ExpandedVariablesDB, S("Defines"));
-    const String UnDefines                  = GetVariableValue(ExpandedVariablesDB, S("UnDefines"));
-    String IncludeFlags                     = GetVariableValue(ExpandedVariablesDB, S("Includes"));
-    const String Libraries                  = GetVariableValue(ExpandedVariablesDB, S("Libraries"));
-    String LibraryDirectories               = GetVariableValue(ExpandedVariablesDB, S("Library.Paths"));
-    const String AssertCompilers            = GetVariableValue(ExpandedVariablesDB, S("Assert.Compiler"));
-    const String AssertAssemblers           = GetVariableValue(ExpandedVariablesDB, S("Assert.Assembler"));
-    const String AssertEnvVars              = GetVariableValue(ExpandedVariablesDB, S("Assert.EnvVarExists"));
-    const String AssertBuildVars            = GetVariableValue(ExpandedVariablesDB, S("Assert.BuildVarExists"));
+    const String Defines                    = GetVariableValue(VariablesDB, S("Defines"));
+    const String UnDefines                  = GetVariableValue(VariablesDB, S("UnDefines"));
+    String IncludeFlags                     = GetVariableValue(VariablesDB, S("Includes"));
+    const String Libraries                  = GetVariableValue(VariablesDB, S("Libraries"));
+    String LibraryDirectories               = GetVariableValue(VariablesDB, S("Library.Paths"));
+    const String AssertCompilers            = GetVariableValue(VariablesDB, S("Assert.Compiler"));
+    const String AssertAssemblers           = GetVariableValue(VariablesDB, S("Assert.Assembler"));
+    const String AssertEnvVars              = GetVariableValue(VariablesDB, S("Assert.EnvVarExists"));
+    const String AssertBuildVars            = GetVariableValue(VariablesDB, S("Assert.BuildVarExists"));
     // TODO: delete
-    String IncludedSourceFiles              = GetVariableValue(ExpandedVariablesDB, S("SourceFiles"));
-    String ExcludedSourceFiles              = GetVariableValue(ExpandedVariablesDB, S("SourceFiles.Exclude"));
-    String IncludedSourceDir                = GetVariableValue(ExpandedVariablesDB, S("SourceDirectories"));
-    const String ExcludedSourceDir          = GetVariableValue(ExpandedVariablesDB, S("SourceDirectories.Exclude"));
-    String Icon                             = GetVariableValue(ExpandedVariablesDB, S("Icon"));
-    const String PCHPath                    = GetVariableValue(ExpandedVariablesDB, S("PCH"));
-    const String PCHHeaderPath              = GetVariableValue(ExpandedVariablesDB, S("PCH.h"));
-    const String RPath                      = GetVariableValue(ExpandedVariablesDB, S(".RPath"));
+    String IncludedSourceFiles              = GetVariableValue(VariablesDB, S("SourceFiles"));
+    String ExcludedSourceFiles              = GetVariableValue(VariablesDB, S("SourceFiles.Exclude"));
+    String IncludedSourceDir                = GetVariableValue(VariablesDB, S("SourceDirectories"));
+    const String ExcludedSourceDir          = GetVariableValue(VariablesDB, S("SourceDirectories.Exclude"));
+    String Icon                             = GetVariableValue(VariablesDB, S("Icon"));
+    const String PCHPath                    = GetVariableValue(VariablesDB, S("PCH"));
+    const String PCHHeaderPath              = GetVariableValue(VariablesDB, S("PCH.h"));
+    const String RPath                      = GetVariableValue(VariablesDB, S(".RPath"));
 
     #if PLATFORM_APPLE
-    const String CustomInfoPlist            = GetVariableValue(ExpandedVariablesDB, S("Bundle.InfoPlist"));
-    const String CustomVersionPlist         = GetVariableValue(ExpandedVariablesDB, S("Bundle.VersionPlist"));
-    const String CustomPkgInfo              = GetVariableValue(ExpandedVariablesDB, S("Bundle.PkgInfo"));
+    const String CustomInfoPlist            = GetVariableValue(VariablesDB, S("Bundle.InfoPlist"));
+    const String CustomVersionPlist         = GetVariableValue(VariablesDB, S("Bundle.VersionPlist"));
+    const String CustomPkgInfo              = GetVariableValue(VariablesDB, S("Bundle.PkgInfo"));
     #endif
 
-    const String TitleName                  = GetVariableValue(ExpandedVariablesDB, S("TitleName"));
-    const String InternalName               = GetVariableValue(ExpandedVariablesDB, S("InternalName"));
-    const String Description                = GetVariableValue(ExpandedVariablesDB, S("Description"));
-    const String CompanyName                = GetVariableValue(ExpandedVariablesDB, S("CompanyName"));
-    const String Copyright                  = GetVariableValue(ExpandedVariablesDB, S("Copyright"));
+    const String TitleName                  = GetVariableValue(VariablesDB, S("TitleName"));
+    const String InternalName               = GetVariableValue(VariablesDB, S("InternalName"));
+    const String Description                = GetVariableValue(VariablesDB, S("Description"));
+    const String CompanyName                = GetVariableValue(VariablesDB, S("CompanyName"));
+    const String Copyright                  = GetVariableValue(VariablesDB, S("Copyright"));
 
-    String Version                          = GetVariableValue(ExpandedVariablesDB, S("Version"));
+    String Version                          = GetVariableValue(VariablesDB, S("Version"));
 
-    //const bool bNoRebuildOnDependencyChange = String_ToBool(GetVariableValue(ExpandedVariablesDB, S("NoRebuildOnDependencyChange")));
+    //const bool bNoRebuildOnDependencyChange = String_ToBool(GetVariableValue(VariablesDB, S("NoRebuildOnDependencyChange")));
     // todo: run pre build?
-    const bool bRunPostBuildWhenWorkWasDone = String_ToBool(GetVariableValue(ExpandedVariablesDB, S(".OnlyRunPostBuildOnChange")));
+    const bool bRunPostBuildWhenWorkWasDone = String_ToBool(GetVariableValue(VariablesDB, S(".OnlyRunPostBuildOnChange")));
 
     #if PLATFORM_APPLE
-    const bool bBundleApp                   = DoesBuildVarExist(ExpandedVariablesDB, S("Bundle"));
-    const bool bBundleAppIsTerminal         = DoesBuildVarExist(ExpandedVariablesDB, S("Bundle.IsTerminal"));
+    const bool bBundleApp                   = DoesBuildVarExist(VariablesDB, S("Bundle"));
+    const bool bBundleAppIsTerminal         = DoesBuildVarExist(VariablesDB, S("Bundle.IsTerminal"));
     #endif
 
-    String LinkerEntryPoint                 = GetVariableValue(ExpandedVariablesDB, S("Linker.EntryPoint"));
-    String LinkerSubsystem                  = GetVariableValue(ExpandedVariablesDB, S("Linker.Subsystem"));
-    String LinkerStack                      = GetVariableValue(ExpandedVariablesDB, S("Linker.Stack"));
-    const bool bLinkerNoStd                 = DoesBuildVarExist(ExpandedVariablesDB, S("Linker.NoStdLib"));
-    const bool bLinkerNoDefaultLibs         = DoesBuildVarExist(ExpandedVariablesDB, S("Linker.NoDefaultLibs"));
+    String LinkerEntryPoint                 = GetVariableValue(VariablesDB, S("Linker.EntryPoint"));
+    String LinkerSubsystem                  = GetVariableValue(VariablesDB, S("Linker.Subsystem"));
+    String LinkerStack                      = GetVariableValue(VariablesDB, S("Linker.Stack"));
+    const bool bLinkerNoStd                 = DoesBuildVarExist(VariablesDB, S("Linker.NoStdLib"));
+    const bool bLinkerNoDefaultLibs         = DoesBuildVarExist(VariablesDB, S("Linker.NoDefaultLibs"));
 
     #ifndef HOOD
     LOG("Timestamp:         %S\n", TimeStamp);
@@ -4715,7 +4770,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 LOG_ERROR("yo dis compiler program \"%S\" cant be used cuh", CompilerProgram);
                 #endif
 
-                if (LogCustomErrorMessage(ExpandedVariablesDB, S("Compiler"), CompilerProgram, true))
+                if (LogCustomErrorMessage(VariablesDB, S("Compiler"), CompilerProgram, true))
                 {
                     LOG_LINE_BREAK();
                 }
@@ -4739,7 +4794,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 LOG_ERROR("yo da environment var \"%S\" don exist cuh. need to be setup n' shit ma nigga\n", Trimmed);
                 #endif
 
-                if (LogCustomErrorMessage(ExpandedVariablesDB, S("Env"), Trimmed, false))
+                if (LogCustomErrorMessage(VariablesDB, S("Env"), Trimmed, false))
                 {
                     LOG_LINE_BREAK();
                 }
@@ -4798,7 +4853,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     // TODO: time this
     if (!bExportingSomething)
     {
-        if (!TryRunBuildCommands(S("PreDepend"), WorkingPath, ExpandedVariablesDB, NULL))
+        if (!TryRunBuildCommands(S("PreDepend"), WorkingPath, VariablesDB, NULL))
         {
             return 1;
         }
@@ -4815,7 +4870,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
         SArray(FileVariable*, Depends, 256) = {0};
 
         bool bRanAnyDependencies = false;
-        for each (FileVariable, Var, ExpandedVariablesDB)
+        for each (FileVariable, Var, VariablesDB)
         {
             if (String_IsEqual(Var.Name, S("Depend"), false) ||
                 String_IsEqual(Var.Name, S("Depends"), false))
@@ -5069,7 +5124,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
     if (!bExportingSomething)
     {
-        if (!TryRunBuildCommands(S("PreBuild"), WorkingPath, ExpandedVariablesDB, NULL))
+        if (!TryRunBuildCommands(S("PreBuild"), WorkingPath, VariablesDB, NULL))
         {
             return 1;
         }
@@ -5178,7 +5233,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 LOG_ERROR("cant find this library nigga \"%S\". i searched fuckin everywhere bro\n", TrimmedCopy);
                 #endif
 
-                if (LogCustomErrorMessage(ExpandedVariablesDB, S("Lib"), TrimmedCopy, false))
+                if (LogCustomErrorMessage(VariablesDB, S("Lib"), TrimmedCopy, false))
                 {
                     LOG_LINE_BREAK();
                 }
@@ -5227,9 +5282,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
         */
     }
 
-    String SourceDirectory       = GetVariableValue(ExpandedVariablesDB, S("SourceDirectory"));
-    String BuildDirectory        = GetVariableValue(ExpandedVariablesDB, S("BuildDirectory"));
-    String IntermediateDirectory = GetVariableValue(ExpandedVariablesDB, S("IntermediateDirectory"));
+    String SourceDirectory       = GetVariableValue(VariablesDB, S("SourceDirectory"));
+    String BuildDirectory        = GetVariableValue(VariablesDB, S("BuildDirectory"));
+    String IntermediateDirectory = GetVariableValue(VariablesDB, S("IntermediateDirectory"));
 
     String_ConvertSlashToPlatformSlash(&SourceDirectory);
     String_ConvertSlashToPlatformSlash(&IntermediateDirectory);
@@ -5369,7 +5424,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
     StringList BlacklistDirArray = String_SplitIntoList(Arena, ExcludedSourceDir, ' ', true);
 
     // any custom source files?
-    StringList CustomExtensionsList;
+    // TODO: verify if this doesnt cause any problems
+    StringList CustomExtensionsList = {0};
+    if (AssemblyType == AssemblyType_CustomCompilerObject)
     {
         StringLocal(SourceFileExtensions, 128);
         for each_str_list (WhitelistArray)
@@ -5762,7 +5819,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                     LOG_ERROR("yo dis assembler program \"%S\" cant be used cuh", AsmProgram);
                     #endif
 
-                    if (LogCustomErrorMessage(ExpandedVariablesDB, S("Assembler"), AsmProgram, true))
+                    if (LogCustomErrorMessage(VariablesDB, S("Assembler"), AsmProgram, true))
                     {
                         LOG_LINE_BREAK();
                     }
@@ -6329,7 +6386,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
             String_AppendChar(&Buffer, '\n');
 
             u32 LongestName = 4;
-            for each (FileVariable, v, ExpandedVariablesDB)
+            for each (FileVariable, v, VariablesDB)
             {
                 u32 Length = v.Name.Length;
                 if (Length > LongestName)
@@ -6338,7 +6395,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 }
             }
 
-            for each (FileVariable, v, ExpandedVariablesDB)
+            for each (FileVariable, v, VariablesDB)
             {
                 Spaces.Length = (LongestName - v.Name.Length) + 1; // +1 for extra space
 
@@ -6451,6 +6508,10 @@ static u32 BuildTarget(LinearAllocator* Arena,
     #else
     xx bExplicitAsmPath;
     #endif
+
+    StringLocal(IconFilePath, MAX_PATH_LENGTH);
+    StringLocal(IconResFilePath, MAX_PATH_LENGTH);
+    StringLocal(VersionResFilePath, MAX_PATH_LENGTH);
 
     StringLocal(ExpandedIncludeFlags, 4096);
     StringLocal(ExpandedLibraries, 2048);
@@ -6669,7 +6730,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                     return 1;
                 }
 
-                if (!Export_FromArg(*Arena, &p, VarToList, ExpandedVariablesDB))
+                if (!Export_FromArg(*Arena, &p, VarToList, VariablesDB))
                 {
                     return 1;
                 }
@@ -6681,7 +6742,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
     // enforce copyright in all source files
     {
-        const FileVariable CopyrightVar = GetVariable(ExpandedVariablesDB, S("Copyright"));
+        const FileVariable CopyrightVar = GetVariable(VariablesDB, S("Copyright"));
         if (CopyrightVar.Value.Length)
         {
             LinearAllocator Scratch = *Arena;
@@ -6754,15 +6815,15 @@ static u32 BuildTarget(LinearAllocator* Arena,
     
     // generate a license file in the same directory as the .build file
     {
-        const FileVariable LicenseVar = GetVariable(ExpandedVariablesDB, S("License"));
+        const FileVariable LicenseVar = GetVariable(VariablesDB, S("License"));
         if (LicenseVar.Value.Length)
         {
             LinearAllocator Scratch = *Arena;
             StringList ParamList = String_SplitIntoList(&Scratch, LicenseVar.Params, ' ', false);
             if (StringList_FindIndex(ParamList, S("generate"), false, StringCompare_Equal, NULL))
             {
-                const String CustomLicensePath = GetVariableValue(ExpandedVariablesDB, S("License.Path"));
-                const String CustomLicenseFileName = GetVariableValue(ExpandedVariablesDB, S("License.FileName"));
+                const String CustomLicensePath = GetVariableValue(VariablesDB, S("License.Path"));
+                const String CustomLicenseFileName = GetVariableValue(VariablesDB, S("License.FileName"));
 
                 String LicenseFileName = S("LICENSE");
                 if (String_IsValid(CustomLicenseFileName))
@@ -6831,7 +6892,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     Clock_Start(&ExternalClock);
 
     // precompile step
-    if (!TryRunBuildCommands(S("PreCompile"), WorkingPath, ExpandedVariablesDB, &ExternalClock))
+    if (!TryRunBuildCommands(S("PreCompile"), WorkingPath, VariablesDB, &ExternalClock))
     {
         return 1;
     }
@@ -6861,14 +6922,14 @@ static u32 BuildTarget(LinearAllocator* Arena,
         {
             struct Data
             {
-                TArray(FileVariable) ExpandedVarsArray;
+                TArray(FileVariable) VariablesDB;
                 String* IconFilePath;
                 bool bSuccess;
                 u8 Padding[7];
             };
 
             struct Data d = {0};
-            d.ExpandedVarsArray = ExpandedVariablesDB;
+            d.VariablesDB = VariablesDB;
             d.IconFilePath = &IconFilePath;
             d.bSuccess = false;
 
@@ -7064,7 +7125,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     LOG_LINE_BREAK();
 
     // postcompile step
-    if (!TryRunBuildCommands(S("PostCompile"), WorkingPath, ExpandedVariablesDB, &ExternalClock))
+    if (!TryRunBuildCommands(S("PostCompile"), WorkingPath, VariablesDB, &ExternalClock))
     {
         return 1;
     }
@@ -7074,7 +7135,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     // prelink step
     if (AssemblyType != AssemblyType_CustomCompilerObject)
     {
-        if (!TryRunBuildCommands(S("PreLink"), WorkingPath, ExpandedVariablesDB, &ExternalClock))
+        if (!TryRunBuildCommands(S("PreLink"), WorkingPath, VariablesDB, &ExternalClock))
         {
             return 1;
         }
@@ -7099,7 +7160,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
         }
 
         // postlink step
-        if (!TryRunBuildCommands(S("PostLink"), WorkingPath, ExpandedVariablesDB, &ExternalClock))
+        if (!TryRunBuildCommands(S("PostLink"), WorkingPath, VariablesDB, &ExternalClock))
         {
             return 1;
         }
@@ -7257,7 +7318,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
             // generate Info.plist
             if (bVerboseLog) { LOG("    Generating %S", ResourcePath); }
 
-            if (!Export_InfoPlist(*Arena, &p, ResourcePath, ExpandedVariablesDB, DoesBuildVarExist(ExpandedVariablesDB, S("Info.plist"))))
+            if (!Export_InfoPlist(*Arena, &p, ResourcePath, VariablesDB, DoesBuildVarExist(VariablesDB, S("Info.plist"))))
             {
                 return 1;
             }
@@ -7289,7 +7350,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
             if (bVerboseLog) { LOG("    Generating %S", ResourcePath); }
 
-            if (!Export_VersionPlist(*Arena, &p, ResourcePath, ExpandedVariablesDB, DoesBuildVarExist(ExpandedVariablesDB, S("Version.plist"))))
+            if (!Export_VersionPlist(*Arena, &p, ResourcePath, VariablesDB, DoesBuildVarExist(VariablesDB, S("Version.plist"))))
             {
                 return 1;
             }
@@ -7948,7 +8009,7 @@ PostBuild:
     if (bQuietBuild) { Logging_Enable(); }
 
     // TODO: test under the condition of when we're cleaning
-    if (!TryRunBuildCommands(S("PostBuild"), WorkingPath, ExpandedVariablesDB, NULL))
+    if (!TryRunBuildCommands(S("PostBuild"), WorkingPath, VariablesDB, NULL))
     {
         return 1;
     }
@@ -7965,7 +8026,7 @@ End:
             Internal_RunAssembly(*Arena, WorkingPath, BuildBaseDirectory, AssemblyNameWithExt, String_Null());
         }
 
-        for each (FileVariable, v, ExpandedVariablesDB)
+        for each (FileVariable, v, VariablesDB)
         {
             if (String_IsEqual(v.Name, S(".Run"), false))
             {
@@ -8743,6 +8804,7 @@ static void InitInternalVars(LinearAllocator* Arena)
     // dynamically add one from /etc/os-release or /usr/lib/os-release
     //AddInternalVariable(, String_Null());
 
+    // TODO: get rid of these macros, detect at runtime
     #if PLATFORM_LINUX_GNOME
     AddInternalVariable(S("GNOME"),               String_Null());
     AddInternalVariable(S("_DesktopEnvironment"), S("GNOME"));
@@ -8787,6 +8849,7 @@ static void InitInternalVars(LinearAllocator* Arena)
     AddInternalVariable(S("_NativeLibs"), LinuxLibs);
     #endif
 
+    // TODO: support --arch:value
     AddInternalVariable(S("_Arch"), S(CPU_ARCHITECTURE_STRING));
     
     #if PLATFORM_64_BIT
