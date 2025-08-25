@@ -26,7 +26,7 @@ Writing a .build file is simple. It almost has no syntax.
 Compiler clang # or gcc/cl or specify an absolute or relative path to your C compiler
 
 Assembly SomeName
-Extension exe # or dll/lib/a/so/dylib/elf or replace this line with Type app or lib
+Extension exe # or dll/lib/a/so/dylib/elf or replace this line with -> Type app or lib
 
 # below are optional but you can edit them for your project's needs
 # these directories are relative to where you run "riftbuild" from
@@ -35,14 +35,14 @@ BuildDirectory        bin # default value is Build
 IntermediateDirectory int # default value is Intermediate
 
 # fill in/replace the following below for your program/project
-CompilerFlags         -std=c11 -O2 etc.
-LinkerFlags           -fsomeflag etc.
+Compiler.Flags        -std=c11 -O2 etc.
+Linker.Flags          -fsomeflag etc.
 
 # notice how you don't need to prefix with -D, -L or -I!
 Defines               MAX_STUFF=5 SOME_DEFINE etc.
 Includes              path/to/include-dir thirdparty/dir etc.
 Libraries             somelib opengl32 etc.
-LibraryDirectories    path/to/lib/dir another/dir etc.
+Library.Paths         path/to/lib/dir another/dir etc.
 ```
 
 ---
