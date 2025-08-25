@@ -2713,36 +2713,38 @@ static void ExpandPathFlags(LinearAllocator Scratch, String* Dest, const String 
     for each_str_list (List)
     {
         StringLocal(SearchDir, MAX_PATH_LENGTH);
+        StringLocal(AfterStar, MAX_PATH_LENGTH);
 
         bool bWildcard = false;
         bool bRecursive = false;
-        if (String_EndsWith(It.String, S("**"), false))
+        u32 Star = 0;
+        if (String_IndexOfChar(It.String, '*', &Star))
         {
-            String_Copy(&SearchDir, StrSlice(It.String.Data, It.String.Length-2));
-            xx String_EatPathSeparatorsInlineFromEnd(&SearchDir);
-            bRecursive = true;
             bWildcard = true;
+
+            u32 Offset = Star+1;
+            if (String_GetCharFromIndex(It.String, Offset) == '*')
+            {
+                Offset += 1;
+                bRecursive = true;
+            }
+
+            String_Copy(&SearchDir, StrSlice(It.String.Data, Star));
+            String_Copy(&AfterStar, StrShiftF(It.String, Offset));
         }
-        else if (String_EndsWith(It.String, S("*"), false))
-        {
-            String_Copy(&SearchDir, StrSlice(It.String.Data, It.String.Length-1));
-            xx String_EatPathSeparatorsInlineFromEnd(&SearchDir);
-            bWildcard = true;
-        }
-        else
-        {
-            // no action required
-        }
+
+        xx String_EatPathSeparatorsInlineFromEnd(&SearchDir);
 
         if (bWildcard)
         {
             STRUCT(PathIterData)
             {
                 String BaseDirectory;
+                String Postfix;
                 String* Flags;
             };
             
-            PathIterData Data = { SearchDir, &WildcardFlags };
+            PathIterData Data = { SearchDir, AfterStar, &WildcardFlags };
 
             Filesystem_IterateDirectory_Ex(SearchDir, &PathFlagDirectoryIterator, bRecursive, &Data);
         }
