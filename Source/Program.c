@@ -1127,14 +1127,15 @@ static bool PathFlagDirectoryIterator(const String FullPath, const String Relati
         STRUCT(PathIterData)
         {
             String BaseDirectory;
+            String Postfix;
             String* Flags;
         };
 
         PathIterData* Data = UserData;
 
         String_Append(Data->Flags, Data->BaseDirectory);
-        String_AppendPathSeparator(Data->Flags);
-        String_Append(Data->Flags, RelativePath);
+        String_BuildPath(Data->Flags, RelativePath, Data->Postfix);
+        xx String_EatSpacesInlineFromEnd(Data->Flags);
         String_AppendSpace(Data->Flags);
     }
 
