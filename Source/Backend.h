@@ -7,7 +7,7 @@
 #endif
 
 #define MAX_KEY_LENGTH 64
-#define MAX_VALUE_LENGTH 8192
+// #define MAX_VALUE_LENGTH Kibibytes(12)
 #define MAX_META_KEY_LENGTH 64
 
 global bool bQuietBuild;
@@ -46,6 +46,7 @@ STRUCT(SourceFileData)
 
 STRUCT(SourceCountData)
 {
+    u64 AssemblyFileTime;
     u32 NumSources;
     u32 NumAsmSources;
     u32 NumHeaders;
@@ -323,13 +324,15 @@ void AddVariable(LinearAllocator* Arena,
                 TArray(FileVariable) VariablesDB,
                 const String Name,
                 const String Value,
-                const String Params);
+                const String Params,
+                u32 MaxValueLength);
 
 void AddOrAppendVariable(LinearAllocator* Arena,
                         TArray(FileVariable) VariablesDB,
                         const String Name,
                         const String Value,
-                        const String Params);
+                        const String Params,
+                        u32 MaxValueLength);
 
 void AddCmdOption(TArray(CmdOption)* CmdOptionsDB, const String Name, const String Value);
 void AddInternalVariable(const String Name, const String Value);

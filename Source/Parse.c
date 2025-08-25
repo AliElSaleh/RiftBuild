@@ -21,13 +21,13 @@ void AddVariable(LinearAllocator* Arena,
                 TArray(FileVariable) VariablesDB,
                 const String Name,
                 const String Value,
-                const String Params)
+                const String Params,
+                u32 MaxValueLength)
 {
     FileVariable var;
     var.Params       = String_Create(Arena, Params);
     var.Name         = String_CreateMax(Arena, Name, MAX_KEY_LENGTH);
-    // always reserve a fixed limited size so we can append or override if needed
-    var.Value        = String_ReserveAndCopy(Arena, MAX_VALUE_LENGTH, Value);
+    var.Value        = String_ReserveAndCopy(Arena, MaxValueLength, Value);
 
     // todo: can be made static?
     Array_Add(VariablesDB, var);
@@ -37,7 +37,8 @@ void AddOrAppendVariable(LinearAllocator* Arena,
                         TArray(FileVariable) VariablesDB,
                         const String Name,
                         const String Value,
-                        const String Params)
+                        const String Params,
+                        u32 MaxValueLength)
 {
     FileVariable* Ref = NULL;
     for each (FileVariable, v, VariablesDB)
@@ -58,7 +59,7 @@ void AddOrAppendVariable(LinearAllocator* Arena,
     }
     else
     {
-        AddVariable(Arena, VariablesDB, Name, Value, Params);
+        AddVariable(Arena, VariablesDB, Name, Value, Params, MaxValueLength);
     }
 }
 
@@ -145,7 +146,7 @@ static void AddVariableToList(LinearAllocator* Arena, ParsingContext* Context, c
     SLinkedList_Push(Context->VarListTail, FileVariableList_Create(Arena, var));
 }
 
-ENUM_TYPED(ETokenType, u32)
+ENUM_T(ETokenType, u32)
 {
     Token_None = 0,
 
@@ -202,7 +203,7 @@ ENUM_TYPED(ETokenType, u32)
     Token_Max
 };
 
-#define MAX_TOKENS        2048
+#define MAX_TOKENS        4096
 #define Token_Char_Not    '!'
 #define Token_Char_At     '@'
 #define Token_Char_Mod    '%'
@@ -338,7 +339,7 @@ STRUCT(Lexer)
     ETokenType Type;
 };
 
-ENUM_TYPED(ENodeType, u32)
+ENUM_T(ENodeType, u32)
 {
     Node_None,
     Node_Block,
@@ -474,17 +475,80 @@ static KeywordTableEntry ReservedEndingKeywordsTable[1] =
     { .Type = Token_ErrorMessage, .Name = SC(".ErrorMessage")},
 };
 
-/*
-static String ReservedKeys[] =
+STRUCT(ReservedKeyTable)
 {
-    SC("Compiler"),
+    String Key;
+    u32    MaxValueLength;
+    u32    Padding;
 };
 
-static ETokenType DisallowedInIfElseBlock[1] =
+static ReservedKeyTable ReservedKeys[] =
 {
-    Token_Help,
+    { .Key = SC("Assembly"),                  .MaxValueLength = 256 },
+    { .Key = SC("Assembly.Prefix"),           .MaxValueLength = 128 },
+    { .Key = SC("Assembly.Postfix"),          .MaxValueLength = 128 },
+    { .Key = SC("Extension"),                 .MaxValueLength = 64 },
+    { .Key = SC("Type"),                      .MaxValueLength = 64 },
+    { .Key = SC("SourceDirectory"),           .MaxValueLength = 256 },
+    { .Key = SC("BuildDirectory"),            .MaxValueLength = 256 },
+    { .Key = SC("IntermediateDirectory"),     .MaxValueLength = 256 },
+    { .Key = SC("Compiler"),                  .MaxValueLength = 256 },
+    { .Key = SC("Compiler.Flags"),            .MaxValueLength = 4096 },
+    { .Key = SC("Compiler.MaxCores"),         .MaxValueLength = 16 },
+    { .Key = SC("Compiler.OutputFlag"),       .MaxValueLength = 16 },
+    { .Key = SC("Compiler.ObjectExtension"),  .MaxValueLength = 32 },
+    { .Key = SC("Linker"),                    .MaxValueLength = 256 },
+    { .Key = SC("Linker.Flags"),              .MaxValueLength = 8192 },
+    { .Key = SC("Linker.Defines"),            .MaxValueLength = 4096 },
+    { .Key = SC("Linker.EntryPoint"),         .MaxValueLength = 256 },
+    { .Key = SC("Linker.Subsystem"),          .MaxValueLength = 128 },
+    { .Key = SC("Linker.Stack"),              .MaxValueLength = 64 },
+    { .Key = SC("Linker.NoStdLib"),           .MaxValueLength = 0 },
+    { .Key = SC("Linker.NoDefaultLibs"),      .MaxValueLength = 0 },
+    { .Key = SC("Assembler"),                 .MaxValueLength = 256 },
+    { .Key = SC("Assembler.Flags"),           .MaxValueLength = 4096 },
+    { .Key = SC("Assembler.Includes"),        .MaxValueLength = 8192 },
+    { .Key = SC("Assembler.Defines"),         .MaxValueLength = 4096 },
+    { .Key = SC("Archiver"),                  .MaxValueLength = 256 },
+    { .Key = SC("Archiver.Flags"),            .MaxValueLength = 4096 },
+    { .Key = SC("Defines"),                   .MaxValueLength = 8192 },
+    { .Key = SC("UnDefines"),                 .MaxValueLength = 2048 },
+    { .Key = SC("Includes"),                  .MaxValueLength = 8192 },
+    { .Key = SC("Libraries"),                 .MaxValueLength = 2048 },
+    { .Key = SC("Library.Paths"),             .MaxValueLength = 8192 },
+    { .Key = SC("SourceFiles"),               .MaxValueLength = 32767 },
+    { .Key = SC("SourceFiles.Exclude"),       .MaxValueLength = 8192 },
+    { .Key = SC("SourceDirectories"),         .MaxValueLength = 8192 },
+    { .Key = SC("SourceDirectories.Exclude"), .MaxValueLength = 8192 },
+    { .Key = SC("Icon"),                      .MaxValueLength = 256 },
+    { .Key = SC("PCH"),                       .MaxValueLength = 256 },
+    { .Key = SC("PCH.h"),                     .MaxValueLength = 256 },
+    { .Key = SC("Bundle"),                    .MaxValueLength = 0 },
+    { .Key = SC("Bundle.IsTerminal"),         .MaxValueLength = 0 },
+    { .Key = SC("Bundle.InfoPlist"),          .MaxValueLength = 256 },
+    { .Key = SC("Bundle.VersionPlist"),       .MaxValueLength = 256 },
+    { .Key = SC("Bundle.PkgInfo"),            .MaxValueLength = 256 },
+    { .Key = SC("Info.plist"),                .MaxValueLength = 8192 },
+    { .Key = SC("Version.plist"),             .MaxValueLength = 8192 },
+    { .Key = SC("TitleName"),                 .MaxValueLength = 1024 },
+    { .Key = SC("InternalName"),              .MaxValueLength = 256 },
+    { .Key = SC("Description"),               .MaxValueLength = 1024 },
+    { .Key = SC("CompanyName"),               .MaxValueLength = 128 },
+    { .Key = SC("Copyright"),                 .MaxValueLength = 256 },
+    { .Key = SC("Version"),                   .MaxValueLength = 256 },
+    { .Key = SC("License"),                   .MaxValueLength = 128 },
+    { .Key = SC("License.Path"),              .MaxValueLength = 256 },
+    { .Key = SC("License.FileName"),          .MaxValueLength = 128 },
+    { .Key = SC("AlwaysRebuild"),             .MaxValueLength = 0 },
+    { .Key = SC("AlwaysRebuildAll"),          .MaxValueLength = 0 },
+    { .Key = SC("PreDepend"),                 .MaxValueLength = 256 },
+    { .Key = SC("PreBuild"),                  .MaxValueLength = 256 },
+    { .Key = SC("PostBuild"),                 .MaxValueLength = 256 },
+    { .Key = SC("PreCompile"),                .MaxValueLength = 256 },
+    { .Key = SC("PostCompile"),               .MaxValueLength = 256 },
+    { .Key = SC("PreLink"),                   .MaxValueLength = 256 },
+    { .Key = SC("PostLink"),                  .MaxValueLength = 256 },
 };
-*/
 
 STRUCT(DeferredKVData)
 {
@@ -2448,11 +2512,11 @@ NO_DISCARD static NodeList* Analyze_IncludeNode(LinearAllocator* Arena, Node* Ro
     NodeList* IndeterminateList = NULL;
     NodeList** IndeterminateNext = &IndeterminateList;
 
-    StringLocal(Expanded, MAX_VALUE_LENGTH);
+    StringLocal(Expanded, MAX_PATH_LENGTH);
 
     if (Root->Value)
     {
-        StringLocal(Val, MAX_VALUE_LENGTH);
+        StringLocal(Val, MAX_PATH_LENGTH);
         for each_string_in_list (*Root->Value)
         {
             String_Append(&Val, It.String);
@@ -2608,8 +2672,8 @@ NO_DISCARD static NodeList* Analyze_IncludeNode(LinearAllocator* Arena, Node* Ro
 static void Analyze_KVNode(LinearAllocator* Arena, Node* Root, ParsingContext* Context)
 {
     StringLocal(FinalKey, MAX_KEY_LENGTH);
-    StringLocal(Val, MAX_VALUE_LENGTH);
-    StringLocal(Params, MAX_META_KEY_LENGTH);
+    StringLocal(Val,      Kibibytes(32));
+    StringLocal(Params,   MAX_META_KEY_LENGTH);
 
     // this is a namespace basically
     // SomeKey {
@@ -2664,8 +2728,8 @@ static void Analyze_KVNode(LinearAllocator* Arena, Node* Root, ParsingContext* C
     if (String_IsEqual(FinalKey, S("default.options"), false))// && !Context->bIgnoreDefaultOptions) // this is a bad idea. TODO: revisit
     {
         LinearAllocator Scratch = {0};
-        i8 ScratchMemory[MAX_VALUE_LENGTH] = {0};
-        LinearAllocator_Create(MAX_VALUE_LENGTH, ScratchMemory, &Scratch);
+        i8 ScratchMemory[1024] = {0};
+        LinearAllocator_Create(1024, ScratchMemory, &Scratch);
 
         StringList List = String_SplitIntoList(&Scratch, Val, ' ', true);
         for each_string_in_list (List)
@@ -3373,7 +3437,7 @@ static bool Internal_LogCustomErrorMessage(ParsingContext* Context, const String
                    (String_IsEqual(*k, Key, false) &&
                    (ContextKey.Length == 0 || String_StartsWith(Var.Name, ContextKey, false))))
                 {
-                    StringLocal(Expanded, MAX_VALUE_LENGTH);
+                    StringLocal(Expanded, 1024);
                     xx ExpandBuildVariable(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, Var.Name, Var.Value, Var.Name, Context->WorkingDirectory, false, false, NULL);
 
                     LOG("%S", Expanded);
@@ -3776,7 +3840,7 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
             else if (String_IsEqual(Var.Name, S("Assert.Program"), false))
             {
                 // expand them here
-                StringLocal(Expanded, MAX_VALUE_LENGTH);
+                StringLocal(Expanded, 512);
                 xx ExpandBuildVariable(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, Var.Name, Var.Value, Var.Name, Context->WorkingDirectory, false, false, NULL);
 
                 StringArray ProgramsArray = String_ParseIntoArray(&Scratch, Expanded, ' ', 0, 128);
@@ -4201,6 +4265,8 @@ NO_DISCARD bool ParseBuildFile(LinearAllocator* PermanentArena,
                 continue;
             }
 
+            u32 MaxValueLength = 1024;
+            bool bStoreInDB = false;
             bool bExcludeFromConcat = false;
             {
                 local_persist const String ConcatExclusions[11] =
@@ -4224,27 +4290,44 @@ NO_DISCARD bool ParseBuildFile(LinearAllocator* PermanentArena,
                         String_StartsWith(Var.Name, S("."), false))
                     {
                         bExcludeFromConcat = true;
+                        bStoreInDB = true;
                         break;
                     }
                 }
             }
 
-            StringLocal(Expanded, MAX_VALUE_LENGTH);
-            xx ExpandBuildVariable(*Context.TempArena, Context.VarListHead, Context.CmdOptionsDB, &Expanded, Var.Name, Var.Value, Var.Name, Context.WorkingDirectory, false, false, NULL);
-
-            if (bExcludeFromConcat)
+            // only store known keys
+            for EachE(i, ReservedKeys)
             {
-                AddVariable(PermanentArena, Context.VariablesDB, Var.Name, Expanded, Var.Params);
+                String Key = ReservedKeys[i].Key;
+                if (String_IsEqual(Var.Name, Key, false))
+                {
+                    MaxValueLength = ReservedKeys[i].MaxValueLength;
+                    bStoreInDB = true;
+                    break;
+                }
             }
-            else
+
+            if (bStoreInDB)
             {
-                AddOrAppendVariable(PermanentArena, Context.VariablesDB, Var.Name, Expanded, Var.Params);
+                LinearAllocator Scratch = *Context.TempArena;
+                String Expanded = String_Reserve(&Scratch, MaxValueLength);
+                xx ExpandBuildVariable(Scratch, Context.VarListHead, Context.CmdOptionsDB, &Expanded, Var.Name, Var.Value, Var.Name, Context.WorkingDirectory, false, false, NULL);
+
+                if (bExcludeFromConcat)
+                {
+                    AddVariable(PermanentArena, Context.VariablesDB, Var.Name, Expanded, Var.Params, MaxValueLength);
+                }
+                else
+                {
+                    AddOrAppendVariable(PermanentArena, Context.VariablesDB, Var.Name, Expanded, Var.Params, MaxValueLength);
+                }
             }
         }
 
         for each (String, m, Context.Messages)
         {
-            StringLocal(Expanded, MAX_VALUE_LENGTH);
+            StringLocal(Expanded, 1024);
             xx ExpandBuildVariable(*Context.TempArena, Context.VarListHead, Context.CmdOptionsDB, &Expanded, String_Null(), m, String_Null(), Context.WorkingDirectory, false, false, NULL);
 
             // reassign to new memory, the old memory is in a temporary buffer so we dont need to worry about leaks here.
@@ -4584,12 +4667,6 @@ bool ExpandBuildVariable(LinearAllocator Scratch, FileVariableList* VariablesDB,
 
                 if (String_IsEqual(Var.Name, Slice, false))
                 {
-            /*
-            for each (FileVariable, Var, VariablesDB)
-            {
-                if (String_IsEqual(Var.Name, Slice, false))
-                {
-                    */
                     if (NumEntries > 0)
                     {
                         if (Dest->Length > 0)
@@ -4599,8 +4676,9 @@ bool ExpandBuildVariable(LinearAllocator Scratch, FileVariableList* VariablesDB,
                         }
                     }
 
-                    String TempDest = String_Reserve(&Scratch, Dest->Capacity);
-                    if (!ExpandBuildVariable(Scratch, VariablesDB, CmdOptionsDB, &TempDest, Slice, Var.Value, Root, WorkingDirectory, bLowerStrings, bIsAssemblyExe, bFailed))
+                    LinearAllocator Scratch2 = Scratch;
+                    String TempDest = String_Reserve(&Scratch2, Dest->Capacity);
+                    if (!ExpandBuildVariable(Scratch2, VariablesDB, CmdOptionsDB, &TempDest, Slice, Var.Value, Root, WorkingDirectory, bLowerStrings, bIsAssemblyExe, bFailed))
                     {
                         return false;
                     }

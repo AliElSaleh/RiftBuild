@@ -1210,7 +1210,7 @@ static void LogOptionData_WordWrapped(LinearAllocator Scratch, const String Name
     xx Platform_GetTerminalDimensions(&Rows, &Cols);
     Cols = Clamp(Cols, 30, 1000);
 
-    StringLocal(LogBuffer, MAX_VALUE_LENGTH);
+    StringLocal(LogBuffer, 2048);
 
     StringLocal(Spaces, MAX_KEY_LENGTH);
     Spaces.Length = NamePadding;
@@ -3649,7 +3649,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                     StringLocal(VersionDefineString, 256);
                     String_Format(&VersionDefineString, S("%S_VERSION_STRING=\"%S\""), AssemblyNameUpper, ExpandedVar);
 
-                    AddOrAppendVariable(Arena, VariablesDB, S("Defines"), VersionDefineString, String_Null());
+                    AddOrAppendVariable(Arena, VariablesDB, S("Defines"), VersionDefineString, String_Null(), 8192); // TODO: read from reservedkeys table
                 }
 
                 xx String_ReplaceNonAlphaNumericCharInline(&ExpandedVar, '.');
@@ -3690,7 +3690,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                                 }
                             }
 
-                            AddOrAppendVariable(Arena, VariablesDB, S("Defines"), VersionDefine, String_Null());//, false);
+                            AddOrAppendVariable(Arena, VariablesDB, S("Defines"), VersionDefine, String_Null(), 8192); // TODO
 
                             i++;
                         }
@@ -3711,7 +3711,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                         String_Format(&VersionDefine, S("%S_VERSION=%S"), AssemblyNameUpper, ExpandedVar);
                     }
 
-                    AddOrAppendVariable(Arena, VariablesDB, S("Defines"), VersionDefine, String_Null());//, false);
+                    AddOrAppendVariable(Arena, VariablesDB, S("Defines"), VersionDefine, String_Null(), 8192); // TODO
                 }
             }
         }
@@ -3726,7 +3726,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 StringLocal(CopyrightDefine, 256);
                 String_Format(&CopyrightDefine, S("%S_COPYRIGHT_STRING=\"%S\""), AssemblyNameUpper, CopyrightVar.Value);
 
-                AddOrAppendVariable(Arena, VariablesDB, S("Defines"), CopyrightDefine, String_Null());
+                AddOrAppendVariable(Arena, VariablesDB, S("Defines"), CopyrightDefine, String_Null(), 8192); // TODO
             }
         }
     }
