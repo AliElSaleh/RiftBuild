@@ -1621,7 +1621,7 @@ bool Filesystem_WriteLineFormatted(const FileHandle Handle, const String Text, u
     va_list Args;
     va_start(Args, OutBytesWritten);
     StringLocal(Buffer, 32768);
-    String_FormatV(&Buffer, Text, 32768, Args);
+    String_FormatV(&Buffer, Text, Args);
     va_end(Args);
 
     usize BytesWritten = fwrite(Buffer.Data, 1, Buffer.Length, Handle.Data);
