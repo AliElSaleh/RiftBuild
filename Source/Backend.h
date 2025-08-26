@@ -353,8 +353,4 @@ bool Export_License(const String LicenseType, const BuildParams* Params, const S
 
 bool Export_FromArg(LinearAllocator Scratch, const BuildParams* Params, const String Arg, TArray(FileVariable) ExpandedVariablesDB);
 
-global LinearAllocator GMSVCFindAllocator;
-void* MSVC_Find_Allocate(usize Size);
-void  MSVC_Find_Release(void* Memory);
-
 #endif // _BACKEND_H_

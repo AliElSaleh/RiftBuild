@@ -181,21 +181,22 @@ STRUCT(StringList)
 #define each_str_list_i(Index, List)        (StringList It = List; StringList_Iterate_Check(It); (It) = StringList_Iterate_Next(It), Index+=1)
 #define each_str_list_it(Element, List)     (StringList Element = List; StringList_Iterate_Check(Element); Element = StringList_Iterate_Next(Element))
 #define each_string_in_list(x)              each_str_list(x)
+#define each_string_in_list_i(i, x)            each_str_list_i(i, x)
 
 #define StringN(n)  		                struct { uchar Data[n]; u32 Length; u32 Capacity; }
 
 #define StringLocal(Name, n) 	            String   Name; uchar MACRO_VAR(CONCAT(Buffer_, Name))[n+1] = {0}; Name.Data = MACRO_VAR(CONCAT(Buffer_, Name)); Name.Length = 0; Name.Capacity = (n)
 #define String16Local(Name, n) 	            String16 Name; wchar MACRO_VAR(CONCAT(Buffer_, Name))[n+1] = {0}; Name.Data = MACRO_VAR(CONCAT(Buffer_, Name)), Name.Length = 0, Name.Capacity = (n)
 
-#define CStr(s)                             (String)         {.Data = (uchar*)(s),      .Length = String_GetLength_Fast(s),              .Capacity = 0}
-#define CStrEx(s, n)                        (String)         {.Data = (uchar*)(s),      .Length = String_GetLength_N_Fast(s, n),         .Capacity = 0}
-#define CStr16(s)                           (String16)       {.Data = (wchar*)(s),      .Length = String16_GetLength((wchar*)(s)),       .Capacity = 0}
-#define CStr16Ex(s, n)                      (String16)       {.Data = (wchar*)(s),      .Length = String16_GetLength_N((wchar*)(s), n),  .Capacity = 0}
+#define CStr(s)                             (String)         {.Data = (uchar*)(s),          .Length = String_GetLength_Fast(s),              .Capacity = 0}
+#define CStrEx(s, n)                        (String)         {.Data = (uchar*)(s),          .Length = String_GetLength_N_Fast(s, n),         .Capacity = 0}
+#define CStr16(s)                           (String16)       {.Data = (wchar*)(s),          .Length = String16_GetLength((wchar*)(s)),       .Capacity = 0}
+#define CStr16Ex(s, n)                      (String16)       {.Data = (wchar*)(s),          .Length = String16_GetLength_N((wchar*)(s), n),  .Capacity = 0}
 
-#define S(s)                                (const String)   {.Data = (uchar*)(s),      .Length = sizeof(s)-1, .Capacity = 0}
-#define SC(s)                                                {.Data = (uchar*)(s),      .Length = sizeof(s)-1, .Capacity = 0}
-#define S16(s)                              (const String16) {.Data = (wchar*)(s),      .Length = sizeof(s)-1, .Capacity = 0}
-#define SC16(s)                                              {.Data = (wchar*)(s),      .Length = sizeof(s)-1, .Capacity = 0}
+#define S(s)                                (const String)   {.Data = (uchar*)(s),          .Length = sizeof(s)-1, .Capacity = 0}
+#define SC(s)                                                {.Data = (uchar*)(s),          .Length = sizeof(s)-1, .Capacity = 0}
+#define S16(s)                              (const String16) {.Data = (wchar*)CONCAT(L, s), .Length = sizeof(s)-1, .Capacity = 0}
+#define SC16(s)                                              {.Data = (wchar*)CONCAT(L, s), .Length = sizeof(s)-1, .Capacity = 0}
 
 #define StrMake(s)                          (String)         {.Data = (uchar*)(s).Data, .Length = (s).Length, .Capacity = (s).Capacity}
 

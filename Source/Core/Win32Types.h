@@ -73,6 +73,12 @@ typedef long HRESULT;
 #define PASCAL      pascal
 #endif
 
+#ifdef _68K_
+#define STDMETHODCALLTYPE       __cdecl
+#else
+#define STDMETHODCALLTYPE       __stdcall
+#endif
+
 // apisetcconv.h
 #if !defined(WINADVAPI)
 #if !defined(_ADVAPI32_)
@@ -164,6 +170,14 @@ typedef long HRESULT;
 #endif
 #endif
 
+#ifndef EXTERN_C
+#ifdef __cplusplus
+#define EXTERN_C    extern "C"
+#else
+#define EXTERN_C    extern
+#endif
+#endif
+
 #if defined(_WIN64)
     typedef signed long long INT_PTR, *PINT_PTR;
     typedef unsigned long long  UINT_PTR, *PUINT_PTR, uintptr_t;
@@ -211,6 +225,9 @@ typedef void far            *LPVOID;
 typedef const void far      *LPCVOID;
 typedef SHORT               *PSHORT;
 typedef LONG                *PLONG;
+
+typedef DWORD LCID;         
+typedef PDWORD PLCID;       
 
 typedef HANDLE near         *SPHANDLE;
 typedef HANDLE far          *LPHANDLE;
@@ -405,6 +422,69 @@ typedef struct _GUID {
     unsigned short Data3;
     unsigned char  Data4[ 8 ];
 } GUID;
+
+#define DEFINE_GUID(name, l, w1, w2, b1, b2, b3, b4, b5, b6, b7, b8) \
+    const GUID name = { l, w1, w2, { b1, b2,  b3,  b4,  b5,  b6,  b7,  b8 } }
+
+#ifndef __IID_DEFINED__
+#define __IID_DEFINED__
+
+typedef GUID IID;
+typedef IID *LPIID;
+#define IID_NULL            GUID_NULL
+#define IsEqualIID(riid1, riid2) IsEqualGUID(riid1, riid2)
+typedef GUID CLSID;
+typedef CLSID *LPCLSID;
+#define CLSID_NULL          GUID_NULL
+#define IsEqualCLSID(rclsid1, rclsid2) IsEqualGUID(rclsid1, rclsid2)
+typedef GUID FMTID;
+typedef FMTID *LPFMTID;
+#define FMTID_NULL          GUID_NULL
+#define IsEqualFMTID(rfmtid1, rfmtid2) IsEqualGUID(rfmtid1, rfmtid2)
+
+#ifdef __midl_proxy
+#define __MIDL_CONST
+#else
+#define __MIDL_CONST const
+#endif
+
+#ifndef _REFGUID_DEFINED
+#define _REFGUID_DEFINED
+#ifdef __cplusplus
+#define REFGUID const GUID &
+#else
+#define REFGUID const GUID * __MIDL_CONST
+#endif
+#endif
+
+#ifndef _REFIID_DEFINED
+#define _REFIID_DEFINED
+#ifdef __cplusplus
+#define REFIID const IID &
+#else
+#define REFIID const IID * __MIDL_CONST
+#endif
+#endif
+
+#ifndef _REFCLSID_DEFINED
+#define _REFCLSID_DEFINED
+#ifdef __cplusplus
+#define REFCLSID const IID &
+#else
+#define REFCLSID const IID * __MIDL_CONST
+#endif
+#endif
+
+#ifndef _REFFMTID_DEFINED
+#define _REFFMTID_DEFINED
+#ifdef __cplusplus
+#define REFFMTID const IID &
+#else
+#define REFFMTID const IID * __MIDL_CONST
+#endif
+#endif
+
+#endif // !__IID_DEFINED__
 
 // typedef GUID UUID;
 // #ifndef uuid_t
@@ -1184,6 +1264,7 @@ typedef void (WINAPI *PIO_APC_ROUTINE)(PVOID ApcContext, PIO_STATUS_BLOCK IoStat
 #define PM_REMOVE           0x0001
 #define PM_NOYIELD          0x0002
 
+#define ERROR_SUCCESS                    0L
 #define ERROR_ALREADY_EXISTS             183L
 
 #ifndef DECLARE_HANDLE
@@ -1374,6 +1455,62 @@ typedef struct tagMSG {
     DWORD       lPrivate;
 #endif
 } MSG, *PMSG, *NPMSG, *LPMSG;
+
+// COM initialization flags; passed to CoInitialize.
+typedef enum tagCOINITBASE
+{
+// DCOM
+#if (_WIN32_WINNT >= 0x0400) || defined(_WIN32_DCOM)
+  // These constants are only valid on Windows NT 4.0
+  COINITBASE_MULTITHREADED      = 0x0,      // OLE calls objects on any thread.
+#endif // DCOM
+} COINITBASE;
+
+// COM initialization flags; passed to CoInitialize.
+typedef enum tagCOINIT
+{
+  COINIT_APARTMENTTHREADED  = 0x2,      // Apartment model
+
+#if  (_WIN32_WINNT >= 0x0400 ) || defined(_WIN32_DCOM) // DCOM
+  // These constants are only valid on Windows NT 4.0
+  COINIT_MULTITHREADED      = COINITBASE_MULTITHREADED,
+  COINIT_DISABLE_OLE1DDE    = 0x4,      // Don't use DDE for Ole1 support.
+  COINIT_SPEED_OVER_MEMORY  = 0x8,      // Trade memory for speed.
+#endif // DCOM
+} COINIT;
+
+typedef 
+enum tagCLSCTX
+    {
+        CLSCTX_INPROC_SERVER	= 0x1,
+        CLSCTX_INPROC_HANDLER	= 0x2,
+        CLSCTX_LOCAL_SERVER	= 0x4,
+        CLSCTX_INPROC_SERVER16	= 0x8,
+        CLSCTX_REMOTE_SERVER	= 0x10,
+        CLSCTX_INPROC_HANDLER16	= 0x20,
+        CLSCTX_RESERVED1	= 0x40,
+        CLSCTX_RESERVED2	= 0x80,
+        CLSCTX_RESERVED3	= 0x100,
+        CLSCTX_RESERVED4	= 0x200,
+        CLSCTX_NO_CODE_DOWNLOAD	= 0x400,
+        CLSCTX_RESERVED5	= 0x800,
+        CLSCTX_NO_CUSTOM_MARSHAL	= 0x1000,
+        CLSCTX_ENABLE_CODE_DOWNLOAD	= 0x2000,
+        CLSCTX_NO_FAILURE_LOG	= 0x4000,
+        CLSCTX_DISABLE_AAA	= 0x8000,
+        CLSCTX_ENABLE_AAA	= 0x10000,
+        CLSCTX_FROM_DEFAULT_CONTEXT	= 0x20000,
+        CLSCTX_ACTIVATE_X86_SERVER	= 0x40000,
+        CLSCTX_ACTIVATE_32_BIT_SERVER	= CLSCTX_ACTIVATE_X86_SERVER,
+        CLSCTX_ACTIVATE_64_BIT_SERVER	= 0x80000,
+        CLSCTX_ENABLE_CLOAKING	= 0x100000,
+        CLSCTX_APPCONTAINER	= 0x400000,
+        CLSCTX_ACTIVATE_AAA_AS_IU	= 0x800000,
+        CLSCTX_RESERVED6	= 0x1000000,
+        CLSCTX_ACTIVATE_ARM32_SERVER	= 0x2000000,
+        CLSCTX_ALLOW_LOWER_TRUST_REGISTRATION	= 0x4000000,
+        CLSCTX_PS_DLL	= 0x8000000
+    } 	CLSCTX;
 
 PRAGMA_ENABLE_WARNINGS
 
@@ -1632,6 +1769,7 @@ WINBASEAPI NO_DISCARD LSTATUS    WINAPI RegQueryValueExA(HKEY hKey, LPCSTR lpVal
 WINBASEAPI NO_DISCARD LSTATUS    WINAPI RegQueryValueExW(HKEY hKey, LPCWSTR lpValueName, LPDWORD lpReserved, LPDWORD lpType, LPBYTE lpData, LPDWORD lpcbData);
 WINBASEAPI NO_DISCARD LSTATUS    WINAPI RegGetValueA(HKEY hkey, LPCSTR lpSubKey, LPCSTR lpValue, DWORD dwFlags, LPDWORD pdwType, PVOID pvData, LPDWORD pcbData);
 WINBASEAPI NO_DISCARD LSTATUS    WINAPI RegGetValueW(HKEY hkey, LPCWSTR lpSubKey, LPCWSTR lpValue, DWORD dwFlags, LPDWORD pdwType, PVOID pvData, LPDWORD pcbData);
+WINBASEAPI NO_DISCARD LSTATUS    WINAPI RegCloseKey(HKEY hKey);
 WINBASEAPI NO_DISCARD BOOL       WINAPI SymInitialize(HANDLE hProcess, PCSTR  UserSearchPath, BOOL   fInvadeProcess);
 WINBASEAPI NO_DISCARD USHORT     WINAPI RtlCaptureStackBackTrace(ULONG FramesToSkip, ULONG FramesToCapture, PVOID *BackTrace, PULONG BackTraceHash);
 WINBASEAPI NO_DISCARD BOOL       WINAPI SymFromAddr(HANDLE hProcess, DWORD64 Address, PDWORD64 Displacement, PSYMBOL_INFO Symbol);
@@ -1723,6 +1861,10 @@ WINBASEAPI NO_DISCARD NTSTATUS   WINAPI BCryptGenRandom(BCRYPT_ALG_HANDLE hAlgor
 WINBASEAPI NO_DISCARD NTSTATUS   WINAPI BCryptOpenAlgorithmProvider(BCRYPT_ALG_HANDLE* phAlgorithm, LPCWSTR pszAlgId, LPCWSTR pszImplementation, ULONG dwFlags);
 WINBASEAPI NO_DISCARD NTSTATUS   WINAPI BCryptCloseAlgorithmProvider(BCRYPT_ALG_HANDLE hAlgorithm, ULONG dwFlags);
 
+WINBASEAPI NO_DISCARD HRESULT    WINAPI CoInitializeEx(LPVOID pvReserved, DWORD dwCoInit);
+WINBASEAPI            void       WINAPI CoUninitialize(void);
+
+WINBASEAPI NO_DISCARD HRESULT    WINAPI CoCreateInstance(REFCLSID rclsid, LPVOID pUnkOuter, DWORD dwClsContext, REFIID riid, LPVOID* ppv);
 
 // NT Kernel Functions
 

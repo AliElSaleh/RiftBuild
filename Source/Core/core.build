@@ -1,6 +1,0 @@
-Assembly RiftCore
-Type static_lib
-
-Includes ../
-
-Defines RIFT_STATIC NO_ASSERT

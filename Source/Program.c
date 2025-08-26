@@ -14,7 +14,7 @@
 #endif
 
 #if PLATFORM_WINDOWS
-#include "Libraries/Vendor/microsoft_craziness.h"
+#include "MicrosoftCraziness.h"
 #endif
 
 // TODO:
@@ -4228,63 +4228,37 @@ static u32 BuildTarget(LinearAllocator* Arena,
     }
 
     #if PLATFORM_WINDOWS
-    GMSVCFindAllocator = *Arena;
-
     // IDEA
     // .SDKVersion key? to specify an exact version to build with?
     // .MSVCVersion key?
-    // TODO: figure out a way to only ever run set the strings once
+    // TODO: figure out a way to only ever run set the strings once (move this code outside BuildTarget, inside RunApplication, and keeps the paths global)
     // TODO: auxliarry include vs?
 
-    bool bWasVCVarsBatchRan = Platform_DoesEnvironmentVariableExist(S("VSCMD_ARG_TGT_ARCH"));
+    bool bWasVCVarsBatchExecuted = Platform_DoesEnvironmentVariableExist(S("VSCMD_ARG_TGT_ARCH"));
 
-    if (!bWasVCVarsBatchRan)
+    if (!bWasVCVarsBatchExecuted)
     {
-        // find the latest version and extract all the useful directories
+        // find the latest version of visual studio and windows sdk and extract all the useful directories
 
-        local_persist Find_Result MSVC_SDK_Result = {0};
-        // only run this once. ever...
-        // TODO: run this once
-        //if (MSVC_SDK_Result.windows_sdk_version == 0)
+        LinearAllocator Scratch = *Arena;
+
+        MicrosoftVisualStudioPaths VSPaths = {0};
+        bool bFoundVS = FindVisualStudio(&Scratch, &VSPaths);
+        if (bFoundVS)
         {
-            MSVC_SDK_Result.allocate = &MSVC_Find_Allocate;
-            MSVC_SDK_Result.release  = &MSVC_Find_Release;
-            find_visual_studio_and_windows_sdk(&MSVC_SDK_Result);
+            String_Copy(&VisualStudioExePath,     VSPaths.ExePath);
+            String_Copy(&VisualStudioIncludePath, VSPaths.IncludePath);
+            String_Copy(&VisualStudioLibraryPath, VSPaths.LibraryPath);
         }
 
-        if (MSVC_SDK_Result.windows_sdk_bin_path)
+        MicrosoftWindowsSDKPaths SDKPaths = {0};
+        bool bFoundSDK = FindWindowsSDK(&Scratch, &SDKPaths);
+        if (bFoundSDK)
         {
-            String_ToNarrow(CStr16Ex(MSVC_SDK_Result.windows_sdk_bin_path, MAX_PATH_LENGTH), &WindowsSDKBinaryPath);
-        }
-
-        if (MSVC_SDK_Result.windows_sdk_include_path)
-        {
-            String_ToNarrow(CStr16Ex(MSVC_SDK_Result.windows_sdk_include_path, MAX_PATH_LENGTH), &WindowsSDKIncludePath);
-        }
-
-        if (MSVC_SDK_Result.windows_sdk_um_library_path)
-        {
-            String_ToNarrow(CStr16Ex(MSVC_SDK_Result.windows_sdk_um_library_path, MAX_PATH_LENGTH), &WindowsSDKLibUmPath);
-        }
-
-        if (MSVC_SDK_Result.windows_sdk_ucrt_library_path)
-        {
-            String_ToNarrow(CStr16Ex(MSVC_SDK_Result.windows_sdk_ucrt_library_path, MAX_PATH_LENGTH), &WindowsSDKLibUcrtPath);
-        }
-
-        if (MSVC_SDK_Result.vs_include_path)
-        {
-            String_ToNarrow(CStr16Ex(MSVC_SDK_Result.vs_include_path, MAX_PATH_LENGTH), &VisualStudioIncludePath);
-        }
-
-        if (MSVC_SDK_Result.vs_library_path)
-        {
-            String_ToNarrow(CStr16Ex(MSVC_SDK_Result.vs_library_path, MAX_PATH_LENGTH), &VisualStudioLibraryPath);
-        }
-
-        if (MSVC_SDK_Result.vs_exe_path)
-        {
-            String_ToNarrow(CStr16Ex(MSVC_SDK_Result.vs_exe_path, MAX_PATH_LENGTH), &VisualStudioExePath);
+            String_Copy(&WindowsSDKBinaryPath,  SDKPaths.BinPath);
+            String_Copy(&WindowsSDKIncludePath, SDKPaths.IncludePath);
+            String_Copy(&WindowsSDKLibUcrtPath, SDKPaths.UCRT_LibraryPath);
+            String_Copy(&WindowsSDKLibUmPath,   SDKPaths.UM_LibraryPath);
         }
     }
 
@@ -5928,7 +5902,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
             String_BuildPath(&ArchiverPath, CompilerBasePath, S("lib.exe"));
             String_BuildPath(&DumpBinPath, CompilerBasePath, S("dumpbin.exe"));
 
-            if (bWasVCVarsBatchRan)
+            if (bWasVCVarsBatchExecuted)
             {
                 xx Platform_FindProgram_Ex(S("rc"), &RCCompilerPath);
                 xx Platform_FindProgram_Ex(S("mt"), &MTCompilerPath);
@@ -5945,7 +5919,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
             String_Copy(&LinkerPath, CompilerPath);
 
             #if PLATFORM_WINDOWS
-            if (bWasVCVarsBatchRan)
+            if (bWasVCVarsBatchExecuted)
             {
                 xx Platform_FindProgram_Ex(S("rc"), &RCCompilerPath);
                 xx Platform_FindProgram_Ex(S("mt"), &MTCompilerPath);
@@ -6406,9 +6380,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
             }
 
             Filesystem_WriteLine(f, Buffer, NULL);
-        }
-
         Filesystem_Close(&f);
+        }
     }
 
     if (Array_Num(Messages) > 0)
@@ -6704,7 +6677,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     p.WindowsSDKLibUcrtPath         = WindowsSDKLibUcrtPath;
     p.VisualStudioIncludePath       = VisualStudioIncludePath;
     p.VisualStudioLibraryPath       = VisualStudioLibraryPath;
-    p.bWasVCVarsBatchRan            = bWasVCVarsBatchRan;
+    p.bWasVCVarsBatchRan            = bWasVCVarsBatchExecuted;
     #endif
 
     // @export feature
@@ -8865,7 +8838,7 @@ static void InitInternalVars(LinearAllocator* Arena)
 
     Uuid ID = UUID_Generate();
     StringLocal(UuidString, 64);
-    UUID_ToString(ID, &UuidString);
+    UUID_ToStringFast(ID, &UuidString);
     AddInternalVariable(S("_UUID"), String_Create(Arena, UuidString));
 
     const CpuInfo CPUInfo = Platform_QueryCPUInfo();
@@ -9366,7 +9339,7 @@ u32 RunApplication(const StringArray Arguments)
     Logging_ToggleLogFile(bOutputToLog);
 
     StringLocal(ExtraFlags, 128);
-    #ifdef _DEBUG
+    #ifdef RIFT_DEBUG
     String_BuildSeparator(&ExtraFlags, ' ', S("[DEBUG]"));
     #endif
     #ifdef RIFT_ASAN

@@ -1003,6 +1003,17 @@ void String_AppendPathSeparator_Checked(String* Dest)
     }
 }
 
+void String16_Append(String16* Dest, const String16 Source)
+{
+    i32 Diff = (i32)Dest->Capacity - (i32)Dest->Length;
+    ASSERT_MSG(Diff >= 0, "%S", S(__FUNCTION__));
+
+    u32 NumToCopy = Min((u32)Diff, Source.Length);
+    MemCopy(&Dest->Data[Dest->Length], Source.Data, NumToCopy*sizeof(wchar));
+    Dest->Length += NumToCopy;
+    Dest->Data[Dest->Length] = 0;
+}
+
 NO_DISCARD ECompareResult String_CompareVersion(const String VersionA, const String VersionB)
 {
     if (VersionA.Length == 0 || VersionB.Length == 0) { return CompareResult_None; }

@@ -89,6 +89,8 @@ RIFT_API void String_AppendNewline(String* Dest);
 RIFT_API void String_AppendPathSeparator(String* Dest);
 RIFT_API void String_AppendPathSeparator_Checked(String* Dest);
 
+RIFT_API void String16_Append(String16* Dest, const String16 Source);
+
 RIFT_API NO_DISCARD ECompareResult String_CompareVersion(const String VersionA, const String VersionB);
 
 RIFT_API void String_Zero(String* Str);

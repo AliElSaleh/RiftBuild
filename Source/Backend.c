@@ -1103,22 +1103,6 @@ static void Internal_ProcessLinkerOutput_MSVC(PlatformPipe StdOutHandle)
 
     Platform_CloseHandle(StdOutHandle[0]);
 }
-
-void* MSVC_Find_Allocate(usize Size)
-{
-    return LinearAllocator_Allocate(&GMSVCFindAllocator, Size);
-}
-
-void MSVC_Find_Release(void* Memory)
-{
-    UNUSED_PARAM(Memory);
-
-    // don't free anything
-}
-
-#else
-void* MSVC_Find_Allocate(usize Size) { return NULL; }
-void MSVC_Find_Release(void* Memory) {}
 #endif // PLATFORM_WINDOWS
 
 

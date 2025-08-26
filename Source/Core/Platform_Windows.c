@@ -2539,6 +2539,8 @@ NO_DISCARD bool Platform_GetFullCpuName(String* OutName)
             CpuName.Length = Length-1;
             String_Copy(OutName, CpuName);
         }
+
+        xx RegCloseKey(Key);
     }
 
     return bSuccess;
