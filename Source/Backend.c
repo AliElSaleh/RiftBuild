@@ -46,6 +46,8 @@ bool RC_Compile(const BuildParams* Params, const String FullRCPath, String* OutR
     #if PLATFORM_WINDOWS
     StringLocal(CmdLine, 1024);
 
+    const bool bWindres = String_IsEqual(Params->RCProgram, S("windres"), false);
+
     // we are intentionally adding a backslash here for the windres compiler specifically, because
     // the developers behind this are incompetent assholes who don't know how to properly handle
     // spaces within paths... like holy shit man... so depressing
@@ -53,10 +55,12 @@ bool RC_Compile(const BuildParams* Params, const String FullRCPath, String* OutR
     // https://sourceware.org/bugzilla/show_bug.cgi?id=4356
     // https://github.com/msys2/MINGW-packages/issues/1035
     // https://github.com/msys2/MINGW-packages/issues/1035#issuecomment-3208735163
-    String_Append(&CmdLine, S("\\\""));
+    if (bWindres) { String_Append(&CmdLine, S("\\")); }
+    String_Append(&CmdLine, S("\""));
     String_Append(&CmdLine, Params->RCProgramPath);
-    String_Append(&CmdLine, S("\\\""));
-
+    if (bWindres) { String_Append(&CmdLine, S("\\")); }
+    String_Append(&CmdLine, S("\""));
+    
     if (Params->RCProgramFlags.Length > 0)
     {
         String_AppendSpace(&CmdLine);
@@ -127,8 +131,6 @@ bool RC_Compile(const BuildParams* Params, const String FullRCPath, String* OutR
     {
         String_Copy(OutResPath, ResPath);
     }
-
-    const bool bWindres = String_IsEqual(Params->RCProgram, S("windres"), false);
 
     // todo: resource defines
 
