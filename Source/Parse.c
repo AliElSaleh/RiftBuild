@@ -482,7 +482,7 @@ STRUCT(ReservedKeyTable)
     u32    Padding;
 };
 
-static ReservedKeyTable ReservedKeys[] =
+static ReservedKeyTable ReservedKeys[68] =
 {
     { .Key = SC("Assembly"),                  .MaxValueLength = 256 },
     { .Key = SC("Assembly.Prefix"),           .MaxValueLength = 128 },
@@ -512,10 +512,14 @@ static ReservedKeyTable ReservedKeys[] =
     { .Key = SC("Archiver"),                  .MaxValueLength = 256 },
     { .Key = SC("Archiver.Flags"),            .MaxValueLength = 4096 },
     { .Key = SC("Defines"),                   .MaxValueLength = 8192 },
+    { .Key = SC("Defines.Public"),            .MaxValueLength = 8192 },
     { .Key = SC("UnDefines"),                 .MaxValueLength = 2048 },
     { .Key = SC("Includes"),                  .MaxValueLength = 8192 },
+    { .Key = SC("Includes.Public"),           .MaxValueLength = 8192 },
     { .Key = SC("Libraries"),                 .MaxValueLength = 2048 },
+    { .Key = SC("Libraries.Public"),          .MaxValueLength = 2048 },
     { .Key = SC("Library.Paths"),             .MaxValueLength = 8192 },
+    { .Key = SC("Library.Paths.Public"),      .MaxValueLength = 8192 },
     { .Key = SC("SourceFiles"),               .MaxValueLength = 32767 },
     { .Key = SC("SourceFiles.Exclude"),       .MaxValueLength = 8192 },
     { .Key = SC("SourceDirectories"),         .MaxValueLength = 8192 },
@@ -549,6 +553,21 @@ static ReservedKeyTable ReservedKeys[] =
     { .Key = SC("PreLink"),                   .MaxValueLength = 256 },
     { .Key = SC("PostLink"),                  .MaxValueLength = 256 },
 };
+
+u32 GetMaxValueLengthForReservedKey(const String Key)
+{
+    u32 MaxLength = 0;
+    for (u8 i = 0; i < SArray_Capacity(ReservedKeys); i++)
+    {
+        if (String_IsEqual(Key, ReservedKeys[i].Key, false))
+        {
+            MaxLength = ReservedKeys[i].MaxValueLength;
+            break;
+        }
+    }
+
+    return MaxLength;
+}
 
 STRUCT(DeferredKVData)
 {
@@ -3482,6 +3501,61 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
                         "\n[ASSERTION FAILURE] RiftBuild version \"%S\" is less than the required version \"%S\"."
                         " Please upgrade to \"%S\" or later. Aborting build...\n",
                         S(RIFTBUILD_VERSION_STRING), Var.Value, Var.Value);
+
+                        bAssertionFailed = true;
+                        break;
+                    }
+                }
+            }
+            else if (String_IsEqual(Var.Name, S("Assert.EnvVar"), false) ||
+                     String_IsEqual(Var.Name, S("Assert.EnvVarExists"), false) ||
+                     String_IsEqual(Var.Name, S("Assert.Environment"), false))
+            {
+                StringArray EnvVarsArray = String_ParseIntoArray(&Scratch, Var.Value, ' ', 0, 128);
+
+                for each_str (Env, EnvVarsArray)
+                {
+                    String Trimmed = String_EatSpaces(*Env);
+                    Trimmed = String_EatSpacesFromEnd(Trimmed);
+
+                    bool bFound = Platform_DoesEnvironmentVariableExist(Trimmed);
+
+                    if (!bFound)
+                    {
+                        #ifndef HOOD
+                        LOG_INLINE_ERROR("\n[ASSERTION FAILURE] Environment variable \"%S\" does not exist. Aborting build...\n\n", Trimmed);
+                        #else
+                        LOG_ERROR("\nyo da environment var \"%S\" don exist cuh. need to be setup n' shit ma nigga\n", Trimmed);
+                        #endif
+
+                        xx Internal_LogCustomErrorMessage(Context, S("Env"), Trimmed, true);
+                        xx Internal_LogCustomErrorMessage(Context, S("Environment"), Trimmed, true);
+
+                        LogRegularEnvVarTutorialSteps();
+
+                        bAssertionFailed = true;
+                        break;
+                    }
+                }
+            }
+            else if (String_IsEqual(Var.Name, S("Assert.BuildVarExists"), false) ||
+                     String_IsEqual(Var.Name, S("Assert.Var"), false))
+            {
+                StringArray BuildVarsArray = String_ParseIntoArray(&Scratch, Var.Value, ' ', 0, 128);
+
+                for each_str (Str, BuildVarsArray)
+                {
+                    String Trimmed = String_EatSpaces(*Str);
+
+                    bool bFound = DoesVarExistInList(Context->VarListHead, Trimmed);
+
+                    if (!bFound)
+                    {
+                        #ifndef HOOD
+                        LOG_INLINE_ERROR("\n[ASSERTION FAILURE] Build variable \"%S\" does not exist. Aborting build...\n", Trimmed);
+                        #else
+                        LOG_ERROR("\nyo da build var \"%S\" don exist cuh. dat shit not there nigga", Trimmed);
+                        #endif
 
                         bAssertionFailed = true;
                         break;

@@ -46,7 +46,7 @@ STRUCT(SourceFileData)
 
 STRUCT(SourceCountData)
 {
-    u64 AssemblyFileTime;
+    // u64 AssemblyFileTime;
     u32 NumSources;
     u32 NumAsmSources;
     u32 NumHeaders;
@@ -91,6 +91,7 @@ ENUM(EAssemblyType)
 
 ENUM(ECompiler)
 {
+    Compiler_Generic, // an unknown compiler, will be treated the same as clang and gcc
     Compiler_Clang,
     Compiler_GCC,
     Compiler_MSVC
@@ -319,6 +320,8 @@ NO_DISCARD bool ParseBuildFile(LinearAllocator* PermanentArena,
 bool ExpandBuildVariable(LinearAllocator Scratch, FileVariableList* VariablesDB, TArray(CmdOption) CmdOptionsDB,
                          String* Dest, const String Key, const String Value, const String Root, const String WorkingDirectory,
                          bool bLowerStrings, bool bIsAssemblyExe, bool* bFailed);
+
+u32 GetMaxValueLengthForReservedKey(const String Key);
 
 void AddVariable(LinearAllocator* Arena,
                 TArray(FileVariable) VariablesDB,

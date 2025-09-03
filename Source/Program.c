@@ -69,15 +69,22 @@ read_only String BuiltinOptions[] =
     SC("preset:"),
 };
 
-STRUCT(BuildResult)
+STRUCT(BuildReceipt)
 {
-    String BuildPath;
-    String IntermediatePath;
+    String AssemblyName;
+    String BuildDirectory;
+    String WorkingPath;
     String Includes;
+    String Defines;
     String Libraries;
     String LibraryPaths;
 
     u32 ExitCode;
+    u32 Padding;
+    b64 bWorkWasDone;
+
+    EAssemblyType AssemblyType;
+    u8 blah[7];
 };
 
 STRUCT(BuildFileDirectoryIteratorData)
@@ -383,6 +390,7 @@ static void SuffixVariables(String* Dest, String VariableValue, const String Suf
     }
 }
 
+/*
 bool LogCustomErrorMessage(TArray(FileVariable) VariablesDB, const String Context, const String Key, const bool bLineBreak)
 {
     if (bQuietBuild) { Logging_Enable(); }
@@ -430,6 +438,7 @@ bool LogCustomErrorMessage(TArray(FileVariable) VariablesDB, const String Contex
 
     return bLogged;
 }
+*/
 
 static bool FilterSourceFile(const String WorkingDirectory, const String SourceDirectory,
                       const String FullPath, const String RelativePath,
@@ -2965,12 +2974,13 @@ static bool Parameters_TryListVariables(LinearAllocator Scratch, const StringArr
     return bTried;
 }
 
-static u32 BuildTarget(LinearAllocator* Arena,
+static BuildReceipt BuildTarget(LinearAllocator* Arena,
                         const FileHandle BuildFileHandle, PlatformMutex* BuildMutex,
                         const String WorkingPath, const StringArray Parameters, const String CameFromBuildFile,
                         i8 BuildFileIndex, i8 RootPathIndex)
 {
     // BuildResult BuildOutputResult = {0};
+    BuildReceipt Receipt = {0};
 
     if (!Platform_SetWorkingDirectory(WorkingPath))
     {
@@ -2980,8 +2990,11 @@ static u32 BuildTarget(LinearAllocator* Arena,
         LOG_ERROR("nah cuh, couldnt set the workin directory to \"%S\"", WorkingPath);
         #endif
 
-        return 1;
+        Receipt.ExitCode = 1;
+        return Receipt;
     }
+
+    Receipt.WorkingPath = WorkingPath;
 
     // make sure we can get the path of the build file (if applicable)
     StringLocal(BuildFilePathFull, MAX_PATH_LENGTH);
@@ -2995,7 +3008,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
         LOG("   please submit this issue over to: https://github.com/AliElSaleh/RiftBuild/issues");
 
         LOG("\n   Provide clear and detailed reproduction steps on how this issue had occured.");
-        return 1;
+
+        Receipt.ExitCode = 1;
+        return Receipt;
     }
 
     // make sure no one else is building this target
@@ -3037,7 +3052,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
             LOG("    To prevent conflicts, please wait for the existing build to finish before trying again.\n");
             LOG("    This feature can be disabled with --no-mutex");
 
-            return 1;
+            Receipt.ExitCode = 1;
+            return Receipt;
         }
     }
 
@@ -3334,7 +3350,6 @@ static u32 BuildTarget(LinearAllocator* Arena,
     #endif
 
     Clock BuildFileParseClock = {0};
-    Clock MSVCInitClock = {0};
 
     bool bAnyVarsOverriden = false;
 
@@ -3365,7 +3380,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
             if (!ParseBuildFile(Arena, BuildFileHandle, BuildFilePath, Context, false, NULL))
             {
-                return 1;
+                Receipt.ExitCode = 1;
+                return Receipt;
             }
         }
         Clock_Tick(&BuildFileParseClock);
@@ -3384,7 +3400,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 LOG("    No help message provided. Use -h to view this program's usage help instead.");
             }
 
-            return 0;
+            Receipt.ExitCode = 0;
+            return Receipt;
         }
 
 
@@ -3617,7 +3634,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 LOG("    No options provided. Use -h to view this program's usage help instead.");
             }
 
-            return 0;
+            Receipt.ExitCode = 0;
+            return Receipt;
         }
 
         bAnyVarsOverriden = CheckForBuildVariableOverrides(VariablesDB, CmdOptionsDB);
@@ -3811,67 +3829,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
     u32 ListingSuccess = 0;
     if (Parameters_TryListVariables(*Arena, Parameters, VariablesDB, BuildFilePath, &ListingSuccess))
     {
-        return ListingSuccess;
+        Receipt.ExitCode = ListingSuccess;
+        return Receipt;
     }
-
-    #if 0
-    for (u8 i = 0; i < Parameters.Num; i++)
-    {
-        const String Arg = Parameters.List[i];
-
-        if (String_StartsWith(Arg, S("list:"), false))
-        {
-            // TODO: if we do this: list:somekey.   with a . at the end, then print out all keys that start with that
-            u32 Colon = 0;
-            if (String_IndexOfChar(Arg, ':', &Colon))
-            {
-                const String VarToList = StrShiftF(Arg, Colon+1);
-
-                if (VarToList.Length == 0)
-                {
-                    LOG_ERROR("Failed to list build variable. No variable name was given after ':'");
-                    LOG_INLINE_WARNING("\nUsage\n");
-                    LOG("     list:all");
-                    LOG("     list:varname");
-                    LOG("     list:varname,othername,anotherone");
-                    return 1;
-                }
-
-                LinearAllocator Scratch = *Arena;
-                StringArray Vars = String_ParseIntoArray(&Scratch, VarToList, ',', 0, 128);
-            
-                for each_str (var, Vars)
-                {
-                    if (String_IsEqual(*var, S("all"), false))
-                    {
-                        ListVariables(Scratch, String_Null(), VariablesDB);
-                    }
-                    else
-                    {
-                        if (!DoesBuildVarExist(VariablesDB, *var))
-                        {
-                            // TODO: make this a warning instead
-                            LOG_ERROR("Failed to list \"%S\". It does not exist in \"%S\" (within the context of the given build parameters)", *var, BuildFilePath);
-                            return 1;
-                        }
-
-                        LOG_LINE_BREAK();
-
-                        ListVariables(Scratch, *var, VariablesDB);
-                    }
-                }
-
-                // todo: put in function? clean up code routine?
-                for each (FileHandle, File, IncludeFiles)
-                {
-                    Filesystem_Close(&File);
-                }
-
-                return 0;
-            }
-        }
-    }
-    #endif
 
     const String Assembly                   = GetVariableValue(VariablesDB, S("Assembly"));
     const String AssemblyPrefix             = GetVariableValue(VariablesDB, S("Assembly.Prefix"));
@@ -3898,15 +3858,17 @@ static u32 BuildTarget(LinearAllocator* Arena,
     // const String AssemblerFlags             = GetVariableValue(VariablesDB, S("Archiver.Flags"));
 
     String CompilerFlagPrefixSymbol         = S("-");
-    const String Defines                    = GetVariableValue(VariablesDB, S("Defines"));
+    // const String Defines                    = GetVariableValue(VariablesDB, S("Defines"));
+    // const String Defines_Public             = GetVariableValue(VariablesDB, S("Defines.Public"));
     const String UnDefines                  = GetVariableValue(VariablesDB, S("UnDefines"));
-    String IncludeFlags                     = GetVariableValue(VariablesDB, S("Includes"));
-    const String Libraries                  = GetVariableValue(VariablesDB, S("Libraries"));
-    String LibraryDirectories               = GetVariableValue(VariablesDB, S("Library.Paths"));
+    // String IncludeFlags                     = GetVariableValue(VariablesDB, S("Includes"));
+    // String IncludeFlags_Public              = GetVariableValue(VariablesDB, S("Includes.Public"));
+    // const String Libraries                  = GetVariableValue(VariablesDB, S("Libraries"));
+    // const String Libraries_Public           = GetVariableValue(VariablesDB, S("Libraries.Public"));
+    // String LibraryDirectories               = GetVariableValue(VariablesDB, S("Library.Paths"));
+    // String LibraryDirectories_Public        = GetVariableValue(VariablesDB, S("Library.Paths.Public"));
     const String AssertCompilers            = GetVariableValue(VariablesDB, S("Assert.Compiler"));
     const String AssertAssemblers           = GetVariableValue(VariablesDB, S("Assert.Assembler"));
-    const String AssertEnvVars              = GetVariableValue(VariablesDB, S("Assert.EnvVarExists"));
-    const String AssertBuildVars            = GetVariableValue(VariablesDB, S("Assert.BuildVarExists"));
     // TODO: delete
     String IncludedSourceFiles              = GetVariableValue(VariablesDB, S("SourceFiles"));
     String ExcludedSourceFiles              = GetVariableValue(VariablesDB, S("SourceFiles.Exclude"));
@@ -4019,8 +3981,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
     }
 
     String_ConvertSlashToPlatformSlash(&CompilerProgram);
-    String_ConvertSlashToPlatformSlash(&LibraryDirectories);
-    String_ConvertSlashToPlatformSlash(&IncludeFlags);
+    // String_ConvertSlashToPlatformSlash(&LibraryDirectories);
+    // String_ConvertSlashToPlatformSlash(&IncludeFlags);
     String_ConvertSlashToPlatformSlash(&Icon);
     String_ConvertSlashToPlatformSlash(&IncludedSourceFiles);
     String_ConvertSlashToPlatformSlash(&ExcludedSourceFiles);
@@ -4181,7 +4143,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     String_Append(&FinalAssemblyName, AssemblyPostfix);
     #endif
 
-    String AssemblyName = FinalAssemblyName;
+    const String AssemblyName = FinalAssemblyName;
 
     StringLocal(CompilerPath,    MAX_PATH_LENGTH);
     StringLocal(AsmCompilerPath, MAX_PATH_LENGTH);
@@ -4223,7 +4185,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
         else
         {
             LOG_ERROR("Compiler program \"%S\" does not exist", CompilerPathCopy);
-            return 1;
+
+            Receipt.ExitCode = 1;
+            return Receipt;
         }
     }
 
@@ -4327,7 +4291,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
                 LogPathEnvVarTutorialSteps();
                     
-                return 1;
+                Receipt.ExitCode = 1;
+                return Receipt;
             }
 
             #ifndef HOOD
@@ -4533,7 +4498,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
         if (!bCompilerProgramFound)
         {
-            return 1;
+            Receipt.ExitCode = 1;
+            return Receipt;
         }
     }
 
@@ -4629,7 +4595,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
                         }
 
                         LOG_INLINE_ERROR("[ASSERTION FAILURE] %S compiler version \"%S\" does not meet the required version %S \"%S\"%S. Aborting build...\n", CompilerProgram, FoundVersion, Prefix, RequireCompilerVersion, Extra);
-                        return 1;
+
+                        Receipt.ExitCode = 1;
+                        return Receipt;
                     }
                 }
             }
@@ -4675,19 +4643,16 @@ static u32 BuildTarget(LinearAllocator* Arena,
     }
 
     // run through the assert lists
-    // TODO: These wont work anymore, move to Parse.c
     {
         LinearAllocator Scratch = *Arena;
-        StringArray EnvVarsArray   = String_ParseIntoArray(&Scratch, AssertEnvVars, ' ', 0, 128);
-        StringArray BuildVarsArray = String_ParseIntoArray(&Scratch, AssertBuildVars, ' ', 0, 128);
         StringArray CompilersArray = String_ParseIntoArray(&Scratch, AssertCompilers, ' ', 0, 128);
         
         if (CompilersArray.Num > 0)
         {
             bool bAnyCompilerMatch = false;
-            for each_str (S, CompilersArray)
+            for each_str (Str, CompilersArray)
             {
-                String Trimmed = String_EatSpaces(*S);
+                String Trimmed = String_EatSpaces(*Str);
 
                 if (String_IsEqual(Trimmed, CompilerProgram, false) ||
                     String_IsEqual(Trimmed, CompilerPath, false))
@@ -4744,58 +4709,17 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 LOG_ERROR("yo dis compiler program \"%S\" cant be used cuh", CompilerProgram);
                 #endif
 
-                if (LogCustomErrorMessage(VariablesDB, S("Compiler"), CompilerProgram, true))
-                {
-                    LOG_LINE_BREAK();
-                }
+                // if (LogCustomErrorMessage(VariablesDB, S("Compiler"), CompilerProgram, true))
+                // {
+                //     LOG_LINE_BREAK();
+                // }
 
-                return 1;
+                Receipt.ExitCode = 1;
+                return Receipt;
             }
         }
 
-        for each_str (S, EnvVarsArray)
-        {
-            String Trimmed = String_EatSpaces(*S);
-            Trimmed = String_EatSpacesFromEnd(Trimmed);
 
-            bool bFound = Platform_DoesEnvironmentVariableExist(Trimmed);
-
-            if (!bFound)
-            {
-                #ifndef HOOD
-                LOG_INLINE_ERROR("[ASSERTION FAILURE] Environment variable \"%S\" does not exist. Aborting build...\n\n", Trimmed);
-                #else
-                LOG_ERROR("yo da environment var \"%S\" don exist cuh. need to be setup n' shit ma nigga\n", Trimmed);
-                #endif
-
-                if (LogCustomErrorMessage(VariablesDB, S("Env"), Trimmed, false))
-                {
-                    LOG_LINE_BREAK();
-                }
-
-                LogRegularEnvVarTutorialSteps();
-
-                return 1;
-            }
-        }
-
-        for each_str (Str, BuildVarsArray)
-        {
-            String Trimmed = String_EatSpaces(*Str);
-
-            bool bFound = DoesBuildVarExist(VariablesDB, Trimmed);
-
-            if (!bFound)
-            {
-                #ifndef HOOD
-                LOG_INLINE_ERROR("[ASSERTION FAILURE] Build variable \"%S\" does not exist. Aborting build...\n", Trimmed);
-                #else
-                LOG_ERROR("yo da build var \"%S\" don exist cuh. dat shit not there nigga", Trimmed);
-                #endif
-
-                return 1;
-            }
-        }
     }
 
     // force rebuild if we say so in the build file
@@ -4829,7 +4753,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
     {
         if (!TryRunBuildCommands(S("PreDepend"), WorkingPath, VariablesDB, NULL))
         {
-            return 1;
+            Receipt.ExitCode = 1;
+            return Receipt;
         }
     }
 
@@ -4869,7 +4794,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
         if (!ArenaMemory)
         {
             LOG_FATAL("Failed to allocate memory from the operating system!");
-            return 1;
+
+            Receipt.ExitCode = 1;
+            return Receipt;
         }
 
         LinearAllocator NewArena = {0};
@@ -4924,22 +4851,29 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 if (String_IsEqual(BuildFile, bHasDot ? StrSlice(CameFromBuildFile.Data, Dot) : CameFromBuildFile, false))
                 {
                     LOG_ERROR("Circular build dependency. We came from \"%S\" but \"%S\" is trying to build \"%S\", which is circular and doesn't make sense", CameFromBuildFile, BuildFileName, CameFromBuildFile);
-                    return 1;
+
+                    Receipt.ExitCode = 1;
+                    return Receipt;
                 }
             }
 
-            StringLocal(CustomWorkingPath, MAX_PATH_LENGTH);
+            StringLocal(CustomWorkingPath_Full, MAX_PATH_LENGTH);
+
+            String CustomRelativePath = String_Null();
+            bool bUsingRelativePath = true;
 
             if (bDirectoryOnly)
             {
                 if (Filesystem_IsPathRelative(Directory))
                 {
-                    String_BuildPath(&CustomWorkingPath, WorkingPath, Directory);
-                    xx Filesystem_ConvertRelativeToAbsolutePath(&CustomWorkingPath);
+                    CustomRelativePath = Directory;
+                    String_BuildPath(&CustomWorkingPath_Full, WorkingPath, Directory);
+                    xx Filesystem_ConvertRelativeToAbsolutePath(&CustomWorkingPath_Full);
                 }
                 else
                 {
-                    String_Copy(&CustomWorkingPath, Directory);
+                    bUsingRelativePath = false;
+                    String_Copy(&CustomWorkingPath_Full, Directory);
                 }
             }
             else
@@ -4962,21 +4896,25 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
                     if (Filesystem_IsPathRelative(CustomPath))
                     {
-                        String_BuildPath(&CustomWorkingPath, WorkingPath, CustomPath);
-                        xx Filesystem_ConvertRelativeToAbsolutePath(&CustomWorkingPath);
+                        CustomRelativePath = CustomPath;
+
+                        String_BuildPath(&CustomWorkingPath_Full, WorkingPath, CustomPath);
+                        xx Filesystem_ConvertRelativeToAbsolutePath(&CustomWorkingPath_Full);
                     }
                     else
                     {
-                        String_Copy(&CustomWorkingPath, CustomPath);
+                        bUsingRelativePath = false;
+                        String_Copy(&CustomWorkingPath_Full, CustomPath);
                     }
                 }
                 else
                 {
-                    String_Copy(&CustomWorkingPath, WorkingPath);
+                    bUsingRelativePath = false;
+                    String_Copy(&CustomWorkingPath_Full, WorkingPath);
                 }
             }
 
-            xx String_EatPathSeparatorsInlineFromEnd(&CustomWorkingPath);
+            xx String_EatPathSeparatorsInlineFromEnd(&CustomWorkingPath_Full);
 
             StringLocal(BuildFileNameWithExt, 128);
             if (!bDirectoryOnly)
@@ -5024,16 +4962,17 @@ static u32 BuildTarget(LinearAllocator* Arena,
             Data.Path = &NewBuildFilePath;
             Data.Arguments = NewParams;
 
-            Filesystem_IterateDirectory_Ex(CustomWorkingPath, &BuildFileDirectoryIterator, !bDirectoryOnly, &Data);
+            Filesystem_IterateDirectory_Ex(CustomWorkingPath_Full, &BuildFileDirectoryIterator, !bDirectoryOnly, &Data);
 
             if (!Data.bFoundBuildFile)
             {
                 if (!bDirectoryOnly)
                 {
-                    LOG_ERROR("Failed to find %S in %S", BuildFileNameWithExt, CustomWorkingPath);
+                    LOG_ERROR("Failed to find %S in %S", BuildFileNameWithExt, CustomWorkingPath_Full);
                 }
 
-                return 1;
+                Receipt.ExitCode = 1;
+                return Receipt;
             }
 
             FileHandle f = {0};
@@ -5045,16 +4984,67 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 LOG_ERROR("wtf, cant read this shit man, think the path to the build file is wrong or smthg homie. this is what i got: %S", NewBuildFilePath);
                 #endif
 
-                return 1;
+                Receipt.ExitCode = 1;
+                return Receipt;
             }
 
+            String RelativeWorkingPathFromMe = bUsingRelativePath ? CustomRelativePath : CustomWorkingPath_Full;
+
             PlatformMutex NewMutex = {0};
-            u32 ExitCode = BuildTarget(&NewArena, f, &NewMutex, CustomWorkingPath, NewParams, BuildFileName, -1, -1);
+            BuildReceipt FreshReceipt = BuildTarget(&NewArena, f, &NewMutex, CustomWorkingPath_Full, NewParams, BuildFileName, -1, -1);
             if (NewMutex.Handle) { xx Platform_ReleaseMutex(&NewMutex); }
 
             Filesystem_Close(&f);
 
-            if (ExitCode == 2) // special exit code meaning this child build finished successfully (and that it did some work)
+            // add all the public keys of what the dependency build file exposed, and append them to ours.
+            {
+                AddOrAppendVariable(Arena, VariablesDB, S("Defines"),          FreshReceipt.Defines, String_Null(), GetMaxValueLengthForReservedKey(S("Includes")));
+                AddOrAppendVariable(Arena, VariablesDB, S("Defines.Public"),   FreshReceipt.Defines, String_Null(), GetMaxValueLengthForReservedKey(S("Includes")));
+                AddOrAppendVariable(Arena, VariablesDB, S("Libraries"),        FreshReceipt.Libraries, String_Null(), GetMaxValueLengthForReservedKey(S("Libraries")));
+                AddOrAppendVariable(Arena, VariablesDB, S("Libraries.Public"), FreshReceipt.Libraries, String_Null(), GetMaxValueLengthForReservedKey(S("Libraries")));
+
+                {
+                    // LinearAllocator Scratch = *Arena;
+                    StringList Paths = String_SplitIntoList(Arena, FreshReceipt.LibraryPaths, ' ', true);
+                    for each_string_in_list (Paths)
+                    {
+                        StringLocal(Temp, MAX_PATH_LENGTH);
+                        String_BuildPath(&Temp, RelativeWorkingPathFromMe, It.String);
+                        AddOrAppendVariable(Arena, VariablesDB, S("Library.Paths"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Library.Paths")));
+                        AddOrAppendVariable(Arena, VariablesDB, S("Library.Paths.Public"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Library.Paths")));
+                    }
+                }
+
+                {
+                    // LinearAllocator Scratch = *Arena;
+                    StringList Paths = String_SplitIntoList(Arena, FreshReceipt.Includes, ' ', true);
+                    for each_string_in_list (Paths)
+                    {
+                        StringLocal(Temp, MAX_PATH_LENGTH);
+                        String_BuildPath(&Temp, RelativeWorkingPathFromMe, It.String);
+                        AddOrAppendVariable(Arena, VariablesDB, S("Includes"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Includes")));
+                        AddOrAppendVariable(Arena, VariablesDB, S("Includes.Public"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Includes")));
+                    }
+                }
+
+                // if we are depending on a libarary, automatically append the build directory
+                // of the thing we just built
+                if (FreshReceipt.AssemblyType == AssemblyType_Library ||
+                    FreshReceipt.AssemblyType == AssemblyType_DynamicLibrary ||
+                    FreshReceipt.AssemblyType == AssemblyType_StaticLibrary)
+                {
+                    StringLocal(LibBuildPath, MAX_PATH_LENGTH);
+                    String_BuildPath(&LibBuildPath, RelativeWorkingPathFromMe, FreshReceipt.BuildDirectory);
+                    AddOrAppendVariable(Arena, VariablesDB, S("Library.Paths"), LibBuildPath, String_Null(), GetMaxValueLengthForReservedKey(S("Library.Paths")));
+                    AddOrAppendVariable(Arena, VariablesDB, S("Library.Paths.Public"), LibBuildPath, String_Null(), GetMaxValueLengthForReservedKey(S("Library.Paths")));
+
+                    AddOrAppendVariable(Arena, VariablesDB, S("Libraries"), FreshReceipt.AssemblyName, String_Null(), GetMaxValueLengthForReservedKey(S("Libraries")));
+                    AddOrAppendVariable(Arena, VariablesDB, S("Libraries.Public"), FreshReceipt.AssemblyName, String_Null(), GetMaxValueLengthForReservedKey(S("Libraries")));
+                }
+            }
+
+            // if (ExitCode == 2) // special exit code meaning this child build finished successfully (and that it did some work)
+            if (FreshReceipt.bWorkWasDone)
             {
                 // TODO: fuck... i need a way to just link and not rebuild the child. Implement this...
                 bDependenciesDoneWork = true;
@@ -5066,7 +5056,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                     bIsRebuild = true;
                 }
             }
-            else if (ExitCode != 0)
+            else if (FreshReceipt.ExitCode != 0)
             {
                 #ifndef HOOD
                 LOG_ERROR("Dependency build \"%S\" failed. Aborting build...", BuildFileNameWithExt);
@@ -5074,7 +5064,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 LOG_ERROR("brah wtf, depndncy buil faild nigga");
                 #endif
 
-                return 1;
+                Receipt.ExitCode = 1;
+                return Receipt;
             }
             else
             {
@@ -5100,7 +5091,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
     {
         if (!TryRunBuildCommands(S("PreBuild"), WorkingPath, VariablesDB, NULL))
         {
-            return 1;
+            Receipt.ExitCode = 1;
+            return Receipt;
         }
     }
 
@@ -5318,7 +5310,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
                         "        You must keep both of these paths separate.",
                         BuildFileName, SourceDir, BuildBaseDirectory);
 
-            return 1;
+            Receipt.ExitCode = 1;
+            return Receipt;
         }
 
         String_Empty(&Test);
@@ -5333,7 +5326,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
                         "        You must keep both of these paths separate.",
                         BuildFileName, SourceDir, IntermediateBaseDirectory);
 
-            return 1;
+            Receipt.ExitCode = 1;
+            return Receipt;
         }
     }
 
@@ -5349,11 +5343,13 @@ static u32 BuildTarget(LinearAllocator* Arena,
             LOG_ERROR("yo dis source dir \"%S\" dont exist cuhh", SourceDir);
             #endif
 
-            return 1;
+            Receipt.ExitCode = 1;
+            return Receipt;
         }
 
         // check if the given LibraryDirectories exist
         // TODO: verify if this is a good idea...
+        String LibraryDirectories = GetVariableValue(VariablesDB, S("Library.Paths"));
         StringList DirList = String_SplitIntoList(&Scratch, LibraryDirectories, ' ', true);
         for each_str_list (DirList)
         {
@@ -5387,10 +5383,24 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 LOG_ERROR("yo dis library path \"%S\" dont exist cuhh", DirPath);
                 #endif
 
-                return 1;
+                Receipt.ExitCode = 1;
+                return Receipt;
             }
         }
     }
+
+    // Receipt.BuildDirectory  = String_Create(Arena, BuildDirectory);
+    // Receipt.Includes        = String_Create(Arena, IncludeFlags_Public);
+    // Receipt.Defines         = String_Create(Arena, Defines_Public);
+    // Receipt.Libraries       = String_Create(Arena, Libraries_Public);
+    // Receipt.LibraryPaths    = String_Create(Arena, LibraryDirectories_Public);
+    Receipt.BuildDirectory  = GetVariableValue(VariablesDB, S("BuildDirectory"));
+    Receipt.Includes        = GetVariableValue(VariablesDB, S("Includes.Public"));
+    Receipt.Defines         = GetVariableValue(VariablesDB, S("Defines.Public"));
+    Receipt.Libraries       = GetVariableValue(VariablesDB, S("Libraries.Public"));
+    Receipt.LibraryPaths    = GetVariableValue(VariablesDB, S("Library.Paths.Public"));
+    Receipt.AssemblyName    = String_Create(Arena, AssemblyName);
+    Receipt.AssemblyType    = AssemblyType;
 
     StringList WhitelistArray    = String_SplitIntoList(Arena, IncludedSourceFiles, ' ', true);
     StringList BlacklistArray    = String_SplitIntoList(Arena, ExcludedSourceFiles, ' ', true);
@@ -5422,6 +5432,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
     StringLocal(FirstSourceFileName, 256);
     SourceCountData CountData             = {0};
+    // CountData.AssemblyFileTime            = ;
     CountData.NumSources                  = 0;
     CountData.NumAsmSources               = 0;
     CountData.NumHeaders                  = 0;
@@ -5442,10 +5453,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     CountData.bHasCppFiles                = false;
     CountData.bIsPCHBuild                 = AssemblyType == AssemblyType_PCH;
 
-    // Clock c;
-    // Clock_Start(&c);
     Filesystem_IterateDirectory_Ex(SourceDir, &SourceFileCounterDirectoryIterator, true, &CountData);
-    // Clock_Tick(&c);
 
     /*
     if (CountData.FilteredFiles)
@@ -5462,7 +5470,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
     const u32 NumSources = CountData.NumSources + CountData.NumAsmSources + CountData.NumRcSources;
 
     // use the first source file as the assembly name (if none provided or if "untitled" was set)
-    if (NumSources == 1)
+    if (CountData.NumSources == 1 || CountData.NumAsmSources == 1)
     {
         if (!String_IsValid(Assembly) ||
             String_IsEqual(Assembly, S("Untitled"), false))
@@ -5493,6 +5501,21 @@ static u32 BuildTarget(LinearAllocator* Arena,
         String_ToLower(&AssemblyNameWithExt);
     }
     #endif
+
+    /*
+    StringLocal(AssemblyPath, MAX_PATH_LENGTH);
+    String_BuildPath(&AssemblyPath, WorkingPath, BuildDirectory, AssemblyNameWithExt);
+
+    usize AssemblyFileTime = Filesystem_GetLastWriteTime(AssemblyPath);
+
+    if (AssemblyFileTime > 0)
+    {
+        if (bAnyHeaderFileModified)
+        {
+            bIsRebuild = true;
+        }
+    }
+    */
 
 
     u32 NumCompiled = 0;
@@ -5627,7 +5650,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
         else
         {
             LOG_ERROR("Assembler program \"%S\" does not exist", CompilerPathCopy);
-            return 1;
+
+            Receipt.ExitCode = 1;
+            return Receipt;
         }
     }
 
@@ -5693,7 +5718,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
                 LogPathEnvVarTutorialSteps();
                     
-                return 1;
+                Receipt.ExitCode = 1;
+                return Receipt;
             }
 
             #ifndef HOOD
@@ -5725,7 +5751,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 " need to be installed and set in da path ma nigga", AsmProgram);
             #endif
 
-            return 1;
+            Receipt.ExitCode = 1;
+            return Receipt;
         }
         
         {
@@ -5793,12 +5820,13 @@ static u32 BuildTarget(LinearAllocator* Arena,
                     LOG_ERROR("yo dis assembler program \"%S\" cant be used cuh", AsmProgram);
                     #endif
 
-                    if (LogCustomErrorMessage(VariablesDB, S("Assembler"), AsmProgram, true))
-                    {
-                        LOG_LINE_BREAK();
-                    }
+                    // if (LogCustomErrorMessage(VariablesDB, S("Assembler"), AsmProgram, true))
+                    // {
+                    //     LOG_LINE_BREAK();
+                    // }
 
-                    return 1;
+                    Receipt.ExitCode = 1;
+                    return Receipt;
                 }
             }
         }
@@ -6129,6 +6157,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
         }
 
         // force a rebuild if any of the .h files have been modified after a build
+        // TODO: rewrite
         if (!bIsRebuild && !bIsClean)
         {
             StringLocal(AssemblyPath, MAX_PATH_LENGTH);
@@ -6146,28 +6175,6 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
                 struct HeaderIterData Data = { AssemblyFileTime, &bIsRebuild };
                 Filesystem_IterateDirectory_Ex(SourceDir, &HeaderFileRebuildCheckDirectoryIterator, true, &Data);
-
-                /*
-                for each (File, GHeaderFiles)
-                {
-                    u64 HeaderFileTime = Filesystem_GetLastWriteTime(File.FullPath);
-
-                    if (HeaderFileTime >= AssemblyFileTime)
-                    {
-                        bIsRebuild = true;
-
-                        #ifndef HOOD
-                        LOG("Header file \"%S\" has been modified since last build. Forcing rebuild...", File.FullPath);
-                        #else
-                        LOG("yo homie, dis header file \"%S\" was recently changed. gon force a rebuild...", File.FullPath);
-                        #endif
-
-                        LOG_LINE_BREAK();
-
-                        break;
-                    }
-                }
-                */
             }
         }
 
@@ -6333,7 +6340,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
             if (!bIsRebuild)
             {
-                return 0;
+                Receipt.ExitCode = 0;
+                return Receipt;
             }
         }
     }
@@ -6380,7 +6388,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
             }
 
             Filesystem_WriteLine(f, Buffer, NULL);
-        Filesystem_Close(&f);
+            Filesystem_Close(&f);
         }
     }
 
@@ -6487,9 +6495,13 @@ static u32 BuildTarget(LinearAllocator* Arena,
     StringLocal(VersionResFilePath, MAX_PATH_LENGTH);
 
     StringLocal(ExpandedIncludeFlags, 4096);
+    // StringLocal(ExpandedIncludeFlags_Public, 4096);
     StringLocal(ExpandedLibraries, 2048);
+    // StringLocal(ExpandedLibraries_Public, 2048);
     StringLocal(ExpandedLibraryDirectories, 4096);
+    // StringLocal(ExpandedLibraryDirectories_Public, 4096);
     StringLocal(ExpandedDefineFlags, 2048);
+    // StringLocal(ExpandedDefineFlags_Public, 2048);
     StringLocal(ExpandedUnDefineFlags, 1024);
     StringLocal(ExpandedLinkerDefineFlags, 1024);
     StringLocal(ExpandedAssemblerIncludeFlags, 4096);
@@ -6501,7 +6513,12 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
     bool bWrapWithQuotes = !bExportingSomething;
 
+    String IncludeFlags = GetVariableValue(VariablesDB, S("Includes"));
+    String_ConvertSlashToPlatformSlash(&IncludeFlags);
+
     ExpandPathFlags(*Arena, &ExpandedIncludeFlags, IncludeFlags, FlagPrefix, bWrapWithQuotes);
+
+    String Libraries = GetVariableValue(VariablesDB, S("Libraries"));
 
     FlagPrefix.Data[1] = 'l';
     if (String_IsEqual(CompilerProgram, S("cl"), false) ||
@@ -6514,6 +6531,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
         PrefixVariables(&ExpandedLibraries, Libraries, FlagPrefix, false);
     }
 
+    String LibraryDirectories = GetVariableValue(VariablesDB, S("Library.Paths"));
+    String_ConvertSlashToPlatformSlash(&LibraryDirectories);
+
     FlagPrefix.Data[1] = 'L';
     if (String_IsEqual(CompilerProgram, S("cl"), false) ||
         String_IsEqual(CompilerProgram, S("msvc"), false)) // todo: something better
@@ -6524,6 +6544,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
     {
         ExpandPathFlags(*Arena, &ExpandedLibraryDirectories, LibraryDirectories, FlagPrefix, bWrapWithQuotes);
     }
+
+    String Defines = GetVariableValue(VariablesDB, S("Defines"));
 
     FlagPrefix.Data[1] = 'D';
     ExpandDefineFlags(&ExpandedDefineFlags, Defines, FlagPrefix, bExportingSomething);
@@ -6591,7 +6613,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
         {
             if (!Filesystem_OpenDirectory(FullBuildDirectory))
             {
-                return 1;
+                Receipt.ExitCode = 1;
+                return Receipt;
             }
         }
     }
@@ -6602,7 +6625,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
     {
         if (!Filesystem_OpenDirectory(IntermediateBaseDirectory))
         {
-            return 1;
+            Receipt.ExitCode = 1;
+            return Receipt;
         }
     }
 
@@ -6700,15 +6724,18 @@ static u32 BuildTarget(LinearAllocator* Arena,
                     LOG("     export:icon.rc");
                     LOG("     export:plist,bat,sh");
 
-                    return 1;
+                    Receipt.ExitCode = 1;
+                    return Receipt;
                 }
 
                 if (!Export_FromArg(*Arena, &p, VarToList, VariablesDB))
                 {
-                    return 1;
+                    Receipt.ExitCode = 1;
+                    return Receipt;
                 }
 
-                return 0;
+                Receipt.ExitCode = 0;
+                return Receipt;
             }
         }
     }
@@ -6778,7 +6805,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
                     {
                         if (!EnforceCopyright(&p, &AuxData, It.String))
                         {
-                            return 1;
+                            Receipt.ExitCode = 1;
+                            return Receipt;
                         }
                     }
                 }
@@ -6867,7 +6895,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
     // precompile step
     if (!TryRunBuildCommands(S("PreCompile"), WorkingPath, VariablesDB, &ExternalClock))
     {
-        return 1;
+        Receipt.ExitCode = 1;
+        return Receipt;
     }
 
     // find the icon path (if specified)
@@ -7082,7 +7111,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
     if (!bSuccess)
     {
-        return 1;
+        Receipt.ExitCode = 1;
+        return Receipt;
     }
 
     if (NumCompiled == 0)
@@ -7100,7 +7130,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
     // postcompile step
     if (!TryRunBuildCommands(S("PostCompile"), WorkingPath, VariablesDB, &ExternalClock))
     {
-        return 1;
+        Receipt.ExitCode = 1;
+        return Receipt;
     }
 
     Clock LinkClock = {0};
@@ -7110,7 +7141,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
     {
         if (!TryRunBuildCommands(S("PreLink"), WorkingPath, VariablesDB, &ExternalClock))
         {
-            return 1;
+            Receipt.ExitCode = 1;
+            return Receipt;
         }
 
         #if PLATFORM_WINDOWS
@@ -7129,13 +7161,15 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
         if (!bSuccess)
         {
-            return 1;
+            Receipt.ExitCode = 1;
+            return Receipt;
         }
 
         // postlink step
         if (!TryRunBuildCommands(S("PostLink"), WorkingPath, VariablesDB, &ExternalClock))
         {
-            return 1;
+            Receipt.ExitCode = 1;
+            return Receipt;
         }
     }
 
@@ -7194,7 +7228,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
         if (!bSuccess)
         {
             LOG_ERROR("Failed to create app bundle directory. Aborting build...");
-            return 1;
+
+            Receipt.ExitCode = 1;
+            return Receipt;
         }
 
         if (IconFilePath.Length > 0)
@@ -7215,7 +7251,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
             if (!bSuccess)
             {
                 LOG_ERROR("Failed to create iconset directory. Aborting build...");
-                return 1;
+
+                Receipt.ExitCode = 1;
+                return Receipt;
             }
 
             PlatformHandle Handles[6] = {0};
@@ -7235,7 +7273,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
             if (ExitCode != 0)
             {
                 LOG_ERROR("Failed to build iconset for \"%S\". Aborting build...", IconFilePath);
-                return 1;
+
+                Receipt.ExitCode = 1;
+                return Receipt;
             }
 
             StringLocal(IcnsName, 256);
@@ -7253,7 +7293,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
             if (ExitCode != 0)
             {
                 LOG_ERROR("Failed to build \"%S\". Aborting build...", IcnsPath);
-                return 1;
+
+                Receipt.ExitCode = 1;
+                return Receipt;
             }
 
             String_BuildPath(&TempPath, AppBundlePath, S("Contents/Resources"), IcnsName);
@@ -7279,7 +7321,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
             if (!String_EndsWith(ResourcePath, S(".plist"), false))
             {
                 LOG_ERROR("%S: Bundle.InfoPlist: file must end with \".plist\". Aborting build...", BuildFileName);
-                return 1;
+
+                Receipt.ExitCode = 1;
+                return Receipt;
             }
 
             // todo: if no explicit path given, search for it
@@ -7293,7 +7337,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
             if (!Export_InfoPlist(*Arena, &p, ResourcePath, VariablesDB, DoesBuildVarExist(VariablesDB, S("Info.plist"))))
             {
-                return 1;
+                Receipt.ExitCode = 1;
+                return Receipt;
             }
         }
 
@@ -7310,7 +7355,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
             if (!String_EndsWith(ResourcePath, S(".plist"), false))
             {
                 LOG_ERROR("%S: Bundle.VersionPlist: file must end with \".plist\". Aborting build...", BuildFileName);
-                return 1;
+
+                Receipt.ExitCode = 1;
+                return Receipt;
             }
 
             // todo: if no explicity path given, search for it
@@ -7325,7 +7372,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
             if (!Export_VersionPlist(*Arena, &p, ResourcePath, VariablesDB, DoesBuildVarExist(VariablesDB, S("Version.plist"))))
             {
-                return 1;
+                Receipt.ExitCode = 1;
+                return Receipt;
             }
         }
 
@@ -7342,7 +7390,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
             if (!String_EndsWith(ResourcePath, S("PkgInfo"), true))
             {
                 LOG_ERROR("%S: Bundle.PkgInfo: file must be named \"PkgInfo\" (case sensitive). Aborting build...", BuildFileName);
-                return 1;
+
+                Receipt.ExitCode = 1;
+                return Receipt;
             }
 
             // todo: if no explicity path given, search for it
@@ -7357,7 +7407,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
 
             if (!Export_PkgInfo(p.Assembly, ResourcePath))
             {
-                return 1;
+                Receipt.ExitCode = 1;
+                return Receipt;
             }
         }
 
@@ -7393,7 +7444,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
             if (!Filesystem_Open(TempPath, FileMode_Write, &f))
             {
                 LOG_ERROR("Failed to create terminal script \"%S\". Aborting build...", TempPath);
-                return 1;
+
+                Receipt.ExitCode = 1;
+                return Receipt;
             }
 
             StringLocal(RealBinaryPath, 1024);
@@ -7434,7 +7487,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
         if (!bSuccess)
         {
             LOG_ERROR("Failed to copy \"%S\" into the app bundle. Aborting build...", TempPath);
-            return 1;
+
+            Receipt.ExitCode = 1;
+            return Receipt;
         }
 
         Clock_Tick(&BundleCompileClock);
@@ -7473,7 +7528,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
             if (ExitCode != 0)
             {
                 LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
-                return 1;
+
+                Receipt.ExitCode = 1;
+                return Receipt;
             }
 
             String_Empty(&CmdLine);
@@ -7488,7 +7545,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
             if (ExitCode != 0)
             {
                 LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
-                return 1;
+
+                Receipt.ExitCode = 1;
+                return Receipt;
             }
 
             String_Empty(&CmdLine);
@@ -7503,7 +7562,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
             if (ExitCode != 0)
             {
                 LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
-                return 1;
+
+                Receipt.ExitCode = 1;
+                return Receipt;
             }
 
             Clock_Tick(&IconClock);
@@ -7538,7 +7599,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
                 String_BuildPath(&LocalAppsDirectory, UserDirectory, S(".local/share/applications"));
                 if (!Filesystem_OpenDirectory(LocalAppsDirectory))
                 {
-                    return 1;
+                    Receipt.ExitCode = 1;
+                    return Receipt;
                 }
 
                 String_BuildPath(&DotDesktopFilePath, UserDirectory, S(".local/share/applications/"), DesktopFileName);
@@ -7604,7 +7666,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
                     String_BuildPath(&MimeDirectory, UserDirectory, S(".local/share/mime/packages"));
                     if (!Filesystem_OpenDirectory(MimeDirectory))
                     {
-                        return 1;
+                        Receipt.ExitCode = 1;
+                        return Receipt;
                     }
 
                     String_BuildPath(&XmlFilePath, UserDirectory, S(".local/share/mime/packages"), XmlFileName);
@@ -7678,7 +7741,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
                         if (ExitCode != 0)
                         {
                             LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
-                            return 1;
+
+                            Receipt.ExitCode = 1;
+                            return Receipt;
                         }
                     }
                     else
@@ -7702,7 +7767,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
                         if (ExitCode != 0)
                         {
                             LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
-                            return 1;
+
+                            Receipt.ExitCode = 1;
+                            return Receipt;
                         }
                     }
                     else
@@ -7724,7 +7791,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
                         if (ExitCode != 0)
                         {
                             LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
-                            return 1;
+
+                            Receipt.ExitCode = 1;
+                            return Receipt;
                         }
                     }
                     else
@@ -7743,7 +7812,9 @@ static u32 BuildTarget(LinearAllocator* Arena,
                         if (ExitCode != 0)
                         {
                             LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
-                            return 1;
+
+                            Receipt.ExitCode = 1;
+                            return Receipt;
                         }
                     }
                     else
@@ -7816,7 +7887,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
             String_BuildPath(&MimeDirectory, UserDirectory, S(".local/share/mime/packages"));
             if (!Filesystem_OpenDirectory(MimeDirectory))
             {
-                return 1;
+                Receipt.ExitCode = 1;
+                return Receipt;
             }
 
             String_BuildPath(&XmlFilePath, UserDirectory, S(".local/share/mime/packages"), XmlFileName);
@@ -7827,7 +7899,8 @@ static u32 BuildTarget(LinearAllocator* Arena,
             String_BuildPath(&LocalAppsDirectory, UserDirectory, S(".local/share/applications"));
             if (!Filesystem_OpenDirectory(LocalAppsDirectory))
             {
-                return 1;
+                Receipt.ExitCode = 1;
+                return Receipt;
             }
 
             String_BuildPath(&DotDesktopFilePath, UserDirectory, S(".local/share/applications/"), DesktopFileName);
@@ -7908,7 +7981,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
                             ResourceCompileClock.ElapsedTime +
                             BundleCompileClock.ElapsedTime +
                             BuildFileParseClock.ElapsedTime +
-                            MSVCInitClock.ElapsedTime +
+                            // MSVCInitClock.ElapsedTime +
                             DependencyBuildClock.ElapsedTime +
                             ExternalClock.ElapsedTime;
 
@@ -7922,7 +7995,7 @@ static u32 BuildTarget(LinearAllocator* Arena,
         PrintClockTimeToBuffer(&TimingBuffer, &ResourceCompileClock, &BuildRuntime, S(  "Resource    time: "), false);
         PrintClockTimeToBuffer(&TimingBuffer, &BundleCompileClock,   &BuildRuntime, S(  "Bundle      time: "), false);
         PrintClockTimeToBuffer(&TimingBuffer, &BuildFileParseClock,  &BuildRuntime, S(  "Build Parse time: "), false);
-        PrintClockTimeToBuffer(&TimingBuffer, &MSVCInitClock,        &BuildRuntime, S(  "MSVC Init   time: "), false);
+        // PrintClockTimeToBuffer(&TimingBuffer, &MSVCInitClock,        &BuildRuntime, S(  "MSVC Init   time: "), false);
         PrintClockTimeToBuffer(&TimingBuffer, &DependencyBuildClock, &BuildRuntime, S(  "Dependency  time: "), true);
         PrintClockTimeToBuffer(&TimingBuffer, &ExternalClock,        &BuildRuntime, S(  "External    time: "), true);
         PrintClockTimeToBuffer(&TimingBuffer, &OverheadClock,        &BuildRuntime, S(  "Overhead    time: "), true);
@@ -7984,7 +8057,8 @@ PostBuild:
     // TODO: test under the condition of when we're cleaning
     if (!TryRunBuildCommands(S("PostBuild"), WorkingPath, VariablesDB, NULL))
     {
-        return 1;
+        Receipt.ExitCode = 1;
+        return Receipt;
     }
 
 End:
@@ -8019,13 +8093,15 @@ End:
 
     if (bQuietBuild) { Logging_Disable(); }
 
-    if (String_IsValid(CameFromBuildFile) && NumCompiled > 0)
-    {
-        // special exit code to let the parent build know this child build finished successfully (and that it did some work)
-        return 2;
-    }
+    Receipt.bWorkWasDone = NumCompiled > 0;
 
-    return 0;
+    // if (String_IsValid(CameFromBuildFile))
+    // {
+    //     // special exit code to let the parent build know this child build finished successfully (and that it did some work)
+    //     Receipt.ExitCode = 2; // TODO: not needed, verify. remove
+    // }
+
+    return Receipt;
 }
 
 static void LogDividerLine(void)
@@ -8674,12 +8750,12 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments, const 
     }
 
     PlatformMutex BuildMutex = {0};
-    u32 ExitCode = BuildTarget(Arena, BuildFileHandle, &BuildMutex, WorkingDirectory, BuildArguments, String_Null(), BuildFileIndex, RootPathIndex);
+    BuildReceipt Receipt = BuildTarget(Arena, BuildFileHandle, &BuildMutex, WorkingDirectory, BuildArguments, String_Null(), BuildFileIndex, RootPathIndex);
     if (BuildMutex.Handle) { xx Platform_ReleaseMutex(&BuildMutex); }
 
     Filesystem_Close(&BuildFileHandle);
 
-    return ExitCode;
+    return Receipt.ExitCode;
 }
 
 static void InitInternalVars(LinearAllocator* Arena)
