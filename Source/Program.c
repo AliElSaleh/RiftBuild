@@ -3489,31 +3489,31 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                 FileVariable Var = OptionVars[i];
                 if (String_IsValid(Var.Name))
                 {
-                    bool bValid = false;
+                    // bool bValid = false;
 
-                    FileVariable Base = GetVariable(VariablesDB, Var.Name);
+                    // FileVariable Base = GetVariable(VariablesDB, Var.Name);
 
-                    if (Base.Value.Length > LongestDefault)
-                    {
-                        LongestDefault = Base.Value.Length;
-                        bAnyDefault = true;
-                    }
+                    // if (Base.Value.Length > LongestDefault)
+                    // {
+                        // LongestDefault = Base.Value.Length;
+                        // bAnyDefault = true;
+                    // }
 
                     // get the default key
-                    StringLocal(Default, MAX_KEY_LENGTH);
-                    String_Append(&Default, Var.Name);
-                    String_Append(&Default, S(".Default"));
-                    FileVariable DefaultVar = GetVariable(VariablesDB, Default);
+                    // StringLocal(Default, MAX_KEY_LENGTH);
+                    // String_Append(&Default, Var.Name);
+                    // String_Append(&Default, S(".Default"));
+                    // FileVariable DefaultVar = GetVariable(VariablesDB, Default);
 
-                    if (DefaultVar.Value.Length > LongestDefault)
-                    {
-                        LongestDefault = DefaultVar.Value.Length;
-                        bAnyDefault = true;
-                        bValid = true;
-                    }
+                    // if (DefaultVar.Value.Length > LongestDefault)
+                    // {
+                        // LongestDefault = DefaultVar.Value.Length;
+                        // bAnyDefault = true;
+                        // bValid = true;
+                    // }
 
                     // look at the cmd option list if we couldnt find it in the regular list
-                    if (!bValid)
+                    // if (!bValid)
                     {
                         bool bExists = DoesCmdOptionExist(CmdOptionsDB, Var.Name);
                         if (bExists)
@@ -3559,13 +3559,13 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
                     // get the base key
                     FileVariable Base = GetVariable(VariablesDB, Var.Name);
-                    FinalValue = Base.Value;
+                    // FinalValue = Base.Value;
 
                     // get the default key
-                    StringLocal(Default, MAX_KEY_LENGTH);
-                    String_Append(&Default, Var.Name);
-                    String_Append(&Default, S(".Default"));
-                    FileVariable DefaultVar = GetVariable(VariablesDB, Default);
+                    // StringLocal(Default, MAX_KEY_LENGTH);
+                    // String_Append(&Default, Var.Name);
+                    // String_Append(&Default, S(".Default"));
+                    // FileVariable DefaultVar = GetVariable(VariablesDB, Default);
 
                     if (!String_IsValid(FinalValue))
                     {
@@ -3580,10 +3580,10 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                         }
                     }
 
-                    if (!String_IsValid(FinalValue))
-                    {
-                        FinalValue = DefaultVar.Value;
-                    }
+                    // if (!String_IsValid(FinalValue))
+                    // {
+                        // FinalValue = DefaultVar.Value;
+                    // }
 
                     if (!String_IsValid(FinalValue))
                     {
@@ -3603,12 +3603,13 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                     }
 
                     // get the description key
-                    StringLocal(Desc, MAX_KEY_LENGTH);
-                    String_Append(&Desc, Var.Name);
-                    String_Append(&Desc, S(".Description"));
-                    FileVariable DescriptionVar = GetVariable(VariablesDB, Desc);
+                    // StringLocal(Desc, MAX_KEY_LENGTH);
+                    // String_Append(&Desc, Var.Name);
+                    // String_Append(&Desc, S(".Description"));
+                    // FileVariable DescriptionVar = GetVariable(VariablesDB, Desc);
 
-                    String FinalDesc = DescriptionVar.Value;
+                    // String FinalDesc = DescriptionVar.Value;
+                    String FinalDesc = Var.Value;
                     if (!String_IsValid(FinalDesc))
                     {
                         FinalDesc = S("No description provided");
@@ -4997,6 +4998,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             Filesystem_Close(&f);
 
             // add all the public keys of what the dependency build file exposed, and append them to ours.
+            // TODO: Depends(protected) param? to avoid nested depends from bubbling up to the parent?
             {
                 AddOrAppendVariable(Arena, VariablesDB, S("Defines"),          FreshReceipt.Defines, String_Null(), GetMaxValueLengthForReservedKey(S("Includes")));
                 AddOrAppendVariable(Arena, VariablesDB, S("Defines.Public"),   FreshReceipt.Defines, String_Null(), GetMaxValueLengthForReservedKey(S("Includes")));
@@ -5026,6 +5028,8 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                         AddOrAppendVariable(Arena, VariablesDB, S("Includes.Public"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Includes")));
                     }
                 }
+
+                // TODO: fix repeating duplicated build directory paths, if depends was called on the same build file multiple times
 
                 // if we are depending on a libarary, automatically append the build directory
                 // of the thing we just built

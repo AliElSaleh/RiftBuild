@@ -2805,17 +2805,12 @@ static void Analyze_KVNode(LinearAllocator* Arena, Node* Root, ParsingContext* C
             AddCmdOption(&Context->CmdOptionsDB, String_Create(Arena, OptionName), String_Create(Arena, OptionValue));
         }
 
-        // also add to the var list array if we are not a binary option
-        // this is so we can later run asserts on these option keys
-        if (!bIsBinaryOption)
+        if (bIsBinaryOption)
         {
-            AddVariableToList(Arena, Context, FinalKey, Val, Params);
+            Params.Length = 0;
         }
     }
-    else
-    {
-        AddVariableToList(Arena, Context, FinalKey, Val, Params);
-    }
+    AddVariableToList(Arena, Context, FinalKey, Val, Params);
 }
 
 NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, ParsingContext* Context, bool bInIf)
@@ -4058,10 +4053,10 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
                         }
                     }
 
-                    StringList List = String_SplitIntoList(&Scratch, Var.Params, ' ', true);
-
-                    if (bFound)
+                    if (bFound && Var.Params.Length > 0)
                     {
+                        StringList List = String_SplitIntoList(&Scratch, Var.Params, ' ', true);
+
                         bool bAnyMatch = false;
                         for each_string_in_list (List)
                         {
@@ -4254,7 +4249,7 @@ NO_DISCARD bool ParseBuildFile(LinearAllocator* PermanentArena,
         //Clock_PrintElapsedTime(&c, true);
     }
 
-    if (bSuccess && !bHelp && !bOptions)
+    if (bSuccess && !bHelp)// && !bOptions)
     {
         // 3. check for certain keys if they exist, if they dont, add the default value
         {
@@ -4758,46 +4753,60 @@ bool ExpandBuildVariable(LinearAllocator Scratch, FileVariableList* VariablesDB,
         }
         else if (C == Token_Char_Not && Slice.Length > 0) // run custom shell commands and append the output of the command to Dest
         {
-            StringLocal(CmdLine, 8192);
-
-            #if PLATFORM_WINDOWS
-            String_Append(&CmdLine, S("cmd.exe /c \""));
-            String_Append(&CmdLine, Slice);
-            String_AppendChar(&CmdLine, '"');
-            #else
-            String_Append(&CmdLine, Slice);
-            #endif
-
-            // TODO: time this
-            PlatformPipe StdOutHandle = {0};
-            PlatformHandle ShellCmd = Platform_RunCommand_Ex(CmdLine, WorkingDirectory, &StdOutHandle);
-            if (Platform_IsValidHandle(ShellCmd))
+            bool bIgnore = false;
+            if (String_IsEqual(Root, S("Depends"), false))
             {
-                u32 ExitCode = Platform_WaitForProcessAndGetExitCode(ShellCmd);
-                if (ExitCode == 0)
+                bIgnore = true;
+            }
+
+            if (bIgnore)
+            {
+                String_AppendChar(Dest, C);
+                String_Append(Dest, Slice);
+            }
+            else
+            {
+                StringLocal(CmdLine, 8192);
+
+                #if PLATFORM_WINDOWS
+                String_Append(&CmdLine, S("cmd.exe /c \""));
+                String_Append(&CmdLine, Slice);
+                String_AppendChar(&CmdLine, '"');
+                #else
+                String_Append(&CmdLine, Slice);
+                #endif
+
+                // TODO: time this
+                PlatformPipe StdOutHandle = {0};
+                PlatformHandle ShellCmd = Platform_RunCommand_Ex(CmdLine, WorkingDirectory, &StdOutHandle);
+                if (Platform_IsValidHandle(ShellCmd))
                 {
-                    StringLocal(StdOutData, 8192);
-                    usize BytesRead = 0;
-                    if (!Filesystem_ReadPipe(StdOutHandle, StdOutData.Capacity, StdOutData.Data, &BytesRead))
+                    u32 ExitCode = Platform_WaitForProcessAndGetExitCode(ShellCmd);
+                    if (ExitCode == 0)
                     {
-                        LOG_ERROR("Failed to read from standard output pipe for command -> \"%S\"", Slice);
-                        return false;
+                        StringLocal(StdOutData, 8192);
+                        usize BytesRead = 0;
+                        if (!Filesystem_ReadPipe(StdOutHandle, StdOutData.Capacity, StdOutData.Data, &BytesRead))
+                        {
+                            LOG_ERROR("Failed to read from standard output pipe for command -> \"%S\"", Slice);
+                            return false;
+                        }
+
+                        StdOutData.Length = Min((u32)BytesRead, StdOutData.Capacity);
+                        xx String_EatNewLinesInlineFromEnd(&StdOutData);
+
+                        String DestEnd = StrShiftF(*Dest, Dest->Length);
+                        u32 DestLengthBefore = Dest->Length;
+
+                        String_Append(Dest, StdOutData);
+                        DestEnd.Length = Dest->Length - DestLengthBefore;
+
+                        if (bWantsToLower) { String_ToLower(&DestEnd); }
+                        if (bWantsToUpper) { String_ToUpper(&DestEnd); }
+
+                        Platform_CloseHandle(StdOutHandle[0]);
+                        Platform_CloseHandle(StdOutHandle[1]);
                     }
-
-                    StdOutData.Length = Min((u32)BytesRead, StdOutData.Capacity);
-                    xx String_EatNewLinesInlineFromEnd(&StdOutData);
-
-                    String DestEnd = StrShiftF(*Dest, Dest->Length);
-                    u32 DestLengthBefore = Dest->Length;
-
-                    String_Append(Dest, StdOutData);
-                    DestEnd.Length = Dest->Length - DestLengthBefore;
-
-                    if (bWantsToLower) { String_ToLower(&DestEnd); }
-                    if (bWantsToUpper) { String_ToUpper(&DestEnd); }
-
-                    Platform_CloseHandle(StdOutHandle[0]);
-                    Platform_CloseHandle(StdOutHandle[1]);
                 }
             }
         }
