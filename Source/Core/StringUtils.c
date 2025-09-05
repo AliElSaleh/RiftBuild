@@ -225,7 +225,7 @@ void String_ConcatArray(String* Dest, const StringArray Array, u32 MaxSize)
 NO_DISCARD bool String_IsEqual(const String StringA, const String StringB, bool bCaseSensitive)
 {
     bool bSameLength = StringA.Length == StringB.Length;
-    bool bMatch = bSameLength;
+    bool bMatch = bSameLength && StringA.Data && StringB.Data;
 
     if (bMatch)
     {

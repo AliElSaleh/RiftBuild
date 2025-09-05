@@ -11,53 +11,60 @@ if cl
 {
     TempWarnings /wd4702
 
-    WarningFlags                 /Wall /W4 /WX
-    WarningFlagsDisabled         /wd4100 /wd4164 /wd4668 /wd5045 /wd4711 $TempWarnings
+    WarningFlags                     /Wall /W4 /WX
+    WarningFlagsDisabled             /wd4100 /wd4164 /wd4668 /wd5045 /wd4711 $TempWarnings
 
-    SharedCompilerFlags          $WarningFlags $WarningFlagsDisabled /TC /GS- /Gs999999999 /EHs- /analyze /analyze:stacksize 8000000
-    SharedCompilerFlags:debug    /MTd /Od /Zi /FS /Fd"$IntermediateDirectory\$(Assembly).pdb"
-    SharedCompilerFlags:!debug   /MT /O2
-    SharedCompilerFlags:32       /d2noftol3
+    SharedCompilerFlags              $WarningFlags $WarningFlagsDisabled /TC /GS- /Gs999999999 /EHs- /analyze /analyze:stacksize 8000000
+    SharedCompilerFlags:debug        /MTd /Od /Zi /FS /Fd"$IntermediateDirectory\$(Assembly).pdb"
+    SharedCompilerFlags:!debug       /MT /O2
+    SharedCompilerFlags:32           /d2noftol3
     
-    MachineType:32               X86
-    MachineType:!32              X64
-    SharedLinkerFlags            /SAFESEH:NO /INCREMENTAL:NO /NODEFAULTLIB
-    SharedLinkerFlags            /MACHINE:$MachineType
-    SharedLinkerFlags:debug      /DEBUG
+    MachineType:32                   X86
+    MachineType:!32                  X64
+    SharedLinkerFlags                /SAFESEH:NO /INCREMENTAL:NO /NODEFAULTLIB
+    SharedLinkerFlags                /MACHINE:$MachineType
+    SharedLinkerFlags:debug          /DEBUG
 }
 else
 {
-    WarningFlags                 -Wall -Wextra -Wshadow -Wconversion -Wmissing-prototypes -Wunused -Wuninitialized -Werror
-    WarningFlags:!gcc            -Wpedantic
-    WarningFlagsDisabled         -Wno-unused-parameter
-    WarningFlagsDisabled:mac     -Wno-nonportable-include-path
-    WarningFlagsDisabled:gcc     -Wno-unused-result
-    WarningFlagsDisabled:!gcc    -Wno-typedef-redefinition -Wno-gnu-zero-variadic-macro-arguments -Wno-unused-command-line-argument
-    WarningFlagsDisabled:strict  -Wno-unused-variable
+    WarningFlags                     -Wall -Wextra -Wshadow -Wconversion -Wmissing-prototypes -Wunused -Wuninitialized -Werror
+    WarningFlags:!gcc                -Wpedantic
+    WarningFlagsDisabled             -Wno-unused-parameter
+    WarningFlagsDisabled:mac         -Wno-nonportable-include-path
+    WarningFlagsDisabled:gcc         -Wno-unused-result
+    WarningFlagsDisabled:!gcc        -Wno-typedef-redefinition -Wno-gnu-zero-variadic-macro-arguments -Wno-unused-command-line-argument
 
-    SharedCompilerFlags          -std=c99 -fno-builtin-memcpy -fno-omit-frame-pointer -fno-exceptions -fno-math-errno -funroll-loops -fno-strict-overflow -fno-strict-aliasing $WarningFlags $WarningFlagsDisabled
-    SharedCompilerFlags:windows  -nostdlib -fno-builtin -ffreestanding
-    SharedCompilerFlags:_sse2    -msse2
-    SharedCompilerFlags:!gcc     -mstack-probe-size=999999999
-    SharedCompilerFlags:gcc      -mno-stack-arg-probe
-    SharedCompilerFlags:linux    -fstack-clash-protection
-    SharedCompilerFlags:debug    -O0 -g3 -MD
-    SharedCompilerFlags:!debug   -Os -finline-functions
-    SharedCompilerFlags:!gcc     -finline-hint-functions
-    SharedCompilerFlags:asm      -S
-    SharedCompilerFlags:trace    -ftime-trace
-    SharedCompilerFlags:32       -m32
-    SharedCompilerFlags:mac      -mmacosx-version-min=10.12
-    SharedCompilerFlags:analyze  --analyze -funsigned-char
+    SharedCompilerFlags              -std=c99 -fno-builtin-memcpy -fno-omit-frame-pointer -fno-exceptions -fno-math-errno -funroll-loops -fno-strict-overflow -fno-strict-aliasing $WarningFlags $WarningFlagsDisabled
+    SharedCompilerFlags:windows      -nostdlib -fno-builtin -ffreestanding
+    SharedCompilerFlags:linux        -fstack-clash-protection
+    SharedCompilerFlags:_sse2        -msse2
+    SharedCompilerFlags:debug        -O0 -g3 -MD
+    SharedCompilerFlags:!debug       -Os -finline-functions
+    SharedCompilerFlags:asm          -S
+    SharedCompilerFlags:trace        -ftime-trace
+    SharedCompilerFlags:32           -m32
+    SharedCompilerFlags:mac          -mmacosx-version-min=10.12
 
-    Compiler.ObjectExtension:asm .S
+    if gcc
+    {
+        SharedCompilerFlags          -mno-stack-arg-probe
+        SharedCompilerFlags:analyze  --analyzer -funsigned-char
+    }
+    else
+    {
+        SharedCompilerFlags          -mstack-probe-size=999999999
+        SharedCompilerFlags          -finline-hint-functions
+        SharedCompilerFlags:analyze  --analyze -funsigned-char
+    }
+
+    Compiler.ObjectExtension:asm     .S
 
     SharedLinkerFlags            
-    SharedLinkerFlags:32         --target=i386-pc-windows-msvc
-    SharedLinkerFlags:linux      -Wl,-z,nodlopen -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now
-    SharedLinkerFlags:mac        -framework Foundation
-    SharedLinkerFlags:debug      -g3
+    SharedLinkerFlags:32             --target=i386-pc-windows-msvc
+    SharedLinkerFlags:linux          -Wl,-z,nodlopen -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now
+    SharedLinkerFlags:mac            -framework Foundation
+    SharedLinkerFlags:debug          -g3
     
-    SharedDefines:debug          _GLIBCXX_ASSERTIONS _GLIBCXX_DEBUG _GLIBCXX_DEBUG_PEDANTIC
-    SharedDefines:!debug         _FORTIFY_SOURCE=3
+    SharedDefines:debug              _GLIBCXX_ASSERTIONS _GLIBCXX_DEBUG _GLIBCXX_DEBUG_PEDANTIC
+    SharedDefines:!debug             _FORTIFY_SOURCE=3
 }

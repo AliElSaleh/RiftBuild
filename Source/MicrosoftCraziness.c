@@ -117,10 +117,10 @@ struct ISetupConfiguration
 
 static bool FindVisualStudioViaCOM(LinearAllocator* Arena, MicrosoftVisualStudioPaths* Result)
 {
-    HRESULT hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
+    xx CoInitializeEx(NULL, COINIT_MULTITHREADED);
 
     ISetupConfiguration* Config = NULL;
-    hr = CoCreateInstance(&CLSID_SetupConfiguration, NULL, CLSCTX_INPROC_SERVER, &IID_ISetupConfiguration, (void**)&Config);
+    HRESULT hr = CoCreateInstance(&CLSID_SetupConfiguration, NULL, CLSCTX_INPROC_SERVER, &IID_ISetupConfiguration, (void**)&Config);
     if (FAILED(hr) || !Config)
     {
         return false;

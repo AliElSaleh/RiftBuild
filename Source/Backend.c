@@ -1117,7 +1117,7 @@ static void GetAdditionalLinkerFlags(const BuildParams* Params, String* Addition
     // (and for all the different platforms as well)
     if (Params->Type == AssemblyType_Executable)
     {
-        String NoDefaultLibs = String_Null();
+        String NoDefaultLibs;// = String_Null();
         String NoStd         = String_Null();
 
         if (bIsMicrosoftLinker)
@@ -1485,8 +1485,6 @@ bool C_Link(const BuildParams* Params)
     if (bIsLib)
     {
         String DefaultObjExtension = bIsMicrosoftArchiver ? S(".obj") : S(".o");
-
-        OutputFlag = S("-o ");
 
         ProgramPath = Params->ArchiverPath;
 

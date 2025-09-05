@@ -2922,7 +2922,7 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
                             VarValue = Var.Value;
                             bConditionMet = c.ComparisonOp == Token_None;
                             bFoundVar = true;
-                            bFoundSomething = true;
+                            // bFoundSomething = true;
 
                             break;
                         }
