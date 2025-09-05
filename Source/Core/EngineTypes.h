@@ -181,7 +181,7 @@ STRUCT(StringList)
 #define each_str_list_i(Index, List)        (StringList It = List; StringList_Iterate_Check(It); (It) = StringList_Iterate_Next(It), Index+=1)
 #define each_str_list_it(Element, List)     (StringList Element = List; StringList_Iterate_Check(Element); Element = StringList_Iterate_Next(Element))
 #define each_string_in_list(x)              each_str_list(x)
-#define each_string_in_list_i(i, x)            each_str_list_i(i, x)
+#define each_string_in_list_i(i, x)         each_str_list_i(i, x)
 
 #define StringN(n)  		                struct { uchar Data[n]; u32 Length; u32 Capacity; }
 

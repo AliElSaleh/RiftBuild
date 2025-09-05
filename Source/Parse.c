@@ -1564,20 +1564,22 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Pars
             {
                 StringList** Next = &ParamList;
                 while (Parser_Peek(P).Type == Token_Text       ||
-                       Parser_Peek(P).Type == Token_Whitespace ||
+                    //    Parser_Peek(P).Type == Token_Whitespace ||
                        Parser_Peek(P).Type == Token_Colon)
                 {
+                    /*
                     if (Parser_Peek(P).Type == Token_Whitespace)
                     {
                         SLinkedList_Push(Next, StringList_Create(Arena, S(" "), NULL));
                     }
                     else
+                    */
                     {
                         SLinkedList_Push(Next, StringList_Create(Arena, Parser_Peek(P).Lexeme, NULL));
                     }
 
                     Parser_Advance(P);
-                    //Parser_SkipWhitespace(P);
+                    Parser_SkipWhitespace(P);
                 }
 
                 if (!Parser_Match(P, Token_RParen))
@@ -2198,18 +2200,6 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
             else if (Char == Token_Char_At)     { TokenToAdd = Token_At;        }
             else if (Char == Token_Char_Mod)    { TokenToAdd = Token_Mod;       }
             else if (Char == '|')               { TokenToAdd = Token_Pipe;      }
-            else if (Char == '\'')
-            {
-                if (!bInsideWhitespaceAllowedBlock)
-                {
-                    if (PrevChar != '\\')
-                    {
-                        bAllowWhitespace = !bAllowWhitespace;
-                    }
-                }
-
-                TokenToAdd = Token_Quote;
-            }
             else if (Char == '"')
             {
                 if (!bInsideWhitespaceAllowedBlock)
@@ -2454,72 +2444,6 @@ NO_DISCARD static String GetOptionParamsFromVarList(FileVariableList* VarList, S
     return Params;
 }
 
-NO_DISCARD static String GetOptionDefaultValue(FileVariableList* VarList, String OptionName)
-{
-    String Found = String_Null();
-
-    StringLocal(Default, MAX_KEY_LENGTH);
-    String_Append(&Default, OptionName);
-    String_Append(&Default, S(".Default"));
-
-    FileVariable* DefaultRef = GetVarInList(VarList, Default, false);
-    if (DefaultRef == &FileVariable_Empty)
-    {
-        // no default found
-    }
-    else
-    {
-        // default found
-        Found = DefaultRef->Value;
-    }
-
-    return Found;
-}
-
-NO_DISCARD static String GetOptionValueFromVarList(FileVariableList* VarList, String OptionName, bool* bFound)
-{
-    String FinalValue = String_Null();
-    if (bFound) { *bFound = false; }
-
-    FileVariable* Ref = GetVarInList(VarList, OptionName, true);
-    if (Ref != &FileVariable_Empty)
-    {
-        // search order 1. find .Default key (if available)
-        String DefaultValue = GetOptionDefaultValue(VarList, OptionName);
-        if (String_IsValid(DefaultValue))
-        {
-            FinalValue = DefaultValue;
-        }
-
-        if (String_IsEqual(Ref->Name, OptionName, false)) // only if exact so we dont read its subkeys
-        {
-            // search order 2. use the key's value
-            if (!String_IsValid(FinalValue))
-            {
-                FinalValue = Ref->Value;
-            }
-
-            // search order 3. use the key's first param
-            if (!String_IsValid(FinalValue))
-            {
-                String First = Ref->Params;
-                u32 Space = 0;
-                if (String_IndexOfFirstWhitespace(Ref->Params, &Space))
-                {
-                    First = StrSlice(Ref->Params.Data, Space);
-                }
-
-                FinalValue = First;
-            }
-        }
-
-        // if (bFound && FinalValue.Length > 0) { *bFound = true; }
-        if (bFound ) { *bFound = true; }
-    }
-
-    return FinalValue;
-}
-
 NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, ParsingContext* Context, bool bInIf);
 NO_DISCARD static NodeList* Analyze_List(LinearAllocator* Arena, Node* Block, ParsingContext* Context, bool bInIf);
 NO_DISCARD static bool      Analyze_Indeterminates(LinearAllocator* Arena, NodeList* List, ParsingContext* Context);
@@ -2688,6 +2612,65 @@ NO_DISCARD static NodeList* Analyze_IncludeNode(LinearAllocator* Arena, Node* Ro
     return IndeterminateList;
 }
 
+static bool IsOptionOn(String Str)
+{
+    bool bOn = false;
+
+    if (String_IsEqual(Str, S("on"), false) ||
+        String_IsEqual(Str, S("yes"), false) ||
+        String_IsEqual(Str, S("1"), false) ||
+        String_IsEqual(Str, S("true"), false))
+    {
+        bOn = true;
+    }
+
+    return bOn;
+}
+
+static bool IsOptionOff(String Str)
+{
+    bool bOff = false;
+
+    if (String_IsEqual(Str, S("off"), false) ||
+        String_IsEqual(Str, S("no"), false) ||
+        String_IsEqual(Str, S("0"), false) ||
+        String_IsEqual(Str, S("false"), false))
+    {
+        bOff = true;
+    }
+
+    return bOff;
+}
+
+static bool IsOptionBinary(StringList Parameters)
+{
+    bool bIsBinaryOption = false;
+
+    u8 Num = 0;
+    bool bHaveOn = false;
+    bool bHaveOff = false;
+    for each_string_in_list (Parameters)
+    {
+        if (IsOptionOn(It.String))
+        {
+            bHaveOn = true;
+        }
+        else if (IsOptionOff(It.String))
+        {
+            bHaveOff = true;
+        }
+
+        Num++;
+    }
+
+    if (Num < 3 && (bHaveOn || bHaveOff))
+    {
+        bIsBinaryOption = true;
+    }
+
+    return bIsBinaryOption;
+}
+
 static void Analyze_KVNode(LinearAllocator* Arena, Node* Root, ParsingContext* Context)
 {
     StringLocal(FinalKey, MAX_KEY_LENGTH);
@@ -2739,60 +2722,94 @@ static void Analyze_KVNode(LinearAllocator* Arena, Node* Root, ParsingContext* C
         for each_string_in_list (*Root->Parameters)
         {
             String_Append(&Params, It.String);
+            String_AppendSpace(&Params);
         }
 
         xx String_EatSpacesInlineFromEnd(&Params);
     }
 
-    if (String_IsEqual(FinalKey, S("default.options"), false))// && !Context->bIgnoreDefaultOptions) // this is a bad idea. TODO: revisit
+    // make sure this is an actual option.something key with no additional children keys
+    if (String_StartsWith(FinalKey, S("option."), false) && !Root->Parent)
     {
-        LinearAllocator Scratch = {0};
-        i8 ScratchMemory[1024] = {0};
-        LinearAllocator_Create(1024, ScratchMemory, &Scratch);
+        String OptionName = StrShiftF(FinalKey, 7);
+        String OptionValue = String_Null();
 
-        StringList List = String_SplitIntoList(&Scratch, Val, ' ', true);
-        for each_string_in_list (List)
+        // does the cmd line for this option already exist?
+        CmdOption* OptionPtr = NULL;
+        for each (CmdOption, o, Context->CmdOptionsDB)
         {
-            String Option = It.String;
-
-            u32 Equals = 0;
-            if (String_IndexOfChar(Option, '=', &Equals))
+            bool bMatch = String_IsEqual(o.Name, OptionName, false);
+            if (bMatch)
             {
-                String Key   = Equals > 0 ? StrSlice(Option.Data, Equals) : Option;
-                String Value = Equals > 0 ? StrShiftF(Option, Equals+1) : String_Null();
+                OptionPtr = o_;
+                break;
+            }
+        }
 
-                // does this option already exist?
-                String Key_NoPrefix = Key;
-                if (String_StartsWith(Key, S("option."), false))
+        bool bIsOptionEnabled = false;
+        bool bIsBinaryOption = true;
+        if (Root->Parameters)
+        {
+            bIsBinaryOption = IsOptionBinary(*Root->Parameters);
+
+            if (bIsBinaryOption)
+            {
+                // param default value
+                bIsOptionEnabled = IsOptionOn(Root->Parameters->String);
+
+                // does the cmd line turn this option on or off?
+                if (bIsOptionEnabled)
                 {
-                    Key_NoPrefix = StrShiftF(Key, 7);
-                }
+                    usize i = 0;
+                    for each_i (i, CmdOption, o, Context->CmdOptionsDB)
+                    {
+                        if (String_IsFirst(o.Name, '!'))
+                        {
+                            bool bMatch = String_IsEqual(StrShiftF(o.Name, 1), OptionName, false);
+                            if (bMatch)
+                            {
+                                bIsOptionEnabled = false;
+                            }
+                        }
+                        else
+                        {
+                            bool bMatch = String_IsEqual(o.Name, OptionName, false);
+                            if (bMatch && o.Value.Length)
+                            {
+                                bIsOptionEnabled = IsOptionOn(o.Value);
+                            }
+                        }
 
-                bool bExists = DoesCmdOptionExist(Context->CmdOptionsDB, Key_NoPrefix);
-                if (!bExists)
-                {
-                    StringLocal(Temp, MAX_KEY_LENGTH);
-                    String_Append(&Temp, S("#doption."));
-                    String_Append(&Temp, Key);
-
-                    AddCmdOption(&Context->CmdOptionsDB, String_Create(Arena, Temp), String_Create(Arena, Value));
+                        if (!bIsOptionEnabled)
+                        {
+                            Array_RemoveAt(Context->CmdOptionsDB, NULL, i);
+                            break;
+                        }
+                    }
                 }
             }
             else
             {
-                // does this option already exist?
-                String Option_NoPrefix = Option;
-                if (String_StartsWith(Option, S("option."), false))
-                {
-                    Option_NoPrefix = StrShiftF(Option, 7);
-                }
+                bIsOptionEnabled = true;
+                OptionValue = Root->Parameters->String;
 
-                bool bExists = DoesCmdOptionExist(Context->CmdOptionsDB, Option_NoPrefix);
-                if (!bExists)
+                if (OptionPtr)
                 {
-                    AddCmdOption(&Context->CmdOptionsDB, String_Create(Arena, Option), S("@#@")); // this gets evaluated on the second pass
+                    OptionValue = OptionPtr->Value;
                 }
             }
+        }
+
+        if (bIsOptionEnabled)
+        {
+            AddCmdOption(&Context->CmdOptionsDB, String_Create(Arena, OptionName), String_Create(Arena, OptionValue));
+        }
+
+        // also add to the var list array if we are not a binary option
+        // this is so we can later run asserts on these option keys
+        if (!bIsBinaryOption)
+        {
+            AddVariableToList(Arena, Context, FinalKey, Val, Params);
         }
     }
     else
@@ -2862,10 +2879,20 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
                             // make sure we have some value if we specified an '=' sign
                             if (!o.bEqualsToSomething || o.Value.Length > 0)
                             {
-                                VarValue = o.Value;
-                                bConditionMet = c.ComparisonOp == Token_None;
-                                bFoundVar = true;
-                                bFoundSomething = true;
+                                bool bIsBinaryOption = IsOptionOn(o.Value) || IsOptionOff(o.Value);
+                                if (bIsBinaryOption)
+                                {
+                                    bConditionMet = IsOptionOn(o.Value);
+                                    bFoundSomething = true;
+                                }
+                                else
+                                {
+                                    VarValue = o.Value;
+                                    bConditionMet = c.ComparisonOp == Token_None;
+                                    bFoundVar = true;
+                                    bFoundSomething = true;
+                                }
+
                                 break;
                             }
                         }
@@ -2884,26 +2911,6 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
                                 bFoundSomething = true;
                                 break;
                             }
-                        }
-                    }
-
-                    if (!bFoundSomething && !bConditionMet)
-                    {
-                        StringLocal(OptionName, MAX_KEY_LENGTH);
-                        if (!String_StartsWith(Condition, S("Option."), false))
-                        {
-                            String_Append(&OptionName, S("Option."));
-                        }
-                        String_Append(&OptionName, Condition);
-
-                        bool bExists = false;
-                        String OptionValue = GetOptionValueFromVarList(Context->VarListHead, OptionName, &bExists);
-                        if (bExists)
-                        {
-                            bFoundVar = OptionValue.Length > 0; // no-value options should not succeed
-                            VarValue = OptionValue;
-                            bConditionMet = bFoundVar;
-                            bFoundSomething = true;
                         }
                     }
                 }
@@ -3176,15 +3183,17 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
                 }
             }
 
-            if (bNot)
+            if (bFoundVar)
             {
-                bConditionMet = !bConditionMet;
-            }
+                if (bNot)
+                {
+                    bConditionMet = !bConditionMet;
+                }
 
-            if (bConditionMet)
-            {
-                bFoundVar = true;
-                break;
+                if (bConditionMet)
+                {
+                    break;
+                }
             }
 
             Next = Next->Next;
@@ -3967,41 +3976,39 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
                         {
                             bFound = false;
                         }
-                        
+
                         break;
                     }
                 }
 
-                if (!bFound)
+                String SearchName = Var.Name;
                 {
-                    #ifndef HOOD
-                    LOG_INLINE_ERROR("\n[ASSERTION FAILURE] Command line argument \"%S\" or \"%S=VALUE\" was not given."
-                                    "\n                    This is needed for the build to work properly. Aborting build...\n", Trimmed, Trimmed);
-                    #else
-                    LOG_ERROR("yo da cmd line var \"%S\" don exist cuh. dat shit not there nigga", Trimmed);
-                    #endif
-
-                    // TODO: make fucntion, this is duplicated code
-                    // TODO: do this for the other assert
-                    String SearchName = Var.Name;
                     u32 LastDot = 0;
                     if (String_IndexOfLastChar(StrShiftF(SearchName, 7), '.', &LastDot))
                     {
                         SearchName = StrSlice(SearchName.Data, LastDot+7);
                     }
+                }
 
-                    bool bFoundParams = false;
-                    String Params = GetOptionParamsFromVarList(Context->VarListHead, SearchName, &bFoundParams);
+                bool bFoundParams = false;
+                xx GetOptionParamsFromVarList(Context->VarListHead, SearchName, &bFoundParams);
+
+                if (!bFound)
+                {
+                    #ifndef HOOD
                     if (bFoundParams)
                     {
-                        StringList List = String_SplitIntoList(&Scratch, Params, ' ', true);
-
-                        LOG("\n    Here are the accepted options:");
-                        for each_string_in_list (List)
-                        {
-                            LOG("      - %S=%S", Trimmed, It.String);
-                        }
+                        LOG_INLINE_ERROR("\n[ASSERTION FAILURE] Command line argument \"%S=VALUE\" was not given."
+                                        "\n                    This is needed for the build to work properly. Aborting build...\n", Trimmed);
                     }
+                    else
+                    {
+                        LOG_INLINE_ERROR("\n[ASSERTION FAILURE] Command line argument \"%S\" was not given."
+                                        "\n                    This is needed for the build to work properly. Aborting build...\n", Trimmed);
+                    }
+                    #else
+                    LOG_ERROR("yo da cmd line var \"%S\" don exist cuh. dat shit not there nigga", Trimmed);
+                    #endif
 
                     xx Internal_LogCustomErrorMessage(Context, S("Option"), Trimmed, true);
 
@@ -4014,6 +4021,76 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
         if (bAssertionFailed)
         {
             break;
+        }
+    }
+
+    if (!bAssertionFailed)
+    {
+        // go through all the options and validate their values
+        SLinkedList_Each(FileVariableList, This2, &Context->VarListHead)
+        {
+            const FileVariable Var = (*This2)->Var;
+
+            LinearAllocator Scratch = *Context->TempArena;
+
+            if (String_StartsWith(Var.Name, S("Option."), false))
+            {
+                // make sure this is just a option.something key with no children keys
+                String OptionName = StrShiftF(Var.Name, 7);
+                if (String_CountChar(OptionName, '.') == 0)
+                {
+                    String OptionValue = String_Null();
+
+                    bool bFound = false;
+                    for each (CmdOption, o, Context->CmdOptionsDB)
+                    {
+                        if (String_IsEqual(o.Name, OptionName, false))
+                        {
+                            bFound = true;
+                            if (o.bEqualsToSomething && o.Value.Length == 0)
+                            {
+                                bFound = false;
+                            }
+
+                            OptionValue = o.Value;
+                            
+                            break;
+                        }
+                    }
+
+                    StringList List = String_SplitIntoList(&Scratch, Var.Params, ' ', true);
+
+                    if (bFound)
+                    {
+                        bool bAnyMatch = false;
+                        for each_string_in_list (List)
+                        {
+                            if (String_IsEqual(It.String, OptionValue, false))
+                            {
+                                bAnyMatch = true;
+                                break;
+                            }
+                        }
+
+                        if (!bAnyMatch)
+                        {
+                            LOG_INLINE_ERROR("\n[ASSERTION FAILURE] Command line argument \"%S=%S\" is not a valid option value."
+                                            "\n                    A valid option is needed for the build to work properly. Aborting build...\n", OptionName, OptionValue);
+
+                            LOG("\n    Here are the accepted options:");
+                            for each_string_in_list (List)
+                            {
+                                LOG("      - %S=%S", OptionName, It.String);
+                            }
+
+                            xx Internal_LogCustomErrorMessage(Context, S("Option"), OptionName, true);
+
+                            bAssertionFailed = true;
+                            break;
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -4169,117 +4246,9 @@ NO_DISCARD bool ParseBuildFile(LinearAllocator* PermanentArena,
         Context.VarListTail = &Context.VarListHead;
         NodeList* IndeterminateList = Analyze_List(Context.TempArena, AST, &Context, false);
 
-        // 1.5. Default options pass
-        // In the first pass we added "@#@" to cmd options that need to be evaluated. This is that time.
-        // Before we do the second pass, make sure to search for 'Option.' keys and use their values (if available),
-        // so that when analyzing if nodes, the options will exist and they can evaluate to something.
-
-        // scan for accepted values from params and error
-        bool bInvalidParam = false;
-        for each (CmdOption, o, Context.CmdOptionsDB)
-        {
-            if (String_IsFirst(o.Name, '_')) { continue; }
-
-            String Name = o.Name;
-            u32 ShiftAmount = 0;
-            if (String_StartsWith(o.Name, S("#doption."), false))
-            {
-                Name = StrShiftF(o.Name, 2);
-                ShiftAmount = 7;
-                
-                o_->Name = StrShiftF(o.Name, 9);
-            }
-
-            {
-                StringLocal(SearchName, MAX_KEY_LENGTH);
-                if (!String_StartsWith(Name, S("Option."), false))
-                {
-                    String_Append(&SearchName, S("option."));
-                }
-                String_Append(&SearchName, Name);
-
-                bool bFoundParams = false;
-                String Params = GetOptionParamsFromVarList(Context.VarListHead, SearchName, &bFoundParams);
-                if (bFoundParams)
-                {
-                    LinearAllocator Scratch = *Context.TempArena;
-                    StringList List = String_SplitIntoList(&Scratch, Params, ' ', true);
-                    bool bMatchesAny = false;
-                    for each_string_in_list (List)
-                    {
-                        if (String_IsEqual(It.String, o.Value, false))
-                        {
-                            bMatchesAny = true;
-                            break;
-                        }
-                    }
-
-                    if (!bMatchesAny)
-                    {
-                        bInvalidParam = true;
-
-                        String Trimmed = StrShiftF(Name, ShiftAmount);
-                        u32 LastDot = 0;
-                        if (String_IndexOfLastChar(Trimmed, '.', &LastDot))
-                        {
-                            Trimmed = StrSlice(Trimmed.Data, LastDot);
-                        }
-
-                        #ifndef HOOD
-                        LOG_INLINE_ERROR("\n[ASSERTION FAILURE] Command line option \"%S=%S\" is invalid.\n", Trimmed, o.Value);
-                        #else
-                        LOG_ERROR("yo da cmd line var \"%S\" don exist cuh. dat shit not there nigga", Trimmed);
-                        #endif
-
-                        LOG("\n    Here are the accepted options:");
-                        for each_string_in_list (List)
-                        {
-                            LOG("      - %S=%S", Trimmed, It.String);
-                        }
-
-                        xx Internal_LogCustomErrorMessage(&Context, S("Option"), Trimmed, true);
-                    }
-                }
-            }
-
-            if (bInvalidParam)
-            {
-                break;
-            }
-        }
-
-        if (bInvalidParam)
-        {
-            bSuccess = false;
-        }
-
-        if (bSuccess)
-        {
-            for each (CmdOption, o, Context.CmdOptionsDB)
-            {
-                if (String_IsEqual(o.Value, S("@#@"), false))
-                {
-                    bool bStartsWithPrefix = String_StartsWith(o.Name, S("option."), false);
-
-                    StringLocal(Name, MAX_KEY_LENGTH);
-                    String_Append(&Name, bStartsWithPrefix ? String_Null() : S("option."));
-                    String_Append(&Name, o.Name);
-
-                    String OptionValue = GetOptionValueFromVarList(Context.VarListHead, Name, NULL);
-                    o_->Value = OptionValue;
-                    o_->bEqualsToSomething = OptionValue.Length > 0;
-
-                    if (bStartsWithPrefix)
-                    {
-                        o_->Name = StrShiftF(o.Name, 7);
-                    }
-                }
-            }
-
-            // 2. Second pass
-            Context.bNoFail = true;
-            bSuccess = Analyze_Indeterminates(Context.TempArena, IndeterminateList, &Context);
-        }
+        // 2. Second pass
+        Context.bNoFail = true;
+        bSuccess = Analyze_Indeterminates(Context.TempArena, IndeterminateList, &Context);
 
         //Clock_Tick(&c);
         //Clock_PrintElapsedTime(&c, true);
@@ -4581,26 +4550,6 @@ bool ExpandBuildVariable(LinearAllocator Scratch, FileVariableList* VariablesDB,
                 }
             }
             
-            // search for Option. keys in the build file
-            if (!bFoundCmd)
-            {
-                StringLocal(OptionName, MAX_KEY_LENGTH);
-                if (!String_StartsWith(Slice, S("Option."), false))
-                {
-                    String_Append(&OptionName, S("Option."));
-                }
-                String_Append(&OptionName, Slice);
-
-                bool bExists = false;
-                String OptionValue = GetOptionValueFromVarList(VariablesDB, OptionName, &bExists);
-                if (bExists)
-                {
-                    bFoundCmd = OptionValue.Length > 0;
-                    VarValue = OptionValue;
-                    bEqualsToSomething = OptionValue.Length > 0;
-                }
-            }
-
             if (!bFoundCmd)
             {
                 if (bFailed) { *bFailed = true; }
