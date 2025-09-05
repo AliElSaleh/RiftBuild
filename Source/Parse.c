@@ -410,10 +410,10 @@ STRUCT(Parser)
     Token* Tokens;
 };
 
-FORCEINLINE NO_DISCARD RETURN_NON_NULL static NodeList* NodeList_Create(LinearAllocator* Arena, Node* Node, NodeList* Next)
+FORCEINLINE NO_DISCARD RETURN_NON_NULL static NodeList* NodeList_Create(LinearAllocator* Arena, Node* InNode, NodeList* Next)
 {
     NodeList* List = LinearAllocator_Allocate(Arena, sizeof(struct NodeList));
-    List->Node     = Node;
+    List->Node     = InNode;
     List->Next     = Next;
     return List;
 }
@@ -428,18 +428,18 @@ FORCEINLINE NO_DISCARD RETURN_NON_NULL static NodeList* NodeList_CreateNull(Line
 
 FORCEINLINE NO_DISCARD RETURN_NON_NULL static Node* Node_Create(LinearAllocator* Arena, ENodeType Type)
 {
-    Node* Node = LinearAllocator_Allocate(Arena, sizeof(struct Node));
-    Node->Type = Type;
-    return Node;
+    Node* NewNode = LinearAllocator_Allocate(Arena, sizeof(struct Node));
+    NewNode->Type = Type;
+    return NewNode;
 }
 
 FORCEINLINE NO_DISCARD RETURN_NON_NULL static Node* Node_Create_KeyValue(LinearAllocator* Arena, String Key, StringList* Value)
 {
-    Node* Node       = LinearAllocator_Allocate(Arena, sizeof(struct Node));
-    Node->Type       = Node_KeyValue;
-    Node->Key        = Key;
-    Node->Value      = Value;
-    return Node;
+    Node* NewNode       = LinearAllocator_Allocate(Arena, sizeof(struct Node));
+    NewNode->Type       = Node_KeyValue;
+    NewNode->Key        = Key;
+    NewNode->Value      = Value;
+    return NewNode;
 }
 
 STRUCT(KeywordTableEntry)

@@ -4963,6 +4963,14 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             Data.Path = &NewBuildFilePath;
             Data.Arguments = NewParams;
 
+            if (!Filesystem_DoesDirectoryExist(CustomWorkingPath_Full))
+            {
+                LOG_ERROR("Failed to find a .build in \"%S\" because the directory does not exist.", CustomWorkingPath_Full);
+
+                Receipt.ExitCode = 1;
+                return Receipt;
+            }
+
             Filesystem_IterateDirectory_Ex(CustomWorkingPath_Full, &BuildFileDirectoryIterator, !bDirectoryOnly, &Data);
 
             if (!Data.bFoundBuildFile)

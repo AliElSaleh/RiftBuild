@@ -26,7 +26,7 @@ static void LogCompilingFile(u32 Index, u32 NumSources, String FullPath)
     #ifndef HOOD
     u8 NumDigits1 = Integer_CountDigits(NumSources);
     u8 NumDigits2 = Integer_CountDigits(Index);
-    u8 Diff = (NumDigits1 - NumDigits2) + 1;
+    u8 Diff = (u8)(NumDigits1 - NumDigits2) + 1;
 
     StringLocal(Spaces, 128);
     Spaces.Length = Diff;
@@ -1131,7 +1131,7 @@ static void GetAdditionalLinkerFlags(const BuildParams* Params, String* Addition
         }
         else
         {
-            NoStd         = Params->bLinkerNoStd ? S("-nostdlib -nostdlib++") : String_Null();
+            NoStd         = Params->bLinkerNoStd ? S("-nostdlib") : String_Null();
             NoDefaultLibs = Params->bLinkerNoDefaultLibs ? S("-nodefaultlibs") : String_Null();
         }
 
@@ -1206,7 +1206,13 @@ static void GetAdditionalLinkerFlags(const BuildParams* Params, String* Addition
                     }
                     else // GCC
                     {
-                        String_AppendF(&WlFlags, S("--subsystem,%S,"), Params->LinkerSubsystem);
+                        // need to lower it, cos fuck you i guess
+                        // fixes this error -> ld: invalid subsystem type Console
+                        StringLocal(Lowered, 32);
+                        String_Copy(&Lowered, Params->LinkerSubsystem);
+                        String_ToLower(&Lowered);
+
+                        String_AppendF(&WlFlags, S("--subsystem,%S,"), Lowered);
                     }
                 }
 
@@ -1229,8 +1235,8 @@ static void GetAdditionalLinkerFlags(const BuildParams* Params, String* Addition
                     }
                     else // GCC
                     {
-                        // i dont know how to add Commit here.
-                        String_AppendF(&WlFlags, S("--stack,%S,"), Reserve);
+                        // apparently you cant specify a commit here
+                        String_AppendF(&WlFlags, S("--stack,%S"), Reserve);
                     }
                 }
             }

@@ -1855,6 +1855,8 @@ WINBASEAPI NO_DISCARD HWND       WINAPI GetConsoleWindow(void);
 WINBASEAPI NO_DISCARD BOOL       WINAPI GetComputerNameA(LPSTR lpBuffer, LPDWORD lpnSize);
 WINBASEAPI NO_DISCARD BOOL       WINAPI GetComputerNameW(LPWSTR lpBuffer, LPDWORD lpnSize);
 
+WINBASEAPI NO_DISCARD BOOL       WINAPI SetThreadStackGuarantee(PULONG StackSizeInBytes);
+
 WINBASEAPI            void       WINAPI Sleep(DWORD dwMilliseconds);
 
 WINBASEAPI NO_DISCARD NTSTATUS   WINAPI BCryptGenRandom(BCRYPT_ALG_HANDLE hAlgorithm, PUCHAR pbBuffer, ULONG cbBuffer, ULONG dwFlags);

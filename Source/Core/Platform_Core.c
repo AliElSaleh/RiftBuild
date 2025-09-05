@@ -132,69 +132,69 @@ NO_DISCARD CpuInfo Platform_QueryCPUInfo(void)
     u32 ecx = (u32)info[2];
     u32 edx = (u32)info[3];
 
-    Result.MMX           = edx & BIT(23);
-    Result.SSE           = edx & BIT(25);
-    Result.SSE2          = edx & BIT(26);
-    Result.SSE3          = ecx & BIT(0);
-    Result.SSSE3         = ecx & BIT(9);
-    Result.SSE4          = ecx & BIT(19);
-    Result.SSE41         = ecx & BIT(19);
-    Result.SSE42         = ecx & BIT(20);
-    Result.AES           = ecx & BIT(25);
-    Result.AVX           = ecx & BIT(28);
-    Result.F16C          = ecx & BIT(29);
-    Result.FMA           = ecx & BIT(12);
-    Result.FMA3          = ecx & BIT(12);
-    Result.RDRAND        = ecx & BIT(30);
-    Result.PCLMULQDQ     = ecx & BIT(1);
-    Result.DTES64        = ecx & BIT(2);
-    Result.MONITOR       = ecx & BIT(3);
-    Result.DSCPL         = ecx & BIT(4);
-    Result.VMX           = ecx & BIT(5);
-    Result.SMX           = ecx & BIT(6);
-    Result.EIST          = ecx & BIT(7);
-    Result.TM2           = ecx & BIT(8);
-    Result.CNXTID        = ecx & BIT(10);
-    Result.SDBG          = ecx & BIT(11);
-    Result.CX16          = ecx & BIT(13);
-    Result.XTPR          = ecx & BIT(14);
-    Result.PDCM          = ecx & BIT(15);
-    Result.PCID          = ecx & BIT(17);
-    Result.DCA           = ecx & BIT(18);
-    Result.X2APIC        = ecx & BIT(21);
-    Result.MOVBE         = ecx & BIT(22);
-    Result.POPCNT        = ecx & BIT(23);
-    Result.TSCDEADLINE   = ecx & BIT(24);
-    Result.XSAVE         = ecx & BIT(26);
-    Result.OSXSAVE       = ecx & BIT(27);
-    Result.HYPERVISOR    = ecx & BIT(31);
+    Result.MMX           = BIT_TEST(edx, 23);
+    Result.SSE           = BIT_TEST(edx, 25);
+    Result.SSE2          = BIT_TEST(edx, 26);
+    Result.SSE3          = BIT_TEST(ecx, 0);
+    Result.SSSE3         = BIT_TEST(ecx, 9);
+    Result.SSE4          = BIT_TEST(ecx, 19);
+    Result.SSE41         = BIT_TEST(ecx, 19);
+    Result.SSE42         = BIT_TEST(ecx, 20);
+    Result.AES           = BIT_TEST(ecx, 25);
+    Result.AVX           = BIT_TEST(ecx, 28);
+    Result.F16C          = BIT_TEST(ecx, 29);
+    Result.FMA           = BIT_TEST(ecx, 12);
+    Result.FMA3          = BIT_TEST(ecx, 12);
+    Result.RDRAND        = BIT_TEST(ecx, 30);
+    Result.PCLMULQDQ     = BIT_TEST(ecx, 1);
+    Result.DTES64        = BIT_TEST(ecx, 2);
+    Result.MONITOR       = BIT_TEST(ecx, 3);
+    Result.DSCPL         = BIT_TEST(ecx, 4);
+    Result.VMX           = BIT_TEST(ecx, 5);
+    Result.SMX           = BIT_TEST(ecx, 6);
+    Result.EIST          = BIT_TEST(ecx, 7);
+    Result.TM2           = BIT_TEST(ecx, 8);
+    Result.CNXTID        = BIT_TEST(ecx, 10);
+    Result.SDBG          = BIT_TEST(ecx, 11);
+    Result.CX16          = BIT_TEST(ecx, 13);
+    Result.XTPR          = BIT_TEST(ecx, 14);
+    Result.PDCM          = BIT_TEST(ecx, 15);
+    Result.PCID          = BIT_TEST(ecx, 17);
+    Result.DCA           = BIT_TEST(ecx, 18);
+    Result.X2APIC        = BIT_TEST(ecx, 21);
+    Result.MOVBE         = BIT_TEST(ecx, 22);
+    Result.POPCNT        = BIT_TEST(ecx, 23);
+    Result.TSCDEADLINE   = BIT_TEST(ecx, 24);
+    Result.XSAVE         = BIT_TEST(ecx, 26);
+    Result.OSXSAVE       = BIT_TEST(ecx, 27);
+    Result.HYPERVISOR    = BIT_TEST(ecx, 31);
 
-    Result.FPU           = edx & BIT(0);
-    Result.VME           = edx & BIT(1);
-    Result.DE            = edx & BIT(2);
-    Result.PSE           = edx & BIT(3);
-    Result.TSC           = edx & BIT(4);
-    Result.MSR           = edx & BIT(5);
-    Result.PAE           = edx & BIT(6);
-    Result.MCE           = edx & BIT(7);
-    Result.CX8           = edx & BIT(8);
-    Result.APIC          = edx & BIT(9);
-    Result.SEP           = edx & BIT(11);
-    Result.MTRR          = edx & BIT(12);
-    Result.PGE           = edx & BIT(13);
-    Result.MCA           = edx & BIT(14);
-    Result.CMOV          = edx & BIT(15);
-    Result.PAT           = edx & BIT(16);
-    Result.PSE36         = edx & BIT(17);
-    Result.PSN           = edx & BIT(18);
-    Result.CLFLUSH       = edx & BIT(19);
-    Result.DS            = edx & BIT(21);
-    Result.ACPI          = edx & BIT(22);
-    Result.FXSR          = edx & BIT(24);
-    Result.SS            = edx & BIT(27);
-    Result.HTT           = edx & BIT(28);
-    Result.TM            = edx & BIT(29);
-    Result.PBE           = edx & BIT(31);
+    Result.FPU           = BIT_TEST(edx, 0);
+    Result.VME           = BIT_TEST(edx, 1);
+    Result.DE            = BIT_TEST(edx, 2);
+    Result.PSE           = BIT_TEST(edx, 3);
+    Result.TSC           = BIT_TEST(edx, 4);
+    Result.MSR           = BIT_TEST(edx, 5);
+    Result.PAE           = BIT_TEST(edx, 6);
+    Result.MCE           = BIT_TEST(edx, 7);
+    Result.CX8           = BIT_TEST(edx, 8);
+    Result.APIC          = BIT_TEST(edx, 9);
+    Result.SEP           = BIT_TEST(edx, 11);
+    Result.MTRR          = BIT_TEST(edx, 12);
+    Result.PGE           = BIT_TEST(edx, 13);
+    Result.MCA           = BIT_TEST(edx, 14);
+    Result.CMOV          = BIT_TEST(edx, 15);
+    Result.PAT           = BIT_TEST(edx, 16);
+    Result.PSE36         = BIT_TEST(edx, 17);
+    Result.PSN           = BIT_TEST(edx, 18);
+    Result.CLFLUSH       = BIT_TEST(edx, 19);
+    Result.DS            = BIT_TEST(edx, 21);
+    Result.ACPI          = BIT_TEST(edx, 22);
+    Result.FXSR          = BIT_TEST(edx, 24);
+    Result.SS            = BIT_TEST(edx, 27);
+    Result.HTT           = BIT_TEST(edx, 28);
+    Result.TM            = BIT_TEST(edx, 29);
+    Result.PBE           = BIT_TEST(edx, 31);
 
 
     // TODO: test all these holy moly
@@ -213,83 +213,83 @@ NO_DISCARD CpuInfo Platform_QueryCPUInfo(void)
         cpuid(info, 7, 0);
 
         const u32 ebx = (u32)info[1];
-        Result.AVX2             = ebx & BIT(5);
-        Result.BMI1             = ebx & BIT(3);
-        Result.TZCNT            = ebx & BIT(3);
-        Result.BMI2             = ebx & BIT(8);
-        Result.ADX              = ebx & BIT(19);
-        Result.MPX              = ebx & BIT(14);
-        Result.SHA              = ebx & BIT(29);
-        Result.RDSEED           = ebx & BIT(18);
-        Result.RDPID            = ebx & BIT(23);
-        Result.AVX512F          = ebx & BIT(16);
-        Result.AVX512DQ         = ebx & BIT(17);
-        Result.AVX512IFMA       = ebx & BIT(21);
-        Result.AVX512PF         = ebx & BIT(26);
-        Result.AVX512ER         = ebx & BIT(27);
-        Result.AVX512CD         = ebx & BIT(28);
-        Result.AVX512BW         = ebx & BIT(30);
-        Result.AVX512VL         = ebx & BIT(31);
-        Result.AVX512           = ebx & BIT(16) || ebx & BIT(17) ||
-                                  ebx & BIT(21) || ebx & BIT(26) ||
-                                  ebx & BIT(27) || ebx & BIT(28) ||
-                                  ebx & BIT(30) || ebx & BIT(31);
-        Result.FSGSBASE         = ebx & BIT(0);
-        Result.TSCADJUST        = ebx & BIT(1);
-        Result.SGX              = ebx & BIT(2);
-        Result.HLE              = ebx & BIT(4);
-        Result.FDP_EXCEPTN_ONLY = ebx & BIT(6);
-        Result.SMEP             = ebx & BIT(7);
-        Result.ERMS             = ebx & BIT(9);
-        Result.INVPCID          = ebx & BIT(10);
-        Result.RTM              = ebx & BIT(11);
-        Result.PQM              = ebx & BIT(12);
-        Result.FPU_DEPR         = ebx & BIT(13);
-        Result.PQE              = ebx & BIT(15);
-        Result.SMAP             = ebx & BIT(20);
-        Result.PCOMMIT          = ebx & BIT(22);
-        Result.CLFLUSHOPT       = ebx & BIT(23);
-        Result.CLWB             = ebx & BIT(24);
-        Result.INTELPT          = ebx & BIT(25);
+        Result.AVX2             = BIT_TEST(ebx, 5);
+        Result.BMI1             = BIT_TEST(ebx, 3);
+        Result.TZCNT            = BIT_TEST(ebx, 3);
+        Result.BMI2             = BIT_TEST(ebx, 8);
+        Result.ADX              = BIT_TEST(ebx, 19);
+        Result.MPX              = BIT_TEST(ebx, 14);
+        Result.SHA              = BIT_TEST(ebx, 29);
+        Result.RDSEED           = BIT_TEST(ebx, 18);
+        Result.RDPID            = BIT_TEST(ebx, 23);
+        Result.AVX512F          = BIT_TEST(ebx, 16);
+        Result.AVX512DQ         = BIT_TEST(ebx, 17);
+        Result.AVX512IFMA       = BIT_TEST(ebx, 21);
+        Result.AVX512PF         = BIT_TEST(ebx, 26);
+        Result.AVX512ER         = BIT_TEST(ebx, 27);
+        Result.AVX512CD         = BIT_TEST(ebx, 28);
+        Result.AVX512BW         = BIT_TEST(ebx, 30);
+        Result.AVX512VL         = BIT_TEST(ebx, 31);
+        Result.AVX512           = BIT_TEST(ebx, 16) || BIT_TEST(ebx, 17) ||
+                                  BIT_TEST(ebx, 21) || BIT_TEST(ebx, 26) ||
+                                  BIT_TEST(ebx, 27) || BIT_TEST(ebx, 28) ||
+                                  BIT_TEST(ebx, 30) || BIT_TEST(ebx, 31);
+        Result.FSGSBASE         = BIT_TEST(ebx, 0);
+        Result.TSCADJUST        = BIT_TEST(ebx, 1);
+        Result.SGX              = BIT_TEST(ebx, 2);
+        Result.HLE              = BIT_TEST(ebx, 4);
+        Result.FDP_EXCEPTN_ONLY = BIT_TEST(ebx, 6);
+        Result.SMEP             = BIT_TEST(ebx, 7);
+        Result.ERMS             = BIT_TEST(ebx, 9);
+        Result.INVPCID          = BIT_TEST(ebx, 10);
+        Result.RTM              = BIT_TEST(ebx, 11);
+        Result.PQM              = BIT_TEST(ebx, 12);
+        Result.FPU_DEPR         = BIT_TEST(ebx, 13);
+        Result.PQE              = BIT_TEST(ebx, 15);
+        Result.SMAP             = BIT_TEST(ebx, 20);
+        Result.PCOMMIT          = BIT_TEST(ebx, 22);
+        Result.CLFLUSHOPT       = BIT_TEST(ebx, 23);
+        Result.CLWB             = BIT_TEST(ebx, 24);
+        Result.INTELPT          = BIT_TEST(ebx, 25);
 
         ecx = (u32)info[2];
-        Result.PREFETCHWT1      = ecx & BIT(0);
-        Result.AVX512VBMI       = ecx & BIT(1);
-        Result.AVX512VBMI2      = ecx & BIT(6);
-        Result.AVX512VPCLMUL    = ecx & BIT(10);
-        Result.AVX512VNNI       = ecx & BIT(11);
-        Result.AVX512BITALG     = ecx & BIT(12);
-        Result.AVX512VPOPCNTDQ  = ecx & BIT(14);
-        Result.GFNI             = ecx & BIT(8);
-        Result.VAES             = ecx & BIT(9);
-        Result.UMIP             = ecx & BIT(2);
-        Result.PKU              = ecx & BIT(3);
-        Result.OSPKE            = ecx & BIT(4);
-        Result.WAITPKG          = ecx & BIT(5);
-        Result.CET_SS           = ecx & BIT(7);
-        Result.VPCLMULQDQ       = ecx & BIT(10);
-        Result.TME              = ecx & BIT(13);
-        Result.LA57             = ecx & BIT(15);
-        Result.KL               = ecx & BIT(24);
-        Result.CLDEMOTE         = ecx & BIT(25);
-        Result.MOVDIRI          = ecx & BIT(26);
-        Result.MOVDIR64B        = ecx & BIT(27);
-        Result.ENQCMD           = ecx & BIT(28);
-        Result.SGXLC            = ecx & BIT(30);
-        Result.BUSLOCKDETECT    = ecx & BIT(31);
+        Result.PREFETCHWT1      = BIT_TEST(ecx, 0);
+        Result.AVX512VBMI       = BIT_TEST(ecx, 1);
+        Result.AVX512VBMI2      = BIT_TEST(ecx, 6);
+        Result.AVX512VPCLMUL    = BIT_TEST(ecx, 10);
+        Result.AVX512VNNI       = BIT_TEST(ecx, 11);
+        Result.AVX512BITALG     = BIT_TEST(ecx, 12);
+        Result.AVX512VPOPCNTDQ  = BIT_TEST(ecx, 14);
+        Result.GFNI             = BIT_TEST(ecx, 8);
+        Result.VAES             = BIT_TEST(ecx, 9);
+        Result.UMIP             = BIT_TEST(ecx, 2);
+        Result.PKU              = BIT_TEST(ecx, 3);
+        Result.OSPKE            = BIT_TEST(ecx, 4);
+        Result.WAITPKG          = BIT_TEST(ecx, 5);
+        Result.CET_SS           = BIT_TEST(ecx, 7);
+        Result.VPCLMULQDQ       = BIT_TEST(ecx, 10);
+        Result.TME              = BIT_TEST(ecx, 13);
+        Result.LA57             = BIT_TEST(ecx, 15);
+        Result.KL               = BIT_TEST(ecx, 24);
+        Result.CLDEMOTE         = BIT_TEST(ecx, 25);
+        Result.MOVDIRI          = BIT_TEST(ecx, 26);
+        Result.MOVDIR64B        = BIT_TEST(ecx, 27);
+        Result.ENQCMD           = BIT_TEST(ecx, 28);
+        Result.SGXLC            = BIT_TEST(ecx, 30);
+        Result.BUSLOCKDETECT    = BIT_TEST(ecx, 31);
 
         edx = (u32)info[3];
-        Result.AVX5124VNNIW     = edx & BIT(2);
-        Result.AVX5124FMAPS     = edx & BIT(3);
+        Result.AVX5124VNNIW     = BIT_TEST(edx, 2);
+        Result.AVX5124FMAPS     = BIT_TEST(edx, 3);
 
         cpuid(info, 7, 1);
-        Result.AVX512BF16       = (u32)info[0] & BIT(5);
-        Result.AVX512FP16       = (u32)info[1] & BIT(23);
+        Result.AVX512BF16       = BIT_TEST(info[0], 5);
+        Result.AVX512FP16       = BIT_TEST(info[1], 23);
 
         PRAGMA_DISABLE_SIGN_CONVERSION_WARNING
 
         cpuid(info, 0x80000001U, 0);
-        Result.LZCNT           = (u32)info[2] & BIT(5);
+        Result.LZCNT           = BIT_TEST(info[2], 5);
         
         PRAGMA_ENABLE_WARNINGS
     }
@@ -991,7 +991,7 @@ NO_DISCARD Uuid UUID_FromString(const String IDString)
     return Result;
 }
 
-NO_DISCARD static uchar U8ToHexChar(u8 Val)
+NO_DISCARD static uchar IntToHexChar(u32 Val)
 {
     uchar Char = Val < 10 ? (uchar)('0' + Val) : (uchar)('a' + (Val - 10));
     return Char;
@@ -1008,42 +1008,42 @@ void UUID_ToStringFast(Uuid ID, String* OutString)
 {
     ENSURE(OutString->Capacity >= 36);
 
-    OutString->Data[0]  = U8ToHexChar((ID.TimeLow >> 28) & 0x0F);
-    OutString->Data[1]  = U8ToHexChar((ID.TimeLow >> 24) & 0x0F);
-    OutString->Data[2]  = U8ToHexChar((ID.TimeLow >> 20) & 0x0F);
-    OutString->Data[3]  = U8ToHexChar((ID.TimeLow >> 16) & 0x0F);
-    OutString->Data[4]  = U8ToHexChar((ID.TimeLow >> 12) & 0x0F);
-    OutString->Data[5]  = U8ToHexChar((ID.TimeLow >> 8 ) & 0x0F);
-    OutString->Data[6]  = U8ToHexChar((ID.TimeLow >> 4 ) & 0x0F);
-    OutString->Data[7]  = U8ToHexChar((ID.TimeLow >> 0 ) & 0x0F);
+    OutString->Data[0]  = IntToHexChar((ID.TimeLow >> 28) & 0x0F);
+    OutString->Data[1]  = IntToHexChar((ID.TimeLow >> 24) & 0x0F);
+    OutString->Data[2]  = IntToHexChar((ID.TimeLow >> 20) & 0x0F);
+    OutString->Data[3]  = IntToHexChar((ID.TimeLow >> 16) & 0x0F);
+    OutString->Data[4]  = IntToHexChar((ID.TimeLow >> 12) & 0x0F);
+    OutString->Data[5]  = IntToHexChar((ID.TimeLow >> 8 ) & 0x0F);
+    OutString->Data[6]  = IntToHexChar((ID.TimeLow >> 4 ) & 0x0F);
+    OutString->Data[7]  = IntToHexChar((ID.TimeLow >> 0 ) & 0x0F);
 
     OutString->Data[8]  = '-';
 
-    OutString->Data[9]  = U8ToHexChar((ID.TimeMid >> 12) & 0x0F);
-    OutString->Data[10] = U8ToHexChar((ID.TimeMid >> 8 ) & 0x0F);
-    OutString->Data[11] = U8ToHexChar((ID.TimeMid >> 4 ) & 0x0F);
-    OutString->Data[12] = U8ToHexChar((ID.TimeMid >> 0 ) & 0x0F);
+    OutString->Data[9]  = IntToHexChar((ID.TimeMid >> 12) & 0x0F);
+    OutString->Data[10] = IntToHexChar((ID.TimeMid >> 8 ) & 0x0F);
+    OutString->Data[11] = IntToHexChar((ID.TimeMid >> 4 ) & 0x0F);
+    OutString->Data[12] = IntToHexChar((ID.TimeMid >> 0 ) & 0x0F);
 
     OutString->Data[13] = '-';
 
-    OutString->Data[14] = U8ToHexChar((ID.TimeHiAndVersion >> 12) & 0x0F);
-    OutString->Data[15] = U8ToHexChar((ID.TimeHiAndVersion >> 8 ) & 0x0F);
-    OutString->Data[16] = U8ToHexChar((ID.TimeHiAndVersion >> 4 ) & 0x0F);
-    OutString->Data[17] = U8ToHexChar((ID.TimeHiAndVersion >> 0 ) & 0x0F);
+    OutString->Data[14] = IntToHexChar((ID.TimeHiAndVersion >> 12) & 0x0F);
+    OutString->Data[15] = IntToHexChar((ID.TimeHiAndVersion >> 8 ) & 0x0F);
+    OutString->Data[16] = IntToHexChar((ID.TimeHiAndVersion >> 4 ) & 0x0F);
+    OutString->Data[17] = IntToHexChar((ID.TimeHiAndVersion >> 0 ) & 0x0F);
 
     OutString->Data[18] = '-';
 
-    OutString->Data[19] = U8ToHexChar((ID.ClockSeqHiAndReserved >> 4) & 0x0F);
-    OutString->Data[20] = U8ToHexChar((ID.ClockSeqHiAndReserved >> 0) & 0x0F);
-    OutString->Data[21] = U8ToHexChar((ID.ClockSeqLow           >> 4) & 0x0F);
-    OutString->Data[22] = U8ToHexChar((ID.ClockSeqLow           >> 0) & 0x0F);
+    OutString->Data[19] = IntToHexChar((ID.ClockSeqHiAndReserved >> 4) & 0x0F);
+    OutString->Data[20] = IntToHexChar((ID.ClockSeqHiAndReserved >> 0) & 0x0F);
+    OutString->Data[21] = IntToHexChar((ID.ClockSeqLow           >> 4) & 0x0F);
+    OutString->Data[22] = IntToHexChar((ID.ClockSeqLow           >> 0) & 0x0F);
 
     OutString->Data[23] = '-';
 
     for (u8 i = 0; i < 6; i++)
     {
-        OutString->Data[24 + i*2]     = U8ToHexChar((ID.Node[i] >> 4) & 0x0F);
-        OutString->Data[24 + i*2 + 1] = U8ToHexChar((ID.Node[i] >> 0) & 0x0F);
+        OutString->Data[24 + i*2]     = IntToHexChar((ID.Node[i] >> 4) & 0x0F);
+        OutString->Data[24 + i*2 + 1] = IntToHexChar((ID.Node[i] >> 0) & 0x0F);
     }
 
     OutString->Length = 36;

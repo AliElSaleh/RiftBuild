@@ -72,12 +72,12 @@ if rad
     postbuild.exec raddbg -ipc run
 }
 
-option.clang.description           use clang compiler
-option.gcc.description             use gcc compiler
-option.cl.description              use cl compiler (windows only)
-option.debug.description           build the debug version of this program
-option.32.description              build for 32 bit mode
-option.asan.description            enable address sanitizer for memory debugging purposes
-option.hood.description            enable hood mode, the program will talk to you like a gangster!
-option.no_print_config.description disable printing of the build configuration flags
-option.asm.description             generate disassembly (.S) files
+option.clang              use clang compiler
+option.gcc                use gcc compiler
+option.cl                 use cl compiler (windows only)
+option.debug              build the debug version of this program
+option.32                 build for 32 bit mode
+option.asan               enable address sanitizer for memory debugging purposes
+option.hood               enable hood mode, the program will talk to you like a gangster!
+option.no_print_config    disable printing of the build configuration flags
+option.asm                generate disassembly (.S) files

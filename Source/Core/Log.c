@@ -20,12 +20,6 @@
 
 STRUCT(LoggingSystemState)
 {
-    FileHandle LogFileHandle;
-
-    String LogFileName;
-
-    u8 Buffer[MAX_LOG_MSG_LENGTH];
-
     bool bDisabled;
     bool bCrashOnFatal;
     bool bEnableOnError;
@@ -36,6 +30,10 @@ STRUCT(LoggingSystemState)
     bool bPadding1;
 
     PlatformCriticalSection CriticalSection;
+    FileHandle LogFileHandle;
+    String LogFileName;
+
+    u8 Buffer[MAX_LOG_MSG_LENGTH];
 };
 
 static LoggingSystemState* GLoggingSystemState = NULL;

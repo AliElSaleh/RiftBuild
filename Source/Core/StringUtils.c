@@ -3038,7 +3038,7 @@ NO_DISCARD static bool Internal_FromUnsignedInt(String* Str, u64 Int, u8 IntType
         u64 IntCopy = Int;
         for (u8 i = 0; i < Count; i++)
         {
-            u8 Digit = IntCopy % 10;
+            u8 Digit = (u8)(IntCopy % 10);
             IntCopy /= 10;
 
             Str->Data[Count-i-1] = '0' + Digit;
@@ -3572,7 +3572,7 @@ NO_DISCARD ASAN_NO_SANITIZE u32 String_GetLength_Fast(const char* Str)
 NO_DISCARD ASAN_NO_SANITIZE u32 String_GetLength_N_Fast(const char* Str, u32 MaxLength)
 {
     char* StrCopy = (char*)Str;
-    u32 Limit = MaxLength;
+    usize Limit = MaxLength;
 
     // First, move the StrCopy ptr along to get up to the 8-byte boundary, if needed
     while (((uptr)StrCopy & (sizeof(usize)-1)) != 0)
@@ -3720,13 +3720,13 @@ NO_DISCARD u8 ToBackSlash(u8 Char)
     return Char == '/' ? '\\' : Char;
 }
 
-NO_DISCARD uchar DigitToHexChar(u8 Val)
+NO_DISCARD uchar DigitToHexChar(u32 Val)
 {
     uchar Char = Val < 10 ? (uchar)('0' + Val) : (uchar)('a' + (Val - 10));
     return Char;
 }
 
-NO_DISCARD uchar DigitToHexCharUpper(u8 Val)
+NO_DISCARD uchar DigitToHexCharUpper(u32 Val)
 {
     uchar Char = Val < 10 ? (uchar)('0' + Val) : (uchar)('A' + (Val - 10));
     return Char;

@@ -126,7 +126,14 @@ void Platform_PreInitialize(void)
 {
     //__security_init_cookie();
 
-    //Platform_GetClockFrequency();
+    ULONG Stack = Mebibytes(4);
+    bool bStackGuarantee = SetThreadStackGuarantee(&Stack);
+    if (!bStackGuarantee)
+    {
+        String Msg = S("Failed to guarantee stack size of 4MiB\n");
+        Platform_ConsoleWrite_CustomLength((const char*)Msg.Data, Msg.Length, 4, true);
+        _Crash_;
+    }
 
     i32 NumArgs = 0;
     wchar** ArgsW = CommandLineToArgvW(GetCommandLineW(), &NumArgs);

@@ -77,6 +77,7 @@ void Memory_Shutdown(void)
     
     Platform_ExitCriticalSection(GCriticalSection);
 
+/*
 #if defined(WARN_MEMLEAKS)
     struct MemoryStats SavedStats = GMemorySubsystemState->Stats;
     u64 LifetimeAllocations = GMemorySubsystemState->LifeTimeAllocations;
@@ -150,6 +151,7 @@ void Memory_Shutdown(void)
         Platform_ConsoleWrite(Message2, 2, false);
     }
 #endif
+*/
 
     LinearAllocator_Destroy(&GEngineScratchAllocator);
     FreeListAllocator_Destroy(&GEngineAllocator);
@@ -391,7 +393,7 @@ void LinearAllocator_Destroy(LinearAllocator* Allocator)
 
 read_only u8 OutOfMemory[64] = {0};
 
-FORCEINLINE NO_DISCARD RETURN_NON_NULL static void* Internal_LA_Allocate(LinearAllocator* Allocator, usize Size)
+FORCEINLINE NO_DISCARD RETURN_NON_NULL static void* Internal_LA_Allocate(LinearAllocator* Allocator, usize Size, usize Offset)
 {
     // i dont know if this is a good idea to wrap this behind debug only...
     // it does result in fewer instructions and zero branches, which is faster!
@@ -400,7 +402,7 @@ FORCEINLINE NO_DISCARD RETURN_NON_NULL static void* Internal_LA_Allocate(LinearA
     #ifdef RIFT_DEBUG
     ASSERT(Size > 0);
 
-    if (UNLIKELY(NEVER(Allocator->Allocated + Size > Allocator->TotalSize)))
+    if (UNLIKELY(NEVER(Allocator->Allocated + Offset + Size > Allocator->TotalSize)))
     {
         Platform_ConsoleWrite("Oh no... We're out of memory!\n", 4, true);
         _Crash_;
@@ -408,11 +410,11 @@ FORCEINLINE NO_DISCARD RETURN_NON_NULL static void* Internal_LA_Allocate(LinearA
     }
     #endif
     
-    void* Block = ((u8*)Allocator->Memory) + Allocator->Allocated;
-    Allocator->Allocated += Size;
+    void* Block = ((u8*)Allocator->Memory) + Allocator->Allocated + Offset;
+    Allocator->Allocated += Offset + Size;
 
     #if RIFT_ASAN
-    __asan_unpoison_memory_region(Block, Size);
+    __asan_unpoison_memory_region(Block, Offset + Size);
     #endif
 
     return Block;
@@ -421,15 +423,19 @@ FORCEINLINE NO_DISCARD RETURN_NON_NULL static void* Internal_LA_Allocate(LinearA
 NO_DISCARD RETURN_NON_NULL void* LinearAllocator_Allocate(LinearAllocator* Allocator, usize Size)
 {
     // @Enhancement: Make more robust if the memory given was unaligned to begin with
-    const usize Alignment = 3;
-    usize Amount = ((Size + Alignment) & ~Alignment);
+    // const usize Alignment = 3;
+    // usize Amount = ((Size + Alignment) & ~Alignment);
 
-    return Internal_LA_Allocate(Allocator, Amount);
+    const usize Alignment = 8;
+    uptr Current = (uptr)Allocator->Memory + Allocator->Allocated;
+    usize Offset = (Alignment - (Current % Alignment)) % Alignment;
+
+    return Internal_LA_Allocate(Allocator, Size, Offset);
 }
 
 NO_DISCARD RETURN_NON_NULL void* LinearAllocator_AllocateUnaligned(LinearAllocator* Allocator, usize Size)
 {
-    return Internal_LA_Allocate(Allocator, Size);
+    return Internal_LA_Allocate(Allocator, Size, 0);
 }
 
 NO_DISCARD RETURN_NON_NULL void* LinearAllocator_MemoryHead(LinearAllocator* Allocator)
