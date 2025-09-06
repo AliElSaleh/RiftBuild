@@ -2585,6 +2585,29 @@ static void PrintAbout(void)
     LOG("   Submit a request, issue or bug report: https://github.com/AliElSaleh/RiftBuild/issues");
 }
 
+static void PrintInternals(void)
+{
+    LOG_INLINE_WARNING("Internals\n");
+
+    u32 LongestName = 0;
+
+    for each (InternalVariable, v, InternalVariablesDB)
+    {
+        if (v.Name.Length > LongestName)
+        {
+            LongestName = v.Name.Length;
+        }
+    }
+
+    for each (InternalVariable, v, InternalVariablesDB)
+    {
+        LOG("   %S %*S", v.Name, (LongestName-v.Name.Length), v.Value);
+    }
+
+    LOG_INLINE_WARNING("\nYou can reference the above internal variables\ninside your .build file with this syntax:\n");
+    LOG("    %%_UserDirectory\n    %%_AVX2\n    if _CacheLineSize == 64\n    if _FMA3");
+}
+
 static void PrintUsage(const String WorkingDirectory)
 {
     LOG_INLINE_WARNING("Usage\n");
@@ -2622,6 +2645,7 @@ static void PrintUsage(const String WorkingDirectory)
       "   -v, --verbose         : Enable verbose logging\n"
       "   -q, --quiet           : Quiet mode. Disables logging but outputs necessary information, like errors\n"
       "   -t, --tutorial        : Display a tutorial on how to set environment variables\n"
+      "   -i, --internals       : Display internal variables that can be referenced in a .build file\n"
     "\n   help                  : Print out custom help message from the build file\n"
     "\n   options               : Print out custom options from the build file\n"
     "\n   clean                 : Delete all intermediate and binary files\n"
@@ -4220,7 +4244,33 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
     bool bWasVCVarsBatchExecuted = Platform_DoesEnvironmentVariableExist(S("VSCMD_ARG_TGT_ARCH"));
 
-    if (!bWasVCVarsBatchExecuted)
+    if (bWasVCVarsBatchExecuted)
+    {
+        PlatformPipe StdOutHandle = {0};
+        PlatformHandle ShellCmd = Platform_RunCommand_Ex(S("where cl"), WorkingPath, &StdOutHandle);
+        if (Platform_IsValidHandle(ShellCmd))
+        {
+            u32 ExitCode = Platform_WaitForProcessAndGetExitCode(ShellCmd);
+            if (ExitCode == 0)
+            {
+                StringLocal(StdOutData, 8192);
+                usize BytesRead = 0;
+                if (!Filesystem_ReadPipe(StdOutHandle, StdOutData.Capacity, StdOutData.Data, &BytesRead))
+                {
+                    LOG_ERROR("Failed to read from standard output pipe for command -> \"where cl\"");
+                    Receipt.ExitCode = 1;
+                    return Receipt;
+                }
+
+                StdOutData.Length = Min((u32)BytesRead, StdOutData.Capacity);
+                xx String_EatNewLinesInlineFromEnd(&StdOutData);
+                
+                String_Copy(&VisualStudioExePath, Filesystem_ExtractFilePath(StdOutData, false));
+                
+            }
+        }
+    }
+    else
     {
         // find the latest version of visual studio and windows sdk and extract all the useful directories
 
@@ -8370,7 +8420,20 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments, const 
         return 0;
     }
 
-    if (StringArray_Contains(Arguments, S("-t"), false))
+    if (StringArray_Contains(Arguments, S("-i"), false) ||
+        StringArray_Contains(Arguments, S("--internals"), false))
+    {
+        PrintInternals();
+
+        #if !PLATFORM_WINDOWS
+        LOG_LINE_BREAK();
+        #endif
+        
+        return 0;
+    }
+
+    if (StringArray_Contains(Arguments, S("-t"), false) ||
+        StringArray_Contains(Arguments, S("--tutorial"), false))
     {
         LogPathEnvVarTutorialSteps();
         LOG_LINE_BREAK();
