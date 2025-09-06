@@ -529,11 +529,17 @@ static void Internal_Format(String* Dest, const String Format, va_list List)
 
             // width (min characters to be printed)
             i32 MinChars = 0;
+            uchar FillChar = 0;
             {
                 if (Char == '*')
                 {
                     MinChars = va_arg(List, i32);
                     Char = String_GetCharFromIndexOrLast(Format, FormatIndex++);
+                    if (Char == '*')
+                    {
+                        FillChar = (uchar)va_arg(List, i32);
+                        Char = String_GetCharFromIndexOrLast(Format, FormatIndex++);
+                    }
                 }
                 else
                 {
@@ -627,11 +633,11 @@ static void Internal_Format(String* Dest, const String Format, va_list List)
                         String_AppendChar(Dest, '0');
                     }
 
-                    i32 Blanks = MinChars - (i32)Temp.Length;
+                    i32 Blanks = MinChars;// - (i32)Temp.Length;
                     while (Blanks > 0)
                     {
                         Blanks--;
-                        String_AppendSpace(Dest);
+                        String_AppendChar(Dest, FillChar ? FillChar : ' ');
                     }
 
                     String_Append(Dest, Temp);
@@ -659,11 +665,11 @@ static void Internal_Format(String* Dest, const String Format, va_list List)
                         String_AppendChar(Dest, '0');
                     }
 
-                    i32 Blanks = MinChars - (i32)Temp.Length;
+                    i32 Blanks = MinChars;// - (i32)Temp.Length;
                     while (Blanks > 0)
                     {
                         Blanks--;
-                        String_AppendSpace(Dest);
+                        String_AppendChar(Dest, FillChar ? FillChar : ' ');
                     }
 
                     String_Append(Dest, Temp);
@@ -714,11 +720,11 @@ static void Internal_Format(String* Dest, const String Format, va_list List)
                         }
                     }
 
-                    i32 Blanks = MinChars - (i32)Temp.Length;
+                    i32 Blanks = MinChars;// - (i32)Temp.Length;
                     while (Blanks > 0)
                     {
                         Blanks--;
-                        String_AppendSpace(Dest);
+                        String_AppendChar(Dest, FillChar ? FillChar : ' ');
                     }
 
                     String_Append(Dest, Temp);
@@ -732,11 +738,11 @@ static void Internal_Format(String* Dest, const String Format, va_list List)
                     StringLocal(Temp, 20);
                     if (String_FromU64(&Temp, (u64)Address))
                     {
-                        i32 Blanks = MinChars - (i32)Temp.Length;
+                        i32 Blanks = MinChars;// - (i32)Temp.Length;
                         while (Blanks > 0)
                         {
                             Blanks--;
-                            String_AppendSpace(Dest);
+                            String_AppendChar(Dest, FillChar ? FillChar : ' ');
                         }
 
                         String_Append(Dest, Temp);
@@ -794,11 +800,11 @@ static void Internal_Format(String* Dest, const String Format, va_list List)
                     }
 
                     // pad with leading blanks
-                    i32 Blanks = MinChars - (i32)Temp.Length;
+                    i32 Blanks = MinChars;// - (i32)Temp.Length;
                     while (Blanks > 0)
                     {
                         Blanks--;
-                        String_AppendSpace(Dest);
+                        String_AppendChar(Dest, FillChar ? FillChar : ' ');
                     }
 
                     String_Append(Dest, Temp);
@@ -814,7 +820,7 @@ static void Internal_Format(String* Dest, const String Format, va_list List)
                     while (Blanks > 0)
                     {
                         Blanks--;
-                        String_AppendSpace(Dest);
+                        String_AppendChar(Dest, FillChar ? FillChar : ' ');
                     }
 
                     String_AppendChar(Dest, c);
@@ -832,11 +838,11 @@ static void Internal_Format(String* Dest, const String Format, va_list List)
                         Str2.Length   = Precision > 0 ? (u32)Precision : String_GetLength_Fast(Str);
                         Str2.Capacity = 0;
 
-                        i32 Blanks = MinChars - (i32)Str2.Length;
+                        i32 Blanks = MinChars;// - (i32)Str2.Length;
                         while (Blanks > 0)
                         {
                             Blanks--;
-                            String_AppendSpace(Dest);
+                            String_AppendChar(Dest, FillChar ? FillChar : ' ');
                         }
 
                         String_Append(Dest, Str2);
@@ -857,11 +863,11 @@ static void Internal_Format(String* Dest, const String Format, va_list List)
                         Str.Length = (u32)Precision;
                     }
 
-                    i32 Blanks = MinChars - (i32)Str.Length;
+                    i32 Blanks = MinChars;// - (i32)Str.Length;
                     while (Blanks > 0)
                     {
                         Blanks--;
-                        String_AppendSpace(Dest);
+                        String_AppendChar(Dest, FillChar ? FillChar : ' ');
                     }
 
                     String_Append(Dest, Str);
