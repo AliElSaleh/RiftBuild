@@ -271,7 +271,7 @@ PRAGMA_DISABLE_WARNINGS
 #pragma function(memset, memcpy, memmove, memcmp)
 #endif
 
-void* memset(void *dst, int c, SIZE_T len)
+ASAN_NO_SANITIZE void* memset(void *dst, int c, SIZE_T len)
 {
     register volatile u8* dp = dst;
     register SIZE_T length = len;
@@ -284,7 +284,7 @@ void* memset(void *dst, int c, SIZE_T len)
     return dst;
 }
 
-void* memcpy(void* restrict dst, const void* restrict src, SIZE_T len)
+ASAN_NO_SANITIZE void* memcpy(void* restrict dst, const void* restrict src, SIZE_T len)
 {
     register volatile u8* dp = dst;
     register const u8* sp = src;
@@ -298,7 +298,7 @@ void* memcpy(void* restrict dst, const void* restrict src, SIZE_T len)
     return dst;
 }
 
-void* memmove(void* dst, const void* src, SIZE_T len)
+ASAN_NO_SANITIZE void* memmove(void* dst, const void* src, SIZE_T len)
 {
     register volatile u8* dp = dst;
     register const u8* sp = src;
@@ -321,7 +321,7 @@ void* memmove(void* dst, const void* src, SIZE_T len)
     return dst;
 }
 
-i32 memcmp(const void* s1, const void* s2, SIZE_T len)
+ASAN_NO_SANITIZE i32 memcmp(const void* s1, const void* s2, SIZE_T len)
 {
     register const u8* p1 = (const u8*)s1;
     register const u8* p2 = (const u8*)s2;
@@ -356,13 +356,15 @@ PRAGMA_ENABLE_WARNINGS
 NO_DISCARD void* Platform_MemAlloc(usize Size)
 {
     DWORD dwFlags = HEAP_CREATE_ALIGN_16;
-    return HeapAlloc(GetProcessHeap(), dwFlags, Size);
+    void* Block = HeapAlloc(GetProcessHeap(), dwFlags, Size);
+    return Block;
 }
 
 NO_DISCARD void* Platform_MemAllocZero(usize Size)
 {
     DWORD dwFlags = HEAP_ZERO_MEMORY | HEAP_CREATE_ALIGN_16;
-    return HeapAlloc(GetProcessHeap(), dwFlags, Size);
+    void* Block = HeapAlloc(GetProcessHeap(), dwFlags, Size);
+    return Block;
 }
 
 NO_DISCARD void* Platform_MemReAlloc(void* Block, usize Size)

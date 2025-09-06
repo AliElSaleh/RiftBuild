@@ -574,11 +574,11 @@ void FreeListAllocator_Create(FreeListAllocator* OutAllocator, usize TotalSize, 
     OutAllocator->Memory = Memory;
     OutAllocator->TotalSize = TotalSize;
 
+    FreeListAllocator_FreeAll(OutAllocator);
+
     #if RIFT_ASAN
     __asan_poison_memory_region(OutAllocator->Memory, TotalSize);
     #endif
-
-    FreeListAllocator_FreeAll(OutAllocator);
 }
 
 void FreeListAllocator_Destroy(FreeListAllocator* Allocator)
@@ -638,6 +638,10 @@ NO_DISCARD void* FreeListAllocator_Allocate(FreeListAllocator* Allocator, usize 
     {
         Size = sizeof(FreeListAllocator_Node);
     }
+
+    #if RIFT_ASAN
+    __asan_unpoison_memory_region(Allocator->Memory, Size);
+    #endif
     
     usize Padding = 0;
     FreeListAllocator_Node* PrevNode = NULL;
@@ -729,9 +733,15 @@ void FreeListAllocator_Free(FreeListAllocator* Allocator, void* Memory, usize* O
         // zero the memory
         usize Padding = MemoryUtils_CalculatePaddingWithHeader((usize)Header, DEFAULT_FREE_LIST_ALLOCATOR_ALIGNMENT, sizeof(FreeListAllocator_Header));
         usize BlockSizeNoPadding = Header->BlockSize - Padding - Header->AlignmentPadding;
+
+        #if RIFT_ASAN
+        __asan_unpoison_memory_region(Memory, BlockSizeNoPadding);
+        #endif
+
         MemZero(Memory, BlockSizeNoPadding);
 
         // Detect if the memory passed in was already freed
+        #ifndef RIFT_ASAN
         bool bAlreadyFreed = false;
         {
             FreeListAllocator_Node* Node = Allocator->Head;
@@ -756,6 +766,7 @@ void FreeListAllocator_Free(FreeListAllocator* Allocator, void* Memory, usize* O
         }
         
         if (!bAlreadyFreed)
+        #endif
         {
             usize BlockSize = Header->BlockSize;
             
@@ -809,11 +820,11 @@ void FreeListAllocator_Free(FreeListAllocator* Allocator, void* Memory, usize* O
             
             Allocator->Allocated -= BlockSize;
 
+            Internal_FreeListAllocator_Coalesce(Allocator, PrevNode, FreeNode);
+
             #if RIFT_ASAN
             __asan_poison_memory_region(FreeNode, BlockSize);
             #endif
-
-            Internal_FreeListAllocator_Coalesce(Allocator, PrevNode, FreeNode);
         }
     }
 }

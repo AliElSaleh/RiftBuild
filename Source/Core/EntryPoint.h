@@ -24,6 +24,11 @@ extern void pre_main(int argc, char* argv[], char* env[]);
 #define USE_MAIN 0
 #endif
 
+#if RIFT_ASAN
+#undef USE_MAIN
+#define USE_MAIN 1
+#endif
+
 // Main entry point of the application
 #if USE_MAIN
 int main(i32 ArgC, char* ArgV[], char* ArgEnv[])

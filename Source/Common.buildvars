@@ -2,10 +2,13 @@ SharedIncludeFlags               Source
 
 SharedDefines                    RIFT_STATIC
 SharedDefines:debug              _DEBUG RIFT_DEBUG
-SharedDefines:!debug             NDEBUG NO_ASSERT RIFT_RELEASE
+SharedDefines:!debug             NDEBUG RIFT_RELEASE NO_ASSERT 
 SharedDefines:asan               RIFT_ASAN
 
+Linker.EntryPoint:windows:!asan  EntryPoint
+Linker.Subsystem                 Console
 Linker.Stack                     0x800000 # 8MB
+Linker.NoStdLib:!asan
 
 if cl
 {
@@ -15,15 +18,36 @@ if cl
     WarningFlagsDisabled             /wd4100 /wd4164 /wd4668 /wd5045 /wd4711 $TempWarnings
 
     SharedCompilerFlags              $WarningFlags $WarningFlagsDisabled /TC /GS- /Gs999999999 /EHs- /analyze /analyze:stacksize 8000000
-    SharedCompilerFlags:debug        /MTd /Od /Zi /FS /Fd"$IntermediateDirectory\$(Assembly).pdb"
-    SharedCompilerFlags:!debug       /MT /O2
     SharedCompilerFlags:32           /d2noftol3
     
     MachineType:32                   X86
     MachineType:!32                  X64
-    SharedLinkerFlags                /SAFESEH:NO /INCREMENTAL:NO /NODEFAULTLIB
+    SharedLinkerFlags                /SAFESEH:NO /INCREMENTAL:NO
     SharedLinkerFlags                /MACHINE:$MachineType
-    SharedLinkerFlags:debug          /DEBUG
+
+    DebugFlags                       /Zi /FS /Fd"$IntermediateDirectory\$(Assembly).pdb"
+    
+    if asan
+    {
+        SharedCompilerFlags          /fsanitize=address $DebugFlags
+        SharedCompilerFlags:debug    /MDd /Od
+        SharedCompilerFlags:!debug   /MD /O2
+        SharedLinkerFlags            /DEBUG
+
+        # TODO: riftbuild should expose these for you
+        MyVS C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130
+        Library.Paths "$MyVS\lib\x64"
+        PostBuild.copy "$MyVS\bin\Hostx64\x64\clang_rt.asan_dynamic-x86_64.dll" $BuildDirectory
+        PostBuild.copy "$MyVS\bin\Hostx64\x64\clang_rt.asan_dbg_dynamic-x86_64.dll" $BuildDirectory
+    }
+    else
+    {
+        SharedCompilerFlags:debug    /MTd /Od $DebugFlags
+        SharedCompilerFlags:!debug   /MT /O2
+
+        SharedLinkerFlags:debug      /DEBUG
+        SharedLinkerFlags            /NODEFAULTLIB
+    }
 }
 else
 {
@@ -34,16 +58,41 @@ else
     WarningFlagsDisabled:gcc         -Wno-unused-result
     WarningFlagsDisabled:!gcc        -Wno-typedef-redefinition -Wno-gnu-zero-variadic-macro-arguments -Wno-unused-command-line-argument
 
+    DebugFlags                       -g3 -MD
+    LinkerDebugFlags                 -g3
+
     SharedCompilerFlags              -std=c99 -fno-builtin-memcpy -fno-omit-frame-pointer -fno-exceptions -fno-math-errno -funroll-loops -fno-strict-overflow -fno-strict-aliasing $WarningFlags $WarningFlagsDisabled
     SharedCompilerFlags:windows      -nostdlib -fno-builtin -ffreestanding
     SharedCompilerFlags:linux        -fstack-clash-protection
     SharedCompilerFlags:_sse2        -msse2
-    SharedCompilerFlags:debug        -O0 -g3 -MD
-    SharedCompilerFlags:!debug       -Os -finline-functions
     SharedCompilerFlags:asm          -S
     SharedCompilerFlags:trace        -ftime-trace
     SharedCompilerFlags:32           -m32
     SharedCompilerFlags:mac          -mmacosx-version-min=10.12
+
+    if asan
+    {
+        SharedCompilerFlags          -fsanitize=address
+        SharedLinkerFlags            -fsanitize=address
+        SharedLinkerFlags            $LinkerDebugFlags
+
+        SharedCompilerFlags          $DebugFlags
+        SharedCompilerFlags:debug    -O0
+        SharedCompilerFlags:!debug   -Os -finline-functions
+
+        # TODO: riftbuild should expose these for you
+        if windows
+        {
+            MyVS C:\Program Files\LLVM\lib\clang\20\lib\windows
+            PostBuild.copy "$MyVS\clang_rt.asan_dynamic-x86_64.dll" $BuildDirectory
+        }
+    }
+    else
+    {
+        SharedCompilerFlags:debug    -O0 $DebugFlags
+        SharedCompilerFlags:!debug   -Os -finline-functions
+        SharedLinkerFlags:debug      $LinkerDebugFlags
+    }
 
     if gcc
     {
@@ -63,7 +112,6 @@ else
     SharedLinkerFlags:32             --target=i386-pc-windows-msvc
     SharedLinkerFlags:linux          -Wl,-z,nodlopen -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now
     SharedLinkerFlags:mac            -framework Foundation
-    SharedLinkerFlags:debug          -g3
     
     SharedDefines:debug              _GLIBCXX_ASSERTIONS _GLIBCXX_DEBUG _GLIBCXX_DEBUG_PEDANTIC
     SharedDefines:!debug             _FORTIFY_SOURCE=3

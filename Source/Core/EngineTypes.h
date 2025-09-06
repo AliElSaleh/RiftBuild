@@ -448,6 +448,10 @@ STRUCT(StringList)
     #if defined(__SANITIZE_ADDRESS__) && __SANITIZE_ADDRESS__
         #define ASAN_NO_SANITIZE __attribute__((__no_sanitize_address__))
     #endif
+#elif COMPILER_MSVC
+    #if defined(__SANITIZE_ADDRESS__) && __SANITIZE_ADDRESS__
+        #define ASAN_NO_SANITIZE __declspec(no_sanitize_address)
+    #endif
 #endif
 
 #ifndef ASAN_NO_SANITIZE

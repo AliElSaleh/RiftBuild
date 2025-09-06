@@ -48,14 +48,16 @@ Libraries:bsd            pthread
 
 if windows
 {
-    Linker.NoStdLib
-    Linker.EntryPoint    EntryPoint
-    Linker.Subsystem     Console
-
     Libraries            kernel32 user32 shell32 ole32 advapi32 ntdll shlwapi bcrypt oleaut32
     Libraries:32:!debug  libcmt  libvcruntime
     Libraries:32: debug  libcmtd libvcruntimed
-    Libraries:asan       libucrt
+
+    if asan
+    {
+        Libraries:cl     clang_rt.asan_dynamic_runtime_thunk-x86_64.lib
+        Libraries:debug  clang_rt.asan_dbg_dynamic-x86_64.lib
+        Libraries:!debug clang_rt.asan_dynamic-x86_64
+    }
 }
 
 # todo: make riftbuild handle this
