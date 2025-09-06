@@ -347,7 +347,7 @@ static void PrefixVariables(String* Dest, String VariableValue, const String Pre
     {
         xx String_EatSpacesInlineFromEnd(Dest);
 
-        if (bWrapWithQuotes)// && !String_IsLast(*Dest, '"'))
+        if (bWrapWithQuotes && VariableValue.Data[0] != '"')
         {
             String_AppendChar(Dest, '"');
         }
@@ -1571,14 +1571,19 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const FileVa
     {
         const String Cmd = Value;
 
-        u32 FirstSpace = 0;
-        bool bFirstSpace = String_IndexOfFirstWhitespace(Cmd, &FirstSpace); // TODO: this wont work with paths with spaces
-
-        const String SourceFile           = String_EatPathSeparatorsFromEnd(bFirstSpace ? StrSlice(Cmd.Data, FirstSpace) : Cmd);
-        const String DestinationDirectory = String_EatSpaces(bFirstSpace ? StrShiftF(Cmd, FirstSpace+1) : String_Null());
+        StringList ArgList          = String_SplitIntoList(&Scratch, Value, ' ', true);
+        String SourceFile           = StringList_GetStringFromIndex(ArgList, 0);
+        String DestinationDirectory = StringList_GetStringFromIndex(ArgList, 1);
 
         StringLocal(FullSourcePath, MAX_PATH_LENGTH);
-        String_BuildPath(&FullSourcePath, WorkingDirectory, SourceFile);
+        if (Filesystem_IsPathRelative(SourceFile))
+        {
+            String_BuildPath(&FullSourcePath, WorkingDirectory, SourceFile);
+        }
+        else
+        {
+            String_BuildPath(&FullSourcePath, SourceFile);
+        }
 
         xx Filesystem_ConvertRelativeToAbsolutePath(&FullSourcePath);
 
@@ -1662,11 +1667,9 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const FileVa
 
         const String Cmd = Value;
 
-        u32 FirstSpace = 0;
-        bool bFirstSpace = String_IndexOfFirstWhitespace(Cmd, &FirstSpace);
-
-        const String SourceFile           = String_EatPathSeparatorsFromEnd(bFirstSpace ? StrSlice(Cmd.Data, FirstSpace) : Cmd);
-        const String DestinationDirectory = String_EatPathSeparatorsFromEnd(bFirstSpace ? String_EatSpaces(StrShiftF(Cmd, FirstSpace+1)) : String_Null());
+        StringList ArgList          = String_SplitIntoList(&Scratch, Value, ' ', true);
+        String SourceFile           = StringList_GetStringFromIndex(ArgList, 0);
+        String DestinationDirectory = StringList_GetStringFromIndex(ArgList, 1);
 
         bool bIsRename = String_EndsWith(Name, S("Rename"), false);
         if (bIsRename)
@@ -1688,7 +1691,15 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const FileVa
             bool bCanWe = true;
             
             StringLocal(FullPath, MAX_PATH_LENGTH);
-            String_BuildPath(&FullPath, WorkingDirectory, bHasSlash ? StrSlice(SourceFile.Data, LastSlash) : SourceFile);
+            if (Filesystem_IsPathRelative(SourceFile))
+            {
+                String_BuildPath(&FullPath, WorkingDirectory, bHasSlash ? StrSlice(SourceFile.Data, LastSlash) : SourceFile);
+            }
+            else
+            {
+                String_BuildPath(&FullPath, SourceFile);
+            }
+
             if (!Filesystem_DoesDirectoryExist(FullPath))
             {
                 bCanWe = false;
@@ -1697,7 +1708,15 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const FileVa
             if (bCanWe)
             {
                 String_Empty(&FullPath);
-                String_BuildPath(&FullPath, WorkingDirectory, SourceFile);
+                if (Filesystem_IsPathRelative(SourceFile))
+                {
+                    String_BuildPath(&FullPath, WorkingDirectory, SourceFile);
+                }
+                else
+                {
+                    String_BuildPath(&FullPath, SourceFile);
+                }
+
                 if (!Filesystem_DoesFileExist(FullPath))
                 {
                     bCanWe = false;
