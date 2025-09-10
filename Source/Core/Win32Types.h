@@ -1521,9 +1521,9 @@ PRAGMA_ENABLE_WARNINGS
 // shell32 APIs that are also exported from shfolder
 #ifndef SHFOLDERAPI
 #if defined(_SHFOLDER_) || defined(_SHELL32_)
-#define SHFOLDERAPI           STDAPI
+#define SHFOLDERAPI           EXTERN_C
 #else
-#define SHFOLDERAPI           EXTERN_C DECLSPEC_IMPORT HRESULT __stdcall
+#define SHFOLDERAPI           EXTERN_C DECLSPEC_IMPORT
 #endif
 #endif
 
@@ -1686,8 +1686,8 @@ PRAGMA_ENABLE_WARNINGS
 #define EnumProcesses         K32EnumProcesses
 #define CaptureStackBackTrace RtlCaptureStackBackTrace
 
-SHFOLDERAPI SHGetFolderPathA(HWND hwnd, int csidl, HANDLE hToken, DWORD dwFlags, LPSTR  pszPath);
-SHFOLDERAPI SHGetFolderPathW(HWND hwnd, int csidl, HANDLE hToken, DWORD dwFlags, LPWSTR pszPath);
+SHFOLDERAPI           HRESULT    WINAPI SHGetFolderPathA(HWND hwnd, int csidl, HANDLE hToken, DWORD dwFlags, LPSTR  pszPath);
+SHFOLDERAPI           HRESULT    WINAPI SHGetFolderPathW(HWND hwnd, int csidl, HANDLE hToken, DWORD dwFlags, LPWSTR pszPath);
 
 WINBASEAPI            void       WINAPI GetSystemTimeAsFileTime(LPFILETIME lpSystemTimeAsFileTime);
 WINBASEAPI NO_DISCARD DWORD      WINAPI GetCurrentProcessId(void);

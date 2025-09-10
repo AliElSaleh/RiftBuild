@@ -50,10 +50,14 @@ typedef struct LinearAllocator LinearAllocator;
 #endif
 
 #if LANG_C
-    #if LANG_C_STD_99
-        typedef _Bool bool;
+    #if defined(__TINYC__)
+        typedef int bool;
     #else
-        typedef u8 bool;
+        #if LANG_C_STD_99
+            typedef _Bool bool;
+        #else
+            typedef u8 bool;
+        #endif
     #endif
 
     #define true  1
@@ -402,6 +406,8 @@ STRUCT(StringList)
     #endif
 #elif defined(_MSC_VER)
     #define COMPILER_MSVC 1
+#elif defined(__TINYC__)
+    #define COMPILER_TCC 1
 #else
     #error Unknown compiler
 #endif
@@ -592,6 +598,28 @@ STRUCT(StringList)
 
     extern void __nop(void);
     #define DEBUG_BREAK() do { __nop(); __debugbreak(); } while (0)
+#else
+    #define PRAGMA_DISABLE_WARNINGS
+    #define PRAGMA_ENABLE_WARNINGS
+    #define PRAGMA_DISABLE_SIGN_CONVERSION_WARNING
+    #define PRAGMA_DISABLE_MISSING_PROTOTYPES_WARNING
+    #define PRAGMA_DISABLE_PADDING_WARNINGS
+
+    #define DEPRECATED       
+    #define UNUSED           
+    #define CONST_FN         
+    #define PURE_FN          
+    #define NO_DISCARD       
+    #define FALL_THROUGH     
+    #define NO_RETURN        
+    #define RETURN_NON_NULL  
+    #define FORCEINLINE      
+
+    #define UNLIKELY(Expression) Expression
+    #define LIKELY(Expression)   Expression
+
+    extern void __nop(void);
+    #define DEBUG_BREAK() __asm__("int $3")
 #endif 
 
 #if DEVELOPER
@@ -633,7 +661,11 @@ STRUCT(StringList)
 #define STATIC_PURE_FN(...) static __VA_ARGS__ PURE_FN; static __VA_ARGS__ 
 #define STATIC_CONST_FN(...) static __VA_ARGS__ CONST_FN; static __VA_ARGS__ 
 
+#if defined(__TINYC__)
+#define STATIC_ASSERT(e, Msg)
+#else
 #define STATIC_ASSERT(e, Msg) typedef uchar MACRO_VAR(__C_ASSERT__)[(e) ? 1 : -1]
+#endif
 
 // drop support for typeof because of MSVC :(
 /*
@@ -661,8 +693,6 @@ STATIC_ASSERT(sizeof(i32)   == 4, "Expected size of i32 to be 4 bytes.");
 STATIC_ASSERT(sizeof(i64)   == 8, "Expected size of i64 to be 8 bytes.");
 STATIC_ASSERT(sizeof(f32)   == 4, "Expected size of f32 to be 4 bytes.");
 STATIC_ASSERT(sizeof(f64)   == 8, "Expected size of f64 to be 8 bytes.");
-//STATIC_ASSERT(sizeof(ulong) == 4, "Expected size of ulong to be 4 bytes.");
-//STATIC_ASSERT(sizeof(ilong) == 4, "Expected size of ilong to be 4 bytes.");
 
 #if PLATFORM_WINDOWS
 typedef void* PlatformHandle;

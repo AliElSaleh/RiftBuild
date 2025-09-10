@@ -13,8 +13,20 @@ read_only FileHandle g_FileHandle = { .Data = &(u8[64]){0}, .Data2 = &(u8[64]){0
 
 #if CPU_X86 || CPU_X64
 
-#if !COMPILER_MSVC
+#if COMPILER_CLANG || COMPILER_GCC
 #include <cpuid.h>
+#endif
+
+#if COMPILER_TCC
+u64 __fixunsdfdi(f64 x)
+{
+    return x < 0 ? 0ULL : (u64)x;
+}
+
+f32 __floatundisf(u64 x)
+{
+    return (float)x;
+}
 #endif
 
 /*
@@ -64,8 +76,12 @@ static void cpuid(i32 info[4], i32 infoType, i32 subtype)
 {
     #if COMPILER_MSVC
     __cpuidex(info, infoType, subtype);
-    #else
+    #elif COMPILER_CLANG || COMPILER_GCC
     __cpuid_count(infoType, subtype, info[0], info[1], info[2], info[3]);
+    #else
+    __asm__("cpuid"
+            : "=a"(info[0]), "=b"(info[1]), "=c"(info[2]), "=d"(info[3])
+            : "a"(infoType), "c"(subtype));
     #endif
 }
 

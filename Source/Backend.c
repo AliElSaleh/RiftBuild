@@ -71,7 +71,7 @@ bool RC_Compile(const BuildParams* Params, const String FullRCPath, String* OutR
         // ergghh i hate this... TODO: something better
         #if PLATFORM_WINDOWS
 
-        if (String_IsEqual(Params->RCProgram, S("rc"), false))
+        if (String_EndsWith(Params->RCProgramPath, S("rc.exe"), false))
         {
             StringLocal(WinSDKInclude, MAX_PATH_LENGTH*7); // 7 paths
             if (!Params->bWasVCVarsBatchRan)
@@ -695,11 +695,15 @@ static void Internal_AppendObjSourceFiles(const BuildParams* Params, String* Cmd
                 continue;
             }
 
-            StringLocal(ResPath, MAX_PATH_LENGTH);
-            String_Append(&ResPath, bHasDot ? StrSlice(RelativePath.Data, LastDot) : RelativePath);
-            String_Append(&ResPath, S(".res"));
+            // TCC doesn't recognize .res files as of 0.9.28
+            if (!String_IsEqual(Params->CompilerProgram, S("tcc"), false))
+            {
+                StringLocal(ResPath, MAX_PATH_LENGTH);
+                String_Append(&ResPath, bHasDot ? StrSlice(RelativePath.Data, LastDot) : RelativePath);
+                String_Append(&ResPath, S(".res"));
 
-            String_BuildPath(&ObjectPath, Params->SourceDirectory, ResPath);
+                String_BuildPath(&ObjectPath, Params->SourceDirectory, ResPath);
+            }
         }
         else
         #endif
@@ -1184,6 +1188,8 @@ static void GetAdditionalLinkerFlags(const BuildParams* Params, String* Addition
                 bool bIsClang = String_IsEqual(Params->CompilerProgram, S("clang"), false) ||
                                 String_IsEqual(Params->CompilerProgram, S("clang++"), false);
 
+                bool bIsTCC   = String_IsEqual(Params->CompilerProgram, S("tcc"), false);
+
                 String_Append(&WlFlags, S("-Wl,"));
 
                 if (bCustomEntry)
@@ -1191,6 +1197,10 @@ static void GetAdditionalLinkerFlags(const BuildParams* Params, String* Addition
                     if (bIsClang)
                     {
                         String_AppendF(&WlFlags, S("-entry:%S,"), Params->LinkerEntryPoint);
+                    }
+                    else if (bIsTCC)
+                    {
+                        String_AppendF(&WlFlags, S("-entry=%S,"), Params->LinkerEntryPoint);
                     }
                     else // GCC
                     {
@@ -1203,6 +1213,16 @@ static void GetAdditionalLinkerFlags(const BuildParams* Params, String* Addition
                     if (bIsClang)
                     {
                         String_AppendF(&WlFlags, S("-subsystem:%S,"), Params->LinkerSubsystem);
+                    }
+                    else if (bIsTCC)
+                    {
+                        // need to lower it, cos fuck you i guess
+                        // fixes this error -> ld: invalid subsystem type Console
+                        StringLocal(Lowered, 32);
+                        String_Copy(&Lowered, Params->LinkerSubsystem);
+                        String_ToLower(&Lowered);
+
+                        String_AppendF(&WlFlags, S("-subsystem=%S,"), Lowered);
                     }
                     else // GCC
                     {
@@ -1232,6 +1252,10 @@ static void GetAdditionalLinkerFlags(const BuildParams* Params, String* Addition
                     if (bIsClang)
                     {
                         String_AppendF(&XlinkerFlags, S("-Xlinker /stack:%S,%S"), Reserve, Commit);
+                    }
+                    else if (bIsTCC)
+                    {
+                        String_AppendF(&WlFlags, S("-stack=%S"), Reserve);
                     }
                     else // GCC
                     {
@@ -1373,9 +1397,14 @@ bool C_Link(const BuildParams* Params)
 
         String_BuildSeparator(&CmdLine, ' ', VerboseFlag,
                                              SharedFlag,
-                                             bIsMicrosoftLinker ? WinSDKLibPaths : String_Null(),
-                                             Params->IconResFilePath,
-                                             Params->VersionResFilePath);
+                                             bIsMicrosoftLinker ? WinSDKLibPaths : String_Null());
+
+        // TCC doesn't recognize .res files as of v0.9.28
+        if (!String_IsEqual(Params->CompilerProgram, S("tcc"), false))
+        {
+            String_BuildSeparator(&CmdLine, ' ', Params->IconResFilePath,
+                                                 Params->VersionResFilePath);
+        }
 
         xx String_EatSpacesInlineFromEnd(&CmdLine);
         String_AppendSpace(&CmdLine);

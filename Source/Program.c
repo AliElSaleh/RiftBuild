@@ -54,6 +54,7 @@ read_only String BuiltinOptions[] =
     SC("--help"),
     SC("--about"),
     SC("--verbose"),
+    SC("--singlethread"),
     SC("--quiet"),
     SC("--tutorial"), // todo: different types of tutorials like --tutorial:name
     SC("--from-desktop"),
@@ -2570,14 +2571,18 @@ static void PrintAbout(void)
     String CompiledWith = S("Clang " __clang_version__);
     #elif COMPILER_GCC
     String CompiledWith = S("GCC " STRINGIFY(__GNUC__) "." STRINGIFY(__GNUC_MINOR__) "." STRINGIFY(__GNUC_PATCHLEVEL__));
+    #elif COMPILER_TCC
+    String CompiledWith = S("TCC " STRINGIFY(__TINYC__));
+    #else
+    String CompiledWith = S("Unknown Compiler");
     #endif
 
     SystemTime TimeNow = Platform_GetSystemLocalTime();
 
     LOG("   A simpler build tool for C/C++, because fuck CMake.\n");
     LOG("   Copyright (c) %hu Artisan Softworks", TimeNow.Year);
-    LOG("   Licensed under the BSD 3-Clause License. See the LICENSE file for details.\n", TimeNow.Year);
-    LOG("   Compiled with %S on %S", String_EatSpacesFromEnd(CompiledWith), S(__TIMESTAMP__));
+    LOG("   Licensed under the BSD 3-Clause License. See the LICENSE file for details.\n");
+    LOG("   Compiled with %S on %S", String_EatSpacesFromEnd(CompiledWith), S(__DATE__ " " __TIME__));
     LOG_LINE_BREAK();
     LOG("   Repository Link: https://github.com/AliElSaleh/RiftBuild");
     LOG("   Contact E-Mail:  elsaleh78@gmail.com");
@@ -2643,6 +2648,7 @@ static void PrintUsage(const String WorkingDirectory)
       "   -h, --help, /?, -?, ? : Display this help message\n"
       "   -a, --about           : About this program\n"
       "   -v, --verbose         : Enable verbose logging\n"
+      "   -s, --singlethread    : Force single-threaded mode. Disables multi-process compilation\n"
       "   -q, --quiet           : Quiet mode. Disables logging but outputs necessary information, like errors\n"
       "   -t, --tutorial        : Display a tutorial on how to set environment variables\n"
       "   -i, --internals       : Display internal variables that can be referenced in a .build file\n"
@@ -6028,6 +6034,8 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             String_Copy(&LinkerPath, CompilerPath);
 
             #if PLATFORM_WINDOWS
+            RCProgramFlags = S("/nologo");
+
             if (bWasVCVarsBatchExecuted)
             {
                 xx Platform_FindProgram_Ex(S("rc"), &RCCompilerPath);
@@ -8451,7 +8459,7 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments, const 
     bIsClean      = StringArray_Contains(Arguments, S("clean"), false);
     bIsRebuild    = StringArray_Contains(Arguments, S("rebuild"), false);
     bVerboseLog   = StringArray_Contains(Arguments, S("-v"), false);
-    bSingleThread = StringArray_Contains(Arguments, S("-singlethread"), false) ||
+    bSingleThread = StringArray_Contains(Arguments, S("--singlethread"), false) ||
                     StringArray_Contains(Arguments, S("-s"), false);
 
     BuildFileDirectoryIteratorData Data = {0};

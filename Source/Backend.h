@@ -94,7 +94,8 @@ ENUM(ECompiler)
     Compiler_Generic, // an unknown compiler, will be treated the same as clang and gcc
     Compiler_Clang,
     Compiler_GCC,
-    Compiler_MSVC
+    Compiler_MSVC,
+    Compiler_TCC
 };
 
 ENUM(EComparisonType)

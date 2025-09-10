@@ -7,10 +7,9 @@ SharedDefines:asan               RIFT_ASAN
 
 Linker.EntryPoint:windows:!asan  EntryPoint
 Linker.Subsystem                 Console
-Linker.Stack                     0x800000 # 8MB
-Linker.NoStdLib:!asan
+Linker.Stack                     8000000 # 8MB
 
-if cl
+if compiler == msvc
 {
     TempWarnings /wd4702
 
@@ -47,9 +46,32 @@ if cl
 
         SharedLinkerFlags:debug      /DEBUG
         SharedLinkerFlags            /NODEFAULTLIB
+
+        Linker.NoStdLib
     }
 }
-else
+
+if compiler == tcc
+{
+    WarningFlags
+    WarningFlagsDisabled
+
+    SharedCompilerFlags              -std=c99 -nostdlib $WarningFlags $WarningFlagsDisabled
+    SharedCompilerFlags:debug        -O0
+    SharedCompilerFlags:!debug       -O3
+    
+    if windows
+    {
+        SharedCompilerFlags:debug    -g.pdb
+    }
+    else
+    {
+        SharedCompilerFlags:debug    -gdwarf
+    }
+}
+
+# todo: fix broken OR's
+if compiler == clang|gcc
 {
     WarningFlags                     -Wall -Wextra -Wshadow -Wconversion -Wmissing-prototypes -Wunused -Wuninitialized -Werror
     WarningFlags:!gcc                -Wpedantic
@@ -92,6 +114,8 @@ else
         SharedCompilerFlags:debug    -O0 $DebugFlags
         SharedCompilerFlags:!debug   -Os -finline-functions
         SharedLinkerFlags:debug      $LinkerDebugFlags
+
+        Linker.NoStdLib
     }
 
     if gcc

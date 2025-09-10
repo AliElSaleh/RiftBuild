@@ -17,7 +17,7 @@
 
 include Source/Common.buildvars
 
-Compiler                 %%clang %%gcc %%cl
+Compiler                 %compiler
 Assembly                 RiftBuild
 Icon                     riftbuild
 
@@ -52,6 +52,11 @@ if windows
     Libraries:32:!debug  libcmt  libvcruntime
     Libraries:32: debug  libcmtd libvcruntimed
 
+    if compiler == tcc
+    {
+        Libraries        kernelbase
+    }
+
     if asan
     {
         Libraries:cl     clang_rt.asan_dynamic_runtime_thunk-x86_64.lib
@@ -74,12 +79,10 @@ if rad
     postbuild.exec raddbg -ipc run
 }
 
-option.clang              use clang compiler
-option.gcc                use gcc compiler
-option.cl                 use cl compiler (windows only)
-option.debug              build the debug version of this program
-option.32                 build for 32 bit mode
-option.asan               enable address sanitizer for memory debugging purposes
-option.hood               enable hood mode, the program will talk to you like a gangster!
-option.no_print_config    disable printing of the build configuration flags
-option.asm                generate disassembly (.S) files
+option.compiler(clang gcc msvc tcc) Select a compiler vendor to build with
+option.debug                        build the debug version of this program
+option.32                           build for 32-bit architectures
+option.asan                         enable address sanitizer for memory debugging purposes
+option.hood                         enable hood mode, the program will talk to you like a gangster!
+option.no_print_config              disable printing of the build configuration flags
+option.asm                          generate disassembly (.S) files

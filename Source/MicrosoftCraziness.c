@@ -30,19 +30,19 @@ typedef struct ISetupInstance ISetupInstance;
 typedef struct ISetupInstanceVtbl
 {
     // IUnknown
-    HRESULT (STDMETHODCALLTYPE* QueryInterface)(ISetupInstance*, REFIID, void**);
-    ULONG   (STDMETHODCALLTYPE* AddRef)(ISetupInstance*);
-    ULONG   (STDMETHODCALLTYPE* Release)(ISetupInstance*);
+    HRESULT (*QueryInterface)(ISetupInstance*, REFIID, void**);
+    ULONG   (*AddRef)(ISetupInstance*);
+    ULONG   (*Release)(ISetupInstance*);
 
     // ISetupInstance
-    HRESULT (STDMETHODCALLTYPE* GetInstanceId)(ISetupInstance*, WCHAR** pwcharInstanceId);
-    HRESULT (STDMETHODCALLTYPE* GetInstallDate)(ISetupInstance*, LPFILETIME pInstallDate);
-    HRESULT (STDMETHODCALLTYPE* GetInstallationName)(ISetupInstance*, WCHAR** pwcharInstallationName);
-    HRESULT (STDMETHODCALLTYPE* GetInstallationPath)(ISetupInstance*, WCHAR** pwcharInstallationPath);
-    HRESULT (STDMETHODCALLTYPE* GetInstallationVersion)(ISetupInstance*, WCHAR** pwcharInstallationVersion);
-    HRESULT (STDMETHODCALLTYPE* GetDisplayName)(ISetupInstance*, LCID lcid, WCHAR** pwcharDisplayName);
-    HRESULT (STDMETHODCALLTYPE* GetDescription)(ISetupInstance*, LCID lcid, WCHAR** pwcharDescription);
-    HRESULT (STDMETHODCALLTYPE* ResolvePath)(ISetupInstance*, const WCHAR* pwszRelativePath, WCHAR** pwcharAbsolutePath);
+    HRESULT (*GetInstanceId)(ISetupInstance*, WCHAR** pwcharInstanceId);
+    HRESULT (*GetInstallDate)(ISetupInstance*, LPFILETIME pInstallDate);
+    HRESULT (*GetInstallationName)(ISetupInstance*, WCHAR** pwcharInstallationName);
+    HRESULT (*GetInstallationPath)(ISetupInstance*, WCHAR** pwcharInstallationPath);
+    HRESULT (*GetInstallationVersion)(ISetupInstance*, WCHAR** pwcharInstallationVersion);
+    HRESULT (*GetDisplayName)(ISetupInstance*, LCID lcid, WCHAR** pwcharDisplayName);
+    HRESULT (*GetDescription)(ISetupInstance*, LCID lcid, WCHAR** pwcharDescription);
+    HRESULT (*ResolvePath)(ISetupInstance*, const WCHAR* pwszRelativePath, WCHAR** pwcharAbsolutePath);
 } ISetupInstanceVtbl;
 
 struct ISetupInstance
@@ -63,15 +63,15 @@ typedef struct IEnumSetupInstances IEnumSetupInstances;
 typedef struct IEnumSetupInstancesVtbl
 {
     // IUnknown
-    HRESULT (STDMETHODCALLTYPE* QueryInterface)(IEnumSetupInstances*, REFIID, void**);
-    ULONG   (STDMETHODCALLTYPE* AddRef)(IEnumSetupInstances*);
-    ULONG   (STDMETHODCALLTYPE* Release)(IEnumSetupInstances*);
+    HRESULT (*QueryInterface)(IEnumSetupInstances*, REFIID, void**);
+    ULONG   (*AddRef)(IEnumSetupInstances*);
+    ULONG   (*Release)(IEnumSetupInstances*);
 
     // IEnumSetupInstances
-    HRESULT (STDMETHODCALLTYPE* Next)(IEnumSetupInstances*, ULONG celt, ISetupInstance** rgelt, ULONG* pceltFetched);
-    HRESULT (STDMETHODCALLTYPE* Skip)(IEnumSetupInstances*, ULONG celt);
-    HRESULT (STDMETHODCALLTYPE* Reset)(IEnumSetupInstances*);
-    HRESULT (STDMETHODCALLTYPE* Clone)(IEnumSetupInstances*, IEnumSetupInstances** ppenum);
+    HRESULT (*Next)(IEnumSetupInstances*, ULONG celt, ISetupInstance** rgelt, ULONG* pceltFetched);
+    HRESULT (*Skip)(IEnumSetupInstances*, ULONG celt);
+    HRESULT (*Reset)(IEnumSetupInstances*);
+    HRESULT (*Clone)(IEnumSetupInstances*, IEnumSetupInstances** ppenum);
 } IEnumSetupInstancesVtbl;
 
 struct IEnumSetupInstances
@@ -95,14 +95,14 @@ typedef struct ISetupConfiguration ISetupConfiguration;
 typedef struct ISetupConfigurationVtbl
 {
     // IUnknown
-    HRESULT (STDMETHODCALLTYPE* QueryInterface)(ISetupConfiguration*, REFIID, void**);
-    ULONG   (STDMETHODCALLTYPE* AddRef)(ISetupConfiguration*);
-    ULONG   (STDMETHODCALLTYPE* Release)(ISetupConfiguration*);
+    HRESULT (*QueryInterface)(ISetupConfiguration*, REFIID, void**);
+    ULONG   (*AddRef)(ISetupConfiguration*);
+    ULONG   (*Release)(ISetupConfiguration*);
 
     // ISetupConfiguration
-    HRESULT (STDMETHODCALLTYPE* EnumInstances)(ISetupConfiguration*, IEnumSetupInstances** ppEnumInstances);
-    HRESULT (STDMETHODCALLTYPE* GetInstanceForCurrentProcess)(ISetupConfiguration*, ISetupInstance** ppInstance);
-    HRESULT (STDMETHODCALLTYPE* GetInstanceForPath)(ISetupConfiguration*, LPCWSTR wzPath, ISetupInstance** ppInstance);
+    HRESULT (*EnumInstances)(ISetupConfiguration*, IEnumSetupInstances** ppEnumInstances);
+    HRESULT (*GetInstanceForCurrentProcess)(ISetupConfiguration*, ISetupInstance** ppInstance);
+    HRESULT (*GetInstanceForPath)(ISetupConfiguration*, LPCWSTR wzPath, ISetupInstance** ppInstance);
 } ISetupConfigurationVtbl;
 
 struct ISetupConfiguration
