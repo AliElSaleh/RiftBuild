@@ -44,6 +44,7 @@ typedef struct LinearAllocator LinearAllocator;
 #define C_LINKAGE_BEGIN
 #define C_LINKAGE_END
 #define C_LINKAGE
+#define LANG_C_STD_89 !__STDC_VERSION__
 #define LANG_C_STD_99 __STDC_VERSION__ >= 199901L
 #define LANG_C_STD_11 __STDC_VERSION__ >= 201101L
 #define LANG_C_STD_17 __STDC_VERSION__ >= 201701L
@@ -551,7 +552,11 @@ STRUCT(StringList)
     #define FALL_THROUGH     __attribute__((fallthrough))
     #define NO_RETURN        __attribute__((noreturn))
     #define RETURN_NON_NULL  __attribute__((returns_nonnull))
+    #if LANG_C_STD_89
+    #define FORCEINLINE      __attribute__((always_inline))
+    #else
     #define FORCEINLINE      __attribute__((always_inline)) inline
+    #endif
     #define FORCENOINLINE
     #define ASM              __asm__ \
 

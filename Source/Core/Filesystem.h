@@ -24,7 +24,7 @@ read_only global FileHandle g_FileHandle;
 ENUM(EFileMode)
 {
     FileMode_Read = 0x1,
-    FileMode_Write = 0x2,
+    FileMode_Write = 0x2
 };
 
 STRUCT(FileTimeData)

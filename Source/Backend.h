@@ -7,7 +7,6 @@
 #endif
 
 #define MAX_KEY_LENGTH 64
-// #define MAX_VALUE_LENGTH Kibibytes(12)
 #define MAX_META_KEY_LENGTH 64
 
 global bool bQuietBuild;
@@ -109,7 +108,7 @@ ENUM(EComparisonType)
     Cmp_LessThanOrEqual,
     Cmp_StartsWith,
     Cmp_EndsWith,
-    Cmp_Contains,
+    Cmp_Contains
 };
 
 ENUM(EGenerator)
@@ -128,13 +127,13 @@ ENUM(EGenerator)
     Generator_DotDesktop,
     Generator_Mime,
     Generator_GNOMEMime,
-    Generator_KDEMime,
+    Generator_KDEMime
 };
 
 ENUM(EBuildMode)
 {
     BuildMode_Build,
-    BuildMode_Export,
+    BuildMode_Export
 };
 
 STRUCT(BuildParams)
