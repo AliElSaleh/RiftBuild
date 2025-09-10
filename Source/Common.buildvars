@@ -74,11 +74,8 @@ if compiler == tcc
 if compiler == clang|gcc
 {
     WarningFlags                     -Wall -Wextra -Wshadow -Wconversion -Wmissing-prototypes -Wunused -Wuninitialized -Werror
-    WarningFlags:!gcc                -Wpedantic
     WarningFlagsDisabled             -Wno-unused-parameter
     WarningFlagsDisabled:mac         -Wno-nonportable-include-path
-    WarningFlagsDisabled:gcc         -Wno-unused-result
-    WarningFlagsDisabled:!gcc        -Wno-typedef-redefinition -Wno-gnu-zero-variadic-macro-arguments -Wno-unused-command-line-argument
 
     DebugFlags                       -g3 -MD
     LinkerDebugFlags                 -g3
@@ -91,6 +88,33 @@ if compiler == clang|gcc
     SharedCompilerFlags:trace        -ftime-trace
     SharedCompilerFlags:32           -m32
     SharedCompilerFlags:mac          -mmacosx-version-min=10.12
+
+    SharedLinkerFlags            
+    SharedLinkerFlags:32             --target=i386-pc-windows-msvc
+    SharedLinkerFlags:linux          -Wl,-z,nodlopen -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now
+    SharedLinkerFlags:mac            -framework Foundation
+    
+    SharedDefines:debug              _GLIBCXX_ASSERTIONS _GLIBCXX_DEBUG _GLIBCXX_DEBUG_PEDANTIC
+    SharedDefines:!debug             _FORTIFY_SOURCE=3
+
+    Compiler.ObjectExtension:asm     .S
+
+    if compiler == gcc
+    {
+        SharedCompilerFlags          -mno-stack-arg-probe
+        SharedCompilerFlags:analyze  --analyzer -funsigned-char
+        
+        WarningFlagsDisabled         -Wno-unused-result
+    }
+    else
+    {
+        SharedCompilerFlags          -mstack-probe-size=999999999
+        SharedCompilerFlags          -finline-hint-functions
+        SharedCompilerFlags:analyze  --analyze -funsigned-char
+        
+        WarningFlags                 -Wpedantic
+        WarningFlagsDisabled         -Wno-typedef-redefinition -Wno-gnu-zero-variadic-macro-arguments -Wno-unused-command-line-argument
+    }
 
     if asan
     {
@@ -117,26 +141,4 @@ if compiler == clang|gcc
 
         Linker.NoStdLib
     }
-
-    if gcc
-    {
-        SharedCompilerFlags          -mno-stack-arg-probe
-        SharedCompilerFlags:analyze  --analyzer -funsigned-char
-    }
-    else
-    {
-        SharedCompilerFlags          -mstack-probe-size=999999999
-        SharedCompilerFlags          -finline-hint-functions
-        SharedCompilerFlags:analyze  --analyze -funsigned-char
-    }
-
-    Compiler.ObjectExtension:asm     .S
-
-    SharedLinkerFlags            
-    SharedLinkerFlags:32             --target=i386-pc-windows-msvc
-    SharedLinkerFlags:linux          -Wl,-z,nodlopen -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now
-    SharedLinkerFlags:mac            -framework Foundation
-    
-    SharedDefines:debug              _GLIBCXX_ASSERTIONS _GLIBCXX_DEBUG _GLIBCXX_DEBUG_PEDANTIC
-    SharedDefines:!debug             _FORTIFY_SOURCE=3
 }

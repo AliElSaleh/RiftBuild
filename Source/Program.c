@@ -3754,7 +3754,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
             LinearAllocator Scratch = *Arena;
             StringList ParamList = String_SplitIntoList(&Scratch, VersionVar.Params, ' ', false);
-            if (StringList_FindIndex(ParamList, S("macro"), false, StringCompare_Equal, NULL))
+            if (StringList_FindIndex(ParamList, S("define"), false, StringCompare_Equal, NULL))
             {
                 const String VersionLevels[3] = 
                 {
@@ -3839,7 +3839,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         {
             LinearAllocator Scratch = *Arena;
             StringList ParamList = String_SplitIntoList(&Scratch, CopyrightVar.Params, ' ', false);
-            if (StringList_FindIndex(ParamList, S("macro"), false, StringCompare_Equal, NULL))
+            if (StringList_FindIndex(ParamList, S("define"), false, StringCompare_Equal, NULL))
             {
                 StringLocal(CopyrightDefine, 256);
                 String_Format(&CopyrightDefine, S("%S_COPYRIGHT_STRING=\"%S\""), AssemblyNameUpper, CopyrightVar.Value);

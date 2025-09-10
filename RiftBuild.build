@@ -23,7 +23,7 @@ Icon                     riftbuild
 
 TitleName                Rift Build %^%debug
 Description              A simpler build tool for C/C++, because fuck cmake
-Version(macro)           0.1.0-beta-%_date.nosep
+Version(define)          0.1.0-beta-%_date.nosep
 CompanyName              Artisan Softworks
 Copyright(enforce)       Copyright (c) $CompanyName
 License(generate)        BSD 3-Clause
@@ -59,7 +59,11 @@ if windows
 
     if asan
     {
-        Libraries:cl     clang_rt.asan_dynamic_runtime_thunk-x86_64.lib
+        if compiler == msvc
+        {
+            Libraries     clang_rt.asan_dynamic_runtime_thunk-x86_64.lib
+        }
+        
         Libraries:debug  clang_rt.asan_dbg_dynamic-x86_64.lib
         Libraries:!debug clang_rt.asan_dynamic-x86_64
     }

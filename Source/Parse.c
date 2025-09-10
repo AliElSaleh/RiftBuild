@@ -1376,7 +1376,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Pars
             // assign this block to all children nodes (recursively)
             Internal_AssignParentToChildrenRecursively(BlockNode, BlockNode->List);
 
-            const String KeysThatPreserveOrder[] =
+            const String KeysThatPreserveOrder[7] =
             {
                 S("PreDepend"),
                 S("PreBuild"),

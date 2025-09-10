@@ -227,34 +227,6 @@ STRUCT(BuildParams)
     bool _bPadding;
 };
 
-/*
-ENUM(EExportType)
-{
-    ExportType_None,
-    ExportType_CompileCommands,
-    ExportType_InfoPList,
-    ExportType_VersionPList,
-    ExportType_PkgInfo,
-    ExportType_VersionRC,
-    ExportType_IconRC,
-    ExportType_License
-};
-
-STRUCT(ExportMetaData)
-{
-    String StringParam_1;
-    String StringParam_2;
-
-    // for Export_*PList
-    TArray(FileVariable) ExpandedVariablesDB;
-    u32 bRawMode     : 1;
-
-    // for Export_CompileCommands
-    u32 bIsLastBuild : 1;
-    u32 bKeepOneLine : 1;
-};
-*/
-
 // Compiler/Building functions --------------------
 
 bool C_Compile(const BuildParams* Params, u32* OutNumCompiled);

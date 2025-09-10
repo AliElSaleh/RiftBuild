@@ -220,7 +220,7 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
         StringLocal(PchSourceFile, MAX_PATH_LENGTH);
         String_Copy(&RelativePathCopy, Filesystem_StripFileExtension(RelativePath));
 
-        const String Exts[] = { S(".c"), S(".cc"), S(".cxx"), S(".c++"), S(".cpp") };
+        const String Exts[5] = { S(".c"), S(".cc"), S(".cxx"), S(".c++"), S(".cpp") };
         bool bAnyPchSourceExists = false;
         for (u8 i = 0; i < SArray_Capacity(Exts); i++)
         {
@@ -480,7 +480,7 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
 
                             // find a header that exists
                             bool bAnyFound = false;
-                            const String Exts[] = { S(".h"), S(".hh"), S(".hpp"), S(".hxx"), S(".h++") };
+                            const String Exts[5] = { S(".h"), S(".hh"), S(".hpp"), S(".hxx"), S(".h++") };
                             for (u8 i = 0; i < SArray_Capacity(Exts); i++)
                             {
                                 StringLocal(Test, MAX_PATH_LENGTH);

@@ -205,7 +205,7 @@ STRUCT(StringList)
 
 #define StrMake(s)                          (String)         {.Data = (uchar*)(s).Data, .Length = (s).Length, .Capacity = (s).Capacity}
 
-#define StrArray(...)                       (StringArray)    {.List = ((String[]){__VA_ARGS__}), .Num = SArray_Capacity(((String[]){__VA_ARGS__}))}
+#define StrArray(...)                       (StringArray)    {.List = ((String[32]){__VA_ARGS__}), .Num = SArray_Capacity(((String[32]){__VA_ARGS__}))}
 
 #define StrFormat                           "%.*s"
 #define StrArg(s)                           (i32)(s).Length, (s).Data
