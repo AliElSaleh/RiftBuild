@@ -70,7 +70,6 @@ if compiler == tcc
     }
 }
 
-# todo: fix broken OR's
 if compiler == clang|gcc
 {
     WarningFlags                     -Wall -Wextra -Wshadow -Wconversion -Wmissing-prototypes -Wunused -Wuninitialized -Werror

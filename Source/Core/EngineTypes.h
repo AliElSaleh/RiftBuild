@@ -149,8 +149,8 @@ typedef struct LinearAllocator LinearAllocator;
 
 #define STRUCT(Name)            typedef struct Name Name; struct Name
 #define UNION(Name)             typedef union Name Name; union Name
-#define ENUM(Name)              typedef u8 Name; enum
-#define ENUM_T(Name, Type)      typedef Type Name; enum
+#define ENUM(Name)              typedef u8 Name; enum Name
+#define ENUM_T(Name, Type)      typedef Type Name; enum Name
 
 STRUCT(String)
 {

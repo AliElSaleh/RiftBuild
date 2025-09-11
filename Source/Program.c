@@ -254,8 +254,12 @@ static void PrefixVariables(String* Dest, String VariableValue, const String Pre
     bool bInsideQuote = false;
     bool bSawSpace = false;
 
+    bool bLastStringStartedWithQuote = false;
+
     if (VariableValue.Length > 0)
     {
+        bLastStringStartedWithQuote = VariableValue.Data[0] == '"';
+
         if (bWrapWithQuotes && VariableValue.Data[0] != '"')
         {
             String_AppendChar(Dest, '"');
@@ -278,7 +282,7 @@ static void PrefixVariables(String* Dest, String VariableValue, const String Pre
 
     for (u32 i = 0; i < VariableValue.Length; i++)
     {
-        u8 C = VariableValue.Data[i];
+        uchar C = VariableValue.Data[i];
 
         // ignore trailing space
         if (IsWhitespace(C) && i == VariableValue.Length-1)
@@ -298,7 +302,9 @@ static void PrefixVariables(String* Dest, String VariableValue, const String Pre
 
                 if (!bInsideQuote)
                 {
-                    if (bWrapWithQuotes && C != '"')
+                    bLastStringStartedWithQuote = C == '"';
+
+                    if (bWrapWithQuotes)
                     {
                         String_AppendChar(Dest, '"');
                     }
@@ -315,6 +321,14 @@ static void PrefixVariables(String* Dest, String VariableValue, const String Pre
                         }
                         #endif
                     }
+
+                    if (bWrapWithQuotes && C == '"')
+                    {
+                        bInsideQuote = true;
+
+                        // skip appending this quote as we have already done so
+                        continue;
+                    }
                 }
             }
         }
@@ -324,20 +338,23 @@ static void PrefixVariables(String* Dest, String VariableValue, const String Pre
             bInsideQuote = !bInsideQuote;
         }
 
-        if (IsWhitespace(C) && !bInsideQuote)
+        if (!bInsideQuote)
         {
-            if (bWrapWithQuotes)
+            if (IsWhitespace(C))
             {
-                String_AppendChar(Dest, '"');
+                if (bWrapWithQuotes)
+                {
+                    String_AppendChar(Dest, '"');
+                }
             }
-        }
 
-        if ((C == '\\' || C == '/') && !bInsideQuote)
-        {
-            // is next char a whitespace? skip add path separator
-            if (i+1 < VariableValue.Length && IsWhitespace(VariableValue.Data[i+1]))
+            if (C == '\\' || C == '/')
             {
-                continue;
+                // is next char a whitespace? skip add path separator
+                if (i+1 < VariableValue.Length && IsWhitespace(VariableValue.Data[i+1]))
+                {
+                    continue;
+                }
             }
         }
         
@@ -348,7 +365,7 @@ static void PrefixVariables(String* Dest, String VariableValue, const String Pre
     {
         xx String_EatSpacesInlineFromEnd(Dest);
 
-        if (bWrapWithQuotes && VariableValue.Data[0] != '"')
+        if (bWrapWithQuotes && !bLastStringStartedWithQuote)
         {
             String_AppendChar(Dest, '"');
         }
@@ -6496,16 +6513,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     {
         if (bFoundBuildFile)
         {
-            String Mode = GetCmdOptionValue(CmdOptionsDB, S("mode"));
-
-            if (!String_IsValid(Mode))
-            {
-                LOG("Build Configuration:");
-            }
-            else
-            {
-                LOG("Build Configuration: (%S)", Mode);
-            }
+            LOG("Build Configuration:");
 
             if (AssemblyType != AssemblyType_CustomCompilerObject)
             {
@@ -8924,7 +8932,6 @@ static void InitInternalVars(LinearAllocator* Arena)
 
     #if PLATFORM_WINDOWS
     AddInternalVariable(S("_Platform"), S("Windows"));
-    AddInternalVariable(S("Windows"),   String_Null());
     AddInternalVariable(S("Win32"),     String_Null());
     #if PLATFORM_64_BIT
     AddInternalVariable(S("Win64"),     String_Null());

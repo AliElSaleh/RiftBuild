@@ -361,7 +361,7 @@ STRUCT(NodeList)
 STRUCT(IfConditionData)
 {
     String Condition;
-    String TestValue;
+    StringList* TestValues;
     ETokenType ComparisonOp;
     u8 Prefix;
     u8 Padding[3];
@@ -1174,7 +1174,21 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena, Parser*
                         Token TestToken = Parser_Peek(P);
                         if (TestToken.Type == Token_Text)
                         {
-                            Condition.TestValue = TestToken.Lexeme;
+                            StringList* ValueList = NULL;
+                            StringList** NextValue = &ValueList;
+
+                            SLinkedList_Push(NextValue, StringList_Create(Arena, TestToken.Lexeme, NULL));
+
+                            Parser_Advance(P);
+
+                            while (Parser_Match(P, Token_Pipe) ||
+                                   Parser_Match(P, Token_Or))
+                            {
+                                SLinkedList_Push(NextValue, StringList_Create(Arena, Parser_Peek(P).Lexeme, NULL));
+                            }
+
+                            Condition.TestValues = ValueList;
+
                             Parser_Advance(P);
                         }
                         else
@@ -2065,7 +2079,18 @@ static void Print_IfNode(Node* Root, u32 Level)
 
             if (c.ComparisonOp != Token_None)
             {
-                LOG_INLINE("%S %S %S | ", c.Condition, ETokenType_ToString(c.ComparisonOp), c.TestValue);
+                StringLocal(Conditions, 512);
+                if (c.TestValues)
+                {
+                    for each_string_in_list (*c.TestValues)
+                    {
+                        String_Append(&Conditions, It.String);
+                        String_AppendChar(&Conditions, '|');
+                    }
+                    xx String_EatCharInlineFromEnd(&Conditions, '|');
+                }
+
+                LOG_INLINE("%S %S %S || ", c.Condition, ETokenType_ToString(c.ComparisonOp), Conditions);
             }
             else
             {
@@ -2984,197 +3009,139 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
                 bFoundVar = true;
             }
 
-            if (bFoundVar && c.ComparisonOp != Token_None)
+            if (bFoundVar && c.ComparisonOp != Token_None && c.TestValues)
             {
                 LinearAllocator Scratch = *Arena;
 
+                // if the var value has more than one value separated by a space
+                StringArray Values = String_ParseIntoArray(&Scratch, VarValue, ' ', 0, 128);
+
                 i64 LeftInt = 0, RightInt = 0;
+
                 switch (c.ComparisonOp)
                 {
-                    default:
-                    break;
+                    default: {} break;
 
                     case Token_EqualEqual:
                     {
-                        bConditionMet = String_IsEqual(VarValue, c.TestValue, bCaseSensitive);
-                        if (bConditionMet)
+                        for each_string_in_list (*c.TestValues)
                         {
-                            break;
-                        }
-
-                        // if the var value has more than one value separated by a space
-                        StringArray Values2 = String_ParseIntoArray(&Scratch, VarValue, ' ', 0, 128);
-                        for each_str (v2, Values2)
-                        {
-                            bConditionMet = String_IsEqual(c.TestValue, *v2, bCaseSensitive);
-                            if (bConditionMet)
+                            for each_str (v, Values)
                             {
-                                break;
+                                bConditionMet = String_IsEqual(*v, It.String, bCaseSensitive);
+                                if (bConditionMet)
+                                {
+                                    goto the_great_wall_of_china;
+                                }
                             }
-                        }
-
-                        if (bConditionMet)
-                        {
-                            break;
                         }
                     }
                     break;
 
                     case Token_NotEqual:
                     {
-                        bConditionMet = !String_IsEqual(VarValue, c.TestValue, bCaseSensitive);
-                        if (bConditionMet)
+                        for each_string_in_list (*c.TestValues)
                         {
-                            break;
-                        }
-
-                        // if the var value has more than one value separated by a space
-                        StringArray Values2 = String_ParseIntoArray(&Scratch, VarValue, ' ', 0, 128);
-                        for each_str (v2, Values2)
-                        {
-                            bConditionMet = !String_IsEqual(c.TestValue, *v2, bCaseSensitive);
-                            if (bConditionMet)
+                            for each_str (v, Values)
                             {
-                                break;
+                                bConditionMet = !String_IsEqual(*v, It.String, bCaseSensitive);
+                                if (bConditionMet)
+                                {
+                                    goto the_great_wall_of_china;
+                                }
                             }
-                        }
-
-                        if (bConditionMet)
-                        {
-                            break;
                         }
                     }
                     break;
 
                     case Token_GreaterOrEqual:
-                    {
-                        if (!String_ToI64(VarValue, &LeftInt) ||
-                            !String_ToI64(c.TestValue, &RightInt))
-                        {
-                            bConditionMet = false;
-                            break;
-                        }
-
-                        bConditionMet = LeftInt >= RightInt;
-                    }
-                    break;
-
                     case Token_LessOrEqual:
-                    {
-                        if (!String_ToI64(VarValue, &LeftInt) ||
-                            !String_ToI64(c.TestValue, &RightInt))
-                        {
-                            bConditionMet = false;
-                            break;
-                        }
-
-                        bConditionMet = LeftInt <= RightInt;
-                    }
-                    break;
-
                     case Token_GreaterThan:
-                    {
-                        if (!String_ToI64(VarValue, &LeftInt) ||
-                            !String_ToI64(c.TestValue, &RightInt))
-                        {
-                            bConditionMet = false;
-                            break;
-                        }
-
-                        bConditionMet = LeftInt > RightInt;
-                    }
-                    break;
-
                     case Token_LessThan:
                     {
-                        if (!String_ToI64(VarValue, &LeftInt) ||
-                            !String_ToI64(c.TestValue, &RightInt))
+                        for each_string_in_list (*c.TestValues)
                         {
-                            bConditionMet = false;
-                            break;
-                        }
+                            for each_str (v, Values)
+                            {
+                                bool bConverted = String_ToI64(*v, &LeftInt) &&
+                                                  String_ToI64(It.String, &RightInt);
+                                if (bConverted)
+                                {
+                                    switch (c.ComparisonOp)
+                                    {
+                                        default: break;
+                                        case Token_GreaterOrEqual: { bConditionMet = LeftInt >= RightInt; } break;
+                                        case Token_LessOrEqual:    { bConditionMet = LeftInt <= RightInt; } break;
+                                        case Token_GreaterThan:    { bConditionMet = LeftInt >  RightInt; } break;
+                                        case Token_LessThan:       { bConditionMet = LeftInt <  RightInt; } break;
+                                    }
 
-                        bConditionMet = LeftInt < RightInt;
+                                    if (bConditionMet)
+                                    {
+                                        goto the_great_wall_of_china;
+                                    }
+                                }
+                            }
+                        }
                     }
                     break;
 
                     case Token_StartsWith:
                     {
-                        bConditionMet = String_StartsWith(VarValue, c.TestValue, bCaseSensitive);
-                        if (bConditionMet)
+                        for each_string_in_list (*c.TestValues)
                         {
-                            break;
-                        }
-
-                        // if the var value has more than one value separated by a space
-                        StringArray Values2 = String_ParseIntoArray(&Scratch, VarValue, ' ', 0, 128);
-                        for each_str (v2, Values2)
-                        {
-                            bConditionMet = String_StartsWith(*v2, c.TestValue, bCaseSensitive);
-                            if (bConditionMet)
+                            for each_str (v, Values)
                             {
-                                break;
+                                bConditionMet = String_StartsWith(*v, It.String, bCaseSensitive);
+                                if (bConditionMet)
+                                {
+                                    goto the_great_wall_of_china;
+                                }
                             }
-                        }
-
-                        if (bConditionMet)
-                        {
-                            break;
                         }
                     }
                     break;
 
                     case Token_EndsWith:
                     {
-                        bConditionMet = String_EndsWith(VarValue, c.TestValue, bCaseSensitive);
-                        if (bConditionMet)
+                        for each_string_in_list (*c.TestValues)
                         {
-                            break;
-                        }
-
-                        // if the var value has more than one value separated by a space
-                        StringArray Values2 = String_ParseIntoArray(&Scratch, VarValue, ' ', 0, 128);
-                        for each_str (v2, Values2)
-                        {
-                            bConditionMet = String_EndsWith(*v2, c.TestValue, bCaseSensitive);
-                            if (bConditionMet)
+                            for each_str (v, Values)
                             {
-                                break;
+                                bConditionMet = String_EndsWith(*v, It.String, bCaseSensitive);
+                                if (bConditionMet)
+                                {
+                                    goto the_great_wall_of_china;
+                                }
                             }
-                        }
-
-                        if (bConditionMet)
-                        {
-                            break;
                         }
                     }
                     break;
 
                     case Cmp_Contains:
                     {
-                        bConditionMet = String_Contains(VarValue, c.TestValue, bCaseSensitive);
-                        if (bConditionMet)
+                        for each_string_in_list (*c.TestValues)
                         {
-                            break;
-                        }
-
-                        // if the var value has more than one value separated by a space
-                        StringArray Values2 = String_ParseIntoArray(&Scratch, VarValue, ' ', 0, 128);
-                        for each_str (v2, Values2)
-                        {
-                            bConditionMet = String_Contains(*v2, c.TestValue, bCaseSensitive);
-                            if (bConditionMet)
+                            for each_str (v, Values)
                             {
-                                break;
+                                bConditionMet = String_Contains(*v, It.String, bCaseSensitive);
+                                if (bConditionMet)
+                                {
+                                    goto the_great_wall_of_china;
+                                }
                             }
-                        }
-
-                        if (bConditionMet)
-                        {
-                            break;
                         }
                     }
                     break;
+                }
+
+                the_great_wall_of_china:
+                {
+                    // ======================================================
+                    // ||||||||||||||||||||||||||||||||||||||||||||||||||||||
+                    // ======================================================
+
+                    // very big wall indeed
                 }
             }
 
@@ -3793,6 +3760,38 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
                         #else
                         LOG_ERROR("yo we cant run from this dir cuh \"%S\" you gotta run from \"%S\"", Context->WorkingDirectory, AssertPath);
                         #endif
+
+                        bAssertionFailed = true;
+                        break;
+                    }
+                }
+            }
+            else if (String_IsEqual(Var.Name, S("Assert.File"), false))
+            {
+                StringList List = String_SplitIntoList(&Scratch, Var.Value, ' ', true);
+                for each_string_in_list (List)
+                {
+                    if (!Filesystem_DoesFileExist(It.String))
+                    {
+                        LOG_INLINE_ERROR("\n[ASSERTION FAILURE] File \"%S\" does not exist. Aborting build...\n", It.String);
+
+                        xx Internal_LogCustomErrorMessage(Context, S("File"), It.String, true);
+
+                        bAssertionFailed = true;
+                        break;
+                    }
+                }
+            }
+            else if (String_IsEqual(Var.Name, S("Assert.Directory"), false))
+            {
+                StringList List = String_SplitIntoList(&Scratch, Var.Value, ' ', true);
+                for each_string_in_list (List)
+                {
+                    if (!Filesystem_DoesDirectoryExist(It.String))
+                    {
+                        LOG_INLINE_ERROR("\n[ASSERTION FAILURE] Directory \"%S\" does not exist. Aborting build...\n", It.String);
+
+                        xx Internal_LogCustomErrorMessage(Context, S("Directory"), It.String, true);
 
                         bAssertionFailed = true;
                         break;

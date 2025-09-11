@@ -66,11 +66,7 @@ ENUM(WinConsoleForegroundColors)
     FG_LIGHTRED = 12,
     FG_LIGHTMAGENTA = 13,
     FG_YELLOW = 14,
-    FG_WHITE = 15
-};
-
-ENUM(WinConsoleForegroundColors)
-{
+    FG_WHITE = 15,
     BG_NAVYBLUE = 16,
     BG_GREEN = 32,
     BG_TEAL = 48,
