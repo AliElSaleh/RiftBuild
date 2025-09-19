@@ -2827,7 +2827,7 @@ static void Analyze_KVNode(LinearAllocator* Arena, Node* Root, ParsingContext* C
 
         if (bIsOptionEnabled)
         {
-            AddCmdOption(&Context->CmdOptionsDB, String_Create(Arena, OptionName), String_Create(Arena, OptionValue));
+            AddCmdOption(Context->CmdOptionsDB, String_Create(Arena, OptionName), String_Create(Arena, OptionValue));
         }
 
         if (bIsBinaryOption)
@@ -2897,7 +2897,7 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
                         if (bMatch)
                         {
                             // make sure we have some value if we specified an '=' sign
-                            if (!o.bEqualsToSomething || o.Value.Length > 0)
+                            if (!String_IsDataValid(o.Value) || o.Value.Length > 0)
                             {
                                 bool bIsBinaryOption = IsOptionOn(o.Value) || IsOptionOff(o.Value);
                                 if (bIsBinaryOption)
@@ -3813,7 +3813,10 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
                         if (String_IsEqual(o.Name, Trimmed, false))
                         {
                             bFound = true;
-                            if (o.bEqualsToSomething && o.Value.Length == 0)
+
+                            // if an '=' was specified but no value was specified after that
+                            // so something like this: some_arg=
+                            if (String_IsDataValid(o.Value) && o.Value.Length == 0)
                             {
                                 bFound = false;
                             }
@@ -3853,7 +3856,9 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
                         {
                             bFound = true;
 
-                            if (o.bEqualsToSomething && o.Value.Length == 0)
+                            // if an '=' was specified but no value was specified after that
+                            // so something like this: some_arg=
+                            if (String_IsDataValid(o.Value) && o.Value.Length == 0)
                             {
                                 bFound = false;
                             }
@@ -3898,7 +3903,10 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
                             }
 
                             bFound = true;
-                            if (o.bEqualsToSomething && o.Value.Length == 0)
+
+                            // if an '=' was specified but no value was specified after that
+                            // so something like this: some_arg=
+                            if (String_IsDataValid(o.Value) && o.Value.Length == 0)
                             {
                                 bFound = false;
                             }
@@ -3966,7 +3974,10 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
                     if (String_IsEqual(o.Name, Trimmed, false))
                     {
                         bFound = true;
-                        if (o.bEqualsToSomething && o.Value.Length == 0)
+
+                        // if an '=' was specified but no value was specified after that
+                        // so something like this: some_arg=
+                        if (String_IsDataValid(o.Value) && o.Value.Length == 0)
                         {
                             bFound = false;
                         }
@@ -4041,10 +4052,6 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
                         if (String_IsEqual(o.Name, OptionName, false))
                         {
                             bFound = true;
-                            if (o.bEqualsToSomething && o.Value.Length == 0)
-                            {
-                                bFound = false;
-                            }
 
                             OptionValue = o.Value;
                             
@@ -4525,7 +4532,7 @@ bool ExpandBuildVariable(LinearAllocator Scratch, FileVariableList* VariablesDB,
                 {
                     bFoundCmd = true;
                     VarValue = o.Value;
-                    bEqualsToSomething = o.bEqualsToSomething;
+                    bEqualsToSomething = o.Value.Length > 0;
                     break;
                 }
             }

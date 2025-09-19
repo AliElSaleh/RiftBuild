@@ -152,14 +152,14 @@ typedef struct LinearAllocator LinearAllocator;
 #define ENUM(Name)              typedef u8 Name; enum Name
 #define ENUM_T(Name, Type)      typedef Type Name; enum Name
 
-STRUCT(String)
+STRUCT(String) // 16 bytes
 {
     uchar* Data;
     u32   Length;
     u32   Capacity;
 };
 
-STRUCT(String16)
+STRUCT(String16) // 16 bytes
 {
     wchar* Data;
     u32    Length;
@@ -174,7 +174,7 @@ STRUCT(StringArray)
     void*   IterCurrent;
 };
 
-STRUCT(StringList)
+STRUCT(StringList) // 24 bytes
 {
     String String;
     struct StringList* Next;

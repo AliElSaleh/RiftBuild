@@ -73,8 +73,6 @@ STRUCT(CmdOption)
 {
     String Name;
     String Value;
-    bool   bEqualsToSomething; // can i get rid of this??
-    u8     Padding[7];
 };
 
 ENUM(EAssemblyType)
@@ -277,9 +275,8 @@ STRUCT(ParsingContext)
     FileVariableList**   VarListTail;
     String               WorkingDirectory;
     bool                 bNoFail;
-    bool                 bIgnoreDefaultOptions;
     u8                   Level;
-    u8                   Padding[5];
+    u8                   Padding[6];
 };
 
 NO_DISCARD bool ParseBuildFile(LinearAllocator* PermanentArena,
@@ -309,7 +306,7 @@ void AddOrAppendVariable(LinearAllocator* Arena,
                         const String Params,
                         u32 MaxValueLength);
 
-void AddCmdOption(TArray(CmdOption)* CmdOptionsDB, const String Name, const String Value);
+void AddCmdOption(TArray(CmdOption) CmdOptionsDB, const String Name, const String Value);
 void AddInternalVariable(const String Name, const String Value);
 
 // Export functions --------------------

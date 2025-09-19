@@ -2409,15 +2409,13 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const File
     }
 }
 
-// TODO: get rid of this double pointer bullshit. cringe...
-void AddCmdOption(TArray(CmdOption)* CmdOptionsDB, const String Name, const String Value)
+void AddCmdOption(TArray(CmdOption) CmdOptionsDB, const String Name, const String Value)
 {
     CmdOption c;
     c.Name = Name;
     c.Value = Value;
-    c.bEqualsToSomething = Value.Length > 0;
 
-    Array_Add(*CmdOptionsDB, c);
+    Array_Add(CmdOptionsDB, c);
 }
 
 void AddInternalVariable(const String Name, const String Value)
@@ -3126,19 +3124,10 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     Clock BuildRuntime;
     Clock_Start(&BuildRuntime);
 
-    bool bIgnoreDefaultOptions = false;
-
-    u8 UniqueCmdLineArgs = 0;
-
     StringLocal(RiftCmdLine, 2048);
     for (u8 i = 0; i < Parameters.Num; i++)
     {
         const String Param = Parameters.List[i];
-
-        if (String_IsEqual(Param, S("preset:"), false))
-        {
-            UniqueCmdLineArgs += 1;
-        }
 
         // todo: allow the user to specify which args can be ignored for rebuild?
         bool bIsBuiltin = false;
@@ -3226,25 +3215,16 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                 xx String_EatSpacesInlineFromEnd(&c.Name);
                 c.Value = StrSlice(Param.Data+EqualIndex+1, Param.Length - (EqualIndex + 1));
                 xx String_EatSpacesInline(&c.Value);
-                c.bEqualsToSomething = true;
             }
             else
             {
                 c.Name = Param;
                 xx String_EatSpacesInlineFromEnd(&c.Name);
                 c.Value = String_Null();
-                c.bEqualsToSomething = false;
             }
 
             Array_Add(CmdOptionsDB, c);
-
-            UniqueCmdLineArgs += 1;
         }
-    }
-
-    if (UniqueCmdLineArgs > 0)
-    {
-        bIgnoreDefaultOptions = true;
     }
 
     String BuildFileName;
@@ -3260,25 +3240,25 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         u32 LastDot = 0;
         bool bHasDot = String_IndexOfLastChar(NameCopy, '.', &LastDot);
 
-        AddCmdOption(&CmdOptionsDB, S("_FileName"), bHasDot ? StrSlice(NameCopy.Data, LastDot) : NameCopy);
-        AddCmdOption(&CmdOptionsDB, S("_FileNameExt"), NameCopy);
+        AddCmdOption(CmdOptionsDB, S("_FileName"), bHasDot ? StrSlice(NameCopy.Data, LastDot) : NameCopy);
+        AddCmdOption(CmdOptionsDB, S("_FileNameExt"), NameCopy);
 
         const String PathNoExt = bHasSlash ? StrSlice(BuildFilePathFull.Data, LastSlash) : BuildFilePathFull;
         const String PathFull = String_Create(Arena, PathNoExt);
-        AddCmdOption(&CmdOptionsDB, S("_FileDirectoryFull"), PathFull);
+        AddCmdOption(CmdOptionsDB, S("_FileDirectoryFull"), PathFull);
 
         const String PathRelative = StrShiftF(PathNoExt, WorkingPath.Length+1);
 
         String_BuildPath(&BuildFilePath, PathRelative, BuildFileName);
 
-        AddCmdOption(&CmdOptionsDB, S("_FileDirectory"), String_Create(Arena, PathRelative));
+        AddCmdOption(CmdOptionsDB, S("_FileDirectory"), String_Create(Arena, PathRelative));
         
         u32 SecondLastSlash = 0;
         bHasSlash = String_IndexOfLastPathSlash(PathNoExt, &SecondLastSlash);
 
-        AddCmdOption(&CmdOptionsDB, S("_DirectoryName"), String_Create(Arena, bHasSlash ? StrShiftF(PathNoExt, SecondLastSlash+1) : PathNoExt));
+        AddCmdOption(CmdOptionsDB, S("_DirectoryName"), String_Create(Arena, bHasSlash ? StrShiftF(PathNoExt, SecondLastSlash+1) : PathNoExt));
 
-        AddCmdOption(&CmdOptionsDB, S("_WorkingDirectory"), WorkingPath);
+        AddCmdOption(CmdOptionsDB, S("_WorkingDirectory"), WorkingPath);
     }
 
     SystemTime TimeNow = Platform_GetSystemLocalTime();
@@ -3296,75 +3276,75 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         StringLocal(Temp, 64);
         String_Format(&Temp, S("%hu-%.2hu-%.2hu %.2hu:%.2hu:%.2hu"), TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
         String a = String_Create(Arena, Temp);
-        AddCmdOption(&CmdOptionsDB, S("_Timestamp"), a);
+        AddCmdOption(CmdOptionsDB, S("_Timestamp"), a);
 
         // add another for time zone information
         String_Format(&Temp, S("%hu-%.2hu-%.2hu %.2hu:%.2hu:%.2hu [%S]"), TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second, TimeZone);
         a = String_Create(Arena, Temp);
-        AddCmdOption(&CmdOptionsDB, S("_Timestamp.Zone"), a);
+        AddCmdOption(CmdOptionsDB, S("_Timestamp.Zone"), a);
 
         String_Format(&Temp, S("%hu%.2hu%.2hu%.2hu%.2hu%.2hu"), TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
         a = String_Create(Arena, Temp);
-        AddCmdOption(&CmdOptionsDB, S("_Timestamp.NoSep"), a);
+        AddCmdOption(CmdOptionsDB, S("_Timestamp.NoSep"), a);
 
         String_Format(&Temp, S("%hu-%.2hu-%.2hu"), TimeNow.Year, TimeNow.Month, TimeNow.Day);
         a = String_Create(Arena, Temp);
-        AddCmdOption(&CmdOptionsDB, S("_Date"), a);
+        AddCmdOption(CmdOptionsDB, S("_Date"), a);
 
         String_Format(&Temp, S("%hu"), TimeNow.Year);
         a = String_Create(Arena, Temp);
-        AddCmdOption(&CmdOptionsDB, S("_Date.Year"), a);
+        AddCmdOption(CmdOptionsDB, S("_Date.Year"), a);
         String_Format(&Temp, S("%.2hu"), TimeNow.Month);
         a = String_Create(Arena, Temp);
-        AddCmdOption(&CmdOptionsDB, S("_Date.Month"), a);
+        AddCmdOption(CmdOptionsDB, S("_Date.Month"), a);
         String_Format(&Temp, S("%hu"), TimeNow.Week);
         a = String_Create(Arena, Temp);
-        AddCmdOption(&CmdOptionsDB, S("_Date.Week"), a);
+        AddCmdOption(CmdOptionsDB, S("_Date.Week"), a);
         String_Format(&Temp, S("%.2hu"), TimeNow.Day);
         a = String_Create(Arena, Temp);
-        AddCmdOption(&CmdOptionsDB, S("_Date.Day"), a);
+        AddCmdOption(CmdOptionsDB, S("_Date.Day"), a);
 
         String_Format(&Temp, S("%S"), Platform_GetMonthName(TimeNow.Month));
         a = String_Create(Arena, Temp);
-        AddCmdOption(&CmdOptionsDB, S("_Date.MonthName"), a);
+        AddCmdOption(CmdOptionsDB, S("_Date.MonthName"), a);
 
         String_Format(&Temp, S("%S"), Platform_GetDayName(TimeNow.DayOfWeek));
         a = String_Create(Arena, Temp);
-        AddCmdOption(&CmdOptionsDB, S("_Date.DayName"), a);
+        AddCmdOption(CmdOptionsDB, S("_Date.DayName"), a);
 
         String_Format(&Temp, S("%hu"), TimeNow.DayOfWeek);
         a = String_Create(Arena, Temp);
-        AddCmdOption(&CmdOptionsDB, S("_Date.DayOfWeek"), a);
+        AddCmdOption(CmdOptionsDB, S("_Date.DayOfWeek"), a);
 
         u16 DayOfYear = Platform_GetDayOfYear(TimeNow.Day, TimeNow.Month, TimeNow.Year);
         String_Format(&Temp, S("%hu"), DayOfYear);
         a = String_Create(Arena, Temp);
-        AddCmdOption(&CmdOptionsDB, S("_Date.DayOfYear"), a);
+        AddCmdOption(CmdOptionsDB, S("_Date.DayOfYear"), a);
 
         String_Format(&Temp, S("%hu%.2hu%.2hu"), TimeNow.Year, TimeNow.Month, TimeNow.Day);
         a = String_Create(Arena, Temp);
-        AddCmdOption(&CmdOptionsDB, S("_Date.NoSep"), a);
+        AddCmdOption(CmdOptionsDB, S("_Date.NoSep"), a);
 
         String_Format(&Temp, S("%.2hu:%.2hu:%.2hu"), TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
         a = String_Create(Arena, Temp);
-        AddCmdOption(&CmdOptionsDB, S("_Time"), a);
+        AddCmdOption(CmdOptionsDB, S("_Time"), a);
 
         String_Format(&Temp, S("%.2hu"), TimeNow.Hour);
         a = String_Create(Arena, Temp);
-        AddCmdOption(&CmdOptionsDB, S("_Time.Hour"), a);
+        AddCmdOption(CmdOptionsDB, S("_Time.Hour"), a);
         String_Format(&Temp, S("%.2hu"), TimeNow.Minute);
         a = String_Create(Arena, Temp);
-        AddCmdOption(&CmdOptionsDB, S("_Time.Minute"), a);
+        AddCmdOption(CmdOptionsDB, S("_Time.Minute"), a);
         String_Format(&Temp, S("%.2hu"), TimeNow.Second);
         a = String_Create(Arena, Temp);
-        AddCmdOption(&CmdOptionsDB, S("_Time.Second"), a);
+        AddCmdOption(CmdOptionsDB, S("_Time.Second"), a);
         String_Format(&Temp, S("%.3hu"), TimeNow.Millisecond);
         a = String_Create(Arena, Temp);
-        AddCmdOption(&CmdOptionsDB, S("_Time.Millisecond"), a);
+        AddCmdOption(CmdOptionsDB, S("_Time.Millisecond"), a);
 
         String_Format(&Temp, S("%.2hu%.2hu%.2hu"), TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
         a = String_Create(Arena, Temp);
-        AddCmdOption(&CmdOptionsDB, S("_Time.NoSep"), a);
+        AddCmdOption(CmdOptionsDB, S("_Time.NoSep"), a);
     }
 
     StringLocal(RiftBuildArgs, 4096);
@@ -3383,8 +3363,8 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             String_AppendSpace(&RiftBuildArgs);
         }
 
-        AddCmdOption(&CmdOptionsDB, S("%"), RiftBuildArgs);
-        AddCmdOption(&CmdOptionsDB, S("_Args"), RiftBuildArgs);
+        AddCmdOption(CmdOptionsDB, S("%"), RiftBuildArgs);
+        AddCmdOption(CmdOptionsDB, S("_Args"), RiftBuildArgs);
     }
 
     if (bFoundBuildFile)
@@ -3442,7 +3422,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             Context.Messages              = Messages;
             Context.IncludeFiles          = IncludeFiles;
             Context.WorkingDirectory      = WorkingPath;
-            Context.bIgnoreDefaultOptions = bIgnoreDefaultOptions;
 
             if (!ParseBuildFile(Arena, BuildFileHandle, BuildFilePath, Context, false, NULL))
             {
