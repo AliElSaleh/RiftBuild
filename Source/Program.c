@@ -23,6 +23,7 @@
 // [ ] windows kits as internal variable?
 // [ ] add dav1d to github examples
 // [ ] change include to import and ensure it is only loaded once
+// [ ] configure.file(config.build.config) config.h
 
 const usize GEngineMemoryAmount  = Kibibytes(128);
 const usize GEngineScratchAmount = Kibibytes(8);
@@ -1250,7 +1251,7 @@ static void LogOptionData_WordWrapped(LinearAllocator Scratch, const String Name
     u32 FirstPipe  = 4 + Name.Length + NamePadding + 3;
     u32 SecondPipe = FirstPipe + 2 + Value.Length + ValuePadding;
 
-    u32 TerminalWidth = (u32)((f32)Cols/1.25);
+    u32 TerminalWidth = (u32)((f32)Cols/1.2);
 
     if ((Description.Length + BaseLength) > TerminalWidth)
     {
@@ -8890,7 +8891,45 @@ static void InitInternalVars(LinearAllocator* Arena)
     // TODO: lib c detection, glibc musl bsd macos
     // TODO: exe type. "elf" "pe"
     // TODO: exe extension. ".elf" ".exe"
-    // TODO: if little_endian or big_endian
+
+
+    if (Platform_IsBigEndian())
+    {
+        AddInternalVariable(S("big_endian"), String_Null());
+    }
+    else
+    {
+        AddInternalVariable(S("little_endian"), String_Null());
+    }
+
+    {
+        StringLocal(Temp, 16);
+        xx String_FromI32(&Temp, sizeof(int));
+        AddInternalVariable(S("sizeof.int"), String_Create(Arena, Temp));
+
+        String_Empty(&Temp);
+        xx String_FromI32(&Temp, sizeof(long));
+        AddInternalVariable(S("sizeof.long"), String_Create(Arena, Temp));
+    }
+
+    ECpuClipBehaviour CpuClipMode = Platform_GetCpuClippingBehaviour();
+    if (CpuClipMode == CpuClip_Both)
+    {
+        AddInternalVariable(S("cpu.clip_positive"), String_Null());
+        AddInternalVariable(S("cpu.clip_negative"), String_Null());
+    }
+    else
+    {
+        if (CpuClipMode == CpuClip_Positive)
+        {
+            AddInternalVariable(S("cpu.clip_positive"), String_Null());
+        }
+
+        if (CpuClipMode == CpuClip_Negative)
+        {
+            AddInternalVariable(S("cpu.clip_negative"), String_Null());
+        }
+    }
 
     // TODO _Ram
     //AddInternalVariable(S("_Platform.KernelVersion"), OSVersionString);

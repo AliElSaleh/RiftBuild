@@ -2753,6 +2753,12 @@ static void Analyze_KVNode(LinearAllocator* Arena, Node* Root, ParsingContext* C
         xx String_EatSpacesInlineFromEnd(&Params);
     }
 
+    if (!String_StartsWith(FinalKey, S("option."), false) && !Root->Parent)
+    {
+        AddVariableToList(Arena, Context, FinalKey, Val, Params);
+    }
+
+    /*
     // make sure this is an actual option.something key with no additional children keys
     if (String_StartsWith(FinalKey, S("option."), false) && !Root->Parent)
     {
@@ -2835,7 +2841,9 @@ static void Analyze_KVNode(LinearAllocator* Arena, Node* Root, ParsingContext* C
             Params.Length = 0;
         }
     }
-    AddVariableToList(Arena, Context, FinalKey, Val, Params);
+    */
+
+    // AddVariableToList(Arena, Context, FinalKey, Val, Params);
 }
 
 NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, ParsingContext* Context, bool bInIf)
@@ -3267,6 +3275,164 @@ NO_DISCARD static bool Analyze_Indeterminates(LinearAllocator* Arena, NodeList* 
    }
 
     return bSuccess;
+}
+
+static void Analyze_Options(LinearAllocator* Arena, Node* Block, ParsingContext* Context)
+{
+    NodeList** Next = &Block->List;
+    while (*Next)
+    {
+        Node* Root = (*Next)->Node;
+
+        bool bValid = Root && Root != &Node_Null;
+        if (bValid)
+        {
+            if (Root->Type == Node_KeyValue)
+            {
+                StringLocal(FinalKey, MAX_KEY_LENGTH);
+                StringLocal(Val,      8192);
+                StringLocal(Params,   MAX_META_KEY_LENGTH);
+
+                // this is a namespace basically
+                // SomeKey {
+                //     AnotherKey some value
+                // }
+                // 
+                // which will become one key: SomeKey.AnotherKey some value
+                {
+                    Node* NextParent = Root->Parent;
+                    String ParentKeys[64] = {0};
+                    u8 i = 0;
+                    while (NextParent)
+                    {
+                        ParentKeys[i] = NextParent->Key;
+                        NextParent = NextParent->Parent;
+                        i++;
+                    }
+                    if (i > 0)
+                    {
+                        for (i8 j = (i8)i-1; j >= 0; j--)
+                        {
+                            String_AppendF(&FinalKey, S("%S."), ParentKeys[j]);
+                        }
+                        String_Append(&FinalKey, Root->Key);
+                    }
+                    else
+                    {
+                        FinalKey = Root->Key;
+                    }
+                }
+
+                if (Root->Value)
+                {
+                    for each_string_in_list (*Root->Value)
+                    {
+                        String_Append(&Val, It.String);
+                    }
+
+                    xx String_EatSpacesInlineFromEnd(&Val);
+                }
+
+                if (Root->Parameters)
+                {
+                    for each_string_in_list (*Root->Parameters)
+                    {
+                        String_Append(&Params, It.String);
+                        String_AppendSpace(&Params);
+                    }
+
+                    xx String_EatSpacesInlineFromEnd(&Params);
+                }
+
+                // make sure this is an actual option.something key with no additional children keys
+                if (String_StartsWith(FinalKey, S("option."), false) && !Root->Parent)
+                {
+                    String OptionName = StrShiftF(FinalKey, 7);
+                    String OptionValue = String_Null();
+
+                    // does the cmd line for this option already exist?
+                    CmdOption* OptionPtr = NULL;
+                    for each (CmdOption, o, Context->CmdOptionsDB)
+                    {
+                        bool bMatch = String_IsEqual(o.Name, OptionName, false);
+                        if (bMatch)
+                        {
+                            OptionPtr = o_;
+                            break;
+                        }
+                    }
+
+                    bool bIsOptionEnabled = false;
+                    bool bIsBinaryOption = true;
+                    if (Root->Parameters)
+                    {
+                        bIsBinaryOption = IsOptionBinary(*Root->Parameters);
+
+                        if (bIsBinaryOption)
+                        {
+                            // param default value
+                            bIsOptionEnabled = IsOptionOn(Root->Parameters->String);
+
+                            // does the cmd line turn this option on or off?
+                            if (bIsOptionEnabled)
+                            {
+                                usize i = 0;
+                                for each_i (i, CmdOption, o, Context->CmdOptionsDB)
+                                {
+                                    if (String_IsFirst(o.Name, '!'))
+                                    {
+                                        bool bMatch = String_IsEqual(StrShiftF(o.Name, 1), OptionName, false);
+                                        if (bMatch)
+                                        {
+                                            bIsOptionEnabled = false;
+                                        }
+                                    }
+                                    else
+                                    {
+                                        bool bMatch = String_IsEqual(o.Name, OptionName, false);
+                                        if (bMatch && o.Value.Length)
+                                        {
+                                            bIsOptionEnabled = IsOptionOn(o.Value);
+                                        }
+                                    }
+
+                                    if (!bIsOptionEnabled)
+                                    {
+                                        Array_RemoveAt(Context->CmdOptionsDB, NULL, i);
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        else
+                        {
+                            bIsOptionEnabled = true;
+                            OptionValue = Root->Parameters->String;
+
+                            if (OptionPtr)
+                            {
+                                OptionValue = OptionPtr->Value;
+                            }
+                        }
+                    }
+
+                    if (bIsOptionEnabled)
+                    {
+                        AddCmdOption(Context->CmdOptionsDB, String_Create(Arena, OptionName), String_Create(Arena, OptionValue));
+                    }
+
+                    if (bIsBinaryOption)
+                    {
+                        Params.Length = 0;
+                    }
+
+                    AddVariableToList(Arena, Context, FinalKey, Val, Params);
+                }
+            }
+        }
+
+        Next = &(*Next)->Next;
+    }
 }
 
 NO_DISCARD static NodeList* Analyze_List(LinearAllocator* Arena, Node* Block, ParsingContext* Context, bool bInIf)
@@ -4245,6 +4411,7 @@ NO_DISCARD bool ParseBuildFile(LinearAllocator* PermanentArena,
 
         // 1. First pass
         Context.VarListTail = &Context.VarListHead;
+        Analyze_Options(Context.TempArena, AST, &Context);
         NodeList* IndeterminateList = Analyze_List(Context.TempArena, AST, &Context, false);
 
         // 2. Second pass

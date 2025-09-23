@@ -1527,6 +1527,8 @@ bool C_Link(const BuildParams* Params)
         {
             String_Append(&CmdLine, S("/nologo "));
 
+            // TODO: archiver.flags /machine:x64
+
             OutputFlag = S("/OUT:");
         }
         else

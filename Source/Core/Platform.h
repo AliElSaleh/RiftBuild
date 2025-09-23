@@ -27,6 +27,14 @@ STRUCT(PlatformMutex)
     i32 Padding;
 };
 
+ENUM(ECpuClipBehaviour)
+{
+    CpuClip_None,
+    CpuClip_Positive,
+    CpuClip_Negative,
+    CpuClip_Both
+};
+
 STRUCT(CpuInfo)
 {
     // Vendor
@@ -317,7 +325,10 @@ RIFT_API NO_DISCARD bool Platform_GetCurrentProcessName(String* OutName);
 RIFT_API NO_DISCARD u64  Platform_GetCurrentProcessID(void);
 RIFT_API NO_DISCARD bool Platform_GetTerminalDimensions(u32* OutRows, u32* OutColumns);
 
+RIFT_API NO_DISCARD bool Platform_IsBigEndian(void);
+RIFT_API NO_DISCARD bool Platform_IsLittleEndian(void);
 RIFT_API NO_DISCARD u32 Platform_GetCpuCacheLineSize(void);
+RIFT_API NO_DISCARD ECpuClipBehaviour Platform_GetCpuClippingBehaviour(void);
 RIFT_API NO_DISCARD bool Platform_GetCpuBrandName(String* OutName);
 RIFT_API NO_DISCARD bool Platform_GetFullCpuName(String* OutName);
 RIFT_API NO_DISCARD CpuInfo Platform_QueryCPUInfo(void);
@@ -334,6 +345,8 @@ RIFT_API NO_DISCARD i32 Rand(void);
 RIFT_API NO_DISCARD i32 RandFast(void);
 RIFT_API NO_DISCARD f32 FRand(void);
 RIFT_API NO_DISCARD f32 FRandFast(void);
+
+RIFT_API NO_DISCARD i32 FloatRoundToInt(f64 x);
 
 RIFT_API NO_DISCARD bool IsLeapYear(u16 Year);
 
