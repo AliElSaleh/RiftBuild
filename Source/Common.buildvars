@@ -138,6 +138,6 @@ if compiler == clang|gcc
         SharedCompilerFlags:!debug   -Os -finline-functions
         SharedLinkerFlags:debug      $LinkerDebugFlags
 
-        Linker.NoStdLib
+        if windows Linker.NoStdLib
     }
 }

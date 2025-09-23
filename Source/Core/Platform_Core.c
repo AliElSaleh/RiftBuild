@@ -68,79 +68,6 @@ static read_only String GX86ExtensionsTable_EDX_Lvl7[] =
 };
 */
 
-NO_DISCARD bool Platform_IsBigEndian(void)
-{
-    u32 a = 1;
-    uchar* c = (uchar*)&a;
-    bool bBig = c[0] == 0;
-    return bBig;
-}
-
-NO_DISCARD bool Platform_IsLittleEndian(void)
-{
-    u32 a = 1;
-    uchar* c = (uchar*)&a;
-    bool bLittle = c[0] == 1;
-    return bLittle;
-}
-
-NO_DISCARD ECpuClipBehaviour Platform_GetCpuClippingBehaviour(void)
-{
-    bool bClipsPositive = false;
-    {
-        f64 FVal = 1.0 * 0x7FFFFFFF;
-
-        for (i32 i = 0; i < 100; i++)
-        {
-            i32 IVal = FloatRoundToInt(FVal) >> 24;
-            if (IVal != 127)
-            {
-                bClipsPositive = true;
-                break;
-            }
-
-            FVal *= 1.2499999;
-        }
-    }
-
-    bool bClipsNegative = false;
-    {
-        f64 FVal = -8.0 * 0x10000000;
-        
-        for (i32 i = 0; i < 100; i++)
-        {
-            i32 IVal = FloatRoundToInt(FVal) >> 24;
-            if (IVal != -128)
-            {
-                bClipsNegative = true;
-                break;
-            }
-
-            FVal *= 1.2499999;
-        }
-    }
-
-    ECpuClipBehaviour Result = CpuClip_None;
-
-    if (bClipsPositive && bClipsNegative)
-    {
-        Result = CpuClip_Both;
-    }
-    else if (bClipsPositive)
-    {
-        Result = CpuClip_Positive;
-    }
-    else if (bClipsNegative)
-    {
-        Result = CpuClip_Negative;
-    }
-    else
-    {
-    }
-
-    return Result;
-}
-
 #if COMPILER_MSVC
 extern void __cpuidex(i32 cpuInfo[4], i32 function_id, i32 subfunction_id);
 #endif
@@ -1269,4 +1196,77 @@ NO_DISCARD i32 FloatRoundToInt(f64 x)
     }
 
     return i;
+}
+
+NO_DISCARD bool Platform_IsBigEndian(void)
+{
+    u32 a = 1;
+    uchar* c = (uchar*)&a;
+    bool bBig = c[0] == 0;
+    return bBig;
+}
+
+NO_DISCARD bool Platform_IsLittleEndian(void)
+{
+    u32 a = 1;
+    uchar* c = (uchar*)&a;
+    bool bLittle = c[0] == 1;
+    return bLittle;
+}
+
+NO_DISCARD ECpuClipBehaviour Platform_GetCpuClippingBehaviour(void)
+{
+    bool bClipsPositive = false;
+    {
+        f64 FVal = 1.0 * 0x7FFFFFFF;
+
+        for (i32 i = 0; i < 100; i++)
+        {
+            i32 IVal = FloatRoundToInt(FVal) >> 24;
+            if (IVal != 127)
+            {
+                bClipsPositive = true;
+                break;
+            }
+
+            FVal *= 1.2499999;
+        }
+    }
+
+    bool bClipsNegative = false;
+    {
+        f64 FVal = -8.0 * 0x10000000;
+        
+        for (i32 i = 0; i < 100; i++)
+        {
+            i32 IVal = FloatRoundToInt(FVal) >> 24;
+            if (IVal != -128)
+            {
+                bClipsNegative = true;
+                break;
+            }
+
+            FVal *= 1.2499999;
+        }
+    }
+
+    ECpuClipBehaviour Result = CpuClip_None;
+
+    if (bClipsPositive && bClipsNegative)
+    {
+        Result = CpuClip_Both;
+    }
+    else if (bClipsPositive)
+    {
+        Result = CpuClip_Positive;
+    }
+    else if (bClipsNegative)
+    {
+        Result = CpuClip_Negative;
+    }
+    else
+    {
+    }
+
+    return Result;
 }
