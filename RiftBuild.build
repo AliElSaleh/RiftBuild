@@ -49,23 +49,22 @@ Libraries:bsd            pthread
 if windows
 {
     Libraries            kernel32 user32 shell32 ole32 advapi32 ntdll shlwapi bcrypt oleaut32
+    Libraries:tcc        kernelbase
     Libraries:32:!debug  libcmt  libvcruntime
     Libraries:32: debug  libcmtd libvcruntimed
 
-    if compiler == tcc
-    {
-        Libraries        kernelbase
-    }
-
     if asan
     {
-        if compiler == msvc
+        if msvc
         {
             Libraries     clang_rt.asan_dynamic_runtime_thunk-x86_64.lib
         }
-        
-        Libraries:debug  clang_rt.asan_dbg_dynamic-x86_64.lib
-        Libraries:!debug clang_rt.asan_dynamic-x86_64
+
+        if clang
+        {
+            Libraries:debug  clang_rt.asan_dbg_dynamic-x86_64.lib
+            Libraries:!debug clang_rt.asan_dynamic-x86_64
+        }
     }
 }
 

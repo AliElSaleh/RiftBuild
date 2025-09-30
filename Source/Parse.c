@@ -12,6 +12,10 @@
 #include "Core/Log.h"
 #endif
 
+#if PLATFORM_WINDOWS
+#include "MicrosoftCraziness.h"
+#endif
+
 // todos
 // provide examples with every parser error message
 // how to detect multiple inclusions of a file?
@@ -492,7 +496,8 @@ static ReservedKeyTable ReservedKeys[68] =
     { .Key = SC("SourceDirectory"),           .MaxValueLength = 256 },
     { .Key = SC("BuildDirectory"),            .MaxValueLength = 256 },
     { .Key = SC("IntermediateDirectory"),     .MaxValueLength = 256 },
-    { .Key = SC("Compiler"),                  .MaxValueLength = 256 },
+    // { .Key = SC("Compiler"),                  .MaxValueLength = 256 },
+    { .Key = SC("Compiler.Path"),             .MaxValueLength = MAX_PATH_LENGTH },
     { .Key = SC("Compiler.Flags"),            .MaxValueLength = 4096 },
     { .Key = SC("Compiler.MaxCores"),         .MaxValueLength = 16 },
     { .Key = SC("Compiler.OutputFlag"),       .MaxValueLength = 16 },
@@ -1598,7 +1603,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Pars
 
                 if (!Parser_Match(P, Token_RParen))
                 {
-                    LOG_ERROR("\n[Parser] [Line %u]: '%S' was unexpected within parameter list. Missing enclosing ')'", Parser_Peek(P).Line, Parser_Peek(P).Lexeme);
+                    LOG_ERROR("\n[Parser] [Line %u]: '%S' was unexpected within parameter list.", Parser_Peek(P).Line, Parser_Peek(P).Lexeme);
                     return &Node_Null;
                 }
             }
@@ -2753,97 +2758,19 @@ static void Analyze_KVNode(LinearAllocator* Arena, Node* Root, ParsingContext* C
         xx String_EatSpacesInlineFromEnd(&Params);
     }
 
-    if (!String_StartsWith(FinalKey, S("option."), false) && !Root->Parent)
+    bool bCanAddToList = true;
+    
+    if (!Root->Parent)
+    {
+        bCanAddToList = !(String_StartsWith(FinalKey, S("option."), false));
+        // bCanAddToList = !(String_StartsWith(FinalKey, S("option."), false) ||
+                        //   String_IsEqual(FinalKey, S("Compiler"), false));
+    }
+
+    if (bCanAddToList)
     {
         AddVariableToList(Arena, Context, FinalKey, Val, Params);
     }
-
-    /*
-    // make sure this is an actual option.something key with no additional children keys
-    if (String_StartsWith(FinalKey, S("option."), false) && !Root->Parent)
-    {
-        String OptionName = StrShiftF(FinalKey, 7);
-        String OptionValue = String_Null();
-
-        // does the cmd line for this option already exist?
-        CmdOption* OptionPtr = NULL;
-        for each (CmdOption, o, Context->CmdOptionsDB)
-        {
-            bool bMatch = String_IsEqual(o.Name, OptionName, false);
-            if (bMatch)
-            {
-                OptionPtr = o_;
-                break;
-            }
-        }
-
-        bool bIsOptionEnabled = false;
-        bool bIsBinaryOption = true;
-        if (Root->Parameters)
-        {
-            bIsBinaryOption = IsOptionBinary(*Root->Parameters);
-
-            if (bIsBinaryOption)
-            {
-                // param default value
-                bIsOptionEnabled = IsOptionOn(Root->Parameters->String);
-
-                // does the cmd line turn this option on or off?
-                if (bIsOptionEnabled)
-                {
-                    usize i = 0;
-                    for each_i (i, CmdOption, o, Context->CmdOptionsDB)
-                    {
-                        if (String_IsFirst(o.Name, '!'))
-                        {
-                            bool bMatch = String_IsEqual(StrShiftF(o.Name, 1), OptionName, false);
-                            if (bMatch)
-                            {
-                                bIsOptionEnabled = false;
-                            }
-                        }
-                        else
-                        {
-                            bool bMatch = String_IsEqual(o.Name, OptionName, false);
-                            if (bMatch && o.Value.Length)
-                            {
-                                bIsOptionEnabled = IsOptionOn(o.Value);
-                            }
-                        }
-
-                        if (!bIsOptionEnabled)
-                        {
-                            Array_RemoveAt(Context->CmdOptionsDB, NULL, i);
-                            break;
-                        }
-                    }
-                }
-            }
-            else
-            {
-                bIsOptionEnabled = true;
-                OptionValue = Root->Parameters->String;
-
-                if (OptionPtr)
-                {
-                    OptionValue = OptionPtr->Value;
-                }
-            }
-        }
-
-        if (bIsOptionEnabled)
-        {
-            AddCmdOption(Context->CmdOptionsDB, String_Create(Arena, OptionName), String_Create(Arena, OptionValue));
-        }
-
-        if (bIsBinaryOption)
-        {
-            Params.Length = 0;
-        }
-    }
-    */
-
-    // AddVariableToList(Arena, Context, FinalKey, Val, Params);
 }
 
 NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, ParsingContext* Context, bool bInIf)
@@ -3273,6 +3200,465 @@ NO_DISCARD static bool Analyze_Indeterminates(LinearAllocator* Arena, NodeList* 
 
         Next = &(*Next)->Next;
    }
+
+    return bSuccess;
+}
+
+ECompiler DetermineCompilerVendor(String CompilerPath)
+{
+    String CompilerName = Filesystem_ExtractFileName(CompilerPath, false);
+    ECompiler CompilerVendor = Compiler_Generic;
+    if (String_IsEqual(CompilerName, S("cl"), false))
+    {
+        CompilerVendor = Compiler_MSVC;
+    }
+    else if (String_IsEqual(CompilerName, S("clang"), false) ||
+            String_IsEqual(CompilerName, S("clang++"), false))
+    {
+        CompilerVendor = Compiler_Clang;
+    }
+    else if (String_IsEqual(CompilerName, S("clang-cl"), false))
+    {
+        CompilerVendor = Compiler_Clang_MSVC;
+    }
+    else if (String_IsEqual(CompilerName, S("gcc"), false) ||
+            String_IsEqual(CompilerName, S("egcc"), false) ||
+            String_IsEqual(CompilerName, S("g++"), false) ||
+            String_EndsWith(CompilerName, S("-gcc"), false) ||
+            String_EndsWith(CompilerName, S("-g++"), false))
+    {
+        CompilerVendor = Compiler_GCC;
+    }
+    else if (String_EndsWith(CompilerName, S("-mingw32"), false) ||
+            String_EndsWith(CompilerName, S("-mingw64"), false))
+    {
+        CompilerVendor = Compiler_MINGW;
+    }
+    else
+    {
+        CompilerVendor = Compiler_Generic;
+    }
+
+    return CompilerVendor;
+}
+
+bool FindFirstCompilerAvailable(const String CompilerToFind, CompilerPaths* OutCompilerPaths)
+{
+    bool bCompilerProgramFound = false;
+    bool bNoCompilerProgramExplicityGiven = false;
+    if (CompilerToFind.Length == 0)
+    {
+        bNoCompilerProgramExplicityGiven = true;
+    }
+
+    bool bExplicitCompilerPath = String_IndexOfFirstPathSlash(CompilerToFind, NULL);
+    if (bExplicitCompilerPath)
+    {
+        #if PLATFORM_WINDOWS
+        if (!String_EndsWith(CompilerToFind, S(".exe"), false))
+        {
+            String_Copy(&OutCompilerPaths->CompilerPath, CompilerToFind);
+            String_Append(&OutCompilerPaths->CompilerPath, S(".exe"));
+        }
+        #endif
+
+        String CompilerInstallPath = Filesystem_ExtractFilePath(OutCompilerPaths->CompilerPath, false);
+
+        u32 LastSlash = 0;
+        xx String_IndexOfLastPathSlash(CompilerInstallPath, &LastSlash);
+        String BasePath = StrSlice(CompilerInstallPath.Data, LastSlash);
+
+        OutCompilerPaths->BasePath = BasePath;
+        OutCompilerPaths->ToolPath = BasePath;
+        OutCompilerPaths->InstallPath = CompilerInstallPath;
+    }
+    else
+    {
+        if (String_IsEqual(CompilerToFind, S("cl"), false) ||
+            String_IsEqual(CompilerToFind, S("msvc"), false))
+        {
+            #if PLATFORM_WINDOWS
+            // IDEA
+            // .SDKVersion key? to specify an exact version to build with?
+            // .MSVCVersion key?
+            // TODO: figure out a way to only ever run set the strings once (move this code outside BuildTarget, inside RunApplication, and keeps the paths global)
+            // TODO: auxliarry include vs?
+
+            bool bWasVCVarsBatchExecuted = Platform_DoesEnvironmentVariableExist(S("VSCMD_ARG_TGT_ARCH"));
+
+            if (bWasVCVarsBatchExecuted)
+            {
+                PlatformPipe StdOutHandle = {0};
+                PlatformHandle ShellCmd = Platform_RunCommand_Ex(S("where cl"), String_Null(), &StdOutHandle);
+                if (Platform_IsValidHandle(ShellCmd))
+                {
+                    u32 ExitCode = Platform_WaitForProcessAndGetExitCode(ShellCmd);
+                    if (ExitCode == 0)
+                    {
+                        StringLocal(StdOutData, 8192);
+                        usize BytesRead = 0;
+                        if (!Filesystem_ReadPipe(StdOutHandle, StdOutData.Capacity, StdOutData.Data, &BytesRead))
+                        {
+                            LOG_ERROR("Failed to read from standard output pipe for command -> \"where cl\"");
+                            return false;
+                        }
+
+                        StdOutData.Length = Min((u32)BytesRead, StdOutData.Capacity);
+                        xx String_EatNewLinesInlineFromEnd(&StdOutData);
+                        
+                        String InstallPath = Filesystem_ExtractFilePath(StdOutData, false);
+                        String_Copy(&OutCompilerPaths->CompilerPath, InstallPath);
+                        String_Append(&OutCompilerPaths->CompilerPath, S("\\cl.exe"));
+                        bCompilerProgramFound = true;
+
+                        String_Copy(&OutCompilerPaths->InstallPath, InstallPath);
+
+                        xx Platform_GetEnvironmentVariableValue(S("VCToolsInstallDir"), &OutCompilerPaths->ToolPath);
+                        xx String_EatPathSeparatorsInlineFromEnd(&OutCompilerPaths->ToolPath);
+                        String_BuildPath(&OutCompilerPaths->IncludePath, OutCompilerPaths->ToolPath, S("include"));
+
+                        xx String_EatPathSeparatorsInlineFromEnd(&OutCompilerPaths->IncludePath);
+                        StringLocal(TargetArch, 32);
+                        xx Platform_GetEnvironmentVariableValue(S("VSCMD_ARG_TGT_ARCH"), &TargetArch);
+                        String_BuildPath(&OutCompilerPaths->LibraryPath, OutCompilerPaths->ToolPath, S("lib"), TargetArch);
+                        xx String_EatPathSeparatorsInlineFromEnd(&OutCompilerPaths->LibraryPath);
+
+                        xx Platform_GetEnvironmentVariableValue(S("VSINSTALLDIR"), &OutCompilerPaths->BasePath);
+                    }
+                }
+            }
+            else
+            {
+                // find the latest version of visual studio and windows sdk and extract all the useful directories
+
+                ScratchLocal(Scratch, Kibibytes(8));
+
+                MicrosoftVisualStudioPaths VSPaths = {0};
+                bool bFoundVS = FindVisualStudio(&Scratch, &VSPaths);
+                if (bFoundVS)
+                {
+                    String_Copy(&OutCompilerPaths->CompilerPath, VSPaths.ExePath);
+                    String_Append(&OutCompilerPaths->CompilerPath, S("\\cl.exe"));
+                    bCompilerProgramFound = true;
+
+                    String_Copy(&OutCompilerPaths->ToolPath,    VSPaths.ToolBasePath);
+                    String_Copy(&OutCompilerPaths->LibraryPath, VSPaths.LibraryPath);
+                    String_Copy(&OutCompilerPaths->IncludePath, VSPaths.IncludePath);
+                    String_Copy(&OutCompilerPaths->BasePath,    VSPaths.ToolBasePath);
+                    String_Copy(&OutCompilerPaths->InstallPath, VSPaths.ExePath);
+                }
+            }
+            #endif
+        }
+        else
+        {
+            bCompilerProgramFound = Platform_FindProgram_Ex(CompilerToFind, &OutCompilerPaths->CompilerPath);
+
+            if (!bCompilerProgramFound && bNoCompilerProgramExplicityGiven)
+            {
+                // TODO: on windows, search msvc first
+                const String CompilerPrograms[7] =
+                {
+                    S("clang"),
+                    S("gcc"),
+                    S("egcc"),
+                    S("cc"),
+                    S("g++"),
+                    S("clang++"),
+                    S("clang-cl"),
+                };
+
+                for (u8 i = 0; i < SArray_Capacity(CompilerPrograms); i++)
+                {
+                    const bool bFound = Platform_FindProgram_Ex(CompilerPrograms[i], &OutCompilerPaths->CompilerPath);
+                    if (bFound)
+                    {
+                        // CompilerProgram = CompilerPrograms[i];
+                        bCompilerProgramFound = true;
+                        break;
+                    }
+                }
+            }
+
+            if (bCompilerProgramFound)
+            {
+                String CompilerInstallPath = Filesystem_ExtractFilePath(OutCompilerPaths->CompilerPath, false);
+
+                u32 LastSlash = 0;
+                xx String_IndexOfLastPathSlash(CompilerInstallPath, &LastSlash);
+                String BasePath = StrSlice(CompilerInstallPath.Data, LastSlash);
+
+                OutCompilerPaths->InstallPath = CompilerInstallPath;
+                OutCompilerPaths->BasePath = BasePath;
+                OutCompilerPaths->ToolPath = BasePath;
+
+                String_BuildPath(&OutCompilerPaths->IncludePath, BasePath, S("include"));
+                String_BuildPath(&OutCompilerPaths->LibraryPath, BasePath, S("lib"));
+            }
+        }
+    }
+
+    if (bCompilerProgramFound)
+    {
+        if (!Filesystem_DoesFileExist(OutCompilerPaths->CompilerPath))
+        {
+            LOG_ERROR("Compiler program \"%S\" does not exist", OutCompilerPaths->CompilerPath);
+            return false;
+        }
+    }
+    else
+    {
+        LOG_LINE_BREAK();
+
+        if (bNoCompilerProgramExplicityGiven)
+        {
+            // todo: prettier log messaging
+            #if PLATFORM_WINDOWS
+            LOG_ERROR(
+                "You don't seem to have a C nor C++ compiler installed on your machine."
+                " Install either \"clang/clang++\", \"gcc/g++\" or \"cl (msvc)\" and add to the path environment"
+                " before using RiftBuild, as we require a working compiler program to function properly. Aborting build...\n");
+            #else
+            LOG_ERROR(
+                "You don't seem to have a C nor C++ compiler installed on your machine."
+                " Install either \"clang/clang++\" or \"gcc/g++\" and add to the PATH environment"
+                " before using RiftBuild, as we require a working compiler program to function properly. Aborting build...\n");
+
+            #endif
+
+            LogPathEnvVarTutorialSteps();
+                
+            return false;
+        }
+
+        if (String_IsEqual(CompilerToFind, S("cl"), false) ||
+            String_IsEqual(CompilerToFind, S("msvc"), false))
+        {
+            #if PLATFORM_WINDOWS
+            LOG_ERROR("Compiler program \"%S\" does not exist. Aborting build...", CompilerToFind);
+            
+            LOG("\n    Make sure that the Visual Studio build tools and Windows SDK are installed and "
+                "\n    that you run riftbuild from a different terminal application named"
+                "\n    \"x64 (or x86) Native Tools Command Prompt for VS\".");
+
+            LOG("\n    This can be found through Windows Search.");
+            #else
+            LOG_ERROR("Compiler program \"cl\" does not exist on non-Windows platforms. Use a different compiler. Aborting build...");
+            #endif
+        }
+        else
+        {
+            LOG_ERROR("Compiler program \"%S\" does not exist. Make sure that it is installed and added to the path environment.\n"
+                    "        Alternatively, you can specify the full path to the compiler executable instead. Aborting build...\n", CompilerToFind);
+
+            LogPathEnvVarTutorialSteps();
+        }
+
+        return false;
+    }
+
+    return true;
+}
+
+static bool Analyze_Compiler(LinearAllocator* Arena, Node* Block, ParsingContext* Context)
+{
+    // does the cmd line option for this key already exist?
+    CmdOption* OptionPtr = NULL;
+    for each (CmdOption, o, Context->CmdOptionsDB)
+    {
+        bool bMatch = String_IsEqual(o.Name, S("Compiler"), false);
+        if (bMatch)
+        {
+            OptionPtr = o_;
+            break;
+        }
+    }
+
+    if (OptionPtr)
+    {
+        if (OptionPtr->Value.Length > 0)
+        {
+            String CompilerName = Filesystem_ExtractFileName(OptionPtr->Value, false);
+            AddCmdOption(Context->CmdOptionsDB, CompilerName, String_Null());
+        }
+    }
+    else
+    {
+        NodeList** Next = &Block->List;
+        while (*Next)
+        {
+            Node* Root = (*Next)->Node;
+
+            bool bValid = Root && Root != &Node_Null;
+            if (bValid)
+            {
+                if (Root->Type == Node_KeyValue)
+                {
+                    String FinalKey = Root->Key;
+
+                    if (String_IsEqual(FinalKey, S("Compiler"), false))
+                    {
+                        StringLocal(Val, MAX_PATH_LENGTH);
+
+                        if (Root->Value)
+                        {
+                            for each_string_in_list (*Root->Value)
+                            {
+                                String_Append(&Val, It.String);
+                            }
+
+                            xx String_EatSpacesInlineFromEnd(&Val);
+                        }
+
+                        StringLocal(Expanded, MAX_PATH_LENGTH);
+                        xx ExpandBuildVariable(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, FinalKey, Val, FinalKey, Context->WorkingDirectory, false, false, NULL);
+
+                        if (Expanded.Length > 0)
+                        {
+                            AddCmdOption(Context->CmdOptionsDB, String_Create(Arena, FinalKey), String_Create(Arena, Expanded));
+
+                            String CompilerName = Filesystem_ExtractFileName(Expanded, false);
+                            AddCmdOption(Context->CmdOptionsDB, String_Create(Arena, CompilerName), String_Null());
+                        }
+
+                        break;
+                    }
+                }
+            }
+
+            Next = &(*Next)->Next;
+        }
+    }
+
+    String CompilerProgram = GetCmdOptionValue(Context->CmdOptionsDB, S("Compiler"));
+
+    StringLocal(CompilerPath, MAX_PATH_LENGTH);
+    StringLocal(CompilerInstallPath, MAX_PATH_LENGTH);
+    StringLocal(CompilerToolPath, MAX_PATH_LENGTH);
+    StringLocal(CompilerBasePath, MAX_PATH_LENGTH);
+    StringLocal(CompilerIncludePath, MAX_PATH_LENGTH);
+    StringLocal(CompilerLibraryPath, MAX_PATH_LENGTH);
+
+    CompilerPaths FoundCompilerPaths = {0};
+    FoundCompilerPaths.CompilerPath  = CompilerPath;
+    FoundCompilerPaths.InstallPath   = CompilerInstallPath;
+    FoundCompilerPaths.ToolPath      = CompilerToolPath;
+    FoundCompilerPaths.BasePath      = CompilerBasePath;
+    FoundCompilerPaths.IncludePath   = CompilerIncludePath;
+    FoundCompilerPaths.LibraryPath   = CompilerLibraryPath;
+
+    bool bSuccess = FindFirstCompilerAvailable(CompilerProgram, &FoundCompilerPaths);
+
+    if (bSuccess)
+    {
+        AddCmdOption(Context->CmdOptionsDB, S("Compiler.Path"),        String_Create(Context->TempArena, FoundCompilerPaths.CompilerPath));
+        AddCmdOption(Context->CmdOptionsDB, S("Compiler.InstallPath"), String_Create(Context->TempArena, FoundCompilerPaths.InstallPath));
+
+        AddCmdOption(Context->CmdOptionsDB, S("Compiler.BasePath"),    String_Create(Context->TempArena, FoundCompilerPaths.InstallPath));
+        AddCmdOption(Context->CmdOptionsDB, S("Compiler.ToolPath"),    String_Create(Context->TempArena, FoundCompilerPaths.ToolPath));
+        AddCmdOption(Context->CmdOptionsDB, S("Compiler.LibraryPath"), String_Create(Context->TempArena, FoundCompilerPaths.LibraryPath));
+        AddCmdOption(Context->CmdOptionsDB, S("Compiler.IncludePath"), String_Create(Context->TempArena, FoundCompilerPaths.IncludePath));
+
+        ECompiler CompilerVendor = DetermineCompilerVendor(FoundCompilerPaths.CompilerPath);
+
+        switch (CompilerVendor)
+        {
+            default: {} break;
+
+            case Compiler_Clang:
+            {
+                AddCmdOption(Context->CmdOptionsDB, S("clang"), String_Null());
+            }
+            break;
+
+            case Compiler_Clang_MSVC:
+            {
+                AddCmdOption(Context->CmdOptionsDB, S("clang-msvc"), String_Null());
+                AddCmdOption(Context->CmdOptionsDB, S("clang-cl"), String_Null());
+            }
+            break;
+            
+            case Compiler_GCC:
+            {
+                AddCmdOption(Context->CmdOptionsDB, S("gnu"), String_Null());
+                AddCmdOption(Context->CmdOptionsDB, S("gcc"), String_Null());
+            }
+            break;
+
+            case Compiler_MINGW:
+            {
+                AddCmdOption(Context->CmdOptionsDB, S("mingw"), String_Null());
+            }
+            break;
+
+            case Compiler_MSVC:
+            {
+                AddCmdOption(Context->CmdOptionsDB, S("msvc"), String_Null());
+                AddCmdOption(Context->CmdOptionsDB, S("cl"), String_Null());
+            }
+            break;
+
+            case Compiler_TCC:
+            {
+                AddCmdOption(Context->CmdOptionsDB, S("tcc"), String_Null());
+            }
+            break;
+        }
+
+        // now get the compiler version (by running the compiler executable)
+
+        PlatformPipe StdOutPipe = {0};
+        StringLocal(CmdLine, 2048);
+        String_Append(&CmdLine, FoundCompilerPaths.CompilerPath);
+        String_AppendSpace(&CmdLine);
+
+        if (CompilerVendor != Compiler_MSVC)
+        {
+            String_Append(&CmdLine, S("-v"));
+        }
+
+        PlatformHandle H = Platform_RunProcess_Ex(FoundCompilerPaths.CompilerPath, CmdLine, Context->WorkingDirectory, &StdOutPipe);
+
+        Platform_CloseHandle(StdOutPipe[1]); // not needed
+
+        if (Platform_IsValidHandle(H))
+        {
+            Platform_WaitForHandle(H, -1);
+            
+            StringLocal(StdOutData, UINT16_MAX);
+
+            usize BytesRead = 0;
+            if (Filesystem_ReadPipe(StdOutPipe, StdOutData.Capacity, StdOutData.Data, &BytesRead))
+            {
+                StdOutData.Length = Min((u32)BytesRead, StdOutData.Capacity);
+
+                u32 Index = 0;
+                if (String_IndexOfSubstring(StdOutData, S("version "), false, &Index))
+                {
+                    String FoundVersion = StrShiftF(StdOutData, Index+8);
+
+                    bool bFirstSpace = String_IndexOfFirstWhitespace(FoundVersion, &Index);
+                    if (bFirstSpace)
+                    {
+                        FoundVersion = StrSlice(FoundVersion.Data, Index);
+                    }
+
+                    AddCmdOption(Context->CmdOptionsDB, S("Compiler.Version"), String_Create(Context->TempArena, FoundVersion));
+
+                    String CompilerName = Filesystem_ExtractFileName(FoundCompilerPaths.CompilerPath, false);
+
+                    StringLocal(Temp, 64);
+                    String_AppendF(&Temp, S("%S.Version"), CompilerName);
+                    AddCmdOption(Context->CmdOptionsDB, String_Create(Context->TempArena, Temp), String_Create(Context->TempArena, FoundVersion));
+
+                    if (String_IsEqual(CompilerName, S("cl"), false))
+                    {
+                        AddCmdOption(Context->CmdOptionsDB, S("MSVC.Version"), String_Create(Context->TempArena, FoundVersion));
+                    }
+                }
+            }
+        }
+    }
 
     return bSuccess;
 }
@@ -4117,6 +4503,117 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
                     }
                 }
             }
+            else if (String_IsEqual(Var.Name, S("Assert.Compiler.Version"), false))
+            {
+                String RequireCompilerVersion = String_Null();
+                EComparisonType CompilerVersionComparisonType = Cmp_Equal;
+
+                if (Var.Value.Length > 0)
+                {
+                    u8 SymbolLength = 0;
+
+                    if (String_StartsWith(Var.Value, S("=="), false))
+                    {
+                        CompilerVersionComparisonType = Cmp_Equal;
+                        SymbolLength = 2;
+                    }
+                    else if (String_StartsWith(Var.Value, S(">="), false))
+                    {
+                        CompilerVersionComparisonType = Cmp_GreaterThanOrEqual;
+                        SymbolLength = 2;
+                    }
+                    else if (String_StartsWith(Var.Value, S("<="), false))
+                    {
+                        CompilerVersionComparisonType = Cmp_LessThanOrEqual;
+                        SymbolLength = 2;
+                    }
+                    else if (String_StartsWith(Var.Value, S(">"), false))
+                    {
+                        CompilerVersionComparisonType = Cmp_GreaterThan;
+                        SymbolLength = 1;
+                    }
+                    else if (String_StartsWith(Var.Value, S("<"), false))
+                    {
+                        CompilerVersionComparisonType = Cmp_LessThan;
+                        SymbolLength = 1;
+                    }
+                    else if (String_StartsWith(Var.Value, S("="), false))
+                    {
+                        CompilerVersionComparisonType = Cmp_Equal;
+                        SymbolLength = 1;
+                    }
+                    else
+                    {
+                        // no action required
+                    }
+
+                    RequireCompilerVersion = String_EatSpacesFromEnd(String_EatSpaces(StrShiftF(Var.Value, SymbolLength)));
+                }
+
+                if (RequireCompilerVersion.Length > 0)
+                {
+                    String FoundVersion = GetCmdOptionValue(Context->CmdOptionsDB, S("Compiler.Version"));
+                    ECompareResult Result = String_CompareVersion(FoundVersion, RequireCompilerVersion);
+
+                    bool bCompareResultsMatch = false;
+                    if (Result == CompareResult_Equal)
+                    {
+                        bCompareResultsMatch = CompilerVersionComparisonType == Cmp_Equal ||
+                                               CompilerVersionComparisonType == Cmp_GreaterThanOrEqual ||
+                                               CompilerVersionComparisonType == Cmp_LessThanOrEqual;
+                    }
+                    else if (Result == CompareResult_Greater)
+                    {
+                        bCompareResultsMatch = CompilerVersionComparisonType == Cmp_GreaterThan ||
+                                               CompilerVersionComparisonType == Cmp_GreaterThanOrEqual;
+                    }
+                    else if (Result == CompareResult_Less)
+                    {
+                        bCompareResultsMatch = CompilerVersionComparisonType == Cmp_LessThan ||
+                                               CompilerVersionComparisonType == Cmp_LessThanOrEqual;
+                    }
+                    else
+                    {
+                        // no action required
+                    }
+
+                    if (!bCompareResultsMatch)
+                    {
+                        String Prefix = S("of");
+
+                        String Extra = S(" exactly");
+
+                        if (CompilerVersionComparisonType == Cmp_GreaterThan)
+                        {
+                            Prefix = S("above");
+                            Extra = String_Null();
+                        }
+                        else if (CompilerVersionComparisonType == Cmp_GreaterThanOrEqual)
+                        {
+                            Extra = S(" or above");
+                        }
+                        else if (CompilerVersionComparisonType == Cmp_LessThan)
+                        {
+                            Prefix = S("below");
+                            Extra = String_Null();
+                        }
+                        else if (CompilerVersionComparisonType == Cmp_LessThanOrEqual)
+                        {
+                            Extra = S(" or below");
+                        }
+                        else
+                        {
+                            // no action required
+                        }
+
+                        String CompilerProgram = GetCmdOptionValue(Context->CmdOptionsDB, S("Compiler.Path"));
+                        LOG_INLINE_ERROR("\n[ASSERTION FAILURE] Compiler \"%S\" (version %S) does not meet the required version %S \"%S\"%S. Aborting build...\n", CompilerProgram, FoundVersion, Prefix, RequireCompilerVersion, Extra);
+
+                        bAssertionFailed = true;
+                        break;
+                    }
+                }
+            }
             else
             {
                 // no action is required
@@ -4264,10 +4761,8 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
     return bAssertionFailed;
 }
 
-
 static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, ParsingContext* Context)
 {
-
     if (!DoesVarExistInList(Context->VarListHead, S("BuildDirectory")))
     {
         AddVariableToList(Arena, Context, S("BuildDirectory"), S("Build"), String_Null());
@@ -4412,24 +4907,33 @@ NO_DISCARD bool ParseBuildFile(LinearAllocator* PermanentArena,
         // 1. First pass
         Context.VarListTail = &Context.VarListHead;
         Analyze_Options(Context.TempArena, AST, &Context);
-        NodeList* IndeterminateList = Analyze_List(Context.TempArena, AST, &Context, false);
+        if (!Analyze_Compiler(Context.TempArena, AST, &Context))
+        {
+            // could not find a compiler
+            bSuccess = false;
+        }
 
-        // 2. Second pass
-        Context.bNoFail = true;
-        bSuccess = Analyze_Indeterminates(Context.TempArena, IndeterminateList, &Context);
+        if (bSuccess)
+        {
+            NodeList* IndeterminateList = Analyze_List(Context.TempArena, AST, &Context, false);
+
+            // 2. Second pass
+            Context.bNoFail = true;
+            bSuccess = Analyze_Indeterminates(Context.TempArena, IndeterminateList, &Context);
+        }
 
         //Clock_Tick(&c);
         //Clock_PrintElapsedTime(&c, true);
     }
 
-    if (bSuccess && !bHelp)// && !bOptions)
+    if (bSuccess && !bHelp)
     {
         // 3. check for certain keys if they exist, if they dont, add the default value
         {
             if (!DoesVarExistInList(Context.VarListHead, S("Assembly")))
             {
                 String FinalName = Filesystem_ExtractFileName(BuildFilePath, false);
-                AddVariableToList(Context.TempArena, &Context, S("Assembly"), FinalName, String_Null());//, false);
+                AddVariableToList(Context.TempArena, &Context, S("Assembly"), FinalName, String_Null());
             }
 
             Internal_SetDefaultBuildVariables(Context.TempArena, &Context);

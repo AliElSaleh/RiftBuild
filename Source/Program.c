@@ -2364,6 +2364,7 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const File
         Array_Add(VariablesDB, Expanded);
     }
 
+    /*
     if (!DoesBuildVarExist(VariablesDB, S("Compiler")))
     {
         FileVariable Expanded;
@@ -2372,6 +2373,7 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const File
 
         Array_Add(VariablesDB, Expanded);
     }
+    */
 
     if (!DoesBuildVarExist(VariablesDB, S("Version")))
     {
@@ -2416,7 +2418,14 @@ void AddCmdOption(TArray(CmdOption) CmdOptionsDB, const String Name, const Strin
     c.Name = Name;
     c.Value = Value;
 
-    Array_Add(CmdOptionsDB, c);
+    #if RIFT_DEBUG
+    ENSURE(Name.Length > 0);
+    #endif
+
+    if (Name.Length > 0)
+    {
+        Array_Add(CmdOptionsDB, c);
+    }
 }
 
 void AddInternalVariable(const String Name, const String Value)
@@ -2473,7 +2482,7 @@ static bool CheckForBuildVariableOverrides(TArray(FileVariable) VariablesDB, TAr
     return bAnyOverriden;
 }
 
-static void LogPathEnvVarTutorialSteps(void)
+void LogPathEnvVarTutorialSteps(void)
 {
     #ifdef HOOD
     LOG_INLINE_WARNING("aight lisen up dawg, this is how you put a new entry to the path env var on yo system:\n");
@@ -2959,7 +2968,7 @@ static void PrintClockTimeToBuffer(String* Buffer, Clock* Timer, Clock* MasterTi
     }
 }
 
-static bool Parameters_TryListVariables(LinearAllocator Scratch, const StringArray Parameters, TArray(FileVariable) VariablesDB, const String BuildFilePath, u32* ExitCode)
+static bool Parameters_TryListVariables(LinearAllocator Scratch, const StringArray Parameters, TArray(FileVariable) VariablesDB, TArray(CmdOption) CmdOptionDB, const String BuildFilePath, u32* ExitCode)
 {
     bool bTried = false;
     
@@ -3005,6 +3014,30 @@ static bool Parameters_TryListVariables(LinearAllocator Scratch, const StringArr
                     if (String_IsEqual(*var, S("all"), false))
                     {
                         ListVariables(Scratch, String_Null(), VariablesDB);
+                    }
+                    else if (String_IsEqual(*var, S("internal_vars"), false))
+                    {
+                        PrintInternals();
+
+                        LOG_INLINE_WARNING("\nCommand Options\n");
+
+                        u32 LongestName = 0;
+
+                        for each (CmdOption, c, CmdOptionDB)
+                        {
+                            if (c.Name.Length > LongestName)
+                            {
+                                LongestName = c.Name.Length;
+                            }
+                        }
+
+                        for each (CmdOption, c, CmdOptionDB)
+                        {
+                            LOG("   %S %*S", c.Name, (LongestName-c.Name.Length), c.Value);
+                        }
+
+                        LOG_INLINE_WARNING("\nYou can reference the above internal variables\ninside your .build file with this syntax:\n");
+                        LOG("    %%_Date\n    %%Compiler.InstallPath\n    if clang\n    if clang.version > 17.2.0");
                     }
                     else
                     {
@@ -3738,7 +3771,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
         // set defaults for a few key build variables
         bool bAnyOverriden = CheckForBuildVariableOverrides(VariablesDB, CmdOptionsDB);
-        //Internal_SetDefaultBuildVariables(Arena, BuildFileHandle, VariablesDB);//, VariablesDB);
 
         if (!bAnyVarsOverriden) { bAnyVarsOverriden = bAnyOverriden; }
 
@@ -3851,6 +3883,31 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         bFallbackVersion = true;
         #endif
 
+        // find the first compiler available on this machine
+
+        StringLocal(CompilerPath, MAX_PATH_LENGTH);
+        StringLocal(CompilerInstallPath, MAX_PATH_LENGTH);
+        StringLocal(CompilerToolPath, MAX_PATH_LENGTH);
+        StringLocal(CompilerBasePath, MAX_PATH_LENGTH);
+        StringLocal(CompilerIncludePath, MAX_PATH_LENGTH);
+        StringLocal(CompilerLibraryPath, MAX_PATH_LENGTH);
+
+        CompilerPaths FoundCompilerPaths = {0};
+        FoundCompilerPaths.CompilerPath  = CompilerPath;
+        FoundCompilerPaths.InstallPath   = CompilerInstallPath;
+        FoundCompilerPaths.ToolPath      = CompilerToolPath;
+        FoundCompilerPaths.BasePath      = CompilerBasePath;
+        FoundCompilerPaths.IncludePath   = CompilerIncludePath;
+        FoundCompilerPaths.LibraryPath   = CompilerLibraryPath;
+
+        if (!FindFirstCompilerAvailable(String_Null(), &FoundCompilerPaths))
+        {
+            Receipt.ExitCode = 1;
+            return Receipt;
+        }
+
+        AddCmdOption(CmdOptionsDB, S("Compiler.Path"), String_Create(Arena, FoundCompilerPaths.CompilerPath));
+
         // set defaults for a few key build variables
         FileHandle f = {0};
         bool bAnyOverriden = CheckForBuildVariableOverrides(VariablesDB, CmdOptionsDB);
@@ -3874,7 +3931,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
     // build file variable listing feature. list:all or list:varname
     u32 ListingSuccess = 0;
-    if (Parameters_TryListVariables(*Arena, Parameters, VariablesDB, BuildFilePath, &ListingSuccess))
+    if (Parameters_TryListVariables(*Arena, Parameters, VariablesDB, CmdOptionsDB, BuildFilePath, &ListingSuccess))
     {
         Receipt.ExitCode = ListingSuccess;
         return Receipt;
@@ -3886,7 +3943,8 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     String Extension                        = GetVariableValue(VariablesDB, S("Extension"));
     String Type                             = GetVariableValue(VariablesDB, S("Type"));
 
-    String CompilerProgram                  = GetVariableValue(VariablesDB, S("Compiler"));
+    String CompilerPath                     = GetCmdOptionValue(CmdOptionsDB, S("Compiler.Path"));
+    String CompilerProgram                  = Filesystem_ExtractFileName(CompilerPath, false);
     const String CompilerFlags              = GetVariableValue(VariablesDB, S("Compiler.Flags"));
     const String MaxConcurrentCompilations  = GetVariableValue(VariablesDB, S("Compiler.MaxCores"));
     const String CompilerOutputFlag         = GetVariableValue(VariablesDB, S("Compiler.OutputFlag"));
@@ -3955,71 +4013,20 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     const bool bLinkerNoStd                 = DoesBuildVarExist(VariablesDB, S("Linker.NoStdLib"));
     const bool bLinkerNoDefaultLibs         = DoesBuildVarExist(VariablesDB, S("Linker.NoDefaultLibs"));
 
+    ECompiler CompilerVendor = DetermineCompilerVendor(CompilerPath);
+
+
     #ifndef HOOD
     LOG("Timestamp:         %S\n", TimeStamp);
     #else
     LOG("stamp of da time yo:         %S\n", TimeStamp);
     #endif
 
-    String RequireCompilerVersion = String_Null();
-    EComparisonType CompilerVersionComparisonType = Cmp_Equal;
-    if (CompilerProgram.Length > 0)
-    {
-        u32 Index = 0;
-        if (String_IndexOfChar(CompilerProgram, '|', &Index))
-        {
-            const String V  = String_EatSpacesFromEnd(String_EatSpaces(StrShiftF(CompilerProgram, Index+1)));
-            CompilerProgram = String_EatSpacesFromEnd(String_EatSpaces(StrSlice(CompilerProgram.Data, Index)));
-
-            if (V.Length > 0)
-            {
-                u8 SymbolLength = 0;
-
-                if (String_StartsWith(V, S("=="), false))
-                {
-                    CompilerVersionComparisonType = Cmp_Equal;
-                    SymbolLength = 2;
-                }
-                else if (String_StartsWith(V, S(">="), false))
-                {
-                    CompilerVersionComparisonType = Cmp_GreaterThanOrEqual;
-                    SymbolLength = 2;
-                }
-                else if (String_StartsWith(V, S("<="), false))
-                {
-                    CompilerVersionComparisonType = Cmp_LessThanOrEqual;
-                    SymbolLength = 2;
-                }
-                else if (String_StartsWith(V, S(">"), false))
-                {
-                    CompilerVersionComparisonType = Cmp_GreaterThan;
-                    SymbolLength = 1;
-                }
-                else if (String_StartsWith(V, S("<"), false))
-                {
-                    CompilerVersionComparisonType = Cmp_LessThan;
-                    SymbolLength = 1;
-                }
-                else if (String_StartsWith(V, S("="), false))
-                {
-                    CompilerVersionComparisonType = Cmp_Equal;
-                    SymbolLength = 1;
-                }
-                else
-                {
-                    // no action required
-                }
-
-                RequireCompilerVersion = String_EatSpacesFromEnd(String_EatSpaces(StrShiftF(V, SymbolLength)));
-            }
-        }
-    }
-
-    bool bNoCompilerProgramExplicityGiven = false;
-    if (CompilerProgram.Length == 0)
-    {
-        bNoCompilerProgramExplicityGiven = true;
-    }
+    // bool bNoCompilerProgramExplicityGiven = false;
+    // if (CompilerProgram.Length == 0)
+    // {
+    //     bNoCompilerProgramExplicityGiven = true;
+    // }
 
     bool bNoAsmCompilerProgramExplicityGiven = false;
     if (AsmProgram.Length == 0)
@@ -4192,7 +4199,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
     const String AssemblyName = FinalAssemblyName;
 
-    StringLocal(CompilerPath,    MAX_PATH_LENGTH);
+    //StringLocal(CompilerPath,    MAX_PATH_LENGTH);
     StringLocal(AsmCompilerPath, MAX_PATH_LENGTH);
     StringLocal(LinkerPath,      MAX_PATH_LENGTH);
     StringLocal(ArchiverPath,    MAX_PATH_LENGTH);
@@ -4207,86 +4214,17 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     StringLocal(WindowsSDKLibUcrtPath,   MAX_PATH_LENGTH);
     StringLocal(VisualStudioIncludePath, MAX_PATH_LENGTH);
     StringLocal(VisualStudioLibraryPath, MAX_PATH_LENGTH);
-    StringLocal(VisualStudioExePath,     MAX_PATH_LENGTH);
+    // StringLocal(VisualStudioExePath,     MAX_PATH_LENGTH);
     #endif
 
-    bool bExplicitCompilerPath = false;
-    if (String_IndexOfFirstPathSlash(CompilerProgram, NULL))
-    {
-        StringLocal(CompilerPathCopy, MAX_PATH_LENGTH);
-        String_Copy(&CompilerPathCopy, CompilerProgram);
-
-        #if PLATFORM_WINDOWS
-        if (!String_EndsWith(CompilerProgram, S(".exe"), false))
-        {
-            String_Copy(&CompilerPathCopy, CompilerProgram);
-            String_Append(&CompilerPathCopy, S(".exe"));
-        }
-        #endif
-
-        if (Filesystem_DoesFileExist(CompilerPathCopy))
-        {
-            bExplicitCompilerPath = true;
-            String_Copy(&CompilerPath, CompilerPathCopy);
-        }
-        else
-        {
-            LOG_ERROR("Compiler program \"%S\" does not exist", CompilerPathCopy);
-
-            Receipt.ExitCode = 1;
-            return Receipt;
-        }
-    }
-
     #if PLATFORM_WINDOWS
-    // IDEA
-    // .SDKVersion key? to specify an exact version to build with?
-    // .MSVCVersion key?
-    // TODO: figure out a way to only ever run set the strings once (move this code outside BuildTarget, inside RunApplication, and keeps the paths global)
-    // TODO: auxliarry include vs?
-
     bool bWasVCVarsBatchExecuted = Platform_DoesEnvironmentVariableExist(S("VSCMD_ARG_TGT_ARCH"));
 
-    if (bWasVCVarsBatchExecuted)
+    if (!bWasVCVarsBatchExecuted)
     {
-        PlatformPipe StdOutHandle = {0};
-        PlatformHandle ShellCmd = Platform_RunCommand_Ex(S("where cl"), WorkingPath, &StdOutHandle);
-        if (Platform_IsValidHandle(ShellCmd))
-        {
-            u32 ExitCode = Platform_WaitForProcessAndGetExitCode(ShellCmd);
-            if (ExitCode == 0)
-            {
-                StringLocal(StdOutData, 8192);
-                usize BytesRead = 0;
-                if (!Filesystem_ReadPipe(StdOutHandle, StdOutData.Capacity, StdOutData.Data, &BytesRead))
-                {
-                    LOG_ERROR("Failed to read from standard output pipe for command -> \"where cl\"");
-                    Receipt.ExitCode = 1;
-                    return Receipt;
-                }
-
-                StdOutData.Length = Min((u32)BytesRead, StdOutData.Capacity);
-                xx String_EatNewLinesInlineFromEnd(&StdOutData);
-                
-                String_Copy(&VisualStudioExePath, Filesystem_ExtractFilePath(StdOutData, false));
-                
-            }
-        }
-    }
-    else
-    {
-        // find the latest version of visual studio and windows sdk and extract all the useful directories
+        // find the latest version of windows sdk and extract all the useful directories
 
         LinearAllocator Scratch = *Arena;
-
-        MicrosoftVisualStudioPaths VSPaths = {0};
-        bool bFoundVS = FindVisualStudio(&Scratch, &VSPaths);
-        if (bFoundVS)
-        {
-            String_Copy(&VisualStudioExePath,     VSPaths.ExePath);
-            String_Copy(&VisualStudioIncludePath, VSPaths.IncludePath);
-            String_Copy(&VisualStudioLibraryPath, VSPaths.LibraryPath);
-        }
 
         MicrosoftWindowsSDKPaths SDKPaths = {0};
         bool bFoundSDK = FindWindowsSDK(&Scratch, &SDKPaths);
@@ -4297,410 +4235,22 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             String_Copy(&WindowsSDKLibUcrtPath, SDKPaths.UCRT_LibraryPath);
             String_Copy(&WindowsSDKLibUmPath,   SDKPaths.UM_LibraryPath);
         }
-    }
 
-    // this is needed because link.exe tries to call mt.exe if you are using a manifest embed and it cant find it
-    // if you have not ran the vcvarsall.bat file. so just add the directory where mt.exe lives to the path
-    if (WindowsSDKBinaryPath.Length)
-    {
-        StringLocal(PathVar, INT16_MAX);
-        xx Platform_GetEnvironmentVariableValue(S("PATH"), &PathVar);
-        String_AppendF(&PathVar, S(";%S%S"), WindowsSDKBinaryPath, S("\\"CPU_ARCHITECTURE_STRING));
-        xx Platform_SetEnvironmentVariableValue(S("PATH"), PathVar);
+        // this is needed because link.exe tries to call mt.exe if you are using a manifest embed and it cant find it
+        // if you have not ran the vcvarsall.bat file. so just add the directory where mt.exe lives to the path
+        if (WindowsSDKBinaryPath.Length)
+        {
+            StringLocal(PathVar, INT16_MAX);
+            xx Platform_GetEnvironmentVariableValue(S("PATH"), &PathVar);
+            String_AppendF(&PathVar, S(";%S%S"), WindowsSDKBinaryPath, S("\\"CPU_ARCHITECTURE_STRING));
+            xx Platform_SetEnvironmentVariableValue(S("PATH"), PathVar);
+        }
     }
-
     #endif
 
-    // does the compiler program exist on the user's machine
-    if (!bExplicitCompilerPath)
+    if (CompilerVendor == Compiler_MSVC || CompilerVendor == Compiler_Clang_MSVC)
     {
-        bool bCompilerProgramFound = Platform_FindProgram_Ex(CompilerProgram, &CompilerPath);
-
-        if (!bCompilerProgramFound && bNoCompilerProgramExplicityGiven)
-        {
-            // TODO: on windows, search msvc first
-            const String CompilerPrograms[9] =
-            {
-                S("clang"),
-                S("gcc"),
-                S("egcc"),
-                S("cc"),
-                S("x86_64-w64-mingw32-gcc"),
-                S("g++"),
-                S("clang++"),
-                S("cl"),
-                S("clang-cl"),
-            };
-
-            for (u8 i = 0; i < SArray_Capacity(CompilerPrograms); i++)
-            {
-                const bool bFound = Platform_FindProgram_Ex(CompilerPrograms[i], &CompilerPath);
-                if (bFound)
-                {
-                    CompilerProgram = CompilerPrograms[i];
-                    bCompilerProgramFound = true;
-                    break;
-                }
-            }
-        }
-
-        if (!bCompilerProgramFound)
-        {
-            if (bNoCompilerProgramExplicityGiven)
-            {
-                // todo: prettier log messaging
-                #if PLATFORM_WINDOWS
-                LOG_ERROR(
-                    "You don't seem to have a C nor C++ compiler installed on your machine."
-                    " Install either \"clang/clang++\", \"gcc/g++\" or \"cl (msvc)\" and add to the path environment"
-                    " before using RiftBuild, as we require a working compiler program to function properly. Aborting build...\n");
-                #else
-                LOG_ERROR(
-                    "You don't seem to have a C nor C++ compiler installed on your machine."
-                    " Install either \"clang/clang++\" or \"gcc/g++\" and add to the PATH environment"
-                    " before using RiftBuild, as we require a working compiler program to function properly. Aborting build...\n");
-
-                #endif
-
-                LogPathEnvVarTutorialSteps();
-                    
-                Receipt.ExitCode = 1;
-                return Receipt;
-            }
-
-            #ifndef HOOD
-            if (String_IsEqual(CompilerProgram, S("cl"), false) ||
-                String_IsEqual(CompilerProgram, S("msvc"), false))
-            {
-                #if PLATFORM_WINDOWS
-                /*
-                const bool bShowExtraInfo = StringArray_Contains(Parameters, S("--help-msvc-init"), false);
-
-                if (bQuietBuild) { Logging_Enable(); }
-                LOG("Initializing MSVC environment... %S\n", !bShowExtraInfo ? S("[--help-msvc-init for more info]") : String_Null());
-                if (bQuietBuild) { Logging_Disable(); }
-
-                if (bShowExtraInfo)
-                {
-                    LOG(" Windows SDK Version: %d", MSVC_SDK_Result.windows_sdk_version);
-
-                    if (MSVC_SDK_Result.windows_sdk_root)
-                    {
-                        String16 PathWide = CStr16Ex(MSVC_SDK_Result.windows_sdk_root, MAX_PATH_LENGTH);
-                        StringLocal(Path, MAX_PATH_LENGTH);
-                        String_ToNarrow(PathWide, &Path);
-                        LOG("   Windows SDK path:      %S", Path);
-                    }
-
-                    if (MSVC_SDK_Result.windows_sdk_um_library_path)
-                    {
-                        String16 PathWide = CStr16Ex(MSVC_SDK_Result.windows_sdk_um_library_path, MAX_PATH_LENGTH);
-                        StringLocal(Path, MAX_PATH_LENGTH);
-                        String_ToNarrow(PathWide, &Path);
-                        LOG("   Windows SDK um path:   %S", Path);
-                    }
-
-                    if (MSVC_SDK_Result.windows_sdk_ucrt_library_path)
-                    {
-                        String16 PathWide = CStr16Ex(MSVC_SDK_Result.windows_sdk_ucrt_library_path, MAX_PATH_LENGTH);
-                        StringLocal(Path, MAX_PATH_LENGTH);
-                        String_ToNarrow(PathWide, &Path);
-                        LOG("   Windows SDK ucrt path: %S", Path);
-                    }
-
-                    if (MSVC_SDK_Result.vs_exe_path)
-                    {
-                        String16 PathWide = CStr16Ex(MSVC_SDK_Result.vs_exe_path, MAX_PATH_LENGTH);
-                        StringLocal(Path, MAX_PATH_LENGTH);
-                        String_ToNarrow(PathWide, &Path);
-                        LOG("   VS exe path:           %S", Path);
-                    }
-
-                    if (MSVC_SDK_Result.vs_library_path)
-                    {
-                        String16 PathWide = CStr16Ex(MSVC_SDK_Result.vs_library_path, MAX_PATH_LENGTH);
-                        StringLocal(Path, MAX_PATH_LENGTH);
-                        String_ToNarrow(PathWide, &Path);
-                        LOG("   VS library path:       %S", Path);
-                    }
-
-                    if (MSVC_SDK_Result.vs_base_path)
-                    {
-                        String16 PathWide = CStr16Ex(MSVC_SDK_Result.vs_base_path, MAX_PATH_LENGTH);
-                        StringLocal(Path, MAX_PATH_LENGTH);
-                        String_ToNarrow(PathWide, &Path);
-                        LOG("   VS base path:          %S", Path);
-                    }
-                }
-
-                StringLocal(BasePath, MAX_PATH_LENGTH);
-                if (MSVC_SDK_Result.vs_base_path) { String_ToNarrow(CStr16Ex(MSVC_SDK_Result.vs_base_path, MAX_PATH_LENGTH), &BasePath); }
-                */
-
-                String_Copy(&CompilerPath, VisualStudioExePath);
-                String_Append(&CompilerPath, S("\\cl.exe"));
-
-                String_Copy(&AsmCompilerPath, VisualStudioExePath);
-                // TODO: let the user choose this
-                #if PLATFORM_64_BIT
-                String_Append(&AsmCompilerPath, S("\\ml64.exe"));
-                #else
-                String_Append(&AsmCompilerPath, S("\\ml.exe"));
-                #endif
-
-                bCompilerProgramFound = true;
-
-                // TODO: .InitMSVCEnvironment in build file to trigger this
-                
-                // Initialize vcvars environment
-                // find the vcvars bat file so we can run cl from a regular cmd line.
-                // luckily the bat file is always in the same place relative to the base path
-                /*
-                if (Filesystem_DoesDirectoryExist(BasePath))
-                {
-                    Clock_Start(&MSVCInitClock);
-
-                    StringLocal(CmdLine, 8192);
-                    String_Append(&CmdLine, S("\""));
-
-                    String_Append(&CmdLine, BasePath);
-                    String_Append(&CmdLine, S("\\VC\\Auxiliary\\Build\\"));
-
-                    // todo: think about target instead of host??
-                    #if PLATFORM_64_BIT
-                    String_Append(&CmdLine, S("vcvars64.bat"));
-                    #else
-                    String_Append(&CmdLine, S("vcvars32.bat"));
-                    #endif
-
-                    String_AppendChar(&CmdLine, '"');
-                    String_Append(&CmdLine, S(" >NUL 2>&1 && set")); // suppress output logs from the bat script
-
-                    // if (bShowExtraInfo)
-                    // {
-                    //     LOG_WARNING("\nBuild speed is affected, this may take a few seconds...");
-                    //     LOG(
-                    //     "\n    To fix this issue for your next build, exit this terminal"
-                    //     "\n    and run riftbuild from a different terminal application named"
-                    //     "\n    \"x64 (or x86) Native Tools Command Prompt for VS\"."
-                    //     "\n\n    This can be found through Windows Search.\n");
-                    // }
-
-                    PlatformPipe StdOutHandle = {0};
-                    PlatformHandle H = Platform_RunCommand_Ex(CmdLine, WorkingPath, &StdOutHandle);
-                    if (!Platform_IsValidHandle(H))
-                    {
-                        LOG_ERROR("Failed to initialize MSVC environment. Aborting build...");
-                        return 1;
-                    }
-
-                    Platform_CloseHandle(StdOutHandle[1]);
-                    
-                    // dummy first read, nothing useful here
-                    StringLocal(StdOutData, UINT16_MAX);
-                    xx Filesystem_ReadPipe(StdOutHandle, StdOutData.Capacity, StdOutData.Data, NULL);
-
-                    while (1)
-                    {
-                        usize BytesRead = 0;
-                        if (!Filesystem_ReadPipe(StdOutHandle, StdOutData.Capacity, StdOutData.Data, &BytesRead))
-                        {
-                            break;
-                        }
-                        
-                        if (BytesRead == 0)
-                        {
-                            break;
-                        }
-                        
-                        StdOutData.Length = Min((u32)BytesRead, StdOutData.Capacity);
-
-                        LinearAllocator Scratch = *Arena;
-                        StringArray EnvVars = String_ParseIntoArray(&Scratch, StdOutData, '\n', 0, 128);
-                        for each_str (e, EnvVars)
-                        {
-                            String Trimmed = String_EatNewLinesFromEnd(*e);
-
-                            u32 Equals = 0;
-                            if (String_IndexOfChar(Trimmed, '=', &Equals))
-                            {
-                                const String Key = StrSlice(Trimmed.Data, Equals);
-                                const String Value = StrShiftF(Trimmed, Equals+1);
-                                xx Platform_SetEnvironmentVariableValue(Key, Value);
-                            }
-                        }
-                    }
-
-                    Platform_CloseHandle(StdOutHandle[0]);
-
-                    bCompilerProgramFound = true;
-
-                    Clock_Tick(&MSVCInitClock);
-                }
-                */
-                #endif
-
-                if (!bCompilerProgramFound)
-                {
-                    #if PLATFORM_WINDOWS
-                    LOG_ERROR("Compiler program \"%S\" does not exist. Aborting build...", CompilerProgram);
-                    
-                    LOG("\n    Make sure that the Visual Studio build tools and Windows SDK are installed and "
-                        "\n    that you run riftbuild from a different terminal application named"
-                        "\n    \"x64 (or x86) Native Tools Command Prompt for VS\".");
-
-                    LOG("\n    This can be found through Windows Search.");
-                    #else
-                    LOG_ERROR("Compiler program \"cl\" does not exist on non-Windows platforms. Use a different compiler. Aborting build...");
-                    #endif
-                }
-            }
-            else
-            {
-                LOG_ERROR("Compiler program \"%S\" does not exist. Make sure that it is installed and added to the path environment.\n"
-                          "        Alternatively, you can specify the full path to the compiler executable instead. Aborting build...\n", CompilerProgram);
-
-                LogPathEnvVarTutorialSteps();
-            }
-            #else
-            LOG_ERROR(
-                "yo dat compiler program \"%S\" don exist cuh."
-                " need to be installed and set in da path ma nigga", CompilerProgram);
-            #endif
-        }
-
-        if (!bCompilerProgramFound)
-        {
-            Receipt.ExitCode = 1;
-            return Receipt;
-        }
-    }
-
-    if (RequireCompilerVersion.Length > 0)
-    {
-        PlatformPipe StdOutPipe = {0};
-        StringLocal(CmdLine, 2048);
-        String_Append(&CmdLine, CompilerPath);
-        String_AppendSpace(&CmdLine);
-
-        if (!String_IsEqual(CompilerProgram, S("cl"), false))
-        {
-            String_Append(&CmdLine, S("-v"));
-        }
-
-        PlatformHandle H = Platform_RunCommand_Ex(CmdLine, WorkingPath, &StdOutPipe);
-
-        Platform_CloseHandle(StdOutPipe[1]);
-
-        if (Platform_IsValidHandle(H))
-        {
-            Platform_WaitForHandle(H, -1);
-            
-            StringLocal(StdOutData, UINT16_MAX);
-
-            usize BytesRead = 0;
-            if (Filesystem_ReadPipe(StdOutPipe, StdOutData.Capacity, StdOutData.Data, &BytesRead))
-            {
-                StdOutData.Length = Min((u32)BytesRead, StdOutData.Capacity);
-
-                u32 Index = 0;
-                if (String_IndexOfSubstring(StdOutData, S("version "), false, &Index))
-                {
-                    String FoundVersion = StrShiftF(StdOutData, Index+8);
-
-                    bool bFirstSpace = String_IndexOfFirstWhitespace(FoundVersion, &Index);
-                    if (bFirstSpace)
-                    {
-                        FoundVersion = StrSlice(FoundVersion.Data, Index);
-                    }
-
-                    ECompareResult Result = String_CompareVersion(FoundVersion, RequireCompilerVersion);
-
-                    bool bCompareResultsMatch = false;
-                    if (Result == CompareResult_Equal)
-                    {
-                        bCompareResultsMatch = CompilerVersionComparisonType == Cmp_Equal ||
-                                               CompilerVersionComparisonType == Cmp_GreaterThanOrEqual ||
-                                               CompilerVersionComparisonType == Cmp_LessThanOrEqual;
-                    }
-                    else if (Result == CompareResult_Greater)
-                    {
-                        bCompareResultsMatch = CompilerVersionComparisonType == Cmp_GreaterThan ||
-                                               CompilerVersionComparisonType == Cmp_GreaterThanOrEqual;
-                    }
-                    else if (Result == CompareResult_Less)
-                    {
-                        bCompareResultsMatch = CompilerVersionComparisonType == Cmp_LessThan ||
-                                               CompilerVersionComparisonType == Cmp_LessThanOrEqual;
-                    }
-                    else
-                    {
-                        // no action required
-                    }
-
-                    if (!bCompareResultsMatch)
-                    {
-                        String Prefix = S("of");
-
-                        String Extra = S(" exactly");
-
-                        if (CompilerVersionComparisonType == Cmp_GreaterThan)
-                        {
-                            Prefix = S("above");
-                            Extra = String_Null();
-                        }
-                        else if (CompilerVersionComparisonType == Cmp_GreaterThanOrEqual)
-                        {
-                            Extra = S(" or above");
-                        }
-                        else if (CompilerVersionComparisonType == Cmp_LessThan)
-                        {
-                            Prefix = S("below");
-                            Extra = String_Null();
-                        }
-                        else if (CompilerVersionComparisonType == Cmp_LessThanOrEqual)
-                        {
-                            Extra = S(" or below");
-                        }
-                        else
-                        {
-                            // no action required
-                        }
-
-                        LOG_INLINE_ERROR("[ASSERTION FAILURE] %S compiler version \"%S\" does not meet the required version %S \"%S\"%S. Aborting build...\n", CompilerProgram, FoundVersion, Prefix, RequireCompilerVersion, Extra);
-
-                        Receipt.ExitCode = 1;
-                        return Receipt;
-                    }
-                }
-            }
-        }
-
-        Platform_CloseHandle(StdOutPipe[0]);
-    }
-
-    //ECompiler Compiler = Compiler_Clang;
-
-    if (String_IsEqual(CompilerProgram, S("cl"), false) ||
-        String_IsEqual(CompilerProgram, S("clang-cl"), false) ||
-        String_IsEqual(CompilerProgram, S("msvc"), false) || // todo: detect msvc and chang "Compiler" value to "cl"
-        String_IsEqual(CompilerProgram, S("clang"), false) ||
-        String_IsEqual(CompilerProgram, S("clang++"), false) ||
-        String_IsEqual(CompilerProgram, S("gcc"), false) ||
-        String_IsEqual(CompilerProgram, S("x86_64-w64-mingw32-gcc"), false) ||
-        String_IsEqual(CompilerProgram, S("g++"), false))
-    {
-        if (String_IsEqual(CompilerProgram, S("cl"), false) ||
-            String_IsEqual(CompilerProgram, S("clang-cl"), false) ||
-            String_IsEqual(CompilerProgram, S("msvc"), false))
-        {
-            CompilerFlagPrefixSymbol = S("/");
-            //Compiler = Compiler_MSVC;
-        }
-    }
-    else
-    {
-        //Compiler = Compiler_Clang;
+        CompilerFlagPrefixSymbol = S("/");
     }
 
     // convert prefix symbols (if appropriate)
@@ -5917,6 +5467,8 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     }
 
     // automatically switch to a c++ compiler if we have c++ source code files
+    // TODO
+    /*
     if (bNoCompilerProgramExplicityGiven)
     {
         const String CppCompilers[3] =
@@ -5951,6 +5503,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             }
         }
     }
+    */
 
     #if PLATFORM_WINDOWS
     String RCProgramFlags = String_Null();
@@ -6532,14 +6085,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                 LOG("    Version:              %S", Version);
             }
             
-            if (bExplicitCompilerPath)
-            {
-                LOG("    Compiler:             %S", CompilerPath);
-            }
-            else
-            {
-                LOG("    Compiler:             %S -> \"%S\"", CompilerProgram, CompilerPath);
-            }
+            LOG("    Compiler:             %S -> \"%S\"", CompilerProgram, CompilerPath);
 
             if (CountData.NumAsmSources > 0)
             {
@@ -6709,7 +6255,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
     BuildParams p = {0};
     p.Arena                         = Arena;
-    p.CompilerProgram               = bExplicitCompilerPath ? CompilerPath : CompilerProgram;
+    p.CompilerProgram               = CompilerProgram;
     p.CompilerPath                  = CompilerPath;
     p.CompilerOutputFlag            = CompilerOutputFlag;
     p.CompilerObjectExt             = CompilerObjectExt;

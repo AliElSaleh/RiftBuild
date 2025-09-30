@@ -90,7 +90,9 @@ ENUM(ECompiler)
 {
     Compiler_Generic, // an unknown compiler, will be treated the same as clang and gcc
     Compiler_Clang,
+    Compiler_Clang_MSVC,
     Compiler_GCC,
+    Compiler_MINGW,
     Compiler_MSVC,
     Compiler_TCC
 };
@@ -225,6 +227,16 @@ STRUCT(BuildParams)
     bool _bPadding;
 };
 
+STRUCT(CompilerPaths)
+{
+    String CompilerPath;
+    String InstallPath;
+    String ToolPath;
+    String BasePath;
+    String IncludePath;
+    String LibraryPath;
+};
+
 // Compiler/Building functions --------------------
 
 bool C_Compile(const BuildParams* Params, u32* OutNumCompiled);
@@ -259,8 +271,11 @@ void LogString_WordWrapped    (LinearAllocator Scratch, const String Name, const
 
 bool LogCustomErrorMessage(TArray(FileVariable) VariablesDB, const String Context, const String Key, const bool bLineBreak);
 
-//void LogPathEnvVarTutorialSteps(void);
+void LogPathEnvVarTutorialSteps(void);
 void LogRegularEnvVarTutorialSteps(void);
+
+bool FindFirstCompilerAvailable(const String CompilerToFind, CompilerPaths* OutCompilerPaths);
+ECompiler DetermineCompilerVendor(String CompilerPath);
 
 // Parsing functions --------------------
 

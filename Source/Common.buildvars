@@ -9,7 +9,7 @@ Linker.EntryPoint:windows:!asan  EntryPoint
 Linker.Subsystem                 Console
 Linker.Stack                     8000000 # 8MB
 
-if compiler == msvc
+if msvc
 {
     TempWarnings /wd4702
 
@@ -33,11 +33,9 @@ if compiler == msvc
         SharedCompilerFlags:!debug   /MD /O2
         SharedLinkerFlags            /DEBUG
 
-        # TODO: riftbuild should expose these for you
-        MyVS C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130
-        Library.Paths "$MyVS\lib\x64"
-        PostBuild.copy "$MyVS\bin\Hostx64\x64\clang_rt.asan_dynamic-x86_64.dll" $BuildDirectory
-        PostBuild.copy "$MyVS\bin\Hostx64\x64\clang_rt.asan_dbg_dynamic-x86_64.dll" $BuildDirectory
+        Library.Paths                "%Compiler.LibraryPath"
+        PostBuild.copy               "%Compiler.InstallPath\clang_rt.asan_dynamic-x86_64.dll" $BuildDirectory
+        PostBuild.copy               "%Compiler.InstallPath\clang_rt.asan_dbg_dynamic-x86_64.dll" $BuildDirectory
     }
     else
     {
@@ -51,7 +49,7 @@ if compiler == msvc
     }
 }
 
-if compiler == tcc
+if tcc
 {
     WarningFlags
     WarningFlagsDisabled
@@ -70,7 +68,7 @@ if compiler == tcc
     }
 }
 
-if compiler == clang|gcc
+if clang|gcc
 {
     WarningFlags                     -Wall -Wextra -Wshadow -Wconversion -Wmissing-prototypes -Wunused -Wuninitialized -Werror
     WarningFlagsDisabled             -Wno-unused-parameter
@@ -98,7 +96,7 @@ if compiler == clang|gcc
 
     Compiler.ObjectExtension:asm     .S
 
-    if compiler == gcc
+    if gcc
     {
         SharedCompilerFlags          -mno-stack-arg-probe
         SharedCompilerFlags:analyze  --analyzer -funsigned-char
@@ -125,11 +123,9 @@ if compiler == clang|gcc
         SharedCompilerFlags:debug    -O0
         SharedCompilerFlags:!debug   -Os -finline-functions
 
-        # TODO: riftbuild should expose these for you
         if windows
         {
-            MyVS C:\Program Files\LLVM\lib\clang\20\lib\windows
-            PostBuild.copy "$MyVS\clang_rt.asan_dynamic-x86_64.dll" $BuildDirectory
+            PostBuild.copy "%Compiler.LibraryPath\clang\20\lib\windows\clang_rt.asan_dynamic-x86_64.dll" $BuildDirectory
         }
     }
     else
