@@ -13,6 +13,7 @@ global bool bQuietBuild;
 global bool bNoWordWrapLogging;
 global bool bHelp;
 global bool bOptions;
+global bool bWasVCVarsBatchExecuted;
 
 STRUCT(FileVariable)
 {
@@ -223,13 +224,15 @@ STRUCT(BuildParams)
     bool bDumpObjFilesInOneDirectory;
     bool bLinkerNoStd;
     bool bLinkerNoDefaultLibs;
-    bool bWasVCVarsBatchRan;
-    bool _bPadding;
+    bool _bPadding[2];
 };
 
 STRUCT(CompilerPaths)
 {
     String CompilerPath;
+    String AssemblerPath;
+    String LinkerPath;
+    String ArchiverPath;
     String InstallPath;
     String ToolPath;
     String BasePath;
@@ -274,7 +277,7 @@ bool LogCustomErrorMessage(TArray(FileVariable) VariablesDB, const String Contex
 void LogPathEnvVarTutorialSteps(void);
 void LogRegularEnvVarTutorialSteps(void);
 
-bool FindFirstCompilerAvailable(const String CompilerToFind, CompilerPaths* OutCompilerPaths);
+bool FindFirstCompilerAvailable(const String CompilerToFind, const String AssemblerToFind, const String LinkerToFind, const String ArchiverToFind, CompilerPaths* OutCompilerPaths);
 ECompiler DetermineCompilerVendor(String CompilerPath);
 
 // Parsing functions --------------------

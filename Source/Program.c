@@ -33,6 +33,7 @@ bool bQuietBuild = false;
 bool bNoWordWrapLogging = false;
 bool bHelp = false;
 bool bOptions = false;
+bool bWasVCVarsBatchExecuted = false;
 FileVariable FileVariable_Empty = {0};
 
 static bool bSingleThread = false;
@@ -3886,6 +3887,9 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         // find the first compiler available on this machine
 
         StringLocal(CompilerPath, MAX_PATH_LENGTH);
+        StringLocal(LinkerPath, MAX_PATH_LENGTH);
+        StringLocal(AssemblerPath, MAX_PATH_LENGTH);
+        StringLocal(ArchiverPath, MAX_PATH_LENGTH);
         StringLocal(CompilerInstallPath, MAX_PATH_LENGTH);
         StringLocal(CompilerToolPath, MAX_PATH_LENGTH);
         StringLocal(CompilerBasePath, MAX_PATH_LENGTH);
@@ -3894,19 +3898,25 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
         CompilerPaths FoundCompilerPaths = {0};
         FoundCompilerPaths.CompilerPath  = CompilerPath;
+        FoundCompilerPaths.LinkerPath    = LinkerPath;
+        FoundCompilerPaths.AssemblerPath = AssemblerPath;
+        FoundCompilerPaths.ArchiverPath  = ArchiverPath;
         FoundCompilerPaths.InstallPath   = CompilerInstallPath;
         FoundCompilerPaths.ToolPath      = CompilerToolPath;
         FoundCompilerPaths.BasePath      = CompilerBasePath;
         FoundCompilerPaths.IncludePath   = CompilerIncludePath;
         FoundCompilerPaths.LibraryPath   = CompilerLibraryPath;
 
-        if (!FindFirstCompilerAvailable(String_Null(), &FoundCompilerPaths))
+        if (!FindFirstCompilerAvailable(String_Null(), String_Null(), String_Null(), String_Null(), &FoundCompilerPaths))
         {
             Receipt.ExitCode = 1;
             return Receipt;
         }
 
         AddCmdOption(CmdOptionsDB, S("Compiler.Path"), String_Create(Arena, FoundCompilerPaths.CompilerPath));
+        AddCmdOption(CmdOptionsDB, S("Assembler.Path"), String_Create(Arena, FoundCompilerPaths.AssemblerPath));
+        AddCmdOption(CmdOptionsDB, S("Linker.Path"), String_Create(Arena, FoundCompilerPaths.LinkerPath));
+        AddCmdOption(CmdOptionsDB, S("Archiver.Path"), String_Create(Arena, FoundCompilerPaths.ArchiverPath));
 
         // set defaults for a few key build variables
         FileHandle f = {0};
@@ -3949,32 +3959,23 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     const String MaxConcurrentCompilations  = GetVariableValue(VariablesDB, S("Compiler.MaxCores"));
     const String CompilerOutputFlag         = GetVariableValue(VariablesDB, S("Compiler.OutputFlag"));
     const String CompilerObjectExt          = GetVariableValue(VariablesDB, S("Compiler.ObjectExtension"));
-    // TODO: specify a linker program
-    //String LinkerProgram                    = GetVariableValue(VariablesDB, S("Linker"));
+
+    const String LinkerPath                 = GetCmdOptionValue(CmdOptionsDB, S("Linker.Path"));
+    const String LinkerProgram              = Filesystem_ExtractFileName(LinkerPath, false);
     const String LinkerFlags                = GetVariableValue(VariablesDB, S("Linker.Flags"));
     const String LinkerDefines              = GetVariableValue(VariablesDB, S("Linker.Defines"));
 
-    String AsmProgram                       = GetVariableValue(VariablesDB, S("Assembler"));
+    const String AsmCompilerPath            = GetCmdOptionValue(CmdOptionsDB, S("Assembler.Path"));
+    const String AsmProgram                 = Filesystem_ExtractFileName(AsmCompilerPath, false);
     const String AssemblerFlags             = GetVariableValue(VariablesDB, S("Assembler.Flags"));
     const String AssemblerIncludes          = GetVariableValue(VariablesDB, S("Assembler.Includes"));
     const String AssemblerDefines           = GetVariableValue(VariablesDB, S("Assembler.Defines"));
 
-    // String AsmProgram                       = GetVariableValue(VariablesDB, S("Archiver"));
-    // const String AssemblerFlags             = GetVariableValue(VariablesDB, S("Archiver.Flags"));
+    const String ArchiverPath               = GetCmdOptionValue(CmdOptionsDB, S("Archiver.Path"));
+    const String ArchiverProgram            = Filesystem_ExtractFileName(ArchiverPath, false);
 
     String CompilerFlagPrefixSymbol         = S("-");
-    // const String Defines                    = GetVariableValue(VariablesDB, S("Defines"));
-    // const String Defines_Public             = GetVariableValue(VariablesDB, S("Defines.Public"));
-    const String UnDefines                  = GetVariableValue(VariablesDB, S("UnDefines"));
-    // String IncludeFlags                     = GetVariableValue(VariablesDB, S("Includes"));
-    // String IncludeFlags_Public              = GetVariableValue(VariablesDB, S("Includes.Public"));
-    // const String Libraries                  = GetVariableValue(VariablesDB, S("Libraries"));
-    // const String Libraries_Public           = GetVariableValue(VariablesDB, S("Libraries.Public"));
-    // String LibraryDirectories               = GetVariableValue(VariablesDB, S("Library.Paths"));
-    // String LibraryDirectories_Public        = GetVariableValue(VariablesDB, S("Library.Paths.Public"));
-    const String AssertCompilers            = GetVariableValue(VariablesDB, S("Assert.Compiler"));
-    const String AssertAssemblers           = GetVariableValue(VariablesDB, S("Assert.Assembler"));
-    // TODO: delete
+
     String IncludedSourceFiles              = GetVariableValue(VariablesDB, S("SourceFiles"));
     String ExcludedSourceFiles              = GetVariableValue(VariablesDB, S("SourceFiles.Exclude"));
     String IncludedSourceDir                = GetVariableValue(VariablesDB, S("SourceDirectories"));
@@ -4028,11 +4029,11 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     //     bNoCompilerProgramExplicityGiven = true;
     // }
 
-    bool bNoAsmCompilerProgramExplicityGiven = false;
-    if (AsmProgram.Length == 0)
-    {
-        bNoAsmCompilerProgramExplicityGiven = true;
-    }
+    // bool bNoAsmCompilerProgramExplicityGiven = false;
+    // if (AsmProgram.Length == 0)
+    // {
+        // bNoAsmCompilerProgramExplicityGiven = true;
+    // }
 
     String_ConvertSlashToPlatformSlash(&CompilerProgram);
     // String_ConvertSlashToPlatformSlash(&LibraryDirectories);
@@ -4200,9 +4201,9 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     const String AssemblyName = FinalAssemblyName;
 
     //StringLocal(CompilerPath,    MAX_PATH_LENGTH);
-    StringLocal(AsmCompilerPath, MAX_PATH_LENGTH);
-    StringLocal(LinkerPath,      MAX_PATH_LENGTH);
-    StringLocal(ArchiverPath,    MAX_PATH_LENGTH);
+    //StringLocal(AsmCompilerPath, MAX_PATH_LENGTH);
+    // StringLocal(LinkerPath,      MAX_PATH_LENGTH);
+    // StringLocal(ArchiverPath,    MAX_PATH_LENGTH);
     StringLocal(RCCompilerPath,  MAX_PATH_LENGTH);
     StringLocal(MTCompilerPath,  MAX_PATH_LENGTH);
     StringLocal(DumpBinPath,     MAX_PATH_LENGTH);
@@ -4212,13 +4213,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     StringLocal(WindowsSDKIncludePath,   MAX_PATH_LENGTH);
     StringLocal(WindowsSDKLibUmPath,     MAX_PATH_LENGTH);
     StringLocal(WindowsSDKLibUcrtPath,   MAX_PATH_LENGTH);
-    StringLocal(VisualStudioIncludePath, MAX_PATH_LENGTH);
-    StringLocal(VisualStudioLibraryPath, MAX_PATH_LENGTH);
-    // StringLocal(VisualStudioExePath,     MAX_PATH_LENGTH);
-    #endif
-
-    #if PLATFORM_WINDOWS
-    bool bWasVCVarsBatchExecuted = Platform_DoesEnvironmentVariableExist(S("VSCMD_ARG_TGT_ARCH"));
 
     if (!bWasVCVarsBatchExecuted)
     {
@@ -4266,6 +4260,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     }
 
     // run through the assert lists
+    /*
     {
         LinearAllocator Scratch = *Arena;
         StringArray CompilersArray = String_ParseIntoArray(&Scratch, AssertCompilers, ' ', 0, 128);
@@ -4344,6 +4339,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
 
     }
+    */
 
     // force rebuild if we say so in the build file
     if (!bIsRebuild)
@@ -5262,6 +5258,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     }
 
 
+    /*
     bool bExplicitAsmPath = false;
     if (String_IndexOfFirstPathSlash(AsmProgram, NULL))
     {
@@ -5289,10 +5286,12 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             return Receipt;
         }
     }
+    */
 
     // does the asm program exist on the user's machine
     if (!String_IsValid(AsmCompilerPath) && CountData.NumAsmSources > 0)
     {
+        /*
         bool bCompilerProgramFound = Platform_FindProgram_Ex(AsmProgram, &AsmCompilerPath);
 
         if (!bCompilerProgramFound && bNoAsmCompilerProgramExplicityGiven)
@@ -5332,10 +5331,11 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                 }
             }
         }
+        */
 
-        if (!bCompilerProgramFound)
+        // if (!bCompilerProgramFound)
         {
-            if (bNoAsmCompilerProgramExplicityGiven)
+            // if (bNoAsmCompilerProgramExplicityGiven)
             {
                 #if PLATFORM_WINDOWS
                 LOG_ERROR(
@@ -5356,7 +5356,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                 return Receipt;
             }
 
-            #ifndef HOOD
+            /*
             if (String_IsEqual(AsmProgram, S("ml"), false) ||
                 String_IsEqual(AsmProgram, S("ml64"), false))
             {
@@ -5379,16 +5379,14 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
                 LogPathEnvVarTutorialSteps();
             }
-            #else
-            LOG_ERROR(
-                "yo dat assembler program \"%S\" don exist cuh."
-                " need to be installed and set in da path ma nigga", AsmProgram);
-            #endif
 
             Receipt.ExitCode = 1;
             return Receipt;
+            */
         }
         
+        /*
+        // TODO: move to parse.c
         {
             LinearAllocator Scratch = *Arena;
             StringArray AssemblersArray = String_ParseIntoArray(&Scratch, AssertAssemblers, ' ', 0, 128);
@@ -5464,6 +5462,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                 }
             }
         }
+        */
     }
 
     // automatically switch to a c++ compiler if we have c++ source code files
@@ -5519,20 +5518,20 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
         if (String_Contains(CompilerExe, S("clang"), false))
         {
-            String_Copy(&LinkerPath, CompilerPath);
+            // String_Copy(&LinkerPath, CompilerPath);
 
-            #if PLATFORM_WINDOWS
-            String_BuildPath(&ArchiverPath, CompilerBasePath, S("llvm-ar"));
-            #else
-            xx Platform_FindProgram_Ex(S("ar"), &ArchiverPath);
-            #endif
+            // #if PLATFORM_WINDOWS
+            // String_BuildPath(&ArchiverPath, CompilerBasePath, S("llvm-ar"));
+            // #else
+            // xx Platform_FindProgram_Ex(S("ar"), &ArchiverPath);
+            // #endif
 
             String_BuildPath(&DumpBinPath, CompilerBasePath, S("llvm-objdump"));
             String_BuildPath(&RCCompilerPath, CompilerBasePath, S("llvm-rc"));
             String_BuildPath(&MTCompilerPath, CompilerBasePath, S("llvm-mt"));
 
             #if PLATFORM_WINDOWS
-            String_Append(&ArchiverPath, S(".exe"));
+            // String_Append(&ArchiverPath, S(".exe"));
             String_Append(&DumpBinPath, S(".exe"));
             String_Append(&RCCompilerPath, S(".exe"));
             String_Append(&MTCompilerPath, S(".exe"));
@@ -5541,19 +5540,19 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         else if (String_Contains(CompilerExe, S("gcc"), false) ||
                  String_Contains(CompilerExe, S("g++"), false))
         {
-            String_Copy(&LinkerPath, CompilerPath);
+            // String_Copy(&LinkerPath, CompilerPath);
 
-            #if PLATFORM_WINDOWS
-            String_BuildPath(&ArchiverPath, CompilerBasePath, S("gcc-ar"));
-            #else
-            xx Platform_FindProgram_Ex(S("ar"), &ArchiverPath);
-            #endif
+            // #if PLATFORM_WINDOWS
+            // String_BuildPath(&ArchiverPath, CompilerBasePath, S("gcc-ar"));
+            // #else
+            // xx Platform_FindProgram_Ex(S("ar"), &ArchiverPath);
+            // #endif
 
             String_BuildPath(&DumpBinPath, CompilerBasePath, S("objdump"));
             String_BuildPath(&RCCompilerPath, CompilerBasePath, S("windres"));
 
             #if PLATFORM_WINDOWS
-            String_Append(&ArchiverPath, S(".exe"));
+            // String_Append(&ArchiverPath, S(".exe"));
             String_Append(&DumpBinPath, S(".exe"));
             String_Append(&RCCompilerPath, S(".exe"));
             #endif
@@ -5563,8 +5562,8 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         {
             RCProgramFlags = S("/nologo");
 
-            String_BuildPath(&LinkerPath, CompilerBasePath, S("link.exe"));
-            String_BuildPath(&ArchiverPath, CompilerBasePath, S("lib.exe"));
+            // String_BuildPath(&LinkerPath, CompilerBasePath, S("link.exe"));
+            // String_BuildPath(&ArchiverPath, CompilerBasePath, S("lib.exe"));
             String_BuildPath(&DumpBinPath, CompilerBasePath, S("dumpbin.exe"));
 
             if (bWasVCVarsBatchExecuted)
@@ -5581,7 +5580,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         #endif
         else
         {
-            String_Copy(&LinkerPath, CompilerPath);
+            // String_Copy(&LinkerPath, CompilerPath);
 
             #if PLATFORM_WINDOWS
             RCProgramFlags = S("/nologo");
@@ -5600,11 +5599,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                 }
             }
             #else
-            // TODO: find the path
-
-            xx Platform_FindProgram_Ex(S("ar"), &ArchiverPath);
-            //String_Copy(&ArchiverPath, CompilerBasePath);
-            //String_Copy(&ArchiverPath, S("ar"));
+            // xx Platform_FindProgram_Ex(S("ar"), &ArchiverPath);
             String_Copy(&DumpBinPath, S("objdump"));
             #endif
         }
@@ -6087,16 +6082,20 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             
             LOG("    Compiler:             %S -> \"%S\"", CompilerProgram, CompilerPath);
 
+            if (AssemblyType != AssemblyType_CustomCompilerObject)
+            {
+                LOG("    Linker:               %S -> \"%S\"", LinkerProgram, LinkerPath);
+            }
+
+            if (AssemblyType == AssemblyType_Library ||
+                AssemblyType == AssemblyType_StaticLibrary)
+            {
+                LOG("    Archiver:             %S -> \"%S\"", ArchiverProgram, ArchiverPath);
+            }
+
             if (CountData.NumAsmSources > 0)
             {
-                if (bExplicitAsmPath)
-                {
-                    LOG("    Assembler:            %S", AsmCompilerPath);
-                }
-                else
-                {
-                    LOG("    Assembler:            %S -> \"%S\"", AsmProgram, AsmCompilerPath);
-                }
+                LOG("    Assembler:            %S -> \"%S\"", AsmProgram, AsmCompilerPath);
             }
 
             #if PLATFORM_WINDOWS
@@ -6173,6 +6172,8 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     FlagPrefix.Data[1] = 'D';
     ExpandDefineFlags(&ExpandedDefineFlags, Defines, FlagPrefix, bExportingSomething);
     ExpandDefineFlags(&ExpandedLinkerDefineFlags, LinkerDefines, FlagPrefix, bExportingSomething);
+
+    String UnDefines = GetVariableValue(VariablesDB, S("UnDefines"));
 
     FlagPrefix.Data[1] = 'U';
     ExpandDefineFlags(&ExpandedUnDefineFlags, UnDefines, FlagPrefix, bExportingSomething);
@@ -6322,9 +6323,11 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     p.WindowsSDKIncludePath         = WindowsSDKIncludePath;
     p.WindowsSDKLibUmPath           = WindowsSDKLibUmPath;
     p.WindowsSDKLibUcrtPath         = WindowsSDKLibUcrtPath;
-    p.VisualStudioIncludePath       = VisualStudioIncludePath;
-    p.VisualStudioLibraryPath       = VisualStudioLibraryPath;
-    p.bWasVCVarsBatchRan            = bWasVCVarsBatchExecuted;
+    if (CompilerVendor == Compiler_MSVC)
+    {
+        p.VisualStudioLibraryPath       = GetCmdOptionValue(CmdOptionsDB, S("Compiler.LibraryPath"));
+        p.VisualStudioIncludePath       = GetCmdOptionValue(CmdOptionsDB, S("Compiler.IncludePath"));
+    }
     #endif
 
     // @export feature
@@ -9114,6 +9117,8 @@ u32 RunApplication(const StringArray Arguments)
     LinearAllocator_Create(Mebibytes(1), ProgramMemory, &ProgramArena);
 
     InitInternalVars(&ProgramArena);
+
+    bWasVCVarsBatchExecuted = Platform_DoesEnvironmentVariableExist(S("VSCMD_ARG_TGT_ARCH"));
 
     u32 ExitCode = RiftBuild(&ProgramArena, Arguments, WorkingDirectory);
 

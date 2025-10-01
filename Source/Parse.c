@@ -497,12 +497,12 @@ static ReservedKeyTable ReservedKeys[68] =
     { .Key = SC("BuildDirectory"),            .MaxValueLength = 256 },
     { .Key = SC("IntermediateDirectory"),     .MaxValueLength = 256 },
     // { .Key = SC("Compiler"),                  .MaxValueLength = 256 },
-    { .Key = SC("Compiler.Path"),             .MaxValueLength = MAX_PATH_LENGTH },
+    { .Key = SC("Compiler.Path"),             .MaxValueLength = 1024 },
     { .Key = SC("Compiler.Flags"),            .MaxValueLength = 4096 },
     { .Key = SC("Compiler.MaxCores"),         .MaxValueLength = 16 },
     { .Key = SC("Compiler.OutputFlag"),       .MaxValueLength = 16 },
     { .Key = SC("Compiler.ObjectExtension"),  .MaxValueLength = 32 },
-    { .Key = SC("Linker"),                    .MaxValueLength = 256 },
+    { .Key = SC("Linker.Path"),               .MaxValueLength = 1024 },
     { .Key = SC("Linker.Flags"),              .MaxValueLength = 8192 },
     { .Key = SC("Linker.Defines"),            .MaxValueLength = 4096 },
     { .Key = SC("Linker.EntryPoint"),         .MaxValueLength = 256 },
@@ -510,11 +510,11 @@ static ReservedKeyTable ReservedKeys[68] =
     { .Key = SC("Linker.Stack"),              .MaxValueLength = 64 },
     { .Key = SC("Linker.NoStdLib"),           .MaxValueLength = 0 },
     { .Key = SC("Linker.NoDefaultLibs"),      .MaxValueLength = 0 },
-    { .Key = SC("Assembler"),                 .MaxValueLength = 256 },
+    { .Key = SC("Assembler.Path"),            .MaxValueLength = 1024 },
     { .Key = SC("Assembler.Flags"),           .MaxValueLength = 4096 },
     { .Key = SC("Assembler.Includes"),        .MaxValueLength = 8192 },
     { .Key = SC("Assembler.Defines"),         .MaxValueLength = 4096 },
-    { .Key = SC("Archiver"),                  .MaxValueLength = 256 },
+    { .Key = SC("Archiver.Path"),             .MaxValueLength = 1024 },
     { .Key = SC("Archiver.Flags"),            .MaxValueLength = 4096 },
     { .Key = SC("Defines"),                   .MaxValueLength = 8192 },
     { .Key = SC("Defines.Public"),            .MaxValueLength = 8192 },
@@ -3213,7 +3213,7 @@ ECompiler DetermineCompilerVendor(String CompilerPath)
         CompilerVendor = Compiler_MSVC;
     }
     else if (String_IsEqual(CompilerName, S("clang"), false) ||
-            String_IsEqual(CompilerName, S("clang++"), false))
+             String_IsEqual(CompilerName, S("clang++"), false))
     {
         CompilerVendor = Compiler_Clang;
     }
@@ -3221,18 +3221,18 @@ ECompiler DetermineCompilerVendor(String CompilerPath)
     {
         CompilerVendor = Compiler_Clang_MSVC;
     }
-    else if (String_IsEqual(CompilerName, S("gcc"), false) ||
-            String_IsEqual(CompilerName, S("egcc"), false) ||
-            String_IsEqual(CompilerName, S("g++"), false) ||
-            String_EndsWith(CompilerName, S("-gcc"), false) ||
-            String_EndsWith(CompilerName, S("-g++"), false))
+    else if (String_Contains(CompilerName, S("mingw"), false))
+    {
+        CompilerVendor = Compiler_MINGW;
+    }
+    else if (String_Contains(CompilerName, S("gcc"), false) ||
+             String_Contains(CompilerName, S("g++"), false))
     {
         CompilerVendor = Compiler_GCC;
     }
-    else if (String_EndsWith(CompilerName, S("-mingw32"), false) ||
-            String_EndsWith(CompilerName, S("-mingw64"), false))
+    else if (String_Contains(CompilerName, S("tcc"), false))
     {
-        CompilerVendor = Compiler_MINGW;
+        CompilerVendor = Compiler_TCC;
     }
     else
     {
@@ -3242,35 +3242,72 @@ ECompiler DetermineCompilerVendor(String CompilerPath)
     return CompilerVendor;
 }
 
-bool FindFirstCompilerAvailable(const String CompilerToFind, CompilerPaths* OutCompilerPaths)
+bool FindFirstCompilerAvailable(const String CompilerToFind, const String AssemblerToFind, const String LinkerToFind, const String ArchiverToFind, CompilerPaths* OutCompilerPaths)
 {
     bool bCompilerProgramFound = false;
-    bool bNoCompilerProgramExplicityGiven = false;
-    if (CompilerToFind.Length == 0)
+    bool bLinkerProgramFound = false;
+    bool bArchiverProgramFound = false;
+    bool bAssemblerProgramFound = false;
+
+    bool bNoCompilerProgramExplicityGiven  = CompilerToFind.Length == 0;
+    bool bNoAssemblerProgramExplicityGiven = AssemblerToFind.Length == 0;
+    bool bNoLinkerProgramExplicityGiven    = LinkerToFind.Length == 0;
+    bool bNoArchiverProgramExplicityGiven  = ArchiverToFind.Length == 0;
+
+    bool bExplicitLinkerPath = String_IndexOfFirstPathSlash(LinkerToFind, NULL);
+    if (bExplicitLinkerPath)
     {
-        bNoCompilerProgramExplicityGiven = true;
+        String_Copy(&OutCompilerPaths->LinkerPath, LinkerToFind);
+        Filesystem_AppendExeExtension(&OutCompilerPaths->LinkerPath);
+
+        bLinkerProgramFound = Filesystem_DoesFileExist(OutCompilerPaths->LinkerPath);
     }
+    else
+    {
+        bLinkerProgramFound = Platform_FindProgram_Ex(LinkerToFind, &OutCompilerPaths->LinkerPath);
+
+        // the code below will find the appropriate linker (if we did not find the one we specified)
+    }
+
+    bool bExplicitArchiverPath = String_IndexOfFirstPathSlash(ArchiverToFind, NULL);
+    if (bExplicitArchiverPath)
+    {
+        String_Copy(&OutCompilerPaths->ArchiverPath, ArchiverToFind);
+        Filesystem_AppendExeExtension(&OutCompilerPaths->ArchiverPath);
+
+        bArchiverProgramFound = Filesystem_DoesFileExist(OutCompilerPaths->ArchiverPath);
+    }
+    else
+    {
+        bArchiverProgramFound = Platform_FindProgram_Ex(ArchiverToFind, &OutCompilerPaths->ArchiverPath);
+
+        // the code below will find the appropriate archiver (if we did not find the one we specified)
+    }
+
+    bool bExplicitAssemblerPath = String_IndexOfFirstPathSlash(AssemblerToFind, NULL);
+    if (bExplicitAssemblerPath)
+    {
+        String_Copy(&OutCompilerPaths->AssemblerPath, AssemblerToFind);
+        Filesystem_AppendExeExtension(&OutCompilerPaths->AssemblerPath);
+
+        bAssemblerProgramFound = Filesystem_DoesFileExist(OutCompilerPaths->AssemblerPath);
+    }
+
 
     bool bExplicitCompilerPath = String_IndexOfFirstPathSlash(CompilerToFind, NULL);
     if (bExplicitCompilerPath)
     {
-        #if PLATFORM_WINDOWS
-        if (!String_EndsWith(CompilerToFind, S(".exe"), false))
-        {
-            String_Copy(&OutCompilerPaths->CompilerPath, CompilerToFind);
-            String_Append(&OutCompilerPaths->CompilerPath, S(".exe"));
-        }
-        #endif
+        String_Copy(&OutCompilerPaths->CompilerPath, CompilerToFind);
+        Filesystem_AppendExeExtension(&OutCompilerPaths->CompilerPath);
 
         String CompilerInstallPath = Filesystem_ExtractFilePath(OutCompilerPaths->CompilerPath, false);
-
-        u32 LastSlash = 0;
-        xx String_IndexOfLastPathSlash(CompilerInstallPath, &LastSlash);
-        String BasePath = StrSlice(CompilerInstallPath.Data, LastSlash);
+        String BasePath = Filesystem_ExtractFilePath(CompilerInstallPath, false);
 
         OutCompilerPaths->BasePath = BasePath;
         OutCompilerPaths->ToolPath = BasePath;
         OutCompilerPaths->InstallPath = CompilerInstallPath;
+
+        bCompilerProgramFound = Filesystem_DoesFileExist(OutCompilerPaths->CompilerPath);
     }
     else
     {
@@ -3278,13 +3315,10 @@ bool FindFirstCompilerAvailable(const String CompilerToFind, CompilerPaths* OutC
             String_IsEqual(CompilerToFind, S("msvc"), false))
         {
             #if PLATFORM_WINDOWS
-            // IDEA
+            // IDEAS
             // .SDKVersion key? to specify an exact version to build with?
             // .MSVCVersion key?
-            // TODO: figure out a way to only ever run set the strings once (move this code outside BuildTarget, inside RunApplication, and keeps the paths global)
-            // TODO: auxliarry include vs?
-
-            bool bWasVCVarsBatchExecuted = Platform_DoesEnvironmentVariableExist(S("VSCMD_ARG_TGT_ARCH"));
+            // auxliarry include vs paths?
 
             if (bWasVCVarsBatchExecuted)
             {
@@ -3307,11 +3341,12 @@ bool FindFirstCompilerAvailable(const String CompilerToFind, CompilerPaths* OutC
                         xx String_EatNewLinesInlineFromEnd(&StdOutData);
                         
                         String InstallPath = Filesystem_ExtractFilePath(StdOutData, false);
+                        String_Copy(&OutCompilerPaths->InstallPath, InstallPath);
+
                         String_Copy(&OutCompilerPaths->CompilerPath, InstallPath);
                         String_Append(&OutCompilerPaths->CompilerPath, S("\\cl.exe"));
-                        bCompilerProgramFound = true;
 
-                        String_Copy(&OutCompilerPaths->InstallPath, InstallPath);
+                        bCompilerProgramFound = true;
 
                         xx Platform_GetEnvironmentVariableValue(S("VCToolsInstallDir"), &OutCompilerPaths->ToolPath);
                         xx String_EatPathSeparatorsInlineFromEnd(&OutCompilerPaths->ToolPath);
@@ -3329,7 +3364,7 @@ bool FindFirstCompilerAvailable(const String CompilerToFind, CompilerPaths* OutC
             }
             else
             {
-                // find the latest version of visual studio and windows sdk and extract all the useful directories
+                // find the latest version of visual studio and extract all the useful directories
 
                 ScratchLocal(Scratch, Kibibytes(8));
 
@@ -3338,7 +3373,8 @@ bool FindFirstCompilerAvailable(const String CompilerToFind, CompilerPaths* OutC
                 if (bFoundVS)
                 {
                     String_Copy(&OutCompilerPaths->CompilerPath, VSPaths.ExePath);
-                    String_Append(&OutCompilerPaths->CompilerPath, S("\\cl.exe"));
+                    String_Append(&OutCompilerPaths->CompilerPath,  S("\\cl.exe"));
+
                     bCompilerProgramFound = true;
 
                     String_Copy(&OutCompilerPaths->ToolPath,    VSPaths.ToolBasePath);
@@ -3356,15 +3392,15 @@ bool FindFirstCompilerAvailable(const String CompilerToFind, CompilerPaths* OutC
 
             if (!bCompilerProgramFound && bNoCompilerProgramExplicityGiven)
             {
-                // TODO: on windows, search msvc first
-                const String CompilerPrograms[7] =
+                const String CompilerPrograms[8] =
                 {
                     S("clang"),
                     S("gcc"),
                     S("egcc"),
                     S("cc"),
-                    S("g++"),
                     S("clang++"),
+                    S("g++"),
+                    S("cl"),
                     S("clang-cl"),
                 };
 
@@ -3373,7 +3409,6 @@ bool FindFirstCompilerAvailable(const String CompilerToFind, CompilerPaths* OutC
                     const bool bFound = Platform_FindProgram_Ex(CompilerPrograms[i], &OutCompilerPaths->CompilerPath);
                     if (bFound)
                     {
-                        // CompilerProgram = CompilerPrograms[i];
                         bCompilerProgramFound = true;
                         break;
                     }
@@ -3383,27 +3418,89 @@ bool FindFirstCompilerAvailable(const String CompilerToFind, CompilerPaths* OutC
             if (bCompilerProgramFound)
             {
                 String CompilerInstallPath = Filesystem_ExtractFilePath(OutCompilerPaths->CompilerPath, false);
-
-                u32 LastSlash = 0;
-                xx String_IndexOfLastPathSlash(CompilerInstallPath, &LastSlash);
-                String BasePath = StrSlice(CompilerInstallPath.Data, LastSlash);
+                String CompilerName = Filesystem_ExtractFileName(OutCompilerPaths->CompilerPath, false);
+                String BasePath = Filesystem_ExtractFilePath(CompilerInstallPath, false);
 
                 OutCompilerPaths->InstallPath = CompilerInstallPath;
                 OutCompilerPaths->BasePath = BasePath;
                 OutCompilerPaths->ToolPath = BasePath;
 
-                String_BuildPath(&OutCompilerPaths->IncludePath, BasePath, S("include"));
-                String_BuildPath(&OutCompilerPaths->LibraryPath, BasePath, S("lib"));
+                if (!String_IsEqual(CompilerName, S("cl"), false))
+                {
+                    String_BuildPath(&OutCompilerPaths->IncludePath, BasePath, S("include"));
+                    String_BuildPath(&OutCompilerPaths->LibraryPath, BasePath, S("lib"));
+                }
             }
         }
     }
 
+    xx bArchiverProgramFound;
+
     if (bCompilerProgramFound)
     {
-        if (!Filesystem_DoesFileExist(OutCompilerPaths->CompilerPath))
+        String CompilerName = Filesystem_ExtractFileName(OutCompilerPaths->CompilerPath, false);
+        if (String_IsEqual(CompilerName, S("cl"), false))
         {
-            LOG_ERROR("Compiler program \"%S\" does not exist", OutCompilerPaths->CompilerPath);
-            return false;
+            if (bNoLinkerProgramExplicityGiven)
+            {
+                String_BuildPath(&OutCompilerPaths->LinkerPath, OutCompilerPaths->InstallPath, S("link.exe"));
+
+                bLinkerProgramFound = true;
+            }
+
+            if (bNoArchiverProgramExplicityGiven)
+            {
+                String_BuildPath(&OutCompilerPaths->ArchiverPath, OutCompilerPaths->InstallPath, S("lib.exe"));
+
+                bArchiverProgramFound = true;
+            }
+
+            if (bNoAssemblerProgramExplicityGiven)
+            {
+                String_BuildPath(&OutCompilerPaths->AssemblerPath, OutCompilerPaths->InstallPath, S("ml64.exe"));
+                if (!Filesystem_DoesFileExist(OutCompilerPaths->AssemblerPath))
+                {
+                    String_BuildPath(&OutCompilerPaths->AssemblerPath, OutCompilerPaths->InstallPath, S("ml.exe"));
+                }
+
+                bAssemblerProgramFound = true;
+            }
+        }
+        else
+        {
+            if (bNoLinkerProgramExplicityGiven)
+            {
+                String_Copy(&OutCompilerPaths->LinkerPath, OutCompilerPaths->CompilerPath);
+                bLinkerProgramFound = true;
+            }
+
+            if (bNoArchiverProgramExplicityGiven)
+            {
+                #if PLATFORM_WINDOWS
+                String CompilerInstallPath = Filesystem_ExtractFilePath(OutCompilerPaths->CompilerPath, false);
+                if (String_Contains(CompilerName, S("clang"), false))
+                {
+                    String_BuildPath(&OutCompilerPaths->ArchiverPath, CompilerInstallPath, S("llvm-ar.exe"));
+                    bArchiverProgramFound = true;
+                }
+                else if (String_Contains(CompilerName, S("mingw"), false))
+                {
+                    // TODO: this is dumb, but whatever.. will fix later
+                    String_BuildPath(&OutCompilerPaths->ArchiverPath, CompilerInstallPath, S("x86_64-w64-mingw32-gcc-ar.exe"));
+                    bArchiverProgramFound = true;
+                }
+                else if (String_Contains(CompilerName, S("gcc"), false))
+                {
+                    String_BuildPath(&OutCompilerPaths->ArchiverPath, CompilerInstallPath, S("gcc-ar.exe"));
+                    bArchiverProgramFound = true;
+                }
+                else
+                {
+                }
+                #else
+                bArchiverProgramFound = Platform_FindProgram_Ex(S("ar"), &OutCompilerPaths->ArchiverPath);
+                #endif
+            }
         }
     }
     else
@@ -3448,8 +3545,9 @@ bool FindFirstCompilerAvailable(const String CompilerToFind, CompilerPaths* OutC
         }
         else
         {
-            LOG_ERROR("Compiler program \"%S\" does not exist. Make sure that it is installed and added to the path environment.\n"
-                    "        Alternatively, you can specify the full path to the compiler executable instead. Aborting build...\n", CompilerToFind);
+            LOG_ERROR("Compiler program \"%S\" does not exist.\n"
+                      "        Make sure that it is installed and added to the path environment.\n"
+                      "        Alternatively, you can specify the path to the compiler executable instead. Aborting build...\n", CompilerToFind);
 
             LogPathEnvVarTutorialSteps();
         }
@@ -3457,16 +3555,119 @@ bool FindFirstCompilerAvailable(const String CompilerToFind, CompilerPaths* OutC
         return false;
     }
 
+    if (bLinkerProgramFound)
+    {
+    }
+    else
+    {
+        LOG_LINE_BREAK();
+
+        if (bNoLinkerProgramExplicityGiven)
+        {
+            LOG_ERROR(
+                "You don't seem to have a linker installed on your machine."
+                " Make sure that you have linker installed add to the path environment. Aborting build...\n");
+        }
+        else
+        {
+            LOG_ERROR("Linker program \"%S\" does not exist.\n"
+                      "        Make sure that it is installed and added to the path environment.\n"
+                      "        Alternatively, you can specify the path to the linker executable instead. Aborting build...\n", LinkerToFind);
+        }
+
+        LogPathEnvVarTutorialSteps();
+
+        return false;
+    }
+
+    // find an assembler
+    {
+        if (!bAssemblerProgramFound)
+        {
+            bAssemblerProgramFound = Platform_FindProgram_Ex(AssemblerToFind, &OutCompilerPaths->AssemblerPath);
+
+            if (!bAssemblerProgramFound && bNoAssemblerProgramExplicityGiven)
+            {
+                const String AsmPrograms_Default[2] =
+                {
+                    S("nasm"),
+                    S("yasm"),
+                };
+
+                const String AsmPrograms_MSVC[4] =
+                {
+                    S("ml64"),
+                    S("ml"),
+                    S("nasm"),
+                    S("yasm"),
+                };
+
+                const String* AsmPrograms = AsmPrograms_Default;
+                u32 Num = SArray_Capacity(AsmPrograms_Default);
+
+                if (String_IsEqual(CompilerToFind, S("cl"), false) ||
+                    String_IsEqual(CompilerToFind, S("msvc"), false))
+                {
+                    AsmPrograms = AsmPrograms_MSVC;
+                    Num = SArray_Capacity(AsmPrograms_MSVC);
+                }
+
+                for (u8 i = 0; i < Num; i++)
+                {
+                    const bool bFound = Platform_FindProgram_Ex(AsmPrograms[i], &OutCompilerPaths->AssemblerPath);
+                    if (bFound)
+                    {
+                        bAssemblerProgramFound = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (!bAssemblerProgramFound)
+        {
+            if (AssemblerToFind.Length > 0)
+            {
+                LOG_LINE_BREAK();
+
+                if (String_IsEqual(AssemblerToFind, S("ml"), false) ||
+                    String_IsEqual(AssemblerToFind, S("ml64"), false))
+                {
+                    #if PLATFORM_WINDOWS
+                    LOG_ERROR("Assembler program \"%S\" does not exist. Aborting build...", AssemblerToFind);
+                    
+                    LOG("\n    Make sure that you have the Visual Studio build tools installed and "
+                        "\n    that you run riftbuild from a different terminal application named"
+                        "\n    \"x64 (or x86) Native Tools Command Prompt for VS\".");
+
+                    LOG("\n    This can be found through Windows Search.");
+                    #else
+                    LOG_ERROR("Assembler program \"%S\" does not exist on non-Windows platforms. Use a different assembler. Aborting build...", AssemblerToFind);
+                    #endif
+                }
+                else
+                {
+                    LOG_ERROR("Assembler program \"%S\" does not exist. Make sure that it is installed and added to the path environment.\n"
+                            "        Alternatively, you can specify the full path to the assembler executable instead. Aborting build...\n", AssemblerToFind);
+
+                    LogPathEnvVarTutorialSteps();
+                }
+
+                return false;
+            }
+        }
+    }
+
     return true;
 }
 
-static bool Analyze_Compiler(LinearAllocator* Arena, Node* Block, ParsingContext* Context)
+static void StoreKVNodeAsCmdOption(LinearAllocator* Arena, const String Key, Node* Block, ParsingContext* Context)
 {
     // does the cmd line option for this key already exist?
     CmdOption* OptionPtr = NULL;
     for each (CmdOption, o, Context->CmdOptionsDB)
     {
-        bool bMatch = String_IsEqual(o.Name, S("Compiler"), false);
+        bool bMatch = String_IsEqual(o.Name, Key, false);
         if (bMatch)
         {
             OptionPtr = o_;
@@ -3496,7 +3697,7 @@ static bool Analyze_Compiler(LinearAllocator* Arena, Node* Block, ParsingContext
                 {
                     String FinalKey = Root->Key;
 
-                    if (String_IsEqual(FinalKey, S("Compiler"), false))
+                    if (String_IsEqual(FinalKey, Key, false))
                     {
                         StringLocal(Val, MAX_PATH_LENGTH);
 
@@ -3529,10 +3730,43 @@ static bool Analyze_Compiler(LinearAllocator* Arena, Node* Block, ParsingContext
             Next = &(*Next)->Next;
         }
     }
+}
+
+static bool Analyze_Compiler(LinearAllocator* Arena, Node* Block, ParsingContext* Context)
+{
+    StoreKVNodeAsCmdOption(Arena, S("Compiler"), Block, Context);
+    StoreKVNodeAsCmdOption(Arena, S("Assembler"), Block, Context);
+    StoreKVNodeAsCmdOption(Arena, S("Linker"), Block, Context);
+    StoreKVNodeAsCmdOption(Arena, S("Archiver"), Block, Context);
 
     String CompilerProgram = GetCmdOptionValue(Context->CmdOptionsDB, S("Compiler"));
+    // if (CompilerProgram.Length == 0)
+    // {
+    //     CompilerProgram = GetVarValueInList(Context->VarListHead, S("Compiler"));
+    // }
+
+    String AssemblerProgram = GetCmdOptionValue(Context->CmdOptionsDB, S("Assembler"));
+    // if (AssemblerProgram.Length == 0)
+    // {
+    //     AssemblerProgram = GetVarValueInList(Context->VarListHead, S("Assembler"));
+    // }
+
+    String LinkerProgram = GetCmdOptionValue(Context->CmdOptionsDB, S("Linker"));
+    // if (LinkerProgram.Length == 0)
+    // {
+    //     LinkerProgram = GetVarValueInList(Context->VarListHead, S("Linker"));
+    // }
+
+    String ArchiverProgram = GetCmdOptionValue(Context->CmdOptionsDB, S("Archiver"));
+    // if (ArchiverProgram.Length == 0)
+    // {
+    //     ArchiverProgram = GetVarValueInList(Context->VarListHead, S("Archiver"));
+    // }
 
     StringLocal(CompilerPath, MAX_PATH_LENGTH);
+    StringLocal(AssemblerPath, MAX_PATH_LENGTH);
+    StringLocal(LinkerPath, MAX_PATH_LENGTH);
+    StringLocal(ArchiverPath, MAX_PATH_LENGTH);
     StringLocal(CompilerInstallPath, MAX_PATH_LENGTH);
     StringLocal(CompilerToolPath, MAX_PATH_LENGTH);
     StringLocal(CompilerBasePath, MAX_PATH_LENGTH);
@@ -3541,13 +3775,16 @@ static bool Analyze_Compiler(LinearAllocator* Arena, Node* Block, ParsingContext
 
     CompilerPaths FoundCompilerPaths = {0};
     FoundCompilerPaths.CompilerPath  = CompilerPath;
+    FoundCompilerPaths.AssemblerPath = AssemblerPath;
+    FoundCompilerPaths.LinkerPath    = LinkerPath;
+    FoundCompilerPaths.ArchiverPath  = ArchiverPath;
     FoundCompilerPaths.InstallPath   = CompilerInstallPath;
     FoundCompilerPaths.ToolPath      = CompilerToolPath;
     FoundCompilerPaths.BasePath      = CompilerBasePath;
     FoundCompilerPaths.IncludePath   = CompilerIncludePath;
     FoundCompilerPaths.LibraryPath   = CompilerLibraryPath;
 
-    bool bSuccess = FindFirstCompilerAvailable(CompilerProgram, &FoundCompilerPaths);
+    bool bSuccess = FindFirstCompilerAvailable(CompilerProgram, AssemblerProgram, LinkerProgram, ArchiverProgram, &FoundCompilerPaths);
 
     if (bSuccess)
     {
@@ -3558,6 +3795,10 @@ static bool Analyze_Compiler(LinearAllocator* Arena, Node* Block, ParsingContext
         AddCmdOption(Context->CmdOptionsDB, S("Compiler.ToolPath"),    String_Create(Context->TempArena, FoundCompilerPaths.ToolPath));
         AddCmdOption(Context->CmdOptionsDB, S("Compiler.LibraryPath"), String_Create(Context->TempArena, FoundCompilerPaths.LibraryPath));
         AddCmdOption(Context->CmdOptionsDB, S("Compiler.IncludePath"), String_Create(Context->TempArena, FoundCompilerPaths.IncludePath));
+
+        AddCmdOption(Context->CmdOptionsDB, S("Assembler.Path"),       String_Create(Context->TempArena, FoundCompilerPaths.AssemblerPath));
+        AddCmdOption(Context->CmdOptionsDB, S("Linker.Path"),          String_Create(Context->TempArena, FoundCompilerPaths.LinkerPath));
+        AddCmdOption(Context->CmdOptionsDB, S("Archiver.Path"),        String_Create(Context->TempArena, FoundCompilerPaths.ArchiverPath));
 
         ECompiler CompilerVendor = DetermineCompilerVendor(FoundCompilerPaths.CompilerPath);
 
@@ -4001,6 +4242,7 @@ static bool Internal_LogCustomErrorMessage(ParsingContext* Context, const String
     return bLogged;
 }
 
+// TODO: pre-analyze asserts and post-analyze asserts
 static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFilePath)
 {
     bool bAssertionFailed = false;
@@ -4061,8 +4303,8 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
                     }
                 }
             }
-            else if (String_IsEqual(Var.Name, S("Assert.BuildVarExists"), false) ||
-                     String_IsEqual(Var.Name, S("Assert.Var"), false))
+            else if (Context->bNoFail && (String_IsEqual(Var.Name, S("Assert.BuildVarExists"), false) ||
+                     String_IsEqual(Var.Name, S("Assert.Var"), false)))
             {
                 StringArray BuildVarsArray = String_ParseIntoArray(&Scratch, Var.Value, ' ', 0, 128);
 
@@ -4079,6 +4321,160 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
                         #else
                         LOG_ERROR("\nyo da build var \"%S\" don exist cuh. dat shit not there nigga", Trimmed);
                         #endif
+
+                        bAssertionFailed = true;
+                        break;
+                    }
+                }
+            }
+            else if (String_IsEqual(Var.Name, S("Assert.Compiler"), false))
+            {
+                StringArray CompilersArray = String_ParseIntoArray(&Scratch, Var.Value, ' ', 0, 128);
+                
+                if (CompilersArray.Num > 0)
+                {
+                    String CompilerProgram = Filesystem_ExtractFileName(GetCmdOptionValue(Context->CmdOptionsDB, S("Compiler.Path")), false);
+
+                    bool bAnyCompilerMatch = false;
+                    for each_str (Str, CompilersArray)
+                    {
+                        if (String_IsEqual(*Str, CompilerProgram, false))
+                        {
+                            bAnyCompilerMatch = true;
+                            break;
+                        }
+                    }
+
+                    StringLocal(CompilersLogString, 128);
+                    {
+                        u8 i = 0;
+                        for each_str_i (i, a, CompilersArray)
+                        {
+                            String_Append(&CompilersLogString, *a);
+                            if (CompilersArray.Num > 1 && i != CompilersArray.Num-1)
+                            {
+                                if (i == CompilersArray.Num-2)
+                                {
+                                    String_Append(&CompilersLogString, S(" and "));
+                                }
+                                else
+                                {
+                                    String_AppendChar (&CompilersLogString, ',');
+                                    String_AppendSpace(&CompilersLogString);
+                                }
+                            }
+                        }
+                    }
+
+                    if (!bAnyCompilerMatch)
+                    {
+                        const String BuildFileName = Filesystem_ExtractFileName(BuildFilePath, true);
+
+                        #ifndef HOOD
+                        LOG_INLINE_ERROR("[ASSERTION FAILURE] %S can only be compiled with %S. First compiler found was \"%S\". Aborting build...\n\n", BuildFileName, CompilersLogString, CompilerProgram);
+                        LOG("    This can be fixed by explicity providing the compiler name inside of %S", BuildFileName);
+
+                        LOG("    For example:");
+                        {
+                            u8 i = 0;
+                            for each_str_i (i, a, CompilersArray)
+                            {
+                                if (i > 0)
+                                {
+                                    LOG("      or Compiler %S", *a);
+                                }
+                                else
+                                {
+                                    LOG("         Compiler %S", *a);
+                                }
+                            }
+                        }
+
+                        #else
+                        LOG_ERROR("yo dis compiler program \"%S\" cant be used cuh", CompilerProgram);
+                        #endif
+
+                        for each_str (str, CompilersArray)
+                        {
+                            Internal_LogCustomErrorMessage(Context, S("Compiler"), *str, true);
+                        }
+
+                        bAssertionFailed = true;
+                        break;
+                    }
+                }
+            }
+            else if (String_IsEqual(Var.Name, S("Assert.Assembler"), false))
+            {
+                StringArray AssemblersArray = String_ParseIntoArray(&Scratch, Var.Value, ' ', 0, 128);
+                
+                if (AssemblersArray.Num > 0)
+                {
+                    String AsmProgram = Filesystem_ExtractFileName(GetCmdOptionValue(Context->CmdOptionsDB, S("Assembler.Path")), false);
+
+                    bool bAnyAssemblerMatch = false;
+                    for each_str (str, AssemblersArray)
+                    {
+                        if (String_IsEqual(*str, AsmProgram, false))
+                        {
+                            bAnyAssemblerMatch = true;
+                            break;
+                        }
+                    }
+
+                    StringLocal(AssemblersLogString, 128);
+                    {
+                        u8 i = 0;
+                        for each_str_i (i, a, AssemblersArray)
+                        {
+                            String_Append(&AssemblersLogString, *a);
+                            if (AssemblersArray.Num > 1 && i != AssemblersArray.Num-1)
+                            {
+                                if (i == AssemblersArray.Num-2)
+                                {
+                                    String_Append(&AssemblersLogString, S(" and "));
+                                }
+                                else
+                                {
+                                    String_AppendChar (&AssemblersLogString, ',');
+                                    String_AppendSpace(&AssemblersLogString);
+                                }
+                            }
+                        }
+                    }
+
+                    if (!bAnyAssemblerMatch)
+                    {
+                        const String BuildFileName = Filesystem_ExtractFileName(BuildFilePath, true);
+
+                        #ifndef HOOD
+                        LOG_INLINE_ERROR("[ASSERTION FAILURE] %S can only be compiled with %S. First assembler found was \"%S\". Aborting build...\n\n", BuildFileName, AssemblersLogString, AsmProgram);
+                        LOG("    This can be fixed by explicity providing the Assembler name inside of %S", BuildFileName);
+
+                        LOG("    For example:");
+                        {
+                            u8 i = 0;
+                            for each_str_i (i, a, AssemblersArray)
+                            {
+                                if (i > 0)
+                                {
+                                    LOG("      or Assembler %S", *a);
+                                }
+                                else
+                                {
+                                    LOG("         Assembler %S", *a);
+                                }
+                            }
+                        }
+
+                        #else
+                        LOG_ERROR("yo dis assembler program \"%S\" cant be used cuh", AsmProgram);
+                        #endif
+
+                        for each_str (str, AssemblersArray)
+                        {
+                            Internal_LogCustomErrorMessage(Context, S("Assembler"), *str, true);
+                        }
 
                         bAssertionFailed = true;
                         break;
@@ -4462,6 +4858,7 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
                             {
                                 bFound = false;
                             }
+                            break;
                         }
                     }
                 }
@@ -4907,19 +5304,23 @@ NO_DISCARD bool ParseBuildFile(LinearAllocator* PermanentArena,
         // 1. First pass
         Context.VarListTail = &Context.VarListHead;
         Analyze_Options(Context.TempArena, AST, &Context);
-        if (!Analyze_Compiler(Context.TempArena, AST, &Context))
-        {
-            // could not find a compiler
-            bSuccess = false;
-        }
 
         if (bSuccess)
         {
             NodeList* IndeterminateList = Analyze_List(Context.TempArena, AST, &Context, false);
 
-            // 2. Second pass
-            Context.bNoFail = true;
-            bSuccess = Analyze_Indeterminates(Context.TempArena, IndeterminateList, &Context);
+            if (!Analyze_Compiler(Context.TempArena, AST, &Context))
+            {
+                // could not find a compiler
+                bSuccess = false;
+            }
+
+            if (bSuccess)
+            {
+                // 2. Second pass
+                Context.bNoFail = true;
+                bSuccess = Analyze_Indeterminates(Context.TempArena, IndeterminateList, &Context);
+            }
         }
 
         //Clock_Tick(&c);

@@ -107,6 +107,8 @@ RIFT_API NO_DISCARD String Filesystem_ExtractFileName(const String Path, bool bI
 RIFT_API NO_DISCARD String Filesystem_StripFileExtension(const String FilePath);
 RIFT_API NO_DISCARD String Filesystem_ExtractFileExtension(const String FilePath, bool bIncludeDot);
 
+RIFT_API            void Filesystem_AppendExeExtension(String* FilePathNoExt);
+
 RIFT_API NO_DISCARD bool IsValidFileHandle(const FileHandle Handle);
 
 FORCEINLINE NO_DISCARD static FileHandle FileHandle_Null(void)

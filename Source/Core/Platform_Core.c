@@ -889,6 +889,16 @@ NO_DISCARD String Filesystem_ExtractFileExtension(const String FilePath, bool bI
     return Final;
 }
 
+void Filesystem_AppendExeExtension(String* FilePathNoExt)
+{
+    #if PLATFORM_WINDOWS
+    if (!String_EndsWith(*FilePathNoExt, S(".exe"), false))
+    {
+        String_Append(FilePathNoExt, S(".exe"));
+    }
+    #endif
+}
+
 // UUID Version 4 - Random based
 // https://datatracker.ietf.org/doc/html/rfc4122#section-4.4
 NO_DISCARD Uuid UUID_Generate(void)

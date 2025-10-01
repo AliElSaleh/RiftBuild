@@ -1151,7 +1151,7 @@ void StringInternal_Concat(String* Dest, const StringArray Array)
     }
 }
 
-void StringInternal_BuildPath(String* Dest, const StringArray Array)
+void StringInternal_BuildPath(String* Dest, const String Ext, const StringArray Array)
 {
     for (u8 i = 0; i < Array.Num; i++)
     {
@@ -1190,7 +1190,7 @@ void StringInternal_BuildPath(String* Dest, const StringArray Array)
         ParamModified = String_EatCharFromEnd(ParamModified, '"');
 
         String_Append(Dest, ParamModified);
-        (void)String_EatPathSeparatorsInlineFromEnd(Dest);
+        xx String_EatPathSeparatorsInlineFromEnd(Dest);
 
         if (Dest->Length > 0 && i != Array.Num-1)
         {
@@ -1201,8 +1201,18 @@ void StringInternal_BuildPath(String* Dest, const StringArray Array)
         }
     }
 
-    (void)String_EatPathSeparatorsInlineFromEnd(Dest);
+    xx String_EatPathSeparatorsInlineFromEnd(Dest);
     String_ConvertSlashToPlatformSlash(Dest);
+
+    if (Ext.Length > 0)
+    {
+        if (!String_IsFirst(Ext, '.'))
+        {
+            String_AppendChar(Dest, '.');
+        }
+
+        String_Append(Dest, Ext);
+    }
 }
 
 void StringInternal_BuildSeparator(String* Dest, u8 Separator, const StringArray Array)

@@ -74,7 +74,7 @@ bool RC_Compile(const BuildParams* Params, const String FullRCPath, String* OutR
         if (String_EndsWith(Params->RCProgramPath, S("rc.exe"), false))
         {
             StringLocal(WinSDKInclude, MAX_PATH_LENGTH*7); // 7 paths
-            if (!Params->bWasVCVarsBatchRan)
+            if (!bWasVCVarsBatchExecuted)
             {
                 if (Params->WindowsSDKIncludePath.Length)
                 {
@@ -414,7 +414,7 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
                 CompileFlag = S(" /nologo /c ");
 
 
-                if (!Params->bWasVCVarsBatchRan)
+                if (!bWasVCVarsBatchExecuted)
                 {
                     if (Params->WindowsSDKIncludePath.Length)
                     {
@@ -1303,7 +1303,7 @@ bool C_Link(const BuildParams* Params)
 
     #if PLATFORM_WINDOWS
     StringLocal(WinSDKLibPaths, MAX_PATH_LENGTH*3);
-    if (!Params->bWasVCVarsBatchRan)
+    if (!bWasVCVarsBatchExecuted)
     {
         if (Params->WindowsSDKLibUmPath.Length)
         {

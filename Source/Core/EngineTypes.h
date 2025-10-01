@@ -367,7 +367,7 @@ STRUCT(StringList) // 24 bytes
     #if defined(__powerpc64__)
         #define CPU_PPC64 1
         #define PLATFORM_64_BIT 1
-        #define CPU_ARCHITECTURE_STRING_EX "ppc64"
+        #define CPU_ARCHITECTURE_STRING "ppc64"
         #define CPU_ARCHITECTURE_STRING_EX "powerpc|ppc|ppc64"
     #else
         #define PLATFORM_32_BIT 1
