@@ -4626,37 +4626,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             // add all the public keys of what the dependency build file exposed, and append them to ours.
             // TODO: Depends(protected) param? to avoid nested depends from bubbling up to the parent?
             {
-                AddOrAppendVariable(Arena, VariablesDB, S("Defines"),          FreshReceipt.Defines, String_Null(), GetMaxValueLengthForReservedKey(S("Includes")));
-                AddOrAppendVariable(Arena, VariablesDB, S("Defines.Public"),   FreshReceipt.Defines, String_Null(), GetMaxValueLengthForReservedKey(S("Includes")));
-                AddOrAppendVariable(Arena, VariablesDB, S("Libraries"),        FreshReceipt.Libraries, String_Null(), GetMaxValueLengthForReservedKey(S("Libraries")));
-                AddOrAppendVariable(Arena, VariablesDB, S("Libraries.Public"), FreshReceipt.Libraries, String_Null(), GetMaxValueLengthForReservedKey(S("Libraries")));
-
-                {
-                    // LinearAllocator Scratch = *Arena;
-                    StringList Paths = String_SplitIntoList(Arena, FreshReceipt.LibraryPaths, ' ', true);
-                    for each_string_in_list (Paths)
-                    {
-                        StringLocal(Temp, MAX_PATH_LENGTH);
-                        String_BuildPath(&Temp, RelativeWorkingPathFromMe, It.String);
-                        AddOrAppendVariable(Arena, VariablesDB, S("Library.Paths"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Library.Paths")));
-                        AddOrAppendVariable(Arena, VariablesDB, S("Library.Paths.Public"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Library.Paths")));
-                    }
-                }
-
-                {
-                    // LinearAllocator Scratch = *Arena;
-                    StringList Paths = String_SplitIntoList(Arena, FreshReceipt.Includes, ' ', true);
-                    for each_string_in_list (Paths)
-                    {
-                        StringLocal(Temp, MAX_PATH_LENGTH);
-                        String_BuildPath(&Temp, RelativeWorkingPathFromMe, It.String);
-                        AddOrAppendVariable(Arena, VariablesDB, S("Includes"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Includes")));
-                        AddOrAppendVariable(Arena, VariablesDB, S("Includes.Public"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Includes")));
-                    }
-                }
-
-                // TODO: fix repeating duplicated build directory paths, if depends was called on the same build file multiple times
-
                 // if we are depending on a libarary, automatically append the build directory
                 // of the thing we just built
                 if (FreshReceipt.AssemblyType == AssemblyType_Library ||
@@ -4671,9 +4640,38 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                     AddOrAppendVariable(Arena, VariablesDB, S("Libraries"), FreshReceipt.AssemblyName, String_Null(), GetMaxValueLengthForReservedKey(S("Libraries")));
                     AddOrAppendVariable(Arena, VariablesDB, S("Libraries.Public"), FreshReceipt.AssemblyName, String_Null(), GetMaxValueLengthForReservedKey(S("Libraries")));
                 }
+
+                AddOrAppendVariable(Arena, VariablesDB, S("Defines"),          FreshReceipt.Defines, String_Null(), GetMaxValueLengthForReservedKey(S("Includes")));
+                AddOrAppendVariable(Arena, VariablesDB, S("Defines.Public"),   FreshReceipt.Defines, String_Null(), GetMaxValueLengthForReservedKey(S("Includes")));
+                AddOrAppendVariable(Arena, VariablesDB, S("Libraries"),        FreshReceipt.Libraries, String_Null(), GetMaxValueLengthForReservedKey(S("Libraries")));
+                AddOrAppendVariable(Arena, VariablesDB, S("Libraries.Public"), FreshReceipt.Libraries, String_Null(), GetMaxValueLengthForReservedKey(S("Libraries")));
+
+                {
+                    StringList Paths = String_SplitIntoList(Arena, FreshReceipt.LibraryPaths, ' ', true);
+                    for each_string_in_list (Paths)
+                    {
+                        StringLocal(Temp, MAX_PATH_LENGTH);
+                        String_BuildPath(&Temp, RelativeWorkingPathFromMe, It.String);
+                        AddOrAppendVariable(Arena, VariablesDB, S("Library.Paths"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Library.Paths")));
+                        AddOrAppendVariable(Arena, VariablesDB, S("Library.Paths.Public"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Library.Paths")));
+                    }
+                }
+
+                {
+                    StringList Paths = String_SplitIntoList(Arena, FreshReceipt.Includes, ' ', true);
+                    for each_string_in_list (Paths)
+                    {
+                        StringLocal(Temp, MAX_PATH_LENGTH);
+                        String_BuildPath(&Temp, RelativeWorkingPathFromMe, It.String);
+                        AddOrAppendVariable(Arena, VariablesDB, S("Includes"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Includes")));
+                        AddOrAppendVariable(Arena, VariablesDB, S("Includes.Public"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Includes")));
+                    }
+                }
+
+                // TODO: fix repeating duplicated build directory paths, if depends was called on the same build file multiple times
+
             }
 
-            // if (ExitCode == 2) // special exit code meaning this child build finished successfully (and that it did some work)
             if (FreshReceipt.bWorkWasDone)
             {
                 // TODO: fuck... i need a way to just link and not rebuild the child. Implement this...
