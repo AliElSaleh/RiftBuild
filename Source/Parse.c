@@ -3489,7 +3489,8 @@ bool FindFirstCompilerAvailable(const String CompilerToFind, const String Assemb
                     String_BuildPath(&OutCompilerPaths->ArchiverPath, CompilerInstallPath, S("x86_64-w64-mingw32-gcc-ar.exe"));
                     bArchiverProgramFound = true;
                 }
-                else if (String_Contains(CompilerName, S("gcc"), false))
+                else if (String_Contains(CompilerName, S("gcc"), false) ||
+                         String_Contains(CompilerName, S("g++"), false))
                 {
                     String_BuildPath(&OutCompilerPaths->ArchiverPath, CompilerInstallPath, S("gcc-ar.exe"));
                     bArchiverProgramFound = true;
@@ -3685,6 +3686,21 @@ static void StoreKVNodeAsCmdOption(LinearAllocator* Arena, const String Key, Nod
     }
     else
     {
+        String Val = GetVarValueInList(Context->VarListHead, Key);
+
+        StringLocal(Expanded, MAX_PATH_LENGTH);
+        xx ExpandBuildVariable(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, Key, Val, Key, Context->WorkingDirectory, false, false, NULL);
+
+        if (Expanded.Length > 0)
+        {
+            AddCmdOption(Context->CmdOptionsDB, String_Create(Arena, Key), String_Create(Arena, Expanded));
+
+            String CompilerName = Filesystem_ExtractFileName(Expanded, false);
+            AddCmdOption(Context->CmdOptionsDB, String_Create(Arena, CompilerName), String_Null());
+        }
+
+
+        /*
         NodeList** Next = &Block->List;
         while (*Next)
         {
@@ -3729,6 +3745,7 @@ static void StoreKVNodeAsCmdOption(LinearAllocator* Arena, const String Key, Nod
 
             Next = &(*Next)->Next;
         }
+        */
     }
 }
 
