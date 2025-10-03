@@ -71,7 +71,7 @@ if tcc
 if clang|gcc
 {
     WarningFlags                     -Wall -Wextra -Wshadow -Wconversion -Wmissing-prototypes -Wunused -Wuninitialized -Werror
-    WarningFlagsDisabled             -Wno-unused-parameter
+    WarningFlagsDisabled             -Wno-unused-parameter -Wno-typedef-redefinition
     WarningFlagsDisabled:mac         -Wno-nonportable-include-path
 
     DebugFlags                       -g3 -MD
@@ -110,7 +110,7 @@ if clang|gcc
         SharedCompilerFlags:analyze  --analyze -funsigned-char
         
         WarningFlags                 -Wpedantic
-        WarningFlagsDisabled         -Wno-typedef-redefinition -Wno-gnu-zero-variadic-macro-arguments -Wno-unused-command-line-argument
+        WarningFlagsDisabled         -Wno-gnu-zero-variadic-macro-arguments -Wno-unused-command-line-argument
     }
 
     if asan

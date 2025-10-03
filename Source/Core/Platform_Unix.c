@@ -397,6 +397,72 @@ PlatformHandle Platform_RunProcess(const String ProcessExePath, const String Par
     return pid;
 }
 
+PlatformHandle Platform_RunProcess_Ex(const String ProcessExePath, const String Parameters, const String WorkingDirectory, PlatformPipe* StdOutPipe)
+{
+    i32 PipeData[2] = {0};
+    if (pipe(PipeData) != 0)
+    {
+        LogLastError(S("pipe() failed"));
+        return -1;
+    }
+
+    pid_t pid = fork();
+
+    if (pid < 0)
+    {
+        close(PipeData[0]);
+        close(PipeData[1]);
+        LogLastError(S("fork() failed"));
+    }
+    else if (pid > 0) // parent path
+    {
+        (*StdOutPipe)[0] = PipeData[0]; // read pipe
+        (*StdOutPipe)[1] = PipeData[1]; // write pipe
+    }
+    else // child path
+    {
+        bool bChangeSuccess = Platform_SetWorkingDirectory(WorkingDirectory);
+        if (!bChangeSuccess)
+        {
+            exit(1);
+            return 1;
+        }
+
+        i8 ArenaMemory[UINT16_MAX] = {0};
+        LinearAllocator TempArena = {0};
+        LinearAllocator_Create(UINT16_MAX, ArenaMemory, &TempArena);
+
+        StringList List = String_SplitIntoList(&TempArena, Parameters, ' ', true);
+
+        // TODO: remove the program from the parameters from all the backend.c cmdline strings. match this behviour on windows
+        // Args[0] = ProcessExePath.Data;
+        char* Args[256] = {0};
+        u8 i = 0;
+        for each_string_in_list (List)
+        {
+            String Trimmed = String_TrimQuotes(It.String);
+            // stomp on the data
+            Trimmed.Data[Trimmed.Length] = 0;
+            //LOG("%S", Trimmed);
+
+            Args[i] = (char*)Trimmed.Data;
+            i++;
+            if (i == 255)
+            {
+                break;
+            }
+        }
+
+        dup2(PipeData[1], STDOUT_FILENO); // capture stdout
+        dup2(PipeData[1], STDERR_FILENO); // capture stderr as well
+
+        i32 Result = execve((char*)ProcessExePath.Data, Args, environ);
+        exit(Result);
+    }
+
+    return pid;
+}
+
 PlatformHandle Platform_RunCommand(const String CmdLine, const String WorkingDirectory, const String EnvBlock)
 {
     String Command;
@@ -499,17 +565,21 @@ PlatformHandle Platform_RunCommand_Ex(const String CmdLine, const String Working
     }
     else if (pid > 0) // parent path
     {
-        close(PipeData[0]);
-        close(PipeData[1]);
-        return pid;
+        (*StdOutPipe)[0] = PipeData[0]; // read pipe
+        (*StdOutPipe)[1] = PipeData[1]; // write pipe
     }
     else // child path
     {
+        dup2(PipeData[1], STDOUT_FILENO); // capture stdout
+        dup2(PipeData[1], STDERR_FILENO); // capture stderr as well
+
+        /*
         close(PipeData[0]);
         dup2(PipeData[1], STDOUT_FILENO);
 
         (*StdOutPipe)[0] = PipeData[0]; // read pipe
         (*StdOutPipe)[1] = PipeData[1]; // write pipe
+        */
 
         execvp("/bin/sh", (char*[]){"sh", "-c", (char*)Command.Data, NULL});
         exit(0);
@@ -1419,7 +1489,6 @@ FileTimeData Filesystem_GetFileTimeH(const FileHandle Handle)
 bool Filesystem_ReadPipe(PlatformPipe Handle, usize DataSize, void* OutData, usize* OutBytesRead)
 {
     if (NEVER(Handle[0] == -1)) return false;
-    if (NEVER(Handle[1] == -1)) return false;
 
     isize BytesRead = read(Handle[0], OutData, DataSize);
     if (BytesRead < 0)
