@@ -20,6 +20,7 @@
 // provide examples with every parser error message
 // how to detect multiple inclusions of a file?
 // prevent including .build files
+// log .build file path for parser error logs
 
 void AddVariable(LinearAllocator* Arena,
                 TArray(FileVariable) VariablesDB,
@@ -2477,6 +2478,7 @@ NO_DISCARD static String GetOptionParamsFromVarList(FileVariableList* VarList, S
 NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, ParsingContext* Context, bool bInIf);
 NO_DISCARD static NodeList* Analyze_List(LinearAllocator* Arena, Node* Block, ParsingContext* Context, bool bInIf);
 NO_DISCARD static bool      Analyze_Indeterminates(LinearAllocator* Arena, NodeList* List, ParsingContext* Context);
+           static void      Analyze_Options(LinearAllocator* Arena, Node* Block, ParsingContext* Context);
 
 NO_DISCARD static NodeList* Analyze_IncludeNode(LinearAllocator* Arena, Node* Root, ParsingContext* Context)
 {
@@ -2613,6 +2615,8 @@ NO_DISCARD static NodeList* Analyze_IncludeNode(LinearAllocator* Arena, Node* Ro
                 {
                     u8 Level = Context->Level;
                     Context->Level = 0;
+
+                    Analyze_Options(Arena, AST, Context);
 
                     NodeList* List = Analyze_List(Arena, AST, Context, false);
                     if (List)

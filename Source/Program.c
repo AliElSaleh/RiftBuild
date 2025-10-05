@@ -45,6 +45,7 @@ read_only String BuiltinOptions[] =
 {
     SC("-h"),
     SC("-a"),
+    SC("-b"),
     SC("-v"),
     SC("-q"),
     SC("-s"),
@@ -55,6 +56,7 @@ read_only String BuiltinOptions[] =
     SC("?"),
     SC("--help"),
     SC("--about"),
+    SC("--buildfiles"),
     SC("--verbose"),
     SC("--singlethread"),
     SC("--quiet"),
@@ -2639,6 +2641,12 @@ static void PrintInternals(void)
     LOG("    %%_UserDirectory\n    %%_AVX2\n    if _CacheLineSize == 64\n    if _FMA3");
 }
 
+static void PrintBuildFiles(const String WorkingDirectory)
+{
+    LOG_INLINE_WARNING("Build Files (found in: %S)\n", WorkingDirectory);
+    Filesystem_IterateDirectory(WorkingDirectory, &BuildFilesIterator, true);
+}
+
 static void PrintUsage(const String WorkingDirectory)
 {
     LOG_INLINE_WARNING("Usage\n");
@@ -2648,8 +2656,7 @@ static void PrintUsage(const String WorkingDirectory)
 
     LOG_LINE_BREAK();
 
-    LOG_INLINE_WARNING("Build Files\n");
-    Filesystem_IterateDirectory(WorkingDirectory, &BuildFilesIterator, true);
+    PrintBuildFiles(WorkingDirectory);
 
     LOG_LINE_BREAK();
 
@@ -2673,6 +2680,7 @@ static void PrintUsage(const String WorkingDirectory)
     LOG(
       "   -h, --help, /?, -?, ? : Display this help message\n"
       "   -a, --about           : About this program\n"
+      "   -b, --buildfiles      : List all .build files found under this working directory\n"
       "   -v, --verbose         : Enable verbose logging\n"
       "   -s, --singlethread    : Force single-threaded mode. Disables multi-process compilation\n"
       "   -q, --quiet           : Quiet mode. Disables logging but outputs necessary information, like errors\n"
@@ -4457,8 +4465,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             // if someone wants to not specify a build file, they can specify the path instead
             if (String_CountPathSeparators(BuildFile) > 0)
             {
-                //BuildFile = String_Null();
-                Directory = BuildFile;//Value;
+                Directory = BuildFile;
                 bDirectoryOnly = true;
             }
 
@@ -4486,7 +4493,12 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                 if (Filesystem_IsPathRelative(Directory))
                 {
                     CustomRelativePath = Directory;
-                    String_BuildPath(&CustomWorkingPath_Full, WorkingPath, Directory);
+                    if (String_EndsWith(Directory, S(".build"), false))
+                    {
+                        CustomRelativePath = Filesystem_ExtractFilePath(Directory, false);
+                    }
+
+                    String_BuildPath(&CustomWorkingPath_Full, WorkingPath, CustomRelativePath);
                     xx Filesystem_ConvertRelativeToAbsolutePath(&CustomWorkingPath_Full);
                 }
                 else
@@ -4571,16 +4583,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             LOG("Depend -> %S\n", bDirectoryOnly ? Directory : BuildFileNameWithExt);
             bRanAnyDependencies = true;
 
-            StringLocal(NewBuildFilePath, MAX_PATH_LENGTH);
-
-            BuildFileDirectoryIteratorData Data = {0};
-            Data.bNoBuildFileSpecifiedInCmd = false;
-            Data.BuildFileIndex = -1;
-            Data.RootPathIndex = -1;
-            Data.Name = &BuildFileNameWithExt;
-            Data.Path = &NewBuildFilePath;
-            Data.Arguments = NewParams;
-
             if (!Filesystem_DoesDirectoryExist(CustomWorkingPath_Full))
             {
                 LOG_ERROR("Failed to find a .build in \"%S\" because the directory does not exist.", CustomWorkingPath_Full);
@@ -4589,17 +4591,39 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                 return Receipt;
             }
 
-            Filesystem_IterateDirectory_Ex(CustomWorkingPath_Full, &BuildFileDirectoryIterator, !bDirectoryOnly, &Data);
+            StringLocal(NewBuildFilePath, MAX_PATH_LENGTH);
 
-            if (!Data.bFoundBuildFile)
             {
-                if (!bDirectoryOnly)
+                StringLocal(Temp, MAX_PATH_LENGTH);
+                String_BuildPath(&Temp, CustomWorkingPath_Full, Filesystem_ExtractFileName(Directory, true));
+                if (bDirectoryOnly && Filesystem_DoesFileExist(Temp))
                 {
-                    LOG_ERROR("Failed to find %S in %S", BuildFileNameWithExt, CustomWorkingPath_Full);
+                    String_Copy(&NewBuildFilePath, Temp);
+                    String_Copy(&BuildFileNameWithExt, Filesystem_ExtractFileName(Directory, true));
                 }
+                else
+                {
+                    BuildFileDirectoryIteratorData Data = {0};
+                    Data.bNoBuildFileSpecifiedInCmd = false;
+                    Data.BuildFileIndex = -1;
+                    Data.RootPathIndex = -1;
+                    Data.Name = &BuildFileNameWithExt;
+                    Data.Path = &NewBuildFilePath;
+                    Data.Arguments = NewParams;
 
-                Receipt.ExitCode = 1;
-                return Receipt;
+                    Filesystem_IterateDirectory_Ex(CustomWorkingPath_Full, &BuildFileDirectoryIterator, !bDirectoryOnly, &Data);
+
+                    if (!Data.bFoundBuildFile)
+                    {
+                        if (!bDirectoryOnly)
+                        {
+                            LOG_ERROR("Failed to find %S in %S", BuildFileNameWithExt, CustomWorkingPath_Full);
+                        }
+
+                        Receipt.ExitCode = 1;
+                        return Receipt;
+                    }
+                }
             }
 
             FileHandle f = {0};
@@ -7940,6 +7964,18 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments, const 
         StringArray_Contains(Arguments, S("--about"), false))
     {
         PrintAbout();
+
+        #if !PLATFORM_WINDOWS
+        LOG_LINE_BREAK();
+        #endif
+
+        return 0;
+    }
+
+    if (StringArray_Contains(Arguments, S("-b"), false) ||
+        StringArray_Contains(Arguments, S("--buildfiles"), false))
+    {
+        PrintBuildFiles(WorkingDirectory);
 
         #if !PLATFORM_WINDOWS
         LOG_LINE_BREAK();

@@ -1489,6 +1489,11 @@ NO_DISCARD bool Filesystem_DoesFileExist(const String FilePath)
         String_Copy(&Copy, FilePath);
 
         bExists = PathFileExists((char*)Copy.Data);
+
+        if (bExists)
+        {
+            bExists = Filesystem_IsFile(FilePath);
+        }
     }
 
     return bExists;

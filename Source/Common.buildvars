@@ -17,7 +17,7 @@ if msvc
     WarningFlagsDisabled             /wd4100 /wd4164 /wd4668 /wd5045 /wd4711 $TempWarnings
 
     SharedCompilerFlags              $WarningFlags $WarningFlagsDisabled /TC /GS- /Gs999999999 /EHs- /analyze /analyze:stacksize 8000000
-    SharedCompilerFlags:32           /d2noftol3
+    #SharedCompilerFlags:32           /d2noftol3
     
     MachineType:32                   X86
     MachineType:!32                  X64
@@ -87,7 +87,7 @@ if clang|gcc
     SharedCompilerFlags:mac          -mmacosx-version-min=10.12
 
     SharedLinkerFlags            
-    SharedLinkerFlags:32             --target=i386-pc-windows-msvc
+    SharedLinkerFlags:!gcc:32        --target=i386-pc-windows-msvc
     SharedLinkerFlags:linux          -Wl,-z,nodlopen -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now
     SharedLinkerFlags:mac            -framework Foundation
     
