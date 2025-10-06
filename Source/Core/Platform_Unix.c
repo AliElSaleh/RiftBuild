@@ -1111,8 +1111,10 @@ bool Filesystem_Open(const String FilePath, EFileMode Mode, FileHandle* OutHandl
 
 #if PLATFORM_OPEN_BSD
     String Path = StrMake(OutHandle->Path);
+    Path.Capacity = MAX_PATH_LENGTH;
     String_Copy(&Path, FilePath);
     OutHandle->Path.Length = Path.Length;
+    OutHandle->Path.Capacity = Path.Capacity;
 #endif
 
     return true;
