@@ -552,6 +552,8 @@ STRUCT(StringList) // 24 bytes
     #define FALL_THROUGH     __attribute__((fallthrough))
     #define NO_RETURN        __attribute__((noreturn))
     #define RETURN_NON_NULL  __attribute__((returns_nonnull))
+    #define NO_THROW         __attribute__((__nothrow__ ))
+
     #if LANG_C_STD_89
     #define FORCEINLINE      __attribute__((always_inline))
     #else
@@ -594,6 +596,7 @@ STRUCT(StringList) // 24 bytes
     #define FALL_THROUGH     
     #define NO_RETURN        __declspec(noreturn)
     #define RETURN_NON_NULL  _Ret_notnull_
+    #define NO_THROW         
     #define ASM              __asm
     #define FORCEINLINE      __forceinline
     #define FORCENOINLINE    __declspec(noinline)
@@ -618,6 +621,7 @@ STRUCT(StringList) // 24 bytes
     #define FALL_THROUGH     
     #define NO_RETURN        
     #define RETURN_NON_NULL  
+    #define NO_THROW         
     #define FORCEINLINE      
 
     #define UNLIKELY(Expression) Expression
