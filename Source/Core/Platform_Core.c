@@ -1098,7 +1098,7 @@ NO_DISCARD f32 FRand(void)
 
 NO_DISCARD f32 FRandFast(void)
 {
-    #define RAND_MAX 0x7fff
+    constant { RAND_MAX = 0x7fff };
 
     u64 Seed = (u64)Platform_GetAbsoluteTime();
     Seed *= 1103515245 + 12345;
@@ -1156,14 +1156,14 @@ static String MonthNames[13] =
 
 NO_DISCARD String Platform_GetDayName(u16 DayOfWeek)
 {
-    u16 Clamped = ClampMax(DayOfWeek, 6);
+    u16 Clamped = ClampU16_Max(DayOfWeek, 6);
     String DayName = DayNames[Clamped];
     return DayName;
 }
 
 NO_DISCARD String Platform_GetMonthName(u16 Month)
 {
-    u16 Clamped = ClampMax(Month, 12);
+    u16 Clamped = ClampU16_Max(Month, 12);
     String MonthName = MonthNames[Clamped];
     return MonthName;
 }

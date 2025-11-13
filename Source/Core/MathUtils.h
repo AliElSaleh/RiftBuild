@@ -47,12 +47,13 @@ FORCEINLINE NO_DISCARD static i64 Absi64(i64 Value)
 #define Max(A, B) ((A) > (B) ? (A) : (B))
 
 #define DECLARE_Clamp(Type, Suffix) \
-	FORCEINLINE NO_DISCARD static Type CONCAT(Clamp, Suffix)(Type Value, Type Min, Type Max)     { return Value < Min ? Min : Value < Max ? Value : Max; } \
+	FORCEINLINE NO_DISCARD static Type CONCAT(Clamp, Suffix)(Type Value, Type Min, Type Max)     { return Value < Min ? Min : (Value < Max ? Value : Max); } \
 	FORCEINLINE NO_DISCARD static Type CONCAT(CONCAT(Clamp, Suffix), _Min)(Type Value, Type Min) { return Value < Min ? Min : Value; } \
 	FORCEINLINE NO_DISCARD static Type CONCAT(CONCAT(Clamp, Suffix), _Max)(Type Value, Type Max) { return Value > Max ? Max : Value; }
 
 	DECLARE_Clamp(i32, I32)
 	DECLARE_Clamp(u32, U32)
+	DECLARE_Clamp(u16, U16)
 	DECLARE_Clamp(f64, F64)
 #undef DECLARE_Clamp
 

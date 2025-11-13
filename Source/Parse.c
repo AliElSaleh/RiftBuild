@@ -2192,7 +2192,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
             l.Start = l.Current;
             
             const uchar Char = l.Text.Data[l.Current];
-            const uchar PrevChar = l.Text.Data[ClampMin((i32)l.Current-1, 0)];
+            const uchar PrevChar = l.Text.Data[ClampI32_Min((i32)l.Current-1, 0)];
             Lexer_Advance(&l);
 
             if (Char == '\n')

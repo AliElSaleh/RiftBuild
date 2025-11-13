@@ -1253,7 +1253,7 @@ static void LogOptionData_WordWrapped(LinearAllocator Scratch, const String Name
 {
     u32 Rows = 30, Cols = 1000;
     xx Platform_GetTerminalDimensions(&Rows, &Cols);
-    Cols = Clamp(Cols, 30, 1000);
+    Cols = ClampU32(Cols, 30, 1000);
 
     StringLocal(LogBuffer, 2048);
 
@@ -1326,7 +1326,7 @@ bool LogStringList_WordWrapped(LinearAllocator Scratch, const String Name, const
 
     u32 Rows = 0, Cols = 0;
     xx Platform_GetTerminalDimensions(&Rows, &Cols);
-    Cols = Clamp(Cols, 30, 1000);
+    Cols = ClampU32(Cols, 30, 1000);
 
     StringLocal(LogBuffer, UINT16_MAX);
     String_Append(&LogBuffer, Name);
