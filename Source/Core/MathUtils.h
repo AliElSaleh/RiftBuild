@@ -34,16 +34,33 @@ FORCEINLINE NO_DISCARD static i64 Absi64(i64 Value)
 }
 
 #define DECLARE_MinMax(Type, Suffix) \
-FORCEINLINE NO_DISCARD static Type Max##Suffix(Type A, Type B) { return A > B ? A : B; } \
-FORCEINLINE NO_DISCARD static Type Min##Suffix(Type A, Type B) { return A < B ? A : B; }
+	FORCEINLINE NO_DISCARD static Type CONCAT(Min, Suffix)(Type A, Type B) { return A < B ? A : B; } \
+	FORCEINLINE NO_DISCARD static Type CONCAT(Max, Suffix)(Type A, Type B) { return A > B ? A : B; }
 
-DECLARE_MinMax(isize, S)
-DECLARE_MinMax(f64, F)
-
+	DECLARE_MinMax(i32, I32)
+	DECLARE_MinMax(u32, U32)
+	DECLARE_MinMax(f64, F64)
 #undef DECLARE_MinMax
 
 // Generic min/max 'functions' that work on any primitive type
 #define Min(A, B) ((A) < (B) ? (A) : (B))
 #define Max(A, B) ((A) > (B) ? (A) : (B))
+
+#define DECLARE_Clamp(Type, Suffix) \
+	FORCEINLINE NO_DISCARD static Type CONCAT(Clamp, Suffix)(Type Value, Type Min, Type Max)     { return Value < Min ? Min : Value < Max ? Value : Max; } \
+	FORCEINLINE NO_DISCARD static Type CONCAT(CONCAT(Clamp, Suffix), _Min)(Type Value, Type Min) { return Value < Min ? Min : Value; } \
+	FORCEINLINE NO_DISCARD static Type CONCAT(CONCAT(Clamp, Suffix), _Max)(Type Value, Type Max) { return Value > Max ? Max : Value; }
+
+	DECLARE_Clamp(i32, I32)
+	DECLARE_Clamp(u32, U32)
+	DECLARE_Clamp(f64, F64)
+#undef DECLARE_Clamp
+
+// Generic clamp 'functions' that work on any primitive type
+/*
+#define Clamp(Value, Min, Max) (((Value) < (Min)) ? (Min) : ((Value) < (Max)) ? (Value) : (Max))
+#define ClampMin(Value, Min)   (((Value) < (Min)) ? (Min) : (Value))
+#define ClampMax(Value, Max)   (((Value) > (Max)) ? (Max) : (Value))
+*/
 
 #endif // MATH_H
