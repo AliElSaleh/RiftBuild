@@ -39,23 +39,27 @@ STRUCT(ExportData)
 static void WriteFlags(LinearAllocator Scratch, const FileHandle File, const String Flags, bool bConvertSlashes, bool bOneLine)
 {
     u16 i = 0;
-    StringArray List = String_ParseIntoArray(&Scratch, Flags, ' ', 0, 256);
-    if (List.Num > 0)
+    StringList List = String_SplitIntoList(&Scratch, Flags, ' ', true);
+    // TODO: function
+    u32 Num = 0;
+    for each_str_list (List) { Num += 1; }
+    if (Num > 0)
     {
         Filesystem_WriteLine(File, bOneLine ? S(", ") : S(",\n"), NULL);
     }
 
-    for each_str_i (i, Flag, List)
+    // for each_str_i (i, Flag, List)
+    for each_string_in_list_i (i, List)
     {
         StringLocal(FlagCopy, 4096);
-        String_Copy(&FlagCopy, *Flag);
+        xx String_SanitizePath(&FlagCopy, It.String);
 
         if (bConvertSlashes)
         {
             String_BackSlashToForwardSlash(&FlagCopy);
         }
 
-        String Comma = i != List.Num-1 ? (bOneLine ? S(", ") : S(",\n")) : S("");
+        String Comma = i != Num-1 ? (bOneLine ? S(", ") : S(",\n")) : S("");
         Filesystem_WriteLineFormatted(File, S("%S\"%S\"%S"), NULL, bOneLine ? S("") : S("            "), FlagCopy, Comma);
     }
 }
