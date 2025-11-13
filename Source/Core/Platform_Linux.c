@@ -33,10 +33,8 @@ PRAGMA_ENABLE_WARNINGS
 #define _FILE_OFFSET_BITS 64
 #define __USE_FILE_OFFSET64
 #define __USE_GNU
-//#define __USE_POSIX
 #define __USE_MISC
-//#define __USE_XOPEN_EXTENDED
-//#define __USE_POSIX199309
+#define _BSD_SOURCE
 
 #include <stdlib.h>
 #include <sys/types.h>
@@ -62,7 +60,7 @@ PRAGMA_ENABLE_WARNINGS
 
 #include <sys/utsname.h>
 
-extern int fileno (FILE *__stream) __THROW __wur;
+extern int fileno (FILE *__stream) NO_THROW NO_DISCARD;
 
 #ifndef NO_LOG 
 static void LogLastError(const String Prefix)
@@ -78,14 +76,14 @@ static void LogLastError(const String Prefix)
 
 bool Platform_CreateMutex(PlatformMutex* OutMutex)
 {
-    sem_t Semaphore = {0};
-    sem_init(&Semaphore, 0, 1); // 0 for thread-shared semaphore
-    if (sem_trywait(&Semaphore) == -1)
+    sem_t* Semaphore = malloc(sizeof(sem_t));
+    sem_init(Semaphore, 0, 1); // 0 for thread-shared semaphore
+    if (sem_trywait(Semaphore) == -1)
     {
         return false;
     }
 
-    OutMutex->Handle = Semaphore.__size;
+    OutMutex->Handle = Semaphore;
     OutMutex->ID = -1;
     OutMutex->Name = String_Null();
 
@@ -199,6 +197,9 @@ bool Platform_ReleaseMutex(PlatformMutex* Mutex)
         {
             return false;
         }
+
+        free(Mutex->Handle);
+        Mutex->Handle = NULL;
     }
 
     return true;

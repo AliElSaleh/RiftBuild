@@ -27,6 +27,7 @@
 #define __USE_FILE_OFFSET64
 #define __USE_GNU
 #define __USE_MISC
+#define _BSD_SOURCE
 
 #include <stdlib.h>
 #include <memory.h>
