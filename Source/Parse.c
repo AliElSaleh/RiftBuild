@@ -3326,29 +3326,30 @@ bool FindFirstCompilerAvailable(const String CompilerToFind, const String Assemb
 
             if (bWasVCVarsBatchExecuted)
             {
-                PlatformPipe StdOutHandle = {0};
-                PlatformHandle ShellCmd = Platform_RunCommand_Ex(S("where cl"), String_Null(), &StdOutHandle);
-                if (Platform_IsValidHandle(ShellCmd))
+                // PlatformPipe StdOutHandle = {0};
+                if (Platform_FindProgram_Ex(S("cl"), &OutCompilerPaths->CompilerPath))
+                // PlatformHandle ShellCmd = Platform_RunCommand_Ex(S("where cl"), String_Null(), &StdOutHandle);
+                // if (Platform_IsValidHandle(ShellCmd))
                 {
-                    u32 ExitCode = Platform_WaitForProcessAndGetExitCode(ShellCmd);
-                    if (ExitCode == 0)
+                    // u32 ExitCode = Platform_WaitForProcessAndGetExitCode(ShellCmd);
+                    // if (ExitCode == 0)
                     {
-                        StringLocal(StdOutData, 8192);
-                        usize BytesRead = 0;
-                        if (!Filesystem_ReadPipe(StdOutHandle, StdOutData.Capacity, StdOutData.Data, &BytesRead))
+                        // StringLocal(StdOutData, 8192);
+                        // usize BytesRead = 0;
+                        // if (!Filesystem_ReadPipe(StdOutHandle, StdOutData.Capacity, StdOutData.Data, &BytesRead))
                         {
-                            LOG_ERROR("Failed to read from standard output pipe for command -> \"where cl\"");
-                            return false;
+                            // LOG_ERROR("Failed to read from standard output pipe for command -> \"where cl\"");
+                            // return false;
                         }
 
-                        StdOutData.Length = Min((u32)BytesRead, StdOutData.Capacity);
-                        xx String_EatNewLinesInlineFromEnd(&StdOutData);
+                        // StdOutData.Length = Min((u32)BytesRead, StdOutData.Capacity);
+                        // xx String_EatNewLinesInlineFromEnd(&StdOutData);
                         
-                        String InstallPath = Filesystem_ExtractFilePath(StdOutData, false);
+                        String InstallPath = Filesystem_ExtractFilePath(OutCompilerPaths->CompilerPath, false);
                         String_Copy(&OutCompilerPaths->InstallPath, InstallPath);
 
-                        String_Copy(&OutCompilerPaths->CompilerPath, InstallPath);
-                        String_Append(&OutCompilerPaths->CompilerPath, S("\\cl.exe"));
+                        // String_Copy(&OutCompilerPaths->CompilerPath, InstallPath);
+                        // String_Append(&OutCompilerPaths->CompilerPath, S("\\cl.exe"));
 
                         bCompilerProgramFound = true;
 
@@ -5841,10 +5842,21 @@ bool ExpandBuildVariable(LinearAllocator Scratch, FileVariableList* VariablesDB,
             String DestEnd = StrShiftF(*Dest, Dest->Length);
             u32 DestLengthBefore = Dest->Length;
 
+            if (String_CountPathSeparators(VarValue) > 0 && String_CountSpaces(VarValue) > 0)
+            {
+                String_WrapPath(Dest, VarValue);
+            }
+            else
+            {
+                String_Append(Dest, VarValue);
+            }
+
+            /*
             if (!ExpandBuildVariable(Scratch, VariablesDB, CmdOptionsDB, Dest, Slice, VarValue, Root, WorkingDirectory, false, bIsAssemblyExe, bFailed))
             {
                 return false;
             }
+            */
 
             DestEnd.Length = Dest->Length - DestLengthBefore;
             if (bWantsToLower) { String_ToLower(&DestEnd); }

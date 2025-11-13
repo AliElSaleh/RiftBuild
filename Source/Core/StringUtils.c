@@ -1168,11 +1168,20 @@ void StringInternal_BuildPath(String* Dest, const String Ext, const StringArray 
             continue;
         }
 
+        // special case: just directly append quotes
+        if (Param.Length == 1 && Param.Data[0] == '"')
+        {
+            xx String_EatPathSeparatorsInlineFromEnd(Dest);
+            String_Append(Dest, Param);
+            continue;
+        }
+
         if (Dest->Length > 0)
         {
             u8 LastChar = Dest->Data[Dest->Length-1];
             bool bHasPathSeparator = LastChar == '/' || LastChar == '\\';
-            if (!bHasPathSeparator)
+            bool bIsQuote = LastChar == '"';
+            if (!bHasPathSeparator && !bIsQuote)
             {
                 String_AppendPathSeparator(Dest);
             }
@@ -1248,6 +1257,16 @@ void StringInternal_BuildSeparator(String* Dest, u8 Separator, const StringArray
             }
         }
     }
+}
+
+NO_DISCARD String String_Left(String Str, u32 Index)
+{
+    return StrSlice(Str.Data, Index);
+}
+
+NO_DISCARD String String_Right(String Str, u32 Index)
+{
+    return StrShiftF(Str, Index);
 }
 
 void String_Empty(String* Str)
@@ -2334,7 +2353,16 @@ NO_DISCARD bool String_SanitizePath(String* Dest, const String Source)
         String_AppendChar(Dest, C);
     }
 
+    xx String_EatSpacesInlineFromEnd(Dest);
+
     return bAnyChange;
+}
+
+void String_WrapPath(String* Dest, const String Source)
+{
+    String_AppendChar(Dest, '"');
+    String_Append    (Dest, Source);
+    String_AppendChar(Dest, '"');
 }
 
 NO_DISCARD bool String_SanitizePathAndWrap(String* Dest, const String Source)
@@ -2566,6 +2594,7 @@ NO_DISCARD bool String_ToF32(const String Str, f32* OutFloat)
         {
             i32 Digit = c - '0';
 
+            // 340282346638528859811704183484516925440
             if ((FLT_MAX - (f32)Digit) / 10 < Num)
             {
                 Num = 0;
@@ -2732,8 +2761,7 @@ NO_DISCARD bool String_ToF64(const String Str, f64* OutFloat)
 static bool Internal_ToUnsignedInt(const String Str, u64* OutInt, u8 IntType)
 {
     bool bSuccess = false;
-    bool bNegative = false;
-    
+
     u8 Index = 0;
     u64 Num = 0;
 
@@ -2752,8 +2780,7 @@ static bool Internal_ToUnsignedInt(const String Str, u64* OutInt, u8 IntType)
     }
     else if (Str.Data[0] == '-')
     {
-        Index++;
-        bNegative = true;
+        Index = UINT8_MAX;
     }
     else
     {
@@ -2784,7 +2811,7 @@ static bool Internal_ToUnsignedInt(const String Str, u64* OutInt, u8 IntType)
         }
         else
         {
-            bSuccess = true;
+            bSuccess = false;
             bShouldBreak = true;
         }
 
@@ -2799,11 +2826,6 @@ static bool Internal_ToUnsignedInt(const String Str, u64* OutInt, u8 IntType)
     if (OutInt)
     {
         *OutInt = Num;
-
-        if (bNegative)
-        {
-            *OutInt = Num > 0 ? MaxIntValue - Num : 0;
-        }
     }
 
     return bSuccess;
@@ -2817,7 +2839,7 @@ static bool Internal_ToUnsignedInt(const String Str, u64* OutInt, u8 IntType)
 static bool Internal_ToSignedInt(const String Str, i64* OutInt, u8 IntType)
 {
     bool bSuccess = false;
-    
+
     u8 Index = 0;
     i8 Sign = 1;
     i64 Num = 0;
@@ -2869,7 +2891,7 @@ static bool Internal_ToSignedInt(const String Str, i64* OutInt, u8 IntType)
         }
         else
         {
-            bSuccess = true;
+            bSuccess = false;
             bShouldBreak = true;
         }
 
@@ -3560,7 +3582,7 @@ NO_DISCARD ASAN_NO_SANITIZE u32 String_GetLength_Fast(const char* Str)
     }
 
     // Next, scan 8 bytes (or 4 bytes for 32-bit) at a time, and test if there is a 0 byte in there.
-    while (1)
+    while (*StrCopy)
     {
         usize Buffer = *(usize*)StrCopy;
         #if PLATFORM_64_BIT

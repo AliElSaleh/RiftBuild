@@ -260,14 +260,29 @@ static void PrefixVariables(String* Dest, String VariableValue, const String Pre
 
     bool bLastStringStartedWithQuote = false;
 
+    u32 StartOffset = 0;
+
     if (VariableValue.Length > 0)
     {
         bLastStringStartedWithQuote = VariableValue.Data[0] == '"';
 
+        #if 0
         if (bWrapWithQuotes && VariableValue.Data[0] != '"')
         {
             String_AppendChar(Dest, '"');
         }
+        #else
+        if (bWrapWithQuotes && bLastStringStartedWithQuote)
+        {
+            StartOffset = 1;
+            bInsideQuote = true;
+        }
+
+        if (bWrapWithQuotes)
+        {
+            String_AppendChar(Dest, '"');
+        }
+        #endif
 
         if (!String_StartsWith(VariableValue, Prefix, false))
         {
@@ -284,7 +299,7 @@ static void PrefixVariables(String* Dest, String VariableValue, const String Pre
         }
     }
 
-    for (u32 i = 0; i < VariableValue.Length; i++)
+    for (u32 i = StartOffset; i < VariableValue.Length; i++)
     {
         uchar C = VariableValue.Data[i];
 
@@ -346,7 +361,7 @@ static void PrefixVariables(String* Dest, String VariableValue, const String Pre
         {
             if (IsWhitespace(C))
             {
-                if (bWrapWithQuotes)
+                if (bWrapWithQuotes && !String_IsLast(*Dest, '"'))
                 {
                     String_AppendChar(Dest, '"');
                 }
@@ -2711,7 +2726,7 @@ static void PrintUsage(const String WorkingDirectory)
 static void ExpandDefineFlags(String* Dest, const String Flags, const String FlagPrefix, bool bExportingSomething)
 {
     // Note(Ali): on windows, wrap the define in quotes so that we can have spaces for the string defines
-    //            like so: "-DVAR=\"va lue\"". the createprocess() argument parser splits up the arguments 
+    //            like so: "-DVAR=\"va lue\"". the createprocess() argument parser splits up the arguments
     //            by default where as unix doesn't. if only there was a way to fucking bypass this shit. sigh... :(
     //            on unix we just do this: -DVAR="va lue". so we dont actually need to do any processing
 
@@ -2924,20 +2939,23 @@ static void Internal_RunAssembly(LinearAllocator Scratch, const String WorkingPa
 
     if (AssemblyNameWithExt.Length > 0 && Filesystem_DoesFileExist(ExePath))
     {
-        LOG("Launching %S ...", AssemblyNameWithExt);
-        LOG(" -> Working Directory: %S", ExecutableWorkingPath);
-
-        if (ProgramArgs.Length > 0)
+        if (!bQuietBuild)
         {
-            LOG(" -> Parameters: %S", ProgramArgs);
-        }
+            LOG("Launching %S ...", AssemblyNameWithExt);
+            LOG(" -> Working Directory: %S", ExecutableWorkingPath);
 
-        if (EnvArgs.Length > 0)
-        {
-            LOG(" -> Environment: %S", EnvArgs);
-        }
+            if (ProgramArgs.Length > 0)
+            {
+                LOG(" -> Parameters: %S", ProgramArgs);
+            }
 
-        LOG_LINE_BREAK();
+            if (EnvArgs.Length > 0)
+            {
+                LOG(" -> Environment: %S", EnvArgs);
+            }
+
+            LOG_LINE_BREAK();
+        }
 
         Platform_WaitForHandle(Platform_RunCommand(CmdLine, ExecutableWorkingPath, EnvArgs), -1);
     }
@@ -3299,6 +3317,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         u32 SecondLastSlash = 0;
         bHasSlash = String_IndexOfLastPathSlash(PathNoExt, &SecondLastSlash);
 
+        AddCmdOption(CmdOptionsDB, S("_FolderName"), String_Create(Arena, bHasSlash ? StrShiftF(PathNoExt, SecondLastSlash+1) : PathNoExt));
         AddCmdOption(CmdOptionsDB, S("_DirectoryName"), String_Create(Arena, bHasSlash ? StrShiftF(PathNoExt, SecondLastSlash+1) : PathNoExt));
 
         AddCmdOption(CmdOptionsDB, S("_WorkingDirectory"), WorkingPath);
@@ -4391,7 +4410,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     Clock_Start(&DependencyBuildClock);
 
     // run build depenencies
-    if (!bExportingSomething)
+    // if (!bExportingSomething)
     {
         SArray(FileVariable*, Depends, 256) = {0};
 
@@ -4453,13 +4472,26 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             bool bDirectoryOnly = false;
 
             u32 SpaceIndex = 0;
-            if (String_IndexOfFirstWhitespace(Value, &SpaceIndex))
+            if (PipeIndex)
             {
-                BuildFile = StrSlice(Value.Data, SpaceIndex);
+                BuildFile = StrSlice(Value.Data, PipeIndex);
             }
             else
             {
-                BuildFile = Value;
+                if (String_IndexOfFirstWhitespace(Value, &SpaceIndex))
+                {
+                    BuildFile = StrSlice(Value.Data, SpaceIndex);
+                }
+                else
+                {
+                    BuildFile = Value;
+                }
+            }
+
+            StringLocal(BuildFilePathCopy, MAX_PATH_LENGTH);
+            {
+                xx String_SanitizePath(&BuildFilePathCopy, BuildFile);
+                BuildFile = BuildFilePathCopy;
             }
 
             // if someone wants to not specify a build file, they can specify the path instead
@@ -4647,6 +4679,9 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
             Filesystem_Close(&f);
 
+            // Reset the working path
+            xx Platform_SetWorkingDirectory(WorkingPath);
+
             // add all the public keys of what the dependency build file exposed, and append them to ours.
             // TODO: Depends(protected) param? to avoid nested depends from bubbling up to the parent?
             {
@@ -4657,7 +4692,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                     FreshReceipt.AssemblyType == AssemblyType_StaticLibrary)
                 {
                     StringLocal(LibBuildPath, MAX_PATH_LENGTH);
-                    String_BuildPath(&LibBuildPath, RelativeWorkingPathFromMe, FreshReceipt.BuildDirectory);
+                    String_BuildPath(&LibBuildPath, S("\""), RelativeWorkingPathFromMe, FreshReceipt.BuildDirectory, S("\""));
                     AddOrAppendVariable(Arena, VariablesDB, S("Library.Paths"), LibBuildPath, String_Null(), GetMaxValueLengthForReservedKey(S("Library.Paths")));
                     AddOrAppendVariable(Arena, VariablesDB, S("Library.Paths.Public"), LibBuildPath, String_Null(), GetMaxValueLengthForReservedKey(S("Library.Paths")));
 
@@ -4675,7 +4710,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                     for each_string_in_list (Paths)
                     {
                         StringLocal(Temp, MAX_PATH_LENGTH);
-                        String_BuildPath(&Temp, RelativeWorkingPathFromMe, It.String);
+                        String_BuildPath(&Temp, S("\""), RelativeWorkingPathFromMe, It.String, S("\""),);
                         AddOrAppendVariable(Arena, VariablesDB, S("Library.Paths"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Library.Paths")));
                         AddOrAppendVariable(Arena, VariablesDB, S("Library.Paths.Public"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Library.Paths")));
                     }
@@ -4686,7 +4721,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                     for each_string_in_list (Paths)
                     {
                         StringLocal(Temp, MAX_PATH_LENGTH);
-                        String_BuildPath(&Temp, RelativeWorkingPathFromMe, It.String);
+                        String_BuildPath(&Temp, S("\""), RelativeWorkingPathFromMe, It.String, S("\""),);
                         AddOrAppendVariable(Arena, VariablesDB, S("Includes"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Includes")));
                         AddOrAppendVariable(Arena, VariablesDB, S("Includes.Public"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Includes")));
                     }
@@ -5009,6 +5044,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
             StringLocal(DirCopy, MAX_PATH_LENGTH);
             xx String_SanitizeQuotes(&DirCopy, It.String);
+            DirCopy = String_TrimQuotes(DirCopy);
 
             if (String_IsEqual(It.String, BuildDirectory, false) ||
                 String_IsEqual(It.String, IntermediateDirectory, false))
@@ -5627,6 +5663,11 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         }
     }
 
+    if (!Filesystem_DoesFileExist(RCCompilerPath))
+    {
+        RCCompilerPath.Length = 0;
+    }
+
     const bool bHasRcProgram = RCCompilerPath.Length > 0;
     String RCProgram = String_Null();
 
@@ -6241,7 +6282,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     {
         u8 Num = 0;
         xx String_ToU8(MaxConcurrentCompilations, &Num);
-        MaxCompilersAtOnce = Min(Num, (u8)MaxLogicalCores);   
+        MaxCompilersAtOnce = Min(Num, (u8)MaxLogicalCores);
     }
 
     if (bSingleThread)
@@ -7619,6 +7660,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     if (bQuietBuild) { Logging_Enable(); }
 
     // log all the timings
+    if (!bQuietBuild)
     {
         StringLocal(TimingBuffer, 512);
 
@@ -8584,6 +8626,7 @@ static void InitInternalVars(LinearAllocator* Arena)
     #elif PLATFORM_BSD
     AddInternalVariable(S("_Platform"), S("BSD " PLATFORM_STRING));
     AddInternalVariable(S("BSD"),       String_Null());
+    AddInternalVariable(S("Unix"),      String_Null());
     #else
     AddInternalVariable(S("_Platform"), S("Unix"));
     AddInternalVariable(S("Unix"),      String_Null());

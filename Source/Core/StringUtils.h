@@ -3,6 +3,7 @@
 
 #ifndef UNITY_BUILD
 #include "EngineTypes.h"
+#include "MathUtils.h"
 #endif
 
 ENUM(ECompareResult)
@@ -136,6 +137,9 @@ RIFT_API NO_DISCARD String String_EatSpacesFromEnd(String Str);
 RIFT_API NO_DISCARD String String_EatNewLinesFromEnd(String Str);
 RIFT_API NO_DISCARD String String_EatPathSeparatorsFromEnd(String Str);
 
+RIFT_API NO_DISCARD String String_Left(String Str, u32 Index);
+RIFT_API NO_DISCARD String String_Right(String Str, u32 Index);
+
 RIFT_API NO_DISCARD bool String_EatCharInline(String* Str, u8 Char);
 RIFT_API NO_DISCARD bool String_EatCharInline_Single(String* Str, u8 Char);
 RIFT_API NO_DISCARD bool String_EatCharInlineFromEnd(String* Str, u8 Char);
@@ -164,6 +168,7 @@ RIFT_API NO_DISCARD bool String_IndexOfSubstring(const String Str, const String 
 RIFT_API NO_DISCARD bool String_SanitizePath(String* Dest, const String Source);
 RIFT_API NO_DISCARD bool String_SanitizePathAndWrap(String* Dest, const String Source);
 RIFT_API NO_DISCARD bool String_SanitizeQuotes(String* Dest, const String Source);
+RIFT_API            void String_WrapPath(String* Dest, const String Source);
 
 RIFT_API NO_DISCARD String String_TrimQuotes(const String Source);
 

@@ -23,7 +23,7 @@ Icon                     riftbuild
 
 TitleName                Rift Build %^%debug
 Description              A simpler build tool for C/C++, because fuck cmake
-Version(define)          0.1.0-beta-%_date.nosep
+Version(define)          0.2.0-beta-%_date.nosep
 CompanyName              Artisan Softworks
 Copyright(enforce)       Copyright (c) $CompanyName
 License(generate)        BSD 3-Clause
@@ -82,7 +82,7 @@ if rad
     postbuild.exec raddbg -ipc run
 }
 
-option.compiler(clang gcc msvc tcc) Select a compiler vendor to build with
+option.compiler(clang gcc cl tcc) Select a compiler vendor to build with
 option.debug                        build the debug version of this program
 option.32                           build for 32-bit architectures
 option.asan                         enable address sanitizer for memory debugging purposes

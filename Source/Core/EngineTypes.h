@@ -98,9 +98,6 @@ typedef struct LinearAllocator LinearAllocator;
 #define ClampMin(Value, Min)   (((Value) < (Min)) ? (Min) : (Value))
 #define ClampMax(Value, Max)   (((Value) > (Max)) ? (Max) : (Value))
 
-#define Min(A, B) ((A) < (B) ? (A) : (B))
-#define Max(A, B) ((A) > (B) ? (A) : (B))
-
 // https://stackoverflow.com/questions/72532179/default-arguments-to-c-macros
 // get number of arguments with __NARG__
 #define __ARG_N(_1, _2, _3, _4, _5, _6, _7, _8, _9,_10, N, ...) N

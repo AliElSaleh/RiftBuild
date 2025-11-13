@@ -258,9 +258,7 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
     String_BuildPath(&FullPath, Params->RootDirectory, Params->SourceDirectory, RelativePathCopy);
 
     StringLocal(FullSourcePath, MAX_PATH_LENGTH+2);
-    String_AppendChar(&FullSourcePath, '"');
-    String_Append    (&FullSourcePath, FullPath);
-    String_AppendChar(&FullSourcePath, '"');
+    String_WrapPath(&FullSourcePath, FullPath);
 
     String DefaultObjExtension = S(".o");
 
@@ -638,16 +636,15 @@ bool C_Compile(const BuildParams* Params, u32* OutNumCompiled)
     {
         if (*OutNumCompiled == 0)
         {
-            if (bQuietBuild) { Logging_Enable(); }
-
-            //TODO: say how long ago the last build was like -> (5.3 secs ago)
-            #ifndef HOOD
-            LOG("\nNothing to compile - source files unchanged since last build");
-            #else
-            LOG("\nno work to do homie");
-            #endif
-
-            if (bQuietBuild) { Logging_Disable(); }
+            if (!bQuietBuild)
+            {
+                //TODO: say how long ago the last build was like -> (5.3 secs ago)
+                #ifndef HOOD
+                LOG("\nNothing to compile - source files unchanged since last build");
+                #else
+                LOG("\nno work to do homie");
+                #endif
+            }
         }
 
         for each (PlatformHandle, Process, *Params->Processes)
