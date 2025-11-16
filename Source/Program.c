@@ -8588,6 +8588,13 @@ static void InitInternalVars(LinearAllocator* Arena)
         AddInternalVariable(S("sizeof.long"), String_Create(Arena, Temp));
     }
 
+    // detect default char signed-ness
+    {
+        char c = -1;
+        AddInternalVariable(S("char.signed"), c < 0 ? S("1") : S("0"));
+        AddInternalVariable(S("char.unsigned"), c > 0 ? S("1") : S("0"));
+    }
+
     ECpuClipBehaviour CpuClipMode = Platform_GetCpuClippingBehaviour();
     if (CpuClipMode == CpuClip_Both)
     {
