@@ -321,13 +321,6 @@ STRUCT(StringList) // 24 bytes
         #define PLATFORM_LINUX 1
         #define PLATFORM_STRING "Linux"
     
-    #if defined(__gnome__)
-        #define PLATFORM_LINUX_GNOME 1
-    #elif defined(__kde__)
-        #define PLATFORM_LINUX_KDE 1
-    #elif defined(__cinnamon__)
-        #define PLATFORM_LINUX_CINNAMON 1
-    #endif
     #else
         #error This UNIX operating system is not supported
     #endif

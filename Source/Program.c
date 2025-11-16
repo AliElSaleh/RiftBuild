@@ -2448,11 +2448,14 @@ void AddCmdOption(TArray(CmdOption) CmdOptionsDB, const String Name, const Strin
 
 void AddInternalVariable(const String Name, const String Value)
 {
-    InternalVariable c;
-    c.Name = Name;
-    c.Value = Value;
+    if (Name.Length > 0)
+    {
+        InternalVariable c;
+        c.Name = Name;
+        c.Value = Value;
 
-    Array_Add(InternalVariablesDB, c);
+        Array_Add(InternalVariablesDB, c);
+    }
 }
 
 static bool CheckForBuildVariableOverrides(TArray(FileVariable) VariablesDB, TArray(CmdOption) CmdOptionsDB)
@@ -7339,7 +7342,8 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             // try to natively override the default icon for the actual executable
             // currently only supporting GNOME and KDE desktop environments
             // todo: get rid of those
-            #if PLATFORM_LINUX_GNOME || PLATFORM_LINUX_KDE || PLATFORM_BSD
+            //#if PLATFORM_LINUX_GNOME || PLATFORM_LINUX_KDE || PLATFORM_BSD
+            if (Platform_DesktopIsGnome() || Platform_DesktopIsKDE())
             {
                 StringLocal(CmdLine, 4096);
 
@@ -7367,6 +7371,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                 }
 
                 // todo: remove defines, use runtime check for gnome/xfce4
+                /*
                 #if PLATFORM_LINUX_GNOME
                 u32 LastSlash = 0, LastDot = 0;
                 xx String_IndexOfLastPathSlash(IconFilePath, &LastSlash);
@@ -7374,10 +7379,52 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
                 const String IconName = StrSlice(StrShiftF(IconFilePath, LastSlash+1).Data, LastDot);
                 #endif
+                */
 
                 if (Filesystem_Open(XmlFilePath, FileMode_Write, &f))
                 {
                     StringLocal(FileData, 4096);
+
+                    if (Platform_DesktopIsGnome())
+                    {
+                        u32 LastSlash = 0, LastDot = 0;
+                        xx String_IndexOfLastPathSlash(IconFilePath, &LastSlash);
+                        xx String_IndexOfLastChar(StrShiftF(IconFilePath, LastSlash+1), '.', &LastDot);
+
+                        const String IconName = StrSlice(StrShiftF(IconFilePath, LastSlash+1).Data, LastDot);
+
+                        String_Format(&FileData,
+                            S("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                            "  <mime-info xmlns='http://www.freedesktop.org/standards/shared-mime-info'>\n"
+                            "    <mime-type type=\"application/%S\">\n"
+                            "      <comment>%S</comment>\n"
+                            "      <expanded-acronym>%S</expanded-acronym>\n"
+                            "      <glob pattern=\"%S\"/>\n"
+                            "      <generic-icon name=\"%S\"/>\n"
+                            "    </mime-type>\n"
+                            "  </mime-info>\n"),
+                            AssemblyName, Description, TitleName.Length == 0 ? AssemblyName : TitleName,
+                            AssemblyName, IconName
+                        );
+                    }
+                    else if (Platform_DesktopIsKDE())
+                    {
+                        String_Format(&FileData,
+                            S("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                            "  <mime-info xmlns='http://www.freedesktop.org/standards/shared-mime-info'>\n"
+                            "    <mime-type type=\"application/%S\">\n"
+                            "      <comment>%S</comment>\n"
+                            "      <expanded-acronym>%S</expanded-acronym>\n"
+                            "      <glob pattern=\"%S\"/>\n"
+                            "      <icon name=\"%S\"/>\n"
+                            "    </mime-type>\n"
+                            "  </mime-info>\n"),
+                            AssemblyName, Description, TitleName.Length == 0 ? AssemblyName : TitleName,
+                            AssemblyName, IconFilePath
+                        );
+                    }
+
+                    /*
                     String_Format(&FileData,
                         #if PLATFORM_LINUX_GNOME
                         S("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
@@ -7405,6 +7452,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                         AssemblyName, IconFilePath
                         #endif
                     );
+                    */
 
                     if (bVerboseLog) { LOG("    Writing %S ...", XmlFilePath); }
 
@@ -7418,56 +7466,59 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                     u32 ExitCode = 0;
 
                     // todo: remove defines, use runtime check for gnome/xfce4
-                    #if PLATFORM_LINUX_GNOME
-                    if (Platform_FindProgram(S("xdg-mime")))
+                    // #if PLATFORM_LINUX_GNOME
+                    if (Platform_DesktopIsGnome())
                     {
-                        String_Append(&CmdLine, S("xdg-mime install --mode user "));
-                        String_Append(&CmdLine, XmlFilePath);
-                        if (bVerboseLog) { LOG("    %S", CmdLine); }
-
-                        H = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
-                        ExitCode = Platform_WaitForProcessAndGetExitCode(H);
-                        if (ExitCode != 0)
+                        if (Platform_FindProgram(S("xdg-mime")))
                         {
-                            LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
+                            String_Append(&CmdLine, S("xdg-mime install --mode user "));
+                            String_Append(&CmdLine, XmlFilePath);
+                            if (bVerboseLog) { LOG("    %S", CmdLine); }
 
-                            Receipt.ExitCode = 1;
-                            return Receipt;
+                            H = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
+                            ExitCode = Platform_WaitForProcessAndGetExitCode(H);
+                            if (ExitCode != 0)
+                            {
+                                LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
+
+                                Receipt.ExitCode = 1;
+                                return Receipt;
+                            }
                         }
-                    }
-                    else
-                    {
-                        LOG_WARNING("xdg-mime not found. Skipping icon database update...");
-                    }
-
-                    String_Empty(&CmdLine);
-
-                    //xdg-icon-resource install --context mimetypes --novendor --size 32 Source/Resources/riftbuild.png riftbuild
-                    if (Platform_FindProgram(S("xdg-icon-resource")))
-                    {
-                        String_Append(&CmdLine, S("xdg-icon-resource install --context mimetypes --novendor --size 32 "));
-                        String_Append(&CmdLine, IconFilePath);
-                        String_AppendSpace(&CmdLine);
-                        String_Append(&CmdLine, AssemblyName);
-                        if (bVerboseLog) { LOG("    %S", CmdLine); }
-
-                        H = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
-                        ExitCode = Platform_WaitForProcessAndGetExitCode(H);
-                        if (ExitCode != 0)
+                        else
                         {
-                            LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
-
-                            Receipt.ExitCode = 1;
-                            return Receipt;
+                            LOG_WARNING("xdg-mime not found. Skipping icon database update...");
                         }
-                    }
-                    else
-                    {
-                        LOG_WARNING("xdg-icon-resource not found. Skipping icon database update...");
-                    }
 
-                    String_Empty(&CmdLine);
-                    #endif
+                        String_Empty(&CmdLine);
+
+                        //xdg-icon-resource install --context mimetypes --novendor --size 32 Source/Resources/riftbuild.png riftbuild
+                        if (Platform_FindProgram(S("xdg-icon-resource")))
+                        {
+                            String_Append(&CmdLine, S("xdg-icon-resource install --context mimetypes --novendor --size 32 "));
+                            String_Append(&CmdLine, IconFilePath);
+                            String_AppendSpace(&CmdLine);
+                            String_Append(&CmdLine, AssemblyName);
+                            if (bVerboseLog) { LOG("    %S", CmdLine); }
+
+                            H = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
+                            ExitCode = Platform_WaitForProcessAndGetExitCode(H);
+                            if (ExitCode != 0)
+                            {
+                                LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
+
+                                Receipt.ExitCode = 1;
+                                return Receipt;
+                            }
+                        }
+                        else
+                        {
+                            LOG_WARNING("xdg-icon-resource not found. Skipping icon database update...");
+                        }
+
+                        String_Empty(&CmdLine);
+                    }
+                    // #endif
 
                     //update-desktop-database ~/.local/share/applications
                     if (Platform_FindProgram(S("update-desktop-database")))
@@ -7546,7 +7597,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                     */
                 }
             }
-            #endif
+            //#endif
         }
 
         Clock_Tick(&IconClock);
@@ -8592,6 +8643,26 @@ static void InitInternalVars(LinearAllocator* Arena)
     AddInternalVariable(S("Linux"),     String_Null());
     AddInternalVariable(S("Unix"),      String_Null());
 
+    StringLocal(DistroName, 128);
+    StringLocal(DistroPrettyName, 128);
+    StringLocal(DistroID, 128);
+    Platform_DetectDistro(&DistroName, &DistroPrettyName, &DistroID);
+    {
+        StringLocal(DistroNameNoSpaces, 128);
+        String_StripWhitespace(DistroName, &DistroNameNoSpaces);
+
+        String Name = String_Create(Arena, DistroNameNoSpaces);
+        AddInternalVariable(Name, String_Null());
+        AddInternalVariable(S("_Distro"), Name);
+
+        Name = String_Create(Arena, DistroPrettyName);
+        AddInternalVariable(S("_DistroPrettyName"), Name);
+
+        Name = String_Create(Arena, DistroID);
+        AddInternalVariable(Name, String_Null());
+        AddInternalVariable(S("_DistroID"), Name);
+    }
+
     // TODO: add more linux distros (look in /etc/os-release for distro name)
     /*
     AddInternalVariable(S("_Distribution"), String_Null());
@@ -8606,6 +8677,7 @@ static void InitInternalVars(LinearAllocator* Arena)
     //AddInternalVariable(, String_Null());
 
     // TODO: get rid of these macros, detect at runtime
+    /*
     #if PLATFORM_LINUX_GNOME
     AddInternalVariable(S("GNOME"),               String_Null());
     AddInternalVariable(S("_DesktopEnvironment"), S("GNOME"));
@@ -8622,7 +8694,8 @@ static void InitInternalVars(LinearAllocator* Arena)
     AddInternalVariable(S("_DesktopEnv"),         S("Cinnamon"));
     AddInternalVariable(S("_DE"),                 S("Cinnamon"));
     #endif
-    
+    */
+
     #elif PLATFORM_BSD
     AddInternalVariable(S("_Platform"), S("BSD " PLATFORM_STRING));
     AddInternalVariable(S("BSD"),       String_Null());
@@ -8630,6 +8703,30 @@ static void InitInternalVars(LinearAllocator* Arena)
     #else
     AddInternalVariable(S("_Platform"), S("Unix"));
     AddInternalVariable(S("Unix"),      String_Null());
+    #endif
+
+    #if PLATFORM_UNIX
+    StringLocal(DesktopEnv, 128);
+    StringLocal(DesktopSession, 128);
+    StringLocal(DesktopSessionType, 128);
+    Platform_DetectDesktopEnvironment(&DesktopEnv, &DesktopSession, &DesktopSessionType);
+    {
+        String Env = String_Create(Arena, DesktopEnv);
+        AddInternalVariable(Env,                      String_Null());
+        AddInternalVariable(S("_DesktopEnvironment"), Env);
+        AddInternalVariable(S("_DesktopEnv"),         Env);
+        AddInternalVariable(S("_DE"),                 Env);
+
+        Env = String_Create(Arena, DesktopSession);
+        AddInternalVariable(Env,                      String_Null());
+        AddInternalVariable(S("_DesktopSession"),     Env);
+        AddInternalVariable(S("_DS"),                 Env);
+
+        Env = String_Create(Arena, DesktopSessionType);
+        AddInternalVariable(Env,                      String_Null());
+        AddInternalVariable(S("_DesktopSessionType"), Env);
+        AddInternalVariable(S("_DST"),                Env);
+    }
     #endif
 
     // I dont know what to do, ignore these comments below

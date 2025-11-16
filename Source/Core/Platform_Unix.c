@@ -51,6 +51,8 @@
 
 #include <stdarg.h>
 
+static EUnixDesktopEnvironment gDesktopEnvironment = Desktop_Unknown;
+
 #ifndef NO_LOG 
 static void LogLastError(const String Prefix)
 {
@@ -83,6 +85,24 @@ void Platform_PreInitialize(void)
     sigaction(SIGILL, &act, NULL);
     sigaction(SIGABRT, &act, NULL);
     sigaction(SIGSEGV, &act, NULL);
+    
+    StringLocal(DesktopEnvName, 128);
+    Platform_DetectDesktopEnvironment(&DesktopEnvName, NULL, NULL);
+    if (String_Contains(DesktopEnvName, S("KDE"), false))
+    {
+        gDesktopEnvironment = Desktop_KDE;
+    }
+    else if (String_Contains(DesktopEnvName, S("GNOME"), false))
+    {
+        gDesktopEnvironment = Desktop_Gnome;
+    }
+    else if (String_Contains(DesktopEnvName, S("Cinnamon"), false))
+    {
+        gDesktopEnvironment = Desktop_Cinnamon;
+    }
+    else
+    {
+    }
 }
 
 f64 Platform_GetClockFrequency(void)
@@ -2004,6 +2024,155 @@ u32 Platform_GetPosixVersion(void)
     return 0;
     #endif
 }
+
+#if PLATFORM_BSD || PLATFORM_LINUX
+void Platform_DetectDesktopEnvironment(String* DesktopEnv, String* DesktopSession, String* SessionType)
+{
+    // detect desktop environment
+    if (DesktopEnv)
+    {
+        xx Platform_GetEnvironmentVariableValue(S("XDG_CURRENT_DESKTOP"), DesktopEnv);
+    }
+
+    if (DesktopSession)
+    {
+        xx Platform_GetEnvironmentVariableValue(S("DESKTOP_SESSION"), DesktopSession);
+    }
+
+    // detect wayland or x11
+    if (SessionType)
+    {
+        bool bIsWaylandDisplay = Platform_DoesEnvironmentVariableExist(S("WAYLAND_DISPLAY"));
+        
+        StringLocal(XdgSession, 128);
+        xx Platform_GetEnvironmentVariableValue(S("XDG_SESSION_TYPE"), &XdgSession);
+        {
+            if (bIsWaylandDisplay || String_IsEqual(XdgSession, S("wayland"), false))
+            {
+                String_Copy(SessionType, S("Wayland"));
+            }
+            else if (String_IsEqual(XdgSession, S("x11"), false))
+            {
+                String_Copy(SessionType, S("X11"));
+            }
+            else if (XdgSession.Length > 0)
+            {
+                String_Copy(SessionType, XdgSession);
+            }
+            else
+            {
+                String_Copy(SessionType, S("Unknown"));
+            }
+        }
+    }
+}
+
+void Platform_DetectDistro(String* DistroName, String* PrettyName, String* ID)
+{
+    bool bGotFromOsRelease = false;
+
+    FileHandle f = {0};
+    if (Filesystem_Open(S("/etc/os-release"), FileMode_Read, &f))
+    {
+        bool bGotName = !DistroName, bGotPretty = !PrettyName, bGotID = !ID;
+
+        StringLocal(Line, 128);
+        while (Filesystem_ReadLine(f, &Line))
+        {
+            if (DistroName && String_StartsWith(Line, S("NAME=\""), false))
+            {
+                String Name = StrShiftF(Line, 6);
+                Name = String_EatCharFromEnd(Name, '"');
+
+                String_Copy(DistroName, Name);
+                bGotName = true;
+                bGotFromOsRelease = true;
+            }
+            else if (PrettyName && String_StartsWith(Line, S("PRETTY_NAME=\""), false))
+            {
+                String Name = StrShiftF(Line, 13);
+                Name = String_EatCharFromEnd(Name, '"');
+                
+                String_Copy(PrettyName, Name);
+                bGotPretty = true;
+                bGotFromOsRelease = true;
+            }
+            else if (ID && String_StartsWith(Line, S("ID="), false))
+            {
+                String Name = StrShiftF(Line, 3);
+
+                String_Copy(ID, Name);
+                bGotID = true;
+                bGotFromOsRelease = true;
+            }
+            
+            if (bGotName && bGotPretty && bGotID)
+            {
+                break;
+            }
+        }
+
+        Filesystem_Close(&f);
+    }
+
+
+    // fallback just in case, look in the Linux Standard Base release file
+    if (!bGotFromOsRelease)
+    {
+        f = (FileHandle){0};
+        if (Filesystem_Open(S("/etc/lsb-release"), FileMode_Read, &f))
+        {
+            StringLocal(Line, 128);
+            while (Filesystem_ReadLine(f, &Line))
+            {
+                if (String_StartsWith(Line, S("DISTRIB_ID="), false))
+                {
+                    String Name = StrShiftF(Line, 11);
+
+                    if (DistroName)
+                    {
+                        String_Copy(DistroName, Name);
+                    }
+
+                    if (PrettyName)
+                    {
+                        String_Copy(PrettyName, Name);
+                    }
+
+                    if (ID)
+                    {
+                        String_Copy(ID, Name);
+                    }
+
+                    break;
+                }
+            }
+
+            Filesystem_Close(&f);
+        }
+    }
+}
+
+NO_DISCARD EUnixDesktopEnvironment Platform_GetDesktopEnvironment(void)
+{
+    return gDesktopEnvironment;
+}
+
+NO_DISCARD bool Platform_DesktopIsGnome(void)
+{
+    return gDesktopEnvironment == Desktop_Gnome;
+}
+
+NO_DISCARD bool Platform_DesktopIsKDE(void)
+{
+    return gDesktopEnvironment == Desktop_KDE;
+}
+
+NO_DISCARD bool Platform_DesktopIsCinnamon(void)
+{
+    return gDesktopEnvironment == Desktop_Cinnamon;
+}
+#endif
 
 static FileHandle DevUrandomFile = {0};
 

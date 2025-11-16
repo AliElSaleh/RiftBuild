@@ -68,14 +68,6 @@ if windows
     }
 }
 
-# todo: make riftbuild handle this
-if linux
-{
-    if @XDG_CURRENT_DESKTOP contains GNOME    Defines __gnome__
-    if @XDG_CURRENT_DESKTOP contains KDE      Defines __kde__
-    if @XDG_CURRENT_DESKTOP contains Cinnamon Defines __cinnamon__
-}
-
 if rad
 {
     prebuild.exec  raddbg -ipc kill_all

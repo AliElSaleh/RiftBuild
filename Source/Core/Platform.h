@@ -35,6 +35,17 @@ ENUM(ECpuClipBehaviour)
     CpuClip_Both
 };
 
+// the list of known desktop environments where we change code paths.
+// we can detect all desktop environments, but just need a few here to
+// run specific code for a particular environment.
+ENUM(EUnixDesktopEnvironment)
+{
+    Desktop_Unknown,
+    Desktop_Gnome,
+    Desktop_KDE,
+    Desktop_Cinnamon
+};
+
 STRUCT(CpuInfo)
 {
     // Vendor
@@ -340,6 +351,16 @@ RIFT_API NO_DISCARD bool Platform_IsWindowFocused(void);
 RIFT_API NO_DISCARD bool Platform_IsConsoleFocused(void);
 
 RIFT_API NO_DISCARD u32 Platform_GetPosixVersion(void);
+
+#if PLATFORM_BSD || PLATFORM_LINUX
+RIFT_API            void Platform_DetectDesktopEnvironment(String* DesktopEnv, String* DesktopSession, String* SessionType);
+RIFT_API            void Platform_DetectDistro(String* DistroName, String* PrettyName, String* ID);
+
+RIFT_API NO_DISCARD EUnixDesktopEnvironment Platform_GetDesktopEnvironment(void);
+RIFT_API NO_DISCARD bool Platform_DesktopIsGnome(void);
+RIFT_API NO_DISCARD bool Platform_DesktopIsKDE(void);
+RIFT_API NO_DISCARD bool Platform_DesktopIsCinnamon(void);
+#endif
 
 RIFT_API NO_DISCARD i32 Rand(void);
 RIFT_API NO_DISCARD i32 RandFast(void);
