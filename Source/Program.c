@@ -8712,7 +8712,8 @@ static void InitInternalVars(LinearAllocator* Arena)
     AddInternalVariable(S("Unix"),      String_Null());
     #endif
 
-    #if PLATFORM_UNIX
+    // TODO: windows and macos
+    #if PLATFORM_LINUX || PLATFORM_BSD
     StringLocal(DesktopEnv, 128);
     StringLocal(DesktopSession, 128);
     StringLocal(DesktopSessionType, 128);
