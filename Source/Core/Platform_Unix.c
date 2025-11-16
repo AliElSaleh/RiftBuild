@@ -2032,6 +2032,13 @@ void Platform_DetectDesktopEnvironment(String* DesktopEnv, String* DesktopSessio
     if (DesktopEnv)
     {
         xx Platform_GetEnvironmentVariableValue(S("XDG_CURRENT_DESKTOP"), DesktopEnv);
+        
+        // in case we return "distro:env". just get the "env" part
+        u32 Colon = 0;
+        if (String_IndexOfChar(*DesktopEnv, ':', &Colon))
+        {
+            *DesktopEnv = StrShiftF(*DesktopEnv, Colon+1);
+        }
     }
 
     if (DesktopSession)
