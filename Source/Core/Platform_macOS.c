@@ -10,14 +10,15 @@
 #include "Filesystem.h"
 #include "Log.h"
 
-#undef internal
+//#undef internal
 #undef global
 
 #include <mach/mach_time.h>
 #include <dispatch/dispatch.h>
 #include <CoreFoundation/CoreFoundation.h>
+#include <SystemConfiguration/SystemConfiguration.h>
 
-#define static static
+//#define internal static
 #define global extern
 
 #include <stdio.h>
@@ -287,6 +288,26 @@ PlatformVersion Platform_GetVersion(void)
     CFRelease(plist);
 
     return Result;
+}
+
+void Platform_GetFriendlyComputerName(String* OutName)
+{
+    CFStringRef Name;
+    SCDynamicStoreRef Store = SCDynamicStoreCreate(NULL, CFSTR("GetComputerName"), NULL, NULL);
+
+    Name = SCDynamicStoreCopyComputerName(Store, NULL);
+    if (Name)
+    {
+        char Buffer[256] = {0};
+        if (CFStringGetCString(Name,Buffer, sizeof Buffer, kCFStringEncodingUTF8))
+        {
+            String_Copy(OutName, CStrEx(Buffer, 255));
+        }
+
+        CFRelease(Name);
+    }
+
+    CFRelease(Store);
 }
 
 #endif // PLATFORM_MAC

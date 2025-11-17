@@ -991,7 +991,13 @@ void Platform_GetComputerName(String* OutName)
     }
 }
 
-// TODO: test and verify
+#if !PLATFORM_MAC
+void Platform_GetFriendlyComputerName(String* OutName)
+{
+    Platform_GetComputerName(OutName);
+}
+#endif
+
 bool Platform_GetUserDirectory(String* OutDirectory)
 {
     // check the passwd database first as it is the real user's home directory
@@ -1014,14 +1020,24 @@ bool Platform_GetUserDirectory(String* OutDirectory)
 
 void Platform_GetHomeDirectory(String* OutDirectory)
 {
-    // read the env var
+    // query the user database
+    {
+        struct passwd* pw = getpwuid(getuid());
+        if (pw && pw->pw_dir)
+        {
+            String_Copy(OutDirectory, CStrEx(pw->pw_dir, MAX_PATH_LENGTH));
+            return;
+        }
+    }
+
+    // Fallback: read the env var
     {
         StringLocal(Result, MAX_PATH_LENGTH);
         if (Platform_GetEnvironmentVariableValue(S("HOME"), &Result))
         {
             if (String_IsValid(Result))
             {
-                if (access((char*)Result.Data, F_OK))
+                // if (access((char*)Result.Data, F_OK))
                 {
                     String_Copy(OutDirectory, Result);
                     return;
@@ -1037,7 +1053,7 @@ void Platform_GetHomeDirectory(String* OutDirectory)
         {
             if (String_IsValid(Result))
             {
-                if (access((char*)Result.Data, F_OK))
+                // if (access((char*)Result.Data, F_OK))
                 {
                     String_Copy(OutDirectory, Result);
                     return;

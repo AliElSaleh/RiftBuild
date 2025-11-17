@@ -8408,11 +8408,15 @@ static void InitInternalVars(LinearAllocator* Arena)
         AddInternalVariable(S("_UserDirectory"), AllocatedHome);
     }
 
-    StringLocal(ComputerName, 256);
-    Platform_GetComputerName(&ComputerName);
-    Allocated = String_Create(Arena, ComputerName);
+    StringLocal(HostName, 256);
+    Platform_GetComputerName(&HostName);
+    Allocated = String_Create(Arena, HostName);
     AddInternalVariable(S("_Host"), Allocated);
     AddInternalVariable(S("_HostName"), Allocated);
+    
+    StringLocal(ComputerName, 256);
+    Platform_GetFriendlyComputerName(&ComputerName);
+    Allocated = String_Create(Arena, ComputerName);
     AddInternalVariable(S("_ComputerName"), Allocated);
 
     FileVariable_Empty.Name = String_Null();

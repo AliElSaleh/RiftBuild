@@ -327,6 +327,7 @@ RIFT_API NO_DISCARD bool Platform_DoesEnvironmentVariableExist(String Name);
 RIFT_API NO_DISCARD u32 Platform_GetNumLogicalProcessors(void);
 
 RIFT_API            void Platform_GetComputerName(String* OutName);
+RIFT_API            void Platform_GetFriendlyComputerName(String* OutName);
 RIFT_API NO_DISCARD bool Platform_GetAccountName(String* OutName);
 RIFT_API NO_DISCARD bool Platform_GetUserName(String* OutName);
 RIFT_API NO_DISCARD bool Platform_GetUserDirectory(String* OutDirectory);

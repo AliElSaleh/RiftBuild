@@ -587,6 +587,11 @@ void Platform_GetComputerName(String* OutName)
     }
 }
 
+void Platform_GetFriendlyComputerName(String* OutName)
+{
+    Platform_GetComputerName(OutName);
+}
+
 NO_DISCARD bool Platform_GetAccountName(String* OutName)
 {
     u8 UserName[256] = {0};
