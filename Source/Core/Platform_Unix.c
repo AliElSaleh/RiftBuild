@@ -51,7 +51,9 @@
 
 #include <stdarg.h>
 
+#if PLATFORM_LINUX || PLATFORM_BSD
 static EUnixDesktopEnvironment gDesktopEnvironment = Desktop_Unknown;
+#endif
 
 #ifndef NO_LOG 
 static void LogLastError(const String Prefix)
@@ -86,6 +88,7 @@ void Platform_PreInitialize(void)
     sigaction(SIGABRT, &act, NULL);
     sigaction(SIGSEGV, &act, NULL);
     
+    #if PLATFORM_LINUX || PLATFORM_BSD
     StringLocal(DesktopEnvName, 128);
     Platform_DetectDesktopEnvironment(&DesktopEnvName, NULL, NULL);
     if (String_Contains(DesktopEnvName, S("KDE"), false))
@@ -103,6 +106,7 @@ void Platform_PreInitialize(void)
     else
     {
     }
+    #endif
 }
 
 f64 Platform_GetClockFrequency(void)

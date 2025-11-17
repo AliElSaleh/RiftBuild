@@ -278,7 +278,7 @@ PlatformVersion Platform_GetVersion(void)
     if (versionString)
     {
         StringLocal(Version, 32);
-        if (CFStringGetCString(versionString, (char*)Version.Data, Version.Capacity, kCFStringEncodingUTF8))
+        if (CFStringGetCString(versionString, (char*)Version.Data, (i32)Version.Capacity, kCFStringEncodingUTF8))
         {
             sscanf((const char*)Version.Data, "%d.%d.%d", &Result.Major, &Result.Minor, &Result.Patch);
         }
