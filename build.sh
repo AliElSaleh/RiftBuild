@@ -21,7 +21,7 @@ if [ "$unamestr" = 'Linux' ]; then
 
 elif [ "$unamestr" = 'Darwin' ]; then
     Platform='macOS'
-    MacLinkerFlags="-framework Foundation"
+    MacLinkerFlags="-framework Foundation -framework SystemConfiguration"
 elif [ "$unamestr" = 'OpenBSD' ]; then
     Platform='BSD'
     BSDLinkerFlags="-lpthread"
