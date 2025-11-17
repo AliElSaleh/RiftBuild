@@ -14,6 +14,7 @@ global bool bNoWordWrapLogging;
 global bool bHelp;
 global bool bOptions;
 global bool bWasVCVarsBatchExecuted;
+global bool bVerboseLog;
 
 STRUCT(FileVariable)
 {
@@ -204,6 +205,8 @@ STRUCT(BuildParams)
     String VisualStudioIncludePath;
     String VisualStudioLibraryPath;
 
+    String Timestamp;
+
     StringList SourceFiles;
 
     LinearAllocator* Arena;
@@ -342,5 +345,9 @@ bool Export_IconRC(const String Path, const String IconFilePath);
 bool Export_License(const String LicenseType, const BuildParams* Params, const String OutputPath);
 
 bool Export_FromArg(LinearAllocator Scratch, const BuildParams* Params, const String Arg, TArray(FileVariable) ExpandedVariablesDB);
+
+#if PLATFORM_LINUX || PLATFORM_BSD
+bool TryBuildOrCleanUnixExeIcon(String IconFilePath, const BuildParams* Params);
+#endif
 
 #endif // _BACKEND_H_
