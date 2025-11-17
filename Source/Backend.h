@@ -146,6 +146,8 @@ STRUCT(BuildParams)
     String IntermediateDirectory;     // relative
     String IntermediateBaseDirectory; // absolute (it is root + intermediate combined)
 
+    String BuildFileName;
+
     String PCHPath;
     String PCHHeaderPath;
 
@@ -348,6 +350,11 @@ bool Export_FromArg(LinearAllocator Scratch, const BuildParams* Params, const St
 
 #if PLATFORM_LINUX || PLATFORM_BSD
 bool TryBuildOrCleanUnixExeIcon(String IconFilePath, const BuildParams* Params);
+#endif
+
+#if PLATFORM_APPLE
+bool TryBuildOrCleanMacExeIcon(String IconFilePath, const BuildParams* Params);
+bool TryBuildMacBundle(LinearAllocator Scratch, const BuildParams* Params, TArray(FileVariable) VariablesDB);
 #endif
 
 #endif // _BACKEND_H_
