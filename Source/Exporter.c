@@ -1047,6 +1047,8 @@ bool Export_FromArg(LinearAllocator Scratch, const BuildParams* Params, const St
                                                     String_IsEqual(*var, S("icon.rc"), false);
         //const bool bGenVisualStudio             = String_IsEqual(*var, S("export:visual_studio"), false);
         //const bool bGenXCode                    = String_IsEqual(*var, S("export:xcode"), false);
+        const bool bGenWindowsBatchScript         = String_IsEqual(*var, S("bat"), false);
+        const bool bGenUnixShellScript            = String_IsEqual(*var, S("sh"), false);
 
         const bool bLicense                       = String_IsEqual(*var, S("license"), false) ||
                                                     String_IsEqual(*var, S("license="), false);
@@ -1061,7 +1063,69 @@ bool Export_FromArg(LinearAllocator Scratch, const BuildParams* Params, const St
         const bool bLicenseUnlicense              = String_IsEqual(*var, S("license=Unlicense"), false) ||
                                                     String_IsEqual(*var, S("unlicense"), false);
 
-        if (bGenCompileCommandsJSON || bGenCompileCommandsJSONOneLine)
+        if (bGenWindowsBatchScript)
+        {
+            if (bQuietBuild) { Logging_Enable(); }
+
+            StringLocal(BatPath, MAX_PATH_LENGTH);
+            String_BuildPath(&BatPath, Params->IntermediateDirectory, S("build"));
+            String_Append(&BatPath, S(".bat"));
+
+            LOG("Generating %S ...", BatPath);
+
+            Clock c;
+            Clock_Start(&c);
+
+            if (!Export_WindowsBatchScript(Params))
+            {
+                bSuccess = false;
+                break;
+            }
+
+            Clock_Tick(&c);
+
+            StringLocal(ExportTimeString, 32);
+            Clock_GetElapsedTime_ToString(&c, true, &ExportTimeString);
+            LOG("\nExport time: %S", ExportTimeString);
+
+            LOG_SUCCESS("\n\"%S\"", BatPath);
+
+            if (bQuietBuild) { Logging_Disable(); }
+
+            bAnyExported = true;
+        }
+        else if (bGenUnixShellScript)
+        {
+            if (bQuietBuild) { Logging_Enable(); }
+
+            StringLocal(ShPath, MAX_PATH_LENGTH);
+            String_BuildPath(&ShPath, Params->IntermediateDirectory, S("build"));
+            String_Append(&ShPath, S(".sh"));
+
+            LOG("Generating %S ...", ShPath);
+
+            Clock c;
+            Clock_Start(&c);
+
+            if (!Export_UnixShellScript(Params))
+            {
+                bSuccess = false;
+                break;
+            }
+
+            Clock_Tick(&c);
+
+            StringLocal(ExportTimeString, 32);
+            Clock_GetElapsedTime_ToString(&c, true, &ExportTimeString);
+            LOG("\nExport time: %S", ExportTimeString);
+
+            LOG_SUCCESS("\n\"%S\"", ShPath);
+
+            if (bQuietBuild) { Logging_Disable(); }
+
+            bAnyExported = true;
+        }
+        else if (bGenCompileCommandsJSON || bGenCompileCommandsJSONOneLine)
         {
             if (bQuietBuild) { Logging_Enable(); }
 
@@ -2141,3 +2205,122 @@ bool TryBuildMacBundle(LinearAllocator Scratch, const BuildParams* Params, TArra
     return true;
 }
 #endif
+
+bool Export_WindowsBatchScript(const BuildParams* Params)
+{
+    if (NEVER(Params == NULL)) { return false; }
+
+    bool bSuccess = false;
+
+    StringLocal(ExportPath, MAX_PATH_LENGTH);
+    String_BuildPath(&ExportPath, Params->IntermediateDirectory, S("__Exports"), S("build"));
+    String_Append(&ExportPath, S(".bat"));
+
+    // TODO: Linker flags not here when using Linker. whatever keys. fix this
+
+    FileHandle f = {0};
+    if (Filesystem_Open(ExportPath, FileMode_Write, &f))
+    {
+        xx Filesystem_WriteLine(f, S("@echo off\n"), NULL);
+        xx Filesystem_WriteLine(f, S("\nset ScriptPath=%~dp0\n\n"), NULL);
+
+        xx Filesystem_WriteLineFormatted(f, S("set CompilerFlags=%S\n"), NULL, Params->CompilerFlags);
+        xx Filesystem_WriteLineFormatted(f, S("set LinkerFlags=%S\n"),   NULL, Params->LinkerFlags);
+        xx Filesystem_WriteLineFormatted(f, S("set IncludeFlags=%S\n"),  NULL, Params->IncludeFlags);
+        xx Filesystem_WriteLineFormatted(f, S("set Defines=%S\n"),       NULL, Params->DefineFlags);
+        xx Filesystem_WriteLineFormatted(f, S("set UnDefines=%S\n"),     NULL, Params->UnDefineFlags);
+        xx Filesystem_WriteLineFormatted(f, S("set Libraries=%S\n"),     NULL, Params->Libraries);
+        xx Filesystem_WriteLineFormatted(f, S("set LibraryPaths=%S\n"),  NULL, Params->LibraryDirectories);
+
+        xx Filesystem_WriteLineFormatted(f, S("\necho Compiling sources (%S)\n"), NULL, S(PLATFORM_STRING));
+
+        xx Filesystem_WriteLineFormatted(f, S("\n\"%S\" ^\n"), NULL, Params->CompilerPath);
+
+        for each_string_in_list (Params->SourceFiles)
+        {
+            String SourceRelativePath = It.String;
+
+            StringLocal(Path, MAX_PATH_LENGTH);
+            String_BuildPath(&Path, Params->SourceDirectory, SourceRelativePath);
+            xx Filesystem_WriteLineFormatted(f, S("    \"%S\" ^\n"), NULL, Path);
+        }
+
+        xx Filesystem_WriteLine(f, S("    %CompilerFlags% ^\n    %Defines% ^\n    %IncludeFlags% ^\n"), NULL);
+        xx Filesystem_WriteLineFormatted(f, S("    -o %S ^\n"), NULL, Params->AssemblyWithExt);
+        xx Filesystem_WriteLine(f, S("    %LinkerFlags% ^\n    %LibraryPaths% ^\n    %Libraries% || goto end\n"), NULL);
+
+
+        xx Filesystem_WriteLineFormatted(f, S("\necho [32m  Done: %S%S[0m\n"), NULL, Params->BuildDirectory, Params->AssemblyWithExt);
+
+        xx Filesystem_WriteLine(f, S(
+            "\n:end\n"
+            ":: pause if we double clicked this in a file explorer\n"
+            "setlocal enabledelayedexpansion\n"
+            "set testl=%cmdcmdline:\"=%\n"
+            "set testr=!testl:%~nx0=!\n"
+            "if not \"%testl%\" == \"%testr%\" pause\n"
+        ), NULL);
+
+        Filesystem_Close(&f);
+        bSuccess = true;
+    }
+
+    return bSuccess;
+}
+
+
+// If you run this on a non-Unix system, then you will export incorrect compiler paths 
+// and output executable extension. so it's best to just run this on a unix OS.
+bool Export_UnixShellScript(const BuildParams* Params)
+{
+    if (NEVER(Params == NULL)) { return false; }
+
+    bool bSuccess = false;
+
+    StringLocal(ExportPath, MAX_PATH_LENGTH);
+    String_BuildPath(&ExportPath, Params->IntermediateDirectory, S("__Exports"), S("build"));
+    String_Append(&ExportPath, S(".sh"));
+
+    // TODO: Linker flags not here when using Linker. whatever keys. fix this
+
+    FileHandle f = {0};
+    if (Filesystem_Open(ExportPath, FileMode_Write, &f))
+    {
+        xx Filesystem_WriteLine(f, S("#!/bin/sh\n\n"), NULL);
+        xx Filesystem_WriteLine(f, S("set -e\n\n"), NULL);
+
+        xx Filesystem_WriteLine(f, S("Platform=$(uname)\n"), NULL);
+
+        xx Filesystem_WriteLineFormatted(f, S("CompilerFlags=\"%S\"\n"), NULL, Params->CompilerFlags);
+        xx Filesystem_WriteLineFormatted(f, S("LinkerFlags=\"%S\"\n"),   NULL, Params->LinkerFlags);
+        xx Filesystem_WriteLineFormatted(f, S("IncludeFlags=\"%S\"\n"),  NULL, Params->IncludeFlags);
+        xx Filesystem_WriteLineFormatted(f, S("Defines=\"%S\"\n"),       NULL, Params->DefineFlags);
+        xx Filesystem_WriteLineFormatted(f, S("UnDefines=\"%S\"\n"),     NULL, Params->UnDefineFlags);
+        xx Filesystem_WriteLineFormatted(f, S("Libraries=\"%S\"\n"),     NULL, Params->Libraries);
+        xx Filesystem_WriteLineFormatted(f, S("LibraryPaths=\"%S\"\n"),  NULL, Params->LibraryDirectories);
+
+        xx Filesystem_WriteLine(f, S("\necho Compiling sources (${Platform})\n"), NULL);
+
+        xx Filesystem_WriteLineFormatted(f, S("\n\"%S\" \\\n"), NULL, Params->CompilerPath);
+
+        for each_string_in_list (Params->SourceFiles)
+        {
+            String SourceRelativePath = It.String;
+
+            StringLocal(Path, MAX_PATH_LENGTH);
+            String_BuildPath(&Path, Params->SourceDirectory, SourceRelativePath);
+            xx Filesystem_WriteLineFormatted(f, S("    \"%S\" \\\n"), NULL, Path);
+        }
+
+        xx Filesystem_WriteLine(f, S("    ${CompilerFlags} \\\n    ${Defines} \\\n    ${IncludeFlags} \\\n"), NULL);
+        xx Filesystem_WriteLineFormatted(f, S("    -o %S \\\n"), NULL, Params->AssemblyWithExt);
+        xx Filesystem_WriteLine(f, S("    ${LinkerFlags} \\\n    ${LibraryPaths} \\\n    ${Libraries}\n"), NULL);
+
+        xx Filesystem_WriteLineFormatted(f, S("\nprintf \"\033[0;32m  Done: %S%S\033[0m\\n\"\n"), NULL, Params->BuildDirectory, Params->AssemblyWithExt);
+
+        Filesystem_Close(&f);
+        bSuccess = true;
+    }
+
+    return bSuccess;
+}

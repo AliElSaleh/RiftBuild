@@ -342,6 +342,8 @@ bool Export_VersionPlist(LinearAllocator Arena, const BuildParams* Params, const
 bool Export_PkgInfo(const String AssemblyName, const String Path);
 bool Export_VersionRC(const BuildParams* Params, const String Path);
 bool Export_IconRC(const String Path, const String IconFilePath);
+bool Export_WindowsBatchScript(const BuildParams* Params);
+bool Export_UnixShellScript(const BuildParams* Params);
 
 // LicenseType: BSD2, BSD3, MIT, FuckYou, Unlicense
 bool Export_License(const String LicenseType, const BuildParams* Params, const String OutputPath);
