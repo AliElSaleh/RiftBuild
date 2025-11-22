@@ -4710,7 +4710,15 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                     for each_string_in_list (Paths)
                     {
                         StringLocal(Temp, MAX_PATH_LENGTH);
-                        String_BuildPath(&Temp, S("\""), RelativeWorkingPathFromMe, It.String, S("\""),);
+			if (Filesystem_IsPathRelative(It.String))
+			{
+                            String_BuildPath(&Temp, S("\""), RelativeWorkingPathFromMe, It.String, S("\""),);
+			}
+			else
+			{
+			    String_Copy(&Temp, It.String);
+			}
+
                         AddOrAppendVariable(Arena, VariablesDB, S("Library.Paths"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Library.Paths")));
                         AddOrAppendVariable(Arena, VariablesDB, S("Library.Paths.Public"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Library.Paths")));
                     }
@@ -4721,7 +4729,15 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                     for each_string_in_list (Paths)
                     {
                         StringLocal(Temp, MAX_PATH_LENGTH);
-                        String_BuildPath(&Temp, S("\""), RelativeWorkingPathFromMe, It.String, S("\""),);
+			if (Filesystem_IsPathRelative(It.String))
+			{
+                            String_BuildPath(&Temp, S("\""), RelativeWorkingPathFromMe, It.String, S("\""),);
+			}
+			else
+			{
+			    String_Copy(&Temp, It.String);
+			}
+
                         AddOrAppendVariable(Arena, VariablesDB, S("Includes"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Includes")));
                         AddOrAppendVariable(Arena, VariablesDB, S("Includes.Public"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Includes")));
                     }
@@ -4739,8 +4755,8 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                 bool bIsSpecial = String_IsEqual(Var.Params, S("Rebuild_If_Done_Work"), false);
                 if (!bIsRebuild && bIsSpecial)
                 {
-                    LOG("\nDependency \"%S\" was modified. Forcing rebuild...", BuildFileNameWithExt);
-                    bIsRebuild = true;
+                    //LOG("\nDependency \"%S\" was modified. Forcing rebuild...", BuildFileNameWithExt);
+                    //bIsRebuild = true;
                 }
             }
             else if (FreshReceipt.ExitCode != 0)
