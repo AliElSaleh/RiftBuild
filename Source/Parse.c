@@ -2705,6 +2705,149 @@ static bool IsOptionBinary(StringList Parameters)
     return bIsBinaryOption;
 }
 
+static void Analyze_KVNode_Option(LinearAllocator* Arena, Node* Root, ParsingContext* Context)
+{
+    StringLocal(FinalKey, MAX_KEY_LENGTH);
+    StringLocal(Val,      8192);
+    StringLocal(Params,   MAX_META_KEY_LENGTH);
+
+    // this is a namespace basically
+    // SomeKey {
+    //     AnotherKey some value
+    // }
+    // 
+    // which will become one key: SomeKey.AnotherKey some value
+    {
+        Node* NextParent = Root->Parent;
+        String ParentKeys[64] = {0};
+        u8 i = 0;
+        while (NextParent)
+        {
+            ParentKeys[i] = NextParent->Key;
+            NextParent = NextParent->Parent;
+            i++;
+        }
+        if (i > 0)
+        {
+            for (i8 j = (i8)i-1; j >= 0; j--)
+            {
+                String_AppendF(&FinalKey, S("%S."), ParentKeys[j]);
+            }
+            String_Append(&FinalKey, Root->Key);
+        }
+        else
+        {
+            FinalKey = Root->Key;
+        }
+    }
+
+    if (Root->Value)
+    {
+        for each_string_in_list (*Root->Value)
+        {
+            String_Append(&Val, It.String);
+        }
+
+        xx String_EatSpacesInlineFromEnd(&Val);
+    }
+
+    if (Root->Parameters)
+    {
+        for each_string_in_list (*Root->Parameters)
+        {
+            String_Append(&Params, It.String);
+            String_AppendSpace(&Params);
+        }
+
+        xx String_EatSpacesInlineFromEnd(&Params);
+    }
+
+    // make sure this is an actual option.something key with no additional children keys
+    if (String_StartsWith(FinalKey, S("option."), false) && !Root->Parent)
+    {
+        String OptionName = StrShiftF(FinalKey, 7);
+        String OptionValue = String_Null();
+
+        // does the cmd line for this option already exist?
+        CmdOption* OptionPtr = NULL;
+        for each (CmdOption, o, Context->CmdOptionsDB)
+        {
+            bool bMatch = String_IsEqual(o.Name, OptionName, false);
+            if (bMatch)
+            {
+                OptionPtr = o_;
+                break;
+            }
+        }
+
+        bool bIsOptionEnabled = false;
+        bool bIsBinaryOption = true;
+        if (Root->Parameters)
+        {
+            bIsBinaryOption = IsOptionBinary(*Root->Parameters);
+
+            if (bIsBinaryOption)
+            {
+                // param default value
+                bIsOptionEnabled = IsOptionOn(Root->Parameters->String);
+
+                // does the cmd line turn this option on or off?
+                if (bIsOptionEnabled)
+                {
+                    usize i = 0;
+                    for each_i (i, CmdOption, o, Context->CmdOptionsDB)
+                    {
+                        if (String_IsFirst(o.Name, '!'))
+                        {
+                            bool bMatch = String_IsEqual(StrShiftF(o.Name, 1), OptionName, false);
+                            if (bMatch)
+                            {
+                                bIsOptionEnabled = false;
+                            }
+                        }
+                        else
+                        {
+                            bool bMatch = String_IsEqual(o.Name, OptionName, false);
+                            if (bMatch && o.Value.Length)
+                            {
+                                bIsOptionEnabled = IsOptionOn(o.Value);
+                            }
+                        }
+
+                        if (!bIsOptionEnabled)
+                        {
+                            Array_RemoveAt(Context->CmdOptionsDB, NULL, i);
+                            break;
+                        }
+                    }
+                }
+            }
+            else
+            {
+                bIsOptionEnabled = true;
+                OptionValue = Root->Parameters->String;
+
+                if (OptionPtr)
+                {
+                    OptionValue = OptionPtr->Value;
+                }
+            }
+        }
+
+        if (bIsOptionEnabled)
+        {
+            AddCmdOption(Context->CmdOptionsDB, String_Create(Arena, OptionName), String_Create(Arena, OptionValue));
+        }
+
+        if (bIsBinaryOption)
+        {
+            Params.Length = 0;
+        }
+
+        AddVariableToList(Arena, Context, FinalKey, Val, Params);
+    }
+}
+
 static void Analyze_KVNode(LinearAllocator* Arena, Node* Root, ParsingContext* Context)
 {
     StringLocal(FinalKey, MAX_KEY_LENGTH);
@@ -2766,9 +2909,14 @@ static void Analyze_KVNode(LinearAllocator* Arena, Node* Root, ParsingContext* C
     
     if (!Root->Parent)
     {
-        bCanAddToList = !(String_StartsWith(FinalKey, S("option."), false));
-        // bCanAddToList = !(String_StartsWith(FinalKey, S("option."), false) ||
-                        //   String_IsEqual(FinalKey, S("Compiler"), false));
+        bool bIsOptionKey = String_StartsWith(FinalKey, S("option."), false);
+
+        bCanAddToList = !bIsOptionKey;
+        
+        if (bIsOptionKey)
+        {
+            Analyze_KVNode_Option(Arena, Root, Context);
+        }
     }
 
     if (bCanAddToList)
@@ -2864,10 +3012,24 @@ NO_DISCARD static NodeList* Analyze_IfNode(LinearAllocator* Arena, Node* Root, P
                         {
                             if (String_IsEqual(v.Name, Condition, false))
                             {
+                                // is this a binary value?
+                                bool bOn = String_IsEqual(v.Value, S("1"), false);
+                                bool bOff = String_IsEqual(v.Value, S("0"), false);
+                                bool bIsBinary = bOn || bOff;
+
                                 VarValue = v.Value;
-                                bConditionMet = c.ComparisonOp == Token_None;
                                 bFoundVar = true;
                                 bFoundSomething = true;
+                                
+                                if (c.ComparisonOp != Token_None)
+                                {
+                                    bConditionMet = false; // evaluated later down...
+                                }
+                                else
+                                {
+                                    bConditionMet = !bIsBinary || (bIsBinary && bOn);
+                                }
+
                                 break;
                             }
                         }
@@ -3766,42 +3928,23 @@ static void StoreKVNodeAsCmdOption(LinearAllocator* Arena, const String Key, Nod
 
 static bool Analyze_Compiler(LinearAllocator* Arena, Node* Block, ParsingContext* Context)
 {
-    StoreKVNodeAsCmdOption(Arena, S("Compiler"), Block, Context);
+    StoreKVNodeAsCmdOption(Arena, S("Compiler"),  Block, Context);
     StoreKVNodeAsCmdOption(Arena, S("Assembler"), Block, Context);
-    StoreKVNodeAsCmdOption(Arena, S("Linker"), Block, Context);
-    StoreKVNodeAsCmdOption(Arena, S("Archiver"), Block, Context);
+    StoreKVNodeAsCmdOption(Arena, S("Linker"),    Block, Context);
+    StoreKVNodeAsCmdOption(Arena, S("Archiver"),  Block, Context);
 
-    String CompilerProgram = GetCmdOptionValue(Context->CmdOptionsDB, S("Compiler"));
-    // if (CompilerProgram.Length == 0)
-    // {
-    //     CompilerProgram = GetVarValueInList(Context->VarListHead, S("Compiler"));
-    // }
-
+    String CompilerProgram  = GetCmdOptionValue(Context->CmdOptionsDB, S("Compiler"));
     String AssemblerProgram = GetCmdOptionValue(Context->CmdOptionsDB, S("Assembler"));
-    // if (AssemblerProgram.Length == 0)
-    // {
-    //     AssemblerProgram = GetVarValueInList(Context->VarListHead, S("Assembler"));
-    // }
+    String LinkerProgram    = GetCmdOptionValue(Context->CmdOptionsDB, S("Linker"));
+    String ArchiverProgram  = GetCmdOptionValue(Context->CmdOptionsDB, S("Archiver"));
 
-    String LinkerProgram = GetCmdOptionValue(Context->CmdOptionsDB, S("Linker"));
-    // if (LinkerProgram.Length == 0)
-    // {
-    //     LinkerProgram = GetVarValueInList(Context->VarListHead, S("Linker"));
-    // }
-
-    String ArchiverProgram = GetCmdOptionValue(Context->CmdOptionsDB, S("Archiver"));
-    // if (ArchiverProgram.Length == 0)
-    // {
-    //     ArchiverProgram = GetVarValueInList(Context->VarListHead, S("Archiver"));
-    // }
-
-    StringLocal(CompilerPath, MAX_PATH_LENGTH);
-    StringLocal(AssemblerPath, MAX_PATH_LENGTH);
-    StringLocal(LinkerPath, MAX_PATH_LENGTH);
-    StringLocal(ArchiverPath, MAX_PATH_LENGTH);
+    StringLocal(CompilerPath,        MAX_PATH_LENGTH);
+    StringLocal(AssemblerPath,       MAX_PATH_LENGTH);
+    StringLocal(LinkerPath,          MAX_PATH_LENGTH);
+    StringLocal(ArchiverPath,        MAX_PATH_LENGTH);
     StringLocal(CompilerInstallPath, MAX_PATH_LENGTH);
-    StringLocal(CompilerToolPath, MAX_PATH_LENGTH);
-    StringLocal(CompilerBasePath, MAX_PATH_LENGTH);
+    StringLocal(CompilerToolPath,    MAX_PATH_LENGTH);
+    StringLocal(CompilerBasePath,    MAX_PATH_LENGTH);
     StringLocal(CompilerIncludePath, MAX_PATH_LENGTH);
     StringLocal(CompilerLibraryPath, MAX_PATH_LENGTH);
 
@@ -3948,145 +4091,7 @@ static void Analyze_Options(LinearAllocator* Arena, Node* Block, ParsingContext*
         {
             if (Root->Type == Node_KeyValue)
             {
-                StringLocal(FinalKey, MAX_KEY_LENGTH);
-                StringLocal(Val,      8192);
-                StringLocal(Params,   MAX_META_KEY_LENGTH);
-
-                // this is a namespace basically
-                // SomeKey {
-                //     AnotherKey some value
-                // }
-                // 
-                // which will become one key: SomeKey.AnotherKey some value
-                {
-                    Node* NextParent = Root->Parent;
-                    String ParentKeys[64] = {0};
-                    u8 i = 0;
-                    while (NextParent)
-                    {
-                        ParentKeys[i] = NextParent->Key;
-                        NextParent = NextParent->Parent;
-                        i++;
-                    }
-                    if (i > 0)
-                    {
-                        for (i8 j = (i8)i-1; j >= 0; j--)
-                        {
-                            String_AppendF(&FinalKey, S("%S."), ParentKeys[j]);
-                        }
-                        String_Append(&FinalKey, Root->Key);
-                    }
-                    else
-                    {
-                        FinalKey = Root->Key;
-                    }
-                }
-
-                if (Root->Value)
-                {
-                    for each_string_in_list (*Root->Value)
-                    {
-                        String_Append(&Val, It.String);
-                    }
-
-                    xx String_EatSpacesInlineFromEnd(&Val);
-                }
-
-                if (Root->Parameters)
-                {
-                    for each_string_in_list (*Root->Parameters)
-                    {
-                        String_Append(&Params, It.String);
-                        String_AppendSpace(&Params);
-                    }
-
-                    xx String_EatSpacesInlineFromEnd(&Params);
-                }
-
-                // make sure this is an actual option.something key with no additional children keys
-                if (String_StartsWith(FinalKey, S("option."), false) && !Root->Parent)
-                {
-                    String OptionName = StrShiftF(FinalKey, 7);
-                    String OptionValue = String_Null();
-
-                    // does the cmd line for this option already exist?
-                    CmdOption* OptionPtr = NULL;
-                    for each (CmdOption, o, Context->CmdOptionsDB)
-                    {
-                        bool bMatch = String_IsEqual(o.Name, OptionName, false);
-                        if (bMatch)
-                        {
-                            OptionPtr = o_;
-                            break;
-                        }
-                    }
-
-                    bool bIsOptionEnabled = false;
-                    bool bIsBinaryOption = true;
-                    if (Root->Parameters)
-                    {
-                        bIsBinaryOption = IsOptionBinary(*Root->Parameters);
-
-                        if (bIsBinaryOption)
-                        {
-                            // param default value
-                            bIsOptionEnabled = IsOptionOn(Root->Parameters->String);
-
-                            // does the cmd line turn this option on or off?
-                            if (bIsOptionEnabled)
-                            {
-                                usize i = 0;
-                                for each_i (i, CmdOption, o, Context->CmdOptionsDB)
-                                {
-                                    if (String_IsFirst(o.Name, '!'))
-                                    {
-                                        bool bMatch = String_IsEqual(StrShiftF(o.Name, 1), OptionName, false);
-                                        if (bMatch)
-                                        {
-                                            bIsOptionEnabled = false;
-                                        }
-                                    }
-                                    else
-                                    {
-                                        bool bMatch = String_IsEqual(o.Name, OptionName, false);
-                                        if (bMatch && o.Value.Length)
-                                        {
-                                            bIsOptionEnabled = IsOptionOn(o.Value);
-                                        }
-                                    }
-
-                                    if (!bIsOptionEnabled)
-                                    {
-                                        Array_RemoveAt(Context->CmdOptionsDB, NULL, i);
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                        else
-                        {
-                            bIsOptionEnabled = true;
-                            OptionValue = Root->Parameters->String;
-
-                            if (OptionPtr)
-                            {
-                                OptionValue = OptionPtr->Value;
-                            }
-                        }
-                    }
-
-                    if (bIsOptionEnabled)
-                    {
-                        AddCmdOption(Context->CmdOptionsDB, String_Create(Arena, OptionName), String_Create(Arena, OptionValue));
-                    }
-
-                    if (bIsBinaryOption)
-                    {
-                        Params.Length = 0;
-                    }
-
-                    AddVariableToList(Arena, Context, FinalKey, Val, Params);
-                }
+                Analyze_KVNode_Option(Arena, Root, Context);
             }
         }
 

@@ -3046,7 +3046,7 @@ static bool Parameters_TryListVariables(LinearAllocator Scratch, const StringArr
                     {
                         PrintInternals();
 
-                        LOG_INLINE_WARNING("\nCommand Options\n");
+                        LOG_INLINE_WARNING("\nInternal Options\n");
 
                         u32 LongestName = 0;
 
