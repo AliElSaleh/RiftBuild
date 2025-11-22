@@ -15,7 +15,23 @@ set LibraryPaths=
 
 echo Compiling sources (Windows)
 
-clang "Source/Core/Memory.c" "Source/Core/StringUtils.c" "Source/Core/Log.c" "Source/Core/Platform_Core.c" "Source/Core/Platform_Windows.c" "Source/Program.c" "Source/Backend.c" "Source/Parse.c" "Source/Exporter.c" "Source/MicrosoftCraziness.c" %CompilerFlags% %Defines% %IncludeFlags% -o RiftBuild.exe %LinkerFlags% %LibraryPaths% %Libraries% || goto end
+clang "Source/Core/Memory.c" ^
+      "Source/Core/StringUtils.c" ^
+      "Source/Core/Log.c" ^
+      "Source/Core/Platform_Core.c" ^
+      "Source/Core/Platform_Windows.c" ^
+      "Source/Program.c" ^
+      "Source/Backend.c" ^
+      "Source/Parse.c" ^
+      "Source/Exporter.c" ^
+      "Source/MicrosoftCraziness.c" ^
+      %CompilerFlags% ^
+      %Defines% ^
+      %IncludeFlags% ^
+      -o RiftBuild.exe ^
+      %LinkerFlags% ^
+      %LibraryPaths% ^
+      %Libraries% || goto end
 
 echo [32m  Done: %ScriptPath%RiftBuild.exe[0m
 

@@ -41,6 +41,7 @@ constant
 
 #define Array_Remove(Array, Value)                    do { usize _Num_ = Array_Num(Array); if (_Num_ > 0) { for (usize _i_ = 0; _i_ < _Num_; _i_++) { if (Array[_i_] == Value) { Internal_ArrayRemoveAt(Array, NULL, _i_); break; } } Array_FieldSet(Array, ArrayField_Num, _Num_-1); } } while (0)
 
+#define Array_OwnsMemory(Array)                       Array_FieldGet(Array, ArrayField_OwnsMemory)
 #define Array_Capacity(Array)                         Array_FieldGet(Array, ArrayField_Capacity)
 #define Array_Num(Array)                              Array_FieldGet(Array, ArrayField_Num)
 #define Array_Stride(Array)                           Array_FieldGet(Array, ArrayField_Stride)

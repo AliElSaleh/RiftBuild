@@ -589,7 +589,20 @@ void Platform_GetComputerName(String* OutName)
 
 void Platform_GetFriendlyComputerName(String* OutName)
 {
-    Platform_GetComputerName(OutName);
+    constant { MAX_NAME_LENGTH = 256 };
+	local_persist char Result[MAX_NAME_LENGTH] = {0};
+
+    BOOL bSuccess = Result[0] != 0;
+	if (!bSuccess)
+	{
+		DWORD Size = MAX_NAME_LENGTH;
+		bSuccess = GetComputerNameEx(ComputerNamePhysicalDnsHostname, Result, &Size);
+	}
+
+    if (bSuccess && OutName)
+    {
+        String_Copy(OutName, CStrEx(Result, MAX_NAME_LENGTH));
+    }
 }
 
 NO_DISCARD bool Platform_GetAccountName(String* OutName)

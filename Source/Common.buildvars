@@ -34,7 +34,7 @@ if msvc
         SharedLinkerFlags            /DEBUG
 
         Library.Paths                "%Compiler.LibraryPath"
-        PostBuild.copy               "%Compiler.InstallPath\clang_rt.asan_dynamic-x86_64.dll" $BuildDirectory
+        PostBuild.copy               "%Compiler.InstallPath\clang_rt.asan_dynamic-x86_64.dll"     $BuildDirectory
         PostBuild.copy               "%Compiler.InstallPath\clang_rt.asan_dbg_dynamic-x86_64.dll" $BuildDirectory
     }
     else

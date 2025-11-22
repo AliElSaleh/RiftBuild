@@ -1530,466 +1530,516 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const FileVa
     const String Name   = Var.Name;
     const String Value  = Var.Value;
 
-    ASSERT(String_IsValid(Name));
-    ASSERT(String_IsValid(Value));
-    ASSERT(ExitCode != NULL);
-
-    LinearAllocator Scratch = Memory_GetScratch();
-    StringList ParamList    = String_SplitIntoList(&Scratch, Params, ' ', true);
-
-    bool bIgnoreErrors  = false;
-    bool bParam_NotExist = false;
-    for each_string_in_list (ParamList)
+    if (ALWAYS(String_IsValid(Name)) && ALWAYS(String_IsValid(Value)))
     {
-        if (String_IsEqual(It.String, S("ignore_exit_code"), false) ||
-            String_IsEqual(It.String, S("ignore_error"), false) ||
-            String_IsEqual(It.String, S("ignore_errors"), false))
-        {
-            bIgnoreErrors = true;
-        }
-        else if (String_IsEqual(It.String, S("if_not_exist"), false))
-        {
-            bParam_NotExist = true;
-        }
-    }
+        LinearAllocator Scratch = Memory_GetScratch();
+        StringList ParamList    = String_SplitIntoList(&Scratch, Params, ' ', true);
 
-    if (String_EndsWith(Name, S("Cmd"), false) ||
-        String_EndsWith(Name, S("Exec"), false) ||
-        String_EndsWith(Name, S("Command"), false) ||
-        String_EndsWith(Name, S("Execute"), false))
-    {
-        const String Cmd = Value;
-
-        StringLocal(CmdLine, 8192);
-
-        #if PLATFORM_WINDOWS
-        String_Append(&CmdLine, S("cmd.exe /c \""));
-        String_Append(&CmdLine, Cmd);
-        String_AppendChar(&CmdLine, '"');
-        #else
-        String_Append(&CmdLine, Cmd);
-        #endif
-
-        #ifndef HOOD
-        LOG(" > %S", Cmd);
-        #else
-        LOG("da cmd: %S", Cmd);
-        #endif
-
-        bool bNoWait = false;
+        bool bIgnoreErrors  = false;
+        bool bParam_NotExist = false;
         for each_string_in_list (ParamList)
         {
-            if (String_IsEqual(It.String, S("no_wait"), false))
+            if (String_IsEqual(It.String, S("ignore_exit_code"), false) ||
+                String_IsEqual(It.String, S("ignore_error"), false) ||
+                String_IsEqual(It.String, S("ignore_errors"), false))
             {
-                bNoWait = true;
-                break;
+                bIgnoreErrors = true;
+            }
+            else if (String_IsEqual(It.String, S("if_not_exist"), false))
+            {
+                bParam_NotExist = true;
             }
         }
 
-        PlatformHandle Handle = Platform_RunCommand(CmdLine, WorkingDirectory, String_Null());
-        if (Platform_IsValidHandle(Handle))
+        if (String_EndsWith(Name, S("Cmd"), false) ||
+            String_EndsWith(Name, S("Exec"), false) ||
+            String_EndsWith(Name, S("Command"), false) ||
+            String_EndsWith(Name, S("Execute"), false))
         {
-            if (!bNoWait)
+            const String Cmd = Value;
+
+            StringLocal(CmdLine, 8192);
+
+            #if PLATFORM_WINDOWS
+            String_Append(&CmdLine, S("cmd.exe /c \""));
+            String_Append(&CmdLine, Cmd);
+            String_AppendChar(&CmdLine, '"');
+            #else
+            String_Append(&CmdLine, Cmd);
+            #endif
+
+            #ifndef HOOD
+            LOG(" > %S", Cmd);
+            #else
+            LOG("da cmd: %S", Cmd);
+            #endif
+
+            bool bNoWait = false;
+            for each_string_in_list (ParamList)
             {
-                *ExitCode = Platform_WaitForProcessAndGetExitCode(Handle);
-            }
-        }
-        else
-        {
-            *ExitCode = 1;
-        }
-
-        if (*ExitCode != 0 && !bIgnoreErrors)
-        {
-            bSuccess = false;
-        }
-    }
-    else if (String_EndsWith(Name, S("Copy"), false))
-    {
-        const String Cmd = Value;
-
-        StringList ArgList          = String_SplitIntoList(&Scratch, Value, ' ', true);
-        String SourceFile           = StringList_GetStringFromIndex(ArgList, 0);
-        String DestinationDirectory = StringList_GetStringFromIndex(ArgList, 1);
-
-        StringLocal(FullSourcePath, MAX_PATH_LENGTH);
-        if (Filesystem_IsPathRelative(SourceFile))
-        {
-            String_BuildPath(&FullSourcePath, WorkingDirectory, SourceFile);
-        }
-        else
-        {
-            String_BuildPath(&FullSourcePath, SourceFile);
-        }
-
-        xx Filesystem_ConvertRelativeToAbsolutePath(&FullSourcePath);
-
-        StringLocal(FullDestPath, MAX_PATH_LENGTH);
-        String_BuildPath(&FullDestPath, WorkingDirectory, DestinationDirectory);
-
-        // TODO: remove, handle on linux/mac/bsd. already done on windows
-        if (String_IsLast(DestinationDirectory, '/') ||
-            String_IsLast(DestinationDirectory, '\\'))
-        {
-            u32 LastSlash = 0;
-            xx String_IndexOfLastPathSlash(SourceFile, &LastSlash);
-            String_BuildPath(&FullDestPath, StrShiftF(SourceFile, LastSlash == 0 ? 0 : LastSlash+1));
-        }
-
-        xx Filesystem_ConvertRelativeToAbsolutePath(&FullDestPath);
-
-        // only copy if dest does not exist
-        bool bDestExist = false;
-        if (bParam_NotExist)
-        {
-            u32 LastDot = 0;
-            xx String_IndexOfLastChar(FullDestPath, '.', &LastDot);
-
-            bool bHasExtension = false;
-            bool bHasPathSeparator = String_IndexOfFirstPathSlash(StrShiftF(FullDestPath, LastDot), NULL);
-            if (!bHasPathSeparator)
-            {
-                bHasExtension = true;
-            }
-
-            if (bHasExtension)
-            {
-                if (Filesystem_DoesFileExist(FullDestPath))
+                if (String_IsEqual(It.String, S("no_wait"), false))
                 {
-                    LOG("[Skipping] Copy: %S", Cmd);
-                    bDestExist = true;
+                    bNoWait = true;
+                    break;
                 }
             }
-            else
+
+            PlatformHandle Handle = Platform_RunCommand(CmdLine, WorkingDirectory, String_Null());
+            u32 ProcessCode = 1;
+            if (Platform_IsValidHandle(Handle))
             {
-                if (Filesystem_DoesDirectoryExist(FullDestPath))
+                if (!bNoWait)
                 {
-                    LOG("[Skipping] Copy: %S", Cmd);
-                    bDestExist = true;
+                    ProcessCode = Platform_WaitForProcessAndGetExitCode(Handle);
                 }
             }
-        }
 
-        bool bContinueWithCopy = !bDestExist;
-        if (bContinueWithCopy)
-        {
-            LOG(" > Copy: %S", Cmd);
+            if (ExitCode) { *ExitCode = ProcessCode; }
 
-            if (!Filesystem_Copy(FullSourcePath, FullDestPath) && !bIgnoreErrors)
+            if (ProcessCode != 0 && !bIgnoreErrors)
             {
-                LOG(
-                "\n    You can ignore this error by using .Copy(ignore_error)\n"
-                  "    or you can use .Copy(if_not_exist) to check whether the file exists\n"
-                  "    and gracefully skip the copy operation if they don't.\n");
-
-                *ExitCode = 1;
                 bSuccess = false;
             }
         }
-    }
-    else if (String_EndsWith(Name, S("Wait"), false) ||
-             String_EndsWith(Name, S("Sleep"), false))
-    {
-        u32 Milliseconds = 0;
-        xx String_ToU32(Value, &Milliseconds);
-
-        LOG(" > Sleeping for %ums ...", Milliseconds);
-
-        Platform_Sleep(Milliseconds);
-    }
-    else if (String_EndsWith(Name, S("Move"), false) ||
-             String_EndsWith(Name, S("Rename"), false))
-    {
-        // TODO: only deal with relative paths?
-
-        const String Cmd = Value;
-
-        StringList ArgList          = String_SplitIntoList(&Scratch, Value, ' ', true);
-        String SourceFile           = StringList_GetStringFromIndex(ArgList, 0);
-        String DestinationDirectory = StringList_GetStringFromIndex(ArgList, 1);
-
-        bool bIsRename = String_EndsWith(Name, S("Rename"), false);
-        if (bIsRename)
+        else if (String_EndsWith(Name, S("Copy"), false))
         {
-            LOG(" > Rename: %S", Cmd);
-        }
-        else
-        {
-            LOG(" > Move: %S", Cmd);
-        }
+            const String Cmd = Value;
 
-        // only move if dest does not exist
-        bool bDestExist = false;
-        if (bParam_NotExist)
-        {
-            u32 LastSlash = 0;
-            bool bHasSlash = String_IndexOfLastPathSlash(SourceFile, &LastSlash);
+            StringList ArgList          = String_SplitIntoList(&Scratch, Value, ' ', true);
+            String SourceFile           = StringList_GetStringFromIndex(ArgList, 0);
+            String DestinationDirectory = StringList_GetStringFromIndex(ArgList, 1);
 
-            bool bCanWe = true;
-            
-            StringLocal(FullPath, MAX_PATH_LENGTH);
+            StringLocal(FullSourcePath, MAX_PATH_LENGTH);
             if (Filesystem_IsPathRelative(SourceFile))
             {
-                String_BuildPath(&FullPath, WorkingDirectory, bHasSlash ? StrSlice(SourceFile.Data, LastSlash) : SourceFile);
+                String_BuildPath(&FullSourcePath, WorkingDirectory, SourceFile);
             }
             else
             {
-                String_BuildPath(&FullPath, SourceFile);
+                String_BuildPath(&FullSourcePath, SourceFile);
             }
 
-            if (!Filesystem_DoesDirectoryExist(FullPath))
+            xx Filesystem_ConvertRelativeToAbsolutePath(&FullSourcePath);
+
+            StringLocal(FullDestPath, MAX_PATH_LENGTH);
+            String_BuildPath(&FullDestPath, WorkingDirectory, DestinationDirectory);
+
+            // TODO: remove, handle on linux/mac/bsd. already done on windows
+            if (String_IsLast(DestinationDirectory, '/') ||
+                String_IsLast(DestinationDirectory, '\\'))
             {
-                bCanWe = false;
+                u32 LastSlash = 0;
+                xx String_IndexOfLastPathSlash(SourceFile, &LastSlash);
+                String_BuildPath(&FullDestPath, StrShiftF(SourceFile, LastSlash == 0 ? 0 : LastSlash+1));
             }
 
-            if (bCanWe)
-            {
-                String_Empty(&FullPath);
-                if (Filesystem_IsPathRelative(SourceFile))
-                {
-                    String_BuildPath(&FullPath, WorkingDirectory, SourceFile);
-                }
-                else
-                {
-                    String_BuildPath(&FullPath, SourceFile);
-                }
+            xx Filesystem_ConvertRelativeToAbsolutePath(&FullDestPath);
 
-                if (!Filesystem_DoesFileExist(FullPath))
-                {
-                    bCanWe = false;
-                }
-            }
-                
-            if (bCanWe)
+            // only copy if dest does not exist
+            bool bDestExist = false;
+            if (bParam_NotExist)
             {
-                String_Empty(&FullPath);
-                String FileName = StrShiftF(SourceFile, LastSlash == 0 ? 0 : LastSlash+1);
-                String_BuildPath(&FullPath, WorkingDirectory, DestinationDirectory, FileName);
-
                 u32 LastDot = 0;
-                bool bHasDot = String_IndexOfLastChar(SourceFile, '.', &LastDot);
+                xx String_IndexOfLastChar(FullDestPath, '.', &LastDot);
 
                 bool bHasExtension = false;
-                bool bHasPathSeparator = String_IndexOfFirstPathSlash(StrShiftF(SourceFile, LastDot), NULL);
-                if (bHasDot && !bHasPathSeparator)
+                bool bHasPathSeparator = String_IndexOfFirstPathSlash(StrShiftF(FullDestPath, LastDot), NULL);
+                if (!bHasPathSeparator)
                 {
                     bHasExtension = true;
                 }
 
                 if (bHasExtension)
                 {
-                    if (Filesystem_DoesFileExist(FullPath))
+                    if (Filesystem_DoesFileExist(FullDestPath))
                     {
+                        LOG("[Skipping] Copy: %S", Cmd);
                         bDestExist = true;
                     }
                 }
                 else
                 {
-                    if (Filesystem_DoesDirectoryExist(FullPath))
+                    if (Filesystem_DoesDirectoryExist(FullDestPath))
                     {
+                        LOG("[Skipping] Copy: %S", Cmd);
                         bDestExist = true;
                     }
                 }
             }
+
+            bool bContinueWithCopy = !bDestExist;
+            if (bContinueWithCopy)
+            {
+                LOG(" > Copy: %S", Cmd);
+
+                if (!Filesystem_Copy(FullSourcePath, FullDestPath) && !bIgnoreErrors)
+                {
+                    LOG(
+                    "\n    You can ignore this error by using .Copy(ignore_error)\n"
+                    "    or you can use .Copy(if_not_exist) to check whether the file exists\n"
+                    "    and gracefully skip the copy operation if they don't.\n");
+
+                    if (ExitCode) { *ExitCode = 1; }
+                    bSuccess = false;
+                }
+            }
+        }
+        else if (String_EndsWith(Name, S("Wait"), false) ||
+                String_EndsWith(Name, S("Sleep"), false))
+        {
+            u32 Milliseconds = 0;
+            xx String_ToU32(Value, &Milliseconds);
+
+            LOG(" > Sleeping for %ums ...", Milliseconds);
+
+            Platform_Sleep(Milliseconds);
+        }
+        else if (String_EndsWith(Name, S("Move"), false) ||
+                String_EndsWith(Name, S("Rename"), false))
+        {
+            // TODO: only deal with relative paths?
+
+            const String Cmd = Value;
+
+            StringList ArgList          = String_SplitIntoList(&Scratch, Value, ' ', true);
+            String SourceFile           = StringList_GetStringFromIndex(ArgList, 0);
+            String DestinationDirectory = StringList_GetStringFromIndex(ArgList, 1);
+
+            bool bIsRename = String_EndsWith(Name, S("Rename"), false);
+            if (bIsRename)
+            {
+                LOG(" > Rename: %S", Cmd);
+            }
             else
             {
-                bDestExist = true; // skip the move/rename if the given source file does not exist
+                LOG(" > Move: %S", Cmd);
+            }
+
+            // only move if dest does not exist
+            bool bDestExist = false;
+            if (bParam_NotExist)
+            {
+                u32 LastSlash = 0;
+                bool bHasSlash = String_IndexOfLastPathSlash(SourceFile, &LastSlash);
+
+                bool bCanWe = true;
+                
+                StringLocal(FullPath, MAX_PATH_LENGTH);
+                if (Filesystem_IsPathRelative(SourceFile))
+                {
+                    String_BuildPath(&FullPath, WorkingDirectory, bHasSlash ? StrSlice(SourceFile.Data, LastSlash) : SourceFile);
+                }
+                else
+                {
+                    String_BuildPath(&FullPath, SourceFile);
+                }
+
+                if (!Filesystem_DoesDirectoryExist(FullPath))
+                {
+                    bCanWe = false;
+                }
+
+                if (bCanWe)
+                {
+                    String_Empty(&FullPath);
+                    if (Filesystem_IsPathRelative(SourceFile))
+                    {
+                        String_BuildPath(&FullPath, WorkingDirectory, SourceFile);
+                    }
+                    else
+                    {
+                        String_BuildPath(&FullPath, SourceFile);
+                    }
+
+                    if (!Filesystem_DoesFileExist(FullPath))
+                    {
+                        bCanWe = false;
+                    }
+                }
+                    
+                if (bCanWe)
+                {
+                    String_Empty(&FullPath);
+                    String FileName = StrShiftF(SourceFile, LastSlash == 0 ? 0 : LastSlash+1);
+                    String_BuildPath(&FullPath, WorkingDirectory, DestinationDirectory, FileName);
+
+                    u32 LastDot = 0;
+                    bool bHasDot = String_IndexOfLastChar(SourceFile, '.', &LastDot);
+
+                    bool bHasExtension = false;
+                    bool bHasPathSeparator = String_IndexOfFirstPathSlash(StrShiftF(SourceFile, LastDot), NULL);
+                    if (bHasDot && !bHasPathSeparator)
+                    {
+                        bHasExtension = true;
+                    }
+
+                    if (bHasExtension)
+                    {
+                        if (Filesystem_DoesFileExist(FullPath))
+                        {
+                            bDestExist = true;
+                        }
+                    }
+                    else
+                    {
+                        if (Filesystem_DoesDirectoryExist(FullPath))
+                        {
+                            bDestExist = true;
+                        }
+                    }
+                }
+                else
+                {
+                    bDestExist = true; // skip the move/rename if the given source file does not exist
+                }
+            }
+
+            bool bContinueWithMove = !bDestExist;
+            if (bContinueWithMove)
+            {
+                StringLocal(FullSourcePath, MAX_PATH_LENGTH);
+                String_BuildPath(&FullSourcePath, WorkingDirectory, SourceFile);
+
+                StringLocal(FullDestPath, MAX_PATH_LENGTH);
+                String_BuildPath(&FullDestPath, WorkingDirectory, DestinationDirectory);
+
+                if (bIgnoreErrors) { Logging_Disable(); }
+                bool bResult = Filesystem_Move(FullSourcePath, FullDestPath, bIsRename);
+                if (bIgnoreErrors) { Logging_Enable(); }
+
+                if (!bResult && !bIgnoreErrors)
+                {
+                    LOG(
+                    "\n    You can ignore this error by using %S instead\n"
+                    "    or you can use %S to check whether the source files exist\n"
+                    "    and gracefully skip the move operation if they don't.\n",
+                    bIsRename ? S(".Rename(ignore_error)") : S(".Move(ignore_error)"),
+                    bIsRename ? S(".Rename(if_not_exist)") : S(".Move(if_not_exist)"));
+
+                    if (ExitCode) { *ExitCode = 1; }
+                    bSuccess = false;
+                }
             }
         }
-
-        bool bContinueWithMove = !bDestExist;
-        if (bContinueWithMove)
+        else if (String_EndsWith(Name, S("Delete"), false))
         {
-            StringLocal(FullSourcePath, MAX_PATH_LENGTH);
-            String_BuildPath(&FullSourcePath, WorkingDirectory, SourceFile);
+            const String Cmd = Value;
 
-            StringLocal(FullDestPath, MAX_PATH_LENGTH);
-            String_BuildPath(&FullDestPath, WorkingDirectory, DestinationDirectory);
+            LOG(" > Delete: %S", Cmd);
 
-            if (bIgnoreErrors) { Logging_Disable(); }
-            bool bResult = Filesystem_Move(FullSourcePath, FullDestPath, bIsRename);
-            if (bIgnoreErrors) { Logging_Enable(); }
+            // todo: make sure we only delete stuff relative to the working directory
 
-            if (!bResult && !bIgnoreErrors)
+            if (String_IsEqual(Cmd, S("*"), false) ||
+                String_IsEqual(Cmd, S("."), false) ||
+                String_IsEqual(Cmd, S(".."), false) ||
+                String_IsEqual(Cmd, S("/"), false))
             {
-                LOG(
-                "\n    You can ignore this error by using %S instead\n"
-                  "    or you can use %S to check whether the source files exist\n"
-                  "    and gracefully skip the move operation if they don't.\n",
-                bIsRename ? S(".Rename(ignore_error)") : S(".Move(ignore_error)"),
-                bIsRename ? S(".Rename(if_not_exist)") : S(".Move(if_not_exist)"));
-
-                *ExitCode = 1;
                 bSuccess = false;
             }
-        }
-    }
-    else if (String_EndsWith(Name, S("Delete"), false))
-    {
-        const String Cmd = Value;
 
-        LOG(" > Delete: %S", Cmd);
+            // todo: handle wildcards?
 
-        // todo: make sure we only delete stuff relative to the working directory
-
-        if (String_IsEqual(Cmd, S("*"), false) ||
-            String_IsEqual(Cmd, S("."), false) ||
-            String_IsEqual(Cmd, S(".."), false) ||
-            String_IsEqual(Cmd, S("/"), false))
-        {
-            bSuccess = false;
-        }
-
-        // todo: handle wildcards?
-
-        if (bSuccess)
-        {
-            u32 LastDot = 0;
-            bool bHasDot = String_IndexOfLastChar(Cmd, '.', &LastDot);
-
-            bool bHasExtension = false;
-            bool bHasPathSeparator = String_IndexOfFirstPathSlash(StrShiftF(Cmd, LastDot), NULL);
-            if (bHasDot && !bHasPathSeparator)
+            if (bSuccess)
             {
-                bHasExtension = true;
+                u32 LastDot = 0;
+                bool bHasDot = String_IndexOfLastChar(Cmd, '.', &LastDot);
+
+                bool bHasExtension = false;
+                bool bHasPathSeparator = String_IndexOfFirstPathSlash(StrShiftF(Cmd, LastDot), NULL);
+                if (bHasDot && !bHasPathSeparator)
+                {
+                    bHasExtension = true;
+                }
+
+                StringLocal(FullFilePath, MAX_PATH_LENGTH);
+                String_BuildPath(&FullFilePath, WorkingDirectory, Cmd);
+
+                if (bIgnoreErrors) { Logging_Disable(); }
+                bool bResult = false;
+                if (bHasExtension)
+                {
+                    if (Filesystem_DoesFileExist(FullFilePath))
+                    {
+                        bResult = Filesystem_DeleteFile(FullFilePath);
+                    }
+                    else
+                    {
+                        bResult = true;
+                    }
+                }
+                else
+                {
+                    if (Filesystem_DoesDirectoryExist(FullFilePath))
+                    {
+                        bResult = Filesystem_DeleteDirectory(FullFilePath);
+                    }
+                    else
+                    {
+                        bResult = true;
+                    }
+                }
+                if (bIgnoreErrors) { Logging_Enable(); }
+
+                if (!bResult && !bIgnoreErrors)
+                {
+                    if (ExitCode) { *ExitCode = 1; }
+                    bSuccess = false;
+                }
             }
+        }
+        else if (String_EndsWith(Name, S("NewFile"), false))
+        {
+            const String Cmd = Value;
+
+            LOG(" > New File: %S", Cmd);
 
             StringLocal(FullFilePath, MAX_PATH_LENGTH);
             String_BuildPath(&FullFilePath, WorkingDirectory, Cmd);
 
             if (bIgnoreErrors) { Logging_Disable(); }
-            bool bResult = false;
-            if (bHasExtension)
-            {
-                if (Filesystem_DoesFileExist(FullFilePath))
-                {
-                    bResult = Filesystem_DeleteFile(FullFilePath);
-                }
-                else
-                {
-                    bResult = true;
-                }
-            }
-            else
-            {
-                if (Filesystem_DoesDirectoryExist(FullFilePath))
-                {
-                    bResult = Filesystem_DeleteDirectory(FullFilePath);
-                }
-                else
-                {
-                    bResult = true;
-                }
-            }
+            bool bResult = Filesystem_NewFile(FullFilePath);
             if (bIgnoreErrors) { Logging_Enable(); }
 
             if (!bResult && !bIgnoreErrors)
             {
-                *ExitCode = 1;
+                if (ExitCode) { *ExitCode = 1; }
                 bSuccess = false;
             }
         }
-    }
-    else if (String_EndsWith(Name, S("NewFile"), false))
-    {
-        const String Cmd = Value;
-
-        LOG(" > New File: %S", Cmd);
-
-        StringLocal(FullFilePath, MAX_PATH_LENGTH);
-        String_BuildPath(&FullFilePath, WorkingDirectory, Cmd);
-
-        if (bIgnoreErrors) { Logging_Disable(); }
-        bool bResult = Filesystem_NewFile(FullFilePath);
-        if (bIgnoreErrors) { Logging_Enable(); }
-
-        if (!bResult && !bIgnoreErrors)
+        else if (String_EndsWith(Name, S("NewDirectory"), false) ||
+                String_EndsWith(Name, S("NewDir"), false))
         {
-            *ExitCode = 1;
-            bSuccess = false;
-        }
-    }
-    else if (String_EndsWith(Name, S("NewDirectory"), false) ||
-             String_EndsWith(Name, S("NewDir"), false))
-    {
-        const String Cmd = Value;
+            const String Cmd = Value;
 
-        LOG(" > New Directory: %S", Cmd);
+            LOG(" > New Directory: %S", Cmd);
 
-        StringLocal(FullDirPath, MAX_PATH_LENGTH);
-        String_BuildPath(&FullDirPath, WorkingDirectory, Cmd);
+            StringLocal(FullDirPath, MAX_PATH_LENGTH);
+            String_BuildPath(&FullDirPath, WorkingDirectory, Cmd);
 
-        if (bIgnoreErrors) { Logging_Disable(); }
-        bool bResult = Filesystem_OpenDirectory(FullDirPath);
-        if (bIgnoreErrors) { Logging_Enable(); }
+            if (bIgnoreErrors) { Logging_Disable(); }
+            bool bResult = Filesystem_OpenDirectory(FullDirPath);
+            if (bIgnoreErrors) { Logging_Enable(); }
 
-        if (!bResult && !bIgnoreErrors)
-        {
-            *ExitCode = 1;
-            bSuccess = false;
-        }
-    }
-    else if (String_EndsWith(Name, S("Log"), false))
-    {
-        if (Value.Length == 0)
-        {
-            LOG_LINE_BREAK();
-        }
-        else
-        {
-            LOG(" %S\n", Value);
-        }
-    }
-    else if (String_EndsWith(Name, S("WriteFile"), false) ||
-             String_EndsWith(Name, S("WriteFileLines"), false))
-    {
-        bSuccess = false;
-        UNIMPLEMENTED;
-    }
-    else if (String_EndsWith(Name, S("Download"), false))
-    {
-        StringList ArgList = String_SplitIntoList(&Scratch, Value, ' ', true);
-        String URL         = StringList_GetStringFromIndex(ArgList, 0);
-        String Destination = StringList_GetStringFromIndex(ArgList, 1);
-
-        // TODO:     PreBuild.Download https://github.com/glfw/glfw/releases/download/3.4/glfw-3.4.zip glfw.zip
-        // make it so that we dont have to specify .zip. if we want directory, a slash will be necessary.
-        // like this: ./deps or whatever/deps
-
-
-        StringLocal(FinalDestinationPath, MAX_PATH_LENGTH);
-        String_BuildPath(&FinalDestinationPath, WorkingDirectory, Destination);
-
-        if (!Filesystem_DoesPathHaveFileExtension(Destination))
-        {
-            if (Filesystem_OpenDirectory(FinalDestinationPath))
+            if (!bResult && !bIgnoreErrors)
             {
-                const String FileName = Filesystem_ExtractFileName(URL, true);
-                String_BuildPath(&FinalDestinationPath, FileName);
-            }
-            else
-            {
+                if (ExitCode) { *ExitCode = 1; }
                 bSuccess = false;
             }
         }
-
-        if (bSuccess)
+        else if (String_EndsWith(Name, S("Log"), false))
         {
-            LOG(" > Download: %S\n -> Destination: %S", URL, FinalDestinationPath);
-
-            if (Filesystem_DoesFileExist(FinalDestinationPath))
+            if (Value.Length == 0)
             {
-                LOG("    File already exists. Skipping download...\n");
+                LOG_LINE_BREAK();
             }
             else
+            {
+                LOG(" %S\n", Value);
+            }
+        }
+        else if (String_EndsWith(Name, S("WriteFile"), false) ||
+                String_EndsWith(Name, S("WriteFileLines"), false))
+        {
+            bSuccess = false;
+            UNIMPLEMENTED;
+        }
+        else if (String_EndsWith(Name, S("Download"), false))
+        {
+            StringList ArgList = String_SplitIntoList(&Scratch, Value, ' ', true);
+            String URL         = StringList_GetStringFromIndex(ArgList, 0);
+            String Destination = StringList_GetStringFromIndex(ArgList, 1);
+
+            // TODO:     PreBuild.Download https://github.com/glfw/glfw/releases/download/3.4/glfw-3.4.zip glfw.zip
+            // make it so that we dont have to specify .zip. if we want directory, a slash will be necessary.
+            // like this: ./deps or whatever/deps
+
+
+            StringLocal(FinalDestinationPath, MAX_PATH_LENGTH);
+            String_BuildPath(&FinalDestinationPath, WorkingDirectory, Destination);
+
+            if (!Filesystem_DoesPathHaveFileExtension(Destination))
+            {
+                if (Filesystem_OpenDirectory(FinalDestinationPath))
+                {
+                    const String FileName = Filesystem_ExtractFileName(URL, true);
+                    String_BuildPath(&FinalDestinationPath, FileName);
+                }
+                else
+                {
+                    bSuccess = false;
+                }
+            }
+
+            if (bSuccess)
+            {
+                LOG(" > Download: %S\n -> Destination: %S", URL, FinalDestinationPath);
+
+                if (Filesystem_DoesFileExist(FinalDestinationPath))
+                {
+                    LOG("    File already exists. Skipping download...\n");
+                }
+                else
+                {
+                    StringLocal(CmdLine, 8192);
+                    
+                    #if PLATFORM_WINDOWS
+                    String_Concat(&CmdLine, S("powershell -Command \"(New-Object Net.WebClient).DownloadFile('"), URL, S("', '"), FinalDestinationPath, S("')\""));
+                    #else
+                    UNIMPLEMENTED;
+                    #endif
+
+                    if (bVerboseLog) { LOG("    %S", CmdLine); }
+
+                    PlatformHandle H = Platform_RunCommand(CmdLine, WorkingDirectory, String_Null());
+                    bSuccess = Platform_IsValidHandle(H);
+                    if (bSuccess)
+                    {
+                        u32 ProcessCode = Platform_WaitForProcessAndGetExitCode(H);
+                        if (ExitCode) { *ExitCode = ProcessCode; }
+
+                        if (ProcessCode != 0 && !bIgnoreErrors)
+                        {
+                            bSuccess = false;
+                        }
+                        else
+                        {
+                            LOG_LINE_BREAK();
+                        }
+                    }
+                }
+            }
+        }
+        else if (String_EndsWith(Name, S(".Unzip"), false))
+        {
+            StringList ArgList = String_SplitIntoList(&Scratch, Value, ' ', true);
+            String ZipFilePath = StringList_GetStringFromIndex(ArgList, 0);
+            String Destination = StringList_GetStringFromIndex(ArgList, 1);
+
+            if (!Filesystem_DoesFileExist(ZipFilePath))
+            {
+                LOG_ERROR("Zip file \"%S\" does not exist", ZipFilePath);
+                bSuccess = false;
+            }
+
+            StringLocal(FinalDestinationPath, MAX_PATH_LENGTH);
+            String_BuildPath(&FinalDestinationPath, WorkingDirectory, Destination);
+
+            if (!Filesystem_OpenDirectory(FinalDestinationPath))
+            {
+                bSuccess = false;
+            }
+
+            if (bSuccess)
             {
                 StringLocal(CmdLine, 8192);
                 
                 #if PLATFORM_WINDOWS
-                String_Concat(&CmdLine, S("powershell -Command \"(New-Object Net.WebClient).DownloadFile('"), URL, S("', '"), FinalDestinationPath, S("')\""));
+                String_Concat(&CmdLine, S("powershell -Command \"Expand-Archive -Force -Path \"\"\""), ZipFilePath, S("\"\"\" -DestinationPath \"\""), FinalDestinationPath, S("\"\"\""));
                 #else
                 UNIMPLEMENTED;
                 #endif
+
+                LOG(" > Unzip: %S\n -> Destination: %S", ZipFilePath, FinalDestinationPath);
 
                 if (bVerboseLog) { LOG("    %S", CmdLine); }
 
@@ -1997,8 +2047,10 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const FileVa
                 bSuccess = Platform_IsValidHandle(H);
                 if (bSuccess)
                 {
-                    *ExitCode = Platform_WaitForProcessAndGetExitCode(H);
-                    if (*ExitCode != 0 && !bIgnoreErrors)
+                    u32 ProcessCode = Platform_WaitForProcessAndGetExitCode(H);
+                    if (ExitCode) { *ExitCode = ProcessCode; }
+
+                    if (ProcessCode != 0 && !bIgnoreErrors)
                     {
                         bSuccess = false;
                     }
@@ -2009,153 +2061,104 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const FileVa
                 }
             }
         }
-    }
-    else if (String_EndsWith(Name, S(".Unzip"), false))
-    {
-        StringList ArgList = String_SplitIntoList(&Scratch, Value, ' ', true);
-        String ZipFilePath = StringList_GetStringFromIndex(ArgList, 0);
-        String Destination = StringList_GetStringFromIndex(ArgList, 1);
-
-        if (!Filesystem_DoesFileExist(ZipFilePath))
+        else if (String_EndsWith(Name, S(".Zip"), false))
         {
-            LOG_ERROR("Zip file \"%S\" does not exist", ZipFilePath);
-            bSuccess = false;
-        }
+            StringList ArgList = String_SplitIntoList(&Scratch, Value, ' ', true);
+            String FilePath    = StringList_GetStringFromIndex(ArgList, 0);
+            String Destination = StringList_GetStringFromIndex(ArgList, 1);
 
-        StringLocal(FinalDestinationPath, MAX_PATH_LENGTH);
-        String_BuildPath(&FinalDestinationPath, WorkingDirectory, Destination);
+            xx String_EatPathSeparatorsInlineFromEnd(&FilePath);
 
-        if (!Filesystem_OpenDirectory(FinalDestinationPath))
-        {
-            bSuccess = false;
-        }
+            if (!Filesystem_DoesFileExist(FilePath) &&
+                !Filesystem_DoesDirectoryExist(FilePath))
+            {
+                LOG_ERROR("File path \"%S\" does not exist", FilePath);
+                bSuccess = false;
+            }
 
-        if (bSuccess)
-        {
-            StringLocal(CmdLine, 8192);
-            
-            #if PLATFORM_WINDOWS
-            String_Concat(&CmdLine, S("powershell -Command \"Expand-Archive -Force -Path \"\"\""), ZipFilePath, S("\"\"\" -DestinationPath \"\""), FinalDestinationPath, S("\"\"\""));
-            #else
-            UNIMPLEMENTED;
-            #endif
+            StringLocal(FinalDestinationPath, MAX_PATH_LENGTH);
+            String_BuildPath(&FinalDestinationPath, WorkingDirectory, Destination);
 
-            LOG(" > Unzip: %S\n -> Destination: %S", ZipFilePath, FinalDestinationPath);
-
-            if (bVerboseLog) { LOG("    %S", CmdLine); }
-
-            PlatformHandle H = Platform_RunCommand(CmdLine, WorkingDirectory, String_Null());
-            bSuccess = Platform_IsValidHandle(H);
             if (bSuccess)
             {
-                *ExitCode = Platform_WaitForProcessAndGetExitCode(H);
-                if (*ExitCode != 0 && !bIgnoreErrors)
+                if (!String_EndsWith(Destination, S(".zip"), false))
                 {
-                    bSuccess = false;
+                    String FileName = FilePath;
+                    u32 LastSlash = 0;
+                    if (String_IndexOfLastPathSlash(FilePath, &LastSlash))
+                    {
+                        FileName = StrShiftF(FilePath, LastSlash+1);
+                    }
+
+                    String_BuildPath(&FinalDestinationPath, FileName);
+                    String_Append(&FinalDestinationPath, S(".zip"));
                 }
-                else
-                {
-                    LOG_LINE_BREAK();
-                }
-            }
-        }
-    }
-    else if (String_EndsWith(Name, S(".Zip"), false))
-    {
-        StringList ArgList = String_SplitIntoList(&Scratch, Value, ' ', true);
-        String FilePath    = StringList_GetStringFromIndex(ArgList, 0);
-        String Destination = StringList_GetStringFromIndex(ArgList, 1);
 
-        xx String_EatPathSeparatorsInlineFromEnd(&FilePath);
-
-        if (!Filesystem_DoesFileExist(FilePath) &&
-            !Filesystem_DoesDirectoryExist(FilePath))
-        {
-            LOG_ERROR("File path \"%S\" does not exist", FilePath);
-            bSuccess = false;
-        }
-
-        StringLocal(FinalDestinationPath, MAX_PATH_LENGTH);
-        String_BuildPath(&FinalDestinationPath, WorkingDirectory, Destination);
-
-        if (bSuccess)
-        {
-            if (!String_EndsWith(Destination, S(".zip"), false))
-            {
-                String FileName = FilePath;
                 u32 LastSlash = 0;
-                if (String_IndexOfLastPathSlash(FilePath, &LastSlash))
+                if (String_IndexOfLastPathSlash(FinalDestinationPath, &LastSlash))
                 {
-                    FileName = StrShiftF(FilePath, LastSlash+1);
-                }
-
-                String_BuildPath(&FinalDestinationPath, FileName);
-                String_Append(&FinalDestinationPath, S(".zip"));
-            }
-
-            u32 LastSlash = 0;
-            if (String_IndexOfLastPathSlash(FinalDestinationPath, &LastSlash))
-            {
-                if (!Filesystem_OpenDirectory(StrSlice(FinalDestinationPath.Data, LastSlash)))
-                {
-                    bSuccess = false;
+                    if (!Filesystem_OpenDirectory(StrSlice(FinalDestinationPath.Data, LastSlash)))
+                    {
+                        bSuccess = false;
+                    }
                 }
             }
-        }
 
-        if (bSuccess)
-        {
-            StringLocal(CmdLine, 8192);
-            
-            #if PLATFORM_WINDOWS
-            const bool bFilePathHasExtension = Filesystem_DoesPathHaveFileExtension(FilePath);
-            String_Concat(&CmdLine, S("powershell -Command \"Compress-Archive -Force -Path \"\"\""), FilePath, bFilePathHasExtension ? String_Null() : S("\\*"),  S("\"\"\" -DestinationPath \"\""), FinalDestinationPath, S("\"\"\""));
-            #else
-            UNIMPLEMENTED;
-            #endif
-
-            LOG(" > Zip: %S\n -> Destination: %S", FilePath, FinalDestinationPath);
-
-            if (bVerboseLog) { LOG("    %S", CmdLine); }
-
-            PlatformHandle H = Platform_RunCommand(CmdLine, WorkingDirectory, String_Null());
-            bSuccess = Platform_IsValidHandle(H);
             if (bSuccess)
             {
-                *ExitCode = Platform_WaitForProcessAndGetExitCode(H);
+                StringLocal(CmdLine, 8192);
+                
+                #if PLATFORM_WINDOWS
+                const bool bFilePathHasExtension = Filesystem_DoesPathHaveFileExtension(FilePath);
+                String_Concat(&CmdLine, S("powershell -Command \"Compress-Archive -Force -Path \"\"\""), FilePath, bFilePathHasExtension ? String_Null() : S("\\*"),  S("\"\"\" -DestinationPath \"\""), FinalDestinationPath, S("\"\"\""));
+                #else
+                UNIMPLEMENTED;
+                #endif
 
-                if (*ExitCode != 0 && !bIgnoreErrors)
+                LOG(" > Zip: %S\n -> Destination: %S", FilePath, FinalDestinationPath);
+
+                if (bVerboseLog) { LOG("    %S", CmdLine); }
+
+                PlatformHandle H = Platform_RunCommand(CmdLine, WorkingDirectory, String_Null());
+                bSuccess = Platform_IsValidHandle(H);
+                if (bSuccess)
                 {
-                    bSuccess = false;
-                }
-                else
-                {
-                    LOG_LINE_BREAK();
+                    u32 ProcessCode = Platform_WaitForProcessAndGetExitCode(H);
+                    if (ExitCode) { *ExitCode = ProcessCode; }
+
+                    if (ProcessCode != 0 && !bIgnoreErrors)
+                    {
+                        bSuccess = false;
+                    }
+                    else
+                    {
+                        LOG_LINE_BREAK();
+                    }
                 }
             }
         }
-    }
-    // TODO: implement this
-    else if (String_EndsWith(Name, S(".Export"), false))
-    {
-        if (String_StartsWith(Name, S("PreDepend"), false) ||
-            String_StartsWith(Name, S("PreBuild"), false))
+        // TODO: implement this
+        else if (String_EndsWith(Name, S(".Export"), false))
         {
-            u32 Dot = 0;
-            xx String_IndexOfChar(Name, '.', &Dot);
-            String Key = StrSlice(Name.Data, Dot);
-            LOG_WARNING("Cannot execute the \".Export\" command under the \"%S\" context", Key);
-            LOG("\".Export\" can only be executed under these contexts:");
-            LOG("\n    PreCompile\n    PostCompile\n    PreLink\n    PostLink\n    PostBuild");
+            if (String_StartsWith(Name, S("PreDepend"), false) ||
+                String_StartsWith(Name, S("PreBuild"), false))
+            {
+                u32 Dot = 0;
+                xx String_IndexOfChar(Name, '.', &Dot);
+                String Key = StrSlice(Name.Data, Dot);
+                LOG_WARNING("Cannot execute the \".Export\" command under the \"%S\" context", Key);
+                LOG("\".Export\" can only be executed under these contexts:");
+                LOG("\n    PreCompile\n    PostCompile\n    PreLink\n    PostLink\n    PostBuild");
 
-            bSuccess = false;
+                bSuccess = false;
+            }
+
+            //Export_FromArg();
         }
-
-        //Export_FromArg();
-    }
-    else
-    {
-        // no action required
+        else
+        {
+            // no action required
+        }
     }
 
     return bSuccess;
@@ -2176,7 +2179,6 @@ static bool TryRunBuildCommands(const String Key, const String WorkingPath, TArr
             NumCmds++;
             if (NumCmds >= 64)
             {
-                // TODO: log warning
                 break;
             }
         }
@@ -2203,11 +2205,6 @@ static bool TryRunBuildCommands(const String Key, const String WorkingPath, TArr
         for (u8 i = 0; i < NumCmds; i++)
         {
             const FileVariable* Var = Cmds[i];
-
-            if (!String_IsValid(Var->Value))
-            {
-                continue;
-            }
 
             u32 ExitCode = 0;
             bool bResult = Internal_ExecuteBuildCmd(WorkingPath, *Var, &ExitCode);
@@ -3224,7 +3221,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
     ArrayLocal_Arena(FileVariable,   VariablesDB,         256, Arena); // 8192 bytes
 
-    // todo: static array? we are not even remvoing or inserting at arbitrary indices... we are just adding
     ArrayLocal_Arena(FileHandle,     IncludeFiles,        64,  Arena); // 1024 bytes
     ArrayLocal_Arena(CmdOption,      CmdOptionsDB,        128, Arena); // 4608 bytes
     ArrayLocal_Arena(String,         Messages,            128, Arena); // 2048 bytes
@@ -5032,7 +5028,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         }
 
         // check if the given LibraryDirectories exist
-        // TODO: verify if this is a good idea...
         String LibraryDirectories = GetVariableValue(VariablesDB, S("Library.Paths"));
         StringList DirList = String_SplitIntoList(&Scratch, LibraryDirectories, ' ', true);
         for each_str_list (DirList)
@@ -5093,7 +5088,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     StringList BlacklistDirArray = String_SplitIntoList(Arena, ExcludedSourceDir, ' ', true);
 
     // any custom source files?
-    // TODO: verify if this doesnt cause any problems
     StringList CustomExtensionsList = {0};
     if (AssemblyType == AssemblyType_CustomCompilerObject)
     {
@@ -6999,7 +6993,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 PostBuild:
     if (bQuietBuild) { Logging_Enable(); }
 
-    // TODO: test under the condition of when we're cleaning
     if (!TryRunBuildCommands(S("PostBuild"), WorkingPath, VariablesDB, NULL))
     {
         Receipt.ExitCode = 1;

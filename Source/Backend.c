@@ -174,8 +174,8 @@ bool RC_Compile(const BuildParams* Params, const String FullRCPath, String* OutR
 
 static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
 {
-    ASSERT(Data != NULL);
-    ASSERT(Data->Params != NULL);
+    if (NEVER(Data == NULL))         { return false; }
+    if (NEVER(Data->Params == NULL)) { return false; }
 
     const BuildParams* Params = Data->Params;
     TArray(PlatformHandle) Processes = *Params->Processes;
@@ -610,7 +610,7 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
 
 bool C_Compile(const BuildParams* Params, u32* OutNumCompiled)
 {
-    if (NEVER(Params == NULL)) { return false; }
+    if (NEVER(Params == NULL))         { return false; }
     if (NEVER(OutNumCompiled == NULL)) { return false; }
 
     bool bSuccess = true;
@@ -1028,7 +1028,8 @@ static void Internal_ParseAndLogLinkerOutput_MSVC(String StdOutData)
                                     }
                                     else
                                     {
-                                        LOG("                          %S", SecondPart);
+                                        // LOG("                          %S", SecondPart);
+                                        LOG_MUTE("                          %S", SecondPart);
                                     }
                                 }
                                 else
@@ -1469,21 +1470,29 @@ bool C_Link(const BuildParams* Params)
         PlatformHandle Handle = {0};
         #if PLATFORM_WINDOWS
         PlatformPipe StdOutHandle = {0};
+        Handle = Platform_RunProcess_Ex(ProgramPath, CmdLine, Params->RootDirectory, &StdOutHandle);
+        #else
+        Handle = Platform_RunProcess(ProgramPath, CmdLine, Params->RootDirectory, String_Null());
+        #endif
+        /*
         if (bIsMicrosoftLinker)
         {
             Handle = Platform_RunProcess_Ex(ProgramPath, CmdLine, Params->RootDirectory, &StdOutHandle);
         }
+        */
+        /*
         else
         #endif
         {
             Handle = Platform_RunProcess(ProgramPath, CmdLine, Params->RootDirectory, String_Null());
         }
+        */
 
         if (Platform_IsValidHandle(Handle))
         {
             // TODO: switch between fancy and non fancy logging
             #if PLATFORM_WINDOWS
-            if (bIsMicrosoftLinker)
+            // if (bIsMicrosoftLinker)
             {
                 Internal_ProcessLinkerOutput_MSVC(StdOutHandle);
             }

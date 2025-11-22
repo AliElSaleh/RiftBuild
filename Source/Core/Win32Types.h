@@ -695,6 +695,18 @@ typedef LPOSVERSIONINFOA LPOSVERSIONINFO;
 #endif // UNICODE
 
 
+typedef enum _COMPUTER_NAME_FORMAT {
+  ComputerNameNetBIOS,
+  ComputerNameDnsHostname,
+  ComputerNameDnsDomain,
+  ComputerNameDnsFullyQualified,
+  ComputerNamePhysicalNetBIOS,
+  ComputerNamePhysicalDnsHostname,
+  ComputerNamePhysicalDnsDomain,
+  ComputerNamePhysicalDnsFullyQualified,
+  ComputerNameMax
+} COMPUTER_NAME_FORMAT;
+
 /*
 
 typedef struct _FILE_DIRECTORY_INFORMATION {
@@ -1621,6 +1633,7 @@ PRAGMA_ENABLE_WARNINGS
     #define RegGetValue          RegGetValueW
 
     #define GetComputerName      GetComputerNameW
+    #define GetComputerNameEx    GetComputerNameExW
 
 #else
     #define PeekMessage          PeekMessageA
@@ -1681,6 +1694,7 @@ PRAGMA_ENABLE_WARNINGS
     #define RegGetValue          RegGetValueA
 
     #define GetComputerName      GetComputerNameA
+    #define GetComputerNameEx    GetComputerNameExA
 #endif
 
 #define EnumProcesses         K32EnumProcesses
@@ -1854,6 +1868,8 @@ WINBASEAPI NO_DISCARD DWORD      WINAPI GetWindowThreadProcessId(HWND hWnd, LPDW
 WINBASEAPI NO_DISCARD HWND       WINAPI GetConsoleWindow(void);
 WINBASEAPI NO_DISCARD BOOL       WINAPI GetComputerNameA(LPSTR lpBuffer, LPDWORD lpnSize);
 WINBASEAPI NO_DISCARD BOOL       WINAPI GetComputerNameW(LPWSTR lpBuffer, LPDWORD lpnSize);
+WINBASEAPI NO_DISCARD BOOL       WINAPI GetComputerNameExA(COMPUTER_NAME_FORMAT NameType, LPSTR lpBuffer, LPDWORD nSize);
+WINBASEAPI NO_DISCARD BOOL       WINAPI GetComputerNameExW(COMPUTER_NAME_FORMAT NameType, LPSTR lpBuffer, LPDWORD nSize);
 
 WINBASEAPI NO_DISCARD BOOL       WINAPI SetThreadStackGuarantee(PULONG StackSizeInBytes);
 

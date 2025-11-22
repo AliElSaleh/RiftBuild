@@ -668,8 +668,6 @@ static bool Lexer_Match(Lexer* L, uchar Expected)
 
 static void Lexer_AddToken(Lexer* L, ETokenType Type)
 {
-    ASSERT(L->Current > L->Start);
-
     const u32 Diff = L->Current - L->Start;
 
     Token NewToken;
@@ -2185,8 +2183,10 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
         Lexer l = {0};
         l.Text = Text;
         l.Line = 1;
+
         Token* Tokens = LinearAllocator_Allocate(Arena, sizeof(struct Token) * MAX_TOKENS);
         l.Tokens = Tokens;
+
         while (l.Current < l.Text.Length)
         {
             l.Start = l.Current;
@@ -3515,18 +3515,28 @@ bool FindFirstCompilerAvailable(const String CompilerToFind, const String Assemb
 
         if (bNoCompilerProgramExplicityGiven)
         {
-            // todo: prettier log messaging
             #if PLATFORM_WINDOWS
+            LOG("\n    You don't seem to have a C nor C++ compiler installed on your machine."
+                "\n    Install either \"clang/clang++\", \"gcc/g++\" or \"cl (msvc)\" and add to the path environment"
+                "\n    before using RiftBuild, as we require a working compiler program to function properly. Aborting build...\n");
+
+            /*
             LOG_ERROR(
                 "You don't seem to have a C nor C++ compiler installed on your machine."
                 " Install either \"clang/clang++\", \"gcc/g++\" or \"cl (msvc)\" and add to the path environment"
                 " before using RiftBuild, as we require a working compiler program to function properly. Aborting build...\n");
+            */
             #else
+            LOG("\n    You don't seem to have a C nor C++ compiler installed on your machine."
+                "\n    Install either \"clang/clang++\" or \"gcc/g++\" and add to the path environment"
+                "\n    before using RiftBuild, as we require a working compiler program to function properly. Aborting build...\n");
+
+            /*
             LOG_ERROR(
                 "You don't seem to have a C nor C++ compiler installed on your machine."
                 " Install either \"clang/clang++\" or \"gcc/g++\" and add to the PATH environment"
                 " before using RiftBuild, as we require a working compiler program to function properly. Aborting build...\n");
-
+            */
             #endif
 
             LogPathEnvVarTutorialSteps();
@@ -4165,7 +4175,6 @@ NO_DISCARD static NodeList* Analyze_List(LinearAllocator* Arena, Node* Block, Pa
                     // does this block care about ordering of its child nodes?
                     if (Block->bPreserveOrder)
                     {
-                        ASSERT(IndeterminateList == NULL);
                         IndeterminateList = Block->List;
 
                         // "free" the memory that was allocated
@@ -4848,7 +4857,14 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
 
                 if (!bFound)
                 {
-                    LOG_INLINE_ERROR("\n[ASSERTION FAILURE] Any one of these arguments must be specified: %S\n", Var.Value);
+                    if (ArgArray.Num == 0)
+                    {
+                        LOG_INLINE_ERROR("\n[ASSERTION FAILURE] You must specify one or more arguments\n");
+                    }
+                    else
+                    {
+                        LOG_INLINE_ERROR("\n[ASSERTION FAILURE] Any one of these arguments must be specified: %S\n", Var.Value);
+                    }
                     bAssertionFailed = true;
                     break;
                 }
@@ -5286,15 +5302,19 @@ NO_DISCARD bool ParseBuildFile(LinearAllocator* PermanentArena,
                     StringList* Includes)
 {
     // sanity - peace of mind checks
-    ASSERT(IsValidFileHandle(H));
-    ASSERT(BuildFilePath.Length > 0);
+    bool bValidFile = ALWAYS(String_IsValid(BuildFilePath));
 
     // the lexer/parser will need at least 128KiB of memory to function correctly
-    ASSERT(Context.TempArena->TotalSize > Kibibytes(128));
+    bool bEnoughMem = ALWAYS(Context.TempArena->TotalSize > Kibibytes(128));
 
-    bool bSuccess = true;
+    bool bSuccess = bValidFile && bEnoughMem;
 
-    Node* AST = Internal_ParseFile(Context.TempArena, H);
+    Node* AST = &Node_Null;
+
+    if (bSuccess)
+    {
+        AST = Internal_ParseFile(Context.TempArena, H);
+    }
 
     if (!AST || AST == &Node_Null)
     {

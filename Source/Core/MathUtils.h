@@ -60,8 +60,8 @@ FORCEINLINE NO_DISCARD static i64 Absi64(i64 Value)
 // Generic clamp 'functions' that work on any primitive type
 /*
 #define Clamp(Value, Min, Max) (((Value) < (Min)) ? (Min) : ((Value) < (Max)) ? (Value) : (Max))
-#define ClampMin(Value, Min)   (((Value) < (Min)) ? (Min) : (Value))
-#define ClampMax(Value, Max)   (((Value) > (Max)) ? (Max) : (Value))
+#define Clamp_Min(Value, Min)   (((Value) < (Min)) ? (Min) : (Value))
+#define Clamp_Max(Value, Max)   (((Value) > (Max)) ? (Max) : (Value))
 */
 
 #endif // MATH_H
