@@ -1383,12 +1383,23 @@ bool C_Link(const BuildParams* Params)
         #if !PLATFORM_WINDOWS
         if (bIsExe)
         {
+            #if PLATFORM_MAC
+            String ChosenRPath = S("@executable_path");
+
+            if (String_IsValid(Params->RPath))
+            {
+                ChosenRPath = Params->RPath;
+            }
+
+            String_AppendF(&RunPathLinkFlag, S("-Wl,-rpath,%S"), ChosenRPath);
+            #else
             String ChosenRPath = S("$ORIGIN");
             if (String_IsValid(Params->RPath))
             {
                 ChosenRPath = Params->RPath;
             }
             String_AppendF(&RunPathLinkFlag, S("-Wl,-rpath,'%S'"), ChosenRPath);
+            #endif
         }
         #endif
 
