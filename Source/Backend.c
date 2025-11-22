@@ -681,9 +681,6 @@ static void Internal_AppendObjSourceFiles(const BuildParams* Params, String* Cmd
 
         const String RelativePath = It.String;
 
-        // u32 LastDot = 0;
-        // bool bHasDot = String_IndexOfLastChar(RelativePath, '.', &LastDot);
-
         #if PLATFORM_WINDOWS
         if (String_EndsWith(RelativePath, S(".rc"), false))
         {
@@ -695,6 +692,9 @@ static void Internal_AppendObjSourceFiles(const BuildParams* Params, String* Cmd
             // TCC doesn't recognize .res files as of 0.9.28
             if (!String_IsEqual(Params->CompilerProgram, S("tcc"), false))
             {
+                u32 LastDot = 0;
+                bool bHasDot = String_IndexOfLastChar(RelativePath, '.', &LastDot);
+
                 StringLocal(ResPath, MAX_PATH_LENGTH);
                 String_Append(&ResPath, bHasDot ? StrSlice(RelativePath.Data, LastDot) : RelativePath);
                 String_Append(&ResPath, S(".res"));
