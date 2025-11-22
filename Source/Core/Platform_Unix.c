@@ -64,7 +64,7 @@ static void LogLastError(const String Prefix)
     //LOG_ERROR("%S\n        errno %i\n        Reason: %S\n", Prefix, errno, Message);
 
     StringLocal(FormattedMessage, 4096);
-    String_Format(&FormattedMessage, S("%S\n        Error Code: %i\n        Reason: %S"), Prefix, errno, Message);
+    String_Format(&FormattedMessage, S("%S\n        Error Code: %i\n        Reason: %S\n"), Prefix, errno, Message);
     Platform_ConsoleWrite_CustomLength((const char*)FormattedMessage.Data, FormattedMessage.Length, 3, true);
 }
 #else
@@ -1587,7 +1587,7 @@ bool Filesystem_ReadEntireFile(const FileHandle Handle, void* OutData, usize* Ou
         (void)Filesystem_GetFilePath(Handle, &Path);
 
         StringLocal(Prefix, MAX_PATH_LENGTH);
-        String_Format(&Prefix, S("Failed to entire read file \"%S\""), Path);
+        String_Format(&Prefix, S("Failed to read entire file \"%S\""), Path);
         LogLastError(Prefix);
         return false;
     }
@@ -1759,17 +1759,42 @@ bool Filesystem_DoesFileExist(const String FilePath)
     StringLocal(Copy, MAX_PATH_LENGTH);
     String_Copy(&Copy, FilePath);
 
+    bool bSuccess = false;
+
+    struct stat st = {0};
+    if (stat((const char*)Copy.Data, &st) == 0)
+    {
+        bSuccess = S_ISREG(st.st_mode);
+    }
+
+    return bSuccess;
+
+    /*
     if (access((const char*)Copy.Data, F_OK) == 0)
     {
         return true;
     }
     
     return false;
+    */
 }
 
 bool Filesystem_DoesDirectoryExist(const String FilePath)
 {
+    StringLocal(Copy, MAX_PATH_LENGTH);
+    String_Copy(&Copy, FilePath);
+
     bool bSuccess = false;
+
+    struct stat st = {0};
+    if (stat((const char*)Copy.Data, &st) == 0)
+    {
+        bSuccess = S_ISDIR(st.st_mode);
+    }
+
+    return bSuccess;
+
+    /*
     DIR* Found = opendir((const char*)FilePath.Data);
     if (Found)
     {
@@ -1778,6 +1803,7 @@ bool Filesystem_DoesDirectoryExist(const String FilePath)
     }
 
     return bSuccess;
+    */
 }
 
 bool Filesystem_GetFileSize(const FileHandle File, usize* OutSize)

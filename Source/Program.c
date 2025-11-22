@@ -4689,8 +4689,15 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                     AddOrAppendVariable(Arena, VariablesDB, S("Library.Paths"), LibBuildPath, String_Null(), GetMaxValueLengthForReservedKey(S("Library.Paths")));
                     AddOrAppendVariable(Arena, VariablesDB, S("Library.Paths.Public"), LibBuildPath, String_Null(), GetMaxValueLengthForReservedKey(S("Library.Paths")));
 
-                    AddOrAppendVariable(Arena, VariablesDB, S("Libraries"), FreshReceipt.AssemblyName, String_Null(), GetMaxValueLengthForReservedKey(S("Libraries")));
-                    AddOrAppendVariable(Arena, VariablesDB, S("Libraries.Public"), FreshReceipt.AssemblyName, String_Null(), GetMaxValueLengthForReservedKey(S("Libraries")));
+                    // remove lib prefix from assembly name so that linking does not fail
+                    String AssemblyNameTrimmed = FreshReceipt.AssemblyName;
+                    if (String_StartsWith(FreshReceipt.AssemblyName, S("lib"), false))
+                    {
+                        AssemblyNameTrimmed = String_Right(AssemblyNameTrimmed, 3);
+                    }
+
+                    AddOrAppendVariable(Arena, VariablesDB, S("Libraries"), AssemblyNameTrimmed, String_Null(), GetMaxValueLengthForReservedKey(S("Libraries")));
+                    AddOrAppendVariable(Arena, VariablesDB, S("Libraries.Public"), AssemblyNameTrimmed, String_Null(), GetMaxValueLengthForReservedKey(S("Libraries")));
                 }
 
                 AddOrAppendVariable(Arena, VariablesDB, S("Defines"),          FreshReceipt.Defines, String_Null(), GetMaxValueLengthForReservedKey(S("Includes")));

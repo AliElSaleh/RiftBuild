@@ -279,7 +279,7 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
     {
         StringLocal(ObjFile, MAX_PATH_LENGTH);
         {
-            String Name    = Filesystem_ExtractFileName(RelativePath, false);
+            String Name    = Filesystem_ExtractFileName(RelativePath, true);
             String Prefix  = String_Null();
             String Postfix = String_Null();
             String ObjExt  = String_IsValid(Params->CompilerObjectExt) ? Params->CompilerObjectExt : DefaultObjExtension;
@@ -681,8 +681,8 @@ static void Internal_AppendObjSourceFiles(const BuildParams* Params, String* Cmd
 
         const String RelativePath = It.String;
 
-        u32 LastDot = 0;
-        bool bHasDot = String_IndexOfLastChar(RelativePath, '.', &LastDot);
+        // u32 LastDot = 0;
+        // bool bHasDot = String_IndexOfLastChar(RelativePath, '.', &LastDot);
 
         #if PLATFORM_WINDOWS
         if (String_EndsWith(RelativePath, S(".rc"), false))
@@ -709,7 +709,8 @@ static void Internal_AppendObjSourceFiles(const BuildParams* Params, String* Cmd
             // example: some_file.c now becomes some_file.o
             StringLocal(ObjFile, MAX_PATH_LENGTH);
             {
-                String_Append(&ObjFile, bHasDot ? StrSlice(RelativePath.Data, LastDot) : RelativePath);
+                // String_Append(&ObjFile, bHasDot ? StrSlice(RelativePath.Data, LastDot) : RelativePath);
+                String_Append(&ObjFile, RelativePath);
 
                 const String Ext = String_IsValid(Params->CompilerObjectExt) ? Params->CompilerObjectExt : DefaultObjExt;
                 if (!String_IsFirst(Ext, '.'))
@@ -1294,6 +1295,7 @@ bool C_Link(const BuildParams* Params)
 
     bool bIsMicrosoftLinker   = String_EndsWith(Params->LinkerPath, S("link.exe"), false);
     bool bIsMicrosoftArchiver = String_EndsWith(Params->ArchiverPath, S("lib.exe"), false);
+    bool bIsUnixArchiver = String_EndsWith(Params->ArchiverPath, S("ar"), false);
 
     bool bIsExe = Params->Type == AssemblyType_Executable;
     bool bIsDLL = Params->Type == AssemblyType_Library || Params->Type == AssemblyType_DynamicLibrary;
@@ -1350,7 +1352,7 @@ bool C_Link(const BuildParams* Params)
 
     if (Params->bVerbose)
     {
-        if (bIsMicrosoftLinker || bIsMicrosoftArchiver)
+        if (bIsMicrosoftLinker || bIsMicrosoftArchiver || bIsUnixArchiver)
         {
             VerboseFlag = String_Null();
         }
