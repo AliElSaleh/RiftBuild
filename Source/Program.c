@@ -38,7 +38,7 @@ bool bVerboseLog = false;
 FileVariable FileVariable_Empty = {0};
 
 static bool bSingleThread = false;
-static bool bIsRebuild = false;
+// static bool bIsRebuild = false;
 static bool bIsClean = false;
 
 read_only String BuiltinOptions[] =
@@ -4361,6 +4361,8 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     }
     */
 
+    bool bIsRebuild    = StringArray_Contains(Parameters, S("rebuild"), false);
+
     // force rebuild if we say so in the build file
     if (!bIsRebuild)
     {
@@ -4710,15 +4712,15 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                     for each_string_in_list (Paths)
                     {
                         StringLocal(Temp, MAX_PATH_LENGTH);
-			if (Filesystem_IsPathRelative(It.String))
-			{
+                        if (Filesystem_IsPathRelative(It.String))
+                        {
                             String_BuildPath(&Temp, S("\""), RelativeWorkingPathFromMe, It.String, S("\""),);
-			}
-			else
-			{
-			    String_Copy(&Temp, It.String);
-			}
-
+                        }
+                        else
+                        {
+                            String_Copy(&Temp, It.String);
+                        }
+                        
                         AddOrAppendVariable(Arena, VariablesDB, S("Library.Paths"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Library.Paths")));
                         AddOrAppendVariable(Arena, VariablesDB, S("Library.Paths.Public"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Library.Paths")));
                     }
@@ -4729,14 +4731,15 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                     for each_string_in_list (Paths)
                     {
                         StringLocal(Temp, MAX_PATH_LENGTH);
-			if (Filesystem_IsPathRelative(It.String))
-			{
+
+                        if (Filesystem_IsPathRelative(It.String))
+                        {
                             String_BuildPath(&Temp, S("\""), RelativeWorkingPathFromMe, It.String, S("\""),);
-			}
-			else
-			{
-			    String_Copy(&Temp, It.String);
-			}
+                        }
+                        else
+                        {
+                            String_Copy(&Temp, It.String);
+                        }
 
                         AddOrAppendVariable(Arena, VariablesDB, S("Includes"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Includes")));
                         AddOrAppendVariable(Arena, VariablesDB, S("Includes.Public"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Includes")));
@@ -4755,8 +4758,8 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                 bool bIsSpecial = String_IsEqual(Var.Params, S("Rebuild_If_Done_Work"), false);
                 if (!bIsRebuild && bIsSpecial)
                 {
-                    //LOG("\nDependency \"%S\" was modified. Forcing rebuild...", BuildFileNameWithExt);
-                    //bIsRebuild = true;
+                    // LOG("\nDependency \"%S\" was modified. Forcing rebuild...", BuildFileNameWithExt);
+                    // bIsRebuild = true;
                 }
             }
             else if (FreshReceipt.ExitCode != 0)
@@ -5751,6 +5754,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
             if (!bAnyExist)
             {
+                /*
                 bIsRebuild = true;
                 
                 StringLocal(Temp, MAX_PATH_LENGTH);
@@ -5760,6 +5764,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                     // only say this if we have a build directory but no assembly file
                     LOG("Assembly file \"%S\" does not exist. Forcing rebuild...\n", AssemblyPath);
                 }
+                */
             }
 
             if (!bIsRebuild)
@@ -5822,10 +5827,11 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             Filesystem_Close(&File);
         }
 
-        // force a rebuild if either the build directory or the intermediate directory is missing
+        // force a rebuild if either the intermediate directory is missing
         if (!bIsRebuild && !bIsClean)
         {
-            if (!bDidBuildDirectoryExist || !bDidIntermediateDirectoryExist)
+            // if (!bDidBuildDirectoryExist || !bDidIntermediateDirectoryExist)
+            if (!bDidIntermediateDirectoryExist)
             {
                 bIsRebuild = true;
             }
@@ -6284,6 +6290,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     Clock ResourceCompileClock = {0};
     Clock BundleCompileClock = {0};
 
+    // TODO: should leave one core free? so as to not freeze/lag the entire computer?
     u32 MaxLogicalCores = Platform_GetNumLogicalProcessors();
     u8 MaxCompilersAtOnce = (u8)MaxLogicalCores; // bound by max logical processors on the user's machine
     //LOG_INFO("Max logical cores: %u", MaxLogicalCores);
@@ -7341,7 +7348,7 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments, const 
     bHelp         = StringArray_Contains(Arguments, S("help"), false);
     bOptions      = StringArray_Contains(Arguments, S("options"), false);
     bIsClean      = StringArray_Contains(Arguments, S("clean"), false);
-    bIsRebuild    = StringArray_Contains(Arguments, S("rebuild"), false);
+    // bIsRebuild    = StringArray_Contains(Arguments, S("rebuild"), false);
     bVerboseLog   = StringArray_Contains(Arguments, S("-v"), false);
     bSingleThread = StringArray_Contains(Arguments, S("--singlethread"), false) ||
                     StringArray_Contains(Arguments, S("-s"), false);
