@@ -504,8 +504,10 @@ static ReservedKeyTable ReservedKeys[69] =
     { .Key = SC("Compiler.OutputFlag"),       .MaxValueLength = 16 },
     { .Key = SC("Compiler.ObjectExtension"),  .MaxValueLength = 32 },
     { .Key = SC("Compiler.ObjectDirectory"),  .MaxValueLength = 1024 },
+    // TODO: Linker.RPath. can specify multiple, spearated by spaces
     { .Key = SC("Linker.Path"),               .MaxValueLength = 1024 },
     { .Key = SC("Linker.Flags"),              .MaxValueLength = 8192 },
+    { .Key = SC("Linker.Flags.Public"),       .MaxValueLength = 8192 },
     { .Key = SC("Linker.Defines"),            .MaxValueLength = 4096 },
     { .Key = SC("Linker.EntryPoint"),         .MaxValueLength = 256 },
     { .Key = SC("Linker.Subsystem"),          .MaxValueLength = 128 },
@@ -5999,7 +6001,7 @@ bool ExpandBuildVariable(LinearAllocator Scratch, FileVariableList* VariablesDB,
                         SC("SourceDirectories.Exclude"),
                         SC("SourceFiles"),
                         SC("SourceFiles.Exclude"),
-                        SC(".rpath"),
+                        SC(".RPathOrigin"),
                     };
 
                     bool bKeyIsPathBased = false;

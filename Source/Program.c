@@ -83,6 +83,7 @@ STRUCT(BuildReceipt)
     String Defines;
     String Libraries;
     String LibraryPaths;
+    String LinkerFlags;
 
     u32 ExitCode;
     u32 Padding;
@@ -3989,7 +3990,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
     const String LinkerPath                 = GetCmdOptionValue(CmdOptionsDB, S("Linker.Path"));
     const String LinkerProgram              = Filesystem_ExtractFileName(LinkerPath, false);
-    const String LinkerFlags                = GetVariableValue(VariablesDB, S("Linker.Flags"));
     const String LinkerDefines              = GetVariableValue(VariablesDB, S("Linker.Defines"));
 
     const String AsmCompilerPath            = GetCmdOptionValue(CmdOptionsDB, S("Assembler.Path"));
@@ -4010,7 +4010,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     String Icon                             = GetVariableValue(VariablesDB, S("Icon"));
     const String PCHPath                    = GetVariableValue(VariablesDB, S("PCH"));
     const String PCHHeaderPath              = GetVariableValue(VariablesDB, S("PCH.h"));
-    const String RPath                      = GetVariableValue(VariablesDB, S(".RPath"));
+    const String RPath                      = GetVariableValue(VariablesDB, S(".RPathOrigin"));
 
     #if PLATFORM_APPLE
     const bool bBundleApp                   = DoesBuildVarExist(VariablesDB, S("Bundle"));
@@ -4703,10 +4703,12 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                     AddOrAppendVariable(Arena, VariablesDB, S("Libraries.Public"), AssemblyNameTrimmed, String_Null(), GetMaxValueLengthForReservedKey(S("Libraries")));
                 }
 
-                AddOrAppendVariable(Arena, VariablesDB, S("Defines"),          FreshReceipt.Defines, String_Null(), GetMaxValueLengthForReservedKey(S("Includes")));
-                AddOrAppendVariable(Arena, VariablesDB, S("Defines.Public"),   FreshReceipt.Defines, String_Null(), GetMaxValueLengthForReservedKey(S("Includes")));
-                AddOrAppendVariable(Arena, VariablesDB, S("Libraries"),        FreshReceipt.Libraries, String_Null(), GetMaxValueLengthForReservedKey(S("Libraries")));
-                AddOrAppendVariable(Arena, VariablesDB, S("Libraries.Public"), FreshReceipt.Libraries, String_Null(), GetMaxValueLengthForReservedKey(S("Libraries")));
+                AddOrAppendVariable(Arena, VariablesDB, S("Defines"),             FreshReceipt.Defines, String_Null(),     GetMaxValueLengthForReservedKey(S("Includes")));
+                AddOrAppendVariable(Arena, VariablesDB, S("Defines.Public"),      FreshReceipt.Defines, String_Null(),     GetMaxValueLengthForReservedKey(S("Includes")));
+                AddOrAppendVariable(Arena, VariablesDB, S("Libraries"),           FreshReceipt.Libraries, String_Null(),   GetMaxValueLengthForReservedKey(S("Libraries")));
+                AddOrAppendVariable(Arena, VariablesDB, S("Libraries.Public"),    FreshReceipt.Libraries, String_Null(),   GetMaxValueLengthForReservedKey(S("Libraries")));
+                AddOrAppendVariable(Arena, VariablesDB, S("Linker.Flags"),        FreshReceipt.LinkerFlags, String_Null(), GetMaxValueLengthForReservedKey(S("Linker.Flags.Public")));
+                AddOrAppendVariable(Arena, VariablesDB, S("Linker.Flags.Public"), FreshReceipt.LinkerFlags, String_Null(), GetMaxValueLengthForReservedKey(S("Linker.Flags.Public")));
 
                 {
                     StringList Paths = String_SplitIntoList(Arena, FreshReceipt.LibraryPaths, ' ', true);
@@ -5106,6 +5108,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     Receipt.Defines         = GetVariableValue(VariablesDB, S("Defines.Public"));
     Receipt.Libraries       = GetVariableValue(VariablesDB, S("Libraries.Public"));
     Receipt.LibraryPaths    = GetVariableValue(VariablesDB, S("Library.Paths.Public"));
+    Receipt.LinkerFlags     = GetVariableValue(VariablesDB, S("Linker.Flags.Public"));
     Receipt.AssemblyName    = String_Create(Arena, AssemblyName);
     Receipt.AssemblyType    = AssemblyType;
 
@@ -6270,6 +6273,9 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     FlagPrefix.Data[1] = 'D';
     ExpandDefineFlags(&ExpandedAssemblerDefineFlags, AssemblerDefines, FlagPrefix, bExportingSomething);
 
+    // TODO: move the rest down here
+    const String LinkerFlags                = GetVariableValue(VariablesDB, S("Linker.Flags"));
+
     #if !NO_PRINT_BUILD_CONFIG
     if (!bExportingSomething)
     {
@@ -6888,6 +6894,10 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             return Receipt;
         }
     }
+
+    // TODO
+    // PostBundle step?
+    // Bundle.Resources key to copy files in macos bundles
 
     #if PLATFORM_APPLE
     // compile the .app bundle (if desired)
