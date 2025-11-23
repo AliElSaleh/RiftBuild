@@ -165,6 +165,7 @@ STRUCT(BuildParams)
     String ArchiverPath;
     String DumpBinPath;
     String CompilerOutputFlag;
+    String CompilerCompileFlag;
     String AsmProgram;
     String AsmPath;
     String RCProgram;
@@ -230,7 +231,8 @@ STRUCT(BuildParams)
     bool bDumpObjFilesInOneDirectory;
     bool bLinkerNoStd;
     bool bLinkerNoDefaultLibs;
-    bool _bPadding[2];
+    bool bCompilerFlagsFirst;
+    bool _bPadding[1];
 };
 
 STRUCT(CompilerPaths)

@@ -288,7 +288,7 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
             {
                 Prefix  = Params->AssemblyPrefix;
                 Postfix = Params->AssemblyPostfix;
-                ObjExt  = Params->Extension;
+                //ObjExt  = Params->Extension;
             }
 
             String_Append(&ObjFile, Prefix);
@@ -411,7 +411,14 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
                 OutputFlag = Params->CompilerOutputFlag;
             }
 
-            CompileFlag = String_Null();
+            if (String_IsValid(Params->CompilerCompileFlag))
+            {
+                CompileFlag = Params->CompilerCompileFlag;
+            }
+            else
+            {
+                CompileFlag = String_Null();
+            }
         }
         else
         {
@@ -553,7 +560,10 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
             }
         }
 
-        String_BuildSeparator(&CmdLine, ' ', CompileFlag, FullSourcePath, Params->CompilerFlags, Params->IncludeFlags, Params->DefineFlags, WinSDKInclude, AdditionalFlags, PCHFlags, OutputFlag);
+        String CompilerFlagsLeft  = Params->bCompilerFlagsFirst ? Params->CompilerFlags : String_Null();
+        String CompilerFlagsRight = Params->bCompilerFlagsFirst ? String_Null() : Params->CompilerFlags;
+
+        String_BuildSeparator(&CmdLine, ' ', CompilerFlagsLeft, CompileFlag, FullSourcePath, CompilerFlagsRight, Params->IncludeFlags, Params->DefineFlags, WinSDKInclude, AdditionalFlags, PCHFlags, OutputFlag);
         xx String_EatSpacesInlineFromEnd(&CmdLine);
 
         String_Append(&CmdLine, S(" \""));
@@ -603,6 +613,7 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
                 const u32 ExitCode = Platform_WaitForProcessAndGetExitCode(Handle);
                 if (ExitCode != 0)
                 {
+                    xx Filesystem_DeleteFile(ObjectPath);
                     LOG_ERROR("Compiler errors detected. See above errors to fix. Exit code for process: %u. Aborting build...", ExitCode);
                     return false;
                 }
@@ -610,6 +621,7 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
         }
         else
         {
+            xx Filesystem_DeleteFile(ObjectPath);
             LOG_ERROR("Failed to spawn compiler process: \"%S\"", ProgramPath);
             return false;
         }
@@ -1297,8 +1309,86 @@ bool C_Link(const BuildParams* Params)
 {
     if (NEVER(Params == NULL)) { return false; }
 
-    if (Params->Type == AssemblyType_PCH || Params->Type == AssemblyType_CustomCompilerObject)
+    if (Params->Type == AssemblyType_PCH)
     {
+        return true;
+    }
+
+    if (Params->Type == AssemblyType_CustomCompilerObject)
+    {
+        String ProgramPath = Params->LinkerPath;
+        String OutputFlag = S("-o "); // TODO: Linker.OutputFlag?
+
+        StringLocal(BuildPath, MAX_PATH_LENGTH);
+        String_BuildPath(&BuildPath, Params->RootDirectory, Params->BuildDirectory);
+        String_AppendPathSeparator(&BuildPath);
+
+        StringLocal(CmdLine, UINT16_MAX);
+        String_AppendChar(&CmdLine, '"');
+        String_Append    (&CmdLine, ProgramPath);
+        String_AppendChar(&CmdLine, '"');
+        String_AppendSpace(&CmdLine);
+
+        String ObjExt  = String_IsValid(Params->CompilerObjectExt) ? Params->CompilerObjectExt : S(".o");
+        Internal_AppendObjSourceFiles(Params, &CmdLine, ObjExt);
+
+        // These must come after obj files because on some operating systems
+        // the linker is sensitive to the order of how the flags are positioned
+        // 
+        String_BuildSeparator(&CmdLine, ' ', Params->LinkerFlags,
+                                             Params->LinkerDefineFlags,
+                                             Params->Libraries,
+                                             Params->LibraryDirectories);
+
+        xx String_EatSpacesInlineFromEnd(&CmdLine);
+        String_AppendSpace(&CmdLine);
+
+        String_Concat(&CmdLine, OutputFlag, S("\""), BuildPath, Params->AssemblyWithExt, S("\""));
+
+        if (bQuietBuild) { Logging_Enable(); }
+
+        #ifndef HOOD
+        LOG("Linking %S", Params->AssemblyWithExt);
+        #else
+        LOG("linkn' shit up %S", Params->AssemblyWithExt);
+        #endif
+
+        if (bQuietBuild) { Logging_Disable(); }
+
+        if (Params->bVerbose)
+        {
+            if (bNoWordWrapLogging)
+            {
+                LOG("\n    %S\n", CmdLine);
+            }
+            else
+            {
+                LogString_WordWrapped(*Params->Arena, S("    "), CmdLine, false);
+            }
+        }
+
+
+        PlatformHandle Handle = Platform_RunProcess(ProgramPath, CmdLine, Params->RootDirectory, String_Null());
+
+        if (Platform_IsValidHandle(Handle))
+        {
+            u32 ExitCode = Platform_WaitForProcessAndGetExitCode(Handle);
+            if (ExitCode != 0)
+            {
+                #ifndef HOOD
+                LOG_ERROR("\nLinker errors detected. See above errors to fix. Exit code for process: %u. Aborting build...", ExitCode);
+                #else
+                LOG_ERROR("seen some linker errors homie. fix yo shit up, something aint linkin' right");
+                #endif
+                
+                return false;
+            }
+        }
+        else
+        {
+            return false;
+        }
+
         return true;
     }
 
@@ -1311,7 +1401,7 @@ bool C_Link(const BuildParams* Params)
 
     bool bIsMicrosoftLinker   = String_EndsWith(Params->LinkerPath, S("link.exe"), false);
     bool bIsMicrosoftArchiver = String_EndsWith(Params->ArchiverPath, S("lib.exe"), false);
-    bool bIsUnixArchiver = String_EndsWith(Params->ArchiverPath, S("ar"), false);
+    bool bIsUnixArchiver      = String_EndsWith(Params->ArchiverPath, S("ar"), false);
 
     bool bIsExe = Params->Type == AssemblyType_Executable;
     bool bIsDLL = Params->Type == AssemblyType_Library || Params->Type == AssemblyType_DynamicLibrary;

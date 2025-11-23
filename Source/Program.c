@@ -3983,8 +3983,10 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     String CompilerPath                     = GetCmdOptionValue(CmdOptionsDB, S("Compiler.Path"));
     String CompilerProgram                  = Filesystem_ExtractFileName(CompilerPath, false);
     const String CompilerFlags              = GetVariableValue(VariablesDB, S("Compiler.Flags"));
+    const String CompilerFlagsParams        = GetVariable(VariablesDB, S("Compiler.Flags")).Params;
     const String MaxConcurrentCompilations  = GetVariableValue(VariablesDB, S("Compiler.MaxCores"));
     const String CompilerOutputFlag         = GetVariableValue(VariablesDB, S("Compiler.OutputFlag"));
+    const String CompilerCompileFlag        = GetVariableValue(VariablesDB, S("Compiler.CompileFlag"));
     const String CompilerObjectExt          = GetVariableValue(VariablesDB, S("Compiler.ObjectExtension"));
     const String CompilerObjectDirectory    = GetVariableValue(VariablesDB, S("Compiler.ObjectDirectory"));
 
@@ -4037,6 +4039,13 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
     ECompiler CompilerVendor = DetermineCompilerVendor(CompilerPath);
 
+    // For compilers that want flags first instead of "-c some/file"
+    bool bCompilerFlagsFirst = false;
+    {
+        ScratchLocal(Temp, Kibibytes(1));
+        StringList CFlagParamsList = String_SplitIntoList(&Temp, CompilerFlagsParams, ' ', false);
+        bCompilerFlagsFirst = StringList_FindIndex(CFlagParamsList, S("first"), false, StringCompare_Equal, NULL);
+    }
 
     #ifndef HOOD
     LOG("Timestamp:         %S\n", TimeStamp);
@@ -4145,21 +4154,21 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             {
                 if (!bHasDynamicLib)
                 {
-                    bHasDynamicLib = String_EndsWith(*e, S("dll"), false) ||
-                                     String_EndsWith(*e, S("so"), false) ||
-                                     String_EndsWith(*e, S("dylib"), false);
+                    bHasDynamicLib = String_IsEqual(*e, S("dll"), false) ||
+                                     String_IsEqual(*e, S("so"), false) ||
+                                     String_IsEqual(*e, S("dylib"), false);
                 }
 
                 if (!bHasStaticLib)
                 {
-                    bHasStaticLib = String_EndsWith(*e, S("lib"), false) ||
-                                    String_EndsWith(*e, S("a"), false);
+                    bHasStaticLib = String_IsEqual(*e, S("lib"), false) ||
+                                    String_IsEqual(*e, S("a"), false);
                 }
 
                 if (!bHasPCH)
                 {
-                    bHasPCH = String_EndsWith(*e, S("pch"), false) ||
-                              String_EndsWith(*e, S("gch"), false);
+                    bHasPCH = String_IsEqual(*e, S("pch"), false) ||
+                              String_IsEqual(*e, S("gch"), false);
                 }
             }
 
@@ -4208,7 +4217,11 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     }
     else
     {
-        String_Append(&FinalAssemblyName, S("lib"));
+        if (AssemblyType != AssemblyType_CustomCompilerObject)
+        {
+            String_Append(&FinalAssemblyName, S("lib"));
+        }
+
         String_Append(&FinalAssemblyName, AssemblyPrefix);
         String_Append(&FinalAssemblyName, Assembly);
         String_Append(&FinalAssemblyName, AssemblyPostfix);
@@ -6123,14 +6136,18 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         LOG_LINE_BREAK();
     }
 
+    bool bExplicitLinker = DoesCmdOptionExist(CmdOptionsDB, S("Linker.Explicit"));
+    bool bCanLink = AssemblyType != AssemblyType_CustomCompilerObject ||
+                    (AssemblyType == AssemblyType_CustomCompilerObject && bExplicitLinker);
+
     #if !NO_PRINT_BUILD_CONFIG
     if (!bExportingSomething)
     {
         if (bFoundBuildFile)
         {
             LOG("Build Configuration:");
-
-            if (AssemblyType != AssemblyType_CustomCompilerObject)
+            
+            if (bCanLink)
             {
                 u32 WhitespaceIndex = 0;
                 bool bHasSpace = String_IndexOfFirstWhitespace(Extension_Og, &WhitespaceIndex);
@@ -6169,7 +6186,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             
             LOG("    Compiler:             %S -> \"%S\"", CompilerProgram, CompilerPath);
 
-            if (AssemblyType != AssemblyType_CustomCompilerObject)
+            if (bCanLink)
             {
                 LOG("    Linker:               %S -> \"%S\"", LinkerProgram, LinkerPath);
             }
@@ -6350,6 +6367,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     p.CompilerProgram               = CompilerProgram;
     p.CompilerPath                  = CompilerPath;
     p.CompilerOutputFlag            = CompilerOutputFlag;
+    p.CompilerCompileFlag           = CompilerCompileFlag;
     p.CompilerObjectExt             = CompilerObjectExt;
     p.CompilerObjectDirectory       = CompilerObjectDirectory;
     p.LinkerPath                    = LinkerPath;
@@ -6382,6 +6400,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     p.MaxCompilersAtOnce            = MaxCompilersAtOnce;
     p.bShouldWaitPerCompileProcess  = bSingleThread;
     p.CompilerFlags                 = CompilerFlags;
+    p.bCompilerFlagsFirst           = bCompilerFlagsFirst;
     p.AssemblerFlags                = AssemblerFlags;
     p.AssemblerIncludes             = ExpandedAssemblerIncludeFlags;
     p.AssemblerDefines              = ExpandedAssemblerDefineFlags;
@@ -6692,9 +6711,9 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     {
         if (NumSources > 0)
         {
-            if (AssemblyType == AssemblyType_CustomCompilerObject)
+            if (AssemblyType == AssemblyType_CustomCompilerObject && !bCanLink)
             {
-                LOG("Building *%S files [%S] (%u %S) (with %u %S max)\n", Extension, S(CPU_ARCHITECTURE_STRING), NumSources, NumSources == 1 ? S("source file") : S("source files"), MaxCompilersAtOnce, MaxCompilersAtOnce == 1 ? S("core") : S("cores"));
+                LOG("Building *%S files [%S] (%u %S) (with %u %S max)\n", CompilerObjectExt, S(CPU_ARCHITECTURE_STRING), NumSources, NumSources == 1 ? S("source file") : S("source files"), MaxCompilersAtOnce, MaxCompilersAtOnce == 1 ? S("core") : S("cores"));
             }
             else
             {
@@ -6856,10 +6875,10 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         return Receipt;
     }
 
+    // prelink step
     Clock LinkClock = {0};
 
-    // prelink step
-    if (AssemblyType != AssemblyType_CustomCompilerObject)
+    if (bCanLink)
     {
         if (!TryRunBuildCommands(S("PreLink"), WorkingPath, VariablesDB, &ExternalClock))
         {

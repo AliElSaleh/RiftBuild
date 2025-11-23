@@ -487,7 +487,7 @@ STRUCT(ReservedKeyTable)
     u32    Padding;
 };
 
-static ReservedKeyTable ReservedKeys[70] =
+static ReservedKeyTable ReservedKeys[71] =
 {
     { .Key = SC("Assembly"),                  .MaxValueLength = 256 },
     { .Key = SC("Assembly.Prefix"),           .MaxValueLength = 128 },
@@ -502,6 +502,7 @@ static ReservedKeyTable ReservedKeys[70] =
     { .Key = SC("Compiler.Flags"),            .MaxValueLength = 4096 },
     { .Key = SC("Compiler.MaxCores"),         .MaxValueLength = 16 },
     { .Key = SC("Compiler.OutputFlag"),       .MaxValueLength = 16 },
+    { .Key = SC("Compiler.CompileFlag"),      .MaxValueLength = 16 },
     { .Key = SC("Compiler.ObjectExtension"),  .MaxValueLength = 32 },
     { .Key = SC("Compiler.ObjectDirectory"),  .MaxValueLength = 1024 },
     // TODO: Linker.RPath. can specify multiple, spearated by spaces
@@ -3940,6 +3941,12 @@ static bool Analyze_Compiler(LinearAllocator* Arena, Node* Block, ParsingContext
     String AssemblerProgram = GetCmdOptionValue(Context->CmdOptionsDB, S("Assembler"));
     String LinkerProgram    = GetCmdOptionValue(Context->CmdOptionsDB, S("Linker"));
     String ArchiverProgram  = GetCmdOptionValue(Context->CmdOptionsDB, S("Archiver"));
+    
+    // right now we only care about if we explicity specified a linker
+    if (String_IsValid(LinkerProgram))
+    {
+        AddCmdOption(Context->CmdOptionsDB, S("Linker.Explicit"), String_Null());
+    }
 
     StringLocal(CompilerPath,        MAX_PATH_LENGTH);
     StringLocal(AssemblerPath,       MAX_PATH_LENGTH);
@@ -4020,6 +4027,12 @@ static bool Analyze_Compiler(LinearAllocator* Arena, Node* Block, ParsingContext
             case Compiler_TCC:
             {
                 AddCmdOption(Context->CmdOptionsDB, S("tcc"), String_Null());
+            }
+            break;
+
+            case Compiler_Generic:
+            {
+                AddCmdOption(Context->CmdOptionsDB, Filesystem_ExtractFileName(CompilerPath, false), String_Null());
             }
             break;
         }
