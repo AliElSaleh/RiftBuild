@@ -308,7 +308,13 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
             PathOfObj = String_Null();
         }
 
-        String_BuildPath(&ObjectPath, Params->RootDirectory, Params->IntermediateDirectory, PathOfObj, ObjFile);
+        String ObjDestinationDirectory = Params->IntermediateDirectory;
+        if (String_IsValid(Params->CompilerObjectDirectory))
+        {
+            ObjDestinationDirectory = Params->CompilerObjectDirectory;
+        }
+
+        String_BuildPath(&ObjectPath, Params->RootDirectory, ObjDestinationDirectory, PathOfObj, ObjFile);
         xx Filesystem_ConvertRelativeToAbsolutePath(&ObjectPath);
         
         if (Params->Type == AssemblyType_PCH)
@@ -400,7 +406,11 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
 
         if (Params->Type == AssemblyType_CustomCompilerObject)
         {
-            OutputFlag = Params->CompilerOutputFlag;
+            if (String_IsValid(Params->CompilerOutputFlag))
+            {
+                OutputFlag = Params->CompilerOutputFlag;
+            }
+
             CompileFlag = String_Null();
         }
         else
@@ -721,7 +731,13 @@ static void Internal_AppendObjSourceFiles(const BuildParams* Params, String* Cmd
                 String_Append(&ObjFile, Ext);
             }
 
-            String_BuildPath(&ObjectPath, Params->IntermediateDirectory, ObjFile);
+            String ObjDestinationDirectory = Params->IntermediateDirectory;
+            if (String_IsValid(Params->CompilerObjectDirectory))
+            {
+                ObjDestinationDirectory = Params->CompilerObjectDirectory;
+            }
+
+            String_BuildPath(&ObjectPath, ObjDestinationDirectory, ObjFile);
         }
 
         String_AppendChar (CmdLine, '"');

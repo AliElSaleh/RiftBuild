@@ -487,7 +487,7 @@ STRUCT(ReservedKeyTable)
     u32    Padding;
 };
 
-static ReservedKeyTable ReservedKeys[68] =
+static ReservedKeyTable ReservedKeys[69] =
 {
     { .Key = SC("Assembly"),                  .MaxValueLength = 256 },
     { .Key = SC("Assembly.Prefix"),           .MaxValueLength = 128 },
@@ -503,6 +503,7 @@ static ReservedKeyTable ReservedKeys[68] =
     { .Key = SC("Compiler.MaxCores"),         .MaxValueLength = 16 },
     { .Key = SC("Compiler.OutputFlag"),       .MaxValueLength = 16 },
     { .Key = SC("Compiler.ObjectExtension"),  .MaxValueLength = 32 },
+    { .Key = SC("Compiler.ObjectDirectory"),  .MaxValueLength = 1024 },
     { .Key = SC("Linker.Path"),               .MaxValueLength = 1024 },
     { .Key = SC("Linker.Flags"),              .MaxValueLength = 8192 },
     { .Key = SC("Linker.Defines"),            .MaxValueLength = 4096 },

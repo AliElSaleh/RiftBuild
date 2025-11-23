@@ -160,6 +160,7 @@ STRUCT(BuildParams)
     String CompilerProgram;
     String CompilerPath;
     String CompilerObjectExt;
+    String CompilerObjectDirectory;
     String LinkerPath;
     String ArchiverPath;
     String DumpBinPath;

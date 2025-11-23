@@ -3985,6 +3985,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     const String MaxConcurrentCompilations  = GetVariableValue(VariablesDB, S("Compiler.MaxCores"));
     const String CompilerOutputFlag         = GetVariableValue(VariablesDB, S("Compiler.OutputFlag"));
     const String CompilerObjectExt          = GetVariableValue(VariablesDB, S("Compiler.ObjectExtension"));
+    const String CompilerObjectDirectory    = GetVariableValue(VariablesDB, S("Compiler.ObjectDirectory"));
 
     const String LinkerPath                 = GetCmdOptionValue(CmdOptionsDB, S("Linker.Path"));
     const String LinkerProgram              = Filesystem_ExtractFileName(LinkerPath, false);
@@ -6344,6 +6345,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     p.CompilerPath                  = CompilerPath;
     p.CompilerOutputFlag            = CompilerOutputFlag;
     p.CompilerObjectExt             = CompilerObjectExt;
+    p.CompilerObjectDirectory       = CompilerObjectDirectory;
     p.LinkerPath                    = LinkerPath;
     p.ArchiverPath                  = ArchiverPath;
     p.DumpBinPath                   = DumpBinPath;
