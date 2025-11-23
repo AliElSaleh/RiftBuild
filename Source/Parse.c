@@ -487,7 +487,7 @@ STRUCT(ReservedKeyTable)
     u32    Padding;
 };
 
-static ReservedKeyTable ReservedKeys[69] =
+static ReservedKeyTable ReservedKeys[70] =
 {
     { .Key = SC("Assembly"),                  .MaxValueLength = 256 },
     { .Key = SC("Assembly.Prefix"),           .MaxValueLength = 128 },
