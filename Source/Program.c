@@ -7910,18 +7910,7 @@ static void InitInternalVars(LinearAllocator* Arena)
     #endif
 
     // TODO: macos
-    #if PLATFORM_WINDOWS
-    {
-        StringLocal(DesktopEnv, 32);
-        Platform_DetectDesktopEnvironment(&DesktopEnv);
-
-        String Env = String_Create(Arena, DesktopEnv);
-        AddInternalVariable(Env,                      String_Null());
-        AddInternalVariable(S("_DesktopEnvironment"), Env);
-        AddInternalVariable(S("_DesktopEnv"),         Env);
-        AddInternalVariable(S("_DE"),                 Env);
-    }
-    #elif PLATFORM_MAC
+    #if PLATFORM_WINDOWS || PLATFORM_MAC
     {
         StringLocal(DesktopEnv, 32);
         Platform_DetectDesktopEnvironment(&DesktopEnv);

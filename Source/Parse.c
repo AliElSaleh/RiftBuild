@@ -3563,6 +3563,8 @@ bool FindFirstCompilerAvailable(const String CompilerToFind, const String Assemb
 
             if (!bCompilerProgramFound && bNoCompilerProgramExplicityGiven)
             {
+                // TODO: find cpp compiler first if we have cpp files (source and header)
+
                 const String CompilerPrograms[8] =
                 {
                     S("clang"),
@@ -4530,6 +4532,76 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
 
                         bAssertionFailed = true;
                         break;
+                    }
+                }
+            }
+            else if (String_IsEqual(Var.Name, S("Assert.Desktop"), false) ||
+                     String_IsEqual(Var.Name, S("Assert.DesktopEnvironment"), false))
+            {
+                StringArray DesktopsArray = String_ParseIntoArray(&Scratch, Var.Value, ' ', 0, 128);
+
+                StringLocal(DesktopEnv, 128);
+                #if PLATFORM_WINDOWS || PLATFORM_MAC
+                Platform_DetectDesktopEnvironment(&DesktopEnv);
+                #elif PLATFORM_LINUX || PLATFORM_BSD
+                Platform_DetectDesktopEnvironment(&DesktopEnv, NULL, NULL);
+                #endif
+                
+                if (String_IsValid(DesktopEnv))
+                {
+
+                    if (DesktopsArray.Num > 0)
+                    {
+                        StringLocal(DesktopsLogString, 128);
+                        {
+                            u8 i = 0;
+                            for each_str_i (i, p, DesktopsArray)
+                            {
+                                String_Append(&DesktopsLogString, *p);
+                                if (DesktopsArray.Num > 1 && i != DesktopsArray.Num-1)
+                                {
+                                    if (i == DesktopsArray.Num-2)
+                                    {
+                                        String_Append(&DesktopsLogString, S(" and "));
+                                    }
+                                    else
+                                    {
+                                        String_AppendChar(&DesktopsLogString, ',');
+                                        String_AppendSpace(&DesktopsLogString);
+                                    }
+                                }
+                            }
+                        }
+
+                        bool bAnyDesktopMatch = false;
+                        for each_str (s, DesktopsArray)
+                        {
+                            String Trimmed = String_EatSpaces(*s);
+
+                            if (String_IsEqual(Trimmed, DesktopEnv, false))
+                            {
+                                bAnyDesktopMatch = true;
+                                break;
+                            }
+                        }
+
+                        if (!bAnyDesktopMatch)
+                        {
+                            #ifndef HOOD
+                            const String BuildFileName = Filesystem_ExtractFileName(BuildFilePath, true);
+                            LOG_INLINE_ERROR("\n[ASSERTION FAILURE] %S can only be built on a %S desktop environment. You are on %S. Aborting build...\n", BuildFileName, DesktopsLogString, DesktopEnv);
+                            #else
+                            LOG_ERROR("yo u cant build on dis desktop envyiroment nigga. %S aint supportd bro\n", DesktopEnv);
+                            #endif
+
+                            if (Internal_LogCustomErrorMessage(Context, S("Desktop"), DesktopEnv, true))
+                            {
+                                break;
+                            }
+
+                            bAssertionFailed = true;
+                            break;
+                        }
                     }
                 }
             }
