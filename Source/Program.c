@@ -8532,7 +8532,7 @@ u32 RunApplication(const StringArray Arguments)
         Platform_BeginNonBlockingMode();
         while (true)
         {
-            Platform_Wait(10 Milliseconds);
+            Platform_Wait(10 milliseconds);
             if (Platform_IsWindowFocused() && Platform_AnyKeyPressed())
             {
                 break;
