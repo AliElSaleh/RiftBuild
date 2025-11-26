@@ -16,7 +16,7 @@ if msvc
     WarningFlags                     /Wall /W4 /WX
     WarningFlagsDisabled             /wd4100 /wd4164 /wd4668 /wd5045 /wd4711 $TempWarnings
 
-    SharedCompilerFlags              $WarningFlags $WarningFlagsDisabled /TC /GS- /Gs999999999 /EHs- /analyze /analyze:stacksize 8000000
+    SharedCompilerFlags              $WarningFlags $WarningFlagsDisabled /TC /GS- /Gs999999999 /EHs- /permissive- /analyze /analyze:stacksize 8000000
     #SharedCompilerFlags:32           /d2noftol3
     
     MachineType:32                   X86
@@ -78,9 +78,9 @@ if clang|gcc
     LinkerDebugFlags                 -g3
 
     SharedCompilerFlags              -std=c99 -fno-builtin-memcpy -fno-omit-frame-pointer -fno-exceptions -fno-math-errno -funroll-loops -fno-strict-overflow -fno-strict-aliasing $WarningFlags $WarningFlagsDisabled
+    SharedCompilerFlags              -march=native 
     SharedCompilerFlags:windows      -nostdlib -fno-builtin -ffreestanding
     SharedCompilerFlags:linux        -fstack-clash-protection
-    SharedCompilerFlags:_sse2        -msse2
     SharedCompilerFlags:asm          -S
     SharedCompilerFlags:trace        -ftime-trace
     SharedCompilerFlags:32           -m32
@@ -131,7 +131,7 @@ if clang|gcc
     else
     {
         SharedCompilerFlags:debug    -O0 $DebugFlags
-        SharedCompilerFlags:!debug   -Os -finline-functions
+        SharedCompilerFlags:!debug   -O3 -finline-functions
         SharedLinkerFlags:debug      $LinkerDebugFlags
 
         if windows Linker.NoStdLib

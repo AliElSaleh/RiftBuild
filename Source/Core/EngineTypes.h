@@ -128,6 +128,10 @@ typedef struct LinearAllocator LinearAllocator;
 #define Mebibytes(x) (Kibibytes(x)*(usize)1024)
 #define Gibibytes(x) (Mebibytes(x)*(usize)1024)
 
+#define Microseconds
+#define Milliseconds
+#define Seconds
+
 #define SArray_Capacity(Array) sizeof((Array)) / sizeof((Array)[0])
 
 #define STRINGIFY_INNER(x) #x

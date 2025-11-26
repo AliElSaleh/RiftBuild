@@ -2717,6 +2717,26 @@ NO_DISCARD u32 Platform_GetPosixVersion(void)
     return 0;
 }
 
+void Platform_DetectDesktopEnvironment(String* DesktopEnv)
+{
+    PlatformVersion Version = Platform_GetVersion();
+
+    String Name = S("Unknown");
+
+    if      (Version.Major == 5  && Version.Minor == 1) { Name = S("WindowsXP"); }
+    else if (Version.Major == 6  && Version.Minor == 0) { Name = S("WindowsVista"); }
+    else if (Version.Major == 6  && Version.Minor == 1) { Name = S("Windows7"); }
+    else if (Version.Major == 6  && Version.Minor == 2) { Name = S("Windows8"); }
+    else if (Version.Major == 6  && Version.Minor == 3) { Name = S("Windows8.1"); }
+    else if (Version.Major == 10 && Version.Minor == 0)
+    {
+        if (Version.Patch < 22000) { Name = S("Windows10"); }
+        else                       { Name = S("Windows11"); }
+    }
+
+    String_Copy(DesktopEnv, Name);
+}
+
 NO_DISCARD i32 Rand(void)
 {
     i32 Buffer = 0;

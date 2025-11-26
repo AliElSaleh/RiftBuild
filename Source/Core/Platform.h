@@ -353,7 +353,9 @@ RIFT_API NO_DISCARD bool Platform_IsConsoleFocused(void);
 
 RIFT_API NO_DISCARD u32 Platform_GetPosixVersion(void);
 
-#if PLATFORM_BSD || PLATFORM_LINUX
+#if PLATFORM_WINDOWS
+RIFT_API            void Platform_DetectDesktopEnvironment(String* DesktopEnv);
+#elif PLATFORM_BSD || PLATFORM_LINUX
 RIFT_API            void Platform_DetectDesktopEnvironment(String* DesktopEnv, String* DesktopSession, String* SessionType);
 RIFT_API            void Platform_DetectDistro(String* DistroName, String* PrettyName, String* ID);
 

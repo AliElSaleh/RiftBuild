@@ -7094,12 +7094,6 @@ End:
 
     Receipt.bWorkWasDone = NumCompiled > 0;
 
-    // if (String_IsValid(CameFromBuildFile))
-    // {
-    //     // special exit code to let the parent build know this child build finished successfully (and that it did some work)
-    //     Receipt.ExitCode = 2; // TODO: not needed, verify. remove
-    // }
-
     return Receipt;
 }
 
@@ -7379,7 +7373,6 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments, const 
     bHelp         = StringArray_Contains(Arguments, S("help"), false);
     bOptions      = StringArray_Contains(Arguments, S("options"), false);
     bIsClean      = StringArray_Contains(Arguments, S("clean"), false);
-    // bIsRebuild    = StringArray_Contains(Arguments, S("rebuild"), false);
     bVerboseLog   = StringArray_Contains(Arguments, S("-v"), false);
     bSingleThread = StringArray_Contains(Arguments, S("--singlethread"), false) ||
                     StringArray_Contains(Arguments, S("-s"), false);
@@ -7826,16 +7819,9 @@ static void InitInternalVars(LinearAllocator* Arena)
     // TODO: exe type. "elf" "pe"
     // TODO: exe extension. ".elf" ".exe"
 
+    AddInternalVariable(Platform_IsBigEndian() ? S("big_endian") : S("little_endian"), String_Null());
 
-    if (Platform_IsBigEndian())
-    {
-        AddInternalVariable(S("big_endian"), String_Null());
-    }
-    else
-    {
-        AddInternalVariable(S("little_endian"), String_Null());
-    }
-
+    // detect default int and long sizes
     {
         StringLocal(Temp, 16);
         xx String_FromI32(&Temp, sizeof(int));
@@ -7876,19 +7862,6 @@ static void InitInternalVars(LinearAllocator* Arena)
     //AddInternalVariable(S("_Platform.KernelVersion"), OSVersionString);
     //AddInternalVariable(S("_Platform.BuildVersion"), OSVersionString);
     
-    /*
-    StringLocal(temp, 64);
-    Uuid id = UUID_Generate();
-    UUID_ToString(id, &temp);
-    Uuid id2 = UUID_FromString(temp);
-    bool bIsEqual = UUID_IsEqual(id, id2);
-    LOG("A: %S", temp);
-    String_Empty(&temp);
-    UUID_ToString(id2, &temp);
-    LOG("B: %S", temp);
-    LOG("equal? %S", bIsEqual ? S("true") : S("false"));
-    */
-
     #if PLATFORM_WINDOWS
     AddInternalVariable(S("_Platform"), S("Windows"));
     AddInternalVariable(S("Win32"),     String_Null());
@@ -7936,8 +7909,19 @@ static void InitInternalVars(LinearAllocator* Arena)
     AddInternalVariable(S("Unix"),      String_Null());
     #endif
 
-    // TODO: windows and macos
-    #if PLATFORM_LINUX || PLATFORM_BSD
+    // TODO: macos
+    #if PLATFORM_WINDOWS
+    {
+        StringLocal(DesktopEnv, 32);
+        Platform_DetectDesktopEnvironment(&DesktopEnv);
+
+        String Env = String_Create(Arena, DesktopEnv);
+        AddInternalVariable(Env,                      String_Null());
+        AddInternalVariable(S("_DesktopEnvironment"), Env);
+        AddInternalVariable(S("_DesktopEnv"),         Env);
+        AddInternalVariable(S("_DE"),                 Env);
+    }
+    #elif PLATFORM_LINUX || PLATFORM_BSD
     StringLocal(DesktopEnv, 128);
     StringLocal(DesktopSession, 128);
     StringLocal(DesktopSessionType, 128);
@@ -8068,9 +8052,9 @@ static void InitInternalVars(LinearAllocator* Arena)
     AddInternalVariable(S("PPC64"),     One);
     #elif CPU_PPC
     AddInternalVariable(S("PowerPC"),   One);
-    AddInternalVariable(S("PowerPC32"),   One);
+    AddInternalVariable(S("PowerPC32"), One);
     AddInternalVariable(S("PPC"),       One);
-    AddInternalVariable(S("PPC32"),       One);
+    AddInternalVariable(S("PPC32"),     One);
     #endif
 
     #if defined(_M_IX86)
@@ -8548,7 +8532,7 @@ u32 RunApplication(const StringArray Arguments)
         Platform_BeginNonBlockingMode();
         while (true)
         {
-            Platform_Wait(10);
+            Platform_Wait(10 Milliseconds);
             if (Platform_IsWindowFocused() && Platform_AnyKeyPressed())
             {
                 break;
