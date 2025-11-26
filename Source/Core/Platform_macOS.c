@@ -310,4 +310,44 @@ void Platform_GetFriendlyComputerName(String* OutName)
     CFRelease(Store);
 }
 
+void Platform_DetectDesktopEnvironment(String* DesktopEnv)
+{
+    PlatformVersion Version = Platform_GetVersion();
+
+    String Name = String_Null();
+
+    if (Version.Major == 10)
+    {
+        switch (Version.Minor)
+        {
+            case 12: { Name = S("Sierra");     } break; // 10.12
+            case 13: { Name = S("HighSierra"); } break; // 10.13
+            case 14: { Name = S("Mojave");     } break; // 10.14
+            case 15: { Name = S("Catalina");   } break; // 10.15
+        }
+    }
+    else if (Version.Major == 11)
+    {
+        Name = S("BigSur"); // 11.x
+    }
+    else if (Version.Major == 12)
+    {
+        Name = S("Monterey"); // 12.x
+    }
+    else if (Version.Major == 13)
+    {
+        Name = S("Ventura"); // 13.x
+    }
+    else if (Version.Major == 14)
+    {
+        Name = S("Sonoma"); // 14.x
+    }
+    else if (Version.Major == 15)
+    {
+        Name = S("Sequoia"); // 15.x
+    }
+
+    String_Copy(DesktopEnv, Name);
+}
+
 #endif // PLATFORM_MAC

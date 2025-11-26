@@ -7921,6 +7921,17 @@ static void InitInternalVars(LinearAllocator* Arena)
         AddInternalVariable(S("_DesktopEnv"),         Env);
         AddInternalVariable(S("_DE"),                 Env);
     }
+    #elif PLATFORM_MAC
+    {
+        StringLocal(DesktopEnv, 32);
+        Platform_DetectDesktopEnvironment(&DesktopEnv);
+
+        String Env = String_Create(Arena, DesktopEnv);
+        AddInternalVariable(Env,                      String_Null());
+        AddInternalVariable(S("_DesktopEnvironment"), Env);
+        AddInternalVariable(S("_DesktopEnv"),         Env);
+        AddInternalVariable(S("_DE"),                 Env);
+    }
     #elif PLATFORM_LINUX || PLATFORM_BSD
     StringLocal(DesktopEnv, 128);
     StringLocal(DesktopSession, 128);
