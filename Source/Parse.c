@@ -4621,19 +4621,113 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
             }
             else if (String_IsEqual(Var.Name, S("Assert.Platform.Version"), false))
             {
-                if (String_CountChar(Var.Value, '.') >= 1) // make sure this is something sensible
-                {
-                    PlatformVersion OSVersion = Platform_GetVersion();
-                    StringLocal(VersionString, 32);
-                    String_Format(&VersionString, S("%u.%u.%u"), OSVersion.Major, OSVersion.Minor, OSVersion.Patch);
-                    ECompareResult Result = String_CompareVersion(VersionString, Var.Value);
-                    if (Result == CompareResult_Less)
-                    {
-                        LOG_INLINE_ERROR("\n[ASSERTION FAILURE] Unsupported platform version \"%u.%u.%u\" is less than the required version \"%S\" or later. Aborting build...\n", OSVersion.Major, OSVersion.Minor, OSVersion.Patch, Var.Value);
+                StringArray VersionsArray = String_ParseIntoArray(&Scratch, Var.Value, ' ', 0, 128);
 
-                        bAssertionFailed = true;
-                        break;
+                for each_str (s, VersionsArray)
+                {
+                    String Value = String_EatSpaces(*s);
+                    if (String_CountChar(Value, '.') >= 1) // make sure this is something sensible
+                    {
+                        PlatformVersion OSVersion = Platform_GetVersion();
+
+                        StringLocal(VersionString, 32);
+                        String_Format(&VersionString, S("%u.%u.%u"), OSVersion.Major, OSVersion.Minor, OSVersion.Patch);
+
+                        EComparisonType CmpType = Cmp_LessThan;
+                        if (String_StartsWith(Value, S(">"), false))
+                        {
+                            Value = StrShiftF(Value, 1);
+
+                            CmpType = Cmp_GreaterThan;
+                            if (String_StartsWith(Value, S("="), false))
+                            {
+                                CmpType = Cmp_GreaterThanOrEqual;
+                                Value = StrShiftF(Value, 1);
+                            }
+                        }
+                        else if (String_StartsWith(Value, S("<"), false))
+                        {
+                            Value = StrShiftF(Value, 1);
+
+                            CmpType = Cmp_LessThan;
+                            if (String_StartsWith(Value, S("="), false))
+                            {
+                                CmpType = Cmp_LessThanOrEqual;
+
+                                Value = StrShiftF(Value, 1);
+                            }
+                        }
+                        else if (String_StartsWith(Value, S("="), false))
+                        {
+                            Value = StrShiftF(Value, 1);
+
+                            CmpType = Cmp_Equal;
+                            if (String_StartsWith(Value, S("="), false))
+                            {
+                                Value = StrShiftF(Value, 1);
+                            }
+                        }
+
+                        ECompareResult Result = String_CompareVersion(VersionString, Value);
+                        bool bCompareFailed = false;
+                        String CmpString = String_Null();
+                        if (CmpType == Cmp_None)
+                        {
+                            bCompareFailed = Result == CompareResult_Less;
+                            CmpString = S("less than");
+                        }
+                        else
+                        {
+                            if (CmpType == Cmp_Equal && Result != CompareResult_Equal)
+                            {
+                                bCompareFailed = true;
+                                CmpString = S("equal to");
+                            }
+
+                            if (CmpType == Cmp_LessThan && Result != CompareResult_Less)
+                            {
+                                bCompareFailed = true;
+                                CmpString = S("less than");
+                            }
+
+                            if (CmpType == Cmp_LessThanOrEqual && !(Result == CompareResult_Less || Result == CompareResult_Equal))
+                            {
+                                bCompareFailed = true;
+                                CmpString = S("less than or equal to");
+                            }
+
+                            if (CmpType == Cmp_GreaterThan && Result != CompareResult_Greater)
+                            {
+                                bCompareFailed = true;
+                                CmpString = S("greater than");
+                            }
+
+                            if (CmpType == Cmp_GreaterThanOrEqual && !(Result == CompareResult_Greater || Result == CompareResult_Equal))
+                            {
+                                bCompareFailed = true;
+                                CmpString = S("greater than or equal to");
+                            }
+                        }
+
+                        if (bCompareFailed)
+                        {
+                            LOG_INLINE_ERROR(
+                                "\n[ASSERTION FAILURE] Your %S version %u.%u.%u is not %S the required version of %S. Aborting...\n",
+                                S(PLATFORM_STRING),
+                                OSVersion.Major, OSVersion.Minor, OSVersion.Patch,
+                                CmpString,
+                                Value
+                            );
+
+                            bAssertionFailed = true;
+                            break;
+                        }
                     }
+                }
+
+                if (bAssertionFailed)
+                {
+                    break;
                 }
             }
             else if (String_IsEqual(Var.Name, S("Assert.Arch"), false) ||
