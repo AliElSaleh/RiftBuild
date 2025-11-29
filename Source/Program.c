@@ -3220,14 +3220,15 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
     xx String_EatSpacesInlineFromEnd(&RiftCmdLine);
 
+    u32 MaxLogicalCores = Platform_GetNumLogicalProcessors();
+
     ArrayLocal_Arena(FileVariable,   VariablesDB,         256, Arena); // 8192 bytes
 
     ArrayLocal_Arena(FileHandle,     IncludeFiles,        64,  Arena); // 1024 bytes
     ArrayLocal_Arena(CmdOption,      CmdOptionsDB,        128, Arena); // 4608 bytes
     ArrayLocal_Arena(String,         Messages,            128, Arena); // 2048 bytes
 
-    // 256 is a reasonable max number of compilers to run in parrallel. if you have more than 256 cores then what the fuck lol
-    ArrayLocal_Arena(PlatformHandle, Processes,           256, Arena); // 2048 bytes
+    ArrayLocal_Arena(PlatformHandle, Processes,           MaxLogicalCores, Arena);
 
     // store custom command line options to be referenced inside a .build file
     for (u8 i = 0; i < Parameters.Num; i++)
@@ -3478,6 +3479,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             LinearAllocator_Create(Kibibytes(512), ScratchMemory, &Scratch);
 
             ParsingContext Context        = {0};
+            Context.PermanentArena        = Arena;
             Context.TempArena             = &Scratch;
             Context.VariablesDB           = VariablesDB;
             Context.CmdOptionsDB          = CmdOptionsDB;
@@ -3485,7 +3487,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             Context.IncludeFiles          = IncludeFiles;
             Context.WorkingDirectory      = WorkingPath;
 
-            if (!ParseBuildFile(Arena, BuildFileHandle, BuildFilePath, Context, false, NULL))
+            if (!ParseBuildFile(BuildFileHandle, BuildFilePath, Context, false, NULL))
             {
                 Receipt.ExitCode = 1;
                 return Receipt;
@@ -6315,7 +6317,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     Clock BundleCompileClock = {0};
 
     // TODO: should leave one core free? so as to not freeze/lag the entire computer?
-    u32 MaxLogicalCores = Platform_GetNumLogicalProcessors();
     u8 MaxCompilersAtOnce = (u8)MaxLogicalCores; // bound by max logical processors on the user's machine
     //LOG_INFO("Max logical cores: %u", MaxLogicalCores);
 

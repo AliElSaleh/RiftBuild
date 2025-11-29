@@ -292,6 +292,7 @@ ECompiler DetermineCompilerVendor(String CompilerPath);
 
 STRUCT(ParsingContext)
 {
+    LinearAllocator*     PermanentArena;
     LinearAllocator*     TempArena;
     TArray(FileVariable) VariablesDB;
     TArray(CmdOption)    CmdOptionsDB;
@@ -305,7 +306,7 @@ STRUCT(ParsingContext)
     u8                   Padding[6];
 };
 
-NO_DISCARD bool ParseBuildFile(LinearAllocator* PermanentArena,
+NO_DISCARD bool ParseBuildFile(
                     const FileHandle H,
                     const String BuildFilePath,
                     ParsingContext Context,

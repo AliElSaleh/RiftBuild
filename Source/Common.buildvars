@@ -121,7 +121,7 @@ if clang|gcc
 
         SharedCompilerFlags          $DebugFlags
         SharedCompilerFlags:debug    -O0
-        SharedCompilerFlags:!debug   -Os -finline-functions
+        SharedCompilerFlags:!debug   -O3 -finline-functions
 
         if windows
         {
