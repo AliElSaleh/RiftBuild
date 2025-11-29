@@ -92,7 +92,7 @@ if clang|gcc
     SharedLinkerFlags:mac            -framework Foundation -framework SystemConfiguration
     
     SharedDefines:debug              _GLIBCXX_ASSERTIONS _GLIBCXX_DEBUG _GLIBCXX_DEBUG_PEDANTIC
-    SharedDefines:!debug             _FORTIFY_SOURCE=3
+    SharedDefines:!debug:!asan       _FORTIFY_SOURCE=3
 
     Compiler.ObjectExtension:asm     .S
 
@@ -115,8 +115,8 @@ if clang|gcc
 
     if asan
     {
-        SharedCompilerFlags          -fsanitize=address
-        SharedLinkerFlags            -fsanitize=address
+        SharedCompilerFlags          -fsanitize=address,undefined
+        SharedLinkerFlags            -fsanitize=address,undefined
         SharedLinkerFlags            $LinkerDebugFlags
 
         SharedCompilerFlags          $DebugFlags
