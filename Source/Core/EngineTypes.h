@@ -433,26 +433,40 @@ STRUCT(StringList) // 24 bytes
     #if defined(__has_feature) && defined(__has_attribute)
         #if __has_feature(address_sanitizer)
             #if __has_attribute(__no_sanitize__)
-                #define ASAN_NO_SANITIZE __attribute__((__no_sanitize__("address")))
+                #define ASAN_NO_SANITIZE(...)    __attribute__((__no_sanitize__(__VA_ARGS__)))
+                #define ASAN_NO_SANITIZE_ADDRESS __attribute__((__no_sanitize__("address")))
             #elif __has_attribute(__no_sanitize_address__)
-                #define ASAN_NO_SANITIZE __attribute__((__no_sanitize_address__))
+                #define ASAN_NO_SANITIZE(...)    __attribute__((__no_sanitize_address__))
+                #define ASAN_NO_SANITIZE_ADDRESS ASAN_NO_SANITIZE()
             #elif __has_attribute(__no_address_safety_analysis__)
-                #define ASAN_NO_SANITIZE __attribute__((__no_address_safety_analysis__))
+                #define ASAN_NO_SANITIZE(...)    __attribute__((__no_address_safety_analysis__))
+                #define ASAN_NO_SANITIZE_ADDRESS ASAN_NO_SANITIZE()
             #endif
         #endif
     #endif
+#elif COMPILER_GCC && (__GNUC__ >= 8)
+    #if defined(__SANITIZE_ADDRESS__) && __SANITIZE_ADDRESS__
+        #define ASAN_NO_SANITIZE(...)    __attribute__((__no_sanitize__(__VA_ARGS__)))
+        #define ASAN_NO_SANITIZE_ADDRESS __attribute__((__no_sanitize__("address")))
+    #endif
 #elif COMPILER_GCC && (__GNUC__ >= 5 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 8))
     #if defined(__SANITIZE_ADDRESS__) && __SANITIZE_ADDRESS__
-        #define ASAN_NO_SANITIZE __attribute__((__no_sanitize_address__))
+        #define ASAN_NO_SANITIZE(...)    __attribute__((__no_sanitize_address__))
+        #define ASAN_NO_SANITIZE_ADDRESS ASAN_NO_SANITIZE()
     #endif
 #elif COMPILER_MSVC
     #if defined(__SANITIZE_ADDRESS__) && __SANITIZE_ADDRESS__
-        #define ASAN_NO_SANITIZE __declspec(no_sanitize_address)
+        #define ASAN_NO_SANITIZE(...)      __declspec(no_sanitize_address)
+        #define ASAN_NO_SANITIZE_ADDRESS ASAN_NO_SANITIZE()
     #endif
 #endif
 
 #ifndef ASAN_NO_SANITIZE
-#define ASAN_NO_SANITIZE
+#define ASAN_NO_SANITIZE(...)
+#endif
+
+#ifndef ASAN_NO_SANITIZE_ADDRESS
+#define ASAN_NO_SANITIZE_ADDRESS
 #endif
 
 #ifdef _MSC_VER

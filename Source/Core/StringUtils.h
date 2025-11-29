@@ -243,8 +243,8 @@ RIFT_API NO_DISCARD u32 String_GetLength_N(const char* Str, u32 MaxLength)     P
 RIFT_API NO_DISCARD u32 String16_GetLength(const wchar* Str)                   PURE_FN;
 RIFT_API NO_DISCARD u32 String16_GetLength_N(const wchar* Str, u32 MaxLength)  PURE_FN;
 
-RIFT_API NO_DISCARD ASAN_NO_SANITIZE u32 String_GetLength_Fast(const char* Str) PURE_FN;
-RIFT_API NO_DISCARD ASAN_NO_SANITIZE u32 String_GetLength_N_Fast(const char* Str, u32 MaxLength) PURE_FN;
+RIFT_API NO_DISCARD ASAN_NO_SANITIZE_ADDRESS u32 String_GetLength_Fast(const char* Str) PURE_FN;
+RIFT_API NO_DISCARD ASAN_NO_SANITIZE_ADDRESS u32 String_GetLength_N_Fast(const char* Str, u32 MaxLength) PURE_FN;
 
 RIFT_API NO_DISCARD bool IsAlphabet(u8 Char)      CONST_FN;
 RIFT_API NO_DISCARD bool IsAlphabetUpper(u8 Char) CONST_FN;

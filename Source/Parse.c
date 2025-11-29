@@ -2776,7 +2776,13 @@ static void Analyze_KVNode_Option(Node* Root, ParsingContext* Context)
         CmdOption* OptionPtr = NULL;
         for each (CmdOption, o, Context->CmdOptionsDB)
         {
-            bool bMatch = String_IsEqual(o.Name, OptionName, false);
+            String Name = o.Name;
+            if (String_IsFirst(Name, '!'))
+            {
+                Name = StrShiftF(Name, 1);
+            }
+
+            bool bMatch = String_IsEqual(Name, OptionName, false);
             if (bMatch)
             {
                 OptionPtr = o_;
@@ -2784,8 +2790,8 @@ static void Analyze_KVNode_Option(Node* Root, ParsingContext* Context)
             }
         }
 
-        bool bIsOptionEnabled = false;
         bool bIsBinaryOption = true;
+        bool bIsOptionEnabled = false;
         if (Root->Parameters)
         {
             bIsBinaryOption = IsOptionBinary(*Root->Parameters);
@@ -2794,37 +2800,6 @@ static void Analyze_KVNode_Option(Node* Root, ParsingContext* Context)
             {
                 // param default value
                 bIsOptionEnabled = IsOptionOn(Root->Parameters->String);
-
-                // does the cmd line turn this option on or off?
-                if (bIsOptionEnabled)
-                {
-                    usize i = 0;
-                    for each_i (i, CmdOption, o, Context->CmdOptionsDB)
-                    {
-                        if (String_IsFirst(o.Name, '!'))
-                        {
-                            bool bMatch = String_IsEqual(StrShiftF(o.Name, 1), OptionName, false);
-                            if (bMatch)
-                            {
-                                bIsOptionEnabled = false;
-                            }
-                        }
-                        else
-                        {
-                            bool bMatch = String_IsEqual(o.Name, OptionName, false);
-                            if (bMatch && o.Value.Length)
-                            {
-                                bIsOptionEnabled = IsOptionOn(o.Value);
-                            }
-                        }
-
-                        if (!bIsOptionEnabled)
-                        {
-                            Array_RemoveAt(Context->CmdOptionsDB, NULL, i);
-                            break;
-                        }
-                    }
-                }
             }
             else
             {
@@ -2838,13 +2813,14 @@ static void Analyze_KVNode_Option(Node* Root, ParsingContext* Context)
             }
         }
 
-        if (bIsOptionEnabled)
+        if (bIsOptionEnabled && !OptionPtr)
         {
             AddCmdOption(Context->CmdOptionsDB, String_Create(Context->PermanentArena, OptionName), String_Create(Context->PermanentArena, OptionValue));
         }
 
         if (bIsBinaryOption)
         {
+            // this is so that we dont trigger asserts for binary options
             Params.Length = 0;
         }
 
@@ -3121,7 +3097,7 @@ NO_DISCARD static NodeList* Analyze_IfNode(Node* Root, ParsingContext* Context, 
                 // if the var value has more than one value separated by a space
                 StringArray Values = String_ParseIntoArray(&Scratch, VarValue, ' ', 0, 128);
 
-                i64 LeftInt = 0, RightInt = 0;
+                f64 LeftFloat = 0, RightFloat = 0;
 
                 switch (c.ComparisonOp)
                 {
@@ -3164,26 +3140,58 @@ NO_DISCARD static NodeList* Analyze_IfNode(Node* Root, ParsingContext* Context, 
                     case Token_GreaterThan:
                     case Token_LessThan:
                     {
+                        // idk, i kinda hate this. should we introduce new comparison tokens for comparing versions?
+                        // like so: v> v>= v< v<= v==
+                        // TODO: think about this
+
+                        bool bVersionCompare = String_EndsWith(c.Condition, S("version"), false);
+
                         for each_string_in_list (*c.TestValues)
                         {
-                            for each_str (v, Values)
+                            if (bVersionCompare)
                             {
-                                bool bConverted = String_ToI64(*v, &LeftInt) &&
-                                                  String_ToI64(It.String, &RightInt);
-                                if (bConverted)
+                                for each_str (v, Values)
                                 {
+                                    ECompareResult Result = String_CompareVersion(*v, It.String);
+
                                     switch (c.ComparisonOp)
                                     {
                                         default: break;
-                                        case Token_GreaterOrEqual: { bConditionMet = LeftInt >= RightInt; } break;
-                                        case Token_LessOrEqual:    { bConditionMet = LeftInt <= RightInt; } break;
-                                        case Token_GreaterThan:    { bConditionMet = LeftInt >  RightInt; } break;
-                                        case Token_LessThan:       { bConditionMet = LeftInt <  RightInt; } break;
+                                        case Token_GreaterOrEqual: { bConditionMet = Result == CompareResult_Greater ||
+                                                                                     Result == CompareResult_Equal; } break;
+                                        case Token_LessOrEqual:    { bConditionMet = Result == CompareResult_Less ||
+                                                                                     Result == CompareResult_Equal; } break;
+                                        case Token_GreaterThan:    { bConditionMet = Result == CompareResult_Greater; } break;
+                                        case Token_LessThan:       { bConditionMet = Result == CompareResult_Less; } break;
                                     }
 
                                     if (bConditionMet)
                                     {
                                         goto the_great_wall_of_china;
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                for each_str (v, Values)
+                                {
+                                    bool bConverted = String_ToF64(*v, &LeftFloat) &&
+                                                    String_ToF64(It.String, &RightFloat);
+                                    if (bConverted)
+                                    {
+                                        switch (c.ComparisonOp)
+                                        {
+                                            default: break;
+                                            case Token_GreaterOrEqual: { bConditionMet = LeftFloat >= RightFloat; } break;
+                                            case Token_LessOrEqual:    { bConditionMet = LeftFloat <= RightFloat; } break;
+                                            case Token_GreaterThan:    { bConditionMet = LeftFloat >  RightFloat; } break;
+                                            case Token_LessThan:       { bConditionMet = LeftFloat <  RightFloat; } break;
+                                        }
+
+                                        if (bConditionMet)
+                                        {
+                                            goto the_great_wall_of_china;
+                                        }
                                     }
                                 }
                             }

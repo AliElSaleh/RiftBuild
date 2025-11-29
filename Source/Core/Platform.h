@@ -340,7 +340,7 @@ RIFT_API NO_DISCARD bool Platform_GetTerminalDimensions(u32* OutRows, u32* OutCo
 RIFT_API NO_DISCARD bool Platform_IsBigEndian(void);
 RIFT_API NO_DISCARD bool Platform_IsLittleEndian(void);
 RIFT_API NO_DISCARD u32 Platform_GetCpuCacheLineSize(void);
-RIFT_API NO_DISCARD ECpuClipBehaviour Platform_GetCpuClippingBehaviour(void);
+RIFT_API NO_DISCARD ASAN_NO_SANITIZE("float-cast-overflow") ECpuClipBehaviour Platform_GetCpuClippingBehaviour(void);
 RIFT_API NO_DISCARD bool Platform_GetCpuBrandName(String* OutName);
 RIFT_API NO_DISCARD bool Platform_GetFullCpuName(String* OutName);
 RIFT_API NO_DISCARD CpuInfo Platform_QueryCPUInfo(void);

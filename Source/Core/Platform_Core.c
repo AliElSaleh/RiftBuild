@@ -1168,6 +1168,7 @@ NO_DISCARD String Platform_GetMonthName(u16 Month)
     return MonthName;
 }
 
+ASAN_NO_SANITIZE("float-cast-overflow")
 NO_DISCARD i32 FloatRoundToInt(f64 x)
 {
     // Split into integer part and fractional part
@@ -1230,7 +1231,7 @@ NO_DISCARD ECpuClipBehaviour Platform_GetCpuClippingBehaviour(void)
     {
         f64 FVal = 1.0 * 0x7FFFFFFF;
 
-        for (i32 i = 0; i < 100; i++)
+        for (u8 i = 0; i < 100; i++)
         {
             i32 IVal = FloatRoundToInt(FVal) >> 24;
             if (IVal != 127)
@@ -1247,7 +1248,7 @@ NO_DISCARD ECpuClipBehaviour Platform_GetCpuClippingBehaviour(void)
     {
         f64 FVal = -8.0 * 0x10000000;
         
-        for (i32 i = 0; i < 100; i++)
+        for (u8 i = 0; i < 100; i++)
         {
             i32 IVal = FloatRoundToInt(FVal) >> 24;
             if (IVal != -128)

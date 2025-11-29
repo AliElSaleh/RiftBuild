@@ -3566,7 +3566,7 @@ NO_DISCARD String StringList_GetStringFromIndex(StringList List, u32 Index)
     return Result;
 }
 
-NO_DISCARD ASAN_NO_SANITIZE u32 String_GetLength_Fast(const char* Str)
+NO_DISCARD ASAN_NO_SANITIZE_ADDRESS u32 String_GetLength_Fast(const char* Str)
 {
     char* StrCopy = (char*)Str;
 
@@ -3607,7 +3607,7 @@ NO_DISCARD ASAN_NO_SANITIZE u32 String_GetLength_Fast(const char* Str)
     return Len;
 }
 
-NO_DISCARD ASAN_NO_SANITIZE u32 String_GetLength_N_Fast(const char* Str, u32 MaxLength)
+NO_DISCARD ASAN_NO_SANITIZE_ADDRESS u32 String_GetLength_N_Fast(const char* Str, u32 MaxLength)
 {
     char* StrCopy = (char*)Str;
     usize Limit = MaxLength;

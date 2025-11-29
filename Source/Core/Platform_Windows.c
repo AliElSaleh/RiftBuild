@@ -267,7 +267,7 @@ PRAGMA_DISABLE_WARNINGS
 #pragma function(memset, memcpy, memmove, memcmp)
 #endif
 
-ASAN_NO_SANITIZE void* memset(void *dst, int c, SIZE_T len)
+ASAN_NO_SANITIZE_ADDRESS void* memset(void *dst, int c, SIZE_T len)
 {
     register volatile u8* dp = dst;
     register SIZE_T length = len;
@@ -280,7 +280,7 @@ ASAN_NO_SANITIZE void* memset(void *dst, int c, SIZE_T len)
     return dst;
 }
 
-ASAN_NO_SANITIZE void* memcpy(void* restrict dst, const void* restrict src, SIZE_T len)
+ASAN_NO_SANITIZE_ADDRESS void* memcpy(void* restrict dst, const void* restrict src, SIZE_T len)
 {
     register volatile u8* dp = dst;
     register const u8* sp = src;
@@ -294,7 +294,7 @@ ASAN_NO_SANITIZE void* memcpy(void* restrict dst, const void* restrict src, SIZE
     return dst;
 }
 
-ASAN_NO_SANITIZE void* memmove(void* dst, const void* src, SIZE_T len)
+ASAN_NO_SANITIZE_ADDRESS void* memmove(void* dst, const void* src, SIZE_T len)
 {
     register volatile u8* dp = dst;
     register const u8* sp = src;
@@ -317,7 +317,7 @@ ASAN_NO_SANITIZE void* memmove(void* dst, const void* src, SIZE_T len)
     return dst;
 }
 
-ASAN_NO_SANITIZE i32 memcmp(const void* s1, const void* s2, SIZE_T len)
+ASAN_NO_SANITIZE_ADDRESS i32 memcmp(const void* s1, const void* s2, SIZE_T len)
 {
     register const u8* p1 = (const u8*)s1;
     register const u8* p2 = (const u8*)s2;
