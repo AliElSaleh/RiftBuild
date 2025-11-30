@@ -398,14 +398,10 @@ static void SuffixVariables(String* Dest, String VariableValue, const String Suf
     {
         u8 C = VariableValue.Data[i];
 
-        bool bSawSpace;
+        bool bSawSpace = false;
         if (C == ' ')
         {
             bSawSpace = true;
-        }
-        else
-        {
-            bSawSpace = false;
         }
 
         if (bSawSpace)

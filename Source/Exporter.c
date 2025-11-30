@@ -37,7 +37,7 @@ STRUCT(ExportData)
     u8 Padding[6];
 };
 
-static void WriteFlags(LinearAllocator Scratch, const FileHandle File, const String Flags, bool bConvertSlashes, bool bOneLine)
+static void WriteFlags(LinearAllocator Scratch, const FileHandle File, const String Flags, bool bConvertSlashes, bool bOneLine, bool bFlagsArePaths)
 {
     u16 i = 0;
     StringList List = String_SplitIntoList(&Scratch, Flags, ' ', true);
@@ -53,11 +53,18 @@ static void WriteFlags(LinearAllocator Scratch, const FileHandle File, const Str
     for each_string_in_list_i (i, List)
     {
         StringLocal(FlagCopy, 4096);
-        xx String_SanitizePath(&FlagCopy, It.String);
-
-        if (bConvertSlashes)
+        if (bFlagsArePaths)
         {
-            String_BackSlashToForwardSlash(&FlagCopy);
+            xx String_SanitizePath(&FlagCopy, It.String);
+
+            if (bConvertSlashes)
+            {
+                String_BackSlashToForwardSlash(&FlagCopy);
+            }
+        }
+        else
+        {
+            FlagCopy = It.String;
         }
 
         String Comma = i != Num-1 ? (bOneLine ? S(", ") : S(",\n")) : S("");
@@ -102,13 +109,13 @@ static void Internal_GenCommandObject(const BuildParams* Params, ExportData* Exp
     Filesystem_WriteLineFormatted(Export->File, S("        \"directory\": \"%S\",\n"), NULL, RootDirectory);
     Filesystem_WriteLineFormatted(Export->File, S("        \"file\": \"%S\",\n"), NULL, RelativePathCopy);
     Filesystem_WriteLineFormatted(Export->File, S("        \"arguments\": [%S"), NULL, Export->bKeepOneLine ? S("") : S("\n"));
-    Filesystem_WriteLineFormatted(Export->File, S("%S\"%S\", \"-c\""), NULL, Export->bKeepOneLine ? S(" ") : S("            "), CompilerPathCopy);
+    Filesystem_WriteLineFormatted(Export->File, S("%S\"%S\", \"%S\", \"-c\""), NULL, Export->bKeepOneLine ? S(" ") : S("            "), CompilerPathCopy, RelativePathCopy);
     
-    WriteFlags(*Params->Arena, Export->File, Params->CompilerFlags,   false, Export->bKeepOneLine);
-    WriteFlags(*Params->Arena, Export->File, AdditionalPlatformFlags, false, Export->bKeepOneLine);
-    WriteFlags(*Params->Arena, Export->File, Params->IncludeFlags,    true,  Export->bKeepOneLine);
-    WriteFlags(*Params->Arena, Export->File, Params->DefineFlags,     false, Export->bKeepOneLine);
-    WriteFlags(*Params->Arena, Export->File, Params->UnDefineFlags,   false, Export->bKeepOneLine);
+    WriteFlags(*Params->Arena, Export->File, Params->CompilerFlags,   false, Export->bKeepOneLine, false);
+    WriteFlags(*Params->Arena, Export->File, AdditionalPlatformFlags, false, Export->bKeepOneLine, false);
+    WriteFlags(*Params->Arena, Export->File, Params->IncludeFlags,    true,  Export->bKeepOneLine, true);
+    WriteFlags(*Params->Arena, Export->File, Params->DefineFlags,     false, Export->bKeepOneLine, false);
+    WriteFlags(*Params->Arena, Export->File, Params->UnDefineFlags,   false, Export->bKeepOneLine, false);
     
     Filesystem_WriteLineFormatted(Export->File, S("%S]\n"), NULL, Export->bKeepOneLine ? S(" ") : S("\n        "));
     Filesystem_WriteLineFormatted(Export->File, S("    }%S"), NULL, Index != Params->NumSources-1 || !Export->bIsLastBuild ? S(",\n") : S("\n"));
@@ -452,7 +459,7 @@ bool Export_VersionRC(const BuildParams* Params, const String Path)
 
         u8 NumParts = 0;
         StringLocal(VersionDigit, 6);
-        for (u8 i = 0; i < Params->Version.Length; i++)
+        for (u32 i = 0; i < Params->Version.Length; i++)
         {
             if (Params->Version.Data[i] == '.' ||
                 Params->Version.Data[i] == '-' ||
@@ -1383,7 +1390,7 @@ bool Export_FromArg(LinearAllocator Scratch, const BuildParams* Params, const St
 
                 LOG("Here is a list of all supported license export types:");
 
-                for (u8 j = 0; j < SArray_Capacity(LicenseTypes); j++)
+                for (u32 j = 0; j < SArray_Capacity(LicenseTypes); j++)
                 {
                     LOG("  %i. %S", j+1, LicenseTypes[j]);
                 }
