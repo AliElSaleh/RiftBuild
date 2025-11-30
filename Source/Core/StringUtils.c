@@ -2595,7 +2595,8 @@ NO_DISCARD bool String_ToF32(const String Str, f32* OutFloat)
             i32 Digit = c - '0';
 
             // 340282346638528859811704183484516925440
-            if ((FLT_MAX - (f32)Digit) / 10 < Num)
+            f64 a = ((f64)FLT_MAX - (f64)Digit) / 10.0;
+            if (a <= Num)
             {
                 Num = 0;
                 bSuccess = false;
@@ -2635,7 +2636,7 @@ NO_DISCARD bool String_ToF32(const String Str, f32* OutFloat)
         }
         else
         {
-            bSuccess = true;
+            bSuccess = false;
             bShouldBreak = true;
         }
 
@@ -2645,6 +2646,11 @@ NO_DISCARD bool String_ToF32(const String Str, f32* OutFloat)
         }
 
         Index++;
+    }
+
+    if (!bSuccess)
+    {
+        Num = 0;
     }
 
     if (OutFloat)
@@ -2692,7 +2698,8 @@ NO_DISCARD bool String_ToF64(const String Str, f64* OutFloat)
         {
             i32 Digit = c - '0';
 
-            if ((DBL_MAX - (f64)Digit) / 10.0 < Num)
+            f64 a = (DBL_MAX - (f64)Digit) / 10.0;
+            if (a <= Num)
             {
                 Num = 0;
                 bSuccess = false;
@@ -2733,7 +2740,7 @@ NO_DISCARD bool String_ToF64(const String Str, f64* OutFloat)
         }
         else
         {
-            bSuccess = true;
+            bSuccess = false;
             bShouldBreak = true;
         }
 
@@ -2743,6 +2750,11 @@ NO_DISCARD bool String_ToF64(const String Str, f64* OutFloat)
         }
 
         Index++;
+    }
+
+    if (!bSuccess)
+    {
+        Num = 0;
     }
 
     if (OutFloat)
@@ -2828,6 +2840,11 @@ static bool Internal_ToUnsignedInt(const String Str, u64* OutInt, u8 IntType)
         *OutInt = Num;
     }
 
+    if (!bSuccess)
+    {
+        Num = 0;
+    }
+
     return bSuccess;
 }
 
@@ -2901,6 +2918,11 @@ static bool Internal_ToSignedInt(const String Str, i64* OutInt, u8 IntType)
         }
 
         Index++;
+    }
+
+    if (!bSuccess)
+    {
+        Num = 0;
     }
 
     if (OutInt)

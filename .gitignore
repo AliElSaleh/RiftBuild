@@ -3,6 +3,7 @@
 !.gitignore
 !.github/*
 !Source/*
+!Tests/*
 !How To/*
 
 !build.bat

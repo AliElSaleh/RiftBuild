@@ -1,0 +1,59 @@
+
+#define TEST_LIST \
+    X("Linear Allocator", LinearAllocator_CreateAndDestroy) \
+    X("Linear Allocator", LinearAllocator_SingleAllocationAllSpace) \
+    X("Linear Allocator", LinearAllocator_MultiAllocationAllSpace) \
+    X("Linear Allocator", LinearAllocator_MultiAllocationAllSpaceThenFree) \
+    X("String",           StringUtils_Create) \
+    X("String",           StringUtils_Reserve) \
+    X("String",           StringUtils_Append) \
+    X("String",           StringUtils_Format) \
+    X("String",           StringUtils_BuildPath) \
+    X("String",           StringUtils_BuildSeparator) \
+    X("String",           StringUtils_Empty) \
+    X("String",           StringUtils_Fill) \
+    X("String",           StringUtils_ToUpper) \
+    X("String",           StringUtils_ToLower) \
+    X("String",           StringUtils_ToNarrow) \
+    X("String",           StringUtils_ToWide) \
+    X("String",           StringUtils_BackSlashToForwardSlash) \
+    X("String",           StringUtils_FrontSlashToBackSlash) \
+    X("String",           StringUtils_EatSpaces) \
+    X("String",           StringUtils_EatPathSeparators) \
+    X("String",           StringUtils_IndexOfChar) \
+    X("String",           StringUtils_IndexOfWhitespace) \
+    X("String",           StringUtils_CountChar) \
+    X("String",           StringUtils_CountSpaces) \
+    X("String",           StringUtils_CountPathSeparators) \
+    X("String",           StringUtils_ParseIntoArray) \
+    X("String",           StringUtils_GetLength) \
+    X("String",           StringUtils_GetLengthFast) \
+    X("String",           StringUtils_IsAlphabetUpper) \
+    X("String",           StringUtils_IsAlphabetLower) \
+    X("String",           StringUtils_IsAlphabet) \
+    X("String",           StringUtils_IsDigit) \
+    X("String",           StringUtils_IsWhitespace) \
+    X("String",           StringUtils_IsNewline) \
+    X("String",           StringUtils_IsSymbol) \
+    X("String",           StringUtils_CheckEquality_CaseSensitive) \
+    X("String",           StringUtils_CheckEquality_CaseInsensitive) \
+    X("String",           StringUtils_CheckInequality_CaseSensitive) \
+    X("String",           StringUtils_CheckInequality_CaseInsensitive) \
+    X("String",           StringUtils_CheckEquality_Empty) \
+    X("String",           StringUtils_IsValid) \
+    X("String",           StringUtils_StartsWith) \
+    X("String",           StringUtils_EndsWith) \
+    X("String",           StringUtils_Contains) \
+    X("String",           StringUtils_ToU8) \
+    X("String",           StringUtils_ToU16) \
+    X("String",           StringUtils_ToU32) \
+    X("String",           StringUtils_ToU64) \
+    X("String",           StringUtils_ToI8) \
+    X("String",           StringUtils_ToI16) \
+    X("String",           StringUtils_ToI32) \
+    X("String",           StringUtils_ToI64) \
+    X("String",           StringUtils_ToF32) \
+    X("String",           StringUtils_ToF64) \
+    X("String",           StringUtils_ToBool) \
+    X("Platform",         PlatformUtils_GetWorkingDirectory) \
+    X("Filesystem",       FilesystemUtils_GetFilePath) \

@@ -1,0 +1,23 @@
+include ../../Source/Common.buildvars
+
+Assembly Tests
+.Run
+
+SourceDirectory        ../../
+BuildDirectory         Build
+IntermediateDirectory  Int
+
+RiftCorePath           Source/Core
+RiftCoreFiles          $RiftCorePath/Memory $RiftCorePath/StringUtils $RiftCorePath/Log $RiftCorePath/Platform_Core $RiftCorePath/Platform_%(_platform)
+RiftCoreFiles:unix|bsd $RiftCorePath/Platform_Unix
+RiftCoreFiles:bsd      $RiftCorePath/Platform_BSD
+SourceFiles            $RiftCoreFiles Tests/Core/Source/TestManager Tests/Core/Source/Tests
+
+Compiler.Flags         $SharedCompilerFlags
+Linker.Flags           $SharedLinkerFlags
+Includes               $SharedIncludeFlags ../../Source
+Defines                $SharedDefines
+Libraries              %_NativeLibs
+
+option.compiler(clang gcc cl)
+option.debug
