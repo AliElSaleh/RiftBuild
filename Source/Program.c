@@ -6219,17 +6219,14 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     StringLocal(VersionResFilePath, MAX_PATH_LENGTH);
 
     StringLocal(ExpandedIncludeFlags, 4096);
-    // StringLocal(ExpandedIncludeFlags_Public, 4096);
     StringLocal(ExpandedLibraries, 2048);
-    // StringLocal(ExpandedLibraries_Public, 2048);
     StringLocal(ExpandedLibraryDirectories, 4096);
-    // StringLocal(ExpandedLibraryDirectories_Public, 4096);
     StringLocal(ExpandedDefineFlags, 2048);
-    // StringLocal(ExpandedDefineFlags_Public, 2048);
     StringLocal(ExpandedUnDefineFlags, 1024);
     StringLocal(ExpandedLinkerDefineFlags, 1024);
     StringLocal(ExpandedAssemblerIncludeFlags, 4096);
     StringLocal(ExpandedAssemblerDefineFlags, 1024);
+    StringLocal(ExpandedFrameworks, 2048);
 
     StringLocal(FlagPrefix, 4);
     String_Append(&FlagPrefix, CompilerFlagPrefixSymbol);
@@ -6287,6 +6284,11 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
     FlagPrefix.Data[1] = 'D';
     ExpandDefineFlags(&ExpandedAssemblerDefineFlags, AssemblerDefines, FlagPrefix, bExportingSomething);
+
+    #if PLATFORM_APPLE
+    String Frameworks = GetVariableValue(VariablesDB, S("Frameworks"));
+    PrefixVariables(&ExpandedFrameworks, Frameworks, S("-framework "), false);
+    #endif
 
     // TODO: move the rest down here
     const String LinkerFlags                = GetVariableValue(VariablesDB, S("Linker.Flags"));
@@ -6411,6 +6413,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     p.LinkerEntryPoint              = LinkerEntryPoint;
     p.LinkerSubsystem               = LinkerSubsystem;
     p.LinkerStack                   = LinkerStack;
+    p.Frameworks                    = ExpandedFrameworks;
     p.bIsAssemblyExe                = bIsAssemblyExe;
     p.bVerbose                      = bVerboseLog;
     p.TitleName                     = TitleName;

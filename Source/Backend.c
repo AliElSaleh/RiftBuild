@@ -1298,7 +1298,7 @@ static void GetAdditionalLinkerFlags(const BuildParams* Params, String* Addition
         }
         #else
         xx bAnyValid;
-        String_BuildSeparator(AdditionalFlags, ' ', NoStd, NoDefaultLibs);
+        String_BuildSeparator(AdditionalFlags, ' ', NoStd, NoDefaultLibs, Params->Frameworks);
         #endif
     }
 
