@@ -1576,6 +1576,12 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Pars
                 return &Node_Null;
             }
 
+            if (String_ContainsSymbolsExceptUnderscore(t.Lexeme))
+            {
+                LOG_ERROR("\n[Parser] [Line %u]: Key '%S' can only contain alphabet characters or '.'. Please remove all non-alphabet symbols.", t.Line, t.Lexeme);
+                return &Node_Null;
+            }
+
             if (t.Lexeme.Length > MAX_KEY_LENGTH)
             {
                 LOG_ERROR("\n[Parser] [Line %u]: Key '%S' exceeds %u characters. Please shorten to %u or less characters", t.Line, t.Lexeme, MAX_KEY_LENGTH, MAX_KEY_LENGTH);

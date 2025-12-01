@@ -477,6 +477,38 @@ NO_DISCARD bool String_ContainsNonDigits(const String Str)
     return bContains;
 }
 
+NO_DISCARD bool String_ContainsSymbols(const String Str)
+{
+    bool bContains = false;
+
+    for (u32 i = 0; i < Str.Length; i++)
+    {
+        if (IsSymbol(Str.Data[i]))
+        {
+            bContains = true;
+            break;
+        }
+    }
+
+    return bContains;
+}
+
+NO_DISCARD bool String_ContainsSymbolsExceptUnderscore(const String Str)
+{
+    bool bContains = false;
+
+    for (u32 i = 0; i < Str.Length; i++)
+    {
+        if (IsSymbol_NoUnderscore(Str.Data[i]))
+        {
+            bContains = true;
+            break;
+        }
+    }
+
+    return bContains;
+}
+
 NO_DISCARD bool String_StartsWith(const String Str, const String SubString, bool bCaseSensitive)
 {
     bool bSuccess = Str.Length >= SubString.Length && SubString.Length > 0;
@@ -3758,6 +3790,18 @@ NO_DISCARD bool IsSymbol(u8 Char)
            Char == ';' || Char == '<' || Char == '>' || Char == '\'' ||
            Char == '"' || Char == '|' || Char == ',' || Char == '`'  ||
            Char == '~' || Char == '_' || Char == '-';
+}
+
+NO_DISCARD bool IsSymbol_NoUnderscore(u8 Char)
+{
+    return Char == '(' || Char == ')' || Char == '{' || Char == '}'  ||
+           Char == '!' || Char == '@' || Char == '#' || Char == '$'  ||
+           Char == '%' || Char == '^' || Char == '&' || Char == '*'  ||
+           Char == '+' || Char == '=' || Char == '/' || Char == '\\' ||
+           Char == '[' || Char == ']' || Char == '?' || Char == ':'  ||
+           Char == ';' || Char == '<' || Char == '>' || Char == '\'' ||
+           Char == '"' || Char == '|' || Char == ',' || Char == '`'  ||
+           Char == '~' || Char == '-';
 }
 
 NO_DISCARD u8 ToUpper(u8 Char)
