@@ -235,7 +235,7 @@ STRUCT(BuildParams)
     bool bLinkerNoStd;
     bool bLinkerNoDefaultLibs;
     bool bCompilerFlagsFirst;
-    bool _bPadding[1];
+    bool bLinkerFlagsFirst;
 };
 
 STRUCT(CompilerPaths)

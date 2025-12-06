@@ -3920,6 +3920,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     const String LinkerPath                 = GetCmdOptionValue(CmdOptionsDB, S("Linker.Path"));
     const String LinkerProgram              = Filesystem_ExtractFileName(LinkerPath, false);
     const String LinkerDefines              = GetVariableValue(VariablesDB, S("Linker.Defines"));
+    const String LinkerFlagsParams        = GetVariable(VariablesDB, S("Linker.Flags")).Params;
 
     const String AsmCompilerPath            = GetCmdOptionValue(CmdOptionsDB, S("Assembler.Path"));
     const String AsmProgram                 = Filesystem_ExtractFileName(AsmCompilerPath, false);
@@ -3973,6 +3974,14 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         ScratchLocal(Temp, Kibibytes(1));
         StringList CFlagParamsList = String_SplitIntoList(&Temp, CompilerFlagsParams, ' ', false);
         bCompilerFlagsFirst = StringList_FindIndex(CFlagParamsList, S("first"), false, StringCompare_Equal, NULL);
+    }
+
+    // For compilers that want flags first instead of "-c some/file"
+    bool bLinkerFlagsFirst = false;
+    {
+        ScratchLocal(Temp, Kibibytes(1));
+        StringList CFlagParamsList = String_SplitIntoList(&Temp, LinkerFlagsParams, ' ', false);
+        bLinkerFlagsFirst = StringList_FindIndex(CFlagParamsList, S("first"), false, StringCompare_Equal, NULL);
     }
 
     #ifndef HOOD
@@ -6290,6 +6299,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     p.bShouldWaitPerCompileProcess  = bSingleThread;
     p.CompilerFlags                 = CompilerFlags;
     p.bCompilerFlagsFirst           = bCompilerFlagsFirst;
+    p.bLinkerFlagsFirst             = bLinkerFlagsFirst;
     p.AssemblerFlags                = AssemblerFlags;
     p.AssemblerIncludes             = ExpandedAssemblerIncludeFlags;
     p.AssemblerDefines              = ExpandedAssemblerDefineFlags;

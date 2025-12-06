@@ -1494,13 +1494,20 @@ bool C_Link(const BuildParams* Params)
         String_AppendChar(&CmdLine, '"');
         String_AppendSpace(&CmdLine);
 
+        String LinkerFlagsLeft  = Params->bLinkerFlagsFirst ? Params->LinkerFlags : String_Null();
+        String LinkerFlagsRight = Params->bLinkerFlagsFirst ? String_Null() : Params->LinkerFlags;
+
+        String_Append(&CmdLine, LinkerFlagsLeft);
+        xx String_EatSpacesInlineFromEnd(&CmdLine);
+        String_AppendSpace(&CmdLine);
+
         String ObjExt  = String_IsValid(Params->CompilerObjectExt) ? Params->CompilerObjectExt : S(".o");
         Internal_AppendObjSourceFiles(Params, &CmdLine, ObjExt);
 
         // These must come after obj files because on some operating systems
         // the linker is sensitive to the order of how the flags are positioned
         // 
-        String_BuildSeparator(&CmdLine, ' ', Params->LinkerFlags,
+        String_BuildSeparator(&CmdLine, ' ', LinkerFlagsRight,
                                              Params->LinkerDefineFlags,
                                              Params->Libraries,
                                              Params->LibraryDirectories);
