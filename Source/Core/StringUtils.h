@@ -72,6 +72,7 @@ RIFT_API NO_DISCARD bool String_IsFloat(const String Str);
 RIFT_API NO_DISCARD bool String_IsNumeric(const String Str);
 
 RIFT_API NO_DISCARD bool String_Contains(const String Str, const String SubString, bool bCaseSensitive);
+RIFT_API NO_DISCARD bool String_ContainsChars(const String Str, const String Chars);
 RIFT_API NO_DISCARD bool String_ContainsPathSeparators(const String Str);
 RIFT_API NO_DISCARD bool String_ContainsDigits(const String Str);
 RIFT_API NO_DISCARD bool String_ContainsNonDigits(const String Str);

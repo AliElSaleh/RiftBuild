@@ -429,6 +429,26 @@ NO_DISCARD bool String_Contains(const String Str, const String SubString, bool b
     return bContains;
 }
 
+NO_DISCARD bool String_ContainsChars(const String Str, const String Chars)
+{
+    bool bContains = false;
+
+    for (u32 i = 0; i < Str.Length && Chars.Length; i++)
+    {
+        for (u32 j = 0; j < Chars.Length; j++)
+        {
+            if (Str.Data[i] == Chars.Data[j])
+            {
+                bContains = true;
+                goto end;
+            }
+        }
+    }
+
+end:
+    return bContains;
+}
+
 NO_DISCARD bool String_ContainsPathSeparators(const String Str)
 {
     bool bContains = false;
