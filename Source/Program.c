@@ -6856,7 +6856,22 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         return Receipt;
     }
 
-    if (NumCompiled == 0)
+    bool bAssemblyExists = false;
+    {
+        if (bCanLink)
+        {
+            StringLocal(AssemblyPath, MAX_PATH_LENGTH);
+            String_BuildPath(&AssemblyPath, BuildBaseDirectory, AssemblyNameWithExt);
+            bAssemblyExists = Filesystem_DoesFileExist(AssemblyPath);
+        }
+        else
+        {
+            bAssemblyExists = true;
+        }
+    }
+
+    bool bNoMoreWorkToDo = NumCompiled == 0 && bAssemblyExists;
+    if (bNoMoreWorkToDo)
     {
         if (bRunPostBuildWhenWorkWasDone)
         {
