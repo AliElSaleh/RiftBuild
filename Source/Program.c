@@ -510,7 +510,7 @@ static bool FilterSourceFile(const String WorkingDirectory, const String SourceD
             }
 
             // Note: see comment in the whitelist version of this code
-            String File = It.String;
+            String File = String_TrimQuotes(It.String);
             if (String_StartsWith(File, SourceDirectory, false))
             {
                 String a = StrShiftF(File, SourceDirectory.Length);
@@ -649,7 +649,7 @@ static bool FilterSourceFile(const String WorkingDirectory, const String SourceD
             // Note(Ali): this is here for convenience when you specify a SourceDirectory key and
             //            when you specify a list of source files that start with the SourceDirectory's value,
             //            we can just chop that off and continue on with the check below.
-            String File = It.String;
+            String File = String_TrimQuotes(It.String);
             if (String_StartsWith(File, SourceDirectory, false))
             {
                 String a = StrShiftF(File, SourceDirectory.Length);
