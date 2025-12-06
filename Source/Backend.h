@@ -7,7 +7,6 @@
 #endif
 
 #define MAX_KEY_LENGTH 64
-#define MAX_META_KEY_LENGTH 64
 
 global bool bQuietBuild;
 global bool bNoWordWrapLogging;
@@ -85,7 +84,8 @@ ENUM(EAssemblyType)
     AssemblyType_StaticLibrary,
     AssemblyType_DynamicLibrary,
     AssemblyType_PCH,
-    AssemblyType_CustomCompilerObject
+    AssemblyType_CustomCompilerObject,
+    AssemblyType_Null
 };
 
 ENUM(ECompiler)
@@ -203,7 +203,8 @@ STRUCT(BuildParams)
     String Copyright;
     String Version;
 
-    String RPath;
+    String RPathOrigin;
+    String RPaths;
 
     String WindowsSDKIncludePath;
     String WindowsSDKLibUmPath;
@@ -337,6 +338,14 @@ void AddOrAppendVariable(LinearAllocator* Arena,
 
 void AddCmdOption(TArray(CmdOption) CmdOptionsDB, const String Name, const String Value);
 void AddInternalVariable(const String Name, const String Value);
+
+String AssemblyTypeStringToExtension(String Type);
+bool AssemblyTypeStringIsExecutable(String Type);
+EAssemblyType StringToAssemblyTypeEnum(String Type);
+bool ExtensionStringIsExecutable(String Ext);
+bool ExtensionStringIsSharedLibrary(String Ext);
+bool ExtensionStringIsStaticLibrary(String Ext);
+bool ExtensionStringIsPCH(String Ext);
 
 // Export functions --------------------
 

@@ -2286,74 +2286,10 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const File
     const String Type = GetVariableValue(VariablesDB, S("Type"));
     if (String_IsValid(Type))
     {
-        String Extension = String_Null();
+        String Extension = AssemblyTypeStringToExtension(Type);
         
         FileVariable Expanded;
         Expanded.Name = S("Extension");
-        // // Expanded.bHasSpecial = false;
-
-        if (String_IsEqual(Type, S("lib"), false) ||
-            String_IsEqual(Type, S("library"), false))
-        {
-            #if PLATFORM_WINDOWS
-                Extension = S(".dll .lib");
-            #elif PLATFORM_APPLE
-                Extension = S(".dylib .a");
-            #else
-                Extension = S(".so .a");
-            #endif
-        }
-        else if (String_IsEqual(Type, S("static_lib"), false) ||
-                 String_IsEqual(Type, S("static_library"), false))
-        {
-            #if PLATFORM_WINDOWS
-                Extension = S(".lib");
-            #elif PLATFORM_APPLE
-                Extension = S(".a");
-            #else
-                Extension = S(".a");
-            #endif
-        }
-        else if (String_IsEqual(Type, S("shared_lib"), false) ||
-                 String_IsEqual(Type, S("shared_library"), false) ||
-                 String_IsEqual(Type, S("dynamic_lib"), false) ||
-                 String_IsEqual(Type, S("dynamic_library"), false))
-        {
-            #if PLATFORM_WINDOWS
-                Extension = S(".dll");
-            #elif PLATFORM_APPLE
-                Extension = S(".dylib");
-            #else
-                Extension = S(".so");
-            #endif
-        }
-        else if (String_IsEqual(Type, S("app"), false) ||
-                 String_IsEqual(Type, S("application"), false) ||
-                 String_IsEqual(Type, S("exe"), false) ||
-                 String_IsEqual(Type, S("executable"), false))
-        {
-            #if PLATFORM_WINDOWS
-                Extension = S(".exe");
-            #elif PLATFORM_APPLE
-                Extension = String_Null();
-            #else
-                Extension = String_Null();
-            #endif
-        }
-        else if (String_IsEqual(Type, S("gch"), false))
-        {
-            Extension = S(".gch");
-        }
-        else if (String_IsEqual(Type, S("pch"), false) ||
-                 String_IsEqual(Type, S("pre_compiled_header"), false))
-        {
-            Extension = S(".pch");
-        }
-        else
-        {
-            // no action required
-        }
-
         Expanded.Value = Extension;
 
         Array_Add(VariablesDB, Expanded);
@@ -2363,7 +2299,6 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const File
     {
         FileVariable Expanded;
         Expanded.Name = S("Extension");
-        // Expanded.bHasSpecial = false;
 
         #if PLATFORM_WINDOWS
             Expanded.Value = S(".exe");
@@ -3513,6 +3448,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         if (bOptions)
         {
             // TODO: fix long descriptions breaking layout
+            // TODO: collapse into function
 
             LOG_INLINE_WARNING("\nOptions\n\n");
 
@@ -3760,19 +3696,12 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
         if (!bIsAssemblyExe)
         {
-            bIsAssemblyExe = String_IsEqual(Type, S("app"), false) ||
-                             String_IsEqual(Type, S("application"), false) ||
-                             String_IsEqual(Type, S("exe"), false) ||
-                             String_IsEqual(Type, S("executable"), false);
+            bIsAssemblyExe = AssemblyTypeStringIsExecutable(Type);
         }
 
         if (!bIsAssemblyExe && Type.Length == 0)
         {
-            bIsAssemblyExe = Ext.Length == 0 || 
-                             String_IsEqual(Ext, S("elf"), false) ||
-                             String_IsEqual(Ext, S("out"), false) ||
-                             String_IsEqual(Ext, S("exe"), false) ||
-                             String_IsEqual(Ext, S("com"), false);
+            bIsAssemblyExe = ExtensionStringIsExecutable(Ext);
         }
 
         if (bIsAssemblyExe)
@@ -4010,7 +3939,8 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     String Icon                             = GetVariableValue(VariablesDB, S("Icon"));
     const String PCHPath                    = GetVariableValue(VariablesDB, S("PCH"));
     const String PCHHeaderPath              = GetVariableValue(VariablesDB, S("PCH.h"));
-    const String RPath                      = GetVariableValue(VariablesDB, S(".RPathOrigin"));
+    const String RPathOrigin                = GetVariableValue(VariablesDB, S(".RPathOrigin"));
+    const String RPaths                     = GetVariableValue(VariablesDB, S(".RPath"));
 
     #if PLATFORM_APPLE
     const bool bBundleApp                   = DoesBuildVarExist(VariablesDB, S("Bundle"));
@@ -4085,21 +4015,16 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
     bool bIsAssemblyExe = Type.Length == 0 && Extension.Length == 0;
 
+    // TODO: implement Type Null for phony builds, useful for dependency management
+
     if (!bIsAssemblyExe)
     {
-        bIsAssemblyExe = String_IsEqual(Type, S("app"), false) ||
-                         String_IsEqual(Type, S("application"), false) ||
-                         String_IsEqual(Type, S("exe"), false) || 
-                         String_IsEqual(Type, S("executable"), false);
+        bIsAssemblyExe = AssemblyTypeStringIsExecutable(Type);
     }
 
     if (!bIsAssemblyExe && Type.Length == 0)
     {
-        bIsAssemblyExe = Extension.Length == 0 || 
-                         String_IsEqual(Extension, S(".elf"), false) ||
-                         String_IsEqual(Extension, S(".out"), false) ||
-                         String_IsEqual(Extension, S(".exe"), false) ||
-                         String_IsEqual(Extension, S(".com"), false);
+        bIsAssemblyExe = ExtensionStringIsExecutable(Extension);
     }
 
     if (bIsAssemblyExe)
@@ -4108,38 +4033,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     }
     else
     {
-        if (String_IsEqual(Type, S("lib"), false) ||
-            String_IsEqual(Type, S("library"), false))
-        {
-            AssemblyType = AssemblyType_Library;
-        }
-        else if (String_IsEqual(Type, S("static_lib"), false) || 
-                 String_IsEqual(Type, S("static_library"), false))
-        {
-            AssemblyType = AssemblyType_StaticLibrary;
-        }
-        else if (String_IsEqual(Type, S("dynamic_lib"), false) || 
-                 String_IsEqual(Type, S("dynamic_library"), false) ||
-                 String_IsEqual(Type, S("shared_lib"), false) || 
-                 String_IsEqual(Type, S("shared_library"), false))
-        {
-            AssemblyType = AssemblyType_DynamicLibrary;
-        }
-        else if (String_IsEqual(Type, S("pch"), false) || 
-                 String_IsEqual(Type, S("gch"), false) || 
-                 String_IsEqual(Type, S("pre_compiled_header"), false))
-        {
-            AssemblyType = AssemblyType_PCH;
-        }
-        else if (String_IsEqual(Type, S("object"), false) ||
-                 String_IsEqual(Type, S("compiler_object"), false))
-        {
-            AssemblyType = AssemblyType_CustomCompilerObject;
-        }
-        else
-        {
-            // no action required
-        }
+        AssemblyType = StringToAssemblyTypeEnum(Type);
 
         if (AssemblyType == AssemblyType_None)
         {
@@ -4152,21 +4046,17 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             {
                 if (!bHasDynamicLib)
                 {
-                    bHasDynamicLib = String_IsEqual(*e, S("dll"), false) ||
-                                     String_IsEqual(*e, S("so"), false) ||
-                                     String_IsEqual(*e, S("dylib"), false);
+                    bHasDynamicLib = ExtensionStringIsSharedLibrary(*e);
                 }
 
                 if (!bHasStaticLib)
                 {
-                    bHasStaticLib = String_IsEqual(*e, S("lib"), false) ||
-                                    String_IsEqual(*e, S("a"), false);
+                    bHasStaticLib = ExtensionStringIsStaticLibrary(*e);
                 }
 
                 if (!bHasPCH)
                 {
-                    bHasPCH = String_IsEqual(*e, S("pch"), false) ||
-                              String_IsEqual(*e, S("gch"), false);
+                    bHasPCH = ExtensionStringIsPCH(*e);
                 }
             }
 
@@ -6430,7 +6320,8 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     p.IconFilePath                  = IconFilePath;
     p.bLinkerNoStd                  = bLinkerNoStd;
     p.bLinkerNoDefaultLibs          = bLinkerNoDefaultLibs;
-    p.RPath                         = RPath;
+    p.RPathOrigin                   = RPathOrigin;
+    p.RPaths                        = RPaths;
     p.Timestamp                     = TimeStamp;
     #if PLATFORM_WINDOWS
     p.WindowsSDKIncludePath         = WindowsSDKIncludePath;
@@ -7035,6 +6926,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     }
     else
     {
+        // TODO: rewrite this. the backend should give us all the outputs.
         u32 WhitespaceIndex = 0;
         bool bHasSpace = String_IndexOfFirstWhitespace(Extension_Og, &WhitespaceIndex);
 

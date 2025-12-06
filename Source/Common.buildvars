@@ -86,7 +86,7 @@ if clang|gcc
     SharedCompilerFlags:32           -m32
     SharedCompilerFlags:mac          -mmacosx-version-min=10.12
 
-    SharedLinkerFlags            
+    SharedLinkerFlags 
     SharedLinkerFlags:!gcc:32        --target=i386-pc-windows-msvc
     SharedLinkerFlags:linux          -Wl,-z,nodlopen -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now
     

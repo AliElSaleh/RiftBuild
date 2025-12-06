@@ -848,8 +848,173 @@ bool IsCppHeader(const String Extension)
             String_IsEqual(Extension, S(".txx"), false);
 }
 
+bool AssemblyTypeStringIsExecutable(String Type)
+{
+    return (String_IsEqual(Type, S("app"), false) ||
+            String_IsEqual(Type, S("application"), false) ||
+            String_IsEqual(Type, S("exe"), false) ||
+            String_IsEqual(Type, S("executable"), false) ||
+            String_IsEqual(Type, S("bin"), false) ||
+            String_IsEqual(Type, S("binary"), false));
+}
 
+String AssemblyTypeStringToExtension(String Type)
+{
+    String Extension = String_Null();
+    
+    if (String_IsEqual(Type, S("lib"), false) ||
+        String_IsEqual(Type, S("library"), false))
+    {
+        #if PLATFORM_WINDOWS
+            Extension = S(".dll .lib");
+        #elif PLATFORM_APPLE
+            Extension = S(".dylib .a");
+        #else
+            Extension = S(".so .a");
+        #endif
+    }
+    else if (String_IsEqual(Type, S("static"), false) ||
+             String_IsEqual(Type, S("static_lib"), false) ||
+             String_IsEqual(Type, S("static_library"), false))
+    {
+        #if PLATFORM_WINDOWS
+            Extension = S(".lib");
+        #elif PLATFORM_APPLE
+            Extension = S(".a");
+        #else
+            Extension = S(".a");
+        #endif
+    }
+    else if (String_IsEqual(Type, S("shared"), false) ||
+             String_IsEqual(Type, S("shared_lib"), false) ||
+             String_IsEqual(Type, S("shared_library"), false) ||
+             String_IsEqual(Type, S("dynamic"), false) ||
+             String_IsEqual(Type, S("dynamic_lib"), false) ||
+             String_IsEqual(Type, S("dynamic_library"), false))
+    {
+        #if PLATFORM_WINDOWS
+            Extension = S(".dll");
+        #elif PLATFORM_APPLE
+            Extension = S(".dylib");
+        #else
+            Extension = S(".so");
+        #endif
+    }
+    else if (AssemblyTypeStringIsExecutable(Type))
+    {
+        #if PLATFORM_WINDOWS
+            Extension = S(".exe");
+        #elif PLATFORM_APPLE
+            Extension = String_Null();
+        #else
+            Extension = String_Null();
+        #endif
+    }
+    else if (String_IsEqual(Type, S("gch"), false))
+    {
+        Extension = S(".gch");
+    }
+    else if (String_IsEqual(Type, S("pch"), false) ||
+             String_IsEqual(Type, S("pre_compiled_header"), false))
+    {
+        Extension = S(".pch");
+    }
+    else
+    {
+        // no action required
+    }
 
+    return Extension;
+}
+
+EAssemblyType StringToAssemblyTypeEnum(String Type)
+{
+    EAssemblyType AssemblyType = AssemblyType_None;
+
+    if (String_IsEqual(Type, S("lib"), false) ||
+        String_IsEqual(Type, S("library"), false))
+    {
+        AssemblyType = AssemblyType_Library;
+    }
+    else if (String_IsEqual(Type, S("static"), false) || 
+             String_IsEqual(Type, S("static_lib"), false) || 
+             String_IsEqual(Type, S("static_library"), false))
+    {
+        AssemblyType = AssemblyType_StaticLibrary;
+    }
+    else if (String_IsEqual(Type, S("dynamic"), false) || 
+             String_IsEqual(Type, S("dynamic_lib"), false) || 
+             String_IsEqual(Type, S("dynamic_library"), false) ||
+             String_IsEqual(Type, S("shared"), false) || 
+             String_IsEqual(Type, S("shared_lib"), false) || 
+             String_IsEqual(Type, S("shared_library"), false))
+    {
+        AssemblyType = AssemblyType_DynamicLibrary;
+    }
+    else if (AssemblyTypeStringIsExecutable(Type))
+    {
+        AssemblyType = AssemblyType_Executable;
+    }
+    else if (String_IsEqual(Type, S("pch"), false) || 
+             String_IsEqual(Type, S("gch"), false) || 
+             String_IsEqual(Type, S("pre_compiled_header"), false))
+    {
+        AssemblyType = AssemblyType_PCH;
+    }
+    else if (String_IsEqual(Type, S("object"), false) ||
+             String_IsEqual(Type, S("compiler_object"), false))
+    {
+        AssemblyType = AssemblyType_CustomCompilerObject;
+    }
+    else if (String_IsEqual(Type, S("null"), false) ||
+             String_IsEqual(Type, S("none"), false) ||
+             String_IsEqual(Type, S("phony"), false))
+    {
+        AssemblyType = AssemblyType_Null;
+    }
+    else
+    {
+        // no action required
+    }
+
+    return AssemblyType;
+}
+
+bool ExtensionStringIsExecutable(String Ext)
+{
+    const String Trimmed = String_EatChar(Ext, '.');
+
+    return Trimmed.Length == 0 || 
+           String_IsEqual(Trimmed, S("elf"), false) ||
+           String_IsEqual(Trimmed, S("out"), false) ||
+           String_IsEqual(Trimmed, S("exe"), false) ||
+           String_IsEqual(Trimmed, S("com"), false);
+}
+
+bool ExtensionStringIsSharedLibrary(String Ext)
+{
+    const String Trimmed = String_EatChar(Ext, '.');
+
+    return String_IsEqual(Trimmed, S("dll"), false) ||
+           String_IsEqual(Trimmed, S("so"), false) ||
+           String_IsEqual(Trimmed, S("dylib"), false);
+}
+
+bool ExtensionStringIsStaticLibrary(String Ext)
+{
+    const String Trimmed = String_EatChar(Ext, '.');
+
+    return String_IsEqual(Trimmed, S("lib"), false) ||
+           String_IsEqual(Trimmed, S("a"), false);
+}
+
+bool ExtensionStringIsPCH(String Ext)
+{
+    const String Trimmed = String_EatChar(Ext, '.');
+
+    return String_IsEqual(Trimmed, S("pch"), false) ||
+           String_IsEqual(Trimmed, S("gch"), false);
+}
 
 ////////////////////////////////////
 
@@ -1148,7 +1313,7 @@ static void GetAdditionalLinkerFlags(const BuildParams* Params, String* Addition
     // (and for all the different platforms as well)
     if (Params->Type == AssemblyType_Executable)
     {
-        String NoDefaultLibs;// = String_Null();
+        String NoDefaultLibs = String_Null();
         String NoStd         = String_Null();
 
         if (bIsMicrosoftLinker)
@@ -1491,23 +1656,20 @@ bool C_Link(const BuildParams* Params)
         {
             #if PLATFORM_MAC
             String ChosenRPath = S("@executable_path");
+            #else
+            String ChosenRPath = S("$ORIGIN");
+            #endif
 
-            if (String_IsValid(Params->RPath))
+            if (String_IsValid(Params->RPathOrigin))
             {
-                ChosenRPath = Params->RPath;
+                ChosenRPath = Params->RPathOrigin;
             }
 
             String_AppendF(&RunPathLinkFlag, S("-Wl,-rpath,%S"), ChosenRPath);
-            #else
-            String ChosenRPath = S("$ORIGIN");
-            if (String_IsValid(Params->RPath))
-            {
-                ChosenRPath = Params->RPath;
-            }
-            String_AppendF(&RunPathLinkFlag, S("-Wl,-rpath,'%S'"), ChosenRPath);
-            #endif
         }
         #endif
+
+        // TODO: multiple rpaths
 
         StringLocal(AdditionalFlags, 512);
         GetAdditionalLinkerFlags(Params, &AdditionalFlags);
