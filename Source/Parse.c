@@ -4297,6 +4297,7 @@ static bool Internal_LogCustomErrorMessage(ParsingContext* Context, const String
                     xx ExpandBuildVariable(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, Var.Name, Var.Value, Var.Name, Context->WorkingDirectory, false, false, NULL);
 
                     LOG("%S", Expanded);
+                    if (bLineBreak) { LOG_LINE_BREAK(); }
                     bLogged = true;
                     break;
                 }
@@ -4355,7 +4356,7 @@ static bool Internal_AssertEnvironmentVar(ParsingContext* Context, const String 
         if (!bFound)
         {
             #ifndef HOOD
-            LOG_INLINE_ERROR("\n[ASSERTION FAILURE] Environment variable \"%S\" does not exist. Aborting build...\n\n", Trimmed);
+            LOG_INLINE_ERROR("\n[ASSERTION FAILURE] Environment variable \"%S\" does not exist. Aborting build...\n", Trimmed);
             #else
             LOG_ERROR("\nyo da environment var \"%S\" don exist cuh. need to be setup n' shit ma nigga\n", Trimmed);
             #endif
@@ -4364,6 +4365,8 @@ static bool Internal_AssertEnvironmentVar(ParsingContext* Context, const String 
             xx Internal_LogCustomErrorMessage(Context, S("Environment"), Trimmed, true);
 
             LogRegularEnvVarTutorialSteps();
+            
+            LOG_LINE_BREAK();
 
             bSuccess = false;
             break;
