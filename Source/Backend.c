@@ -1714,6 +1714,13 @@ bool C_Link(const BuildParams* Params)
             String_Append(&CmdLine, S("\" "));
         }
 
+        String LinkerFlagsLeft  = Params->bLinkerFlagsFirst ? Params->LinkerFlags : String_Null();
+        String LinkerFlagsRight = Params->bLinkerFlagsFirst ? String_Null() : Params->LinkerFlags;
+
+        String_Append(&CmdLine, LinkerFlagsLeft);
+        xx String_EatSpacesInlineFromEnd(&CmdLine);
+        String_AppendSpace(&CmdLine);
+
         Internal_AppendObjSourceFiles(Params, &CmdLine, DefaultObjExtension);
 
         // These must come after obj files because on some operating systems
@@ -1721,7 +1728,7 @@ bool C_Link(const BuildParams* Params)
         // 
         String_BuildSeparator(&CmdLine, ' ', AdditionalFlags,
                                              RunPathLinkFlag,
-                                             Params->LinkerFlags,
+                                             LinkerFlagsRight,
                                              Params->LinkerDefineFlags,
                                              Params->Libraries,
                                              Params->LibraryDirectories);

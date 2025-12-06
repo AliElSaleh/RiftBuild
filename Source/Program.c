@@ -3976,12 +3976,12 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         bCompilerFlagsFirst = StringList_FindIndex(CFlagParamsList, S("first"), false, StringCompare_Equal, NULL);
     }
 
-    // For compilers that want flags first instead of "-c some/file"
+    // For linkers that want flags first
     bool bLinkerFlagsFirst = false;
     {
         ScratchLocal(Temp, Kibibytes(1));
-        StringList CFlagParamsList = String_SplitIntoList(&Temp, LinkerFlagsParams, ' ', false);
-        bLinkerFlagsFirst = StringList_FindIndex(CFlagParamsList, S("first"), false, StringCompare_Equal, NULL);
+        StringList LFlagParamsList = String_SplitIntoList(&Temp, LinkerFlagsParams, ' ', false);
+        bLinkerFlagsFirst = StringList_FindIndex(LFlagParamsList, S("first"), false, StringCompare_Equal, NULL);
     }
 
     #ifndef HOOD
