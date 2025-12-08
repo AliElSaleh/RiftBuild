@@ -1594,22 +1594,25 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Pars
             {
                 StringList** Next = &ParamList;
                 while (Parser_Peek(P).Type == Token_Text       ||
-                    //    Parser_Peek(P).Type == Token_Whitespace ||
+                       Parser_Peek(P).Type == Token_GreaterThan ||
+                       Parser_Peek(P).Type == Token_GreaterOrEqual ||
+                       Parser_Peek(P).Type == Token_LessThan ||
+                       Parser_Peek(P).Type == Token_LessOrEqual ||
+                       Parser_Peek(P).Type == Token_Equal ||
+                       Parser_Peek(P).Type == Token_Whitespace ||
                        Parser_Peek(P).Type == Token_Colon)
                 {
-                    /*
                     if (Parser_Peek(P).Type == Token_Whitespace)
                     {
                         SLinkedList_Push(Next, StringList_Create(Arena, S(" "), NULL));
                     }
                     else
-                    */
                     {
                         SLinkedList_Push(Next, StringList_Create(Arena, Parser_Peek(P).Lexeme, NULL));
                     }
 
                     Parser_Advance(P);
-                    Parser_SkipWhitespace(P);
+                    // Parser_SkipWhitespace(P);
                 }
 
                 if (!Parser_Match(P, Token_RParen))
@@ -1619,7 +1622,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Pars
                 }
             }
 
-            // we are filtering this key. aka if statement
+            // we are filtering this key. aka an if statement
             Node* FilterNode = &Node_Null;
             Node* LastIfNode = &Node_Null;
             if (Parser_Match(P, Token_Colon))
@@ -2766,7 +2769,7 @@ static void Analyze_KVNode_Option(Node* Root, ParsingContext* Context)
         for each_string_in_list (*Root->Parameters)
         {
             String_Append(&Params, It.String);
-            String_AppendSpace(&Params);
+            // String_AppendSpace(&Params);
         }
 
         xx String_EatSpacesInlineFromEnd(&Params);
@@ -2885,7 +2888,7 @@ static void Analyze_KVNode(Node* Root, ParsingContext* Context)
         for each_string_in_list (*Root->Parameters)
         {
             String_Append(&Params, It.String);
-            String_AppendSpace(&Params);
+            // String_AppendSpace(&Params);
         }
 
         xx String_EatSpacesInlineFromEnd(&Params);
@@ -5048,145 +5051,188 @@ static bool Internal_AssertArg(ParsingContext* Context, const String BuildFilePa
 
     StringArray CmdVarsArray = String_ParseIntoArray(&Scratch, Var.Value, ' ', 0, 128);
 
-    for each_str (S, CmdVarsArray)
+    if (CmdVarsArray.Num == 0)
     {
-        const String Trimmed = String_EatSpaces(*S);
-
-        bool bFound = false;
-        // TODO: extract into a function. replace all the other cmdoptionsdb loops
-        for each (CmdOption, o, Context->CmdOptionsDB)
+        String Value = GetCmdOptionValue(Context->CmdOptionsDB, S("_args"));
+        if (!String_IsValid(Value))
         {
-            if (String_IsEqual(o.Name, Trimmed, false))
-            {
-                bFound = true;
-
-                // if an '=' was specified but no value was specified after that
-                // so something like this: some_arg=
-                if (String_IsDataValid(o.Value) && o.Value.Length == 0)
-                {
-                    bFound = false;
-                }
-                
-                break;
-            }
-        }
-
-        if (!bFound)
-        {
-            #ifndef HOOD
-            LOG_INLINE_ERROR("\n[ASSERTION FAILURE] Command line argument \"%S\" or \"%S=VALUE\" was not given."
-                            "\n                    This is needed for the build to work properly. Aborting build...\n", Trimmed, Trimmed);
-            #else
-            LOG_ERROR("yo da cmd line var \"%S\" don exist cuh. dat shit not there nigga", Trimmed);
-            #endif
-
-            xx Internal_LogCustomErrorMessage(Context, S("Arg"), Trimmed, true);
+            LOG_INLINE_ERROR("\n[ASSERTION FAILURE] You must provide at least one argument on the command line.\n");
 
             bSuccess = false;
-            break;
         }
     }
-
-    return bSuccess;
-}
-
-static bool Internal_AssertArgAny(ParsingContext* Context, const String BuildFilePath, FileVariable Var)
-{
-    bool bSuccess = true;
-
-    LinearAllocator Scratch = *Context->TempArena;
-
-    StringArray ArgArray = String_ParseIntoArray(&Scratch, Var.Value, ' ', 0, 128);
-
-    bool bFound = false;
-    for each_str (Arg, ArgArray)
+    else
     {
-        const String Trimmed = String_EatSpaces(*Arg);
+        StringArray ParamsArray = String_ParseIntoArray(&Scratch, Var.Params, ' ', 0, 128);
 
-        for each (CmdOption, o, Context->CmdOptionsDB)
+        u32 Loops = String_IsValid(Var.Params) ? ParamsArray.Num : 1;
+
+        for (u32 i = 0; i < Loops; i++)
         {
-            if (String_IsEqual(o.Name, Trimmed, false))
-            {
-                bFound = true;
+            i32 AssertNum = (i32)CmdVarsArray.Num;
+            EComparisonType CmpType = Cmp_Equal;
 
-                // if an '=' was specified but no value was specified after that
-                // so something like this: some_arg=
-                if (String_IsDataValid(o.Value) && o.Value.Length == 0)
+            if (ParamsArray.Num > 0)
+            {
+                String p = ParamsArray.List[i];
+
+                if (String_StartsWith(p, S(">"), false))
                 {
-                    bFound = false;
+                    p = StrShiftF(p, 1);
+
+                    CmpType = Cmp_GreaterThan;
+                    if (String_StartsWith(p, S("="), false))
+                    {
+                        CmpType = Cmp_GreaterThanOrEqual;
+                        p = StrShiftF(p, 1);
+                    }
+                }
+                else if (String_StartsWith(p, S("<"), false))
+                {
+                    p = StrShiftF(p, 1);
+
+                    CmpType = Cmp_LessThan;
+                    if (String_StartsWith(p, S("="), false))
+                    {
+                        CmpType = Cmp_LessThanOrEqual;
+
+                        p = StrShiftF(p, 1);
+                    }
+                }
+                else if (String_StartsWith(p, S("="), false))
+                {
+                    p = StrShiftF(p, 1);
+
+                    CmpType = Cmp_Equal;
+                    if (String_StartsWith(p, S("="), false))
+                    {
+                        p = StrShiftF(p, 1);
+                    }
+                }
+
+                StringLocal(Number, 32);
+                String_StripWhitespace(p, &Number);
+
+                xx String_ToI32(Number, &AssertNum);
+                AssertNum = ClampI32(AssertNum, 0, 32);
+            }
+
+            i32 MatchCount = 0;
+            for each_str (Cmd, CmdVarsArray)
+            {
+                const String Trimmed = String_EatSpaces(*Cmd);
+
+                bool bFound = false;
+
+                // TODO: extract into a function. replace all the other cmdoptionsdb loops
+                for each (CmdOption, o, Context->CmdOptionsDB)
+                {
+                    if (String_IsEqual(o.Name, Trimmed, false))
+                    {
+                        // Special case:
+                        // if an '=' was specified but no value was specified after that
+                        // so something like this: some_arg=
+                        if (String_IsDataValid(o.Value) && o.Value.Length == 0)
+                        {
+                            bFound = false;
+                        }
+                        else
+                        {
+                            bFound = true;
+                        }
+                        
+                        break;
+                    }
                 }
 
                 if (bFound)
                 {
-                    break;
+                    MatchCount++;
                 }
             }
-        }
 
-        if (bFound)
-        {
-            break;
-        }
-    }
+            bool bComparisonOK = false;
 
-    if (!bFound)
-    {
-        if (ArgArray.Num == 0)
-        {
-            LOG_INLINE_ERROR("\n[ASSERTION FAILURE] You must specify one or more arguments\n");
-        }
-        else
-        {
-            LOG_INLINE_ERROR("\n[ASSERTION FAILURE] Any one of these arguments must be specified: %S\n", Var.Value);
-        }
-
-        bSuccess = false;
-    }
-
-    return bSuccess;
-}
-
-static bool Internal_AssertArgOnlyOne(ParsingContext* Context, const String BuildFilePath, FileVariable Var)
-{
-    bool bSuccess = true;
-
-    LinearAllocator Scratch = *Context->TempArena;
-
-    StringArray ArgArray = String_ParseIntoArray(&Scratch, Var.Value, ' ', 0, 128);
-
-    bool bFound = false;
-    for each_str (Arg, ArgArray)
-    {
-        const String Trimmed = String_EatSpaces(*Arg);
-
-        for each (CmdOption, o, Context->CmdOptionsDB)
-        {
-            if (String_IsEqual(o.Name, Trimmed, false))
+            switch (CmpType)
             {
-                if (bFound)
+                case Cmp_Equal:              { bComparisonOK = MatchCount == AssertNum; } break;
+                case Cmp_LessThan:           { bComparisonOK = MatchCount <  AssertNum; } break;
+                case Cmp_LessThanOrEqual:    { bComparisonOK = MatchCount <= AssertNum; } break;
+                case Cmp_GreaterThan:        { bComparisonOK = MatchCount >  AssertNum; } break;
+                case Cmp_GreaterThanOrEqual: { bComparisonOK = MatchCount >= AssertNum; } break;
+                default:                     { bComparisonOK = false; } break;
+            }
+
+            if (!bComparisonOK)
+            {
+                switch (CmpType)
                 {
-                    bFound = false;
-                    goto MultipleArgsFound;
+                    default: FALL_THROUGH;
+                    case Cmp_Equal:
+                    {
+                        LOG_INLINE_ERROR
+                        (
+                            "\n[ASSERTION FAILURE] Exactly %i of these arguments must be specified -> [ %S ]\n"
+                            "                    You provided %i.\n", AssertNum, Var.Value, MatchCount
+                        );
+                    }
+                    break;
+
+                    case Cmp_LessThan:
+                    {
+                        LOG_INLINE_ERROR
+                        (
+                            "\n[ASSERTION FAILURE] Fewer than %i of these arguments must be specified -> [ %S ]\n"
+                            "                    You provided %i (which is too many).\n", AssertNum, Var.Value, MatchCount
+                        );
+                    }
+                    break;
+
+                    case Cmp_LessThanOrEqual:
+                    {
+                        LOG_INLINE_ERROR
+                        (
+                            "\n[ASSERTION FAILURE] At most %i of these arguments may be specified -> [ %S ]\n"
+                            "                    You provided %i (which is too many).\n", AssertNum, Var.Value, MatchCount
+                        );
+                    }
+                    break;
+
+                    case Cmp_GreaterThan:
+                    {
+                        LOG_INLINE_ERROR
+                        (
+                            "\n[ASSERTION FAILURE] More than %i of these arguments must be specified -> [ %S ]\n"
+                            "                    You provided %i (which is too few).\n", AssertNum, Var.Value, MatchCount
+                        );
+                    }
+                    break;
+
+                    case Cmp_GreaterThanOrEqual:
+                    {
+                        LOG_INLINE_ERROR
+                        (
+                            "\n[ASSERTION FAILURE] At least %i of these arguments must be specified -> [ %S ]\n"
+                            "                    You provided %i (which is too few).\n", AssertNum, Var.Value, MatchCount
+                        );
+                    }
+                    break;
                 }
 
-                bFound = true;
-
-                // if an '=' was specified but no value was specified after that
-                // so something like this: some_arg=
-                if (String_IsDataValid(o.Value) && o.Value.Length == 0)
+                for each_str (Cmd, CmdVarsArray)
                 {
-                    bFound = false;
+                    const String Trimmed = String_EatSpaces(*Cmd);
+
+                    if (!DoesCmdOptionExist(Context->CmdOptionsDB, Trimmed))
+                    {
+                        Internal_LogCustomErrorMessage(Context, S("Arg"), Trimmed, true);
+                    }
                 }
+
+                bSuccess = false;
                 break;
             }
         }
-    }
-    
-    MultipleArgsFound:
-    if (!bFound)
-    {
-        LOG_INLINE_ERROR("\n[ASSERTION FAILURE] Only one of these arguments can be specified: %S\n", Var.Value);
-        bSuccess = false;
     }
 
     return bSuccess;
@@ -5538,14 +5584,6 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
             else if (String_IsEqual(Var.Name, S("Assert.Arg"), false))
             {
                 bAssertionFailed = Internal_AssertArg(Context, BuildFilePath, Var) == false;
-            }
-            else if (String_IsEqual(Var.Name, S("Assert.Arg.Any"), false))
-            {
-                bAssertionFailed = Internal_AssertArgAny(Context, BuildFilePath, Var) == false;
-            }
-            else if (String_IsEqual(Var.Name, S("Assert.Arg.OnlyOne"), false)) // TODO: make dynamic
-            {
-                bAssertionFailed = Internal_AssertArgOnlyOne(Context, BuildFilePath, Var) == false;
             }
             else if (String_IsEqual(Var.Name, S("Assert.Program"), false))
             {

@@ -664,7 +664,7 @@ static void Internal_Format(String* Dest, const String Format, va_list List)
             switch (Char)
             {
                 // signed integer
-                case 'i':
+                case 'i': FALL_THROUGH;
                 case 'd':
                 {
                     StringLocal(Temp, 20);
@@ -805,7 +805,7 @@ static void Internal_Format(String* Dest, const String Format, va_list List)
 
                 // x - hexadecimal integer (lowercase)
                 // X - hexadecimal integer (uppercase)
-                case 'x':
+                case 'x': FALL_THROUGH;
                 case 'X':
                 {
                     u64 Int = 0;
