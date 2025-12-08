@@ -53,7 +53,7 @@ static bool bSingleThread = false;
 // static bool bIsRebuild = false;
 static bool bIsClean = false;
 
-read_only String BuiltinOptions[] =
+read_only String BuiltinOptions[33] =
 {
     SC("-h"),
     SC("-a"),
@@ -62,6 +62,7 @@ read_only String BuiltinOptions[] =
     SC("-q"),
     SC("-s"),
     SC("-t"),
+    SC("-i"),
     SC("-?"),
     SC("/?"),
     SC("-?"),
@@ -71,6 +72,7 @@ read_only String BuiltinOptions[] =
     SC("--buildfiles"),
     SC("--verbose"),
     SC("--singlethread"),
+    SC("--internals"),
     SC("--quiet"),
     SC("--tutorial"), // todo: different types of tutorials like --tutorial:name
     SC("--from-desktop"),
@@ -78,7 +80,9 @@ read_only String BuiltinOptions[] =
     SC("help"),
     SC("options"),
     SC("clean"),
+    SC("cleanall"), // TODO: implement
     SC("rebuild"),
+    SC("rebuildall"), // TODO: implement
     SC("run"),
     SC("list:"),
     SC("override:"),
@@ -444,56 +448,6 @@ static void SuffixVariables(String* Dest, String VariableValue, const String Suf
         }
     }
 }
-
-/*
-bool LogCustomErrorMessage(TArray(FileVariable) VariablesDB, const String Context, const String Key, const bool bLineBreak)
-{
-    if (bQuietBuild) { Logging_Enable(); }
-
-    bool bLogged = false;
-    for each (FileVariable, Var, VariablesDB)
-    {
-        if (String_EndsWith(Var.Name, S(".errormessage"), false))
-        {
-            String Slice = StrSlice(Var.Name.Data, Var.Name.Length-13);
-
-            u32 Dot = 0;
-            if (String_IndexOfChar(Slice, '.', &Dot))
-            {
-                Slice = StrShiftF(Slice, Dot+1);
-            }
-            
-            LinearAllocator Scratch = {0};
-            i8 ScratchMemory[128] = {0};
-            LinearAllocator_Create(128, ScratchMemory, &Scratch);
-            StringArray Keys = String_ParseIntoArray(&Scratch, Slice, '|', 0, 8);
-            for each_str (k, Keys)
-            {
-                if (String_IsEqual(*k, S("*"), false) ||
-                   (String_IsEqual(*k, Key, false) &&
-                   (Context.Length == 0 || String_StartsWith(Var.Name, Context, false))))
-                {
-                    if (bLineBreak) { LOG_LINE_BREAK(); }
-
-                    LOG("%S", Var.Value);
-                    bLogged = true;
-                    break;
-                }
-            }
-            LinearAllocator_Destroy(&Scratch);
-
-            if (bLogged)
-            {
-                break;
-            }
-        }
-    }
-
-    if (bQuietBuild) { Logging_Disable(); }
-
-    return bLogged;
-}
-*/
 
 static bool FilterSourceFile(const String WorkingDirectory, const String SourceDirectory,
                       const String FullPath, const String RelativePath,
@@ -2695,7 +2649,6 @@ static void ExpandDefineFlags(String* Dest, const String Flags, const String Fla
     if (Flags.Length)
     {
         #if PLATFORM_WINDOWS
-        // TODO: verify compile_commands.json export?
         ScratchLocal(Scratch, Kibibytes(8));
         StringList List = String_SplitIntoList(&Scratch, Flags, ' ', true);
 
@@ -3225,6 +3178,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         }
 
         // ignore .build file and paths as they're not gonna be referenced anywhere
+        // TODO if we specify an '=', allow paths? maybe do this outside of here
         if (i != BuildFileIndex &&
             i != RootPathIndex)
         {
@@ -3950,7 +3904,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     const String LinkerPath                 = GetCmdOptionValue(CmdOptionsDB, S("Linker.Path"));
     const String LinkerProgram              = Filesystem_ExtractFileName(LinkerPath, false);
     const String LinkerDefines              = GetVariableValue(VariablesDB, S("Linker.Defines"));
-    const String LinkerFlagsParams        = GetVariable(VariablesDB, S("Linker.Flags")).Params;
+    const String LinkerFlagsParams          = GetVariable(VariablesDB, S("Linker.Flags")).Params;
 
     const String AsmCompilerPath            = GetCmdOptionValue(CmdOptionsDB, S("Assembler.Path"));
     const String AsmProgram                 = Filesystem_ExtractFileName(AsmCompilerPath, false);
@@ -3986,9 +3940,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
     String Version                          = GetVariableValue(VariablesDB, S("Version"));
 
-    //const bool bNoRebuildOnDependencyChange = String_ToBool(GetVariableValue(VariablesDB, S("NoRebuildOnDependencyChange")));
-    // todo: run pre build?
-    const bool bRunPostBuildWhenWorkWasDone = String_ToBool(GetVariableValue(VariablesDB, S(".OnlyRunPostBuildOnChange")));
+    const bool bSkipPostBuild               = DoesBuildVarExist(VariablesDB, S(".RunPostBuildIfWorkDone"));
 
     ECompiler CompilerVendor = DetermineCompilerVendor(CompilerPath);
     EAssembler AssemblerVendor = DetermineAssemblerVendor(AsmCompilerPath);
@@ -4048,8 +4000,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     }
 
     bool bIsAssemblyExe = Type.Length == 0 && Extension.Length == 0;
-
-    // TODO: implement Type Null for phony builds, useful for dependency management
 
     if (!bIsAssemblyExe)
     {
@@ -4211,88 +4161,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         }
     }
 
-    // run through the assert lists
-    /*
-    {
-        LinearAllocator Scratch = *Arena;
-        StringArray CompilersArray = String_ParseIntoArray(&Scratch, AssertCompilers, ' ', 0, 128);
-        
-        if (CompilersArray.Num > 0)
-        {
-            bool bAnyCompilerMatch = false;
-            for each_str (Str, CompilersArray)
-            {
-                String Trimmed = String_EatSpaces(*Str);
-
-                if (String_IsEqual(Trimmed, CompilerProgram, false) ||
-                    String_IsEqual(Trimmed, CompilerPath, false))
-                {
-                    bAnyCompilerMatch = true;
-                    break;
-                }
-            }
-
-            StringLocal(CompilersLogString, 128);
-            {
-                u8 i = 0;
-                for each_str_i (i, a, CompilersArray)
-                {
-                    String_Append(&CompilersLogString, *a);
-                    if (CompilersArray.Num > 1 && i != CompilersArray.Num-1)
-                    {
-                        if (i == CompilersArray.Num-2)
-                        {
-                            String_Append(&CompilersLogString, S(" and "));
-                        }
-                        else
-                        {
-                            String_AppendChar (&CompilersLogString, ',');
-                            String_AppendSpace(&CompilersLogString);
-                        }
-                    }
-                }
-            }
-
-            if (!bAnyCompilerMatch)
-            {
-                #ifndef HOOD
-                LOG_INLINE_ERROR("[ASSERTION FAILURE] %S can only be compiled with %S. First compiler found was \"%S\". Aborting build...\n\n", BuildFileName, CompilersLogString, CompilerProgram);
-                LOG("    This can be fixed by explicity providing the compiler name inside of %S", BuildFileName);
-
-                LOG("    For example:");
-                {
-                    u8 i = 0;
-                    for each_str_i (i, a, CompilersArray)
-                    {
-                        if (i > 0)
-                        {
-                            LOG("      or Compiler %S", *a);
-                        }
-                        else
-                        {
-                            LOG("         Compiler %S", *a);
-                        }
-                    }
-                }
-
-                #else
-                LOG_ERROR("yo dis compiler program \"%S\" cant be used cuh", CompilerProgram);
-                #endif
-
-                // if (LogCustomErrorMessage(VariablesDB, S("Compiler"), CompilerProgram, true))
-                // {
-                //     LOG_LINE_BREAK();
-                // }
-
-                Receipt.ExitCode = 1;
-                return Receipt;
-            }
-        }
-
-
-    }
-    */
-
     bool bIsRebuild    = StringArray_Contains(Parameters, S("rebuild"), false);
 
     // force rebuild if we say so in the build file
@@ -4330,8 +4198,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             return Receipt;
         }
     }
-
-    bool bDependenciesDoneWork = false;
 
     Clock DependencyBuildClock;
     Clock_Start(&DependencyBuildClock);
@@ -4693,9 +4559,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
             if (FreshReceipt.bWorkWasDone)
             {
-                // TODO: fuck... i need a way to just link and not rebuild the child. Implement this...
-                bDependenciesDoneWork = true;
-
                 bool bIsSpecial = String_IsEqual(Var.Params, S("Rebuild_If_Done_Work"), false);
                 if (!bIsRebuild && bIsSpecial)
                 {
@@ -4732,6 +4595,15 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         }
     }
 
+    // If we are a null (or phony) build type, then just skip everything,
+    // as we have no real work to do anyway.
+    if (AssemblyType == AssemblyType_Null)
+    {
+        Receipt.bWorkWasDone = false;
+        Receipt.ExitCode = 0;
+        return Receipt;
+    }
+
     // TODO: time this
 
     if (!bExportingSomething)
@@ -4741,158 +4613,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             Receipt.ExitCode = 1;
             return Receipt;
         }
-    }
-
-    // TODO: make use of this. for example. do a link only build instead of compile and link
-    xx bDependenciesDoneWork;
-
-    // assert libraries exist
-    if (!bIsClean)
-    {
-        /*
-        LinearAllocator Scratch = *Arena;
-        // TODO: support native libraries. windows kits, msvc lib paths, etc
-        StringArray LibsArray = String_ParseIntoArray(&Scratch, AssertLibs, ' ', 0, 128);
-        for each_str (S, LibsArray)
-        {
-            const String Trimmed = String_EatSpaces(*S);
-
-            StringLocal(TrimmedCopy, MAX_PATH_LENGTH);
-            #if !PLATFORM_WINDOWS
-            String_Append(&TrimmedCopy, S("lib"));
-            String_Append(&TrimmedCopy, Trimmed);
-            #else
-            String_Copy(&TrimmedCopy, Trimmed);
-            #endif
-
-            bool bExactFile = false;
-            u32 LastDot = 0;
-            if (String_IndexOfLastChar(TrimmedCopy, '.', &LastDot))
-            {
-                bExactFile = true;
-            }
-
-            bool bAnyFound = false;
-
-            struct _blah_
-            {
-                String* LibName;
-                bool* bFound;
-                bool bWithExtension;
-            };
-
-            struct _blah_ Packet = {.LibName = &TrimmedCopy, .bFound = &bAnyFound, .bWithExtension = bExactFile};
-
-            StringList DirList = String_SplitIntoList(&Scratch, LibraryDirectories, ' ', true);
-            for each_str_list (DirList)
-            {
-                StringLocal(DirPath, MAX_PATH_LENGTH);
-
-                if (Filesystem_IsPathRelative(It.String))
-                {
-                    String_BuildPath(&DirPath, WorkingPath, It.String);
-                }
-                else
-                {
-                    String_Copy(&DirPath, It.String);
-                }
-
-                Filesystem_ConvertRelativeToAbsolutePath(&DirPath);
-
-                if (Filesystem_DoesDirectoryExist(DirPath))
-                {
-                    Filesystem_IterateDirectory_Ex(DirPath, LibraryDirectoryIterator, false, &Packet);
-                }
-            }
-            
-            if (!bAnyFound)
-            {
-                if (bExactFile)
-                {
-                    StringLocal(Copy, 256);
-                    String_Copy(&Copy, StrSlice(TrimmedCopy.Data, LastDot));
-                    bAnyFound = Platform_FindFile(Copy, StrShiftF(TrimmedCopy, LastDot));
-                }
-                else
-                {
-                    #if PLATFORM_WINDOWS
-                    bAnyFound = Platform_FindFile(TrimmedCopy, S(".lib"));
-                    #else
-                    bAnyFound = Platform_FindFile(TrimmedCopy, S(".a"));
-                    if (!bAnyFound)
-                        bAnyFound = Platform_FindFile(TrimmedCopy, S(".so"));
-                    #endif
-                }
-            }
-
-            if (!bAnyFound)
-            {
-                #ifndef HOOD
-                if (bExactFile)
-                {
-                    LOG_INLINE_ERROR("[ASSERTION FAILURE] Library \"%S\" does not exist. Aborting build...\n\n", TrimmedCopy);
-                }
-                else
-                {
-                    #if PLATFORM_WINDOWS
-                    LOG_INLINE_ERROR("[ASSERTION FAILURE] Library \"%S.lib\" does not exist. Aborting build...\n\n", TrimmedCopy);
-                    #elif PLATFORM_APPLE
-                    LOG_INLINE_ERROR("[ASSERTION FAILURE] Library \"%S(.dylib/.a)\" does not exist. Aborting build...\n\n", TrimmedCopy);
-                    #else
-                    LOG_INLINE_ERROR("[ASSERTION FAILURE] Library \"%S(.so/.a)\" does not exist. Aborting build...\n\n", TrimmedCopy);
-                    #endif
-                }
-                #else
-                LOG_ERROR("cant find this library nigga \"%S\". i searched fuckin everywhere bro\n", TrimmedCopy);
-                #endif
-
-                if (LogCustomErrorMessage(VariablesDB, S("Lib"), TrimmedCopy, false))
-                {
-                    LOG_LINE_BREAK();
-                }
-
-                StringLocal(PathValue, Kibibytes(32));
-                #if PLATFORM_WINDOWS
-                Platform_GetEnvironmentVariableValue(S("Path"), &PathValue);
-                #else
-                Platform_GetEnvironmentVariableValue(S("PATH"), &PathValue);
-                #endif
-
-                LOG("Here is a list of the directories that was searched through:\n");
-                LOG_INLINE_WARNING("Library Directories\n");
-                for each_str_list (DirList)
-                {
-                    StringLocal(DirPath, MAX_PATH_LENGTH);
-
-                    if (Filesystem_IsPathRelative(It.String))
-                    {
-                        String_BuildPath(&DirPath, WorkingPath, It.String);
-                    }
-                    else
-                    {
-                        String_Copy(&DirPath, It.String);
-                    }
-
-                    Filesystem_ConvertRelativeToAbsolutePath(&DirPath);
-
-                    LOG("    %S", DirPath);
-                }
-                LOG_LINE_BREAK();
-                LOG_INLINE_WARNING("PATH environment\n");
-                #if PLATFORM_WINDOWS
-                StringArray Values = String_ParseIntoArray(&Scratch, PathValue, ';', 0, 128);
-                #else
-                StringArray Values = String_ParseIntoArray(&Scratch, PathValue, ':', 0, 128);
-                #endif
-                for each_str (v, Values)
-                {
-                    LOG("    %S", *v);
-                }
-
-                return 1;
-            }
-        }
-        */
     }
 
     String SourceDirectory       = GetVariableValue(VariablesDB, S("SourceDirectory"));
@@ -5284,38 +5004,8 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         }
     }
 
-
-    /*
-    bool bExplicitAsmPath = false;
-    if (String_IndexOfFirstPathSlash(AsmProgram, NULL))
-    {
-        StringLocal(CompilerPathCopy, MAX_PATH_LENGTH);
-        String_Copy(&CompilerPathCopy, AsmProgram);
-
-        #if PLATFORM_WINDOWS
-        if (!String_EndsWith(AsmProgram, S(".exe"), false))
-        {
-            String_Copy(&CompilerPathCopy, AsmProgram);
-            String_Append(&CompilerPathCopy, S(".exe"));
-        }
-        #endif
-
-        if (Filesystem_DoesFileExist(CompilerPathCopy))
-        {
-            bExplicitAsmPath = true;
-            String_Copy(&AsmCompilerPath, CompilerPathCopy);
-        }
-        else
-        {
-            LOG_ERROR("Assembler program \"%S\" does not exist", CompilerPathCopy);
-
-            Receipt.ExitCode = 1;
-            return Receipt;
-        }
-    }
-    */
-
     // does the asm program exist on the user's machine
+    // TODO: move to parse.c?
     if (!String_IsValid(AsmCompilerPath) && CountData.NumAsmSources > 0)
     {
         /*
@@ -5411,85 +5101,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             return Receipt;
             */
         }
-        
-        /*
-        // TODO: move to parse.c
-        {
-            LinearAllocator Scratch = *Arena;
-            StringArray AssemblersArray = String_ParseIntoArray(&Scratch, AssertAssemblers, ' ', 0, 128);
-            if (AssemblersArray.Num > 0)
-            {
-                bool bAnyAssemblerMatch = false;
-                for each_str (str, AssemblersArray)
-                {
-                    String Trimmed = String_EatSpaces(*str);
-
-                    // todo: asm path
-                    if (String_IsEqual(Trimmed, AsmProgram, false))
-                    {
-                        bAnyAssemblerMatch = true;
-                        break;
-                    }
-                }
-
-                StringLocal(AssemblersLogString, 128);
-                {
-                    u8 i = 0;
-                    for each_str_i (i, a, AssemblersArray)
-                    {
-                        String_Append(&AssemblersLogString, *a);
-                        if (AssemblersArray.Num > 1 && i != AssemblersArray.Num-1)
-                        {
-                            if (i == AssemblersArray.Num-2)
-                            {
-                                String_Append(&AssemblersLogString, S(" and "));
-                            }
-                            else
-                            {
-                                String_AppendChar (&AssemblersLogString, ',');
-                                String_AppendSpace(&AssemblersLogString);
-                            }
-                        }
-                    }
-                }
-
-                if (!bAnyAssemblerMatch)
-                {
-                    #ifndef HOOD
-                    LOG_INLINE_ERROR("[ASSERTION FAILURE] %S can only be compiled with %S. First assembler found was \"%S\". Aborting build...\n\n", BuildFileName, AssemblersLogString, AsmProgram);
-                    LOG("    This can be fixed by explicity providing the Assembler name inside of %S", BuildFileName);
-
-                    LOG("    For example:");
-                    {
-                        u8 i = 0;
-                        for each_str_i (i, a, AssemblersArray)
-                        {
-                            if (i > 0)
-                            {
-                                LOG("      or Assembler %S", *a);
-                            }
-                            else
-                            {
-                                LOG("         Assembler %S", *a);
-                            }
-                        }
-                    }
-
-                    #else
-                    LOG_ERROR("yo dis assembler program \"%S\" cant be used cuh", AsmProgram);
-                    #endif
-
-                    // if (LogCustomErrorMessage(VariablesDB, S("Assembler"), AsmProgram, true))
-                    // {
-                    //     LOG_LINE_BREAK();
-                    // }
-
-                    Receipt.ExitCode = 1;
-                    return Receipt;
-                }
-            }
-        }
-        */
     }
 
     // automatically switch to a c++ compiler if we have c++ source code files
@@ -6155,8 +5766,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     String Libraries = GetVariableValue(VariablesDB, S("Libraries"));
 
     FlagPrefix.Data[1] = 'l';
-    if (String_IsEqual(CompilerProgram, S("cl"), false) ||
-        String_IsEqual(CompilerProgram, S("msvc"), false)) // todo: something better
+    if (CompilerVendor == Compiler_MSVC)
     {
         SuffixVariables(&ExpandedLibraries, Libraries, S(".lib"));
     }
@@ -6169,8 +5779,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     String_ConvertSlashToPlatformSlash(&LibraryDirectories);
 
     FlagPrefix.Data[1] = 'L';
-    if (String_IsEqual(CompilerProgram, S("cl"), false) ||
-        String_IsEqual(CompilerProgram, S("msvc"), false)) // todo: something better
+    if (CompilerVendor == Compiler_MSVC)
     {
         ExpandPathFlags(*Arena, &ExpandedLibraryDirectories, LibraryDirectories, S("/LIBPATH:"), bWrapWithQuotes);
     }
@@ -6191,7 +5800,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     ExpandDefineFlags(&ExpandedUnDefineFlags, UnDefines, FlagPrefix, bExportingSomething);
     
     // assembler stuff
-    FlagPrefix.Data[0] = '-'; // todo: masm uses /
+    FlagPrefix.Data[0] = AssemblerVendor == Assembler_Masm ? '/' : '-';
     FlagPrefix.Data[1] = 'I';
     ExpandPathFlags(*Arena, &ExpandedAssemblerIncludeFlags, AssemblerIncludes, FlagPrefix, bWrapWithQuotes);
 
@@ -6790,7 +6399,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     bool bNoMoreWorkToDo = NumCompiled == 0 && bAssemblyExists;
     if (bNoMoreWorkToDo)
     {
-        if (bRunPostBuildWhenWorkWasDone)
+        if (bSkipPostBuild)
         {
             goto End;
         }
@@ -7846,7 +7455,6 @@ static void InitInternalVars(LinearAllocator* Arena)
     AddInternalVariable(S("Unix"),      String_Null());
     #endif
 
-    // TODO: macos
     #if PLATFORM_WINDOWS || PLATFORM_MAC
     {
         StringLocal(DesktopEnv, 32);
@@ -7901,7 +7509,6 @@ static void InitInternalVars(LinearAllocator* Arena)
     AddInternalVariable(S("_NativeLibs"), LinuxLibs);
     #endif
 
-    // TODO: support --arch:value
     AddInternalVariable(S("_Arch"), S(CPU_ARCHITECTURE_STRING));
     
     #if PLATFORM_64_BIT
