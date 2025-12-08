@@ -52,6 +52,9 @@ highlight link riftbuildBuildCmd riftbuildKeywordColor
 syntax match riftbuildOptionKey "^\s*\cOption.[A-Za-z0-9_.]*\s*"
 highlight link riftbuildOptionKey riftbuildKeywordColor
 
+syntax match riftbuildAssert "^\s*\cAssert.[A-Za-z0-9_.]*\s*"
+highlight link riftbuildAssert riftbuildKeywordColor
+
 " -------------------------------
 " if/else keyword
 " -------------------------------
@@ -87,6 +90,9 @@ syntax match riftbuildComment "#.*$" containedin=ALL
 syntax region riftbuildMultiLineComment start="##\s*$" end="##\s*$" keepend containedin=ALL
 highlight riftbuildComment guifg=#6A9955 ctermfg=65
 highlight riftbuildMultiLineComment guifg=#6A9955 ctermfg=65
+
+
+syntax region riftbuildMultiLineValue start="^\s*\[\s*$" end="\]\s*$" keepend contains=riftbuildVarReferenceSymbols
 
 let b:current_syntax = "riftbuild"
 

@@ -5,6 +5,8 @@
 #include "EngineTypes.h"
 #endif
 
+#define UUID_STRING_LENGTH 36
+
 // https://datatracker.ietf.org/doc/html/rfc4122#section-4.1.2
 STRUCT(Uuid)
 {

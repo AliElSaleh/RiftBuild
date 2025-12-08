@@ -28,6 +28,18 @@
 const usize GEngineMemoryAmount  = Kibibytes(128);
 const usize GEngineScratchAmount = Kibibytes(8);
 
+// Let the user in the build script customize how much memory we should pre-allocate.
+// Default is 1MiB
+#ifndef MAX_MEMORY_MB
+    #define MAX_RIFTBUILD_MEMORY Mebibytes(1)
+#else
+    #if MAX_MEMORY_MB > 0 && MAX_MEMORY_MB < 8
+        #define MAX_RIFTBUILD_MEMORY Mebibytes(MAX_MEMORY_MB)
+    #else
+        #define MAX_RIFTBUILD_MEMORY Mebibytes(1)
+    #endif
+#endif
+
 TArray(InternalVariable) InternalVariablesDB = NULL;
 bool bQuietBuild = false;
 bool bNoWordWrapLogging = false;
@@ -85,12 +97,21 @@ STRUCT(BuildReceipt)
     String LibraryPaths;
     String LinkerFlags;
 
+    String LinkerEntryPoint;
+    String LinkerSubsystem;
+    String LinkerStack;
+    String LinkerRPaths;
+
     u32 ExitCode;
     u32 Padding;
     b64 bWorkWasDone;
 
     EAssemblyType AssemblyType;
-    u8 blah[7];
+
+    bool LinkerNoStdLib;
+    bool LinkerNoDefaultLibs;
+
+    u8 blah[5];
 };
 
 STRUCT(BuildFileDirectoryIteratorData)
@@ -2522,7 +2543,16 @@ static bool BuildFilesIterator(const String FullPath, const String RelativePath,
     {
         if (IsBuildFile(RelativePath) || IsBuildBatchFile(RelativePath))
         {
-            LOG("   %S", RelativePath);
+            if (String_CountSpaces(RelativePath))
+            {
+                LOG("   \"%S\"", RelativePath);
+            }
+            else
+            {
+                LOG("   %S", RelativePath);
+            }
+
+            // TODO
             /*
             LOG("       Usage:       ");
             LOG("       Description: ");
@@ -3153,13 +3183,13 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
     u32 MaxLogicalCores = Platform_GetNumLogicalProcessors();
 
-    ArrayLocal_Arena(FileVariable,   VariablesDB,         256, Arena); // 8192 bytes
+    ArrayLocal_Arena(FileVariable,   VariablesDB,    256, Arena); // 8192 bytes
 
-    ArrayLocal_Arena(FileHandle,     IncludeFiles,        64,  Arena); // 1024 bytes
-    ArrayLocal_Arena(CmdOption,      CmdOptionsDB,        128, Arena); // 4608 bytes
-    ArrayLocal_Arena(String,         Messages,            128, Arena); // 2048 bytes
+    ArrayLocal_Arena(FileHandle,     IncludeFiles,   64,  Arena); // 1024 bytes
+    ArrayLocal_Arena(CmdOption,      CmdOptionsDB,   128, Arena); // 4608 bytes
+    ArrayLocal_Arena(String,         Messages,       128, Arena); // 2048 bytes
 
-    ArrayLocal_Arena(PlatformHandle, Processes,           MaxLogicalCores, Arena);
+    ArrayLocal_Arena(PlatformHandle, Processes,      MaxLogicalCores, Arena);
 
     // store custom command line options to be referenced inside a .build file
     for (u8 i = 0; i < Parameters.Num; i++)
@@ -3363,10 +3393,10 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
     if (bFoundBuildFile)
     {
-        bool bHidden = Filesystem_IsHidden(BuildFilePath);
+        bool bHidden = Filesystem_IsHidden(BuildFilePathFull);
 
         #ifndef HOOD
-        LOG("Using build file:  %S %S", BuildFilePath, bHidden ? S("[hidden]") : String_Null());
+        LOG("Using build file:  %S %S", BuildFilePathFull, bHidden ? S("[hidden]") : String_Null());
         #else
         LOG("alright sweet, using this build file btw: %S %S", BuildFilePath, bHidden ? S("[why the fuck is the hidden bro, idk dont care]") : String_Null());
         #endif
@@ -3935,13 +3965,14 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
     String IncludedSourceFiles              = GetVariableValue(VariablesDB, S("SourceFiles"));
     String ExcludedSourceFiles              = GetVariableValue(VariablesDB, S("SourceFiles.Exclude"));
+    
+    // TODO: make this a multi source directory search instead
+    //       make SourceDirectories.Include
     String IncludedSourceDir                = GetVariableValue(VariablesDB, S("SourceDirectories"));
     const String ExcludedSourceDir          = GetVariableValue(VariablesDB, S("SourceDirectories.Exclude"));
     String Icon                             = GetVariableValue(VariablesDB, S("Icon"));
     const String PCHPath                    = GetVariableValue(VariablesDB, S("PCH"));
     const String PCHHeaderPath              = GetVariableValue(VariablesDB, S("PCH.h"));
-    const String RPathOrigin                = GetVariableValue(VariablesDB, S(".RPathOrigin"));
-    const String RPaths                     = GetVariableValue(VariablesDB, S(".RPath"));
 
     #if PLATFORM_APPLE
     const bool bBundleApp                   = DoesBuildVarExist(VariablesDB, S("Bundle"));
@@ -3959,14 +3990,8 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     // todo: run pre build?
     const bool bRunPostBuildWhenWorkWasDone = String_ToBool(GetVariableValue(VariablesDB, S(".OnlyRunPostBuildOnChange")));
 
-
-    String LinkerEntryPoint                 = GetVariableValue(VariablesDB, S("Linker.EntryPoint"));
-    String LinkerSubsystem                  = GetVariableValue(VariablesDB, S("Linker.Subsystem"));
-    String LinkerStack                      = GetVariableValue(VariablesDB, S("Linker.Stack"));
-    const bool bLinkerNoStd                 = DoesBuildVarExist(VariablesDB, S("Linker.NoStdLib"));
-    const bool bLinkerNoDefaultLibs         = DoesBuildVarExist(VariablesDB, S("Linker.NoDefaultLibs"));
-
     ECompiler CompilerVendor = DetermineCompilerVendor(CompilerPath);
+    EAssembler AssemblerVendor = DetermineAssemblerVendor(AsmCompilerPath);
 
     // For compilers that want flags first instead of "-c some/file"
     bool bCompilerFlagsFirst = false;
@@ -4131,10 +4156,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
     const String AssemblyName = FinalAssemblyName;
 
-    //StringLocal(CompilerPath,    MAX_PATH_LENGTH);
-    //StringLocal(AsmCompilerPath, MAX_PATH_LENGTH);
-    // StringLocal(LinkerPath,      MAX_PATH_LENGTH);
-    // StringLocal(ArchiverPath,    MAX_PATH_LENGTH);
     StringLocal(RCCompilerPath,  MAX_PATH_LENGTH);
     StringLocal(MTCompilerPath,  MAX_PATH_LENGTH);
     StringLocal(DumpBinPath,     MAX_PATH_LENGTH);
@@ -4340,7 +4361,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         //            we aren't dynamically shitting memory out everytime we need some :P
         //            So just allocate one big chunk and let our allocator dish out the memory.
         //i8 ArenaMemory[Mebibytes(1)] = {0};
-        usize TotalMem = Mebibytes(1);
+        usize TotalMem = MAX_RIFTBUILD_MEMORY;
         void* ArenaMemory = Platform_MemAlloc(TotalMem);
 
         if (!ArenaMemory)
@@ -4619,6 +4640,13 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                 AddOrAppendVariable(Arena, VariablesDB, S("Libraries.Public"),    FreshReceipt.Libraries, String_Null(),   GetMaxValueLengthForReservedKey(S("Libraries")));
                 AddOrAppendVariable(Arena, VariablesDB, S("Linker.Flags"),        FreshReceipt.LinkerFlags, String_Null(), GetMaxValueLengthForReservedKey(S("Linker.Flags.Public")));
                 AddOrAppendVariable(Arena, VariablesDB, S("Linker.Flags.Public"), FreshReceipt.LinkerFlags, String_Null(), GetMaxValueLengthForReservedKey(S("Linker.Flags.Public")));
+
+                AddOrAppendVariable(Arena, VariablesDB, S("Linker.EntryPoint"),    FreshReceipt.LinkerEntryPoint, String_Null(),    GetMaxValueLengthForReservedKey(S("Linker.EntryPoint")));
+                AddOrAppendVariable(Arena, VariablesDB, S("Linker.Stack"),         FreshReceipt.LinkerStack, String_Null(),         GetMaxValueLengthForReservedKey(S("Linker.Stack")));
+                AddOrAppendVariable(Arena, VariablesDB, S("Linker.Subsystem"),     FreshReceipt.LinkerSubsystem, String_Null(),     GetMaxValueLengthForReservedKey(S("Linker.Subsystem")));
+
+                if (FreshReceipt.LinkerNoStdLib)      { AddOrAppendVariable(Arena, VariablesDB, S("Linker.NoStdLib"), String_Null(), String_Null(),      GetMaxValueLengthForReservedKey(S("Linker.NoStdLib"))); }
+                if (FreshReceipt.LinkerNoDefaultLibs) { AddOrAppendVariable(Arena, VariablesDB, S("Linker.NoDefaultLibs"), String_Null(), String_Null(), GetMaxValueLengthForReservedKey(S("Linker.NoDefaultLibs"))); }
 
                 {
                     StringList Paths = String_SplitIntoList(Arena, FreshReceipt.LibraryPaths, ' ', true);
@@ -5008,11 +5036,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         }
     }
 
-    // Receipt.BuildDirectory  = String_Create(Arena, BuildDirectory);
-    // Receipt.Includes        = String_Create(Arena, IncludeFlags_Public);
-    // Receipt.Defines         = String_Create(Arena, Defines_Public);
-    // Receipt.Libraries       = String_Create(Arena, Libraries_Public);
-    // Receipt.LibraryPaths    = String_Create(Arena, LibraryDirectories_Public);
     Receipt.BuildDirectory  = GetVariableValue(VariablesDB, S("BuildDirectory"));
     Receipt.Includes        = GetVariableValue(VariablesDB, S("Includes.Public"));
     Receipt.Defines         = GetVariableValue(VariablesDB, S("Defines.Public"));
@@ -5021,6 +5044,21 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     Receipt.LinkerFlags     = GetVariableValue(VariablesDB, S("Linker.Flags.Public"));
     Receipt.AssemblyName    = String_Create(Arena, AssemblyName);
     Receipt.AssemblyType    = AssemblyType;
+
+    String LinkerEntryPoint         = GetVariableValue(VariablesDB, S("Linker.EntryPoint"));
+    String LinkerSubsystem          = GetVariableValue(VariablesDB, S("Linker.Subsystem"));
+    String LinkerStack              = GetVariableValue(VariablesDB, S("Linker.Stack"));
+    const String RPathOrigin        = GetVariableValue(VariablesDB, S(".RPathOrigin")); // TODO: rename to linker.RPathOrigin? same as below.
+    const String RPaths             = GetVariableValue(VariablesDB, S(".RPath"));
+    const bool bLinkerNoStd         = DoesBuildVarExist(VariablesDB, S("Linker.NoStdLib"));
+    const bool bLinkerNoDefaultLibs = DoesBuildVarExist(VariablesDB, S("Linker.NoDefaultLibs"));
+
+    Receipt.LinkerEntryPoint    = LinkerEntryPoint;
+    Receipt.LinkerStack         = LinkerStack;
+    Receipt.LinkerSubsystem     = LinkerSubsystem;
+    Receipt.LinkerRPaths        = RPaths;
+    Receipt.LinkerNoStdLib      = bLinkerNoStd;
+    Receipt.LinkerNoDefaultLibs = bLinkerNoDefaultLibs;
 
     StringList WhitelistArray    = String_SplitIntoList(Arena, IncludedSourceFiles, ' ', true);
     StringList BlacklistArray    = String_SplitIntoList(Arena, ExcludedSourceFiles, ' ', true);
@@ -5503,56 +5541,35 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         xx String_IndexOfLastPathSlash(CompilerPath, &LastSlashIndex);
 
         const String CompilerBasePath = StrSlice(CompilerPath.Data, LastSlashIndex);
-        const String CompilerExe = StrShiftF(CompilerPath, LastSlashIndex+1);
 
-        if (String_Contains(CompilerExe, S("clang"), false))
+        if (CompilerVendor == Compiler_Clang ||
+            CompilerVendor == Compiler_Clang_MSVC)
         {
-            // String_Copy(&LinkerPath, CompilerPath);
-
-            // #if PLATFORM_WINDOWS
-            // String_BuildPath(&ArchiverPath, CompilerBasePath, S("llvm-ar"));
-            // #else
-            // xx Platform_FindProgram_Ex(S("ar"), &ArchiverPath);
-            // #endif
-
             String_BuildPath(&DumpBinPath, CompilerBasePath, S("llvm-objdump"));
             String_BuildPath(&RCCompilerPath, CompilerBasePath, S("llvm-rc"));
             String_BuildPath(&MTCompilerPath, CompilerBasePath, S("llvm-mt"));
 
             #if PLATFORM_WINDOWS
-            // String_Append(&ArchiverPath, S(".exe"));
             String_Append(&DumpBinPath, S(".exe"));
             String_Append(&RCCompilerPath, S(".exe"));
             String_Append(&MTCompilerPath, S(".exe"));
             #endif
         }
-        else if (String_Contains(CompilerExe, S("gcc"), false) ||
-                 String_Contains(CompilerExe, S("g++"), false))
+        else if (CompilerVendor == Compiler_GCC)
         {
-            // String_Copy(&LinkerPath, CompilerPath);
-
-            // #if PLATFORM_WINDOWS
-            // String_BuildPath(&ArchiverPath, CompilerBasePath, S("gcc-ar"));
-            // #else
-            // xx Platform_FindProgram_Ex(S("ar"), &ArchiverPath);
-            // #endif
-
             String_BuildPath(&DumpBinPath, CompilerBasePath, S("objdump"));
             String_BuildPath(&RCCompilerPath, CompilerBasePath, S("windres"));
 
             #if PLATFORM_WINDOWS
-            // String_Append(&ArchiverPath, S(".exe"));
             String_Append(&DumpBinPath, S(".exe"));
             String_Append(&RCCompilerPath, S(".exe"));
             #endif
         }
         #if PLATFORM_WINDOWS
-        else if (String_Contains(CompilerExe, S("cl.exe"), false))
+        else if (CompilerVendor == Compiler_MSVC)
         {
             RCProgramFlags = S("/nologo");
 
-            // String_BuildPath(&LinkerPath, CompilerBasePath, S("link.exe"));
-            // String_BuildPath(&ArchiverPath, CompilerBasePath, S("lib.exe"));
             String_BuildPath(&DumpBinPath, CompilerBasePath, S("dumpbin.exe"));
 
             if (bWasVCVarsBatchExecuted)
@@ -5569,8 +5586,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         #endif
         else
         {
-            // String_Copy(&LinkerPath, CompilerPath);
-
             #if PLATFORM_WINDOWS
             RCProgramFlags = S("/nologo");
 
@@ -5588,7 +5603,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                 }
             }
             #else
-            // xx Platform_FindProgram_Ex(S("ar"), &ArchiverPath);
             String_Copy(&DumpBinPath, S("objdump"));
             #endif
         }
@@ -6262,6 +6276,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
     BuildParams p = {0};
     p.Arena                         = Arena;
+    p.CompilerVendor                = CompilerVendor;
     p.CompilerProgram               = CompilerProgram;
     p.CompilerPath                  = CompilerPath;
     p.CompilerOutputFlag            = CompilerOutputFlag;
@@ -6271,6 +6286,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     p.LinkerPath                    = LinkerPath;
     p.ArchiverPath                  = ArchiverPath;
     p.DumpBinPath                   = DumpBinPath;
+    p.AssemblerVendor               = AssemblerVendor;
     p.AsmProgram                    = AsmProgram;
     p.AsmPath                       = AsmCompilerPath;
     p.BuildFileName                 = BuildFileName;
@@ -7747,6 +7763,10 @@ static void InitInternalVars(LinearAllocator* Arena)
         String_Empty(&Temp);
         xx String_FromI32(&Temp, sizeof(long));
         AddInternalVariable(S("sizeof.long"), String_Create(Arena, Temp));
+
+        String_Empty(&Temp);
+        xx String_FromI32(&Temp, sizeof(uptr));
+        AddInternalVariable(S("sizeof.pointer"), String_Create(Arena, Temp));
     }
 
     // detect default char signed-ness
@@ -8424,8 +8444,8 @@ u32 RunApplication(const StringArray Arguments)
     Platform_GetWorkingDirectory(&WorkingDirectory);
 
     LinearAllocator ProgramArena = {0};
-    i8 ProgramMemory[Mebibytes(1)] = {0};
-    LinearAllocator_Create(Mebibytes(1), ProgramMemory, &ProgramArena);
+    i8 ProgramMemory[MAX_RIFTBUILD_MEMORY] = {0};
+    LinearAllocator_Create(MAX_RIFTBUILD_MEMORY, ProgramMemory, &ProgramArena);
 
     InitInternalVars(&ProgramArena);
 

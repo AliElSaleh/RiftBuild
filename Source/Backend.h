@@ -99,6 +99,14 @@ ENUM(ECompiler)
     Compiler_TCC
 };
 
+ENUM(EAssembler)
+{
+    Assembler_Generic,
+    Assembler_Nasm,
+    Assembler_Yasm,
+    Assembler_Masm
+};
+
 ENUM(EComparisonType)
 {
     Cmp_None,
@@ -223,6 +231,8 @@ STRUCT(BuildParams)
     u32 NumSources;
 
     EAssemblyType Type;
+    ECompiler CompilerVendor;
+    EAssembler AssemblerVendor;
 
     u8 MaxCompilersAtOnce;
 
@@ -236,6 +246,8 @@ STRUCT(BuildParams)
     bool bLinkerNoDefaultLibs;
     bool bCompilerFlagsFirst;
     bool bLinkerFlagsFirst;
+
+    bool bPadding[6];
 };
 
 STRUCT(CompilerPaths)
@@ -290,6 +302,7 @@ void LogRegularEnvVarTutorialSteps(void);
 
 bool FindFirstCompilerAvailable(const String CompilerToFind, const String AssemblerToFind, const String LinkerToFind, const String ArchiverToFind, CompilerPaths* OutCompilerPaths);
 ECompiler DetermineCompilerVendor(String CompilerPath);
+EAssembler DetermineAssemblerVendor(String CompilerPath);
 
 // Parsing functions --------------------
 

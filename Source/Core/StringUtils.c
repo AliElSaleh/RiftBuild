@@ -681,7 +681,7 @@ static void Internal_Format(String* Dest, const String Format, va_list List)
                     i32 Diff = Precision - (i32)Temp.Length;
                     while (Diff > 0)
                     {
-                        Diff--;;
+                        Diff--;
                         String_AppendChar(Dest, '0');
                     }
 
@@ -696,6 +696,7 @@ static void Internal_Format(String* Dest, const String Format, va_list List)
                 }
                 break;
 
+                // TODO: perhaps captial 'U' does automatic grouping like 1,358,395?
                 // unsigned integer
                 case 'u':
                 {

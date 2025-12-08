@@ -141,6 +141,7 @@ typedef struct LinearAllocator LinearAllocator;
 #define CONCAT(a, b) CONCAT_INNER(a, b)
 
 #define MACRO_VAR(Name) CONCAT(Name, __LINE__)
+#define MACRO_COMMENT(...)
 
 #define DEFER(Start, End) for (i32 MACRO_VAR(_i_) = (Start, 0); !MACRO_VAR(_i_); (MACRO_VAR(_i_) += 1), End)
 

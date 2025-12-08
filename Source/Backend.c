@@ -262,12 +262,10 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
 
     String DefaultObjExtension = S(".o");
 
-    bool bIsMicrosoftCompiler  = String_EndsWith(Params->CompilerPath, S("cl.exe"), false);
-    bool bIsMicrosoftAssembler = String_EndsWith(Params->AsmPath, S("ml.exe"), false) ||
-                                 String_EndsWith(Params->AsmPath, S("ml64.exe"), false);
+    bool bIsMicrosoftCompiler  = Params->CompilerVendor == Compiler_MSVC;
+    bool bIsMicrosoftAssembler = Params->AssemblerVendor == Assembler_Masm;
 
-    if ((bIsMicrosoftAssembler &&  IsAsmSource(Ext)) ||
-        (bIsMicrosoftCompiler  && !IsAsmSource(Ext)))
+    if (bIsMicrosoftCompiler || bIsMicrosoftAssembler)
     {
         DefaultObjExtension = S(".obj");
     }
@@ -549,9 +547,7 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
             // using a pch
             if (Params->PCHPath.Length)
             {
-                // TODO: no hardcoded string compiler
-                if (String_IsEqual(Params->CompilerProgram, S("clang"), false) ||
-                    String_IsEqual(Params->CompilerProgram, S("clang++"), false))
+                if (Params->CompilerVendor == Compiler_Clang)
                 {
                     const String Trimmed = Filesystem_StripFileExtension(Params->PCHPath);
 
@@ -590,7 +586,10 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
 
         if (bQuietBuild) { Logging_Enable(); }
 
-        if (!(bIsMicrosoftCompiler || bIsMicrosoftAssembler) || Params->bShouldWaitPerCompileProcess)
+        bool bHideLog = (bIsMicrosoftCompiler && !IsAsmSource(Ext)) ||
+                        (bIsMicrosoftAssembler && IsAsmSource(Ext));
+
+        if (!bHideLog || Params->bShouldWaitPerCompileProcess)
         {
             LogCompilingFile(Data->Index, Params->NumSources, FullPath);
         }
@@ -1377,10 +1376,8 @@ static void GetAdditionalLinkerFlags(const BuildParams* Params, String* Addition
             StringLocal(XlinkerFlags, 256);
             if (bAnyValid)
             {
-                bool bIsClang = String_IsEqual(Params->CompilerProgram, S("clang"), false) ||
-                                String_IsEqual(Params->CompilerProgram, S("clang++"), false);
-
-                bool bIsTCC   = String_IsEqual(Params->CompilerProgram, S("tcc"), false);
+                bool bIsClang = Params->CompilerVendor == Compiler_Clang;
+                bool bIsTCC   = Params->CompilerVendor == Compiler_TCC;
 
                 String_Append(&WlFlags, S("-Wl,"));
 

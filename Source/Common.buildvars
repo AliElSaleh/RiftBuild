@@ -1,4 +1,4 @@
-SharedIncludeFlags               Source
+SharedIncludeFlags               $SourceDirectory
 
 SharedDefines                    RIFT_STATIC
 SharedDefines:debug              _DEBUG RIFT_DEBUG

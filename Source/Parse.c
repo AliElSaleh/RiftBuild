@@ -21,6 +21,7 @@
 // how to detect multiple inclusions of a file?
 // prevent including .build files
 // log .build file path for parser error logs
+// fix else keyword being parsed inside option. keys
 
 void AddVariable(LinearAllocator* Arena,
                 TArray(FileVariable) VariablesDB,
@@ -2663,7 +2664,6 @@ static bool IsOptionOn(String Str)
 
     if (String_IsEqual(Str, S("on"), false) ||
         String_IsEqual(Str, S("yes"), false) ||
-        String_IsEqual(Str, S("1"), false) ||
         String_IsEqual(Str, S("true"), false))
     {
         bOn = true;
@@ -2678,7 +2678,6 @@ static bool IsOptionOff(String Str)
 
     if (String_IsEqual(Str, S("off"), false) ||
         String_IsEqual(Str, S("no"), false) ||
-        String_IsEqual(Str, S("0"), false) ||
         String_IsEqual(Str, S("false"), false))
     {
         bOff = true;
@@ -3427,6 +3426,29 @@ ECompiler DetermineCompilerVendor(String CompilerPath)
     return CompilerVendor;
 }
 
+EAssembler DetermineAssemblerVendor(String AssemblerPath)
+{
+    String AssemblerName = Filesystem_ExtractFileName(AssemblerPath, false);
+
+    EAssembler Vendor = Assembler_Generic;
+
+    if (String_IsEqual(AssemblerName, S("ml"), false) ||
+        String_IsEqual(AssemblerName, S("ml64"), false))
+    {
+        Vendor = Assembler_Masm;
+    }
+    else if (String_IsEqual(AssemblerName, S("nasm"), false))
+    {
+        Vendor = Assembler_Nasm;
+    }
+    else if (String_IsEqual(AssemblerName, S("yasm"), false))
+    {
+        Vendor = Assembler_Yasm;
+    }
+
+    return Vendor;
+}
+
 bool FindFirstCompilerAvailable(const String CompilerToFind, const String AssemblerToFind, const String LinkerToFind, const String ArchiverToFind, CompilerPaths* OutCompilerPaths)
 {
     bool bCompilerProgramFound = false;
@@ -3702,24 +3724,10 @@ bool FindFirstCompilerAvailable(const String CompilerToFind, const String Assemb
             LOG("\n    You don't seem to have a C nor C++ compiler installed on your machine."
                 "\n    Install either \"clang/clang++\", \"gcc/g++\" or \"cl (msvc)\" and add to the path environment"
                 "\n    before using RiftBuild, as we require a working compiler program to function properly. Aborting build...\n");
-
-            /*
-            LOG_ERROR(
-                "You don't seem to have a C nor C++ compiler installed on your machine."
-                " Install either \"clang/clang++\", \"gcc/g++\" or \"cl (msvc)\" and add to the path environment"
-                " before using RiftBuild, as we require a working compiler program to function properly. Aborting build...\n");
-            */
             #else
             LOG("\n    You don't seem to have a C nor C++ compiler installed on your machine."
                 "\n    Install either \"clang/clang++\" or \"gcc/g++\" and add to the path environment"
                 "\n    before using RiftBuild, as we require a working compiler program to function properly. Aborting build...\n");
-
-            /*
-            LOG_ERROR(
-                "You don't seem to have a C nor C++ compiler installed on your machine."
-                " Install either \"clang/clang++\" or \"gcc/g++\" and add to the PATH environment"
-                " before using RiftBuild, as we require a working compiler program to function properly. Aborting build...\n");
-            */
             #endif
 
             LogPathEnvVarTutorialSteps();

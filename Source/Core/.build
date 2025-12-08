@@ -1,0 +1,56 @@
+include ../Common.buildvars
+
+Assembly              RiftCore
+Type:shared           shared_lib
+Type:!shared          static_lib
+
+BuildDirectory        Build
+IntermediateDirectory Intermediate
+
+Compiler.Flags        $SharedCompilerFlags
+Linker.Flags          $SharedLinkerFlags
+Defines               $SharedDefines
+Includes.Public       ../
+
+if windows
+{
+    Libraries.Public  kernel32 user32 shell32 ole32 advapi32 ntdll shlwapi bcrypt oleaut32
+}
+
+if linux|bsd
+{
+    Libraries.Public  pthread
+}
+
+if !shared
+{
+    Defines        RIFT_STATIC
+    Defines.Public RIFT_STATIC
+}
+
+SourceFiles          Log Memory StringUtils Platform_Core
+SourceFiles:Windows  Platform_%(_platform)
+SourceFiles:Unix|BSD Platform_Unix
+SourceFiles:BSD      Platform_BSD
+
+# -- Options ------------------------------
+
+option.compiler(clang gcc cl)
+option.debug
+
+# -- Help ---------------------------------
+
+.Help
+{
+    To build a static library, just run: riftbuild
+    To build a shared library, just run: riftbuild shared
+    To view all build options, just run: riftbuild options
+
+    There are three optimization modes:
+      - Debug
+      - Release
+      - Dist
+    
+    You can specify which one you want like so:
+      > riftbuild mode=release etc.
+}
