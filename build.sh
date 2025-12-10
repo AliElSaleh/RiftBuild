@@ -11,7 +11,6 @@ Platform="Unknown"
 unamestr=$(uname)
 if [ "$unamestr" = 'Linux' ]; then
     Platform='Linux'
-    LinuxLinkerFlags="-lpthread"
 
    if [ -f /usr/bin/gnome-terminal ]; then
         LinuxDEDefines="-DPLATFORM_LINUX_GNOME"
@@ -24,7 +23,6 @@ elif [ "$unamestr" = 'Darwin' ]; then
     MacLinkerFlags="-framework Foundation -framework SystemConfiguration"
 elif [ "$unamestr" = 'OpenBSD' ]; then
     Platform='BSD'
-    BSDLinkerFlags="-lpthread"
 
     # the compiler (and specifically on OpenBSD) for some reason trips up and replaces memmove 
     # with memcpy when using -O1 or higher optimizations causing a SIGABRT crash in memcpy because 
@@ -38,10 +36,8 @@ elif [ "$unamestr" = 'OpenBSD' ]; then
     MiscFlags='-fno-builtin-memcpy' # prevents clang/gcc from replacing memmove with memcpy
 elif [ "$unamestr" = 'NetBSD' ]; then
     Platform='BSD'
-    BSDLinkerFlags="-lpthread"
 elif [ "$unamestr" = 'FreeBSD' ]; then
     Platform='BSD'
-    BSDLinkerFlags="-lpthread"
 else
     printf "\n[ERROR] Compiling on \"$unamestr\" is not supported.\n"
     printf "\nHere is a list of supported platforms:\n"
