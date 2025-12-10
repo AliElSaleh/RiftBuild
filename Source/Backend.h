@@ -284,6 +284,7 @@ bool IsCppHeader(const String Extension);
 // Util functions --------------------
 
 bool DoesBuildVarExist(TArray(FileVariable) VariablesDB, const String Name);
+bool DoesBuildVarExist_StartingWith(TArray(FileVariable) VariablesDB, const String Name);
 bool DoesCmdOptionExist(TArray(CmdOption) CmdOptionsDB, const String Name);
 
 String GetCmdOptionValue(TArray(CmdOption) CmdOptionsDB, const String Name);

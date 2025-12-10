@@ -17,11 +17,12 @@
 #endif
 
 // todos
-// provide examples with every parser error message
-// how to detect multiple inclusions of a file?
-// prevent including .build files
-// log .build file path for parser error logs
-// fix else keyword being parsed inside option. keys
+// [ ] provide examples with every parser error message
+// [ ] how to detect multiple inclusions of a file?
+// [ ] prevent including .build files
+// [ ] log .build file path for parser error logs
+// [ ] fix else keyword being parsed inside option. keys
+// [ ] change include to import and ensure it is only loaded once
 
 void AddVariable(LinearAllocator* Arena,
                 TArray(FileVariable) VariablesDB,
@@ -3907,54 +3908,6 @@ static void StoreKVNodeAsCmdOption(LinearAllocator* Arena, const String Key, Nod
             String CompilerName = Filesystem_ExtractFileName(Expanded, false);
             AddCmdOption(Context->CmdOptionsDB, String_Create(Arena, CompilerName), String_Null());
         }
-
-
-        /*
-        NodeList** Next = &Block->List;
-        while (*Next)
-        {
-            Node* Root = (*Next)->Node;
-
-            bool bValid = Root && Root != &Node_Null;
-            if (bValid)
-            {
-                if (Root->Type == Node_KeyValue)
-                {
-                    String FinalKey = Root->Key;
-
-                    if (String_IsEqual(FinalKey, Key, false))
-                    {
-                        StringLocal(Val, MAX_PATH_LENGTH);
-
-                        if (Root->Value)
-                        {
-                            for each_string_in_list (*Root->Value)
-                            {
-                                String_Append(&Val, It.String);
-                            }
-
-                            xx String_EatSpacesInlineFromEnd(&Val);
-                        }
-
-                        StringLocal(Expanded, MAX_PATH_LENGTH);
-                        xx ExpandBuildVariable(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, FinalKey, Val, FinalKey, Context->WorkingDirectory, false, false, NULL);
-
-                        if (Expanded.Length > 0)
-                        {
-                            AddCmdOption(Context->CmdOptionsDB, String_Create(Arena, FinalKey), String_Create(Arena, Expanded));
-
-                            String CompilerName = Filesystem_ExtractFileName(Expanded, false);
-                            AddCmdOption(Context->CmdOptionsDB, String_Create(Arena, CompilerName), String_Null());
-                        }
-
-                        break;
-                    }
-                }
-            }
-
-            Next = &(*Next)->Next;
-        }
-        */
     }
 }
 
@@ -4983,9 +4936,9 @@ static bool Internal_AssertWorkingDirectory(ParsingContext* Context, const Strin
             const String BuildFileName = Filesystem_ExtractFileName(BuildFilePath, true);
 
             LOG_INLINE_ERROR("\n[ASSERTION FAILURE] %S must be ran from this directory:\n\n"
-                                "                      \"%S\"\n\n"
-                                "                    but we are in\n\n"
-                                "                      \"%S\"\n", BuildFileName, AssertPath, Context->WorkingDirectory);
+                                "        \"%S\"\n\n"
+                                "      but we are in\n\n"
+                                "        \"%S\"\n", BuildFileName, AssertPath, Context->WorkingDirectory);
             #else
             LOG_ERROR("yo we cant run from this dir cuh \"%S\" you gotta run from \"%S\"", Context->WorkingDirectory, AssertPath);
             #endif
