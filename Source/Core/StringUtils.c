@@ -1195,11 +1195,6 @@ void StringInternal_Concat(String* Dest, const StringArray Array)
     {
         const String Source = Array.List[i];
 
-        if (!String_IsDataValid(Source))
-        {
-            break;
-        }
-
         String_Append(Dest, Source);
     }
 }
