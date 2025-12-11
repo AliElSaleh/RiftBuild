@@ -167,6 +167,7 @@ ENUM_T(ETokenType, u32)
     Token_FSlash,
     Token_BSlash,
     Token_Quote,
+    Token_BackTick,
     //Token_Star,
     Token_Caret,
     Token_Mod,
@@ -294,6 +295,7 @@ read_only static String TokenTypeEnumStringTable[Token_Max] =
     SC("Token_FSlash"),
     SC("Token_BSlash"),
     SC("Token_Quote"),
+    SC("Token_BackTick"),
     //SC("Token_Star"),
     SC("Token_Caret"),
     SC("Token_Mod"),
@@ -405,7 +407,8 @@ STRUCT(Node)
     NodeList*   List;
 
     bool        bPreserveOrder;
-    u8          Padding2[7];
+    bool        bResetValue;
+    u8          Padding2[6];
 };
 
 read_only static Node Node_Null = { .Type = Node_None, .Left = &Node_Null, .Right = &Node_Null };
@@ -678,8 +681,8 @@ static bool IsValidTextToken(uchar Char, bool bAllowWhitespace)
     bool bSymbols = Char == '%' || Char == '$'  || Char == '@'  || Char == '!'  ||
                     Char == '(' || Char == ')'  || Char == ':'  || Char == '{'  ||
                     Char == '}' || Char == '['  || Char == ']'  || Char == '\'' ||
-                    Char == '"' || Char == '|'  || Char == '^'  || Char == ';'; // ||
-                    //Char == '/' || Char == '\\';
+                    Char == '"' || Char == '|'  || Char == '^'  || Char == ';'  ||
+                    Char == '`';
 
     bool bWhitespaceValid = bAllowWhitespace || (!bAllowWhitespace && !IsWhitespace(Char));
     bool bValid = bWhitespaceValid && !bSymbols && Char != 0;
@@ -1556,6 +1559,8 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Pars
             xx Parser_Match(P, Token_Text);
             xx Parser_Match(P, Token_Assert);
 
+            bool bResetValue = Parser_Match(P, Token_BackTick);
+
             if (!IsAlphabet(t.Lexeme.Data[0]) && t.Lexeme.Data[0] != '.')
             {
                 LOG_ERROR("\n[Parser] [Line %u]: Key '%S' can only start with an alphabet character or '.'. Please remove '%c'", t.Line, t.Lexeme, t.Lexeme.Data[0]);
@@ -1728,6 +1733,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Pars
 
                 Node* KV_Node = Node_Create_KeyValue(Arena, tPtr->Lexeme, ValueList);
                 KV_Node->Parameters = ParamList;
+                KV_Node->bResetValue = bResetValue;
 
                 if (FilterNode != &Node_Null)
                 {
@@ -2231,6 +2237,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
             else if (Char == Token_Char_At)     { TokenToAdd = Token_At;        }
             else if (Char == Token_Char_Mod)    { TokenToAdd = Token_Mod;       }
             else if (Char == '|')               { TokenToAdd = Token_Pipe;      }
+            else if (Char == '`')               { TokenToAdd = Token_BackTick;  }
             else if (Char == '"')
             {
                 if (!bInsideWhitespaceAllowedBlock)
@@ -2895,7 +2902,23 @@ static void Analyze_KVNode(Node* Root, ParsingContext* Context)
 
     if (bCanAddToList)
     {
-        AddVariableToList(Context->TempArena, Context, FinalKey, Val, Params);
+        bool bResettedExisting = false;
+        if (Root->bResetValue)
+        {
+            FileVariable* Var = GetVarInList(Context->VarListHead, FinalKey, false);
+            if (Var)
+            {
+                // we are leaking here, but it doesnt matter that much, we are in temporary memory anyway.
+                Var->Value = String_Create(Context->TempArena, Val);
+
+                bResettedExisting = true;
+            }
+        }
+            
+        if (!bResettedExisting)
+        {
+            AddVariableToList(Context->TempArena, Context, FinalKey, Val, Params);
+        }
     }
 }
 
