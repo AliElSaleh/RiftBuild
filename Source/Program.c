@@ -5761,7 +5761,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     StringLocal(IconRcFilePath, MAX_PATH_LENGTH);
     StringLocal(VersionRCFilePath, MAX_PATH_LENGTH);
 
-    #if PLATFORM_WINDOWS
     if (Icon.Length > 0)
     {
         {
@@ -5814,6 +5813,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             }
         }
 
+        #if PLATFORM_WINDOWS
         if (IconFilePath.Length > 0)
         {
             #if PLATFORM_WINDOWS
@@ -5837,8 +5837,10 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                 }
             }
         }
+        #endif
     }
 
+    #if PLATFORM_WINDOWS
     // only build the version resource if we have TitleName, CompanyName, Description, Version, Copyright, or CompanyName
     // and no custom resource file was specified
     if (CountData.NumRcSources == 0 &&
@@ -6402,7 +6404,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             StringLocal(RPathFormatted, MAX_PATH_LENGTH);
             String_AppendF(&RPathFormatted, S("-Wl,-rpath,%S"), ChosenRPath);
 
-            String_BuildSeparator(&AdditionalLinkerFlags, ' ', NoStd, NoDefaultLibs, Frameworks, RPathFormatted);
+            String_BuildSeparator(&AdditionalLinkerFlags, ' ', NoStd, NoDefaultLibs, ExpandedFrameworks, RPathFormatted);
             #endif
         }
 
@@ -6529,7 +6531,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     p.LinkerSubsystem               = LinkerSubsystem;
     p.LinkerStack                   = LinkerStack;
     p.LinkerOutputFlag              = LinkerOutputFlag;
-    p.Frameworks                    = ExpandedFrameworks;
     p.bIsAssemblyExe                = bIsAssemblyExe;
     p.bVerbose                      = bVerboseLog;
     p.TitleName                     = TitleName;

@@ -207,8 +207,6 @@ STRUCT(BuildParams)
     String LinkerStack;
     String LinkerOutputFlag;
 
-    String Frameworks;
-
     String CameFromBuildFile;
 
     String IconFilePath;

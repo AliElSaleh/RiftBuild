@@ -1422,7 +1422,13 @@ bool C_Link(const BuildParams* Params)
         xx String_EatSpacesInlineFromEnd(&CmdLine);
         String_AppendSpace(&CmdLine);
 
-        String_Concat(&CmdLine, OutputFlag, S("\""), BuildPath, Params->AssemblyWithExt, S("\""));
+        String SpaceAfterOut = S(" ");
+        if (bIsMicrosoftLinker)
+        {
+            SpaceAfterOut = String_Null();
+        }
+        
+        String_Concat(&CmdLine, OutputFlag, SpaceAfterOut, S("\""), BuildPath, Params->AssemblyWithExt, S("\""));
 
 
         if (bQuietBuild) { Logging_Enable(); }
