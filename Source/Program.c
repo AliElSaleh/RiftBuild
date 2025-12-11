@@ -3548,7 +3548,7 @@ static bool TryDetectDirectoryStateChangeAndUpdate(const String DirectoryStatePa
 
     if (Filesystem_Open(DirectoryStatePath, FileMode_Write, &f))
     {
-        Filesystem_Write(f, sizeof(SourceCountData), &CountData, NULL);
+        Filesystem_Write(f, sizeof(SourceCountData), CountData, NULL);
         Filesystem_Close(&f);
     }
 
@@ -3643,22 +3643,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     Clock BuildRuntime;
     Clock_Start(&BuildRuntime);
 
-    StringLocal(RiftCmdLine, 2048);
-    for (u8 i = 0; i < Parameters.Num; i++)
-    {
-        const String Param = Parameters.List[i];
-
-        if (IsOptionBuiltin(Param))
-        {
-            continue;
-        }
-
-        String_Append     (&RiftCmdLine, Param);
-        String_AppendSpace(&RiftCmdLine);
-    }
-
-    xx String_EatSpacesInlineFromEnd(&RiftCmdLine);
-
     u32 MaxLogicalCores = Platform_GetNumLogicalProcessors();
 
     ArrayLocal_Arena(FileVariable,   VariablesDB,    256, Arena); // 8192 bytes
@@ -3668,6 +3652,8 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     ArrayLocal_Arena(String,         Messages,       128, Arena); // 2048 bytes
 
     ArrayLocal_Arena(PlatformHandle, Processes,      MaxLogicalCores, Arena);
+
+    StringLocal(RiftCmdLine, 4096);
 
     // store custom command line options to be referenced inside a .build file
     for (u8 i = 0; i < Parameters.Num; i++)
@@ -3689,6 +3675,9 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         if (i != BuildFileIndex &&
             i != RootPathIndex)
         {
+            String_Append     (&RiftCmdLine, Param);
+            String_AppendSpace(&RiftCmdLine);
+
             u32 EqualIndex = 0;
             bool bFoundEqual = String_IndexOfChar(Param, '=', &EqualIndex);
 
@@ -3710,6 +3699,11 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             Array_Add(CmdOptionsDB, c);
         }
     }
+
+    xx String_EatSpacesInlineFromEnd(&RiftCmdLine);
+
+    AddCmdOption(CmdOptionsDB, S("%"), RiftCmdLine);
+    AddCmdOption(CmdOptionsDB, S("_Args"), RiftCmdLine);
 
     String BuildFileName;
     StringLocal(BuildFilePath, MAX_PATH_LENGTH);
@@ -3830,26 +3824,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         String_Format(&Temp, S("%.2hu%.2hu%.2hu"), TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
         a = String_Create(Arena, Temp);
         AddCmdOption(CmdOptionsDB, S("_Time.NoSep"), a);
-    }
-
-    StringLocal(RiftBuildArgs, 4096);
-
-    // add all arguments, except working directory and build file path
-    {
-        for (u8 i = 0; i < Parameters.Num; i++)
-        {
-            if (i == BuildFileIndex ||
-                i == RootPathIndex)
-            {
-                continue;
-            }
-
-            String_Append(&RiftBuildArgs, Parameters.List[i]);
-            String_AppendSpace(&RiftBuildArgs);
-        }
-
-        AddCmdOption(CmdOptionsDB, S("%"), RiftBuildArgs);
-        AddCmdOption(CmdOptionsDB, S("_Args"), RiftBuildArgs);
     }
 
     if (bFoundBuildFile)
