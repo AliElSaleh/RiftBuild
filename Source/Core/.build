@@ -17,11 +17,6 @@ if windows
     Libraries.Public  kernel32 user32 shell32 ole32 advapi32 ntdll shlwapi bcrypt oleaut32
 }
 
-if linux|bsd
-{
-    Libraries.Public  pthread
-}
-
 if !shared
 {
     Defines        RIFT_STATIC
