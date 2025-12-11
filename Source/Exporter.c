@@ -429,11 +429,11 @@ bool Export_IconRC(const String Path, const String IconFilePath)
     FileHandle f = FileHandle_Null();
     if (Filesystem_Open(Path, FileMode_Write, &f))
     {
-        u32 LastSlashIndex = 0;
-        xx String_IndexOfLastPathSlash(IconFilePath, &LastSlashIndex);
+        StringLocal(PathCopy, MAX_PATH_LENGTH);
+        String_Copy(&PathCopy, IconFilePath);
+        String_BackSlashToForwardSlash(&PathCopy);
 
-        // TODO: think about error handling across all write line functions
-        Filesystem_WriteLineFormatted(f, S("id ICON \"%S\""), NULL, StrShiftF(IconFilePath, LastSlashIndex == 0 ? 0 : LastSlashIndex+1));
+        xx Filesystem_WriteLineFormatted(f, S("id ICON \"%S\""), NULL, PathCopy);
         Filesystem_Close(&f);
         bSuccess = true;
     }
@@ -1075,7 +1075,7 @@ bool Export_FromArg(LinearAllocator Scratch, const BuildParams* Params, const St
             if (bQuietBuild) { Logging_Enable(); }
 
             StringLocal(BatPath, MAX_PATH_LENGTH);
-            String_BuildPath(&BatPath, Params->IntermediateDirectory, S("build"));
+            String_BuildPath(&BatPath, Params->IntermediateDirectory, S("__Exports"), S("build"));
             String_Append(&BatPath, S(".bat"));
 
             LOG("Generating %S ...", BatPath);
@@ -2253,9 +2253,16 @@ bool Export_WindowsBatchScript(const BuildParams* Params)
         }
 
         xx Filesystem_WriteLine(f, S("    %CompilerFlags% ^\n    %Defines% ^\n    %IncludeFlags% ^\n"), NULL);
-        xx Filesystem_WriteLineFormatted(f, S("    -o %S ^\n"), NULL, Params->AssemblyWithExt);
-        xx Filesystem_WriteLine(f, S("    %LinkerFlags% ^\n    %LibraryPaths% ^\n    %Libraries% || goto end\n"), NULL);
 
+        bool bIsMicrosoftLinker = String_EndsWith(Params->LinkerPath, S("link.exe"), false);
+        if (bIsMicrosoftLinker)
+        {
+            xx Filesystem_WriteLine(f, S("    /link ^\n"), NULL);
+        }
+
+        xx Filesystem_WriteLine(f, S("    %LinkerFlags% ^\n    %LibraryPaths% ^\n    %Libraries% ^\n"), NULL);
+
+        xx Filesystem_WriteLineFormatted(f, S("    %S\"%S\" || goto end\n"), NULL, Params->LinkerOutputFlag, Params->AssemblyWithExt);
 
         xx Filesystem_WriteLineFormatted(f, S("\necho [32m  Done: %S%S[0m\n"), NULL, Params->BuildDirectory, Params->AssemblyWithExt);
 

@@ -442,10 +442,10 @@ FORCEINLINE NO_DISCARD RETURN_NON_NULL static Node* Node_Create(LinearAllocator*
 
 FORCEINLINE NO_DISCARD RETURN_NON_NULL static Node* Node_Create_KeyValue(LinearAllocator* Arena, String Key, StringList* Value)
 {
-    Node* NewNode       = LinearAllocator_Allocate(Arena, sizeof(struct Node));
-    NewNode->Type       = Node_KeyValue;
-    NewNode->Key        = Key;
-    NewNode->Value      = Value;
+    Node* NewNode  = LinearAllocator_Allocate(Arena, sizeof(struct Node));
+    NewNode->Type  = Node_KeyValue;
+    NewNode->Key   = Key;
+    NewNode->Value = Value;
     return NewNode;
 }
 
@@ -489,7 +489,7 @@ STRUCT(ReservedKeyTable)
     u32    Padding;
 };
 
-static ReservedKeyTable ReservedKeys[72] =
+static ReservedKeyTable ReservedKeys[74] =
 {
     { .Key = SC("Assembly"),                  .MaxValueLength = 256 },
     { .Key = SC("Assembly.Prefix"),           .MaxValueLength = 128 },
@@ -515,6 +515,7 @@ static ReservedKeyTable ReservedKeys[72] =
     { .Key = SC("Linker.EntryPoint"),         .MaxValueLength = 256 },
     { .Key = SC("Linker.Subsystem"),          .MaxValueLength = 128 },
     { .Key = SC("Linker.Stack"),              .MaxValueLength = 64 },
+    { .Key = SC("Linker.OutputFlag"),         .MaxValueLength = 32 },
     { .Key = SC("Linker.NoStdLib"),           .MaxValueLength = 0 },
     { .Key = SC("Linker.NoDefaultLibs"),      .MaxValueLength = 0 },
     { .Key = SC("Assembler.Path"),            .MaxValueLength = 1024 },
@@ -523,6 +524,7 @@ static ReservedKeyTable ReservedKeys[72] =
     { .Key = SC("Assembler.Defines"),         .MaxValueLength = 4096 },
     { .Key = SC("Archiver.Path"),             .MaxValueLength = 1024 },
     { .Key = SC("Archiver.Flags"),            .MaxValueLength = 4096 },
+    { .Key = SC("Archiver.OutputFlag"),       .MaxValueLength = 32 },
     { .Key = SC("Defines"),                   .MaxValueLength = 8192 },
     { .Key = SC("Defines.Public"),            .MaxValueLength = 8192 },
     { .Key = SC("UnDefines"),                 .MaxValueLength = 2048 },
@@ -597,24 +599,6 @@ read_only static DeferredKVData DeferredKVData_Null =
     .FilterNode = &Node_Null,
     .LastIfNode = &Node_Null
 };
-
-/*
-static bool Parser_IsTokenDisallowedInIfElseBlock(ETokenType Type)
-{
-    bool bSuccess = false;
-
-    for (u8 i = 0; i < SArray_Capacity(DisallowedInIfElseBlock); i++)
-    {
-        if (Type == DisallowedInIfElseBlock[i])
-        {
-            bSuccess = true;
-            break;
-        }
-    }
-
-    return bSuccess;
-}
-*/
 
 static String ETokenType_ToString(ETokenType Type)
 {

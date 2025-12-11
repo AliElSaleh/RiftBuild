@@ -35,8 +35,8 @@ SourceFiles:BSD      Platform_BSD
 
 # -- Options ------------------------------
 
-option.compiler(clang gcc cl)
-option.debug
+option.compiler(clang gcc cl) Select a compiler vendor to build with.
+option.debug                  Build the debug version of this program.
 
 # -- Help ---------------------------------
 
@@ -46,11 +46,13 @@ option.debug
     To build a shared library, just run: riftbuild shared
     To view all build options, just run: riftbuild options
 
-    There are three optimization modes:
+    There are two optimization modes:
       - Debug
       - Release
-      - Dist
     
     You can specify which one you want like so:
-      > riftbuild mode=release etc.
+      > riftbuild debug
+
+    or specify nothing for a release build
+      > riftbuild
 }

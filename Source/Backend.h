@@ -107,6 +107,15 @@ ENUM(EAssembler)
     Assembler_Masm
 };
 
+// TODO: implement
+ENUM(EResourceCompiler)
+{
+    ResourceCompiler_Generic,
+    ResourceCompiler_RC,
+    ResourceCompiler_Windres,
+    ResourceCompiler_LLVM_RC
+};
+
 ENUM(EComparisonType)
 {
     Cmp_None,
@@ -171,6 +180,7 @@ STRUCT(BuildParams)
     String CompilerObjectDirectory;
     String LinkerPath;
     String ArchiverPath;
+    String ArchiverOutputFlag;
     String DumpBinPath;
     String CompilerOutputFlag;
     String CompilerCompileFlag;
@@ -195,14 +205,13 @@ STRUCT(BuildParams)
     String LinkerEntryPoint;
     String LinkerSubsystem;
     String LinkerStack;
+    String LinkerOutputFlag;
 
     String Frameworks;
 
     String CameFromBuildFile;
 
     String IconFilePath;
-    String IconResFilePath;
-    String VersionResFilePath;
 
     String TitleName;
     String InternalName;
@@ -236,7 +245,6 @@ STRUCT(BuildParams)
 
     u8 MaxCompilersAtOnce;
 
-    bool bHasRCProgram;
     bool bShouldWaitPerCompileProcess;
     bool bIsAssemblyExe;
     bool bVerbose;
@@ -247,7 +255,7 @@ STRUCT(BuildParams)
     bool bCompilerFlagsFirst;
     bool bLinkerFlagsFirst;
 
-    bool bPadding[6];
+    bool bPadding[7];
 };
 
 STRUCT(CompilerPaths)
@@ -267,8 +275,6 @@ STRUCT(CompilerPaths)
 
 bool C_Compile(const BuildParams* Params, u32* OutNumCompiled);
 bool C_Link(const BuildParams* Params);
-
-bool RC_Compile(const BuildParams* Params, const String FullRCPath, String* OutResPath);
 
 bool IsSource(const String Extension);
 bool IsAsmSource(const String Extension);

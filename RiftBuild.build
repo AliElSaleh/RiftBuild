@@ -44,7 +44,6 @@ Linker.Flags             $SharedLinkerFlags
 Includes                 $SharedIncludeFlags
 Defines                  $SharedDefines %^%hood NO_PRINT_BUILD_CONFIG=%no_print_config
 Defines:mem              MAX_MEMORY_MB=%mem
-Libraries:linux|bsd      pthread
 
 if windows
 {
@@ -68,11 +67,11 @@ if windows
     }
 }
 
-option.compiler(clang gcc cl tcc)   Select a compiler vendor to build with
-option.debug                        build the debug version of this program
-option.32                           build for 32-bit architectures
-option.asan                         enable address sanitizer for memory debugging purposes
-option.hood                         enable hood mode, the program will talk to you like a gangster!
-option.no_print_config              disable printing of the build configuration flags
-option.asm                          generate disassembly (.S) files
-option.mem                          Specify the max memory amount in mebibytes riftbuild should pre-allocate
+option.compiler(clang gcc cl tcc)   Select a compiler vendor to build with.
+option.debug                        Build the debug version of this program.
+option.32                           Build for 32-bit architectures.
+option.asan                         Enable address sanitizer for memory debugging purposes.
+option.hood                         Enable hood mode, the program will talk to you like a gangster!
+option.no_print_config              Disable printing of the build configuration flags.
+option.asm                          Generate disassembly (.S) files.
+option.mem                          Specify the max memory amount in mebibytes riftbuild should pre-allocate.

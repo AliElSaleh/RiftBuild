@@ -39,17 +39,15 @@ static void LogCompilingFile(u32 Index, u32 NumSources, String FullPath)
     if (bQuietBuild) { Logging_Disable(); }
 }
 
-bool RC_Compile(const BuildParams* Params, const String FullRCPath, String* OutResPath)
+static void RC_Compile(const BuildParams* Params, const String FullRCPath, String* OutResPath, String* OutCmdLine)
 {
-    bool bSuccess = true;
-
     #if PLATFORM_WINDOWS
     StringLocal(CmdLine, 1024);
 
     const bool bWindres = String_IsEqual(Params->RCProgram, S("windres"), false);
 
     // we are intentionally adding a backslash here for the windres compiler specifically, because
-    // the developers behind this are incompetent assholes who don't know how to properly handle
+    // the developers behind this are so incompetent that they don't know how to properly handle
     // spaces within paths... like holy shit man... so depressing
     // https://sourceware.org/bugzilla/show_bug.cgi?id=4933
     // https://sourceware.org/bugzilla/show_bug.cgi?id=4356
@@ -71,8 +69,10 @@ bool RC_Compile(const BuildParams* Params, const String FullRCPath, String* OutR
         // ergghh i hate this... TODO: something better
         #if PLATFORM_WINDOWS
 
+        // TODO: use enum instead
         if (String_EndsWith(Params->RCProgramPath, S("rc.exe"), false))
         {
+            // TODO: this is duplicated code, collapse this in one place
             StringLocal(WinSDKInclude, MAX_PATH_LENGTH*7); // 7 paths
             if (!bWasVCVarsBatchExecuted)
             {
@@ -122,10 +122,8 @@ bool RC_Compile(const BuildParams* Params, const String FullRCPath, String* OutR
     bool bHasDot = String_IndexOfLastChar(FullRCPath, '.', &LastDot);
 
     StringLocal(ResPath, MAX_PATH_LENGTH);
-    String_Append(&ResPath, S("\""));
     String_Append(&ResPath, bHasDot ? StrSlice(FullRCPath.Data, LastDot) : FullRCPath);
     String_Append(&ResPath, S(".res"));
-    String_Append(&ResPath, S("\""));
 
     if (OutResPath)
     {
@@ -146,8 +144,9 @@ bool RC_Compile(const BuildParams* Params, const String FullRCPath, String* OutR
         String_Append(&CmdLine, FullRCPath);
         String_AppendChar(&CmdLine, '"');
 
-        String_Append(&CmdLine, S(" -o "));
+        String_Append(&CmdLine, S(" -o \""));
         String_Append(&CmdLine, ResPath);
+        String_Append(&CmdLine, S("\""));
     }
     else
     {
@@ -156,20 +155,11 @@ bool RC_Compile(const BuildParams* Params, const String FullRCPath, String* OutR
         String_AppendChar(&CmdLine, '"');
     }
 
-    LOG("Compiling resource %S", FullRCPath);
-    
-    if (Params->bVerbose) { LOG("\n    %S\n", CmdLine); }
-
-    PlatformHandle H = Platform_RunProcess(Params->RCProgramPath, CmdLine, Params->RootDirectory, String_Null());
-    if (!Platform_IsValidHandle(H)) { return false; }
-    u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
-    if (ExitCode != 0)
+    if (OutCmdLine)
     {
-        bSuccess = false;
+        String_Copy(OutCmdLine, CmdLine);
     }
     #endif
-
-    return bSuccess;
 }
 
 static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
@@ -255,7 +245,8 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
     }
 
     StringLocal(FullPath, MAX_PATH_LENGTH);
-    String_BuildPath(&FullPath, Params->RootDirectory, Params->SourceDirectory, RelativePathCopy);
+    bool bInsideIntermediatePath = String_StartsWith(RelativePathCopy, Params->IntermediateDirectory, false);
+    String_BuildPath(&FullPath, Params->RootDirectory, bInsideIntermediatePath ? String_Null() : Params->SourceDirectory, RelativePathCopy);
 
     StringLocal(FullSourcePath, MAX_PATH_LENGTH+2);
     String_WrapPath(&FullSourcePath, FullPath);
@@ -310,6 +301,12 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
         if (String_IsValid(Params->CompilerObjectDirectory))
         {
             ObjDestinationDirectory = Params->CompilerObjectDirectory;
+        }
+
+        // handle a special case where we are compiling something in the intermediate directory
+        if (String_StartsWith(ObjDestinationDirectory, PathOfObj, false))
+        {
+            PathOfObj = String_Null();
         }
 
         String_BuildPath(&ObjectPath, Params->RootDirectory, ObjDestinationDirectory, PathOfObj, ObjFile);
@@ -374,14 +371,11 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
     }
     else if (String_EndsWith(RelativePath, S(".rc"), false))
     {
-        // TODO: make async version
-        bool bSuccess = RC_Compile(Params, FullPath, NULL);
-        if (!bSuccess)
-        {
-            LOG("Failed to build resource file \"%S\" for %S. Aborting build...", RelativePath, Params->AssemblyWithExt);
-        }
+        ProgramPath = Params->RCProgramPath;
 
-        return bSuccess;
+        String_Empty(&ObjectPath);
+
+        RC_Compile(Params, RelativePath, &ObjectPath, &CmdLine);
     }
     else
     {
@@ -391,12 +385,6 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
         String AdditionalFlags = String_Null();
 
         StringLocal(PCHFlags, MAX_PATH_LENGTH*2);
-
-        #if PLATFORM_WINDOWS
-        StringLocal(WinSDKInclude, MAX_PATH_LENGTH*7); // 7 paths
-        #else
-        String WinSDKInclude = String_Null();
-        #endif
 
         String_AppendChar(&CmdLine, '"');
         String_Append    (&CmdLine, Params->CompilerPath);
@@ -425,44 +413,6 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
             {
                 OutputFlag  = S("/Fo:");
                 CompileFlag = S(" /nologo /c ");
-
-
-                if (!bWasVCVarsBatchExecuted)
-                {
-                    if (Params->WindowsSDKIncludePath.Length)
-                    {
-                        String_Append(&WinSDKInclude, S("/I\""));
-                        String_Append(&WinSDKInclude, Params->WindowsSDKIncludePath);
-                        String_Append(&WinSDKInclude, S("\" "));
-
-                        String_Append(&WinSDKInclude, S("/I\""));
-                        String_Append(&WinSDKInclude, Params->WindowsSDKIncludePath);
-                        String_Append(&WinSDKInclude, S("\\shared\" "));
-
-                        String_Append(&WinSDKInclude, S("/I\""));
-                        String_Append(&WinSDKInclude, Params->WindowsSDKIncludePath);
-                        String_Append(&WinSDKInclude, S("\\ucrt\" "));
-
-                        String_Append(&WinSDKInclude, S("/I\""));
-                        String_Append(&WinSDKInclude, Params->WindowsSDKIncludePath);
-                        String_Append(&WinSDKInclude, S("\\um\" "));
-
-                        String_Append(&WinSDKInclude, S("/I\""));
-                        String_Append(&WinSDKInclude, Params->WindowsSDKIncludePath);
-                        String_Append(&WinSDKInclude, S("\\winrt\" "));
-
-                        String_Append(&WinSDKInclude, S("/I\""));
-                        String_Append(&WinSDKInclude, Params->WindowsSDKIncludePath);
-                        String_Append(&WinSDKInclude, S("\\cppwinrt\" "));
-                    }
-
-                    if (Params->VisualStudioIncludePath.Length)
-                    {
-                        String_Append(&WinSDKInclude, S("/I\""));
-                        String_Append(&WinSDKInclude, Params->VisualStudioIncludePath);
-                        String_Append(&WinSDKInclude, S("\" "));
-                    }
-                }
 
                 if (Params->Type == AssemblyType_PCH)
                 {
@@ -521,26 +471,6 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
                         String_Append(&PCHFlags, S(".pch\""));
                     }
                 }
-
-            }
-            #else
-            if (Params->Type == AssemblyType_Library ||
-                Params->Type == AssemblyType_DynamicLibrary)
-            {
-                AdditionalFlags = S("-fPIC -fvisibility=default");
-            }
-            else if (Params->Type == AssemblyType_Library ||
-                     Params->Type == AssemblyType_StaticLibrary)
-            {
-                AdditionalFlags = S("-fPIC");
-            }
-            else if (Params->Type == AssemblyType_Executable)
-            {
-                AdditionalFlags = S("-fPIE");
-            }
-            else
-            {
-                // no action required
             }
             #endif
 
@@ -559,7 +489,7 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
         String CompilerFlagsLeft  = Params->bCompilerFlagsFirst ? Params->CompilerFlags : String_Null();
         String CompilerFlagsRight = Params->bCompilerFlagsFirst ? String_Null() : Params->CompilerFlags;
 
-        String_BuildSeparator(&CmdLine, ' ', CompilerFlagsLeft, CompileFlag, FullSourcePath, CompilerFlagsRight, Params->IncludeFlags, Params->DefineFlags, WinSDKInclude, AdditionalFlags, PCHFlags, OutputFlag);
+        String_BuildSeparator(&CmdLine, ' ', CompilerFlagsLeft, CompileFlag, FullSourcePath, CompilerFlagsRight, Params->IncludeFlags, Params->DefineFlags, AdditionalFlags, PCHFlags, OutputFlag);
         xx String_EatSpacesInlineFromEnd(&CmdLine);
 
         String_Append(&CmdLine, S(" \""));
@@ -705,23 +635,22 @@ static void Internal_AppendObjSourceFiles(const BuildParams* Params, String* Cmd
         #if PLATFORM_WINDOWS
         if (String_EndsWith(RelativePath, S(".rc"), false))
         {
-            if (String_EndsWith(RelativePath, S("icon.rc"), false))
+            // TCC doesn't recognize .res files as of 0.9.28
+            if (Params->CompilerVendor == Compiler_TCC)
             {
                 continue;
             }
 
-            // TCC doesn't recognize .res files as of 0.9.28
-            if (!String_IsEqual(Params->CompilerProgram, S("tcc"), false))
-            {
-                u32 LastDot = 0;
-                bool bHasDot = String_IndexOfLastChar(RelativePath, '.', &LastDot);
+            bool bInsideIntermediatePath = String_StartsWith(RelativePath, Params->IntermediateDirectory, false);
 
-                StringLocal(ResPath, MAX_PATH_LENGTH);
-                String_Append(&ResPath, bHasDot ? StrSlice(RelativePath.Data, LastDot) : RelativePath);
-                String_Append(&ResPath, S(".res"));
+            u32 LastDot = 0;
+            bool bHasDot = String_IndexOfLastChar(RelativePath, '.', &LastDot);
 
-                String_BuildPath(&ObjectPath, Params->SourceDirectory, ResPath);
-            }
+            StringLocal(ResPath, MAX_PATH_LENGTH);
+            String_Append(&ResPath, bHasDot ? StrSlice(RelativePath.Data, LastDot) : RelativePath);
+            String_Append(&ResPath, S(".res"));
+
+            String_BuildPath(&ObjectPath, bInsideIntermediatePath ? String_Null() : Params->SourceDirectory, ResPath);
         }
         else
         #endif
@@ -1303,175 +1232,12 @@ static void Internal_ProcessLinkerOutput_MSVC(PlatformPipe StdOutHandle)
 #endif // PLATFORM_WINDOWS
 
 
-static void GetAdditionalLinkerFlags(const BuildParams* Params, String* AdditionalFlags)
-{
-    bool bIsMicrosoftLinker = String_EndsWith(Params->LinkerPath, S("link.exe"), false);
-
-    // additional linker settings that are annoying to specify in the build file for all 3 major compilers
-    // as clang, gcc and msvc have different ways of doing this
-    // (and for all the different platforms as well)
-    if (Params->Type == AssemblyType_Executable)
-    {
-        String NoDefaultLibs = String_Null();
-        String NoStd         = String_Null();
-
-        if (bIsMicrosoftLinker)
-        {
-            // todo: support
-            // /NODEFAULTLIB:somelibrary /NODEFAULTLIB:anotherlibrary etc..
-            // from this syntax: Linker.NoDefaultLibs somelibrary anotherlibrary            
-            NoDefaultLibs = Params->bLinkerNoDefaultLibs ? S("/NODEFAULTLIB ") : String_Null();
-
-            // TODO: what is the nostd flag for msvc?
-        }
-        else
-        {
-            NoStd         = Params->bLinkerNoStd ? S("-nostdlib") : String_Null();
-            NoDefaultLibs = Params->bLinkerNoDefaultLibs ? S("-nodefaultlibs") : String_Null();
-        }
-
-        bool bCustomEntry     = String_IsValid(Params->LinkerEntryPoint);
-        bool bCustomSubsystem = String_IsValid(Params->LinkerSubsystem);
-        bool bCustomStack     = String_IsValid(Params->LinkerStack);
-        bool bAnyValid        = bCustomEntry || bCustomSubsystem || bCustomStack;
-
-        // TODO: linux, macos and bsd
-        // --entry=entry
-        // -Wl,-stack_size,0x800000
-        #if PLATFORM_WINDOWS
-        if (bIsMicrosoftLinker)
-        {
-            if (bAnyValid)
-            {
-                if (bCustomEntry)
-                {
-                    String_AppendF(AdditionalFlags, S("/ENTRY:%S "), Params->LinkerEntryPoint);
-                }
-
-                if (bCustomSubsystem)
-                {
-                    String_AppendF(AdditionalFlags, S("/SUBSYSTEM:%S "), Params->LinkerSubsystem);
-                }
-
-                if (bCustomStack)
-                {
-                    u32 Space = 0;
-                    xx String_IndexOfFirstWhitespace(Params->LinkerStack, &Space);
-
-                    String Reserve = Params->LinkerStack;
-                    String Commit  = Params->LinkerStack;
-                    if (Space)
-                    {
-                        Reserve = StrSlice (Params->LinkerStack.Data, Space);
-                        Commit  = StrShiftF(Params->LinkerStack, Space+1);
-                    }
-
-                    String_AppendF(AdditionalFlags, S("/STACK:%S,%S "), Reserve, Commit);
-                }
-            }
-        }
-        else
-        {
-            StringLocal(WlFlags, 256);
-            StringLocal(XlinkerFlags, 256);
-            if (bAnyValid)
-            {
-                bool bIsClang = Params->CompilerVendor == Compiler_Clang;
-                bool bIsTCC   = Params->CompilerVendor == Compiler_TCC;
-
-                String_Append(&WlFlags, S("-Wl,"));
-
-                if (bCustomEntry)
-                {
-                    if (bIsClang)
-                    {
-                        String_AppendF(&WlFlags, S("-entry:%S,"), Params->LinkerEntryPoint);
-                    }
-                    else if (bIsTCC)
-                    {
-                        String_AppendF(&WlFlags, S("-entry=%S,"), Params->LinkerEntryPoint);
-                    }
-                    else // GCC
-                    {
-                        String_AppendF(&WlFlags, S("--entry,%S,"), Params->LinkerEntryPoint);
-                    }
-                }
-
-                if (bCustomSubsystem)
-                {
-                    if (bIsClang)
-                    {
-                        String_AppendF(&WlFlags, S("-subsystem:%S,"), Params->LinkerSubsystem);
-                    }
-                    else if (bIsTCC)
-                    {
-                        // need to lower it, cos fuck you i guess
-                        // fixes this error -> ld: invalid subsystem type Console
-                        StringLocal(Lowered, 32);
-                        String_Copy(&Lowered, Params->LinkerSubsystem);
-                        String_ToLower(&Lowered);
-
-                        String_AppendF(&WlFlags, S("-subsystem=%S,"), Lowered);
-                    }
-                    else // GCC
-                    {
-                        // need to lower it, cos fuck you i guess
-                        // fixes this error -> ld: invalid subsystem type Console
-                        StringLocal(Lowered, 32);
-                        String_Copy(&Lowered, Params->LinkerSubsystem);
-                        String_ToLower(&Lowered);
-
-                        String_AppendF(&WlFlags, S("--subsystem,%S,"), Lowered);
-                    }
-                }
-
-                if (bCustomStack)
-                {
-                    u32 Space = 0;
-                    xx String_IndexOfFirstWhitespace(Params->LinkerStack, &Space);
-
-                    String Reserve = Params->LinkerStack;
-                    String Commit  = Params->LinkerStack;
-                    if (Space)
-                    {
-                        Reserve = StrSlice (Params->LinkerStack.Data, Space);
-                        Commit  = StrShiftF(Params->LinkerStack, Space+1);
-                    }
-
-                    if (bIsClang)
-                    {
-                        String_AppendF(&XlinkerFlags, S("-Xlinker /stack:%S,%S"), Reserve, Commit);
-                    }
-                    else if (bIsTCC)
-                    {
-                        String_AppendF(&WlFlags, S("-stack=%S"), Reserve);
-                    }
-                    else // GCC
-                    {
-                        // apparently you cant specify a commit here
-                        String_AppendF(&WlFlags, S("--stack,%S"), Reserve);
-                    }
-                }
-            }
-
-            xx String_EatCharInlineFromEnd(&WlFlags, ',');
-
-            String_BuildSeparator(AdditionalFlags, ' ', NoStd, NoDefaultLibs, WlFlags, XlinkerFlags);
-        }
-        #else
-        xx bAnyValid;
-        String_BuildSeparator(AdditionalFlags, ' ', NoStd, NoDefaultLibs, Params->Frameworks);
-        #endif
-    }
-
-    xx String_EatSpacesInlineFromEnd(AdditionalFlags);
-}
-
 bool C_Link(const BuildParams* Params)
 {
     if (NEVER(Params == NULL)) { return false; }
 
-    if (Params->Type == AssemblyType_PCH)
+    if (Params->Type == AssemblyType_PCH ||
+        Params->Type == AssemblyType_Null)
     {
         return true;
     }
@@ -1479,7 +1245,7 @@ bool C_Link(const BuildParams* Params)
     if (Params->Type == AssemblyType_CustomCompilerObject)
     {
         String ProgramPath = Params->LinkerPath;
-        String OutputFlag = S("-o "); // TODO: Linker.OutputFlag?
+        String OutputFlag = Params->LinkerOutputFlag;
 
         StringLocal(BuildPath, MAX_PATH_LENGTH);
         String_BuildPath(&BuildPath, Params->RootDirectory, Params->BuildDirectory);
@@ -1512,7 +1278,7 @@ bool C_Link(const BuildParams* Params)
         xx String_EatSpacesInlineFromEnd(&CmdLine);
         String_AppendSpace(&CmdLine);
 
-        String_Concat(&CmdLine, OutputFlag, S("\""), BuildPath, Params->AssemblyWithExt, S("\""));
+        String_Concat(&CmdLine, OutputFlag, S(" \""), BuildPath, Params->AssemblyWithExt, S("\""));
 
         if (bQuietBuild) { Logging_Enable(); }
 
@@ -1576,41 +1342,8 @@ bool C_Link(const BuildParams* Params)
     bool bIsDLL = Params->Type == AssemblyType_Library || Params->Type == AssemblyType_DynamicLibrary;
     bool bIsLib = Params->Type == AssemblyType_Library || Params->Type == AssemblyType_StaticLibrary;
 
-    #if PLATFORM_WINDOWS
-    StringLocal(WinSDKLibPaths, MAX_PATH_LENGTH*3);
-    if (!bWasVCVarsBatchExecuted)
-    {
-        if (Params->WindowsSDKLibUmPath.Length)
-        {
-            String_Append(&WinSDKLibPaths, S("/LIBPATH:\""));
-            String_Append(&WinSDKLibPaths, Params->WindowsSDKLibUmPath);
-            String_Append(&WinSDKLibPaths, S("\" "));
-        }
-
-        if (Params->WindowsSDKLibUcrtPath.Length)
-        {
-            String_Append(&WinSDKLibPaths, S("/LIBPATH:\""));
-            String_Append(&WinSDKLibPaths, Params->WindowsSDKLibUcrtPath);
-            String_Append(&WinSDKLibPaths, S("\" "));
-        }
-
-        if (Params->VisualStudioLibraryPath.Length)
-        {
-            String_Append(&WinSDKLibPaths, S("/LIBPATH:\""));
-            String_Append(&WinSDKLibPaths, Params->VisualStudioLibraryPath);
-            String_Append(&WinSDKLibPaths, S("\" "));
-        }
-    }
-    #else
-    String WinSDKLibPaths = String_Null();
-    #endif
-
-
     String ProgramPath = Params->LinkerPath;
-    String OutputFlag = S("-o ");
     String VerboseFlag = S("-v");
-
-    StringLocal(RunPathLinkFlag, MAX_PATH_LENGTH);
 
     StringLocal(CmdLine, UINT16_MAX);
     String_AppendChar(&CmdLine, '"');
@@ -1621,8 +1354,6 @@ bool C_Link(const BuildParams* Params)
     if (bIsMicrosoftLinker || bIsMicrosoftArchiver)
     {
         String_Append(&CmdLine, S("/nologo "));
-
-        OutputFlag = S("/OUT:");
     }
 
     if (Params->bVerbose)
@@ -1639,55 +1370,13 @@ bool C_Link(const BuildParams* Params)
 
     if (bIsExe || bIsDLL)
     {
+        const String OutputFlag = Params->LinkerOutputFlag;
         String DefaultObjExtension = bIsMicrosoftLinker ? S(".obj") : S(".o");
         
-        String SharedFlag = String_Null();
-
-        if (bIsDLL)
-        {
-            if (bIsMicrosoftLinker)
-            {
-                SharedFlag = S("/DLL");
-            }
-            else
-            {
-                SharedFlag = S("-shared");
-            }
-        }
-
-        #if !PLATFORM_WINDOWS
-        if (bIsExe)
-        {
-            #if PLATFORM_MAC
-            String ChosenRPath = S("@executable_path");
-            #else
-            String ChosenRPath = S("$ORIGIN");
-            #endif
-
-            if (String_IsValid(Params->RPathOrigin))
-            {
-                ChosenRPath = Params->RPathOrigin;
-            }
-
-            String_AppendF(&RunPathLinkFlag, S("-Wl,-rpath,%S"), ChosenRPath);
-        }
-        #endif
-
-        // TODO: multiple rpaths
-
-        StringLocal(AdditionalFlags, 512);
-        GetAdditionalLinkerFlags(Params, &AdditionalFlags);
-
         String_BuildSeparator(&CmdLine, ' ', VerboseFlag,
-                                             SharedFlag,
-                                             bIsMicrosoftLinker ? WinSDKLibPaths : String_Null());
-
-        // TCC doesn't recognize .res files as of v0.9.28
-        if (!String_IsEqual(Params->CompilerProgram, S("tcc"), false))
-        {
-            String_BuildSeparator(&CmdLine, ' ', Params->IconResFilePath,
-                                                 Params->VersionResFilePath);
-        }
+                                             //SharedFlag,
+                                             //bIsMicrosoftLinker ? WinSDKLibPaths : String_Null());
+        );
 
         xx String_EatSpacesInlineFromEnd(&CmdLine);
         String_AppendSpace(&CmdLine);
@@ -1723,8 +1412,8 @@ bool C_Link(const BuildParams* Params)
         // These must come after obj files because on some operating systems
         // the linker is sensitive to the order of how the flags are positioned
         // 
-        String_BuildSeparator(&CmdLine, ' ', AdditionalFlags,
-                                             RunPathLinkFlag,
+        String_BuildSeparator(&CmdLine, ' ', //AdditionalFlags,
+                                             //RunPathLinkFlag,
                                              LinkerFlagsRight,
                                              Params->LinkerDefineFlags,
                                              Params->Libraries,
@@ -1811,6 +1500,8 @@ bool C_Link(const BuildParams* Params)
 
     if (bIsLib)
     {
+        const String OutputFlag = Params->ArchiverOutputFlag;
+
         String DefaultObjExtension = bIsMicrosoftArchiver ? S(".obj") : S(".o");
 
         ProgramPath = Params->ArchiverPath;
@@ -1826,16 +1517,6 @@ bool C_Link(const BuildParams* Params)
             String_Append(&CmdLine, S("/nologo "));
 
             // TODO: archiver.flags /machine:x64
-
-            OutputFlag = S("/OUT:");
-        }
-        else
-        {
-            #if PLATFORM_WINDOWS
-            OutputFlag = S("r ");
-            #else
-            OutputFlag = S("rcs ");
-            #endif
         }
 
         StringLocal(LibFile, MAX_PATH_LENGTH);
@@ -1856,17 +1537,7 @@ bool C_Link(const BuildParams* Params)
 
         String_Concat(&CmdLine, OutputFlag, S("\""), BuildPath, LibFile, S("\" "));
 
-
-        /*
-        if (bIsMicrosoftArchiver)
-        {
-            String_BuildSeparator(&CmdLine, ' ', VerboseFlag, Params->LinkerFlags, Params->Libraries, Params->LibraryDirectories, Params->VersionResFilePath, WinSDKLibPaths);
-        }
-        else
-        */
-        {
-            String_BuildSeparator(&CmdLine, ' ', VerboseFlag, Params->ArchiverFlags, Params->VersionResFilePath);
-        }
+        String_BuildSeparator(&CmdLine, ' ', VerboseFlag, Params->ArchiverFlags);
 
         xx String_EatSpacesInlineFromEnd(&CmdLine);
         String_AppendSpace(&CmdLine);
