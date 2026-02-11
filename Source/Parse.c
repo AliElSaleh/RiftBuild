@@ -17,7 +17,6 @@
 #endif
 
 // todos
-// [ ] provide examples with every parser error message
 // [ ] how to detect multiple inclusions of a file?
 // [ ] prevent including .build files
 // [ ] log .build file path for parser error logs
@@ -938,7 +937,9 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Include(LinearAllocator* Arena, Pa
 
     if (!bFoundTokens)
     {
-        LOG_ERROR("\n[Parser] [Line %u]: '%S' was unexpected after 'include'. Expected a file path or expression.", Parser_Peek(P).Line, Parser_Peek(P).Lexeme);
+        LOG_ERROR("\n[Line %u] Missing file path after 'include'.\n\n"
+                  "  Example:\n"
+                  "    include path/to/file.build\n", Parser_Peek(P).Line);
         return &Node_Null;
     }
 
@@ -1007,7 +1008,11 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena, Parser*
             if (!Parser_Match(P, Token_RCurly))
             {
                 // todo get line number for the else token
-                LOG_ERROR("\n[Parser] [Line %u]: '}' is missing for '%S' block.", Parser_LookBack(P).Line, LastTokenType == Token_If ? S("if") : S("else"));
+                LOG_ERROR("\n[Line %u] Missing closing '}' for '%S' block.\n\n"
+                          "  Example:\n"
+                          "    if windows {\n"
+                          "        Libraries   kernel32 user32\n"
+                          "    }\n", Parser_LookBack(P).Line, LastTokenType == Token_If ? S("if") : S("else"));
                 return &Node_Null;
             }
 
@@ -1033,7 +1038,13 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena, Parser*
                 bool bHasCurly = Parser_Match(P, Token_LCurly);
                 if (bHasCurly)
                 {
-                    LOG_ERROR("\n[Parser] [Line %u]: '{' are not allowed for inline if statements.", Parser_LookBack(P).Line);
+                    LOG_ERROR("\n[Line %u] Cannot use '{' with an inline if. Use either block or inline form, not both.\n\n"
+                              "  Block form:\n"
+                              "    if windows {\n"
+                              "        Libraries   kernel32\n"
+                              "    }\n\n"
+                              "  Inline form:\n"
+                              "    if windows Libraries kernel32\n", Parser_LookBack(P).Line);
                     return &Node_Null;
                 }
 
@@ -1102,7 +1113,9 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena, Parser*
 
                 if (Parser_Peek(P).Type != Token_Text)
                 {
-                    LOG_ERROR("\n[Parser] [Line %u]: '%S' are not allowed within 'if' statements. Please delete.", Parser_Peek(P).Line, Parser_Peek(P).Lexeme);
+                    LOG_ERROR("\n[Line %u] '%S' is not valid in an if condition. Expected a name like 'windows', 'debug', etc.\n\n"
+                              "  Example:\n"
+                              "    if windows Libraries kernel32\n", Parser_Peek(P).Line, Parser_Peek(P).Lexeme);
                     return &Node_Null;
                 }
 
@@ -1136,7 +1149,13 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena, Parser*
                     Comparison.Type == Token_StartsWith     || Comparison.Type == Token_EndsWith    ||
                     Comparison.Type == Token_Contains))
                 {
-                    LOG_ERROR("\n[Parser] [Line %u]: '%S' was unexpected after '%S'. Expected either another 'if', comparison operator, Key Value, or new block after '%S'. Please delete.", Comparison.Line,Comparison.Lexeme, Parser_LookBack(P).Lexeme, Parser_LookBack(P).Lexeme);
+                    LOG_ERROR("\n[Line %u] Unexpected '%S' after '%S'. Expected a key, value, '{', or comparison (==, !=, <, >, etc.).\n\n"
+                              "  Examples:\n"
+                              "    if debug Defines DEBUG=1\n"
+                              "    if version >= 3 Compiler.Flags -std=c11\n"
+                              "    if windows {\n"
+                              "        Libraries   kernel32\n"
+                              "    }\n", Comparison.Line, Comparison.Lexeme, Parser_LookBack(P).Lexeme);
                     return &Node_Null;
                 }
 
@@ -1190,7 +1209,9 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena, Parser*
                         }
                         else
                         {
-                            LOG_ERROR("\n[Parser] [Line %u]: '%S' was unexpected after '%S'. Please delete.", TestToken.Line, TestToken.Lexeme, Comparison.Lexeme);
+                            LOG_ERROR("\n[Line %u] Expected a value after '%S', but got '%S'.\n\n"
+                                      "  Example:\n"
+                                      "    if version >= 3.0 Defines MODERN=1\n", TestToken.Line, Comparison.Lexeme, TestToken.Lexeme);
                             return &Node_Null;
                         }
                     }
@@ -1233,11 +1254,15 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena, Parser*
         {
             if (t.Lexeme.Length > 0)
             {
-                LOG_ERROR("\n[Parser] [Line %u]: '%S' was unexpected after 'if'", t.Line, t.Lexeme);
+                LOG_ERROR("\n[Line %u] '%S' is not valid after 'if'. Expected a condition name.\n\n"
+                          "  Example:\n"
+                          "    if windows Libraries kernel32\n", t.Line, t.Lexeme);
             }
             else
             {
-                LOG_ERROR("\n[Parser] [Line %u]: Missing expression after 'if'", t.Line);
+                LOG_ERROR("\n[Line %u] Missing condition after 'if'.\n\n"
+                          "  Example:\n"
+                          "    if debug Defines DEBUG=1\n", t.Line);
             }
 
             return &Node_Null;
@@ -1346,7 +1371,13 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Pars
             if (PrevTokenType != Token_Text &&
                 PrevTokenType != Token_Assert)
             {
-                LOG_ERROR("\n[Parser] [Line %u]: Anonymous blocks are not allowed. Missing <key> before '{'.", t.Line);
+                LOG_ERROR("\n[Line %u] Missing key name before '{'. Every block needs a key.\n\n"
+                          "  Example:\n"
+                          "    SourceFiles {\n"
+                          "        main.c\n"
+                          "        utils.c\n"
+                          "    }\n", t.Line);
+
                 return &Node_Null;
             }
 
@@ -1359,7 +1390,9 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Pars
 
             if (!Parser_Match(P, Token_RCurly))
             {
-                LOG_ERROR("\n[Parser] [Line %u]: '}' is missing for '%S' block.", Parser_LookBack(P).Line, ETokenTypeNoPrefix_ToString(PrevTokenType));
+                LOG_ERROR("\n[Line %u] Missing closing '}' for '%S' block.\n\n"
+                          "  Make sure every '{' has a matching '}'.\n", Parser_LookBack(P).Line, ETokenTypeNoPrefix_ToString(PrevTokenType));
+
                 return &Node_Null;
             }
 
@@ -1478,7 +1511,14 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Pars
             }
             else
             {
-                LOG_ERROR("\n[Parser] [Line %u]: Unexpected token '['. Please delete.", t.Line);
+                LOG_ERROR("\n[Line %u] Unexpected '['. A key name is required before '['.\n\n"
+                          "  Example:\n"
+                          "    SourceFiles\n"
+                          "    [\n"
+                          "        main.c\n"
+                          "        utils.c\n"
+                          "    ]\n", t.Line);
+
                 return &Node_Null;
             }
         }
@@ -1528,13 +1568,10 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Pars
             // this is an error
             if (String_IsEqual(t.Lexeme, S(".ErrorMessage"), false))
             {
-                LOG_ERROR("\n[Parser] [Line %u]: '%S' must be paired with a key.", t.Line, t.Lexeme);
-                
-                String Spaces = S("     ");
-                LOG_INLINE_WARNING("\n%SExample of valid syntax\n\n", Spaces);
-                LOG("%S      Arg.something.ErrorMessage this is some error message", Spaces);
-                LOG_INLINE_WARNING("%S   or\n", Spaces);
-                LOG("%S      Arg.something.ErrorMessage {\n%S         this is some error message\n%S      }", Spaces, Spaces, Spaces);
+                LOG_ERROR("\n[Line %u] '.ErrorMessage' must follow a key name.\n\n"
+                          "  Example:\n"
+                          "    Require.Option.demo.ErrorMessage  Please specify a demo name\n", t.Line);
+
                 return &Node_Null;
             }
 
@@ -1562,19 +1599,26 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Pars
 
             if (!IsAlphabet(t.Lexeme.Data[0]) && t.Lexeme.Data[0] != '.')
             {
-                LOG_ERROR("\n[Parser] [Line %u]: Key '%S' can only start with an alphabet character or '.'. Please remove '%c'", t.Line, t.Lexeme, t.Lexeme.Data[0]);
+                LOG_ERROR("\n[Line %u] Key '%S' starts with '%c', but keys must start with a letter or '.'.\n\n"
+                          "  Example:\n"
+                          "    SourceFiles   main.c utils.c\n", t.Line, t.Lexeme, t.Lexeme.Data[0]);
+
                 return &Node_Null;
             }
 
             if (String_ContainsSymbolsExceptUnderscore(t.Lexeme))
             {
-                LOG_ERROR("\n[Parser] [Line %u]: Key '%S' can only contain alphabet characters or '.'. Please remove all non-alphabet symbols.", t.Line, t.Lexeme);
+                LOG_ERROR("\n[Line %u] Key '%S' contains invalid characters. Keys can only have letters, numbers, '_', and '.'.\n\n"
+                          "  Example:\n"
+                          "    Compiler.Flags   -Wall -Wextra\n", t.Line, t.Lexeme);
+
                 return &Node_Null;
             }
 
             if (t.Lexeme.Length > MAX_KEY_LENGTH)
             {
-                LOG_ERROR("\n[Parser] [Line %u]: Key '%S' exceeds %u characters. Please shorten to %u or less characters", t.Line, t.Lexeme, MAX_KEY_LENGTH, MAX_KEY_LENGTH);
+                LOG_ERROR("\n[Line %u] Key '%S' is too long (%u chars). Maximum is %u characters.\n", t.Line, t.Lexeme, t.Lexeme.Length, MAX_KEY_LENGTH);
+
                 return &Node_Null;
             }
 
@@ -1606,7 +1650,10 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Pars
 
                 if (!Parser_Match(P, Token_RParen))
                 {
-                    LOG_ERROR("\n[Parser] [Line %u]: '%S' was unexpected within parameter list.", Parser_Peek(P).Line, Parser_Peek(P).Lexeme);
+                    LOG_ERROR("\n[Line %u] Unexpected '%S' in parameter list. Expected ')' to close it.\n\n"
+                              "  Example:\n"
+                              "    Version(define)   1.0.0\n", Parser_Peek(P).Line, Parser_Peek(P).Lexeme);
+
                     return &Node_Null;
                 }
             }
@@ -1645,7 +1692,11 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Pars
 
                         if (!Parser_Match(P, Token_Text))
                         {
-                            LOG_ERROR("\n[Parser] [Line %u]: Text was expected after '%S'. Please delete '%S'", Parser_Peek(P).Line, Parser_LookBack(P).Lexeme, Parser_Peek(P).Lexeme);
+                            LOG_ERROR("\n[Line %u] Expected a name after '%S', but got '%S'.\n\n"
+                                      "  Example:\n"
+                                      "    Libraries:windows   kernel32 user32\n"
+                                      "    Defines:!debug      NDEBUG\n", Parser_Peek(P).Line, Parser_LookBack(P).Lexeme, Parser_Peek(P).Lexeme);
+
                             return &Node_Null;
                         }
 
@@ -1774,7 +1825,15 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Pars
         {
             if (!bInlineIf)
             {
-                LOG_ERROR("\n[Parser] [Line %u]: Illegal 'else' without matching 'if'", t.Line);
+                LOG_ERROR("\n[Line %u] 'else' without a matching 'if'.\n\n"
+                          "  Example:\n"
+                          "    if windows {\n"
+                          "        Libraries   kernel32\n"
+                          "    }\n"
+                          "    else {\n"
+                          "        Libraries   m pthread\n"
+                          "    }\n", t.Line);
+
                 return &Node_Null;
             }
 
@@ -1796,7 +1855,11 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Pars
         }
         else
         {
-            LOG_ERROR("\n[Parser] [Line %u]: Keys can not start with '%S'. Please delete.", t.Line, t.Lexeme);
+            LOG_ERROR("\n[Line %u] '%S' is not valid here. Expected a key name, 'if', or 'include'.\n\n"
+                      "  Example:\n"
+                      "    Assembly       MyApp\n"
+                      "    SourceFiles    main.c utils.c\n", t.Line, t.Lexeme);
+
             return &Node_Null;
         }
 
@@ -2207,11 +2270,9 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
 
             if (l.NumTokens >= MAX_TOKENS)
             {
-                LOG_ERROR("[Lexer] Max tokens of 2048 has been reached. Aborting the lexer...\n");
-                LOG("    We have purposefully limited the amount of tokens that our lexer can store.\n"
-                    "    So this means you will have to simpily your .build file by reducing the amount of text that is present.\n\n"
-                    "    One way to do this is to make another file, move some text over there, and then add an include statement like so:\n"
-                    "      include my_file.buildvars");
+                LOG_ERROR("\n[Lexer] Build file exceeds the maximum of %u tokens.\n\n"
+                          "  Split your build file into smaller files and use 'include':\n"
+                          "    include common.buildvars\n", MAX_TOKENS);
 
                 bLexSuccess = false;
                 break;
