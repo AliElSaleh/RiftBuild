@@ -8,8 +8,14 @@
 STRUCT(FileHandle)
 {
     void* Data;
-    void* Data2;
-    b64   bBypassSizeCheck; // TODO: move this out of here and make an "option" struct for file handles
+};
+
+STRUCT(MemoryMappedFile)
+{
+    void* Handle;
+    void* Mapping;
+    u8*   Data;
+    usize Size;
 };
 
 read_only global FileHandle g_FileHandle;
@@ -32,7 +38,8 @@ typedef bool (*DirectoryIterator)(const String FullPath, const String RelativePa
 RIFT_API NO_DISCARD bool Filesystem_Open(const String FilePath, EFileMode Mode, FileHandle* OutHandle);
 RIFT_API NO_DISCARD bool Filesystem_NewFile(const String FilePath);
 RIFT_API NO_DISCARD bool Filesystem_DeleteFile(String FilePath);
-RIFT_API NO_DISCARD bool Filesystem_Open_MemoryMapped(const String FilePath, EFileMode Mode, FileHandle* OutHandle, u8** OutData, usize* OutSize);
+RIFT_API NO_DISCARD bool Filesystem_Open_MemoryMapped(const String FilePath, EFileMode Mode, MemoryMappedFile* OutFile);
+RIFT_API            void Filesystem_Close_MemoryMapped(MemoryMappedFile* File);
 RIFT_API NO_DISCARD bool Filesystem_OpenDirectory(const String FilePath);
 RIFT_API NO_DISCARD bool Filesystem_OpenDirectory_Ex(const String FilePath, FileHandle* OutHandle);
 RIFT_API            void Filesystem_Close(FileHandle* Handle);

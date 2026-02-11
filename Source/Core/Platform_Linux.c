@@ -273,11 +273,6 @@ bool Platform_GetFullCpuName(String* OutName)
 
     FileHandle f = FileHandle_Null();
 
-    // files inside of /proc/ are fake files with a size of 0 and
-    // therefore our ReadLine function will return immediately.
-    // set this to true so we can skip the size check
-    f.bBypassSizeCheck = true;
-
     if (Filesystem_Open(S("/proc/cpuinfo"), FileMode_Read, &f))
     {
         StringLocal(Line, 256);

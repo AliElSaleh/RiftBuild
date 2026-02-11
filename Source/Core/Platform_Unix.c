@@ -1147,8 +1147,7 @@ bool Filesystem_Open(const String FilePath, EFileMode Mode, FileHandle* OutHandl
         return false;
     }
 
-    OutHandle->Data  = File;
-    OutHandle->Data2 = NULL;
+    OutHandle->Data = File;
 
     return true;
 }
@@ -1173,58 +1172,54 @@ bool Filesystem_DeleteFile(String FilePath)
     return Result == 0;
 }
 
-bool Filesystem_Open_MemoryMapped(const String FilePath, EFileMode Mode, FileHandle* OutHandle, u8** OutData, usize* OutSize)
+bool Filesystem_Open_MemoryMapped(const String FilePath, EFileMode Mode, MemoryMappedFile* OutFile)
 {
-    if (OutSize)
-        *OutSize = 0;
-
-    if (OutData)
-        *OutData = NULL;
-
-    if (NEVER(OutHandle == NULL))
-        return false;
-
-    if (!IsValidFileHandle(*OutHandle))
+    if (NEVER(OutFile == NULL))
     {
-        if (!Filesystem_Open(FilePath, Mode, OutHandle))
-            return false;
+        return false;
+    }
+
+    *OutFile = (MemoryMappedFile){0};
+
+    FileHandle TempHandle = {0};
+    if (!Filesystem_Open(FilePath, Mode, &TempHandle))
+    {
+        return false;
     }
 
     int ProtectFlags = 0;
 
-    if (((Mode & FileMode_Read) != 0) && ((Mode & FileMode_Write) != 0)) // read and write
+    if (((Mode & FileMode_Read) != 0) && ((Mode & FileMode_Write) != 0))
     {
         ProtectFlags = PROT_READ | PROT_WRITE;
     }
-    else if (((Mode & FileMode_Read) != 0) && ((Mode & FileMode_Write) == 0)) // read only
+    else if (((Mode & FileMode_Read) != 0) && ((Mode & FileMode_Write) == 0))
     {
         ProtectFlags = PROT_READ;
     }
-    else if (((Mode & FileMode_Read) == 0) && ((Mode & FileMode_Write) != 0)) // write only
+    else if (((Mode & FileMode_Read) == 0) && ((Mode & FileMode_Write) != 0))
     {
         ProtectFlags = PROT_WRITE;
     }
 
     usize Size = 0;
-    (void)Filesystem_GetFileSize(*OutHandle, &Size);
+    (void)Filesystem_GetFileSize(TempHandle, &Size);
 
-    void* Address = mmap(NULL, Size, ProtectFlags, MAP_SHARED, fileno((FILE*)OutHandle->Data), 0);
+    void* Address = mmap(NULL, Size, ProtectFlags, MAP_SHARED, fileno((FILE*)TempHandle.Data), 0);
 
     if (Address == MAP_FAILED)
     {
         StringLocal(Prefix, 512);
         String_Format(&Prefix, S("Failed to memory map file \"%S\""), FilePath);
         LogLastError(Prefix);
+        Filesystem_Close(&TempHandle);
         return false;
     }
 
-    OutHandle->Data2 = Address;
-
-    if (OutData)
-        *OutData = (u8*)Address;
-
-    if (OutSize) 
-        *OutSize = Size;
+    OutFile->Handle  = TempHandle.Data;
+    OutFile->Mapping = Address;
+    OutFile->Data    = (u8*)Address;
+    OutFile->Size    = Size;
 
     return true;
 }
@@ -1288,31 +1283,31 @@ bool Filesystem_OpenDirectory_Ex(const String FilePath, FileHandle* OutHandle)
 void Filesystem_Close(FileHandle* Handle)
 {
     if (NEVER(Handle == NULL))
-        return;
-
-    //bool bFailedUnmap = false;
-    if (Handle->Data2 && Handle->Data2 != g_FileHandle.Data2)
     {
-        Handle->Data2 = NULL;
-
-        usize Size = 0;
-        (void)Filesystem_GetFileSize(*Handle, &Size);
-
-        if (munmap(Handle->Data2, Size) == -1)
-        {
-            //LogLastError(S("Failed to unmap memory mapped file"));
-            //bFailedUnmap = true;
-        }
+        return;
     }
 
     if (Handle->Data && IsValidFileHandle(*Handle))
     {
         fclose(Handle->Data);
         *Handle = FileHandle_Null();
-        //return !bFailedUnmap;
     }
-    
-    return; //false;
+}
+
+void Filesystem_Close_MemoryMapped(MemoryMappedFile* File)
+{
+    if (File)
+    {
+        if (File->Mapping)
+        {
+            munmap(File->Mapping, File->Size);
+        }
+        if (File->Handle)
+        {
+            fclose(File->Handle);
+        }
+        *File = (MemoryMappedFile){0};
+    }
 }
 
 bool Filesystem_Seek(const FileHandle Handle, isize Offset)

@@ -856,7 +856,6 @@ NO_DISCARD bool Filesystem_Open(const String FilePath, EFileMode Mode, FileHandl
             if (OutHandle)
             {
                 OutHandle->Data = File;
-                OutHandle->Data2 = NULL;
             }
             
             bSuccess = true;
@@ -888,24 +887,62 @@ NO_DISCARD bool Filesystem_DeleteFile(String FilePath)
     return Result != 0;
 }
 
-NO_DISCARD bool Filesystem_Open_MemoryMapped(const String FilePath, EFileMode Mode, FileHandle* OutHandle, u8** OutData, usize* OutSize)
+NO_DISCARD bool Filesystem_Open_MemoryMapped(const String FilePath, EFileMode Mode, MemoryMappedFile* OutFile)
 {
     bool bSuccess = false;
 
-    if (OutSize)
+    if (NEVER(OutFile == NULL))
     {
-        *OutSize = 0;
+        return false;
     }
 
-    if (OutData)
+    *OutFile = (MemoryMappedFile){0};
+
+    StringLocal(PathCopy, MAX_PATH);
+    String_Copy(&PathCopy, FilePath);
+
+    DWORD OpenStyle = 0;
+    DWORD ShareStyle = 0;
+    DWORD Disposition = 0;
+
+    if ((Mode & FileMode_Read) != 0 && (Mode & FileMode_Write) != 0)
     {
-        *OutData = NULL;
+        OpenStyle = GENERIC_READ | GENERIC_WRITE;
+        ShareStyle = FILE_SHARE_READ | FILE_SHARE_WRITE;
+        Disposition = OPEN_ALWAYS;
+        bSuccess = true;
+    }
+    else if ((Mode & FileMode_Read) != 0 && (Mode & FileMode_Write) == 0)
+    {
+        OpenStyle = GENERIC_READ;
+        ShareStyle = FILE_SHARE_READ;
+        Disposition = OPEN_EXISTING;
+        bSuccess = true;
+    }
+    else if ((Mode & FileMode_Read) == 0 && (Mode & FileMode_Write) != 0)
+    {
+        OpenStyle = GENERIC_WRITE;
+        ShareStyle = FILE_SHARE_WRITE;
+        Disposition = CREATE_ALWAYS;
+        bSuccess = true;
+    }
+    else
+    {
+        ENSURE(0);
+        bSuccess = false;
     }
 
-    if (OutHandle && Filesystem_Open(FilePath, Mode, OutHandle))
+    HANDLE FileHandle_ = INVALID_HANDLE_VALUE;
+    if (bSuccess)
     {
-        bSuccess = IsValidFileHandle(*OutHandle);
+        FileHandle_ = CreateFile((char*)PathCopy.Data, OpenStyle, ShareStyle, NULL, Disposition, FILE_ATTRIBUTE_NORMAL, NULL);
+        if (FileHandle_ == INVALID_HANDLE_VALUE)
+        {
+            bSuccess = false;
+        }
     }
+
+    OutFile->Handle = FileHandle_;
 
     DWORD ProtectFlag = 0;
     if (bSuccess)
@@ -929,11 +966,11 @@ NO_DISCARD bool Filesystem_Open_MemoryMapped(const String FilePath, EFileMode Mo
         }
     }
 
-    HANDLE fm = NULL;
+    HANDLE MappingHandle = NULL;
     if (bSuccess)
     {
-        fm = CreateFileMapping(OutHandle->Data, NULL, ProtectFlag, 0, 0, NULL);
-        if (fm == NULL || fm == INVALID_HANDLE_VALUE)
+        MappingHandle = CreateFileMapping(FileHandle_, NULL, ProtectFlag, 0, 0, NULL);
+        if (MappingHandle == NULL || MappingHandle == INVALID_HANDLE_VALUE)
         {
             StringLocal(Prefix, 512);
             String_Format(&Prefix, S("Failed to create file mapping for \"%S\""), FilePath);
@@ -943,22 +980,22 @@ NO_DISCARD bool Filesystem_Open_MemoryMapped(const String FilePath, EFileMode Mo
         }
     }
 
-    DWORD OpenStyle = 0;
+    OutFile->Mapping = MappingHandle;
+
+    DWORD MapAccess = 0;
     if (bSuccess)
     {
-        OutHandle->Data2 = fm;
-
         if ((Mode & FileMode_Read) != 0 && (Mode & FileMode_Write) != 0)
         {
-            OpenStyle = FILE_MAP_READ | FILE_MAP_WRITE;
+            MapAccess = FILE_MAP_READ | FILE_MAP_WRITE;
         }
         else if ((Mode & FileMode_Read) != 0 && (Mode & FileMode_Write) == 0)
         {
-            OpenStyle = FILE_MAP_READ;
+            MapAccess = FILE_MAP_READ;
         }
         else if ((Mode & FileMode_Read) == 0 && (Mode & FileMode_Write) != 0)
         {
-            OpenStyle = FILE_MAP_WRITE;
+            MapAccess = FILE_MAP_WRITE;
         }
         else
         {
@@ -970,22 +1007,23 @@ NO_DISCARD bool Filesystem_Open_MemoryMapped(const String FilePath, EFileMode Mo
     if (bSuccess)
     {
         LARGE_INTEGER FileSize = {0};
-        (void)GetFileSizeEx(OutHandle->Data, &FileSize);
+        (void)GetFileSizeEx(FileHandle_, &FileSize);
 
-        if (OutSize)
+        void* View = MapViewOfFile(MappingHandle, MapAccess, 0, 0, (SIZE_T)FileSize.QuadPart);
+        if (View)
         {
-            *OutSize = (usize)FileSize.QuadPart;
+            OutFile->Data    = (u8*)View;
+            OutFile->Size    = (usize)FileSize.QuadPart;
         }
-
-        if (OutData)
+        else
         {
-            *OutData = MapViewOfFile(fm, OpenStyle, 0, 0, (SIZE_T)FileSize.QuadPart);
+            bSuccess = false;
         }
     }
 
     if (!bSuccess)
     {
-        Filesystem_Close(OutHandle);
+        Filesystem_Close_MemoryMapped(OutFile);
     }
 
     return bSuccess;
@@ -1090,16 +1128,31 @@ void Filesystem_Close(FileHandle* Handle)
 {
     if (Handle)
     {
-        if (Handle->Data2)
-        {
-            CloseHandle(Handle->Data2);
-        }
-
         if (IsValidFileHandle(*Handle))
         {
             CloseHandle(Handle->Data);
             *Handle = FileHandle_Null();
         }
+    }
+}
+
+void Filesystem_Close_MemoryMapped(MemoryMappedFile* File)
+{
+    if (File)
+    {
+        if (File->Data)
+        {
+            UnmapViewOfFile(File->Data);
+        }
+        if (File->Mapping && File->Mapping != INVALID_HANDLE_VALUE)
+        {
+            CloseHandle(File->Mapping);
+        }
+        if (File->Handle && File->Handle != INVALID_HANDLE_VALUE)
+        {
+            CloseHandle(File->Handle);
+        }
+        *File = (MemoryMappedFile){0};
     }
 }
 

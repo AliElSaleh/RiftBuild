@@ -9,7 +9,7 @@
 #include "Uuid.h"
 #endif
 
-read_only FileHandle g_FileHandle = { .Data = &(u8[64]){0}, .Data2 = &(u8[64]){0}, .bBypassSizeCheck = false };
+read_only FileHandle g_FileHandle = { .Data = &(u8[64]){0} };
 
 #if CPU_X86 || CPU_X64
 

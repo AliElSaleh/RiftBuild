@@ -1803,6 +1803,7 @@ WINBASEAPI NO_DISCARD BOOL       WINAPI DeleteFileA(LPCTSTR lpFileName);
 WINBASEAPI NO_DISCARD HANDLE     WINAPI CreateFileMappingA(HANDLE hFile, LPSECURITY_ATTRIBUTES lpFileMappingAttributes, DWORD flProtect, DWORD dwMaximumSizeHigh, DWORD dwMaximumSizeLow, LPCSTR lpName);
 WINBASEAPI NO_DISCARD BOOL       WINAPI GetFileSizeEx(HANDLE hFile, PLARGE_INTEGER lpFileSize);
 WINBASEAPI NO_DISCARD LPVOID     WINAPI MapViewOfFile(HANDLE hFileMappingObject, DWORD dwDesiredAccess, DWORD dwFileOffsetHigh, DWORD dwFileOffsetLow, SIZE_T dwNumberOfBytesToMap);
+WINBASEAPI            BOOL       WINAPI UnmapViewOfFile(LPCVOID lpBaseAddress);
 WINBASEAPI NO_DISCARD DWORD      WINAPI SetFilePointer(HANDLE hFile, LONG lDistanceToMove, PLONG lpDistanceToMoveHigh, DWORD dwMoveMethod);
 WINBASEAPI NO_DISCARD BOOL       WINAPI GetFileTime(HANDLE hFile, LPFILETIME lpCreationTime, LPFILETIME lpLastAccessTime, LPFILETIME lpLastWriteTime);
 WINBASEAPI NO_DISCARD BOOL       WINAPI ReadFile(HANDLE hFile, LPVOID lpBuffer, DWORD nNumberOfBytesToRead, LPDWORD lpNumberOfBytesRead, LPOVERLAPPED lpOverlapped);
