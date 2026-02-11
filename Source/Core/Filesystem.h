@@ -10,13 +10,6 @@ STRUCT(FileHandle)
     void* Data;
     void* Data2;
     b64   bBypassSizeCheck; // TODO: move this out of here and make an "option" struct for file handles
-#if PLATFORM_OPEN_BSD
-    // OpenBSD does not a have a way to get the path of a file descriptor
-    // as it is not a part of their design philosophy. This is a workaround.
-    // https://marc.info/?l=openbsd-tech&m=164250539119078&w=2
-    // https://www.mail-archive.com/misc@openbsd.org/msg188221.html
-    StringN(MAX_PATH_LENGTH) Path;
-#endif
 };
 
 read_only global FileHandle g_FileHandle;

@@ -12,7 +12,7 @@ STRUCT(LinearAllocator)
     usize TotalSize;
     usize Allocated;
 
-    b64 bOwnsMemory;
+    usize bOwnsMemory;
 };
 
 /*

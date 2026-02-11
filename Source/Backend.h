@@ -311,6 +311,12 @@ EAssembler DetermineAssemblerVendor(String CompilerPath);
 
 // Parsing functions --------------------
 
+STRUCT(IncludeFile)
+{
+    FileHandle Handle;
+    String     Path;
+};
+
 STRUCT(ParsingContext)
 {
     LinearAllocator*     PermanentArena;
@@ -318,7 +324,7 @@ STRUCT(ParsingContext)
     TArray(FileVariable) VariablesDB;
     TArray(CmdOption)    CmdOptionsDB;
     TArray(String)       Messages;
-    TArray(FileHandle)   IncludeFiles;
+    TArray(IncludeFile)  IncludeFiles;
     FileVariableList*    VarListHead;
     FileVariableList**   VarListTail;
     String               WorkingDirectory;
@@ -377,6 +383,8 @@ bool Export_VersionRC(const BuildParams* Params, const String Path);
 bool Export_IconRC(const String Path, const String IconFilePath);
 bool Export_WindowsBatchScript(const BuildParams* Params);
 bool Export_UnixShellScript(const BuildParams* Params);
+bool Export_VisualStudioSolution(const BuildParams* Params, const String Path);
+bool Export_VisualStudioProject(const BuildParams* Params, const String Path);
 
 // LicenseType: BSD2, BSD3, MIT, FuckYou, Unlicense
 bool Export_License(const String LicenseType, const BuildParams* Params, const String OutputPath);

@@ -11,10 +11,8 @@ Linker.Stack                     8000000 # 8MB
 
 if msvc
 {
-    TempWarnings /wd4702
-
     WarningFlags                     /Wall /W4 /WX
-    WarningFlagsDisabled             /wd4100 /wd4164 /wd4668 /wd5045 /wd4711 $TempWarnings
+    WarningFlagsDisabled             /wd4100 /wd4164 /wd4668 /wd5045 /wd4711
 
     SharedCompilerFlags              $WarningFlags $WarningFlagsDisabled /TC /GS- /Gs999999999 /EHs- /permissive- /analyze /analyze:stacksize 8000000
     #SharedCompilerFlags:32           /d2noftol3
@@ -70,7 +68,7 @@ if tcc
 
 if clang|gcc
 {
-    WarningFlags                     -Wall -Wextra -Wshadow -Wconversion -Wmissing-prototypes -Wunused -Wuninitialized -Werror
+    WarningFlags                     -Wall -Wextra -Wshadow -Wconversion -Wmissing-prototypes -Wunused -Wuninitialized -Wimplicit-fallthrough -Werror
     WarningFlagsDisabled             -Wno-unused-parameter -Wno-typedef-redefinition
     WarningFlagsDisabled:mac         -Wno-nonportable-include-path
 

@@ -1373,10 +1373,7 @@ bool C_Link(const BuildParams* Params)
         const String OutputFlag = Params->LinkerOutputFlag;
         String DefaultObjExtension = bIsMicrosoftLinker ? S(".obj") : S(".o");
         
-        String_BuildSeparator(&CmdLine, ' ', VerboseFlag,
-                                             //SharedFlag,
-                                             //bIsMicrosoftLinker ? WinSDKLibPaths : String_Null());
-        );
+        String_BuildSeparator(&CmdLine, ' ', VerboseFlag);
 
         xx String_EatSpacesInlineFromEnd(&CmdLine);
         String_AppendSpace(&CmdLine);

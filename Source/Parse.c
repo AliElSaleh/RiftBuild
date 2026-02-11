@@ -36,7 +36,6 @@ void AddVariable(LinearAllocator* Arena,
     var.Name         = String_CreateMax(Arena, Name, MAX_KEY_LENGTH);
     var.Value        = String_ReserveAndCopy(Arena, MaxValueLength, Value);
 
-    // todo: can be made static?
     Array_Add(VariablesDB, var);
 }
 
@@ -2535,7 +2534,10 @@ NO_DISCARD static NodeList* Analyze_IncludeNode(Node* Root, ParsingContext* Cont
 
         if (bSuccess)
         {
-            Array_Add(Context->IncludeFiles, f);
+            IncludeFile Inc = {0};
+            Inc.Handle = f;
+            Inc.Path   = String_Duplicate(Context->PermanentArena, Expanded);
+            Array_Add(Context->IncludeFiles, Inc);
         }
 
         if (bSuccess)
@@ -2557,8 +2559,8 @@ NO_DISCARD static NodeList* Analyze_IncludeNode(Node* Root, ParsingContext* Cont
         
         if (bSuccess)
         {
-            StringLocal(IncludePath, MAX_PATH_LENGTH);
-            if (Filesystem_GetFilePath(f, &IncludePath))
+            String IncludePath = Expanded;
+            if (IncludePath.Length > 0)
             {
                 /*
                 if (Includes)

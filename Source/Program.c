@@ -2430,30 +2430,25 @@ static void Internal_AddOrUpdateBuildVariable(TArray(FileVariable) VariablesDB, 
     Array_Add(VariablesDB, Expanded);
 }
 
-static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const FileHandle BuildFileHandle, TArray(FileVariable) VariablesDB)//, TArray(FileVariable) VariablesDB)
+static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const String BuildFilePath, TArray(FileVariable) VariablesDB)//, TArray(FileVariable) VariablesDB)
 {
     if (!DoesBuildVarExist(VariablesDB, S("Assembly")))
     {
-        StringLocal(Path, MAX_PATH_LENGTH);
-
         String Name = S("Untitled");
 
-        if (IsValidFileHandle(BuildFileHandle))
+        if (BuildFilePath.Length > 0)
         {
-            if (Filesystem_GetFilePath(BuildFileHandle, &Path))
-            {
-                u32 LastSlash = 0;
-                bool bHasSlash = String_IndexOfLastPathSlash(Path, &LastSlash);
+            u32 LastSlash = 0;
+            bool bHasSlash = String_IndexOfLastPathSlash(BuildFilePath, &LastSlash);
 
-                String FileName = bHasSlash ? StrShiftF(Path, LastSlash+1) : Path;
-                
-                u32 LastDot = 0;
-                bool bHasDot = String_IndexOfLastChar(FileName, '.', &LastDot);
-                FileName = bHasDot ? StrSlice(FileName.Data, LastDot) : FileName;
-                if (FileName.Length > 0)
-                {
-                    Name = FileName;
-                }
+            String FileName = bHasSlash ? StrShiftF(BuildFilePath, LastSlash+1) : BuildFilePath;
+            
+            u32 LastDot = 0;
+            bool bHasDot = String_IndexOfLastChar(FileName, '.', &LastDot);
+            FileName = bHasDot ? StrSlice(FileName.Data, LastDot) : FileName;
+            if (FileName.Length > 0)
+            {
+                Name = FileName;
             }
         }
 
@@ -3242,9 +3237,9 @@ static bool Parameters_TryListVariables(LinearAllocator Scratch, const StringArr
                 // todo: put in function? clean up code routine?
                 // shouldnt be here. remove
                 /*
-                for each (FileHandle, File, IncludeFiles)
+                for each (IncludeFile, File, IncludeFiles)
                 {
-                    Filesystem_Close(&File);
+                    Filesystem_Close(&File.Handle);
                 }
                 */
 
@@ -3557,7 +3552,7 @@ static bool TryDetectDirectoryStateChangeAndUpdate(const String DirectoryStatePa
 
 
 static BuildReceipt BuildTarget(LinearAllocator* Arena,
-                        const FileHandle BuildFileHandle, PlatformMutex* BuildMutex,
+                        const FileHandle BuildFileHandle, const String BuildFilePath, PlatformMutex* BuildMutex,
                         const String WorkingPath, const StringArray Parameters, const String CameFromBuildFile,
                         i8 BuildFileIndex, i8 RootPathIndex)
 {
@@ -3579,9 +3574,9 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     Receipt.WorkingPath = WorkingPath;
 
     // make sure we can get the path of the build file (if applicable)
-    StringLocal(BuildFilePathFull, MAX_PATH_LENGTH);
+    String BuildFilePathFull = BuildFilePath;
     bool bFoundBuildFile = IsValidFileHandle(BuildFileHandle);
-    bool bBuildFilePathSuccess = Filesystem_GetFilePath(BuildFileHandle, &BuildFilePathFull);
+    bool bBuildFilePathSuccess = BuildFilePathFull.Length > 0;
     if (bFoundBuildFile && (BuildFilePathFull.Length == 0 || !bBuildFilePathSuccess))
     {
         LOG_FATAL("Operating system error: Failed to retrieve build file path from its handle. Aborting...");
@@ -3645,8 +3640,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     u32 MaxLogicalCores = Platform_GetNumLogicalProcessors();
 
     ArrayLocal_Arena(FileVariable,   VariablesDB,    256, Arena); // 8192 bytes
-
-    ArrayLocal_Arena(FileHandle,     IncludeFiles,   64,  Arena); // 1024 bytes
+    ArrayLocal_Arena(IncludeFile,    IncludeFiles,   64,  Arena);
     ArrayLocal_Arena(CmdOption,      CmdOptionsDB,   128, Arena); // 4608 bytes
     ArrayLocal_Arena(String,         Messages,       128, Arena); // 2048 bytes
 
@@ -3705,13 +3699,13 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     AddCmdOption(CmdOptionsDB, S("_Args"), RiftCmdLine);
 
     String BuildFileName;
-    StringLocal(BuildFilePath, MAX_PATH_LENGTH);
+    StringLocal(BuildFileRelPath, MAX_PATH_LENGTH);
     {
         u32 LastSlash = 0;
         bool bHasSlash = String_IndexOfLastPathSlash(BuildFilePathFull, &LastSlash);
 
         BuildFileName = bHasSlash ? StrShiftF(BuildFilePathFull, LastSlash+1) : BuildFilePathFull;
-        
+
         const String NameCopy = String_Create(Arena, BuildFileName);
 
         u32 LastDot = 0;
@@ -3726,7 +3720,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
         const String PathRelative = StrShiftF(PathNoExt, WorkingPath.Length+1);
 
-        String_BuildPath(&BuildFilePath, PathRelative, BuildFileName);
+        String_BuildPath(&BuildFileRelPath, PathRelative, BuildFileName);
 
         AddCmdOption(CmdOptionsDB, S("_FileDirectory"), String_Create(Arena, PathRelative));
         
@@ -4110,9 +4104,8 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         AddCmdOption(CmdOptionsDB, S("Archiver.Path"), String_Create(Arena, FoundCompilerPaths.ArchiverPath));
 
         // set defaults for a few key build variables
-        FileHandle f = {0};
         bool bAnyOverriden = CheckForBuildVariableOverrides(VariablesDB, CmdOptionsDB);
-        Internal_SetDefaultBuildVariables(Arena, f, VariablesDB);
+        Internal_SetDefaultBuildVariables(Arena, String_Null(), VariablesDB);
 
         bAnyVarsOverriden = bAnyOverriden;
     }
@@ -4430,6 +4423,8 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     Clock DependencyBuildClock;
     Clock_Start(&DependencyBuildClock);
 
+    bool bAnyDependenciesDidWork = false;
+
     // run build depenencies
     // if (!bExportingSomething)
     {
@@ -4695,7 +4690,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             String RelativeWorkingPathFromMe = bUsingRelativePath ? CustomRelativePath : CustomWorkingPath_Full;
 
             PlatformMutex NewMutex = {0};
-            BuildReceipt FreshReceipt = BuildTarget(&NewArena, f, &NewMutex, CustomWorkingPath_Full, NewParams, BuildFileName, -1, -1);
+            BuildReceipt FreshReceipt = BuildTarget(&NewArena, f, NewBuildFilePath, &NewMutex, CustomWorkingPath_Full, NewParams, BuildFileName, -1, -1);
             if (NewMutex.Handle) { xx Platform_ReleaseMutex(&NewMutex); }
 
             Filesystem_Close(&f);
@@ -4787,6 +4782,8 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
             if (FreshReceipt.bWorkWasDone)
             {
+                bAnyDependenciesDidWork = true;
+                
                 bool bIsSpecial = String_IsEqual(Var.Params, S("Rebuild_If_Done_Work"), false);
                 if (!bIsRebuild && bIsSpecial)
                 {
@@ -5397,16 +5394,15 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
             if (AssemblyFileTime > 0)
             {
-                for each (FileHandle, Include, IncludeFiles)
+                for (u32 IncIdx = 0; IncIdx < Array_Num(IncludeFiles); IncIdx++)
                 {
-                    u64 IncludeFileTime = Filesystem_GetLastWriteTimeH(Include);
+                    u64 IncludeFileTime = Filesystem_GetLastWriteTimeH(IncludeFiles[IncIdx].Handle);
 
                     if (IncludeFileTime >= AssemblyFileTime)
                     {
                         bIsRebuild = true;
 
-                        StringLocal(Path, MAX_PATH_LENGTH);
-                        xx Filesystem_GetFilePath(Include, &Path);
+                        String Path = IncludeFiles[IncIdx].Path;
 
                         #ifndef HOOD
                         LOG("Build variables file \"%S\" has been modified since last build. Forcing rebuild...", Path);
@@ -5422,9 +5418,9 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             }
         }
 
-        for each (FileHandle, File, IncludeFiles)
+        for each (IncludeFile, File, IncludeFiles)
         {
-            Filesystem_Close(&File);
+            Filesystem_Close(&File.Handle);
         }
 
         // force a rebuild if either the intermediate directory is missing
@@ -6635,7 +6631,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         }
     }
 
-    bool bNoMoreWorkToDo = NumCompiled == 0 && bAssemblyExists;
+    bool bNoMoreWorkToDo = NumCompiled == 0 && bAssemblyExists && !bAnyDependenciesDidWork;
     if (bNoMoreWorkToDo)
     {
         if (bSkipPostBuild)
@@ -7244,7 +7240,7 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments, const 
                     }
 
                     StringList List = String_SplitIntoList(Arena, Trimmed, ' ', true);
-                    u16 Num = StringList_Count(List);
+                    u16 Num = (u16)StringList_Count(List);
 
                     // TODO: rework this, so baaaaaddd...
                     if (bWantsRebuild) { Num += 1; }
@@ -7353,6 +7349,8 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments, const 
 
     StringArray BuildArguments = Arguments;
 
+    StringLocal(BuildFilePathFull, MAX_PATH_LENGTH);
+
     if (Data.bFoundBuildFile)
     {
         if (Data.NumBuildFilesFound > 1 && BuildFilePath.Length == 0)
@@ -7382,8 +7380,6 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments, const 
                 }
             }
         }
-
-        StringLocal(BuildFilePathFull, MAX_PATH_LENGTH);
         if (bBuildPathGivenInCmdLine)
         {
             if (Filesystem_IsPathRelative(BuildFilePath))
@@ -7514,7 +7510,7 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments, const 
             if (bFoundPreset)
             {
                 StringList List = String_SplitIntoList(Arena, PresetArgumentLine, ' ', true);
-                u16 Num = StringList_Count(List);
+                u16 Num = (u16)StringList_Count(List);
 
                 StringArray NewArguments = {0};
                 if (Num > 0)
@@ -7542,7 +7538,7 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments, const 
     }
 
     PlatformMutex BuildMutex = {0};
-    BuildReceipt Receipt = BuildTarget(Arena, BuildFileHandle, &BuildMutex, WorkingDirectory, BuildArguments, String_Null(), BuildFileIndex, RootPathIndex);
+    BuildReceipt Receipt = BuildTarget(Arena, BuildFileHandle, BuildFilePathFull, &BuildMutex, WorkingDirectory, BuildArguments, String_Null(), BuildFileIndex, RootPathIndex);
     if (BuildMutex.Handle) { xx Platform_ReleaseMutex(&BuildMutex); }
 
     Filesystem_Close(&BuildFileHandle);

@@ -280,8 +280,8 @@ bool Filesystem_GetFilePath(const FileHandle Handle, String* OutPath)
 // https://marc.info/?l=openbsd-tech&m=164250539119078&w=2
 // https://www.mail-archive.com/misc@openbsd.org/msg188221.html
 #elif PLATFORM_OPEN_BSD
-    String_Copy(OutPath, StrMake(Handle.Path));
-    return true;
+    // String_Copy(OutPath, StrMake(Handle.Path));
+    return false;
 #endif
 
     return false;

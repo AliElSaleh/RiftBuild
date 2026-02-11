@@ -1150,14 +1150,6 @@ bool Filesystem_Open(const String FilePath, EFileMode Mode, FileHandle* OutHandl
     OutHandle->Data  = File;
     OutHandle->Data2 = NULL;
 
-#if PLATFORM_OPEN_BSD
-    String Path = StrMake(OutHandle->Path);
-    Path.Capacity = MAX_PATH_LENGTH;
-    String_Copy(&Path, FilePath);
-    OutHandle->Path.Length = Path.Length;
-    OutHandle->Path.Capacity = Path.Capacity;
-#endif
-
     return true;
 }
 
@@ -1308,12 +1300,7 @@ void Filesystem_Close(FileHandle* Handle)
 
         if (munmap(Handle->Data2, Size) == -1)
         {
-            StringLocal(Path, MAX_PATH_LENGTH);
-            (void)Filesystem_GetFilePath(*Handle, &Path);
-
-            StringLocal(Prefix, 512);
-            String_Format(&Prefix, S("Failed to unmap memory for file \"%S\""), Path);
-            LogLastError(Prefix);
+            //LogLastError(S("Failed to unmap memory mapped file"));
             //bFailedUnmap = true;
         }
     }
@@ -1333,12 +1320,7 @@ bool Filesystem_Seek(const FileHandle Handle, isize Offset)
     i32 ErrorCode = fseek(Handle.Data, Offset, SEEK_CUR);
     if (ErrorCode == -1)
     {
-        StringLocal(Path, MAX_PATH_LENGTH);
-        (void)Filesystem_GetFilePath(Handle, &Path);
-
-        StringLocal(Prefix, 512);
-        String_Format(&Prefix, S("Seek failed for \"%S\""), Path);
-        LogLastError(Prefix);
+        //LogLastError(S("Seek failed"));
         return false;
     }
 
@@ -1350,12 +1332,7 @@ bool Filesystem_SeekFromBeginning(const FileHandle Handle, usize Offset)
     i32 ErrorCode = fseek(Handle.Data, (i32)Offset, SEEK_SET);
     if (ErrorCode == -1)
     {
-        StringLocal(Path, MAX_PATH_LENGTH);
-        (void)Filesystem_GetFilePath(Handle, &Path);
-
-        StringLocal(Prefix, 512);
-        String_Format(&Prefix, S("SeekFromBeginning failed for \"%S\""), Path);
-        LogLastError(Prefix);
+        //LogLastError(S("SeekFromBeginning failed"));
         return false;
     }
 
@@ -1367,12 +1344,7 @@ bool Filesystem_SeekFromEnd(const FileHandle Handle, usize Offset)
     i32 ErrorCode = fseek(Handle.Data, (i32)Offset, SEEK_END);
     if (ErrorCode == -1)
     {
-        StringLocal(Path, MAX_PATH_LENGTH);
-        (void)Filesystem_GetFilePath(Handle, &Path);
-
-        StringLocal(Prefix, 512);
-        String_Format(&Prefix, S("SeekFromEnd failed for \"%S\""), Path);
-        LogLastError(Prefix);
+        //LogLastError(S("SeekFromEnd failed"));
         return false;
     }
 
@@ -1384,12 +1356,7 @@ bool Filesystem_SeekToBeginning(const FileHandle Handle)
     i32 ErrorCode = fseek(Handle.Data, 0, SEEK_SET);
     if (ErrorCode == -1)
     {
-        StringLocal(Path, MAX_PATH_LENGTH);
-        (void)Filesystem_GetFilePath(Handle, &Path);
-
-        StringLocal(Prefix, 512);
-        String_Format(&Prefix, S("SeekToBeginning failed for \"%S\""), Path);
-        LogLastError(Prefix);
+        //LogLastError(S("SeekToBeginning failed"));
         return false;
     }
 
@@ -1401,12 +1368,7 @@ bool Filesystem_SeekToEnd(const FileHandle Handle)
     i32 ErrorCode = fseek(Handle.Data, 0, SEEK_END);
     if (ErrorCode == -1)
     {
-        StringLocal(Path, MAX_PATH_LENGTH);
-        (void)Filesystem_GetFilePath(Handle, &Path);
-
-        StringLocal(Prefix, 512);
-        String_Format(&Prefix, S("SeekToEnd failed for \"%S\""), Path);
-        LogLastError(Prefix);
+        //LogLastError(S("SeekToEnd failed"));
         return false;
     }
 
@@ -1493,39 +1455,50 @@ usize Filesystem_GetCreationTime(const String FilePath)
 
 usize Filesystem_GetLastWriteTimeH(const FileHandle Handle)
 {
-    //fstat(fileno(Handle->Data), &FileStat);
-    // TODO: something better
-    StringLocal(Path, MAX_PATH_LENGTH);
-    (void)Filesystem_GetFilePath(Handle, &Path);
+    usize Result = 0;
+    struct stat FileStat = {0};
+    if (fstat(fileno(Handle.Data), &FileStat) != -1)
+    {
+        Result = (usize)FileStat.st_mtime;
+    }
 
-    return Filesystem_GetLastWriteTime(Path);
+    return Result;
 }
 
 usize Filesystem_GetLastAccessTimeH(const FileHandle Handle)
 {
-    StringLocal(Path, MAX_PATH_LENGTH);
-    (void)Filesystem_GetFilePath(Handle, &Path);
+    usize Result = 0;
+    struct stat FileStat = {0};
+    if (fstat(fileno(Handle.Data), &FileStat) != -1)
+    {
+        Result = (usize)FileStat.st_atime;
+    }
 
-    return Filesystem_GetLastAccessTime(Path);
+    return Result;
 }
 
 usize Filesystem_GetCreationTimeH(const FileHandle Handle)
 {
-    StringLocal(Path, MAX_PATH_LENGTH);
-    (void)Filesystem_GetFilePath(Handle, &Path);
+    usize Result = 0;
+    struct stat FileStat = {0};
+    if (fstat(fileno(Handle.Data), &FileStat) != -1)
+    {
+        Result = (usize)birthtime(FileStat);
+    }
 
-    return Filesystem_GetCreationTime(Path);
+    return Result;
 }
 
 FileTimeData Filesystem_GetFileTimeH(const FileHandle Handle)
 {
-    StringLocal(Path, MAX_PATH_LENGTH);
-    (void)Filesystem_GetFilePath(Handle, &Path);
-
     FileTimeData a = {0};
-    a.CreationTime = Filesystem_GetCreationTime(Path);
-    a.LastAccessTime = Filesystem_GetLastAccessTime(Path);
-    a.LastWriteTime = Filesystem_GetLastWriteTime(Path);
+    struct stat FileStat = {0};
+    if (fstat(fileno(Handle.Data), &FileStat) != -1)
+    {
+        a.CreationTime = (usize)birthtime(FileStat);
+        a.LastAccessTime = (usize)FileStat.st_atime;
+        a.LastWriteTime = (usize)FileStat.st_mtime;
+    }
     return a;
 }
 
@@ -1555,12 +1528,7 @@ bool Filesystem_Read(const FileHandle Handle, usize DataSize, void* OutData, usi
     usize BytesRead = fread(OutData, 1, DataSize, Handle.Data);
     if (BytesRead == 0)
     {
-        StringLocal(Path, MAX_PATH_LENGTH);
-        (void)Filesystem_GetFilePath(Handle, &Path);
-
-        StringLocal(Prefix, MAX_PATH_LENGTH);
-        String_Format(&Prefix, S("Failed to read file \"%S\""), Path);
-        LogLastError(Prefix);
+        //LogLastError(S("Failed to read file"));
         return false;
     }
 
@@ -1583,12 +1551,7 @@ bool Filesystem_ReadEntireFile(const FileHandle Handle, void* OutData, usize* Ou
     usize BytesRead = fread(OutData, 1, Size, Handle.Data);
     if (BytesRead == 0)
     {
-        StringLocal(Path, MAX_PATH_LENGTH);
-        (void)Filesystem_GetFilePath(Handle, &Path);
-
-        StringLocal(Prefix, MAX_PATH_LENGTH);
-        String_Format(&Prefix, S("Failed to read entire file \"%S\""), Path);
-        LogLastError(Prefix);
+        //LogLastError(S("Failed to read entire file"));
         return false;
     }
 
@@ -1618,12 +1581,7 @@ bool Filesystem_ReadLine(const FileHandle Handle, String* LineBuffer)
     u64 BytesRead = fread(TempBuffer, 1, 8191, Handle.Data);
     if (BytesRead == 0)
     {
-        StringLocal(Path, MAX_PATH_LENGTH);
-        (void)Filesystem_GetFilePath(Handle, &Path);
-
-        StringLocal(Prefix, MAX_PATH_LENGTH);
-        String_Format(&Prefix, S("Failed to read line for file \"%S\""), Path);
-        LogLastError(Prefix);
+        //LogLastError(S("Failed to read line from file"));
         return false;
     }
 
@@ -1685,12 +1643,7 @@ bool Filesystem_Write(const FileHandle Handle, usize DataSize, const void* Data,
     usize BytesWritten = fwrite(Data, 1, DataSize, Handle.Data);
     if (BytesWritten == 0)
     {
-        StringLocal(Path, MAX_PATH_LENGTH);
-        (void)Filesystem_GetFilePath(Handle, &Path);
-
-        StringLocal(Prefix, MAX_PATH_LENGTH);
-        String_Format(&Prefix, S("Failed to write to file \"%S\""), Path);
-        LogLastError(Prefix);
+        //LogLastError(S("Failed to write to file"));
         return false;
     }
 
@@ -1709,12 +1662,7 @@ bool Filesystem_WriteLine(const FileHandle Handle, const String Text, usize* Out
     usize BytesWritten = fwrite(Text.Data, 1, Text.Length, Handle.Data);
     if (BytesWritten == 0)
     {
-        StringLocal(Path, MAX_PATH_LENGTH);
-        (void)Filesystem_GetFilePath(Handle, &Path);
-
-        StringLocal(Prefix, MAX_PATH_LENGTH);
-        String_Format(&Prefix, S("Failed to write line to file \"%S\""), Path);
-        LogLastError(Prefix);
+        //LogLastError(S("Failed to write line to file"));
         return false;
     }
 
@@ -1739,12 +1687,7 @@ bool Filesystem_WriteLineFormatted(const FileHandle Handle, const String Text, u
     usize BytesWritten = fwrite(Buffer.Data, 1, Buffer.Length, Handle.Data);
     if (BytesWritten == 0)
     {
-        StringLocal(Path, MAX_PATH_LENGTH);
-        (void)Filesystem_GetFilePath(Handle, &Path);
-
-        StringLocal(Prefix, MAX_PATH_LENGTH);
-        String_Format(&Prefix, S("Failed to write line to file \"%S\""), Path);
-        LogLastError(Prefix);
+        //LogLastError(S("Failed to write formatted line to file"));
         return false;
     }
 
@@ -1808,19 +1751,13 @@ bool Filesystem_DoesDirectoryExist(const String FilePath)
 
 bool Filesystem_GetFileSize(const FileHandle File, usize* OutSize)
 {
-    bool bSuccess = false;
+    struct stat FileStat = {0};
+    i32 Result = fstat(fileno(File.Data), &FileStat);
+    bool bSuccess = Result == 0;
 
-    StringLocal(Path, MAX_PATH_LENGTH);
-    if (Filesystem_GetFilePath(File, &Path))
+    if (OutSize)
     {
-        struct stat filestat = {0};
-        i32 Result = stat((const char*)Path.Data, &filestat);
-        bSuccess = Result == 0;
-
-        if (OutSize)
-        {
-            *OutSize = (usize)filestat.st_size;
-        }
+        *OutSize = (usize)FileStat.st_size;
     }
 
     return bSuccess;
