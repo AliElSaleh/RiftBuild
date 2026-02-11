@@ -199,6 +199,7 @@ RIFT_API NO_DISCARD StringList* StringList_Create(LinearAllocator* Arena, String
 RIFT_API NO_DISCARD StringList* StringList_CreateWithCopy(LinearAllocator* Arena, String Value, StringList* Next);
 RIFT_API NO_DISCARD StringList  StringList_Iterate_Next(StringList InList);
 RIFT_API NO_DISCARD bool        StringList_Iterate_Check(StringList InList);
+RIFT_API NO_DISCARD u32         StringList_Count(StringList List);
 
 RIFT_API NO_DISCARD bool StringArray_Contains(const StringArray InArray, const String SubString, bool bCaseSensitive);
 

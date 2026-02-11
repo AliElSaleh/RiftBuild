@@ -3636,6 +3636,13 @@ NO_DISCARD String StringList_GetStringFromIndex(StringList List, u32 Index)
     return Result;
 }
 
+NO_DISCARD u32 StringList_Count(StringList List)
+{
+    u32 Count = 0;
+    for each_str_list (List) { Count += 1; }
+    return Count;
+}
+
 NO_DISCARD ASAN_NO_SANITIZE_ADDRESS u32 String_GetLength_Fast(const char* Str)
 {
     char* StrCopy = (char*)Str;

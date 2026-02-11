@@ -41,9 +41,8 @@ static void WriteFlags(LinearAllocator Scratch, const FileHandle File, const Str
 {
     u16 i = 0;
     StringList List = String_SplitIntoList(&Scratch, Flags, ' ', true);
-    // TODO: function
-    u32 Num = 0;
-    for each_str_list (List) { Num += 1; }
+
+    u32 Num = StringList_Count(List);
     if (Num > 0)
     {
         Filesystem_WriteLine(File, bOneLine ? S(", ") : S(",\n"), NULL);

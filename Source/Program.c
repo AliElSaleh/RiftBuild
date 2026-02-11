@@ -1338,8 +1338,7 @@ bool LogStringList_WordWrapped(LinearAllocator Scratch, const String Name, const
         u32 Spaces = 0;
         u32 Index = 0;
 
-        u32 Num = 0;
-        for each_str_list_it (_, ValueList) { Num += 1; }
+        u32 Num = StringList_Count(ValueList);
 
         for each_str_list_it (v, ValueList)
         {
@@ -7245,8 +7244,7 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments, const 
                     }
 
                     StringList List = String_SplitIntoList(Arena, Trimmed, ' ', true);
-                    u16 Num = 0;
-                    for each_str_list (List) { Num += 1; }
+                    u16 Num = StringList_Count(List);
 
                     // TODO: rework this, so baaaaaddd...
                     if (bWantsRebuild) { Num += 1; }
@@ -7516,8 +7514,7 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments, const 
             if (bFoundPreset)
             {
                 StringList List = String_SplitIntoList(Arena, PresetArgumentLine, ' ', true);
-                u16 Num = 0;
-                for each_str_list (List) { Num += 1; }
+                u16 Num = StringList_Count(List);
 
                 StringArray NewArguments = {0};
                 if (Num > 0)
