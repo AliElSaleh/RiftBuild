@@ -16,12 +16,6 @@
 #include "MicrosoftCraziness.h"
 #endif
 
-// todos
-// [x] how to detect multiple inclusions of a file?
-// [x] prevent including .build files
-// [ ] fix else keyword being parsed inside "option." keys
-// [ ] change "include" to "import" and ensure it is only loaded once
-
 void AddVariable(LinearAllocator* Arena,
                 TArray(FileVariable) VariablesDB,
                 const String Name,
@@ -457,10 +451,11 @@ STRUCT(KeywordTableEntry)
     u8         Padding[4];
 };
 
-static KeywordTableEntry ReservedKeywordsTable[12] =
+static KeywordTableEntry ReservedKeywordsTable[13] =
 {
     { .Type = Token_If,           .Name = SC("if")          },
     { .Type = Token_Else,         .Name = SC("else")        },
+    { .Type = Token_Include,      .Name = SC("import")      },
     { .Type = Token_Include,      .Name = SC("include")     },
     { .Type = Token_Or,           .Name = SC("or")          },
     { .Type = Token_Contains ,    .Name = SC("contains")    },
@@ -937,9 +932,9 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Include(LinearAllocator* Arena, Pa
 
     if (!bFoundTokens)
     {
-        LOG_ERROR("\n%S:%u: Missing file path after 'include'.\n\n"
+        LOG_ERROR("\n%S:%u: Missing file path after 'import'.\n\n"
                   "  Example:\n"
-                  "    include path/to/file.build\n", P->FilePath, Parser_Peek(P).Line);
+                  "    import path/to/file.buildvars\n", P->FilePath, Parser_Peek(P).Line);
 
         return &Node_Null;
     }
@@ -1777,7 +1772,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Pars
                         Parser_Peek(P).Type == Token_LCurly    ||
                         Parser_Peek(P).Type == Token_RCurly    ||
                         Parser_Peek(P).Type == Token_None      ||
-                        Parser_Peek(P).Type == Token_Else))
+                        (Parser_Peek(P).Type == Token_Else && bInlineIf)))
                 {
                     bFoundTokens = true;
 
@@ -1861,7 +1856,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Pars
         }
         else
         {
-            LOG_ERROR("\n%S:%u: '%S' is not valid here. Expected a key name, 'if', or 'include'.\n\n"
+            LOG_ERROR("\n%S:%u: '%S' is not valid here. Expected a key name, 'if', or 'import'.\n\n"
                       "  Example:\n"
                       "    Assembly       MyApp\n"
                       "    SourceFiles    main.c utils.c\n", P->FilePath, t.Line, t.Lexeme);
@@ -2277,8 +2272,8 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
             if (l.NumTokens >= MAX_TOKENS)
             {
                 LOG_ERROR("\n%S: Build file exceeds the maximum of %u tokens.\n\n"
-                          "  Split your build file into smaller files and use 'include':\n"
-                          "    include common.buildvars\n", FilePath, MAX_TOKENS);
+                          "  Split your build file into smaller files and use 'import':\n"
+                          "    import common.buildvars\n", FilePath, MAX_TOKENS);
 
                 bLexSuccess = false;
                 break;
@@ -2588,7 +2583,7 @@ NO_DISCARD static NodeList* Analyze_IncludeNode(Node* Root, ParsingContext* Cont
         // prevent including .build files
         if (String_EndsWith(Expanded, S(".build"), false))
         {
-            LOG_ERROR("Cannot include .build files: \"%S\"", Expanded);
+            LOG_ERROR("Cannot import .build files: \"%S\"", Expanded);
             bSuccess = false;
         }
     }
@@ -2621,9 +2616,9 @@ NO_DISCARD static NodeList* Analyze_IncludeNode(Node* Root, ParsingContext* Cont
         if (!Filesystem_Open(Expanded, FileMode_Read, &f))
         {
             #ifndef HOOD
-            LOG_ERROR("Failed to open include file \"%S\" for reading", Expanded);
+            LOG_ERROR("Failed to open imported file \"%S\" for reading", Expanded);
             #else
-            LOG_ERROR("huhh?!!!!! cant read the include file for some reason bro, \"%S\", think you gotta check it out on your end cuh", Expanded);
+            LOG_ERROR("huhh?!!!!! cant read the imported file for some reason bro, \"%S\", think you gotta check it out on your end cuh", Expanded);
             #endif
 
             bSuccess = false;
@@ -2645,7 +2640,7 @@ NO_DISCARD static NodeList* Analyze_IncludeNode(Node* Root, ParsingContext* Cont
             if (!bResult || Size == 0)
             {
                 #ifndef HOOD
-                LOG_WARNING("Include file \"%S\" has a size of 0. Skipping...", Expanded);
+                LOG_WARNING("Imported file \"%S\" has a size of 0. Skipping...", Expanded);
                 #else
                 LOG_WARNING("ay bro heads up, gonna skip dis one, dis shit is empty nigga \"%S\"", Expanded);
                 #endif
