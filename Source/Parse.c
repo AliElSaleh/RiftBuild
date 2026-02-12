@@ -2349,8 +2349,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
 
                 TokenToAdd = Token_RSquare;
             }
-            // TODO: escape #
-            else if (Char == '#')
+            else if (Char == '#' && PrevChar != '\\')
             {
                 bool bIsMultiLine = Lexer_Match(&l, '#');
                 if (bIsMultiLine)
@@ -5910,6 +5909,14 @@ bool ExpandBuildVariable(LinearAllocator Scratch, FileVariableList* VariablesDB,
                 String_AppendChar(Dest, C);
                 continue;
             }
+        }
+
+        // escape the next character after the backslash
+        if (C == '\\' && (i + 1) < Value.Length)
+        {
+            String_AppendChar(Dest, Value.Data[i + 1]);
+            Offset = 2;
+            continue;
         }
 
         if (C == Token_Char_Mod || C == Token_Char_Dollar || C == Token_Char_At || C == Token_Char_Not)
