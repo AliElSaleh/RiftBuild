@@ -364,7 +364,8 @@ STRUCT(IfConditionData)
     StringList* TestValues;
     ETokenType ComparisonOp;
     u8 Prefix;
-    u8 Padding[3];
+    bool bCaseSensitive;
+    u8 Padding[2];
 };
 
 STRUCT(IfConditionList)
@@ -1187,6 +1188,8 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena, Parser*
                         Parser_Advance(P);
                         Parser_SkipWhitespace(P);
 
+                        bool bCaseSensitive = Parser_Match(P, Token_Caret);
+
                         Token TestToken = Parser_Peek(P);
                         if (TestToken.Type == Token_Text)
                         {
@@ -1204,6 +1207,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena, Parser*
                             }
 
                             Condition.TestValues = ValueList;
+                            Condition.bCaseSensitive = bCaseSensitive;
 
                             Parser_Advance(P);
                         }
@@ -2976,7 +2980,7 @@ NO_DISCARD static NodeList* Analyze_IfNode(Node* Root, ParsingContext* Context, 
             bool bSearchInternalVar    = c.Prefix & BIT(3);
             bool bSearchEnvironmentVar = c.Prefix & BIT(4);
             bool bPrefixedWithSymbol   = bSearchFileVar || bSearchInternalVar || bSearchEnvironmentVar;
-            bool bCaseSensitive        = false; // TODO
+            bool bCaseSensitive        = c.bCaseSensitive;
 
             StringLocal(EnvVar, MAX_PATH_LENGTH);
 
