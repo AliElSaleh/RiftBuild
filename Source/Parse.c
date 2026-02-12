@@ -4005,16 +4005,7 @@ bool FindFirstCompilerAvailable(const String CompilerToFind, const String Assemb
 static void StoreKVNodeAsCmdOption(LinearAllocator* Arena, const String Key, Node* Block, ParsingContext* Context)
 {
     // does the cmd line option for this key already exist?
-    CmdOption* OptionPtr = NULL;
-    for each (CmdOption, o, Context->CmdOptionsDB)
-    {
-        bool bMatch = String_IsEqual(o.Name, Key, false);
-        if (bMatch)
-        {
-            OptionPtr = o_;
-            break;
-        }
-    }
+    CmdOption* OptionPtr = FindCmdOption(Context->CmdOptionsDB, Key);
 
     if (OptionPtr)
     {
@@ -5207,24 +5198,14 @@ static bool Internal_AssertArg(ParsingContext* Context, const String BuildFilePa
 
                 bool bFound = false;
 
-                // TODO: extract into a function. replace all the other cmdoptionsdb loops
-                for each (CmdOption, o, Context->CmdOptionsDB)
+                CmdOption* FoundOption = FindCmdOption(Context->CmdOptionsDB, Trimmed);
+                if (FoundOption)
                 {
-                    if (String_IsEqual(o.Name, Trimmed, false))
+                    // if an '=' was specified but no value was specified after that
+                    // e.g. some_arg=
+                    if (!(String_IsDataValid(FoundOption->Value) && FoundOption->Value.Length == 0))
                     {
-                        // Special case:
-                        // if an '=' was specified but no value was specified after that
-                        // so something like this: some_arg=
-                        if (String_IsDataValid(o.Value) && o.Value.Length == 0)
-                        {
-                            bFound = false;
-                        }
-                        else
-                        {
-                            bFound = true;
-                        }
-                        
-                        break;
+                        bFound = true;
                     }
                 }
 
@@ -5484,21 +5465,16 @@ static bool Internal_AssertOption(ParsingContext* Context, const String BuildFil
     }
 
     bool bFound = false;
-    // TODO: extract into a function. replace all the other cmdoptionsdb loops
-    for each (CmdOption, o, Context->CmdOptionsDB)
+    CmdOption* FoundOption = FindCmdOption(Context->CmdOptionsDB, Trimmed);
+    if (FoundOption)
     {
-        if (String_IsEqual(o.Name, Trimmed, false))
+        bFound = true;
+
+        // if an '=' was specified but no value was specified after that
+        // e.g. some_arg=
+        if (String_IsDataValid(FoundOption->Value) && FoundOption->Value.Length == 0)
         {
-            bFound = true;
-
-            // if an '=' was specified but no value was specified after that
-            // so something like this: some_arg=
-            if (String_IsDataValid(o.Value) && o.Value.Length == 0)
-            {
-                bFound = false;
-            }
-
-            break;
+            bFound = false;
         }
     }
 
@@ -5552,16 +5528,11 @@ static bool Internal_AssertOptionValue(ParsingContext* Context, const String Bui
         String OptionValue = String_Null();
 
         bool bFound = false;
-        for each (CmdOption, o, Context->CmdOptionsDB)
+        CmdOption* FoundOption = FindCmdOption(Context->CmdOptionsDB, OptionName);
+        if (FoundOption)
         {
-            if (String_IsEqual(o.Name, OptionName, false))
-            {
-                bFound = true;
-
-                OptionValue = o.Value;
-                
-                break;
-            }
+            bFound = true;
+            OptionValue = FoundOption->Value;
         }
 
         if (bFound && Var.Params.Length > 0)
@@ -6106,15 +6077,12 @@ bool ExpandBuildVariable(LinearAllocator Scratch, FileVariableList* VariablesDB,
 
             bool bFoundCmd = false;
             bool bEqualsToSomething = false;
-            for each (CmdOption, o, CmdOptionsDB)
+            CmdOption* FoundOption = FindCmdOption(CmdOptionsDB, Trimmed);
+            if (FoundOption)
             {
-                if (String_IsEqual(o.Name, Trimmed, false))
-                {
-                    bFoundCmd = true;
-                    VarValue = o.Value;
-                    bEqualsToSomething = o.Value.Length > 0;
-                    break;
-                }
+                bFoundCmd = true;
+                VarValue = FoundOption->Value;
+                bEqualsToSomething = FoundOption->Value.Length > 0;
             }
 
             if (!bFoundCmd)

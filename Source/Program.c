@@ -173,33 +173,35 @@ static bool IsBuildBatchFile(const String FilePath)
     return String_EndsWith(FilePath, S(".buildbatch"), false);
 }
 
-bool DoesCmdOptionExist(TArray(CmdOption) CmdOptionsDB, const String Name)
+CmdOption* FindCmdOption(TArray(CmdOption) CmdOptionsDB, const String Name)
 {
-    bool bFound = false;
+    CmdOption* Result = NULL;
 
     for each (CmdOption, o, CmdOptionsDB)
     {
         if (String_IsEqual(o.Name, Name, false))
         {
-            bFound = true;
+            Result = o_;
             break;
         }
     }
 
-    return bFound;
+    return Result;
+}
+
+bool DoesCmdOptionExist(TArray(CmdOption) CmdOptionsDB, const String Name)
+{
+    return FindCmdOption(CmdOptionsDB, Name) != NULL;
 }
 
 String GetCmdOptionValue(TArray(CmdOption) CmdOptionsDB, const String Name)
 {
     String Value = String_Null();
 
-    for each (CmdOption, o, CmdOptionsDB)
+    CmdOption* Option = FindCmdOption(CmdOptionsDB, Name);
+    if (Option)
     {
-        if (String_IsEqual(o.Name, Name, false))
-        {
-            Value = o.Value;
-            break;
-        }
+        Value = Option->Value;
     }
 
     return Value;
