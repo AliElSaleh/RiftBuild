@@ -741,6 +741,79 @@ static void Parser_SkipWhitespace(Parser* P)
     }
 }
 
+// Parses: == ^"test value"  or  == test|val2  (comparison op + optional ^ + test values)
+// Expects parser to be positioned at the comparison operator token.
+// Returns true on success, false on parse error.
+static bool Parser_ParseComparisonTestValues(LinearAllocator* Arena, Parser* P, IfConditionData* Condition)
+{
+    bool bResult = true;
+
+    Token Comparison = Parser_Peek(P);
+    Condition->ComparisonOp = Comparison.Type;
+
+    Parser_Advance(P);
+    Parser_SkipWhitespace(P);
+
+    bool bCaseSensitive = Parser_Match(P, Token_Caret);
+
+    Token TestToken = Parser_Peek(P);
+    if (TestToken.Type == Token_Text || TestToken.Type == Token_Quote)
+    {
+        StringList* ValueList = NULL;
+        StringList** NextValue = &ValueList;
+
+        if (TestToken.Type == Token_Quote)
+        {
+            Parser_Advance(P);
+
+            StringLocal(QuotedValue, 1024);
+            while (Parser_Peek(P).Type != Token_Quote &&
+                   Parser_Peek(P).Type != Token_None)
+            {
+                Token Tok = Parser_Peek(P);
+                if (Tok.Type == Token_Whitespace)
+                {
+                    String_Append(&QuotedValue, S(" "));
+                }
+                else
+                {
+                    String_Append(&QuotedValue, Tok.Lexeme);
+                }
+                Parser_Advance(P);
+            }
+            Parser_Match(P, Token_Quote); // consume closing quote
+
+            String Value = String_Duplicate(Arena, StrMake(QuotedValue));
+            SLinkedList_Push(NextValue, StringList_Create(Arena, Value, NULL));
+        }
+        else
+        {
+            SLinkedList_Push(NextValue, StringList_Create(Arena, TestToken.Lexeme, NULL));
+
+            Parser_Advance(P);
+
+            while (Parser_Match(P, Token_Pipe) ||
+                   Parser_Match(P, Token_Or))
+            {
+                SLinkedList_Push(NextValue, StringList_Create(Arena, Parser_Peek(P).Lexeme, NULL));
+            }
+        }
+
+        Condition->TestValues = ValueList;
+        Condition->bCaseSensitive = bCaseSensitive;
+
+        Parser_Advance(P);
+    }
+    else
+    {
+        LOG_ERROR("\n%S:%u: Expected a value after '%S', but got '%S'.\n",
+                  P->FilePath, TestToken.Line, Comparison.Lexeme, TestToken.Lexeme);
+        bResult = false;
+    }
+
+    return bResult;
+}
+
 NO_DISCARD RETURN_NON_NULL static Node* Parse_Special_LogMessage(LinearAllocator* Arena, Parser* P)
 {
     Node* Root = Node_Create(Arena, Node_LogMessage);
@@ -1183,40 +1256,8 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena, Parser*
                         Comparison.Type == Token_StartsWith     || Comparison.Type == Token_EndsWith    ||
                         Comparison.Type == Token_Contains)
                     {
-                        Condition.ComparisonOp = Comparison.Type;
-
-                        Parser_Advance(P);
-                        Parser_SkipWhitespace(P);
-
-                        bool bCaseSensitive = Parser_Match(P, Token_Caret);
-
-                        Token TestToken = Parser_Peek(P);
-                        if (TestToken.Type == Token_Text)
+                        if (!Parser_ParseComparisonTestValues(Arena, P, &Condition))
                         {
-                            StringList* ValueList = NULL;
-                            StringList** NextValue = &ValueList;
-
-                            SLinkedList_Push(NextValue, StringList_Create(Arena, TestToken.Lexeme, NULL));
-
-                            Parser_Advance(P);
-
-                            while (Parser_Match(P, Token_Pipe) ||
-                                   Parser_Match(P, Token_Or))
-                            {
-                                SLinkedList_Push(NextValue, StringList_Create(Arena, Parser_Peek(P).Lexeme, NULL));
-                            }
-
-                            Condition.TestValues = ValueList;
-                            Condition.bCaseSensitive = bCaseSensitive;
-
-                            Parser_Advance(P);
-                        }
-                        else
-                        {
-                            LOG_ERROR("\n%S:%u: Expected a value after '%S', but got '%S'.\n\n"
-                                      "  Example:\n"
-                                      "    if version >= 3.0 Defines MODERN=1\n", P->FilePath, TestToken.Line, Comparison.Lexeme, TestToken.Lexeme);
-
                             return &Node_Null;
                         }
                     }
@@ -1225,7 +1266,6 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena, Parser*
 
                     Parser_SkipWhitespace(P);
 
-                    // todo: relook at how i can simplify this across other areas of teh codebase
                     if (Parser_Peek(P).Type == Token_Text ||
                         Parser_Peek(P).Type == Token_Assert ||
                         Parser_Peek(P).Type == Token_ErrorMessage ||
@@ -1711,7 +1751,28 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Pars
                         Condition.Condition = Lexeme;
                         Condition.Prefix    = Prefixes;
 
-                        // TODO: comparison support?
+                        // comparison support: peek ahead past whitespace for a comparison operator
+                        {
+                            u32 SavedPosition = P->Current;
+                            Parser_SkipWhitespace(P);
+
+                            Token Comparison = Parser_Peek(P);
+                            if (Comparison.Type == Token_EqualEqual     || Comparison.Type == Token_NotEqual    ||
+                                Comparison.Type == Token_GreaterOrEqual || Comparison.Type == Token_LessOrEqual ||
+                                Comparison.Type == Token_GreaterThan    || Comparison.Type == Token_LessThan    ||
+                                Comparison.Type == Token_StartsWith     || Comparison.Type == Token_EndsWith    ||
+                                Comparison.Type == Token_Contains)
+                            {
+                                if (!Parser_ParseComparisonTestValues(Arena, P, &Condition))
+                                {
+                                    return &Node_Null;
+                                }
+                            }
+                            else
+                            {
+                                P->Current = SavedPosition;
+                            }
+                        }
 
                         SLinkedList_Push(NextCondition, IfConditionList_Create(Arena, Condition));
 
