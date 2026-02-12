@@ -1113,12 +1113,11 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena, Parser*
 
             if (!Parser_Match(P, Token_RCurly))
             {
-                // todo get line number for the else token
                 LOG_ERROR("\n%S:%u: Missing closing '}' for '%S' block.\n\n"
                           "  Example:\n"
                           "    if windows {\n"
                           "        Libraries   kernel32 user32\n"
-                          "    }\n", P->FilePath, Parser_LookBack(P).Line, LastTokenType == Token_If ? S("if") : S("else"));
+                          "    }\n", P->FilePath, t.Line, LastTokenType == Token_If ? S("if") : S("else"));
 
                 return &Node_Null;
             }
