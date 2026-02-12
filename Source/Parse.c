@@ -190,6 +190,11 @@ ENUM_T(ETokenType, u32)
     Token_Contains,
     Token_StartsWith,
     Token_EndsWith,
+    Token_VersionGreaterOrEqual,
+    Token_VersionLessOrEqual,
+    Token_VersionGreaterThan,
+    Token_VersionLessThan,
+    Token_VersionEqual,
     Token_Stop,
     Token_Abort,
     Token_Help,
@@ -207,6 +212,22 @@ ENUM_T(ETokenType, u32)
 #define Token_Char_At     '@'
 #define Token_Char_Mod    '%'
 #define Token_Char_Dollar '$'
+
+static bool IsComparisonToken(ETokenType T)
+{
+    bool Result = T == Token_EqualEqual           || T == Token_NotEqual           ||
+                  T == Token_GreaterOrEqual       || T == Token_LessOrEqual        ||
+                  T == Token_GreaterThan          || T == Token_LessThan           ||
+
+                  T == Token_VersionGreaterOrEqual|| T == Token_VersionLessOrEqual ||
+                  T == Token_VersionGreaterThan   || T == Token_VersionLessThan    ||
+                  T == Token_VersionEqual         ||
+
+                  T == Token_StartsWith           || T == Token_EndsWith           ||
+                  T == Token_Contains;
+
+    return Result;
+}
 
 STRUCT(Token) // 24 bytes
 {
@@ -262,6 +283,11 @@ read_only static String TokenTypeEnumStringTable_NoPrefix[Token_Max] =
     SC("Contains"),
     SC("StartsWith"),
     SC("EndsWith"),
+    SC("VersionGreaterOrEqual"),
+    SC("VersionLessOrEqual"),
+    SC("VersionGreaterThan"),
+    SC("VersionLessThan"),
+    SC("VersionEqual"),
     SC("Stop"),
     SC("Abort"),
     SC("Help"),
@@ -318,6 +344,11 @@ read_only static String TokenTypeEnumStringTable[Token_Max] =
     SC("Token_Contains"),
     SC("Token_StartsWith"),
     SC("Token_EndsWith"),
+    SC("Token_VersionGreaterOrEqual"),
+    SC("Token_VersionLessOrEqual"),
+    SC("Token_VersionGreaterThan"),
+    SC("Token_VersionLessThan"),
+    SC("Token_VersionEqual"),
     SC("Token_Stop"),
     SC("Token_Abort"),
     SC("Token_Help"),
@@ -452,21 +483,26 @@ STRUCT(KeywordTableEntry)
     u8         Padding[4];
 };
 
-static KeywordTableEntry ReservedKeywordsTable[13] =
+static KeywordTableEntry ReservedKeywordsTable[18] =
 {
-    { .Type = Token_If,           .Name = SC("if")          },
-    { .Type = Token_Else,         .Name = SC("else")        },
-    { .Type = Token_Include,      .Name = SC("import")      },
-    { .Type = Token_Include,      .Name = SC("include")     },
-    { .Type = Token_Or,           .Name = SC("or")          },
-    { .Type = Token_Contains ,    .Name = SC("contains")    },
-    { .Type = Token_StartsWith,   .Name = SC("starts_with") },
-    { .Type = Token_EndsWith,     .Name = SC("ends_with")   },
-    { .Type = Token_Stop,         .Name = SC(".stop")       },
-    { .Type = Token_Abort,        .Name = SC(".abort")      },
-    { .Type = Token_Help,         .Name = SC(".help")       },
-    { .Type = Token_Assert,       .Name = SC("assert")      },
-    { .Type = Token_ErrorMessage, .Name = SC("ErrorMessage")},
+    { .Type = Token_If,                    .Name = SC("if")          },
+    { .Type = Token_Else,                  .Name = SC("else")        },
+    { .Type = Token_Include,               .Name = SC("import")      },
+    { .Type = Token_Include,               .Name = SC("include")     },
+    { .Type = Token_Or,                    .Name = SC("or")          },
+    { .Type = Token_Contains ,             .Name = SC("contains")    },
+    { .Type = Token_StartsWith,            .Name = SC("starts_with") },
+    { .Type = Token_EndsWith,              .Name = SC("ends_with")   },
+    { .Type = Token_VersionGreaterOrEqual, .Name = SC("v>=")         },
+    { .Type = Token_VersionLessOrEqual,    .Name = SC("v<=")         },
+    { .Type = Token_VersionGreaterThan,    .Name = SC("v>")          },
+    { .Type = Token_VersionLessThan,       .Name = SC("v<")          },
+    { .Type = Token_VersionEqual,          .Name = SC("v==")         },
+    { .Type = Token_Stop,                  .Name = SC(".stop")       },
+    { .Type = Token_Abort,                 .Name = SC(".abort")      },
+    { .Type = Token_Help,                  .Name = SC(".help")       },
+    { .Type = Token_Assert,                .Name = SC("assert")      },
+    { .Type = Token_ErrorMessage,          .Name = SC("ErrorMessage")},
 };
 
 static KeywordTableEntry ReservedStartingKeywordsTable[1] =
@@ -1216,13 +1252,9 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena, Parser*
                     Comparison.Type != Token_Quote &&
                     Comparison.Type != Token_Newline &&
 
-                    !(Comparison.Type == Token_EqualEqual   || Comparison.Type == Token_NotEqual    ||
-                    Comparison.Type == Token_GreaterOrEqual || Comparison.Type == Token_LessOrEqual ||
-                    Comparison.Type == Token_GreaterThan    || Comparison.Type == Token_LessThan    ||
-                    Comparison.Type == Token_StartsWith     || Comparison.Type == Token_EndsWith    ||
-                    Comparison.Type == Token_Contains))
+                    !IsComparisonToken(Comparison.Type))
                 {
-                    LOG_ERROR("\n%S:%u: Unexpected '%S' after '%S'. Expected a key, value, '{', or comparison (==, !=, <, >, etc.).\n\n"
+                    LOG_ERROR("\n%S:%u: Unexpected '%S' after '%S'. Expected a key, value, '{', or comparison (==, !=, <, >, v>=, etc.).\n\n"
                               "  Examples:\n"
                               "    if debug Defines DEBUG=1\n"
                               "    if version >= 3 Compiler.Flags -std=c11\n"
@@ -1250,11 +1282,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena, Parser*
                 }
                 else
                 {
-                    if (Comparison.Type == Token_EqualEqual     || Comparison.Type == Token_NotEqual    ||
-                        Comparison.Type == Token_GreaterOrEqual || Comparison.Type == Token_LessOrEqual ||
-                        Comparison.Type == Token_GreaterThan    || Comparison.Type == Token_LessThan    ||
-                        Comparison.Type == Token_StartsWith     || Comparison.Type == Token_EndsWith    ||
-                        Comparison.Type == Token_Contains)
+                    if (IsComparisonToken(Comparison.Type))
                     {
                         if (!Parser_ParseComparisonTestValues(Arena, P, &Condition))
                         {
@@ -1757,11 +1785,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Pars
                             Parser_SkipWhitespace(P);
 
                             Token Comparison = Parser_Peek(P);
-                            if (Comparison.Type == Token_EqualEqual     || Comparison.Type == Token_NotEqual    ||
-                                Comparison.Type == Token_GreaterOrEqual || Comparison.Type == Token_LessOrEqual ||
-                                Comparison.Type == Token_GreaterThan    || Comparison.Type == Token_LessThan    ||
-                                Comparison.Type == Token_StartsWith     || Comparison.Type == Token_EndsWith    ||
-                                Comparison.Type == Token_Contains)
+                            if (IsComparisonToken(Comparison.Type))
                             {
                                 if (!Parser_ParseComparisonTestValues(Arena, P, &Condition))
                                 {
@@ -3250,63 +3274,64 @@ NO_DISCARD static NodeList* Analyze_IfNode(Node* Root, ParsingContext* Context, 
                     }
                     break;
 
+                    case Token_VersionGreaterOrEqual:
+                    case Token_VersionLessOrEqual:
+                    case Token_VersionGreaterThan:
+                    case Token_VersionLessThan:
+                    case Token_VersionEqual:
+                    {
+                        for each_string_in_list (*c.TestValues)
+                        {
+                            for each_str (v, Values)
+                            {
+                                ECompareResult Result = String_CompareVersion(*v, It.String);
+
+                                switch (c.ComparisonOp)
+                                {
+                                    default: break;
+                                    case Token_VersionGreaterOrEqual: { bConditionMet = Result == CompareResult_Greater ||
+                                                                                        Result == CompareResult_Equal; } break;
+                                    case Token_VersionLessOrEqual:    { bConditionMet = Result == CompareResult_Less ||
+                                                                                        Result == CompareResult_Equal; } break;
+                                    case Token_VersionGreaterThan:    { bConditionMet = Result == CompareResult_Greater; } break;
+                                    case Token_VersionLessThan:       { bConditionMet = Result == CompareResult_Less; } break;
+                                    case Token_VersionEqual:          { bConditionMet = Result == CompareResult_Equal; } break;
+                                }
+
+                                if (bConditionMet)
+                                {
+                                    goto the_great_wall_of_china;
+                                }
+                            }
+                        }
+                    }
+                    break;
+
                     case Token_GreaterOrEqual:
                     case Token_LessOrEqual:
                     case Token_GreaterThan:
                     case Token_LessThan:
                     {
-                        // idk, i kinda hate this. should we introduce new comparison tokens for comparing versions?
-                        // like so: v> v>= v< v<= v==
-                        // TODO: think about this
-
-                        bool bVersionCompare = String_EndsWith(c.Condition, S("version"), false);
-
                         for each_string_in_list (*c.TestValues)
                         {
-                            if (bVersionCompare)
+                            for each_str (v, Values)
                             {
-                                for each_str (v, Values)
+                                bool bConverted = String_ToF64(*v, &LeftFloat) &&
+                                                String_ToF64(It.String, &RightFloat);
+                                if (bConverted)
                                 {
-                                    ECompareResult Result = String_CompareVersion(*v, It.String);
-
                                     switch (c.ComparisonOp)
                                     {
                                         default: break;
-                                        case Token_GreaterOrEqual: { bConditionMet = Result == CompareResult_Greater ||
-                                                                                     Result == CompareResult_Equal; } break;
-                                        case Token_LessOrEqual:    { bConditionMet = Result == CompareResult_Less ||
-                                                                                     Result == CompareResult_Equal; } break;
-                                        case Token_GreaterThan:    { bConditionMet = Result == CompareResult_Greater; } break;
-                                        case Token_LessThan:       { bConditionMet = Result == CompareResult_Less; } break;
+                                        case Token_GreaterOrEqual: { bConditionMet = LeftFloat >= RightFloat; } break;
+                                        case Token_LessOrEqual:    { bConditionMet = LeftFloat <= RightFloat; } break;
+                                        case Token_GreaterThan:    { bConditionMet = LeftFloat >  RightFloat; } break;
+                                        case Token_LessThan:       { bConditionMet = LeftFloat <  RightFloat; } break;
                                     }
 
                                     if (bConditionMet)
                                     {
                                         goto the_great_wall_of_china;
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                for each_str (v, Values)
-                                {
-                                    bool bConverted = String_ToF64(*v, &LeftFloat) &&
-                                                    String_ToF64(It.String, &RightFloat);
-                                    if (bConverted)
-                                    {
-                                        switch (c.ComparisonOp)
-                                        {
-                                            default: break;
-                                            case Token_GreaterOrEqual: { bConditionMet = LeftFloat >= RightFloat; } break;
-                                            case Token_LessOrEqual:    { bConditionMet = LeftFloat <= RightFloat; } break;
-                                            case Token_GreaterThan:    { bConditionMet = LeftFloat >  RightFloat; } break;
-                                            case Token_LessThan:       { bConditionMet = LeftFloat <  RightFloat; } break;
-                                        }
-
-                                        if (bConditionMet)
-                                        {
-                                            goto the_great_wall_of_china;
-                                        }
                                     }
                                 }
                             }
