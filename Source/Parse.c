@@ -2445,7 +2445,6 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
                     const u32 Diff = l.Current - l.Start;
                     String Lexeme = StrSub(l.Text, l.Start, Diff);
 
-                    // TODO: relook at this code
                     for (u8 j = 0; j < SArray_Capacity(ReservedKeywordsTable); j++)
                     {
                         if (String_IsEqual(Lexeme, ReservedKeywordsTable[j].Name, false))
@@ -2584,6 +2583,7 @@ NO_DISCARD static NodeList* Analyze_IncludeNode(Node* Root, ParsingContext* Cont
         {
             LOG_ERROR("Cannot import .build files: \"%S\"", Expanded);
             bSuccess = false;
+            Platform_Abort(1);
         }
     }
 
@@ -2668,8 +2668,9 @@ NO_DISCARD static NodeList* Analyze_IncludeNode(Node* Root, ParsingContext* Cont
             }
             else
             {
-                // TODO: something better
-                _Crash_;
+                LOG_ERROR("Failed to parse imported file \"%S\"", Expanded);
+                bSuccess = false;
+                Platform_Abort(1);
             }
         }
     }
