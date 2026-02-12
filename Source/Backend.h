@@ -337,8 +337,7 @@ NO_DISCARD bool ParseBuildFile(
                     const FileHandle H,
                     const String BuildFilePath,
                     ParsingContext Context,
-                    bool bIsIncludeFile,
-                    StringList* Includes);
+                    bool bIsIncludeFile);
 
 bool ExpandBuildVariable(LinearAllocator Scratch, FileVariableList* VariablesDB, TArray(CmdOption) CmdOptionsDB,
                          String* Dest, const String Key, const String Value, const String Root, const String WorkingDirectory,

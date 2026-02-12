@@ -3876,7 +3876,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             Context.IncludeFiles          = IncludeFiles;
             Context.WorkingDirectory      = WorkingPath;
 
-            if (!ParseBuildFile(BuildFileHandle, BuildFilePath, Context, false, NULL))
+            if (!ParseBuildFile(BuildFileHandle, BuildFilePath, Context, false))
             {
                 Receipt.ExitCode = 1;
                 return Receipt;

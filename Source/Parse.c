@@ -17,10 +17,10 @@
 #endif
 
 // todos
-// [ ] how to detect multiple inclusions of a file?
-// [ ] prevent including .build files
-// [ ] fix else keyword being parsed inside option. keys
-// [ ] change include to import and ensure it is only loaded once
+// [x] how to detect multiple inclusions of a file?
+// [x] prevent including .build files
+// [ ] fix else keyword being parsed inside "option." keys
+// [ ] change "include" to "import" and ensure it is only loaded once
 
 void AddVariable(LinearAllocator* Arena,
                 TArray(FileVariable) VariablesDB,
@@ -2585,6 +2585,35 @@ NO_DISCARD static NodeList* Analyze_IncludeNode(Node* Root, ParsingContext* Cont
 
     if (bSuccess)
     {
+        // prevent including .build files
+        if (String_EndsWith(Expanded, S(".build"), false))
+        {
+            LOG_ERROR("Cannot include .build files: \"%S\"", Expanded);
+            bSuccess = false;
+        }
+    }
+
+    if (bSuccess)
+    {
+        // skip files that have already been included
+        bool bAlreadyIncluded = false;
+        for each (IncludeFile, Inc, Context->IncludeFiles)
+        {
+            if (String_IsEqual(Inc.Path, Expanded, false))
+            {
+                bAlreadyIncluded = true;
+                break;
+            }
+        }
+
+        if (bAlreadyIncluded)
+        {
+            bSuccess = false;
+        }
+    }
+
+    if (bSuccess)
+    {
         // parse the include file
 
         // TODO: close the file??
@@ -2624,90 +2653,29 @@ NO_DISCARD static NodeList* Analyze_IncludeNode(Node* Root, ParsingContext* Cont
                 bSuccess = false;
             }
         }
-        
+
         if (bSuccess)
         {
-            String IncludePath = Expanded;
-            if (IncludePath.Length > 0)
+            Node* AST = Internal_ParseFile(Context->TempArena, f, StrMake(Expanded));
+            if (AST && AST != &Node_Null)
             {
-                /*
-                if (Includes)
+                u8 Level = Context->Level;
+                Context->Level = 0;
+
+                Analyze_Options(AST, Context);
+
+                NodeList* List = Analyze_List(AST, Context, false);
+                if (List)
                 {
-                    bool bError = false;
-                    for each_str_list (*Includes)
-                    {
-                        if (String_IsEqual(IncludePath, It.String, false))
-                        {
-                            LOG_ERROR("\"%S\" is including itself\n", IncludePath);
-                            bError = true;
-                            break;
-                        }
-                    }
-
-                    if (bError)
-                    {
-                        LOG("  Include hierarchy for %S", BuildFilePath);
-                        LOG_INLINE("     ");
-                        u8 i = 0;
-                        for each_str_list (*Includes)
-                        {
-                            LOG("%S", It.String);
-
-                            for (u8 Level = 0; Level < i; Level++)
-                            {
-                                LOG_INLINE("   ");
-                            }
-                            
-                            LOG_INLINE("     |- ");
-
-                            i++;
-                        }
-
-                        LOG("%S <--", IncludeFilePath);
-
-                        return false;
-                    }
+                    SLinkedList_Push(IndeterminateNext, List);
                 }
 
-                // detect circular includes
-                StringList Entry;
-                Entry.String = IncludePath;
-                Entry.Next = NULL;
-
-                StringList** Next = &Includes;
-                SLinkedList_Push(Next, &Entry);
-
-                if (!ParseBuildFile(Arena, IncludeFileHandle, BuildFilePath, WorkingDirectory,
-                                    VariablesDB, CmdOptionsDB, Messages,
-                                    IncludeFiles, ReturnCode, true, Includes, bIsAssemblyExe))
-                {
-                    return false;
-                }
-
-                *Next = NULL;
-                */
-
-                Node* AST = Internal_ParseFile(Context->TempArena, f, StrMake(Expanded));
-                if (AST && AST != &Node_Null)
-                {
-                    u8 Level = Context->Level;
-                    Context->Level = 0;
-
-                    Analyze_Options(AST, Context);
-
-                    NodeList* List = Analyze_List(AST, Context, false);
-                    if (List)
-                    {
-                        SLinkedList_Push(IndeterminateNext, List);
-                    }
-
-                    Context->Level = Level;
-                }
-                else
-                {
-                    // TODO: something better
-                    _Crash_;
-                }
+                Context->Level = Level;
+            }
+            else
+            {
+                // TODO: something better
+                _Crash_;
             }
         }
     }
@@ -5704,8 +5672,7 @@ NO_DISCARD bool ParseBuildFile(
                     const FileHandle H,
                     const String BuildFilePath,
                     ParsingContext Context,
-                    bool bIsIncludeFile,
-                    StringList* Includes)
+                    bool bIsIncludeFile)
 {
     // sanity - peace of mind checks
     bool bValidFile = ALWAYS(String_IsValid(BuildFilePath));
