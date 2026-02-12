@@ -4996,8 +4996,8 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     String LinkerEntryPoint         = GetVariableValue(VariablesDB, S("Linker.EntryPoint"));
     String LinkerSubsystem          = GetVariableValue(VariablesDB, S("Linker.Subsystem"));
     String LinkerStack              = GetVariableValue(VariablesDB, S("Linker.Stack"));
-    const String RPathOrigin        = GetVariableValue(VariablesDB, S(".RPathOrigin")); // TODO: rename to linker.RPathOrigin? same as below.
-    const String RPaths             = GetVariableValue(VariablesDB, S(".RPath"));
+    const String RPathOrigin        = GetVariableValue(VariablesDB, S("Linker.RPathOrigin"));
+    const String RPaths             = GetVariableValue(VariablesDB, S("Linker.RPath"));
     const bool bLinkerNoStd         = DoesBuildVarExist(VariablesDB, S("Linker.NoStdLib"));
     const bool bLinkerNoDefaultLibs = DoesBuildVarExist(VariablesDB, S("Linker.NoDefaultLibs"));
 
@@ -6360,7 +6360,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             #else
             xx bAnyValid;
 
-            // TODO: multiple rpaths
             #if PLATFORM_MAC
             String ChosenRPath = S("@executable_path");
             #else
@@ -6372,8 +6371,18 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                 ChosenRPath = RPathOrigin;
             }
 
-            StringLocal(RPathFormatted, MAX_PATH_LENGTH);
+            StringLocal(RPathFormatted, 4096);
             String_AppendF(&RPathFormatted, S("-Wl,-rpath,%S"), ChosenRPath);
+
+            if (String_IsValid(RPaths))
+            {
+                LinearAllocator Scratch = *Arena;
+                StringList RPathList = String_SplitIntoList(&Scratch, RPaths, ' ', true);
+                for each_string_in_list (RPathList)
+                {
+                    String_AppendF(&RPathFormatted, S(" -Wl,-rpath,%S"), It.String);
+                }
+            }
 
             String_BuildSeparator(&AdditionalLinkerFlags, ' ', NoStd, NoDefaultLibs, ExpandedFrameworks, RPathFormatted);
             #endif
