@@ -2653,7 +2653,7 @@ NO_DISCARD static NodeList* Analyze_IncludeNode(Node* Root, ParsingContext* Cont
         }
 
         bool bFailed = false;
-        bSuccess = ExpandBuildVariable(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, Root->Key, Val, Root->Key, Context->WorkingDirectory, false, false, &bFailed);
+        bSuccess = ExpandBuildVariable(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, Root->Key, Val, Root->Key, Context->WorkingDirectory, &bFailed);
         if (bFailed || !bSuccess)
         {
             bSuccess = false;
@@ -2698,7 +2698,6 @@ NO_DISCARD static NodeList* Analyze_IncludeNode(Node* Root, ParsingContext* Cont
     {
         // parse the include file
 
-        // TODO: close the file??
         FileHandle f = {0};
         if (!Filesystem_Open(Expanded, FileMode_Read, &f))
         {
@@ -3184,7 +3183,7 @@ NO_DISCARD static NodeList* Analyze_IfNode(Node* Root, ParsingContext* Context, 
                 StringLocal(Expanded, MAX_PATH_LENGTH);
                 if (bFoundVar)
                 {
-                    xx ExpandBuildVariable(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, String_Null(), VarValue, String_Null(), Context->WorkingDirectory, false, false, NULL);
+                    xx ExpandBuildVariable(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, String_Null(), VarValue, String_Null(), Context->WorkingDirectory, NULL);
                 }
                 else
                 {
@@ -3196,7 +3195,7 @@ NO_DISCARD static NodeList* Analyze_IfNode(Node* Root, ParsingContext* Context, 
                         if (Symbol) { String_AppendChar(&ConditionPrefixed, Symbol); }
                         String_Append(&ConditionPrefixed, Condition);
 
-                        xx ExpandBuildVariable(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, String_Null(), ConditionPrefixed, String_Null(), Context->WorkingDirectory, false, false, NULL);
+                        xx ExpandBuildVariable(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, String_Null(), ConditionPrefixed, String_Null(), Context->WorkingDirectory, NULL);
                     }
                     else
                     {
@@ -4019,7 +4018,7 @@ static void StoreKVNodeAsCmdOption(LinearAllocator* Arena, const String Key, Nod
         String Val = GetVarValueInList(Context->VarListHead, Key);
 
         StringLocal(Expanded, MAX_PATH_LENGTH);
-        xx ExpandBuildVariable(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, Key, Val, Key, Context->WorkingDirectory, false, false, NULL);
+        xx ExpandBuildVariable(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, Key, Val, Key, Context->WorkingDirectory, NULL);
 
         if (Expanded.Length > 0)
         {
@@ -4378,7 +4377,7 @@ static bool Internal_LogCustomErrorMessage(ParsingContext* Context, const String
                    (ContextKey.Length == 0 || String_StartsWith(Var.Name, ContextKey, false))))
                 {
                     StringLocal(Expanded, 1024);
-                    xx ExpandBuildVariable(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, Var.Name, Var.Value, Var.Name, Context->WorkingDirectory, false, false, NULL);
+                    xx ExpandBuildVariable(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, Var.Name, Var.Value, Var.Name, Context->WorkingDirectory, NULL);
 
                     LOG("%S", Expanded);
                     if (bLineBreak) { LOG_LINE_BREAK(); }
@@ -5309,7 +5308,7 @@ static bool Internal_AssertProgram(ParsingContext* Context, const String BuildFi
 
     // expand them here
     StringLocal(Expanded, 512);
-    xx ExpandBuildVariable(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, Var.Name, Var.Value, Var.Name, Context->WorkingDirectory, false, false, NULL);
+    xx ExpandBuildVariable(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, Var.Name, Var.Value, Var.Name, Context->WorkingDirectory, NULL);
 
     StringArray ProgramsArray = String_ParseIntoArray(&Scratch, Expanded, ' ', 0, 128);
 
@@ -5898,7 +5897,7 @@ NO_DISCARD bool ParseBuildFile(
             {
                 LinearAllocator Scratch = *Context.TempArena;
                 String Expanded = String_Reserve(&Scratch, MaxValueLength);
-                xx ExpandBuildVariable(Scratch, Context.VarListHead, Context.CmdOptionsDB, &Expanded, Var.Name, Var.Value, Var.Name, Context.WorkingDirectory, false, false, NULL);
+                xx ExpandBuildVariable(Scratch, Context.VarListHead, Context.CmdOptionsDB, &Expanded, Var.Name, Var.Value, Var.Name, Context.WorkingDirectory, NULL);
 
                 if (bExcludeFromConcat)
                 {
@@ -5914,7 +5913,7 @@ NO_DISCARD bool ParseBuildFile(
         for each (String, m, Context.Messages)
         {
             StringLocal(Expanded, 1024);
-            xx ExpandBuildVariable(*Context.TempArena, Context.VarListHead, Context.CmdOptionsDB, &Expanded, String_Null(), m, String_Null(), Context.WorkingDirectory, false, false, NULL);
+            xx ExpandBuildVariable(*Context.TempArena, Context.VarListHead, Context.CmdOptionsDB, &Expanded, String_Null(), m, String_Null(), Context.WorkingDirectory, NULL);
 
             // reassign to new memory, the old memory is in a temporary buffer so we dont need to worry about leaks here.
             *m_ = String_Create(Context.PermanentArena, Expanded);
@@ -5928,19 +5927,12 @@ NO_DISCARD bool ParseBuildFile(
 
 bool ExpandBuildVariable(LinearAllocator Scratch, FileVariableList* VariablesDB, TArray(CmdOption) CmdOptionsDB,
                             String* Dest, const String Key, const String Value, const String Root, const String WorkingDirectory,
-                            bool bLowerStrings, bool bIsAssemblyExe, bool* bFailed)
+                            bool* bFailed)
 {
     if (!String_IsValid(Value))
     {
         return true;
     }
-
-    bool bLinux = false;
-    #if PLATFORM_UNIX
-    bLinux = bIsAssemblyExe;
-    #endif
-
-    bool bLowerAll = bLowerStrings || (String_IsEqual(Key, S("Assembly"), false) && bLinux); // hack but whatever. todo: revisit this
 
     bool bInsideQuote = false; // what happens when we expand a variable inside a quote and recursively call this func?
     u32 Offset = 1;
@@ -5963,7 +5955,7 @@ bool ExpandBuildVariable(LinearAllocator Scratch, FileVariableList* VariablesDB,
 
         if (String_EndsWith(Key, S(".errormessage"), false) ||
             String_StartsWith(Key, S(".help"), false) ||
-            String_EndsWith(Key, S(".Cmd"), false)) // todo: rethink
+            String_EndsWith(Key, S(".Cmd"), false))
         {
             if (C == '!')
             {
@@ -6131,13 +6123,6 @@ bool ExpandBuildVariable(LinearAllocator Scratch, FileVariableList* VariablesDB,
                     String DestEnd = StrShiftF(*Dest, Dest->Length);
                     u32 DestLengthBefore = Dest->Length;
 
-                    /*
-                    if (!ExpandBuildVariableV2(Scratch, VariablesDB, CmdOptionsDB, Dest, Slice, VarValue, Root, WorkingDirectory, false, bIsAssemblyExe, bFailed))
-                    {
-                        return false;
-                    }
-                    */
-
                     String_Append(Dest, VarValue);
 
                     DestEnd.Length = Dest->Length - DestLengthBefore;
@@ -6251,7 +6236,7 @@ bool ExpandBuildVariable(LinearAllocator Scratch, FileVariableList* VariablesDB,
 
                     LinearAllocator Scratch2 = Scratch;
                     String TempDest = String_Reserve(&Scratch2, Dest->Capacity);
-                    if (!ExpandBuildVariable(Scratch2, VariablesDB, CmdOptionsDB, &TempDest, Slice, Var.Value, Root, WorkingDirectory, bLowerStrings, bIsAssemblyExe, bFailed))
+                    if (!ExpandBuildVariable(Scratch2, VariablesDB, CmdOptionsDB, &TempDest, Slice, Var.Value, Root, WorkingDirectory, bFailed))
                     {
                         return false;
                     }
@@ -6303,13 +6288,6 @@ bool ExpandBuildVariable(LinearAllocator Scratch, FileVariableList* VariablesDB,
             {
                 String_Append(Dest, VarValue);
             }
-
-            /*
-            if (!ExpandBuildVariable(Scratch, VariablesDB, CmdOptionsDB, Dest, Slice, VarValue, Root, WorkingDirectory, false, bIsAssemblyExe, bFailed))
-            {
-                return false;
-            }
-            */
 
             DestEnd.Length = Dest->Length - DestLengthBefore;
             if (bWantsToLower) { String_ToLower(&DestEnd); }
@@ -6468,7 +6446,7 @@ bool ExpandBuildVariable(LinearAllocator Scratch, FileVariableList* VariablesDB,
                 }
             }
 
-            String_AppendChar(Dest, bLowerAll ? ToLower(C) : C);
+            String_AppendChar(Dest, C);
         }
     }
 

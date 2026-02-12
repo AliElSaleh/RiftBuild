@@ -342,7 +342,7 @@ NO_DISCARD bool ParseBuildFile(
 
 bool ExpandBuildVariable(LinearAllocator Scratch, FileVariableList* VariablesDB, TArray(CmdOption) CmdOptionsDB,
                          String* Dest, const String Key, const String Value, const String Root, const String WorkingDirectory,
-                         bool bLowerStrings, bool bIsAssemblyExe, bool* bFailed);
+                         bool* bFailed);
 
 u32 GetMaxValueLengthForReservedKey(const String Key);
 
