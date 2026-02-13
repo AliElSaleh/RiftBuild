@@ -121,7 +121,7 @@ bool TestManager_Run(void)
         }
 
         StringLocal(TestInfoMsg, 256);
-        String_Format(&TestInfoMsg, S("Test %.2u: [%S]%S %S%S"), i+1, GTests[i].Category, CatSpaces, GTests[i].Description, Spaces);
+        String_Format(&TestInfoMsg, S("Test %.3u: [%S]%S %S%S"), i+1, GTests[i].Category, CatSpaces, GTests[i].Description, Spaces);
         //LOG_INLINE("%S", TestInfoMsg);
 
         Logging_Disable();

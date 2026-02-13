@@ -350,12 +350,24 @@ NO_DISCARD bool String_IsInteger(const String Str)
 {
     bool bValid = Str.Length > 0 && Str.Length <= 20; // >20 is not a valid 64-bit integer
 
-    for (u32 i = 0; i < Str.Length; i++)
+    u32 Start = 0;
+    if (bValid && Str.Data[0] == '-')
     {
-        if (!IsDigit(Str.Data[i]))
+        Start = 1;
+        if (Str.Length == 1)
         {
-            bValid = false;
-            break;
+            bValid = false; // just "-" is not valid
+        }
+    }
+
+    if (bValid)
+    {
+        for (u32 i = Start; i < Str.Length; i++)
+        {
+            if (!IsDigit(Str.Data[i]))
+            {
+                bValid = false;
+            }
         }
     }
 
@@ -368,8 +380,18 @@ NO_DISCARD bool String_IsFloat(const String Str)
 
     if (bValid)
     {
+        u32 Start = 0;
+        if (Str.Data[0] == '-')
+        {
+            Start = 1;
+            if (Str.Length == 1)
+            {
+                bValid = false; // just "-" is not valid
+            }
+        }
+
         bool bHasDot = false;
-        for (u32 i = 0; i < Str.Length; i++)
+        for (u32 i = Start; bValid && i < Str.Length; i++)
         {
             if (!IsDigit(Str.Data[i]))
             {
@@ -381,14 +403,9 @@ NO_DISCARD bool String_IsFloat(const String Str)
                 }
 
                 if (bShouldBreak)
-                { 
+                {
                     bValid = false;
-                    break;
                 }
-            }
-            else
-            {
-                // no action required
             }
         }
     }

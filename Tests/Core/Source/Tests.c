@@ -7,8 +7,12 @@
 #include "Core/Filesystem.h"
 #include "Core/MathUtils.h"
 #include "Core/Log.h"
+#include "Core/HashTable.h"
+#include "Core/Array.h"
+#include "Core/HashUtils.h"
+#include "Core/Memory.h"
 
-#define TEST(Name) static u8 Name(void)
+#define TEST(Name) static u8 CONCAT(Test_, Name)(void)
 
 #define Expect_IsTrue(Actual)                                       if ((Actual) != true)                                   { TestManager_SetExpectString(S("[Expect_IsTrue]\n    --> Expected: true\n    --> Actual:   false\n at: %s:%d"),                               __FILE__, __LINE__); return false; }
 #define Expect_IsFalse(Actual)                                      if ((Actual) != false)                                  { TestManager_SetExpectString(S("[Expect_IsFalse]\n    --> Expected: false\n    --> Actual:   true\n at: %s:%d"),                              __FILE__, __LINE__); return false; }
@@ -1260,6 +1264,1996 @@ TEST(FilesystemUtils_GetFilePath)
     return true;
 }
 
+
+/////////////////////////////////
+// MathUtils tests             //
+/////////////////////////////////
+
+TEST(MathUtils_Abs)
+{
+    Expect_Float_IsEqual(3.5f, Abs(3.5f));
+    Expect_Float_IsEqual(3.5f, Abs(-3.5f));
+    Expect_Float_IsEqual(0.0f, Abs(0.0f));
+    Expect_Float_IsEqual(0.0f, Abs(-0.0f));
+
+    return true;
+}
+
+TEST(MathUtils_Absf64)
+{
+    Expect_Float64_IsEqual(3.5, Absf64(3.5));
+    Expect_Float64_IsEqual(3.5, Absf64(-3.5));
+    Expect_Float64_IsEqual(0.0, Absf64(0.0));
+    Expect_Float64_IsEqual(0.0, Absf64(-0.0));
+
+    return true;
+}
+
+TEST(MathUtils_Absi32)
+{
+    Expect_IsEqual(5, Absi32(5));
+    Expect_IsEqual(5, Absi32(-5));
+    Expect_IsEqual(0, Absi32(0));
+    Expect_IsEqual(1, Absi32(-1));
+    Expect_IsEqual(1, Absi32(1));
+
+    return true;
+}
+
+TEST(MathUtils_Absi64)
+{
+    Expect_IsEqual(5, Absi64(5));
+    Expect_IsEqual(5, Absi64(-5));
+    Expect_IsEqual(0, Absi64(0));
+    Expect_IsEqual((i64)1, Absi64((i64)-1));
+    Expect_IsEqual((i64)2147483648LL, Absi64((i64)-2147483648LL));
+
+    return true;
+}
+
+TEST(MathUtils_MinMax)
+{
+    // Min macro
+    Expect_IsEqual(3, Min(3, 5));
+    Expect_IsEqual(3, Min(5, 3));
+    Expect_IsEqual(5, Min(5, 5));
+    Expect_IsEqual(-5, Min(-5, 3));
+
+    // Max macro
+    Expect_IsEqual(5, Max(3, 5));
+    Expect_IsEqual(5, Max(5, 3));
+    Expect_IsEqual(5, Max(5, 5));
+    Expect_IsEqual(3, Max(-5, 3));
+
+    // Typed variants
+    Expect_IsEqual(3, MinI32(3, 5));
+    Expect_IsEqual(5, MaxI32(3, 5));
+    Expect_IsEqual((u32)3, MinU32(3, 5));
+    Expect_IsEqual((u32)5, MaxU32(3, 5));
+
+    return true;
+}
+
+TEST(MathUtils_Clamp)
+{
+    // ClampI32: value within range
+    Expect_IsEqual(5, ClampI32(5, 0, 10));
+    // ClampI32: value below min
+    Expect_IsEqual(0, ClampI32(-5, 0, 10));
+    // ClampI32: value above max
+    Expect_IsEqual(10, ClampI32(15, 0, 10));
+    // ClampI32: value equals min
+    Expect_IsEqual(0, ClampI32(0, 0, 10));
+    // ClampI32: value equals max
+    Expect_IsEqual(10, ClampI32(10, 0, 10));
+
+    // ClampU32
+    Expect_IsEqual((u32)5, ClampU32(5, 0, 10));
+    Expect_IsEqual((u32)0, ClampU32(0, 0, 10));
+    Expect_IsEqual((u32)10, ClampU32(15, 0, 10));
+
+    // ClampI32_Min
+    Expect_IsEqual(5, ClampI32_Min(5, 0));
+    Expect_IsEqual(0, ClampI32_Min(-5, 0));
+
+    // ClampI32_Max
+    Expect_IsEqual(5, ClampI32_Max(5, 10));
+    Expect_IsEqual(10, ClampI32_Max(15, 10));
+
+    return true;
+}
+
+/////////////////////////////////
+// Memory tests                //
+/////////////////////////////////
+
+TEST(Memory_MemSetAndMemZero)
+{
+    u8 Buffer[64];
+
+    // MemSet to a known value
+    MemSet(Buffer, 0xAB, 64);
+    Expect_IsEqual(0xAB, Buffer[0]);
+    Expect_IsEqual(0xAB, Buffer[63]);
+
+    // MemZero should clear all bytes
+    MemZero(Buffer, 64);
+    Expect_IsEqual(0, Buffer[0]);
+    Expect_IsEqual(0, Buffer[31]);
+    Expect_IsEqual(0, Buffer[63]);
+
+    // Zero-size operations should not crash
+    MemSet(Buffer, 0xFF, 0);
+    MemZero(Buffer, 0);
+    Expect_IsEqual(0, Buffer[0]);
+
+    return true;
+}
+
+TEST(Memory_MemCopy)
+{
+    u8 Source[32];
+    u8 Dest[32];
+
+    MemSet(Source, 0xCC, 32);
+    MemZero(Dest, 32);
+
+    MemCopy(Dest, Source, 32);
+    Expect_IsTrue(MemEqual(Source, Dest, 32));
+
+    // Partial copy
+    MemZero(Dest, 32);
+    MemCopy(Dest, Source, 16);
+    Expect_IsEqual(0xCC, Dest[0]);
+    Expect_IsEqual(0xCC, Dest[15]);
+    Expect_IsEqual(0, Dest[16]);
+
+    return true;
+}
+
+TEST(Memory_MemMove)
+{
+    u8 Buffer[32];
+
+    // Set up known data: 0,1,2,...,31
+    for (u8 i = 0; i < 32; i++)
+    {
+        Buffer[i] = i;
+    }
+
+    // Overlapping move forward: copy bytes 0-15 to bytes 4-19
+    MemMove(Buffer + 4, Buffer, 16);
+    Expect_IsEqual(0, Buffer[4]);
+    Expect_IsEqual(1, Buffer[5]);
+    Expect_IsEqual(15, Buffer[19]);
+
+    return true;
+}
+
+TEST(Memory_MemEqual)
+{
+    u8 A[16];
+    u8 B[16];
+
+    MemSet(A, 0x55, 16);
+    MemSet(B, 0x55, 16);
+    Expect_IsTrue(MemEqual(A, B, 16));
+
+    B[8] = 0xAA;
+    Expect_IsFalse(MemEqual(A, B, 16));
+
+    // Zero-size should be equal
+    Expect_IsTrue(MemEqual(A, B, 0));
+
+    return true;
+}
+
+/////////////////////////////////
+// HashUtils tests             //
+/////////////////////////////////
+
+TEST(HashUtils_FNV1a_Basic)
+{
+    // Same input should produce same hash
+    u64 Hash1 = FNV1a_Hash("hello", 5);
+    u64 Hash2 = FNV1a_Hash("hello", 5);
+    Expect_IsEqual(Hash1, Hash2);
+
+    // Different input should produce different hash
+    u64 Hash3 = FNV1a_Hash("world", 5);
+    Expect_IsNotEqual(Hash1, Hash3);
+
+    // Empty input should still return a valid hash (the offset basis)
+    u64 HashEmpty = FNV1a_Hash("", 0);
+    Expect_IsEqual(FNV_OFFSET, HashEmpty);
+
+    return true;
+}
+
+TEST(HashUtils_PointerHash)
+{
+    i32 a = 0;
+    i32 b = 0;
+    u64 HashA = PointerHash(&a);
+    u64 HashB = PointerHash(&b);
+
+    // Different pointers should yield different hashes (unless they happen to be 16-byte aligned neighbors, which is very unlikely for stack vars)
+    // We can at least verify it returns a non-zero value for non-null
+    Expect_IsNotEqual(0, PointerHash(&a));
+
+    // NULL should hash to 0
+    Expect_IsEqual(0, PointerHash(NULL));
+
+    // Suppress unused warning
+    (void)HashA;
+    (void)HashB;
+
+    return true;
+}
+
+/////////////////////////////////
+// Array tests                 //
+/////////////////////////////////
+
+TEST(ArrayUtils_CreateAndDestroy)
+{
+    TArray(i32) Arr = Array_Create(i32);
+
+    Expect_Ptr_IsValid(Arr);
+    Expect_IsEqual(4, Array_Capacity(Arr));
+    Expect_IsEqual(0, Array_Num(Arr));
+    Expect_IsEqual(sizeof(i32), Array_Stride(Arr));
+
+    Array_Destroy(Arr);
+
+    return true;
+}
+
+TEST(ArrayUtils_AddAndAccess)
+{
+    TArray(i32) Arr = Array_Create(i32);
+
+    i32 Val1 = 10;
+    i32 Val2 = 20;
+    i32 Val3 = 30;
+    Array_Add(Arr, Val1);
+    Array_Add(Arr, Val2);
+    Array_Add(Arr, Val3);
+
+    Expect_IsEqual(3, Array_Num(Arr));
+    Expect_IsEqual(10, Arr[0]);
+    Expect_IsEqual(20, Arr[1]);
+    Expect_IsEqual(30, Arr[2]);
+
+    Array_Destroy(Arr);
+
+    return true;
+}
+
+TEST(ArrayUtils_Reserve)
+{
+    TArray(u64) Arr = Array_Reserve(u64, 128);
+
+    Expect_Ptr_IsValid(Arr);
+    Expect_IsEqual(128, Array_Capacity(Arr));
+    Expect_IsEqual(0, Array_Num(Arr));
+    Expect_IsEqual(sizeof(u64), Array_Stride(Arr));
+
+    Array_Destroy(Arr);
+
+    return true;
+}
+
+TEST(ArrayUtils_EmptyAndSetNum)
+{
+    TArray(i32) Arr = Array_Create(i32);
+
+    i32 Val = 42;
+    Array_Add(Arr, Val);
+    Array_Add(Arr, Val);
+
+    Expect_IsEqual(2, Array_Num(Arr));
+
+    Array_Empty(Arr);
+    Expect_IsEqual(0, Array_Num(Arr));
+
+    Array_SetNum(Arr, 3);
+    Expect_IsEqual(3, Array_Num(Arr));
+
+    Array_Destroy(Arr);
+
+    return true;
+}
+
+TEST(ArrayUtils_Last)
+{
+    TArray(i32) Arr = Array_Create(i32);
+
+    i32 Val1 = 100;
+    i32 Val2 = 200;
+    i32 Val3 = 300;
+    Array_Add(Arr, Val1);
+    Expect_IsEqual(100, Array_Last(Arr));
+
+    Array_Add(Arr, Val2);
+    Expect_IsEqual(200, Array_Last(Arr));
+
+    Array_Add(Arr, Val3);
+    Expect_IsEqual(300, Array_Last(Arr));
+
+    Array_Destroy(Arr);
+
+    return true;
+}
+
+TEST(ArrayUtils_RemoveLast)
+{
+    TArray(i32) Arr = Array_Create(i32);
+
+    i32 Val1 = 10;
+    i32 Val2 = 20;
+    i32 Val3 = 30;
+    Array_Add(Arr, Val1);
+    Array_Add(Arr, Val2);
+    Array_Add(Arr, Val3);
+
+    i32 Removed = 0;
+    Array_RemoveLast(Arr, &Removed);
+    Expect_IsEqual(30, Removed);
+    Expect_IsEqual(2, Array_Num(Arr));
+
+    Array_RemoveLast(Arr, &Removed);
+    Expect_IsEqual(20, Removed);
+    Expect_IsEqual(1, Array_Num(Arr));
+
+    Array_Destroy(Arr);
+
+    return true;
+}
+
+TEST(ArrayUtils_RemoveAt)
+{
+    TArray(i32) Arr = Array_Reserve(i32, 16);
+
+    i32 Val1 = 10;
+    i32 Val2 = 20;
+    i32 Val3 = 30;
+    i32 Val4 = 40;
+    Array_Add(Arr, Val1);
+    Array_Add(Arr, Val2);
+    Array_Add(Arr, Val3);
+    Array_Add(Arr, Val4);
+
+    // Remove index 1 (value 20)
+    i32 Removed = 0;
+    Array_RemoveAt(Arr, &Removed, 1);
+    Expect_IsEqual(20, Removed);
+    Expect_IsEqual(3, Array_Num(Arr));
+    Expect_IsEqual(10, Arr[0]);
+    Expect_IsEqual(30, Arr[1]);
+    Expect_IsEqual(40, Arr[2]);
+
+    Array_Destroy(Arr);
+
+    return true;
+}
+
+TEST(ArrayUtils_InsertAt)
+{
+    TArray(i32) Arr = Array_Reserve(i32, 16);
+
+    i32 Val1 = 10;
+    i32 Val2 = 20;
+    i32 Val3 = 30;
+    Array_Add(Arr, Val1);
+    Array_Add(Arr, Val2);
+    Array_Add(Arr, Val3);
+
+    // Insert 99 at index 1
+    i32 InsertVal = 99;
+    Internal_ArrayInsertAt(Arr, &InsertVal, 1);
+    Expect_IsEqual(4, Array_Num(Arr));
+    Expect_IsEqual(10, Arr[0]);
+    Expect_IsEqual(99, Arr[1]);
+    Expect_IsEqual(20, Arr[2]);
+    Expect_IsEqual(30, Arr[3]);
+
+    Array_Destroy(Arr);
+
+    return true;
+}
+
+/////////////////////////////////
+// HashTable tests             //
+/////////////////////////////////
+
+TEST(HashTable_AddAndFind)
+{
+    HashTable Table;
+    Table.Entries = Array_Reserve(HashTableEntry, DEFAULT_HASHTABLE_CAPACITY);
+
+    HashTable_Add(&Table, S("alpha"), 1, false);
+    HashTable_Add(&Table, S("beta"), 2, false);
+    HashTable_Add(&Table, S("gamma"), 3, false);
+
+    i32 Value = 0;
+    bool bFound = HashTable_Find(Table, S("alpha"), &Value);
+    Expect_IsTrue(bFound);
+    Expect_IsEqual(1, Value);
+
+    Value = 0;
+    bFound = HashTable_Find(Table, S("beta"), &Value);
+    Expect_IsTrue(bFound);
+    Expect_IsEqual(2, Value);
+
+    Value = 0;
+    bFound = HashTable_Find(Table, S("gamma"), &Value);
+    Expect_IsTrue(bFound);
+    Expect_IsEqual(3, Value);
+
+    HashTable_Destroy(&Table);
+
+    return true;
+}
+
+TEST(HashTable_FindMissing)
+{
+    HashTable Table;
+    Table.Entries = Array_Reserve(HashTableEntry, DEFAULT_HASHTABLE_CAPACITY);
+
+    HashTable_Add(&Table, S("exists"), 42, false);
+
+    i32 Value = 0;
+    bool bFound = HashTable_Find(Table, S("does_not_exist"), &Value);
+    Expect_IsFalse(bFound);
+    Expect_IsEqual(0, Value);
+
+    HashTable_Destroy(&Table);
+
+    return true;
+}
+
+TEST(HashTable_UpdateExisting)
+{
+    HashTable Table;
+    Table.Entries = Array_Reserve(HashTableEntry, DEFAULT_HASHTABLE_CAPACITY);
+
+    HashTable_Add(&Table, S("key"), 10, false);
+
+    // Add same key with bUpdateExisting=false, value should not change
+    HashTable_Add(&Table, S("key"), 99, false);
+    i32 Value = 0;
+    bool bFound = HashTable_Find(Table, S("key"), &Value);
+    Expect_IsTrue(bFound);
+    Expect_IsEqual(10, Value);
+
+    // Add same key with bUpdateExisting=true, value should change
+    HashTable_Add(&Table, S("key"), 99, true);
+    Value = 0;
+    bFound = HashTable_Find(Table, S("key"), &Value);
+    Expect_IsTrue(bFound);
+    Expect_IsEqual(99, Value);
+
+    HashTable_Destroy(&Table);
+
+    return true;
+}
+
+TEST(HashTable_GrowOnLoad)
+{
+    HashTable Table;
+    Table.Entries = Array_Reserve(HashTableEntry, 4);
+
+    // Add enough entries to trigger a grow (load > 50%)
+    HashTable_Add(&Table, S("a"), 1, false);
+    HashTable_Add(&Table, S("b"), 2, false);
+    HashTable_Add(&Table, S("c"), 3, false);
+    HashTable_Add(&Table, S("d"), 4, false);
+
+    // All entries should still be findable after grow
+    i32 Value = 0;
+    bool bFound = HashTable_Find(Table, S("a"), &Value);
+    Expect_IsTrue(bFound);
+    Expect_IsEqual(1, Value);
+
+    Value = 0;
+    bFound = HashTable_Find(Table, S("d"), &Value);
+    Expect_IsTrue(bFound);
+    Expect_IsEqual(4, Value);
+
+    HashTable_Destroy(&Table);
+
+    return true;
+}
+
+TEST(HashTable_DestroyCleanup)
+{
+    HashTable Table;
+    Table.Entries = Array_Reserve(HashTableEntry, DEFAULT_HASHTABLE_CAPACITY);
+
+    HashTable_Add(&Table, S("test"), 1, false);
+
+    HashTable_Destroy(&Table);
+    Expect_Ptr_IsNotValid(Table.Entries);
+
+    return true;
+}
+
+/////////////////////////////////
+// FreeListAllocator tests     //
+/////////////////////////////////
+
+TEST(FreeListAllocator_CreateAndDestroy)
+{
+    FreeListAllocator Allocator = {0};
+    FreeListAllocator_Create(&Allocator, 1024, NULL);
+
+    Expect_Ptr_IsValid(Allocator.Memory);
+    Expect_IsEqual(1024, Allocator.TotalSize);
+    Expect_IsEqual(0, Allocator.Allocated);
+    Expect_Ptr_IsValid(Allocator.Head);
+
+    FreeListAllocator_Destroy(&Allocator);
+
+    return true;
+}
+
+TEST(FreeListAllocator_AllocateAndFree)
+{
+    FreeListAllocator Allocator = {0};
+    FreeListAllocator_Create(&Allocator, 4096, NULL);
+
+    usize BytesAllocated = 0;
+    void* Block1 = FreeListAllocator_Allocate(&Allocator, 128, &BytesAllocated);
+    Expect_Ptr_IsValid(Block1);
+    Expect_IsNotEqual(0, BytesAllocated);
+
+    usize AllocatedAfterFirst = Allocator.Allocated;
+    Expect_IsNotEqual(0, AllocatedAfterFirst);
+
+    usize BytesFreed = 0;
+    FreeListAllocator_Free(&Allocator, Block1, &BytesFreed);
+    Expect_IsNotEqual(0, BytesFreed);
+    Expect_IsEqual(0, Allocator.Allocated);
+
+    FreeListAllocator_Destroy(&Allocator);
+
+    return true;
+}
+
+TEST(FreeListAllocator_MultipleAllocations)
+{
+    FreeListAllocator Allocator = {0};
+    FreeListAllocator_Create(&Allocator, 4096, NULL);
+
+    usize Bytes1 = 0;
+    usize Bytes2 = 0;
+    usize Bytes3 = 0;
+    void* Block1 = FreeListAllocator_Allocate(&Allocator, 64, &Bytes1);
+    void* Block2 = FreeListAllocator_Allocate(&Allocator, 128, &Bytes2);
+    void* Block3 = FreeListAllocator_Allocate(&Allocator, 256, &Bytes3);
+
+    Expect_Ptr_IsValid(Block1);
+    Expect_Ptr_IsValid(Block2);
+    Expect_Ptr_IsValid(Block3);
+
+    // All blocks should be at different addresses
+    Expect_Ptr_IsNotEqual(Block1, Block2);
+    Expect_Ptr_IsNotEqual(Block2, Block3);
+    Expect_Ptr_IsNotEqual(Block1, Block3);
+
+    usize BytesFreed = 0;
+    FreeListAllocator_Free(&Allocator, Block2, &BytesFreed);
+    FreeListAllocator_Free(&Allocator, Block1, &BytesFreed);
+    FreeListAllocator_Free(&Allocator, Block3, &BytesFreed);
+
+    Expect_IsEqual(0, Allocator.Allocated);
+
+    FreeListAllocator_Destroy(&Allocator);
+
+    return true;
+}
+
+TEST(FreeListAllocator_FreeAll)
+{
+    FreeListAllocator Allocator = {0};
+    FreeListAllocator_Create(&Allocator, 4096, NULL);
+
+    usize Bytes = 0;
+    void* Block1 = FreeListAllocator_Allocate(&Allocator, 64, &Bytes);
+    void* Block2 = FreeListAllocator_Allocate(&Allocator, 128, &Bytes);
+    (void)Block1;
+    (void)Block2;
+
+    Expect_IsNotEqual(0, Allocator.Allocated);
+
+    FreeListAllocator_FreeAll(&Allocator);
+    Expect_IsEqual(0, Allocator.Allocated);
+
+    FreeListAllocator_Destroy(&Allocator);
+
+    return true;
+}
+
+/////////////////////////////////
+// StringUtils additional tests//
+/////////////////////////////////
+
+TEST(StringUtils_IsInteger)
+{
+    // Basic valid integers
+    Expect_IsTrue(String_IsInteger(S("0")));
+    Expect_IsTrue(String_IsInteger(S("1")));
+    Expect_IsTrue(String_IsInteger(S("12345")));
+    Expect_IsTrue(String_IsInteger(S("9999999999")));
+
+    // Negative integers
+    Expect_IsTrue(String_IsInteger(S("-1")));
+    Expect_IsTrue(String_IsInteger(S("-12345")));
+    Expect_IsTrue(String_IsInteger(S("-0"))); // technically valid form
+
+    // Max length boundary (20 chars max)
+    Expect_IsTrue(String_IsInteger(S("18446744073709551615"))); // 20 chars, at limit
+    Expect_IsFalse(String_IsInteger(S("184467440737095516150"))); // 21 chars, over limit
+
+    // Negative at max length (20 chars including minus)
+    Expect_IsTrue(String_IsInteger(S("-9223372036854775807"))); // 20 chars total
+
+    // Empty and whitespace
+    Expect_IsFalse(String_IsInteger(S("")));
+    Expect_IsFalse(String_IsInteger(S(" ")));
+    Expect_IsFalse(String_IsInteger(S("\t")));
+    Expect_IsFalse(String_IsInteger(S("\n")));
+
+    // Just a minus sign
+    Expect_IsFalse(String_IsInteger(S("-")));
+
+    // Decimal / float values
+    Expect_IsFalse(String_IsInteger(S("12.34")));
+    Expect_IsFalse(String_IsInteger(S(".5")));
+    Expect_IsFalse(String_IsInteger(S("1.")));
+
+    // Alphabetic and mixed
+    Expect_IsFalse(String_IsInteger(S("abc")));
+    Expect_IsFalse(String_IsInteger(S("123abc")));
+    Expect_IsFalse(String_IsInteger(S("abc123")));
+    Expect_IsFalse(String_IsInteger(S("12 34")));
+
+    // Symbols
+    Expect_IsFalse(String_IsInteger(S("+123"))); // plus sign not handled
+    Expect_IsFalse(String_IsInteger(S("123-456")));
+    Expect_IsFalse(String_IsInteger(S("$100")));
+    Expect_IsFalse(String_IsInteger(S("1,000")));
+
+    // Leading/trailing spaces
+    Expect_IsFalse(String_IsInteger(S(" 123")));
+    Expect_IsFalse(String_IsInteger(S("123 ")));
+    Expect_IsFalse(String_IsInteger(S(" 123 ")));
+
+    // Single digit
+    Expect_IsTrue(String_IsInteger(S("0")));
+    Expect_IsTrue(String_IsInteger(S("9")));
+
+    // Leading zeros
+    Expect_IsTrue(String_IsInteger(S("007")));
+    Expect_IsTrue(String_IsInteger(S("00")));
+
+    return true;
+}
+
+TEST(StringUtils_IsFloat)
+{
+    // Basic valid floats
+    Expect_IsTrue(String_IsFloat(S("123.45")));
+    Expect_IsTrue(String_IsFloat(S("0.0")));
+    Expect_IsTrue(String_IsFloat(S("0.1")));
+    Expect_IsTrue(String_IsFloat(S("1.0")));
+    Expect_IsTrue(String_IsFloat(S("99999.99999")));
+
+    // Leading dot (no whole part)
+    Expect_IsTrue(String_IsFloat(S(".5")));
+    Expect_IsTrue(String_IsFloat(S(".0")));
+    Expect_IsTrue(String_IsFloat(S(".123456789")));
+
+    // Trailing dot (no fractional part) - IsFloat allows this since dot is valid and rest are digits
+    Expect_IsTrue(String_IsFloat(S("5.")));
+    Expect_IsTrue(String_IsFloat(S("0.")));
+
+    // Negative floats
+    Expect_IsTrue(String_IsFloat(S("-123.45")));
+    Expect_IsTrue(String_IsFloat(S("-.5")));
+    Expect_IsTrue(String_IsFloat(S("-0.0")));
+    Expect_IsTrue(String_IsFloat(S("-1.0")));
+
+    // Integers are also valid in IsFloat (digits only, no dot required)
+    Expect_IsTrue(String_IsFloat(S("12345")));
+    Expect_IsTrue(String_IsFloat(S("0")));
+    Expect_IsTrue(String_IsFloat(S("-42")));
+
+    // Empty and whitespace
+    Expect_IsFalse(String_IsFloat(S("")));
+    Expect_IsFalse(String_IsFloat(S(" ")));
+    Expect_IsFalse(String_IsFloat(S("\t")));
+
+    // Just a minus sign
+    Expect_IsFalse(String_IsFloat(S("-")));
+
+    // Multiple dots
+    Expect_IsFalse(String_IsFloat(S("12.34.56")));
+    Expect_IsFalse(String_IsFloat(S("..5")));
+    Expect_IsFalse(String_IsFloat(S("1.2.3")));
+
+    // Alphabetic and mixed
+    Expect_IsFalse(String_IsFloat(S("abc")));
+    Expect_IsFalse(String_IsFloat(S("123abc")));
+    Expect_IsFalse(String_IsFloat(S("abc123")));
+    Expect_IsFalse(String_IsFloat(S("12.3a")));
+    Expect_IsFalse(String_IsFloat(S("a.5")));
+
+    // Symbols
+    Expect_IsFalse(String_IsFloat(S("+1.5"))); // plus sign not handled
+    Expect_IsFalse(String_IsFloat(S("1.5e10"))); // scientific notation
+    Expect_IsFalse(String_IsFloat(S("$1.50")));
+    Expect_IsFalse(String_IsFloat(S("1,000.5")));
+
+    // Leading/trailing spaces
+    Expect_IsFalse(String_IsFloat(S(" 1.5")));
+    Expect_IsFalse(String_IsFloat(S("1.5 ")));
+
+    // Just a dot
+    Expect_IsTrue(String_IsFloat(S("."))); // single dot with no digits - IsFloat allows this
+
+    return true;
+}
+
+TEST(StringUtils_IsNumeric)
+{
+    // Integers (delegates to IsInteger)
+    Expect_IsTrue(String_IsNumeric(S("12345")));
+    Expect_IsTrue(String_IsNumeric(S("0")));
+    Expect_IsTrue(String_IsNumeric(S("-12345")));
+    Expect_IsTrue(String_IsNumeric(S("-0")));
+
+    // Floats (delegates to IsFloat)
+    Expect_IsTrue(String_IsNumeric(S("123.45")));
+    Expect_IsTrue(String_IsNumeric(S("-123.45")));
+    Expect_IsTrue(String_IsNumeric(S(".5")));
+    Expect_IsTrue(String_IsNumeric(S("-.5")));
+    Expect_IsTrue(String_IsNumeric(S("0.0")));
+
+    // Invalid
+    Expect_IsFalse(String_IsNumeric(S("-")));
+    Expect_IsFalse(String_IsNumeric(S("abc")));
+    Expect_IsFalse(String_IsNumeric(S("")));
+    Expect_IsFalse(String_IsNumeric(S("12.34.56")));
+    Expect_IsFalse(String_IsNumeric(S("123abc")));
+    Expect_IsFalse(String_IsNumeric(S(" 5")));
+    Expect_IsFalse(String_IsNumeric(S("+5")));
+
+    return true;
+}
+
+TEST(StringUtils_Duplicate)
+{
+    LinearAllocator Arena = {0};
+    LinearAllocator_Create(4096, NULL, &Arena);
+
+    // Basic duplication
+    String Original = S("Hello World");
+    String Copy = String_Duplicate(&Arena, Original);
+    Expect_Ptr_IsValid(Copy.Data);
+    Expect_String_IsEqual(Original, Copy, true);
+    Expect_IsEqual(Original.Length, Copy.Length);
+    Expect_IsEqual(Original.Length, Copy.Capacity);
+    Expect_Ptr_IsNotEqual(Original.Data, Copy.Data);
+
+    // Verify null terminator is present
+    Expect_IsEqual(0, Copy.Data[Copy.Length]);
+
+    // Duplicate a single character
+    String SingleChar = S("X");
+    String CopySingle = String_Duplicate(&Arena, SingleChar);
+    Expect_Ptr_IsValid(CopySingle.Data);
+    Expect_String_IsEqual(S("X"), CopySingle, true);
+    Expect_IsEqual(1, CopySingle.Length);
+    Expect_Ptr_IsNotEqual(SingleChar.Data, CopySingle.Data);
+
+    // Duplicate string with special characters
+    String Special = S("!@#$%^&*()");
+    String CopySpecial = String_Duplicate(&Arena, Special);
+    Expect_Ptr_IsValid(CopySpecial.Data);
+    Expect_String_IsEqual(S("!@#$%^&*()"), CopySpecial, true);
+    Expect_IsEqual(Special.Length, CopySpecial.Length);
+
+    // Duplicate string with spaces
+    String WithSpaces = S("  hello  world  ");
+    String CopySpaces = String_Duplicate(&Arena, WithSpaces);
+    Expect_String_IsEqual(S("  hello  world  "), CopySpaces, true);
+    Expect_IsEqual(WithSpaces.Length, CopySpaces.Length);
+
+    // Duplicate string with path separators
+    String Path = S("C:\\Users\\test/file.txt");
+    String CopyPath = String_Duplicate(&Arena, Path);
+    Expect_String_IsEqual(Path, CopyPath, true);
+
+    // Empty string returns null (Length == 0 fails the bValid check)
+    String Empty = S("");
+    String CopyEmpty = String_Duplicate(&Arena, Empty);
+    Expect_IsEqual(0, CopyEmpty.Length);
+
+    // Multiple duplications produce independent copies
+    String A = String_Duplicate(&Arena, S("AAA"));
+    String B = String_Duplicate(&Arena, S("BBB"));
+    Expect_String_IsEqual(S("AAA"), A, true);
+    Expect_String_IsEqual(S("BBB"), B, true);
+    Expect_Ptr_IsNotEqual(A.Data, B.Data);
+
+    LinearAllocator_Destroy(&Arena);
+
+    return true;
+}
+
+TEST(StringUtils_Left)
+{
+    // String_Left returns StrSlice(Data, Index) - first N chars as a slice
+    String Src = S("Hello World");
+
+    // Take first 5 chars
+    String Result = String_Left(Src, 5);
+    Expect_String_IsEqual(S("Hello"), Result, true);
+    Expect_IsEqual(5, Result.Length);
+
+    // Take first 1 char
+    Result = String_Left(Src, 1);
+    Expect_String_IsEqual(S("H"), Result, true);
+    Expect_IsEqual(1, Result.Length);
+
+    // Left with index 0 returns empty
+    Result = String_Left(Src, 0);
+    Expect_IsEqual(0, Result.Length);
+
+    // Full length returns entire string
+    Result = String_Left(Src, Src.Length);
+    Expect_String_IsEqual(S("Hello World"), Result, true);
+    Expect_IsEqual(Src.Length, Result.Length);
+
+    // Capacity is 0 (it's a slice, not modifiable)
+    Result = String_Left(Src, 5);
+    Expect_IsEqual(0, Result.Capacity);
+
+    // Pointer should point into the original data
+    Expect_Ptr_IsEqual(Src.Data, Result.Data);
+
+    // Take just the space character
+    Result = String_Left(Src, 6);
+    Expect_String_IsEqual(S("Hello "), Result, true);
+
+    // Single character string
+    String Single = S("X");
+    Result = String_Left(Single, 1);
+    Expect_String_IsEqual(S("X"), Result, true);
+
+    return true;
+}
+
+TEST(StringUtils_Right)
+{
+    // String_Right shifts forward by Index chars (StrShiftF), returning the tail of the string
+    String Src = S("Hello World");
+
+    // Skip first 6 chars to get "World"
+    String Result = String_Right(Src, 6);
+    Expect_String_IsEqual(S("World"), Result, true);
+    Expect_IsEqual(5, Result.Length);
+
+    // Right with index 0 returns the full string
+    Result = String_Right(Src, 0);
+    Expect_String_IsEqual(S("Hello World"), Result, true);
+    Expect_IsEqual(Src.Length, Result.Length);
+
+    // Skip 1 char
+    Result = String_Right(Src, 1);
+    Expect_String_IsEqual(S("ello World"), Result, true);
+    Expect_IsEqual(10, Result.Length);
+
+    // Right with full length returns empty
+    Result = String_Right(Src, Src.Length);
+    Expect_IsEqual(0, Result.Length);
+
+    // Capacity is 0 (it's a slice, not modifiable)
+    Result = String_Right(Src, 3);
+    Expect_IsEqual(0, Result.Capacity);
+
+    // Data pointer is offset into original
+    Result = String_Right(Src, 6);
+    Expect_Ptr_IsEqual(Src.Data + 6, Result.Data);
+
+    // Skip past the space
+    Result = String_Right(Src, 5);
+    Expect_String_IsEqual(S(" World"), Result, true);
+
+    // Single character string
+    String Single = S("X");
+    Result = String_Right(Single, 0);
+    Expect_String_IsEqual(S("X"), Result, true);
+    Result = String_Right(Single, 1);
+    Expect_IsEqual(0, Result.Length);
+
+    // Index beyond length is clamped by StrShiftF (uses Min)
+    Result = String_Right(Src, 100);
+    Expect_IsEqual(0, Result.Length);
+
+    return true;
+}
+
+TEST(StringUtils_IndexOfLastChar)
+{
+    // Multiple occurrences - should find the last one
+    String Src = S("hello.world.test");
+    u32 Index = 0;
+    bool bFound = String_IndexOfLastChar(Src, '.', &Index);
+    Expect_IsTrue(bFound);
+    Expect_IsEqual(11, Index);
+
+    // Search for char not present
+    Index = 0;
+    bFound = String_IndexOfLastChar(Src, '@', &Index);
+    Expect_IsFalse(bFound);
+
+    // Single occurrence
+    String Single = S("abc.def");
+    Index = 0;
+    bFound = String_IndexOfLastChar(Single, '.', &Index);
+    Expect_IsTrue(bFound);
+    Expect_IsEqual(3, Index);
+
+    // Char at the very beginning
+    Index = 0;
+    bFound = String_IndexOfLastChar(S(".hello"), '.', &Index);
+    Expect_IsTrue(bFound);
+    Expect_IsEqual(0, Index);
+
+    // Char at the very end
+    Index = 0;
+    bFound = String_IndexOfLastChar(S("hello."), '.', &Index);
+    Expect_IsTrue(bFound);
+    Expect_IsEqual(5, Index);
+
+    // Char is both first and last
+    Index = 0;
+    bFound = String_IndexOfLastChar(S(".hello."), '.', &Index);
+    Expect_IsTrue(bFound);
+    Expect_IsEqual(6, Index);
+
+    // String is a single character that matches
+    Index = 0;
+    bFound = String_IndexOfLastChar(S("."), '.', &Index);
+    Expect_IsTrue(bFound);
+    Expect_IsEqual(0, Index);
+
+    // String is a single character that doesn't match
+    Index = 0;
+    bFound = String_IndexOfLastChar(S("x"), '.', &Index);
+    Expect_IsFalse(bFound);
+
+    // Empty string
+    Index = 0;
+    bFound = String_IndexOfLastChar(S(""), '.', &Index);
+    Expect_IsFalse(bFound);
+
+    // All same characters - should find the last one
+    Index = 0;
+    bFound = String_IndexOfLastChar(S("...."), '.', &Index);
+    Expect_IsTrue(bFound);
+    Expect_IsEqual(3, Index);
+
+    // Search for space
+    Index = 0;
+    bFound = String_IndexOfLastChar(S("hello world test"), ' ', &Index);
+    Expect_IsTrue(bFound);
+    Expect_IsEqual(11, Index);
+
+    // Search for path separator
+    Index = 0;
+    bFound = String_IndexOfLastChar(S("C:\\Users\\test\\file.txt"), '\\', &Index);
+    Expect_IsTrue(bFound);
+    Expect_IsEqual(13, Index);
+
+    return true;
+}
+
+TEST(StringUtils_TrimQuotes)
+{
+    // Basic double-quoted string
+    String Result = String_TrimQuotes(S("\"hello\""));
+    Expect_String_IsEqual(S("hello"), Result, true);
+    Expect_IsEqual(5, Result.Length);
+
+    // No quotes - unchanged
+    Result = String_TrimQuotes(S("hello"));
+    Expect_String_IsEqual(S("hello"), Result, true);
+
+    // Single quotes are not trimmed (only double quotes)
+    Result = String_TrimQuotes(S("'hello'"));
+    Expect_String_IsEqual(S("'hello'"), Result, true);
+
+    // Only opening quote - trims the opening quote but no closing
+    Result = String_TrimQuotes(S("\"hello"));
+    Expect_String_IsEqual(S("hello"), Result, true);
+
+    // Only closing quote - no opening quote means no trimming at all
+    Result = String_TrimQuotes(S("hello\""));
+    Expect_String_IsEqual(S("hello\""), Result, true);
+
+    // Empty double quotes
+    Result = String_TrimQuotes(S("\"\""));
+    Expect_IsEqual(0, Result.Length);
+
+    // Single quote character
+    Result = String_TrimQuotes(S("\""));
+    Expect_IsEqual(0, Result.Length);
+
+    // Empty string
+    Result = String_TrimQuotes(S(""));
+    Expect_IsEqual(0, Result.Length);
+
+    // Quotes with spaces inside
+    Result = String_TrimQuotes(S("\"hello world\""));
+    Expect_String_IsEqual(S("hello world"), Result, true);
+
+    // Quotes with special characters inside
+    Result = String_TrimQuotes(S("\"!@#$%\""));
+    Expect_String_IsEqual(S("!@#$%"), Result, true);
+
+    // Nested double quotes
+    Result = String_TrimQuotes(S("\"he\"llo\""));
+    Expect_String_IsEqual(S("he\"llo"), Result, true);
+
+    // Path in quotes
+    Result = String_TrimQuotes(S("\"C:\\Users\\test\""));
+    Expect_String_IsEqual(S("C:\\Users\\test"), Result, true);
+
+    return true;
+}
+
+TEST(StringUtils_IsFirst)
+{
+    // Basic match
+    Expect_IsTrue(String_IsFirst(S("Hello"), 'H'));
+
+    // Not first character
+    Expect_IsFalse(String_IsFirst(S("Hello"), 'e'));
+    Expect_IsFalse(String_IsFirst(S("Hello"), 'o'));
+
+    // Empty string
+    Expect_IsFalse(String_IsFirst(S(""), 'H'));
+    Expect_IsFalse(String_IsFirst(S(""), '\0'));
+
+    // Single character string
+    Expect_IsTrue(String_IsFirst(S("X"), 'X'));
+    Expect_IsFalse(String_IsFirst(S("X"), 'Y'));
+
+    // Special characters as first
+    Expect_IsTrue(String_IsFirst(S(" Hello"), ' '));
+    Expect_IsTrue(String_IsFirst(S("\tHello"), '\t'));
+    Expect_IsTrue(String_IsFirst(S("\nHello"), '\n'));
+    Expect_IsTrue(String_IsFirst(S("/path"), '/'));
+    Expect_IsTrue(String_IsFirst(S("\\path"), '\\'));
+    Expect_IsTrue(String_IsFirst(S("\"quoted"), '"'));
+    Expect_IsTrue(String_IsFirst(S("-123"), '-'));
+    Expect_IsTrue(String_IsFirst(S(".5"), '.'));
+
+    // Digit as first
+    Expect_IsTrue(String_IsFirst(S("0test"), '0'));
+    Expect_IsTrue(String_IsFirst(S("9test"), '9'));
+
+    return true;
+}
+
+TEST(StringUtils_IsLast)
+{
+    // Basic match
+    Expect_IsTrue(String_IsLast(S("Hello"), 'o'));
+
+    // Not last character
+    Expect_IsFalse(String_IsLast(S("Hello"), 'H'));
+    Expect_IsFalse(String_IsLast(S("Hello"), 'l'));
+
+    // Empty string
+    Expect_IsFalse(String_IsLast(S(""), 'o'));
+    Expect_IsFalse(String_IsLast(S(""), '\0'));
+
+    // Single character string
+    Expect_IsTrue(String_IsLast(S("X"), 'X'));
+    Expect_IsFalse(String_IsLast(S("X"), 'Y'));
+
+    // Special characters as last
+    Expect_IsTrue(String_IsLast(S("Hello "), ' '));
+    Expect_IsTrue(String_IsLast(S("Hello\t"), '\t'));
+    Expect_IsTrue(String_IsLast(S("Hello\n"), '\n'));
+    Expect_IsTrue(String_IsLast(S("path/"), '/'));
+    Expect_IsTrue(String_IsLast(S("path\\"), '\\'));
+    Expect_IsTrue(String_IsLast(S("quoted\""), '"'));
+    Expect_IsTrue(String_IsLast(S("file."), '.'));
+
+    // Null char is never the last (Length doesn't include null terminator)
+    Expect_IsFalse(String_IsLast(S("Hello"), '\0'));
+
+    // Same char appears first and last
+    Expect_IsTrue(String_IsLast(S("abca"), 'a'));
+    Expect_IsTrue(String_IsFirst(S("abca"), 'a'));
+
+    return true;
+}
+
+TEST(StringUtils_FromI32)
+{
+    StringLocal(Buffer, 32);
+
+    // Basic positive
+    bool bSuccess = String_FromI32(&Buffer, 12345);
+    Expect_IsTrue(bSuccess);
+    Expect_String_IsEqual(S("12345"), Buffer, true);
+    Expect_IsEqual(5, Buffer.Length);
+
+    // Zero
+    Buffer.Length = 0;
+    bSuccess = String_FromI32(&Buffer, 0);
+    Expect_IsTrue(bSuccess);
+    Expect_String_IsEqual(S("0"), Buffer, true);
+    Expect_IsEqual(1, Buffer.Length);
+
+    // Negative
+    Buffer.Length = 0;
+    bSuccess = String_FromI32(&Buffer, -12345);
+    Expect_IsTrue(bSuccess);
+    Expect_String_IsEqual(S("-12345"), Buffer, true);
+    Expect_IsEqual(6, Buffer.Length);
+
+    // Negative one
+    Buffer.Length = 0;
+    bSuccess = String_FromI32(&Buffer, -1);
+    Expect_IsTrue(bSuccess);
+    Expect_String_IsEqual(S("-1"), Buffer, true);
+
+    // Single digit
+    Buffer.Length = 0;
+    bSuccess = String_FromI32(&Buffer, 7);
+    Expect_IsTrue(bSuccess);
+    Expect_String_IsEqual(S("7"), Buffer, true);
+
+    // INT32_MAX (2147483647)
+    Buffer.Length = 0;
+    bSuccess = String_FromI32(&Buffer, INT32_MAX);
+    Expect_IsTrue(bSuccess);
+    Expect_String_IsEqual(S("2147483647"), Buffer, true);
+
+    // INT32_MIN + 1 = -2147483647
+    Buffer.Length = 0;
+    bSuccess = String_FromI32(&Buffer, -2147483647);
+    Expect_IsTrue(bSuccess);
+    Expect_String_IsEqual(S("-2147483647"), Buffer, true);
+
+    // Powers of 10
+    Buffer.Length = 0;
+    bSuccess = String_FromI32(&Buffer, 10);
+    Expect_IsTrue(bSuccess);
+    Expect_String_IsEqual(S("10"), Buffer, true);
+
+    Buffer.Length = 0;
+    bSuccess = String_FromI32(&Buffer, 100);
+    Expect_IsTrue(bSuccess);
+    Expect_String_IsEqual(S("100"), Buffer, true);
+
+    Buffer.Length = 0;
+    bSuccess = String_FromI32(&Buffer, 1000000);
+    Expect_IsTrue(bSuccess);
+    Expect_String_IsEqual(S("1000000"), Buffer, true);
+
+    // Buffer too small should fail (capacity < MaxDigits)
+    StringLocal(TinyBuffer, 4);
+    bSuccess = String_FromI32(&TinyBuffer, 12345);
+    Expect_IsFalse(bSuccess);
+
+    return true;
+}
+
+TEST(StringUtils_FromU32)
+{
+    StringLocal(Buffer, 32);
+
+    // Basic value
+    bool bSuccess = String_FromU32(&Buffer, 12345);
+    Expect_IsTrue(bSuccess);
+    Expect_String_IsEqual(S("12345"), Buffer, true);
+    Expect_IsEqual(5, Buffer.Length);
+
+    // Zero
+    Buffer.Length = 0;
+    bSuccess = String_FromU32(&Buffer, 0);
+    Expect_IsTrue(bSuccess);
+    Expect_String_IsEqual(S("0"), Buffer, true);
+    Expect_IsEqual(1, Buffer.Length);
+
+    // One
+    Buffer.Length = 0;
+    bSuccess = String_FromU32(&Buffer, 1);
+    Expect_IsTrue(bSuccess);
+    Expect_String_IsEqual(S("1"), Buffer, true);
+
+    // Single digit boundary
+    Buffer.Length = 0;
+    bSuccess = String_FromU32(&Buffer, 9);
+    Expect_IsTrue(bSuccess);
+    Expect_String_IsEqual(S("9"), Buffer, true);
+
+    // UINT32_MAX (4294967295)
+    Buffer.Length = 0;
+    bSuccess = String_FromU32(&Buffer, UINT32_MAX);
+    Expect_IsTrue(bSuccess);
+    Expect_String_IsEqual(S("4294967295"), Buffer, true);
+    Expect_IsEqual(10, Buffer.Length);
+
+    // Powers of 10
+    Buffer.Length = 0;
+    bSuccess = String_FromU32(&Buffer, 10);
+    Expect_IsTrue(bSuccess);
+    Expect_String_IsEqual(S("10"), Buffer, true);
+
+    Buffer.Length = 0;
+    bSuccess = String_FromU32(&Buffer, 1000);
+    Expect_IsTrue(bSuccess);
+    Expect_String_IsEqual(S("1000"), Buffer, true);
+
+    // Digit boundaries
+    Buffer.Length = 0;
+    bSuccess = String_FromU32(&Buffer, 99);
+    Expect_IsTrue(bSuccess);
+    Expect_String_IsEqual(S("99"), Buffer, true);
+
+    Buffer.Length = 0;
+    bSuccess = String_FromU32(&Buffer, 100);
+    Expect_IsTrue(bSuccess);
+    Expect_String_IsEqual(S("100"), Buffer, true);
+
+    // Buffer too small should fail
+    StringLocal(TinyBuffer, 4);
+    bSuccess = String_FromU32(&TinyBuffer, 12345);
+    Expect_IsFalse(bSuccess);
+
+    return true;
+}
+
+TEST(StringUtils_CompareVersion)
+{
+    // Equal versions - all components match
+    ECompareResult Result = String_CompareVersion(S("1.0.0"), S("1.0.0"));
+    Expect_IsEqual(CompareResult_Equal, Result);
+
+    // Major version difference
+    Result = String_CompareVersion(S("2.0.0"), S("1.0.0"));
+    Expect_IsEqual(CompareResult_Greater, Result);
+
+    Result = String_CompareVersion(S("1.0.0"), S("2.0.0"));
+    Expect_IsEqual(CompareResult_Less, Result);
+
+    // Minor version difference (major equal)
+    Result = String_CompareVersion(S("1.2.0"), S("1.1.0"));
+    Expect_IsEqual(CompareResult_Greater, Result);
+
+    Result = String_CompareVersion(S("1.1.0"), S("1.2.0"));
+    Expect_IsEqual(CompareResult_Less, Result);
+
+    // Patch version difference (major and minor equal)
+    Result = String_CompareVersion(S("1.0.1"), S("1.0.2"));
+    Expect_IsEqual(CompareResult_Less, Result);
+
+    Result = String_CompareVersion(S("1.0.2"), S("1.0.1"));
+    Expect_IsEqual(CompareResult_Greater, Result);
+
+    // Two-component versions
+    Result = String_CompareVersion(S("1.0"), S("1.0"));
+    Expect_IsEqual(CompareResult_Equal, Result);
+
+    Result = String_CompareVersion(S("1.1"), S("1.0"));
+    Expect_IsEqual(CompareResult_Greater, Result);
+
+    Result = String_CompareVersion(S("1.0"), S("1.1"));
+    Expect_IsEqual(CompareResult_Less, Result);
+
+    // Single-component versions
+    Result = String_CompareVersion(S("5"), S("5"));
+    Expect_IsEqual(CompareResult_Equal, Result);
+
+    Result = String_CompareVersion(S("5"), S("3"));
+    Expect_IsEqual(CompareResult_Greater, Result);
+
+    Result = String_CompareVersion(S("3"), S("5"));
+    Expect_IsEqual(CompareResult_Less, Result);
+
+    // Large version numbers
+    Result = String_CompareVersion(S("100.200.300"), S("100.200.300"));
+    Expect_IsEqual(CompareResult_Equal, Result);
+
+    Result = String_CompareVersion(S("100.200.301"), S("100.200.300"));
+    Expect_IsEqual(CompareResult_Greater, Result);
+
+    // Zero versions
+    Result = String_CompareVersion(S("0.0.0"), S("0.0.0"));
+    Expect_IsEqual(CompareResult_Equal, Result);
+
+    Result = String_CompareVersion(S("0.0.1"), S("0.0.0"));
+    Expect_IsEqual(CompareResult_Greater, Result);
+
+    // Hyphen separator (used for pre-release versions)
+    Result = String_CompareVersion(S("1-0-0"), S("1-0-0"));
+    Expect_IsEqual(CompareResult_Equal, Result);
+
+    Result = String_CompareVersion(S("2-0-0"), S("1-0-0"));
+    Expect_IsEqual(CompareResult_Greater, Result);
+
+    // Empty version returns None
+    Result = String_CompareVersion(S(""), S("1.0.0"));
+    Expect_IsEqual(CompareResult_None, Result);
+
+    Result = String_CompareVersion(S("1.0.0"), S(""));
+    Expect_IsEqual(CompareResult_None, Result);
+
+    Result = String_CompareVersion(S(""), S(""));
+    Expect_IsEqual(CompareResult_None, Result);
+
+    // Four component versions
+    Result = String_CompareVersion(S("1.2.3.4"), S("1.2.3.4"));
+    Expect_IsEqual(CompareResult_Equal, Result);
+
+    Result = String_CompareVersion(S("1.2.3.5"), S("1.2.3.4"));
+    Expect_IsEqual(CompareResult_Greater, Result);
+
+    return true;
+}
+
+TEST(StringUtils_Integer_CountDigits)
+{
+    // Zero is 1 digit
+    Expect_IsEqual(1, Integer_CountDigits(0));
+
+    // Single digits 1-9
+    Expect_IsEqual(1, Integer_CountDigits(1));
+    Expect_IsEqual(1, Integer_CountDigits(5));
+    Expect_IsEqual(1, Integer_CountDigits(9));
+
+    // Boundary: 9 -> 10 (1 digit -> 2 digits)
+    Expect_IsEqual(2, Integer_CountDigits(10));
+    Expect_IsEqual(2, Integer_CountDigits(11));
+    Expect_IsEqual(2, Integer_CountDigits(99));
+
+    // Boundary: 99 -> 100 (2 digits -> 3 digits)
+    Expect_IsEqual(3, Integer_CountDigits(100));
+    Expect_IsEqual(3, Integer_CountDigits(999));
+
+    // Boundary: 999 -> 1000
+    Expect_IsEqual(4, Integer_CountDigits(1000));
+    Expect_IsEqual(4, Integer_CountDigits(9999));
+
+    // Larger values
+    Expect_IsEqual(5, Integer_CountDigits(10000));
+    Expect_IsEqual(5, Integer_CountDigits(99999));
+    Expect_IsEqual(6, Integer_CountDigits(100000));
+    Expect_IsEqual(7, Integer_CountDigits(1000000));
+
+    // u32 max: 4294967295 (10 digits)
+    Expect_IsEqual(10, Integer_CountDigits(4294967295ULL));
+
+    // u64 max: 18446744073709551615 (20 digits)
+    Expect_IsEqual(20, Integer_CountDigits(18446744073709551615ULL));
+
+    // Powers of 10
+    Expect_IsEqual(8, Integer_CountDigits(10000000));
+    Expect_IsEqual(9, Integer_CountDigits(100000000));
+    Expect_IsEqual(10, Integer_CountDigits(1000000000));
+
+    return true;
+}
+
+TEST(StringUtils_ContainsDigits)
+{
+    // Mixed alpha and digits
+    Expect_IsTrue(String_ContainsDigits(S("abc123")));
+    Expect_IsTrue(String_ContainsDigits(S("123abc")));
+    Expect_IsTrue(String_ContainsDigits(S("a1b2c3")));
+
+    // Only digits
+    Expect_IsTrue(String_ContainsDigits(S("0")));
+    Expect_IsTrue(String_ContainsDigits(S("5")));
+    Expect_IsTrue(String_ContainsDigits(S("9")));
+    Expect_IsTrue(String_ContainsDigits(S("0123456789")));
+
+    // Digits at various positions
+    Expect_IsTrue(String_ContainsDigits(S("0abc")));
+    Expect_IsTrue(String_ContainsDigits(S("abc0")));
+    Expect_IsTrue(String_ContainsDigits(S("ab1cd")));
+
+    // Digit in symbols
+    Expect_IsTrue(String_ContainsDigits(S("!@#1$%")));
+    Expect_IsTrue(String_ContainsDigits(S("test_2_value")));
+
+    // No digits - alphabetic only
+    Expect_IsFalse(String_ContainsDigits(S("abc")));
+    Expect_IsFalse(String_ContainsDigits(S("ABCDEFGHIJKLMNOPQRSTUVWXYZ")));
+    Expect_IsFalse(String_ContainsDigits(S("abcdefghijklmnopqrstuvwxyz")));
+
+    // No digits - symbols only
+    Expect_IsFalse(String_ContainsDigits(S("!@#$%^&*()")));
+    Expect_IsFalse(String_ContainsDigits(S("---")));
+
+    // No digits - whitespace only
+    Expect_IsFalse(String_ContainsDigits(S(" ")));
+    Expect_IsFalse(String_ContainsDigits(S("\t\n")));
+
+    // Empty string
+    Expect_IsFalse(String_ContainsDigits(S("")));
+
+    return true;
+}
+
+TEST(StringUtils_ReplaceCharInline)
+{
+    StringLocal(TestStr, 128);
+
+    // Replace multiple occurrences
+    String_Copy(&TestStr, S("hello-world-test"));
+    bool bReplaced = String_ReplaceCharInline(&TestStr, '-', '_');
+    Expect_IsTrue(bReplaced);
+    Expect_String_IsEqual(S("hello_world_test"), TestStr, true);
+
+    // Replace char that does not exist
+    bReplaced = String_ReplaceCharInline(&TestStr, '@', '!');
+    Expect_IsFalse(bReplaced);
+    Expect_String_IsEqual(S("hello_world_test"), TestStr, true);
+
+    // Replace single occurrence
+    TestStr.Length = 0;
+    String_Copy(&TestStr, S("hello world"));
+    bReplaced = String_ReplaceCharInline(&TestStr, ' ', '-');
+    Expect_IsTrue(bReplaced);
+    Expect_String_IsEqual(S("hello-world"), TestStr, true);
+
+    // Replace first character
+    TestStr.Length = 0;
+    String_Copy(&TestStr, S("Xhello"));
+    bReplaced = String_ReplaceCharInline(&TestStr, 'X', 'Y');
+    Expect_IsTrue(bReplaced);
+    Expect_String_IsEqual(S("Yhello"), TestStr, true);
+
+    // Replace last character
+    TestStr.Length = 0;
+    String_Copy(&TestStr, S("helloX"));
+    bReplaced = String_ReplaceCharInline(&TestStr, 'X', 'Y');
+    Expect_IsTrue(bReplaced);
+    Expect_String_IsEqual(S("helloY"), TestStr, true);
+
+    // Replace all characters (all same char)
+    TestStr.Length = 0;
+    String_Copy(&TestStr, S("AAAA"));
+    bReplaced = String_ReplaceCharInline(&TestStr, 'A', 'B');
+    Expect_IsTrue(bReplaced);
+    Expect_String_IsEqual(S("BBBB"), TestStr, true);
+
+    // Replace with same char (no visible change but returns true)
+    TestStr.Length = 0;
+    String_Copy(&TestStr, S("hello"));
+    bReplaced = String_ReplaceCharInline(&TestStr, 'h', 'h');
+    Expect_IsTrue(bReplaced);
+    Expect_String_IsEqual(S("hello"), TestStr, true);
+
+    // Replace backslash with forward slash (common path operation)
+    TestStr.Length = 0;
+    String_Copy(&TestStr, S("C:\\Users\\test\\file.txt"));
+    bReplaced = String_ReplaceCharInline(&TestStr, '\\', '/');
+    Expect_IsTrue(bReplaced);
+    Expect_String_IsEqual(S("C:/Users/test/file.txt"), TestStr, true);
+
+    // Single character string - match
+    TestStr.Length = 0;
+    String_Copy(&TestStr, S("X"));
+    bReplaced = String_ReplaceCharInline(&TestStr, 'X', 'Y');
+    Expect_IsTrue(bReplaced);
+    Expect_String_IsEqual(S("Y"), TestStr, true);
+
+    // Single character string - no match
+    TestStr.Length = 0;
+    String_Copy(&TestStr, S("X"));
+    bReplaced = String_ReplaceCharInline(&TestStr, 'Z', 'Y');
+    Expect_IsFalse(bReplaced);
+    Expect_String_IsEqual(S("X"), TestStr, true);
+
+    // Length unchanged after replace
+    TestStr.Length = 0;
+    String_Copy(&TestStr, S("a-b-c"));
+    u32 OriginalLength = TestStr.Length;
+    bReplaced = String_ReplaceCharInline(&TestStr, '-', '_');
+    Expect_IsTrue(bReplaced);
+    Expect_IsEqual(OriginalLength, TestStr.Length);
+
+    return true;
+}
+
+TEST(StringUtils_ContainsPathSeparators)
+{
+    // Forward slashes
+    Expect_IsTrue(String_ContainsPathSeparators(S("path/to/file")));
+    Expect_IsTrue(String_ContainsPathSeparators(S("/path")));
+    Expect_IsTrue(String_ContainsPathSeparators(S("path/")));
+    Expect_IsTrue(String_ContainsPathSeparators(S("/")));
+
+    // Backslashes
+    Expect_IsTrue(String_ContainsPathSeparators(S("path\\to\\file")));
+    Expect_IsTrue(String_ContainsPathSeparators(S("\\path")));
+    Expect_IsTrue(String_ContainsPathSeparators(S("path\\")));
+    Expect_IsTrue(String_ContainsPathSeparators(S("\\")));
+
+    // Mixed separators
+    Expect_IsTrue(String_ContainsPathSeparators(S("C:\\Users/test")));
+    Expect_IsTrue(String_ContainsPathSeparators(S("/home\\user")));
+
+    // Full paths
+    Expect_IsTrue(String_ContainsPathSeparators(S("C:\\Users\\test\\file.txt")));
+    Expect_IsTrue(String_ContainsPathSeparators(S("/usr/local/bin")));
+
+    // No separators
+    Expect_IsFalse(String_ContainsPathSeparators(S("filename")));
+    Expect_IsFalse(String_ContainsPathSeparators(S("filename.txt")));
+    Expect_IsFalse(String_ContainsPathSeparators(S("hello world")));
+    Expect_IsFalse(String_ContainsPathSeparators(S("!@#$%^&*()")));
+
+    // Empty string
+    Expect_IsFalse(String_ContainsPathSeparators(S("")));
+
+    // Only separators
+    Expect_IsTrue(String_ContainsPathSeparators(S("///\\\\\\")));
+
+    return true;
+}
+
+TEST(StringUtils_FromI64)
+{
+    StringLocal(Buffer, 32);
+
+    // Zero
+    bool bSuccess = String_FromI64(&Buffer, 0);
+    Expect_IsTrue(bSuccess);
+    Expect_String_IsEqual(S("0"), Buffer, true);
+
+    // Positive one
+    Buffer.Length = 0;
+    bSuccess = String_FromI64(&Buffer, 1);
+    Expect_IsTrue(bSuccess);
+    Expect_String_IsEqual(S("1"), Buffer, true);
+
+    // Negative one
+    Buffer.Length = 0;
+    bSuccess = String_FromI64(&Buffer, -1);
+    Expect_IsTrue(bSuccess);
+    Expect_String_IsEqual(S("-1"), Buffer, true);
+
+    // Larger positive
+    Buffer.Length = 0;
+    bSuccess = String_FromI64(&Buffer, 123456789);
+    Expect_IsTrue(bSuccess);
+    Expect_String_IsEqual(S("123456789"), Buffer, true);
+
+    // Larger negative
+    Buffer.Length = 0;
+    bSuccess = String_FromI64(&Buffer, -123456789);
+    Expect_IsTrue(bSuccess);
+    Expect_String_IsEqual(S("-123456789"), Buffer, true);
+
+    // INT64_MAX (9223372036854775807)
+    Buffer.Length = 0;
+    bSuccess = String_FromI64(&Buffer, 9223372036854775807LL);
+    Expect_IsTrue(bSuccess);
+    Expect_String_IsEqual(S("9223372036854775807"), Buffer, true);
+
+    // Value beyond i32 range
+    Buffer.Length = 0;
+    bSuccess = String_FromI64(&Buffer, 3000000000LL);
+    Expect_IsTrue(bSuccess);
+    Expect_String_IsEqual(S("3000000000"), Buffer, true);
+
+    Buffer.Length = 0;
+    bSuccess = String_FromI64(&Buffer, -3000000000LL);
+    Expect_IsTrue(bSuccess);
+    Expect_String_IsEqual(S("-3000000000"), Buffer, true);
+
+    // Buffer too small should fail
+    StringLocal(TinyBuffer, 4);
+    bSuccess = String_FromI64(&TinyBuffer, 123456789);
+    Expect_IsFalse(bSuccess);
+
+    return true;
+}
+
+TEST(StringUtils_FromU64)
+{
+    StringLocal(Buffer, 32);
+
+    // Zero
+    bool bSuccess = String_FromU64(&Buffer, 0);
+    Expect_IsTrue(bSuccess);
+    Expect_String_IsEqual(S("0"), Buffer, true);
+
+    // One
+    Buffer.Length = 0;
+    bSuccess = String_FromU64(&Buffer, 1);
+    Expect_IsTrue(bSuccess);
+    Expect_String_IsEqual(S("1"), Buffer, true);
+
+    // Larger value
+    Buffer.Length = 0;
+    bSuccess = String_FromU64(&Buffer, 123456789);
+    Expect_IsTrue(bSuccess);
+    Expect_String_IsEqual(S("123456789"), Buffer, true);
+
+    // Value beyond u32 range
+    Buffer.Length = 0;
+    bSuccess = String_FromU64(&Buffer, 5000000000ULL);
+    Expect_IsTrue(bSuccess);
+    Expect_String_IsEqual(S("5000000000"), Buffer, true);
+
+    // UINT64_MAX (18446744073709551615)
+    Buffer.Length = 0;
+    bSuccess = String_FromU64(&Buffer, 18446744073709551615ULL);
+    Expect_IsTrue(bSuccess);
+    Expect_String_IsEqual(S("18446744073709551615"), Buffer, true);
+    Expect_IsEqual(20, Buffer.Length);
+
+    // Powers of 10
+    Buffer.Length = 0;
+    bSuccess = String_FromU64(&Buffer, 10);
+    Expect_IsTrue(bSuccess);
+    Expect_String_IsEqual(S("10"), Buffer, true);
+
+    Buffer.Length = 0;
+    bSuccess = String_FromU64(&Buffer, 10000000000ULL);
+    Expect_IsTrue(bSuccess);
+    Expect_String_IsEqual(S("10000000000"), Buffer, true);
+
+    // Buffer too small should fail
+    StringLocal(TinyBuffer, 4);
+    bSuccess = String_FromU64(&TinyBuffer, 18446744073709551615ULL);
+    Expect_IsFalse(bSuccess);
+
+    return true;
+}
+
+TEST(StringUtils_Copy)
+{
+    StringLocal(Dest, 64);
+
+    // Basic copy
+    String_Copy(&Dest, S("Hello World"));
+    Expect_String_IsEqual(S("Hello World"), Dest, true);
+    Expect_IsEqual(11, Dest.Length);
+
+    // Copy overwrites previous content
+    String_Copy(&Dest, S("Goodbye"));
+    Expect_String_IsEqual(S("Goodbye"), Dest, true);
+    Expect_IsEqual(7, Dest.Length);
+
+    // Copy empty string
+    Dest.Length = 0;
+    String_Copy(&Dest, S(""));
+    Expect_IsEqual(0, Dest.Length);
+
+    // Copy single character
+    Dest.Length = 0;
+    String_Copy(&Dest, S("X"));
+    Expect_String_IsEqual(S("X"), Dest, true);
+    Expect_IsEqual(1, Dest.Length);
+
+    // Copy string with special characters
+    Dest.Length = 0;
+    String_Copy(&Dest, S("!@#$%^&*()"));
+    Expect_String_IsEqual(S("!@#$%^&*()"), Dest, true);
+
+    // Copy string with spaces
+    Dest.Length = 0;
+    String_Copy(&Dest, S("  hello  "));
+    Expect_String_IsEqual(S("  hello  "), Dest, true);
+
+    // Copy string with path separators
+    Dest.Length = 0;
+    String_Copy(&Dest, S("C:\\Users/test"));
+    Expect_String_IsEqual(S("C:\\Users/test"), Dest, true);
+
+    // Copy string that exceeds capacity - should be clamped to capacity
+    StringLocal(SmallDest, 5);
+    String_Copy(&SmallDest, S("Hello World"));
+    Expect_IsEqual(SmallDest.Capacity, SmallDest.Length);
+
+    // Null terminator is placed correctly
+    Dest.Length = 0;
+    String_Copy(&Dest, S("test"));
+    Expect_IsEqual(0, Dest.Data[Dest.Length]);
+
+    return true;
+}
+
+TEST(StringUtils_AppendChar)
+{
+    StringLocal(Dest, 64);
+
+    // Basic append
+    String_Copy(&Dest, S("Hello"));
+    String_AppendChar(&Dest, '!');
+    Expect_String_IsEqual(S("Hello!"), Dest, true);
+    Expect_IsEqual(6, Dest.Length);
+
+    // Append to empty string
+    Dest.Length = 0;
+    String_AppendChar(&Dest, 'X');
+    Expect_String_IsEqual(S("X"), Dest, true);
+    Expect_IsEqual(1, Dest.Length);
+
+    // Append multiple chars one at a time
+    Dest.Length = 0;
+    String_AppendChar(&Dest, 'A');
+    String_AppendChar(&Dest, 'B');
+    String_AppendChar(&Dest, 'C');
+    Expect_String_IsEqual(S("ABC"), Dest, true);
+    Expect_IsEqual(3, Dest.Length);
+
+    // Append space
+    Dest.Length = 0;
+    String_Copy(&Dest, S("hello"));
+    String_AppendChar(&Dest, ' ');
+    Expect_String_IsEqual(S("hello "), Dest, true);
+
+    // Append path separator
+    Dest.Length = 0;
+    String_Copy(&Dest, S("path"));
+    String_AppendChar(&Dest, '/');
+    Expect_String_IsEqual(S("path/"), Dest, true);
+
+    // Append digit
+    Dest.Length = 0;
+    String_Copy(&Dest, S("item"));
+    String_AppendChar(&Dest, '0');
+    Expect_String_IsEqual(S("item0"), Dest, true);
+
+    // Append special characters
+    Dest.Length = 0;
+    String_Copy(&Dest, S("test"));
+    String_AppendChar(&Dest, '\t');
+    Expect_IsEqual(5, Dest.Length);
+
+    // Null terminator placed after append
+    Dest.Length = 0;
+    String_Copy(&Dest, S("AB"));
+    String_AppendChar(&Dest, 'C');
+    Expect_IsEqual(0, Dest.Data[Dest.Length]);
+
+    return true;
+}
+
+TEST(StringUtils_IndexOfSubstring)
+{
+    String Src = S("the quick brown fox jumps");
+
+    // Basic find in middle
+    u32 Index = 0;
+    bool bFound = String_IndexOfSubstring(Src, S("brown"), true, &Index);
+    Expect_IsTrue(bFound);
+    Expect_IsEqual(10, Index);
+
+    // Find at beginning
+    Index = 0;
+    bFound = String_IndexOfSubstring(Src, S("the"), true, &Index);
+    Expect_IsTrue(bFound);
+    Expect_IsEqual(0, Index);
+
+    // Find at end
+    Index = 0;
+    bFound = String_IndexOfSubstring(Src, S("jumps"), true, &Index);
+    Expect_IsTrue(bFound);
+    Expect_IsEqual(20, Index);
+
+    // Not found
+    Index = 0;
+    bFound = String_IndexOfSubstring(Src, S("lazy"), true, &Index);
+    Expect_IsFalse(bFound);
+
+    // Case sensitive - not found when case differs
+    Index = 0;
+    bFound = String_IndexOfSubstring(Src, S("Brown"), true, &Index);
+    Expect_IsFalse(bFound);
+
+    // Case insensitive - found when case differs
+    Index = 0;
+    bFound = String_IndexOfSubstring(Src, S("Brown"), false, &Index);
+    Expect_IsTrue(bFound);
+    Expect_IsEqual(10, Index);
+
+    // Find single character as substring
+    Index = 0;
+    bFound = String_IndexOfSubstring(Src, S("q"), true, &Index);
+    Expect_IsTrue(bFound);
+    Expect_IsEqual(4, Index);
+
+    // Find space
+    Index = 0;
+    bFound = String_IndexOfSubstring(Src, S(" "), true, &Index);
+    Expect_IsTrue(bFound);
+    Expect_IsEqual(3, Index);
+
+    // Empty substring is not found (Length > 0 check)
+    Index = 0;
+    bFound = String_IndexOfSubstring(Src, S(""), true, &Index);
+    Expect_IsFalse(bFound);
+
+    // Substring longer than source - not found
+    Index = 0;
+    bFound = String_IndexOfSubstring(S("hi"), S("hello world"), true, &Index);
+    Expect_IsFalse(bFound);
+
+    // Find entire string as substring
+    Index = 0;
+    bFound = String_IndexOfSubstring(S("hello"), S("hello"), true, &Index);
+    Expect_IsTrue(bFound);
+    Expect_IsEqual(0, Index);
+
+    // Multiple occurrences - should find first
+    Index = 0;
+    bFound = String_IndexOfSubstring(S("abcabc"), S("abc"), true, &Index);
+    Expect_IsTrue(bFound);
+    Expect_IsEqual(0, Index);
+
+    return true;
+}
+
+TEST(StringUtils_StripWhitespace)
+{
+    StringLocal(OutStr, 128);
+
+    // Spaces between chars
+    String_StripWhitespace(S("h e l l o"), &OutStr);
+    Expect_String_IsEqual(S("hello"), OutStr, true);
+
+    // No whitespace - unchanged
+    OutStr.Length = 0;
+    String_StripWhitespace(S("hello"), &OutStr);
+    Expect_String_IsEqual(S("hello"), OutStr, true);
+
+    // Leading whitespace
+    OutStr.Length = 0;
+    String_StripWhitespace(S("   hello"), &OutStr);
+    Expect_String_IsEqual(S("hello"), OutStr, true);
+
+    // Trailing whitespace
+    OutStr.Length = 0;
+    String_StripWhitespace(S("hello   "), &OutStr);
+    Expect_String_IsEqual(S("hello"), OutStr, true);
+
+    // Leading and trailing whitespace
+    OutStr.Length = 0;
+    String_StripWhitespace(S("   hello   "), &OutStr);
+    Expect_String_IsEqual(S("hello"), OutStr, true);
+
+    // Multiple types of whitespace (space, tab, newline, carriage return)
+    OutStr.Length = 0;
+    String_StripWhitespace(S("h\te\nl\rl o"), &OutStr);
+    Expect_String_IsEqual(S("hello"), OutStr, true);
+
+    // All whitespace
+    OutStr.Length = 0;
+    String_StripWhitespace(S("   \t\n\r  "), &OutStr);
+    Expect_IsEqual(0, OutStr.Length);
+
+    // Single character with no whitespace
+    OutStr.Length = 0;
+    String_StripWhitespace(S("X"), &OutStr);
+    Expect_String_IsEqual(S("X"), OutStr, true);
+
+    // Single space
+    OutStr.Length = 0;
+    String_StripWhitespace(S(" "), &OutStr);
+    Expect_IsEqual(0, OutStr.Length);
+
+    // Empty string
+    OutStr.Length = 0;
+    String_StripWhitespace(S(""), &OutStr);
+    Expect_IsEqual(0, OutStr.Length);
+
+    // Symbols and digits are preserved
+    OutStr.Length = 0;
+    String_StripWhitespace(S("a 1 ! b 2 @"), &OutStr);
+    Expect_String_IsEqual(S("a1!b2@"), OutStr, true);
+
+    // Multiple consecutive spaces
+    OutStr.Length = 0;
+    String_StripWhitespace(S("hello     world"), &OutStr);
+    Expect_String_IsEqual(S("helloworld"), OutStr, true);
+
+    return true;
+}
+
+TEST(StringUtils_EatSpacesFromEnd)
+{
+    // Trailing spaces removed
+    String Result = String_EatSpacesFromEnd(S("hello   "));
+    Expect_String_IsEqual(S("hello"), Result, true);
+    Expect_IsEqual(5, Result.Length);
+
+    // Single trailing space
+    Result = String_EatSpacesFromEnd(S("hello "));
+    Expect_String_IsEqual(S("hello"), Result, true);
+
+    // No trailing spaces - unchanged
+    Result = String_EatSpacesFromEnd(S("hello"));
+    Expect_String_IsEqual(S("hello"), Result, true);
+    Expect_IsEqual(5, Result.Length);
+
+    // All spaces - returns empty
+    Result = String_EatSpacesFromEnd(S("   "));
+    Expect_IsEqual(0, Result.Length);
+
+    // Single space
+    Result = String_EatSpacesFromEnd(S(" "));
+    Expect_IsEqual(0, Result.Length);
+
+    // Leading spaces preserved, only trailing removed
+    Result = String_EatSpacesFromEnd(S("   hello   "));
+    Expect_String_IsEqual(S("   hello"), Result, true);
+
+    // Tabs are also whitespace (EatSpacesFromEnd uses IsWhitespace)
+    Result = String_EatSpacesFromEnd(S("hello\t"));
+    Expect_String_IsEqual(S("hello"), Result, true);
+
+    // Newlines are also whitespace
+    Result = String_EatSpacesFromEnd(S("hello\n"));
+    Expect_String_IsEqual(S("hello"), Result, true);
+
+    // Mixed trailing whitespace
+    Result = String_EatSpacesFromEnd(S("hello \t\n\r"));
+    Expect_String_IsEqual(S("hello"), Result, true);
+
+    // Single character with trailing space
+    Result = String_EatSpacesFromEnd(S("X "));
+    Expect_String_IsEqual(S("X"), Result, true);
+
+    // Single character no trailing space
+    Result = String_EatSpacesFromEnd(S("X"));
+    Expect_String_IsEqual(S("X"), Result, true);
+
+    // Empty string
+    Result = String_EatSpacesFromEnd(S(""));
+    Expect_IsEqual(0, Result.Length);
+
+    // Whitespace in the middle is preserved
+    Result = String_EatSpacesFromEnd(S("hello world   "));
+    Expect_String_IsEqual(S("hello world"), Result, true);
+
+    return true;
+}
+
+TEST(MathUtils_ClampF64)
+{
+    Expect_Float64_IsEqual(5.0, ClampF64(5.0, 0.0, 10.0));
+    Expect_Float64_IsEqual(0.0, ClampF64(-5.0, 0.0, 10.0));
+    Expect_Float64_IsEqual(10.0, ClampF64(15.0, 0.0, 10.0));
+
+    return true;
+}
+
+TEST(MathUtils_MinMaxF64)
+{
+    Expect_Float64_IsEqual(3.0, MinF64(3.0, 5.0));
+    Expect_Float64_IsEqual(5.0, MaxF64(3.0, 5.0));
+    Expect_Float64_IsEqual(3.0, MinF64(3.0, 3.0));
+    Expect_Float64_IsEqual(3.0, MaxF64(3.0, 3.0));
+
+    return true;
+}
 
 /*
 ███████╗███╗   ██╗████████╗██████╗ ██╗   ██╗    ██████╗  ██████╗ ██╗███╗   ██╗████████╗
