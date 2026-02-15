@@ -88,8 +88,18 @@ static void cpuid(i32 info[4], i32 infoType, i32 subtype)
 #if PLATFORM_WINDOWS || PLATFORM_LINUX
 RIFT_API NO_DISCARD u32 Platform_GetCpuCacheLineSize(void)
 {
-    // todo: do this dynamically
-    return CACHE_LINE_SIZE;
+    i32 info[4] = {0};
+    cpuid(info, 1, 0);
+
+    // EBX bits [15:8] = CLFLUSH line size in 8-byte units
+    u32 LineSize = ((info[1] >> 8) & 0xFF) * 8;
+
+    if (LineSize == 0)
+    {
+        LineSize = CACHE_LINE_SIZE;
+    }
+
+    return LineSize;
 }
 
 NO_DISCARD bool Platform_GetCpuBrandName(String* OutName)
