@@ -14,6 +14,8 @@
 
 #define TEST(Name) static u8 CONCAT(Test_, Name)(void)
 
+static i32 g_IterDirCount = 0;
+
 #define Expect_IsTrue(Actual)                                       if ((Actual) != true)                                   { TestManager_SetExpectString(S("[Expect_IsTrue]\n    --> Expected: true\n    --> Actual:   false\n at: %s:%d"),                               __FILE__, __LINE__); return false; }
 #define Expect_IsFalse(Actual)                                      if ((Actual) != false)                                  { TestManager_SetExpectString(S("[Expect_IsFalse]\n    --> Expected: false\n    --> Actual:   true\n at: %s:%d"),                              __FILE__, __LINE__); return false; }
 #define Expect_IsEqual(Expected, Actual)                            if ((Actual) != (Expected))                             { TestManager_SetExpectString(S("[Expect_IsEqual]\n    --> Expected: %lld\n    --> Actual:   %lld\n at: %s:%d"),         (Expected), (Actual), __FILE__, __LINE__); return false; }
@@ -1260,6 +1262,1146 @@ TEST(FilesystemUtils_GetFilePath)
     Expect_IsEqual(0, Result.Length)
     Expect_String_IsEqual(S(""), Result, false);
     Expect_IsFalse(bFoundPath);
+
+    return true;
+}
+
+
+///////////////////////////////////////////////
+// Filesystem: Pure path string function tests
+///////////////////////////////////////////////
+
+TEST(Filesystem_DoesPathHaveFileExtension)
+{
+    Expect_IsTrue(Filesystem_DoesPathHaveFileExtension(S("file.txt")));
+    Expect_IsTrue(Filesystem_DoesPathHaveFileExtension(S("path/to/file.txt")));
+    Expect_IsTrue(Filesystem_DoesPathHaveFileExtension(S("path\\to\\file.c")));
+    Expect_IsTrue(Filesystem_DoesPathHaveFileExtension(S("archive.tar.gz")));
+    Expect_IsTrue(Filesystem_DoesPathHaveFileExtension(S(".gitignore")));      // dot at start, letters after
+    Expect_IsTrue(Filesystem_DoesPathHaveFileExtension(S("src/.gitignore")));  // dot file inside a directory
+    Expect_IsTrue(Filesystem_DoesPathHaveFileExtension(S("file.7z")));     // digit after dot
+
+    Expect_IsFalse(Filesystem_DoesPathHaveFileExtension(S("no_extension")));
+    Expect_IsFalse(Filesystem_DoesPathHaveFileExtension(S("path/to/directory")));
+    Expect_IsFalse(Filesystem_DoesPathHaveFileExtension(S("trailing_dot.")));
+    Expect_IsFalse(Filesystem_DoesPathHaveFileExtension(S("")));
+
+    return true;
+}
+
+TEST(Filesystem_ExtractFilePath_WithSlash)
+{
+    String Result;
+
+    Result = Filesystem_ExtractFilePath(S("path/to/file.txt"), true);
+    Expect_String_IsEqual(S("path/to/"), Result, true);
+
+    Result = Filesystem_ExtractFilePath(S("path\\to\\file.txt"), true);
+    Expect_String_IsEqual(S("path\\to\\"), Result, true);
+
+    Result = Filesystem_ExtractFilePath(S("C:\\Users\\test\\file.c"), true);
+    Expect_String_IsEqual(S("C:\\Users\\test\\"), Result, true);
+
+    // Single file with no directory component
+    Result = Filesystem_ExtractFilePath(S("hello.txt"), true);
+    Expect_IsEqual(0, (u64)Result.Length);
+
+    return true;
+}
+
+TEST(Filesystem_ExtractFilePath_WithoutSlash)
+{
+    String Result;
+
+    Result = Filesystem_ExtractFilePath(S("path/to/file.txt"), false);
+    Expect_String_IsEqual(S("path/to"), Result, true);
+
+    Result = Filesystem_ExtractFilePath(S("path\\to\\file.txt"), false);
+    Expect_String_IsEqual(S("path\\to"), Result, true);
+
+    // Edge case: slash at position 0, e.g. "/somefile.txt"
+    // Should return "/" and not empty, even with bIncludeSlash=false
+    Result = Filesystem_ExtractFilePath(S("/somefile.txt"), false);
+    Expect_String_IsEqual(S("/"), Result, true);
+
+    return true;
+}
+
+TEST(Filesystem_ExtractFileName_WithExtension)
+{
+    String Result;
+
+    Result = Filesystem_ExtractFileName(S("path/to/file.txt"), true);
+    Expect_String_IsEqual(S("file.txt"), Result, true);
+
+    Result = Filesystem_ExtractFileName(S("path\\to\\file.txt"), true);
+    Expect_String_IsEqual(S("file.txt"), Result, true);
+
+    Result = Filesystem_ExtractFileName(S("C:\\Users\\test\\main.c"), true);
+    Expect_String_IsEqual(S("main.c"), Result, true);
+
+    // File with no directory prefix
+    Result = Filesystem_ExtractFileName(S("hello.txt"), true);
+    Expect_String_IsEqual(S("hello.txt"), Result, true);
+
+    // File with multiple dots
+    Result = Filesystem_ExtractFileName(S("archive.tar.gz"), true);
+    Expect_String_IsEqual(S("archive.tar.gz"), Result, true);
+
+    return true;
+}
+
+TEST(Filesystem_ExtractFileName_WithoutExtension)
+{
+    String Result;
+
+    Result = Filesystem_ExtractFileName(S("path/to/file.txt"), false);
+    Expect_String_IsEqual(S("file"), Result, true);
+
+    Result = Filesystem_ExtractFileName(S("path\\to\\file.txt"), false);
+    Expect_String_IsEqual(S("file"), Result, true);
+
+    // Multiple dots: strips only the last extension
+    Result = Filesystem_ExtractFileName(S("path/archive.tar.gz"), false);
+    Expect_String_IsEqual(S("archive.tar"), Result, true);
+
+    // No extension at all
+    Result = Filesystem_ExtractFileName(S("path/to/Makefile"), false);
+    Expect_String_IsEqual(S("Makefile"), Result, true);
+
+    return true;
+}
+
+TEST(Filesystem_StripFileExtension)
+{
+    String Result;
+
+    Result = Filesystem_StripFileExtension(S("file.txt"));
+    Expect_String_IsEqual(S("file"), Result, true);
+
+    Result = Filesystem_StripFileExtension(S("path/to/file.c"));
+    Expect_String_IsEqual(S("path/to/file"), Result, true);
+
+    // Multiple extensions: strips only the last one
+    Result = Filesystem_StripFileExtension(S("archive.tar.gz"));
+    Expect_String_IsEqual(S("archive.tar"), Result, true);
+
+    // No extension: returns the original
+    Result = Filesystem_StripFileExtension(S("Makefile"));
+    Expect_String_IsEqual(S("Makefile"), Result, true);
+
+    // Empty string
+    Result = Filesystem_StripFileExtension(S(""));
+    Expect_IsEqual(0, (u64)Result.Length);
+
+    return true;
+}
+
+TEST(Filesystem_ExtractFileExtension_WithDot)
+{
+    String Result;
+
+    Result = Filesystem_ExtractFileExtension(S("file.txt"), true);
+    Expect_String_IsEqual(S(".txt"), Result, true);
+
+    Result = Filesystem_ExtractFileExtension(S("path/to/file.c"), true);
+    Expect_String_IsEqual(S(".c"), Result, true);
+
+    // Multiple dots: extracts only the last extension
+    Result = Filesystem_ExtractFileExtension(S("archive.tar.gz"), true);
+    Expect_String_IsEqual(S(".gz"), Result, true);
+
+    // No extension: returns null/empty
+    Result = Filesystem_ExtractFileExtension(S("Makefile"), true);
+    Expect_IsEqual(0, (u64)Result.Length);
+
+    return true;
+}
+
+TEST(Filesystem_ExtractFileExtension_WithoutDot)
+{
+    String Result;
+
+    Result = Filesystem_ExtractFileExtension(S("file.txt"), false);
+    Expect_String_IsEqual(S("txt"), Result, true);
+
+    Result = Filesystem_ExtractFileExtension(S("path/to/file.c"), false);
+    Expect_String_IsEqual(S("c"), Result, true);
+
+    Result = Filesystem_ExtractFileExtension(S("archive.tar.gz"), false);
+    Expect_String_IsEqual(S("gz"), Result, true);
+
+    // No extension
+    Result = Filesystem_ExtractFileExtension(S("Makefile"), false);
+    Expect_IsEqual(0, (u64)Result.Length);
+
+    return true;
+}
+
+TEST(Filesystem_IsPathRelative)
+{
+    // Absolute paths on Windows have a drive letter with colon
+    Expect_IsFalse(Filesystem_IsPathRelative(S("C:\\Users\\test")));
+    Expect_IsFalse(Filesystem_IsPathRelative(S("D:\\folder")));
+    Expect_IsFalse(Filesystem_IsPathRelative(S("C:/Users/test")));
+
+    // Relative paths
+    Expect_IsTrue(Filesystem_IsPathRelative(S("relative/path")));
+    Expect_IsTrue(Filesystem_IsPathRelative(S("..\\parent")));
+    Expect_IsTrue(Filesystem_IsPathRelative(S("./current")));
+    Expect_IsTrue(Filesystem_IsPathRelative(S("file.txt")));
+    Expect_IsTrue(Filesystem_IsPathRelative(S("")));
+
+    return true;
+}
+
+TEST(Filesystem_ArePathsCommon)
+{
+    // PathA is a prefix of PathB
+    Expect_IsTrue(Filesystem_ArePathsCommon(S("C:\\Users"), S("C:\\Users\\test\\file.txt")));
+
+    // Identical paths
+    Expect_IsTrue(Filesystem_ArePathsCommon(S("C:\\Foo"), S("C:\\Foo")));
+
+    // PathA is NOT a prefix of PathB
+    Expect_IsFalse(Filesystem_ArePathsCommon(S("C:\\Users\\Alice"), S("C:\\Users\\Bob")));
+
+    // Completely different paths
+    Expect_IsFalse(Filesystem_ArePathsCommon(S("C:\\Foo"), S("D:\\Bar")));
+
+    return true;
+}
+
+TEST(Filesystem_AppendExeExtension)
+{
+    #if PLATFORM_WINDOWS
+    // Should append .exe on Windows
+    StringLocal(Path1, 256);
+    String_Append(&Path1, S("myprogram"));
+    Filesystem_AppendExeExtension(&Path1);
+    Expect_String_IsEqual(S("myprogram.exe"), Path1, false);
+
+    // Should NOT double-append .exe
+    StringLocal(Path2, 256);
+    String_Append(&Path2, S("myprogram.exe"));
+    Filesystem_AppendExeExtension(&Path2);
+    Expect_String_IsEqual(S("myprogram.exe"), Path2, false);
+    #endif
+
+    return true;
+}
+
+
+///////////////////////////////////////////////
+// Filesystem: File I/O tests
+///////////////////////////////////////////////
+
+TEST(Filesystem_NewFile_DeleteFile_DoesExist)
+{
+    String TmpFile = S("__test_tmp_file_create.txt");
+
+    // Ensure the file does not exist before we start
+    if (Filesystem_DoesFileExist(TmpFile))
+    {
+        xx Filesystem_DeleteFile(TmpFile);
+    }
+    Expect_IsFalse(Filesystem_DoesFileExist(TmpFile));
+
+    // Create new file
+    bool bCreated = Filesystem_NewFile(TmpFile);
+    Expect_IsTrue(bCreated);
+    Expect_IsTrue(Filesystem_DoesFileExist(TmpFile));
+
+    // Delete the file
+    bool bDeleted = Filesystem_DeleteFile(TmpFile);
+    Expect_IsTrue(bDeleted);
+    Expect_IsFalse(Filesystem_DoesFileExist(TmpFile));
+
+    return true;
+}
+
+TEST(Filesystem_DoesDirectoryExist)
+{
+    // The current working directory should exist (we are running from Tests/Core)
+    Expect_IsTrue(Filesystem_DoesDirectoryExist(S(".")));
+
+    // A non-existent directory
+    Expect_IsFalse(Filesystem_DoesDirectoryExist(S("__nonexistent_dir_12345")));
+
+    return true;
+}
+
+TEST(Filesystem_OpenWriteReadClose)
+{
+    String TmpFile = S("__test_tmp_file_rw.txt");
+
+    // Cleanup from any prior failed run
+    if (Filesystem_DoesFileExist(TmpFile))
+    {
+        xx Filesystem_DeleteFile(TmpFile);
+    }
+
+    // Create the file
+    bool bCreated = Filesystem_NewFile(TmpFile);
+    Expect_IsTrue(bCreated);
+
+    // Open for writing
+    FileHandle hWrite = FileHandle_Null();
+    bool bOpenWrite = Filesystem_Open(TmpFile, FileMode_Write, &hWrite);
+    Expect_IsTrue(bOpenWrite);
+    Expect_Ptr_IsValid(hWrite.Data);
+
+    // Write data
+    String Content = S("Hello, Filesystem!");
+    usize BytesWritten = 0;
+    bool bWriteOk = Filesystem_Write(hWrite, Content.Length, Content.Data, &BytesWritten);
+    Expect_IsTrue(bWriteOk);
+    Expect_IsEqual((u64)Content.Length, (u64)BytesWritten);
+
+    Filesystem_Close(&hWrite);
+
+    // Open for reading
+    FileHandle hRead = FileHandle_Null();
+    bool bOpenRead = Filesystem_Open(TmpFile, FileMode_Read, &hRead);
+    Expect_IsTrue(bOpenRead);
+    Expect_Ptr_IsValid(hRead.Data);
+
+    // Verify file size
+    usize FileSize = 0;
+    bool bGotSize = Filesystem_GetFileSize(hRead, &FileSize);
+    Expect_IsTrue(bGotSize);
+    Expect_IsEqual((u64)Content.Length, (u64)FileSize);
+
+    // Read data back
+    u8 ReadBuffer[256] = {0};
+    usize BytesRead = 0;
+    bool bReadOk = Filesystem_Read(hRead, FileSize, ReadBuffer, &BytesRead);
+    Expect_IsTrue(bReadOk);
+    Expect_IsEqual((u64)FileSize, (u64)BytesRead);
+
+    String ReadString = StrSlice(ReadBuffer, (u32)BytesRead);
+    Expect_String_IsEqual(Content, ReadString, true);
+
+    Filesystem_Close(&hRead);
+
+    // Cleanup
+    xx Filesystem_DeleteFile(TmpFile);
+
+    return true;
+}
+
+TEST(Filesystem_GetFileSize)
+{
+    String TmpFile = S("__test_tmp_file_size.txt");
+
+    if (Filesystem_DoesFileExist(TmpFile))
+    {
+        xx Filesystem_DeleteFile(TmpFile);
+    }
+
+    xx Filesystem_NewFile(TmpFile);
+
+    // Write known data
+    FileHandle hWrite = FileHandle_Null();
+    xx Filesystem_Open(TmpFile, FileMode_Write, &hWrite);
+    String Data = S("12345");
+    usize BytesWritten = 0;
+    Filesystem_Write(hWrite, Data.Length, Data.Data, &BytesWritten);
+    Filesystem_Close(&hWrite);
+
+    // Open and check size
+    FileHandle hRead = FileHandle_Null();
+    xx Filesystem_Open(TmpFile, FileMode_Read, &hRead);
+    usize Size = 0;
+    bool bGotSize = Filesystem_GetFileSize(hRead, &Size);
+    Expect_IsTrue(bGotSize);
+    Expect_IsEqual(5, (u64)Size);
+    Filesystem_Close(&hRead);
+
+    xx Filesystem_DeleteFile(TmpFile);
+
+    return true;
+}
+
+TEST(Filesystem_SeekOperations)
+{
+    String TmpFile = S("__test_tmp_file_seek.txt");
+
+    if (Filesystem_DoesFileExist(TmpFile))
+    {
+        xx Filesystem_DeleteFile(TmpFile);
+    }
+
+    xx Filesystem_NewFile(TmpFile);
+
+    // Write "ABCDEFGHIJ" (10 bytes)
+    FileHandle hWrite = FileHandle_Null();
+    xx Filesystem_Open(TmpFile, FileMode_Write, &hWrite);
+    String Data = S("ABCDEFGHIJ");
+    usize BytesWritten = 0;
+    Filesystem_Write(hWrite, Data.Length, Data.Data, &BytesWritten);
+    Filesystem_Close(&hWrite);
+
+    // Open for reading
+    FileHandle hRead = FileHandle_Null();
+    xx Filesystem_Open(TmpFile, FileMode_Read, &hRead);
+
+    // SeekFromBeginning to offset 5, read "FGHIJ"
+    bool bSeek = Filesystem_SeekFromBeginning(hRead, 5);
+    Expect_IsTrue(bSeek);
+
+    usize Pos = Filesystem_GetCurrentFilePosition(hRead);
+    Expect_IsEqual(5, (u64)Pos);
+
+    u8 Buf[16] = {0};
+    usize BytesRead = 0;
+    xx Filesystem_Read(hRead, 5, Buf, &BytesRead);
+    Expect_IsEqual(5, (u64)BytesRead);
+    Expect_String_IsEqual(S("FGHIJ"), StrSlice(Buf, (u32)BytesRead), true);
+
+    // SeekToBeginning, read "ABCDE"
+    xx Filesystem_SeekToBeginning(hRead);
+    Pos = Filesystem_GetCurrentFilePosition(hRead);
+    Expect_IsEqual(0, (u64)Pos);
+
+    MemZero(Buf, sizeof(Buf));
+    xx Filesystem_Read(hRead, 5, Buf, &BytesRead);
+    Expect_String_IsEqual(S("ABCDE"), StrSlice(Buf, (u32)BytesRead), true);
+
+    // SeekToEnd
+    xx Filesystem_SeekToEnd(hRead);
+    Pos = Filesystem_GetCurrentFilePosition(hRead);
+    Expect_IsEqual(10, (u64)Pos);
+
+    Filesystem_Close(&hRead);
+    xx Filesystem_DeleteFile(TmpFile);
+
+    return true;
+}
+
+TEST(Filesystem_IsNewerIsOlder)
+{
+    String FileA = S("__test_tmp_file_a.txt");
+    String FileB = S("__test_tmp_file_b.txt");
+
+    // Cleanup
+    if (Filesystem_DoesFileExist(FileA)) { xx Filesystem_DeleteFile(FileA); }
+    if (Filesystem_DoesFileExist(FileB)) { xx Filesystem_DeleteFile(FileB); }
+
+    // Create FileA first
+    xx Filesystem_NewFile(FileA);
+
+    // Write something so the timestamp is set
+    FileHandle hA = FileHandle_Null();
+    xx Filesystem_Open(FileA, FileMode_Write, &hA);
+    usize Dummy = 0;
+    Filesystem_Write(hA, 1, "A", &Dummy);
+    Filesystem_Close(&hA);
+
+    // Small delay to ensure different timestamps
+    Platform_Wait(50 milliseconds);
+
+    // Create FileB second (should be newer)
+    xx Filesystem_NewFile(FileB);
+    FileHandle hB = FileHandle_Null();
+    xx Filesystem_Open(FileB, FileMode_Write, &hB);
+    Filesystem_Write(hB, 1, "B", &Dummy);
+    Filesystem_Close(&hB);
+
+    // FileB should be newer than FileA
+    Expect_IsTrue(Filesystem_IsNewer(FileB, FileA));
+    Expect_IsFalse(Filesystem_IsNewer(FileA, FileB));
+
+    // FileA should be older than FileB
+    Expect_IsTrue(Filesystem_IsOlder(FileA, FileB));
+    Expect_IsFalse(Filesystem_IsOlder(FileB, FileA));
+
+    xx Filesystem_DeleteFile(FileA);
+    xx Filesystem_DeleteFile(FileB);
+
+    return true;
+}
+
+TEST(Filesystem_CopyFile)
+{
+    String Src = S("__test_tmp_file_copy_src.txt");
+    String DstDir = S("__test_tmp_copy_dir");
+    String DstFile = S("__test_tmp_copy_dir\\__test_tmp_file_copy_src.txt");
+
+    if (Filesystem_DoesFileExist(Src)) { xx Filesystem_DeleteFile(Src); }
+    if (Filesystem_DoesFileExist(DstFile)) { xx Filesystem_DeleteFile(DstFile); }
+    if (Filesystem_DoesDirectoryExist(DstDir)) { xx Filesystem_DeleteDirectory(DstDir); }
+
+    // Create source file with content
+    xx Filesystem_NewFile(Src);
+    FileHandle hWrite = FileHandle_Null();
+    xx Filesystem_Open(Src, FileMode_Write, &hWrite);
+    String Content = S("copy me");
+    usize BytesWritten = 0;
+    Filesystem_Write(hWrite, Content.Length, Content.Data, &BytesWritten);
+    Filesystem_Close(&hWrite);
+
+    // Copy to a destination directory — Filesystem_Copy auto-appends the source filename
+    bool bCopied = Filesystem_Copy(Src, DstDir);
+    Expect_IsTrue(bCopied);
+    Expect_IsTrue(Filesystem_DoesFileExist(DstFile));
+
+    // Verify destination content matches source
+    FileHandle hRead = FileHandle_Null();
+    xx Filesystem_Open(DstFile, FileMode_Read, &hRead);
+    usize DstSize = 0;
+    xx Filesystem_GetFileSize(hRead, &DstSize);
+    Expect_IsEqual((u64)Content.Length, (u64)DstSize);
+
+    u8 Buf[64] = {0};
+    usize BytesRead = 0;
+    xx Filesystem_Read(hRead, DstSize, Buf, &BytesRead);
+    Expect_String_IsEqual(Content, StrSlice(Buf, (u32)BytesRead), true);
+    Filesystem_Close(&hRead);
+
+    // Source should still exist after copy
+    Expect_IsTrue(Filesystem_DoesFileExist(Src));
+
+    xx Filesystem_DeleteFile(Src);
+    xx Filesystem_DeleteFile(DstFile);
+    xx Filesystem_DeleteDirectory(DstDir);
+
+    return true;
+}
+
+TEST(Filesystem_MoveFile)
+{
+    String Src = S("__test_tmp_file_move_src.txt");
+    String Dst = S("__test_tmp_file_move_dst.txt");
+
+    if (Filesystem_DoesFileExist(Src)) { xx Filesystem_DeleteFile(Src); }
+    if (Filesystem_DoesFileExist(Dst)) { xx Filesystem_DeleteFile(Dst); }
+
+    // Create source file with content
+    xx Filesystem_NewFile(Src);
+    FileHandle hWrite = FileHandle_Null();
+    xx Filesystem_Open(Src, FileMode_Write, &hWrite);
+    String Content = S("move me");
+    usize BytesWritten = 0;
+    Filesystem_Write(hWrite, Content.Length, Content.Data, &BytesWritten);
+    Filesystem_Close(&hWrite);
+
+    // Move (rename)
+    bool bMoved = Filesystem_Move(Src, Dst, true);
+    Expect_IsTrue(bMoved);
+    Expect_IsTrue(Filesystem_DoesFileExist(Dst));
+    Expect_IsFalse(Filesystem_DoesFileExist(Src));
+
+    // Verify destination content
+    FileHandle hRead = FileHandle_Null();
+    xx Filesystem_Open(Dst, FileMode_Read, &hRead);
+    u8 Buf[64] = {0};
+    usize BytesRead = 0;
+    xx Filesystem_Read(hRead, Content.Length, Buf, &BytesRead);
+    Expect_String_IsEqual(Content, StrSlice(Buf, (u32)BytesRead), true);
+    Filesystem_Close(&hRead);
+
+    xx Filesystem_DeleteFile(Dst);
+
+    return true;
+}
+
+TEST(Filesystem_WriteLine)
+{
+    String TmpFile = S("__test_tmp_file_writeline.txt");
+
+    if (Filesystem_DoesFileExist(TmpFile))
+    {
+        xx Filesystem_DeleteFile(TmpFile);
+    }
+
+    xx Filesystem_NewFile(TmpFile);
+
+    // Write a line
+    FileHandle hWrite = FileHandle_Null();
+    xx Filesystem_Open(TmpFile, FileMode_Write, &hWrite);
+    usize BytesWritten = 0;
+    bool bOk = Filesystem_WriteLine(hWrite, S("Hello Line"), &BytesWritten);
+    Expect_IsTrue(bOk);
+    Expect_IsEqual(10, (u64)BytesWritten);
+    Filesystem_Close(&hWrite);
+
+    xx Filesystem_DeleteFile(TmpFile);
+
+    return true;
+}
+
+TEST(Filesystem_MemoryMapped)
+{
+    String TmpFile = S("__test_tmp_file_mmap.txt");
+
+    if (Filesystem_DoesFileExist(TmpFile))
+    {
+        xx Filesystem_DeleteFile(TmpFile);
+    }
+
+    // Create file with known content
+    xx Filesystem_NewFile(TmpFile);
+    FileHandle hWrite = FileHandle_Null();
+    xx Filesystem_Open(TmpFile, FileMode_Write, &hWrite);
+    String Content = S("HelloMMAP");
+    usize BytesWritten = 0;
+    Filesystem_Write(hWrite, Content.Length, Content.Data, &BytesWritten);
+    Filesystem_Close(&hWrite);
+
+    // Open memory-mapped for reading
+    MemoryMappedFile MmFile = {0};
+    bool bOpened = Filesystem_Open_MemoryMapped(TmpFile, FileMode_Read, &MmFile);
+    Expect_IsTrue(bOpened);
+    Expect_Ptr_IsValid(MmFile.Data);
+    Expect_IsEqual((u64)Content.Length, (u64)MmFile.Size);
+    Expect_String_IsEqual(Content, StrSlice(MmFile.Data, (u32)MmFile.Size), true);
+
+    Filesystem_Close_MemoryMapped(&MmFile);
+    xx Filesystem_DeleteFile(TmpFile);
+
+    return true;
+}
+
+TEST(Filesystem_OpenDirectory)
+{
+    String TmpDir = S("__test_tmp_dir_open");
+
+    if (Filesystem_DoesDirectoryExist(TmpDir))
+    {
+        xx Filesystem_DeleteDirectory(TmpDir);
+    }
+
+    bool bCreated = Filesystem_OpenDirectory(TmpDir);
+    Expect_IsTrue(bCreated);
+    Expect_IsTrue(Filesystem_DoesDirectoryExist(TmpDir));
+
+    xx Filesystem_DeleteDirectory(TmpDir);
+
+    return true;
+}
+
+TEST(Filesystem_OpenDirectory_Ex)
+{
+    String TmpDir = S("__test_tmp_dir_open_ex");
+
+    if (Filesystem_DoesDirectoryExist(TmpDir))
+    {
+        xx Filesystem_DeleteDirectory(TmpDir);
+    }
+
+    FileHandle hDir = FileHandle_Null();
+    bool bCreated = Filesystem_OpenDirectory_Ex(TmpDir, &hDir);
+    Expect_IsTrue(bCreated);
+    Expect_IsTrue(IsValidFileHandle(hDir));
+
+    Filesystem_Close(&hDir);
+    xx Filesystem_DeleteDirectory(TmpDir);
+
+    return true;
+}
+
+TEST(Filesystem_Seek_Relative)
+{
+    String TmpFile = S("__test_tmp_file_seek_rel.txt");
+
+    if (Filesystem_DoesFileExist(TmpFile))
+    {
+        xx Filesystem_DeleteFile(TmpFile);
+    }
+
+    xx Filesystem_NewFile(TmpFile);
+
+    // Write "ABCDEFGHIJ"
+    FileHandle hWrite = FileHandle_Null();
+    xx Filesystem_Open(TmpFile, FileMode_Write, &hWrite);
+    String Data = S("ABCDEFGHIJ");
+    usize BytesWritten = 0;
+    Filesystem_Write(hWrite, Data.Length, Data.Data, &BytesWritten);
+    Filesystem_Close(&hWrite);
+
+    // Open for reading, seek from beginning to 3, then relative seek +2
+    FileHandle hRead = FileHandle_Null();
+    xx Filesystem_Open(TmpFile, FileMode_Read, &hRead);
+
+    xx Filesystem_SeekFromBeginning(hRead, 3);
+    bool bSeek = Filesystem_Seek(hRead, 2);
+    Expect_IsTrue(bSeek);
+
+    usize Pos = Filesystem_GetCurrentFilePosition(hRead);
+    Expect_IsEqual(5, (u64)Pos);
+
+    u8 Buf[16] = {0};
+    usize BytesRead = 0;
+    xx Filesystem_Read(hRead, 5, Buf, &BytesRead);
+    Expect_IsEqual(5, (u64)BytesRead);
+    Expect_String_IsEqual(S("FGHIJ"), StrSlice(Buf, (u32)BytesRead), true);
+
+    Filesystem_Close(&hRead);
+    xx Filesystem_DeleteFile(TmpFile);
+
+    return true;
+}
+
+TEST(Filesystem_SeekFromEnd)
+{
+    String TmpFile = S("__test_tmp_file_seek_end.txt");
+
+    if (Filesystem_DoesFileExist(TmpFile))
+    {
+        xx Filesystem_DeleteFile(TmpFile);
+    }
+
+    xx Filesystem_NewFile(TmpFile);
+
+    // Write "ABCDEFGHIJ" (10 bytes)
+    FileHandle hWrite = FileHandle_Null();
+    xx Filesystem_Open(TmpFile, FileMode_Write, &hWrite);
+    String Data = S("ABCDEFGHIJ");
+    usize BytesWritten = 0;
+    Filesystem_Write(hWrite, Data.Length, Data.Data, &BytesWritten);
+    Filesystem_Close(&hWrite);
+
+    // SeekFromEnd with offset 0 should position at end of file
+    FileHandle hRead = FileHandle_Null();
+    xx Filesystem_Open(TmpFile, FileMode_Read, &hRead);
+
+    bool bSeek = Filesystem_SeekFromEnd(hRead, 0);
+    Expect_IsTrue(bSeek);
+
+    usize Pos = Filesystem_GetCurrentFilePosition(hRead);
+    Expect_IsEqual(10, (u64)Pos);
+
+    Filesystem_Close(&hRead);
+    xx Filesystem_DeleteFile(TmpFile);
+
+    return true;
+}
+
+TEST(Filesystem_GetTimes_ByPath)
+{
+    String TmpFile = S("__test_tmp_file_times.txt");
+
+    if (Filesystem_DoesFileExist(TmpFile))
+    {
+        xx Filesystem_DeleteFile(TmpFile);
+    }
+
+    xx Filesystem_NewFile(TmpFile);
+    FileHandle hWrite = FileHandle_Null();
+    xx Filesystem_Open(TmpFile, FileMode_Write, &hWrite);
+    usize Dummy = 0;
+    Filesystem_Write(hWrite, 1, "X", &Dummy);
+    Filesystem_Close(&hWrite);
+
+    usize WriteTime  = Filesystem_GetLastWriteTime(TmpFile);
+    usize AccessTime = Filesystem_GetLastAccessTime(TmpFile);
+    usize CreateTime = Filesystem_GetCreationTime(TmpFile);
+
+    Expect_IsNotEqual(0, (u64)WriteTime);
+    Expect_IsNotEqual(0, (u64)AccessTime);
+    Expect_IsNotEqual(0, (u64)CreateTime);
+
+    xx Filesystem_DeleteFile(TmpFile);
+
+    return true;
+}
+
+TEST(Filesystem_GetTimes_ByHandle)
+{
+    String TmpFile = S("__test_tmp_file_timesh.txt");
+
+    if (Filesystem_DoesFileExist(TmpFile))
+    {
+        xx Filesystem_DeleteFile(TmpFile);
+    }
+
+    xx Filesystem_NewFile(TmpFile);
+    FileHandle hFile = FileHandle_Null();
+    xx Filesystem_Open(TmpFile, FileMode_Write, &hFile);
+    usize Dummy = 0;
+    Filesystem_Write(hFile, 1, "X", &Dummy);
+
+    usize WriteTime  = Filesystem_GetLastWriteTimeH(hFile);
+    usize AccessTime = Filesystem_GetLastAccessTimeH(hFile);
+    usize CreateTime = Filesystem_GetCreationTimeH(hFile);
+
+    Expect_IsNotEqual(0, (u64)WriteTime);
+    Expect_IsNotEqual(0, (u64)AccessTime);
+    Expect_IsNotEqual(0, (u64)CreateTime);
+
+    Filesystem_Close(&hFile);
+    xx Filesystem_DeleteFile(TmpFile);
+
+    return true;
+}
+
+TEST(Filesystem_GetFileTime_ByPath)
+{
+    String TmpFile = S("__test_tmp_file_ftime.txt");
+
+    if (Filesystem_DoesFileExist(TmpFile))
+    {
+        xx Filesystem_DeleteFile(TmpFile);
+    }
+
+    xx Filesystem_NewFile(TmpFile);
+    FileHandle hWrite = FileHandle_Null();
+    xx Filesystem_Open(TmpFile, FileMode_Write, &hWrite);
+    usize Dummy = 0;
+    Filesystem_Write(hWrite, 1, "X", &Dummy);
+    Filesystem_Close(&hWrite);
+
+    FileTimeData FTD = Filesystem_GetFileTime(TmpFile);
+    Expect_IsNotEqual(0, (u64)FTD.CreationTime);
+    Expect_IsNotEqual(0, (u64)FTD.LastAccessTime);
+    Expect_IsNotEqual(0, (u64)FTD.LastWriteTime);
+
+    xx Filesystem_DeleteFile(TmpFile);
+
+    return true;
+}
+
+TEST(Filesystem_GetFileTime_ByHandle)
+{
+    String TmpFile = S("__test_tmp_file_ftimeh.txt");
+
+    if (Filesystem_DoesFileExist(TmpFile))
+    {
+        xx Filesystem_DeleteFile(TmpFile);
+    }
+
+    xx Filesystem_NewFile(TmpFile);
+    FileHandle hFile = FileHandle_Null();
+    xx Filesystem_Open(TmpFile, FileMode_Write, &hFile);
+    usize Dummy = 0;
+    Filesystem_Write(hFile, 1, "X", &Dummy);
+
+    FileTimeData FTD = Filesystem_GetFileTimeH(hFile);
+    Expect_IsNotEqual(0, (u64)FTD.CreationTime);
+    Expect_IsNotEqual(0, (u64)FTD.LastAccessTime);
+    Expect_IsNotEqual(0, (u64)FTD.LastWriteTime);
+
+    Filesystem_Close(&hFile);
+    xx Filesystem_DeleteFile(TmpFile);
+
+    return true;
+}
+
+TEST(Filesystem_ReadEntireFile)
+{
+    String TmpFile = S("__test_tmp_file_readall.txt");
+
+    if (Filesystem_DoesFileExist(TmpFile))
+    {
+        xx Filesystem_DeleteFile(TmpFile);
+    }
+
+    // Write known content
+    xx Filesystem_NewFile(TmpFile);
+    FileHandle hWrite = FileHandle_Null();
+    xx Filesystem_Open(TmpFile, FileMode_Write, &hWrite);
+    String Content = S("Read entire file test data!");
+    usize BytesWritten = 0;
+    Filesystem_Write(hWrite, Content.Length, Content.Data, &BytesWritten);
+    Filesystem_Close(&hWrite);
+
+    // Read entire file
+    FileHandle hRead = FileHandle_Null();
+    xx Filesystem_Open(TmpFile, FileMode_Read, &hRead);
+    usize FileSize = 0;
+    xx Filesystem_GetFileSize(hRead, &FileSize);
+    Expect_IsEqual((u64)Content.Length, (u64)FileSize);
+
+    u8 Buf[128] = {0};
+    usize BytesRead = 0;
+    bool bOk = Filesystem_ReadEntireFile(hRead, Buf, &BytesRead);
+    Expect_IsTrue(bOk);
+    Expect_IsEqual((u64)Content.Length, (u64)BytesRead);
+    Expect_String_IsEqual(Content, StrSlice(Buf, (u32)BytesRead), true);
+
+    Filesystem_Close(&hRead);
+    xx Filesystem_DeleteFile(TmpFile);
+
+    return true;
+}
+
+TEST(Filesystem_ReadLine)
+{
+    String TmpFile = S("__test_tmp_file_readline.txt");
+
+    if (Filesystem_DoesFileExist(TmpFile))
+    {
+        xx Filesystem_DeleteFile(TmpFile);
+    }
+
+    // Write two lines separated by \r\n (Windows line ending)
+    xx Filesystem_NewFile(TmpFile);
+    FileHandle hWrite = FileHandle_Null();
+    xx Filesystem_Open(TmpFile, FileMode_Write, &hWrite);
+    String RawContent = S("First Line\r\nSecond Line\r\n");
+    usize BytesWritten = 0;
+    Filesystem_Write(hWrite, RawContent.Length, RawContent.Data, &BytesWritten);
+    Filesystem_Close(&hWrite);
+
+    // Read lines back
+    FileHandle hRead = FileHandle_Null();
+    xx Filesystem_Open(TmpFile, FileMode_Read, &hRead);
+
+    StringLocal(LineBuf, 256);
+    bool bLine1 = Filesystem_ReadLine(hRead, &LineBuf);
+    Expect_IsTrue(bLine1);
+    Expect_String_IsEqual(S("First Line"), StrMake(LineBuf), true);
+
+    String_Empty(&LineBuf);
+    bool bLine2 = Filesystem_ReadLine(hRead, &LineBuf);
+    Expect_IsTrue(bLine2);
+    Expect_String_IsEqual(S("Second Line"), StrMake(LineBuf), true);
+
+    Filesystem_Close(&hRead);
+    xx Filesystem_DeleteFile(TmpFile);
+
+    return true;
+}
+
+TEST(Filesystem_WriteLineFormatted)
+{
+    String TmpFile = S("__test_tmp_file_wlfmt.txt");
+
+    if (Filesystem_DoesFileExist(TmpFile))
+    {
+        xx Filesystem_DeleteFile(TmpFile);
+    }
+
+    xx Filesystem_NewFile(TmpFile);
+    FileHandle hWrite = FileHandle_Null();
+    xx Filesystem_Open(TmpFile, FileMode_Write, &hWrite);
+    usize BytesWritten = 0;
+    bool bOk = Filesystem_WriteLineFormatted(hWrite, S("Value is %d"), &BytesWritten, 42);
+    Expect_IsTrue(bOk);
+    Filesystem_Close(&hWrite);
+
+    // Read back and verify
+    FileHandle hRead = FileHandle_Null();
+    xx Filesystem_Open(TmpFile, FileMode_Read, &hRead);
+    u8 Buf[128] = {0};
+    usize BytesRead = 0;
+    xx Filesystem_ReadEntireFile(hRead, Buf, &BytesRead);
+    Expect_String_IsEqual(S("Value is 42"), StrSlice(Buf, (u32)BytesRead), true);
+    Filesystem_Close(&hRead);
+
+    xx Filesystem_DeleteFile(TmpFile);
+
+    return true;
+}
+
+TEST(Filesystem_IsFile)
+{
+    String TmpFile = S("__test_tmp_file_isfile.txt");
+    String TmpDir = S("__test_tmp_dir_isfile");
+
+    if (Filesystem_DoesFileExist(TmpFile)) { xx Filesystem_DeleteFile(TmpFile); }
+    if (Filesystem_DoesDirectoryExist(TmpDir)) { xx Filesystem_DeleteDirectory(TmpDir); }
+
+    xx Filesystem_NewFile(TmpFile);
+    xx Filesystem_OpenDirectory(TmpDir);
+
+    Expect_IsTrue(Filesystem_IsFile(TmpFile));
+    Expect_IsFalse(Filesystem_IsFile(TmpDir));
+    Expect_IsFalse(Filesystem_IsFile(S("__test_nonexistent_path_xyz")));
+
+    xx Filesystem_DeleteFile(TmpFile);
+    xx Filesystem_DeleteDirectory(TmpDir);
+
+    return true;
+}
+
+TEST(Filesystem_IsDirectory)
+{
+    String TmpFile = S("__test_tmp_file_isdir.txt");
+
+    if (Filesystem_DoesFileExist(TmpFile)) { xx Filesystem_DeleteFile(TmpFile); }
+
+    xx Filesystem_NewFile(TmpFile);
+
+    Expect_IsTrue(Filesystem_IsDirectory(S(".")));
+    Expect_IsFalse(Filesystem_IsDirectory(TmpFile));
+    Expect_IsFalse(Filesystem_IsDirectory(S("__test_nonexistent_dir_xyz")));
+
+    xx Filesystem_DeleteFile(TmpFile);
+
+    return true;
+}
+
+TEST(Filesystem_ConvertRelativeToAbsolutePath)
+{
+    // PathCanonicalize resolves . and .. components but does not prepend a drive letter.
+    // Test that "foo\bar\..\baz" canonicalizes to "foo\baz".
+    StringLocal(Path, 512);
+    String_Copy(&Path, S("foo\\bar\\..\\baz"));
+
+    bool bConverted = Filesystem_ConvertRelativeToAbsolutePath(&Path);
+    Expect_IsTrue(bConverted);
+    Expect_String_IsEqual(S("foo\\baz"), StrMake(Path), true);
+
+    // Test with a redundant current-dir component: ".\somefile.txt" -> "somefile.txt"
+    String_Copy(&Path, S(".\\somefile.txt"));
+    bConverted = Filesystem_ConvertRelativeToAbsolutePath(&Path);
+    Expect_IsTrue(bConverted);
+    Expect_String_IsEqual(S("somefile.txt"), StrMake(Path), true);
+
+    return true;
+}
+
+static bool IterateDirectory_Counter(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
+{
+    (void)FullPath;
+    (void)RelativePath;
+    (void)FileName;
+    (void)FileSize;
+    (void)bIsDirectory;
+    (void)UserData;
+    g_IterDirCount++;
+    return true;
+}
+
+static bool IterateDirectory_CounterEx(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
+{
+    (void)FullPath;
+    (void)RelativePath;
+    (void)FileName;
+    (void)FileSize;
+    (void)bIsDirectory;
+    i32* Counter = (i32*)UserData;
+    (*Counter)++;
+    return true;
+}
+
+TEST(Filesystem_IterateDirectory)
+{
+    String TmpDir = S("__test_tmp_dir_iter");
+    String File1 = S("__test_tmp_dir_iter\\file1.txt");
+    String File2 = S("__test_tmp_dir_iter\\file2.txt");
+    String File3 = S("__test_tmp_dir_iter\\file3.txt");
+
+    // Cleanup
+    if (Filesystem_DoesFileExist(File1)) { xx Filesystem_DeleteFile(File1); }
+    if (Filesystem_DoesFileExist(File2)) { xx Filesystem_DeleteFile(File2); }
+    if (Filesystem_DoesFileExist(File3)) { xx Filesystem_DeleteFile(File3); }
+    if (Filesystem_DoesDirectoryExist(TmpDir)) { xx Filesystem_DeleteDirectory(TmpDir); }
+
+    xx Filesystem_OpenDirectory(TmpDir);
+    xx Filesystem_NewFile(File1);
+    xx Filesystem_NewFile(File2);
+    xx Filesystem_NewFile(File3);
+
+    g_IterDirCount = 0;
+    Filesystem_IterateDirectory(TmpDir, IterateDirectory_Counter, false);
+    Expect_IsEqual(3, (u64)g_IterDirCount);
+
+    xx Filesystem_DeleteFile(File1);
+    xx Filesystem_DeleteFile(File2);
+    xx Filesystem_DeleteFile(File3);
+    xx Filesystem_DeleteDirectory(TmpDir);
+
+    return true;
+}
+
+TEST(Filesystem_IterateDirectory_Ex)
+{
+    String TmpDir = S("__test_tmp_dir_iter_ex");
+    String File1 = S("__test_tmp_dir_iter_ex\\file1.txt");
+    String File2 = S("__test_tmp_dir_iter_ex\\file2.txt");
+
+    // Cleanup
+    if (Filesystem_DoesFileExist(File1)) { xx Filesystem_DeleteFile(File1); }
+    if (Filesystem_DoesFileExist(File2)) { xx Filesystem_DeleteFile(File2); }
+    if (Filesystem_DoesDirectoryExist(TmpDir)) { xx Filesystem_DeleteDirectory(TmpDir); }
+
+    xx Filesystem_OpenDirectory(TmpDir);
+    xx Filesystem_NewFile(File1);
+    xx Filesystem_NewFile(File2);
+
+    i32 Counter = 0;
+    Filesystem_IterateDirectory_Ex(TmpDir, IterateDirectory_CounterEx, false, &Counter);
+    Expect_IsEqual(2, (u64)Counter);
+
+    xx Filesystem_DeleteFile(File1);
+    xx Filesystem_DeleteFile(File2);
+    xx Filesystem_DeleteDirectory(TmpDir);
+
+    return true;
+}
+
+TEST(Filesystem_DeleteFiles)
+{
+    String TmpDir = S("__test_tmp_dir_delfiles");
+    String File1 = S("__test_tmp_dir_delfiles\\a.tmp");
+    String File2 = S("__test_tmp_dir_delfiles\\b.tmp");
+    String File3 = S("__test_tmp_dir_delfiles\\c.txt");
+
+    // Cleanup
+    if (Filesystem_DoesFileExist(File1)) { xx Filesystem_DeleteFile(File1); }
+    if (Filesystem_DoesFileExist(File2)) { xx Filesystem_DeleteFile(File2); }
+    if (Filesystem_DoesFileExist(File3)) { xx Filesystem_DeleteFile(File3); }
+    if (Filesystem_DoesDirectoryExist(TmpDir)) { xx Filesystem_DeleteDirectory(TmpDir); }
+
+    xx Filesystem_OpenDirectory(TmpDir);
+    xx Filesystem_NewFile(File1);
+    xx Filesystem_NewFile(File2);
+    xx Filesystem_NewFile(File3);
+
+    // Delete only *.tmp files
+    bool bDeleted = Filesystem_DeleteFiles(TmpDir, S("*.tmp"), false);
+    Expect_IsTrue(bDeleted);
+
+    // .tmp files should be gone, .txt should remain
+    Expect_IsFalse(Filesystem_DoesFileExist(File1));
+    Expect_IsFalse(Filesystem_DoesFileExist(File2));
+    Expect_IsTrue(Filesystem_DoesFileExist(File3));
+
+    xx Filesystem_DeleteFile(File3);
+    xx Filesystem_DeleteDirectory(TmpDir);
+
+    return true;
+}
+
+TEST(Filesystem_DeleteDirectory)
+{
+    String TmpDir = S("__test_tmp_dir_delete");
+
+    if (Filesystem_DoesDirectoryExist(TmpDir))
+    {
+        xx Filesystem_DeleteDirectory(TmpDir);
+    }
+
+    xx Filesystem_OpenDirectory(TmpDir);
+    Expect_IsTrue(Filesystem_DoesDirectoryExist(TmpDir));
+
+    bool bDeleted = Filesystem_DeleteDirectory(TmpDir);
+    Expect_IsTrue(bDeleted);
+    Expect_IsFalse(Filesystem_DoesDirectoryExist(TmpDir));
+
+    return true;
+}
+
+TEST(Filesystem_IsValidFileHandle)
+{
+    // Null handle should be invalid
+    FileHandle hNull = FileHandle_Null();
+    Expect_IsFalse(IsValidFileHandle(hNull));
+
+    // Opened handle should be valid
+    String TmpFile = S("__test_tmp_file_validh.txt");
+    if (Filesystem_DoesFileExist(TmpFile)) { xx Filesystem_DeleteFile(TmpFile); }
+
+    xx Filesystem_NewFile(TmpFile);
+    FileHandle hFile = FileHandle_Null();
+    xx Filesystem_Open(TmpFile, FileMode_Read, &hFile);
+    Expect_IsTrue(IsValidFileHandle(hFile));
+
+    Filesystem_Close(&hFile);
+    xx Filesystem_DeleteFile(TmpFile);
 
     return true;
 }

@@ -57,6 +57,46 @@
     X("String",           Test_StringUtils_ToBool) \
     X("Platform",         Test_PlatformUtils_GetWorkingDirectory) \
     X("Filesystem",       Test_FilesystemUtils_GetFilePath) \
+    X("Filesystem",       Test_Filesystem_DoesPathHaveFileExtension) \
+    X("Filesystem",       Test_Filesystem_ExtractFilePath_WithSlash) \
+    X("Filesystem",       Test_Filesystem_ExtractFilePath_WithoutSlash) \
+    X("Filesystem",       Test_Filesystem_ExtractFileName_WithExtension) \
+    X("Filesystem",       Test_Filesystem_ExtractFileName_WithoutExtension) \
+    X("Filesystem",       Test_Filesystem_StripFileExtension) \
+    X("Filesystem",       Test_Filesystem_ExtractFileExtension_WithDot) \
+    X("Filesystem",       Test_Filesystem_ExtractFileExtension_WithoutDot) \
+    X("Filesystem",       Test_Filesystem_IsPathRelative) \
+    X("Filesystem",       Test_Filesystem_ArePathsCommon) \
+    X("Filesystem",       Test_Filesystem_AppendExeExtension) \
+    X("Filesystem",       Test_Filesystem_NewFile_DeleteFile_DoesExist) \
+    X("Filesystem",       Test_Filesystem_DoesDirectoryExist) \
+    X("Filesystem",       Test_Filesystem_OpenWriteReadClose) \
+    X("Filesystem",       Test_Filesystem_GetFileSize) \
+    X("Filesystem",       Test_Filesystem_SeekOperations) \
+    X("Filesystem",       Test_Filesystem_IsNewerIsOlder) \
+    X("Filesystem",       Test_Filesystem_CopyFile) \
+    X("Filesystem",       Test_Filesystem_MoveFile) \
+    X("Filesystem",       Test_Filesystem_WriteLine) \
+    X("Filesystem",       Test_Filesystem_MemoryMapped) \
+    X("Filesystem",       Test_Filesystem_OpenDirectory) \
+    X("Filesystem",       Test_Filesystem_OpenDirectory_Ex) \
+    X("Filesystem",       Test_Filesystem_Seek_Relative) \
+    X("Filesystem",       Test_Filesystem_SeekFromEnd) \
+    X("Filesystem",       Test_Filesystem_GetTimes_ByPath) \
+    X("Filesystem",       Test_Filesystem_GetTimes_ByHandle) \
+    X("Filesystem",       Test_Filesystem_GetFileTime_ByPath) \
+    X("Filesystem",       Test_Filesystem_GetFileTime_ByHandle) \
+    X("Filesystem",       Test_Filesystem_ReadEntireFile) \
+    X("Filesystem",       Test_Filesystem_ReadLine) \
+    X("Filesystem",       Test_Filesystem_WriteLineFormatted) \
+    X("Filesystem",       Test_Filesystem_IsFile) \
+    X("Filesystem",       Test_Filesystem_IsDirectory) \
+    X("Filesystem",       Test_Filesystem_ConvertRelativeToAbsolutePath) \
+    X("Filesystem",       Test_Filesystem_IterateDirectory) \
+    X("Filesystem",       Test_Filesystem_IterateDirectory_Ex) \
+    X("Filesystem",       Test_Filesystem_DeleteFiles) \
+    X("Filesystem",       Test_Filesystem_DeleteDirectory) \
+    X("Filesystem",       Test_Filesystem_IsValidFileHandle) \
     X("Math",             Test_MathUtils_Abs) \
     X("Math",             Test_MathUtils_Absf64) \
     X("Math",             Test_MathUtils_Absi32) \

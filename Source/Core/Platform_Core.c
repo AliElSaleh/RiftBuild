@@ -787,17 +787,18 @@ NO_DISCARD bool Filesystem_IsOlder(const String PathA, const String PathB)
 NO_DISCARD bool Filesystem_DoesPathHaveFileExtension(const String Path)
 {
     u32 LastDot = 0, LastSlash = 0;
-    xx String_IndexOfLastChar(Path, '.', &LastDot);
-    xx String_IndexOfLastPathSlash(Path, &LastSlash);
+    bool bHasDot = String_IndexOfLastChar(Path, '.', &LastDot);
+    bool bHasSlash = String_IndexOfLastPathSlash(Path, &LastSlash);
 
     bool bSomeCharAfterDot = false;
-    if (LastDot+1 < Path.Length)
+    if (bHasDot && LastDot+1 < Path.Length)
     {
         u8 C = Path.Data[LastDot+1];
         bSomeCharAfterDot = IsAlphabet(C) || IsDigit(C);
     }
 
-    bool bSuccess = LastDot > LastSlash && bSomeCharAfterDot;
+    bool bDotAfterSlash = bHasDot && (!bHasSlash || LastDot > LastSlash);
+    bool bSuccess = bDotAfterSlash && bSomeCharAfterDot;
 
     return bSuccess;
 }
