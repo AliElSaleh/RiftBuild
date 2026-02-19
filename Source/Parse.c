@@ -1234,6 +1234,31 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena, Parser*
                 Condition.Condition = Lexeme;
 
                 Parser_Advance(P);
+
+                // find_system_header(path/to/header.h) — consume the parenthesized argument
+                if (String_IsEqual(Lexeme, S("find_system_header"), false) && Parser_Peek(P).Type == Token_LParen)
+                {
+                    Parser_Advance(P); // consume '('
+
+                    StringList* ArgList = NULL;
+                    StringList** ArgNext = &ArgList;
+                    while (Parser_Peek(P).Type == Token_Text   ||
+                           Parser_Peek(P).Type == Token_FSlash ||
+                           Parser_Peek(P).Type == Token_BSlash)
+                    {
+                        SLinkedList_Push(ArgNext, StringList_Create(Arena, Parser_Peek(P).Lexeme, NULL));
+                        Parser_Advance(P);
+                    }
+
+                    if (!Parser_Match(P, Token_RParen))
+                    {
+                        LOG_ERROR("\n%S:%u: Expected ')' after find_system_header argument.\n", P->FilePath, Parser_Peek(P).Line);
+                        return &Node_Null;
+                    }
+
+                    Condition.TestValues = ArgList;
+                }
+
                 Parser_SkipWhitespace(P);
 
                 Token Comparison = Parser_Peek(P);
@@ -1700,6 +1725,8 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Pars
             {
                 StringList** Next = &ParamList;
                 while (Parser_Peek(P).Type == Token_Text       ||
+                       Parser_Peek(P).Type == Token_FSlash      ||
+                       Parser_Peek(P).Type == Token_BSlash      ||
                        Parser_Peek(P).Type == Token_GreaterThan ||
                        Parser_Peek(P).Type == Token_GreaterOrEqual ||
                        Parser_Peek(P).Type == Token_LessThan ||
@@ -2950,6 +2977,71 @@ static void Analyze_KVNode_Option(Node* Root, ParsingContext* Context)
     }
 }
 
+static bool Internal_FindSystemHeader(LinearAllocator* Scratch, String HeaderName, String* OutDirectoryPath)
+{
+    bool bFound = false;
+
+    if (HeaderName.Length == 0)
+    {
+        return bFound;
+    }
+
+    #if PLATFORM_WINDOWS
+    {
+        StringLocal(IncludePaths, Kibibytes(4));
+        if (Platform_GetEnvironmentVariableValue(S("INCLUDE"), &IncludePaths))
+        {
+            StringArray Dirs = String_ParseIntoArray(Scratch, IncludePaths, ';', 0, 256);
+            for each_str (Dir, Dirs)
+            {
+                String Trimmed = String_EatSpaces(*Dir);
+                if (Trimmed.Length == 0)
+                {
+                    continue;
+                }
+
+                StringLocal(FullPath, MAX_PATH_LENGTH);
+                String_BuildPath(&FullPath, Trimmed, HeaderName);
+
+                if (Filesystem_DoesFileExist(FullPath))
+                {
+                    *OutDirectoryPath = Trimmed;
+                    bFound = true;
+                    break;
+                }
+            }
+        }
+    }
+    #else
+    {
+        const String SearchDirs[] =
+        {
+            S("/usr/include"),
+            S("/usr/local/include"),
+            #if PLATFORM_MAC
+            S("/opt/homebrew/include"),
+            S("/opt/local/include"),
+            #endif
+        };
+
+        for (u32 i = 0; i < SArray_Capacity(SearchDirs); i++)
+        {
+            StringLocal(FullPath, MAX_PATH_LENGTH);
+            String_BuildPath(&FullPath, SearchDirs[i], HeaderName);
+
+            if (Filesystem_DoesFileExist(FullPath))
+            {
+                *OutDirectoryPath = SearchDirs[i];
+                bFound = true;
+                break;
+            }
+        }
+    }
+    #endif
+
+    return bFound;
+}
+
 static void Analyze_KVNode(Node* Root, ParsingContext* Context)
 {
     StringLocal(FinalKey, MAX_KEY_LENGTH);
@@ -3008,13 +3100,27 @@ static void Analyze_KVNode(Node* Root, ParsingContext* Context)
     }
 
     bool bCanAddToList = true;
-    
-    if (!Root->Parent)
+
+    if (String_IsEqual(FinalKey, S("find_system_header"), false))
+    {
+        bCanAddToList = false;
+
+        LinearAllocator Scratch = *Context->TempArena;
+        StringLocal(FoundPath, MAX_PATH_LENGTH);
+
+        xx Internal_FindSystemHeader(&Scratch, Params, &FoundPath);
+        if (Val.Length > 0)
+        {
+            AddVariableToList(Context->TempArena, Context, Val, FoundPath, String_Null());
+        }
+    }
+
+    if (bCanAddToList && !Root->Parent)
     {
         bool bIsOptionKey = String_StartsWith(FinalKey, S("option."), false);
 
         bCanAddToList = !bIsOptionKey;
-        
+
         if (bIsOptionKey)
         {
             Analyze_KVNode_Option(Root, Context);
@@ -3070,6 +3176,29 @@ NO_DISCARD static NodeList* Analyze_IfNode(Node* Root, ParsingContext* Context, 
 
             String VarValue = String_Null();
             const String Condition = c.Condition;
+
+            // find_system_header(path) — check if a system header exists
+            if (String_IsEqual(Condition, S("find_system_header"), false) && c.TestValues)
+            {
+                LinearAllocator Scratch = *Context->TempArena;
+                StringLocal(HeaderArg, MAX_PATH_LENGTH);
+                for each_string_in_list (*c.TestValues)
+                {
+                    String_Append(&HeaderArg, It.String);
+                }
+
+                StringLocal(FoundPath, MAX_PATH_LENGTH);
+                bConditionMet = Internal_FindSystemHeader(&Scratch, HeaderArg, &FoundPath);
+
+                if (bNot)
+                {
+                    bConditionMet = !bConditionMet;
+                }
+
+                bFoundVar = true;
+                Next = Next->Next;
+                continue;
+            }
 
             bool bIsPath = String_ContainsPathSeparators(Condition);
             if (!bIsPath)
