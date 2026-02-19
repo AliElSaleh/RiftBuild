@@ -4931,6 +4931,132 @@ static bool Internal_AssertPlatformVersion(ParsingContext* Context, const String
     return bSuccess;
 }
 
+static bool Internal_AssertCPUVendor(ParsingContext* Context, const String BuildFilePath, FileVariable Var)
+{
+    bool bSuccess = true;
+
+    LinearAllocator Scratch = *Context->TempArena;
+
+    StringArray VendorsArray = String_ParseIntoArray(&Scratch, Var.Value, ' ', 0, 128);
+
+    if (VendorsArray.Num > 0)
+    {
+        String CPUVendor = String_Null();
+        for each (InternalVariable, v, InternalVariablesDB)
+        {
+            if (String_IsEqual(v.Name, S("_CPUVendor"), false))
+            {
+                CPUVendor = v.Value;
+                break;
+            }
+        }
+
+        bool bAnyVendorMatch = false;
+        for each_str (s, VendorsArray)
+        {
+            String Trimmed = String_EatSpaces(*s);
+            if (String_IsEqual(Trimmed, CPUVendor, false))
+            {
+                bAnyVendorMatch = true;
+                break;
+            }
+        }
+
+        if (!bAnyVendorMatch)
+        {
+            StringLocal(VendorsLogString, 128);
+            {
+                u8 i = 0;
+                for each_str_i (i, a, VendorsArray)
+                {
+                    String_Append(&VendorsLogString, *a);
+                    if (VendorsArray.Num > 1 && i != VendorsArray.Num-1)
+                    {
+                        if (i == VendorsArray.Num-2)
+                        {
+                            String_Append(&VendorsLogString, S(" or "));
+                        }
+                        else
+                        {
+                            String_AppendChar (&VendorsLogString, ',');
+                            String_AppendSpace(&VendorsLogString);
+                        }
+                    }
+                }
+            }
+
+            const String BuildFileName = Filesystem_ExtractFileName(BuildFilePath, true);
+            LOG_INLINE_ERROR("\n[ASSERTION FAILURE] %S requires a %S CPU. Your CPU vendor is \"%S\". Aborting build...\n", BuildFileName, VendorsLogString, CPUVendor);
+
+            bSuccess = false;
+        }
+    }
+
+    return bSuccess;
+}
+
+static bool Internal_AssertCPUExtensions(ParsingContext* Context, const String BuildFilePath, FileVariable Var)
+{
+    bool bSuccess = true;
+
+    LinearAllocator Scratch = *Context->TempArena;
+
+    StringArray RequiredArray = String_ParseIntoArray(&Scratch, Var.Value, ' ', 0, 128);
+
+    if (RequiredArray.Num > 0)
+    {
+        String CPUExtensions = String_Null();
+        for each (InternalVariable, v, InternalVariablesDB)
+        {
+            if (String_IsEqual(v.Name, S("_CPUExtensions"), false))
+            {
+                CPUExtensions = v.Value;
+                break;
+            }
+        }
+
+        StringArray AvailableArray = String_ParseIntoArray(&Scratch, CPUExtensions, ' ', 0, 512);
+
+        StringLocal(MissingLogString, 256);
+        u32 MissingCount = 0;
+
+        for each_str (Req, RequiredArray)
+        {
+            String Trimmed = String_EatSpaces(*Req);
+
+            bool bFound = false;
+            for each_str (Avail, AvailableArray)
+            {
+                if (String_IsEqual(Trimmed, *Avail, false))
+                {
+                    bFound = true;
+                    break;
+                }
+            }
+
+            if (!bFound)
+            {
+                if (MissingCount > 0)
+                {
+                    String_Append(&MissingLogString, S(", "));
+                }
+                String_Append(&MissingLogString, Trimmed);
+                MissingCount++;
+            }
+        }
+
+        if (MissingCount > 0)
+        {
+            const String BuildFileName = Filesystem_ExtractFileName(BuildFilePath, true);
+            LOG_INLINE_ERROR("\n[ASSERTION FAILURE] %S requires the following CPU extensions not supported by your CPU: %S. Aborting build...\n", BuildFileName, MissingLogString);
+
+            bSuccess = false;
+        }
+    }
+
+    return bSuccess;
+}
+
 static bool Internal_AssertArchitecture(ParsingContext* Context, const String BuildFilePath, FileVariable Var)
 {
     bool bSuccess = true;
@@ -5569,7 +5695,6 @@ static bool Internal_AssertOptionValue(ParsingContext* Context, const String Bui
     return bSuccess;
 }
 
-// TODO: pre-analyze asserts and post-analyze asserts
 static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFilePath)
 {
     bool bAssertionFailed = false;
@@ -5645,6 +5770,14 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
             else if (String_IsEqual(Var.Name, S("Assert.Compiler.Version"), false))
             {
                 bAssertionFailed = Internal_AssertCompilerVersion(Context, BuildFilePath, Var) == false;
+            }
+            else if (String_IsEqual(Var.Name, S("Assert.CPUVendor"), false))
+            {
+                bAssertionFailed = Internal_AssertCPUVendor(Context, BuildFilePath, Var) == false;
+            }
+            else if (String_IsEqual(Var.Name, S("Assert.CPUExtensions"), false))
+            {
+                bAssertionFailed = Internal_AssertCPUExtensions(Context, BuildFilePath, Var) == false;
             }
             else
             {
