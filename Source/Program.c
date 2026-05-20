@@ -4412,7 +4412,8 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     }
 
     // pre depend
-    // TODO: time this
+    Clock PreDependClock = {0};
+    Clock_Start(&PreDependClock);
     if (!bExportingSomething)
     {
         if (!TryRunBuildCommands(S("PreDepend"), WorkingPath, VariablesDB, NULL))
@@ -4421,6 +4422,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             return Receipt;
         }
     }
+    Clock_Tick(&PreDependClock);
 
     Clock DependencyBuildClock;
     Clock_Start(&DependencyBuildClock);
@@ -4831,8 +4833,8 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         return Receipt;
     }
 
-    // TODO: time this
-
+    Clock PreBuildClock = {0};
+    Clock_Start(&PreBuildClock);
     if (!bExportingSomething)
     {
         if (!TryRunBuildCommands(S("PreBuild"), WorkingPath, VariablesDB, NULL))
@@ -4841,6 +4843,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             return Receipt;
         }
     }
+    Clock_Tick(&PreBuildClock);
 
     // TODO: you cannot assume a singluar source directory
     String SourceDirectory       = GetVariableValue(VariablesDB, S("SourceDirectory"));
@@ -6767,7 +6770,9 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                                 LinkClock.ElapsedTime +
                                 BundleCompileClock.ElapsedTime +
                                 BuildFileParseClock.ElapsedTime +
+                                PreDependClock.ElapsedTime +
                                 DependencyBuildClock.ElapsedTime +
+                                PreBuildClock.ElapsedTime +
                                 ExternalClock.ElapsedTime;
 
         Clock OverheadClock = {0};
@@ -6779,7 +6784,9 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         PrintClockTimeToBuffer(&TimingBuffer, &IconClock,            &BuildRuntime, S(  "Icon        Time: "), false);
         PrintClockTimeToBuffer(&TimingBuffer, &BundleCompileClock,   &BuildRuntime, S(  "Bundle      Time: "), false);
         PrintClockTimeToBuffer(&TimingBuffer, &BuildFileParseClock,  &BuildRuntime, S(  "Build Parse Time: "), false);
+        PrintClockTimeToBuffer(&TimingBuffer, &PreDependClock,       &BuildRuntime, S(  "PreDepend   Time: "), true);
         PrintClockTimeToBuffer(&TimingBuffer, &DependencyBuildClock, &BuildRuntime, S(  "Dependency  Time: "), true);
+        PrintClockTimeToBuffer(&TimingBuffer, &PreBuildClock,        &BuildRuntime, S(  "PreBuild    Time: "), true);
         PrintClockTimeToBuffer(&TimingBuffer, &ExternalClock,        &BuildRuntime, S(  "External    Time: "), true);
         PrintClockTimeToBuffer(&TimingBuffer, &OverheadClock,        &BuildRuntime, S(  "Overhead    Time: "), true);
         PrintClockTimeToBuffer(&TimingBuffer, &BuildRuntime,         NULL,          S(  "Total build Time: "), false);
