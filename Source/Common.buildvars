@@ -68,8 +68,8 @@ if tcc
 
 if clang|gcc
 {
-    WarningFlags                     -Wall -Wextra -Wshadow -Wconversion -Wmissing-prototypes -Wunused -Wuninitialized -Wimplicit-fallthrough -Werror
-    WarningFlagsDisabled             -Wno-unused-parameter -Wno-typedef-redefinition
+    WarningFlags                     -Wall -Wextra -Wshadow -Wconversion -Wmissing-prototypes -Wunused -Wuninitialized -Wimplicit-fallthrough -Wswitch-default -Wswitch-enum -Werror
+    WarningFlagsDisabled             -Wno-unused-parameter -Wno-typedef-redefinition -Wno-microsoft-enum-forward-reference
     WarningFlagsDisabled:mac         -Wno-nonportable-include-path
 
     DebugFlags                       -g3 -MD

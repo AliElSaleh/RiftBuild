@@ -3154,6 +3154,7 @@ NO_DISCARD static bool Internal_FromUnsignedInt(String* Str, u64 Int, u8 IntType
         case 0:  MaxDigits = 3; break;  // u8  -> 255
         case 1:  MaxDigits = 5; break;  // u16 -> 65535
         case 2:  MaxDigits = 10; break; // u32 -> 4294967295
+        default: MaxDigits = 10; break; // u32 -> 4294967295
     }
 
     if (Str->Capacity >= MaxDigits) // make sure we have enough room
@@ -3191,6 +3192,7 @@ NO_DISCARD static bool Internal_FromSignedInt(String* Str, i64 Int, u8 IntType)
         case 0:  MaxDigits = 3; break;  // i8  -> 127
         case 1:  MaxDigits = 5; break;  // i16 -> 32767
         case 2:  MaxDigits = 10; break; // i32 -> 2147483647
+        default: MaxDigits = 10; break; // i32 -> 2147483647
     }
 
     bool bIsNegative = Int < 0;
@@ -3527,12 +3529,15 @@ NO_DISCARD StringArray String_ParseIntoArray(LinearAllocator* Arena, const Strin
             }
         }
 
-        u32 Length = Str.Length-Offset;
-        StrArray.List[ListIndex].Data = LinearAllocator_Allocate(Arena, Length+1);
-        MemCopy(StrArray.List[ListIndex].Data, &Str.Data[Offset], Length);
-        StrArray.List[ListIndex].Data[Length] = 0;
-        StrArray.List[ListIndex].Length = Length;
-        StrArray.List[ListIndex].Capacity = Length;
+        if (ListIndex < Num)
+        {
+            u32 Length = Str.Length-Offset;
+            StrArray.List[ListIndex].Data = LinearAllocator_Allocate(Arena, Length+1);
+            MemCopy(StrArray.List[ListIndex].Data, &Str.Data[Offset], Length);
+            StrArray.List[ListIndex].Data[Length] = 0;
+            StrArray.List[ListIndex].Length = Length;
+            StrArray.List[ListIndex].Capacity = Length;
+        }
     }
 
     return StrArray;

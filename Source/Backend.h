@@ -253,7 +253,7 @@ STRUCT(BuildParams)
     bool bCompilerFlagsFirst;
     bool bLinkerFlagsFirst;
 
-    bool bPadding[7];
+    bool bPadding[6];
 };
 
 STRUCT(CompilerPaths)

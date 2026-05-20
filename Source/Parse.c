@@ -5478,6 +5478,11 @@ static bool Internal_AssertArg(ParsingContext* Context, const String BuildFilePa
                 case Cmp_LessThanOrEqual:    { bComparisonOK = MatchCount <= AssertNum; } break;
                 case Cmp_GreaterThan:        { bComparisonOK = MatchCount >  AssertNum; } break;
                 case Cmp_GreaterThanOrEqual: { bComparisonOK = MatchCount >= AssertNum; } break;
+                case Cmp_None:               FALL_THROUGH;
+                case Cmp_NotEqual:           FALL_THROUGH;
+                case Cmp_StartsWith:         FALL_THROUGH;
+                case Cmp_EndsWith:           FALL_THROUGH;
+                case Cmp_Contains:           FALL_THROUGH;
                 default:                     { bComparisonOK = false; } break;
             }
 
@@ -5485,7 +5490,12 @@ static bool Internal_AssertArg(ParsingContext* Context, const String BuildFilePa
             {
                 switch (CmpType)
                 {
-                    default: FALL_THROUGH;
+                    case Cmp_None:               FALL_THROUGH;
+                    case Cmp_NotEqual:           FALL_THROUGH;
+                    case Cmp_StartsWith:         FALL_THROUGH;
+                    case Cmp_EndsWith:           FALL_THROUGH;
+                    case Cmp_Contains:           FALL_THROUGH;
+                    default:                     FALL_THROUGH;
                     case Cmp_Equal:
                     {
                         LOG_INLINE_ERROR

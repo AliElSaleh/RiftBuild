@@ -112,7 +112,7 @@ STRUCT(BuildReceipt)
     bool LinkerNoStdLib;
     bool LinkerNoDefaultLibs;
 
-    u8 blah[5];
+    u8 blah[2];
 };
 
 STRUCT(BuildFileDirectoryIteratorData)
@@ -5847,9 +5847,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             {
                 LOG_WARNING("Failed to build resource file \"%S\" for %S%S. Skipping...\n", VersionRCFilePath, AssemblyName, Extension);
             }
-
-            // TODO: use this warning
-            // LOG_WARNING("Unable to build version resource file. You do not have a resource compiler installed on this machine. Skipping icon build...");
         }
     }
 
@@ -5964,7 +5961,10 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     StringLocal(ExpandedLinkerDefineFlags, 1024);
     StringLocal(ExpandedAssemblerIncludeFlags, 4096);
     StringLocal(ExpandedAssemblerDefineFlags, 1024);
+    
+    #if PLATFORM_APPLE
     StringLocal(ExpandedFrameworks, 2048);
+    #endif
 
     StringLocal(FlagPrefix, 4);
     String_Append(&FlagPrefix, CompilerFlagPrefixSymbol);
