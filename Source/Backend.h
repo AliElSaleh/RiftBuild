@@ -390,6 +390,7 @@ bool Export_VisualStudioProject(const BuildParams* Params, const String Path);
 bool Export_License(const String LicenseType, const BuildParams* Params, const String OutputPath);
 
 bool Export_FromArg(LinearAllocator Scratch, const BuildParams* Params, const String Arg, TArray(FileVariable) ExpandedVariablesDB);
+void Export_PrintAvailableTypes(void);
 
 #if PLATFORM_LINUX || PLATFORM_BSD
 bool TryBuildOrCleanUnixExeIcon(String IconFilePath, const BuildParams* Params);

@@ -3166,7 +3166,6 @@ static bool Parameters_TryListVariables(LinearAllocator Scratch, const StringArr
 
             LOG_LINE_BREAK();
 
-            // TODO: if we do this: list:somekey.   with a . at the end, then print out all keys that start with that
             u32 Colon = 0;
             if (String_IndexOfChar(Arg, ':', &Colon))
             {
@@ -3220,19 +3219,26 @@ static bool Parameters_TryListVariables(LinearAllocator Scratch, const StringArr
                     }
                     else
                     {
-                        bool bExists = DoesBuildVarExist_StartingWith(VariablesDB, *var);
-
-                        if (!bExists)
+                        if (String_EndsWith(*var, S("."), false))
                         {
-                            LOG_WARNING("Failed to list \"%S\". It does not exist in \"%S\" after expansion (within the context of the given build parameters)", *var, BuildFilePath);
-                            if (ExitCode)
-                            {
-                                *ExitCode = 1;
-                            }
-                            break;
+                            ListVariables(Scratch, *var, VariablesDB);
                         }
+                        else
+                        {
+                            bool bExists = DoesBuildVarExist_StartingWith(VariablesDB, *var);
 
-                        ListVariables(Scratch, *var, VariablesDB);
+                            if (!bExists)
+                            {
+                                LOG_WARNING("Failed to list \"%S\". It does not exist in \"%S\" after expansion (within the context of the given build parameters)", *var, BuildFilePath);
+                                if (ExitCode)
+                                {
+                                    *ExitCode = 1;
+                                }
+                                break;
+                            }
+
+                            ListVariables(Scratch, *var, VariablesDB);
+                        }
                     }
                 }
 
@@ -3261,45 +3267,41 @@ static bool Parameters_TryExport(LinearAllocator Scratch, const StringArray Para
     {
         const String Arg = Parameters.List[i];
 
-        if (String_StartsWith(Arg, S("export:"), false))
+        bool bBareExport  = String_IsEqual(Arg, S("export"), false);
+        bool bExportColon = String_StartsWith(Arg, S("export:"), false);
+
+        if (bBareExport || bExportColon)
         {
-            u32 Colon = 0;
-            if (String_IndexOfChar(Arg, ':', &Colon))
+            bTried = true;
+            if (ExitCode)
             {
-                bTried = true;
-                if (ExitCode)
+                *ExitCode = 0;
+            }
+
+            String VarToList = String_Null();
+            if (bExportColon)
+            {
+                u32 Colon = 0;
+                xx String_IndexOfChar(Arg, ':', &Colon);
+                VarToList = StrShiftF(Arg, Colon+1);
+            }
+
+            if (VarToList.Length == 0)
+            {
+                Export_PrintAvailableTypes();
+            }
+            else
+            {
+                if (!Export_FromArg(Scratch, p, VarToList, VariablesDB))
                 {
-                    *ExitCode = 0;
-                }
-
-                const String VarToList = StrShiftF(Arg, Colon+1);
-
-                if (VarToList.Length == 0)
-                {
-                    LOG_ERROR("Failed to export. No export type was given after ':'");
-                    LOG_INLINE_WARNING("\nUsage\n");
-                    LOG("     export:compile_commands");
-                    LOG("     export:icon.rc");
-                    LOG("     export:plist,bat,sh");
-
                     if (ExitCode)
                     {
                         *ExitCode = 1;
                     }
                 }
-                else
-                {
-                    if (!Export_FromArg(Scratch, p, VarToList, VariablesDB))
-                    {
-                        if (ExitCode)
-                        {
-                            *ExitCode = 1;
-                        }
-                    }
-                }
-
-                break;
             }
+
+            break;
         }
     }
 
@@ -4404,7 +4406,8 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     {
         const String Arg = Parameters.List[i];
 
-        if (String_StartsWith(Arg, S("export:"), false))
+        if (String_StartsWith(Arg, S("export:"), false) ||
+            String_IsEqual(Arg, S("export"), false))
         {
             bExportingSomething = true;
             break;
@@ -6958,6 +6961,7 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments, const 
 
             if (String_StartsWith(Arguments.List[i], S("override:"), false) ||
                 String_StartsWith(Arguments.List[i], S("export:"), false) ||
+                String_IsEqual(Arguments.List[i], S("export"), false) ||
                 String_StartsWith(Arguments.List[i], S("preset:"), false) ||
                 String_StartsWith(Arguments.List[i], S("list:"), false))
             {

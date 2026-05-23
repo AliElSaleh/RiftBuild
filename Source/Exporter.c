@@ -1028,6 +1028,60 @@ bool Export_License(const String LicenseType, const BuildParams* Params, const S
     return bSuccess;
 }
 
+void Export_PrintAvailableTypes(void)
+{
+    STRUCT(ExportTypeInfo)
+    {
+        String Name;
+        String Description;
+    };
+
+    static const ExportTypeInfo ExportTypes[16] =
+    {
+        { .Name = SC("compile_commands"),          .Description = SC("Generates compile_commands.json (alias: cc)") },
+        { .Name = SC("compile_commands_one_line"), .Description = SC("Compact single-line format (aliases: cc_one_line, compile_commands1, cc1)") },
+        { .Name = SC("bat"),                       .Description = SC("Windows batch build script") },
+        { .Name = SC("sh"),                        .Description = SC("Unix shell build script") },
+        { .Name = SC("plist"),                     .Description = SC("Info.plist + Version.plist (Apple)") },
+        { .Name = SC("info.plist"),                .Description = SC("Info.plist only (Apple)") },
+        { .Name = SC("version.plist"),             .Description = SC("Version.plist only (Apple)") },
+        { .Name = SC("pkginfo"),                   .Description = SC("PkgInfo file (Apple)") },
+        { .Name = SC("versionrc"),                 .Description = SC("Windows version resource file (alias: version.rc)") },
+        { .Name = SC("iconrc"),                    .Description = SC("Windows icon resource file (alias: icon.rc)") },
+        { .Name = SC("visual_studio"),             .Description = SC("Visual Studio solution + project (alias: sln)") },
+        { .Name = SC("license=MIT"),               .Description = SC("MIT license file") },
+        { .Name = SC("license=BSD2"),              .Description = SC("BSD 2-Clause license file") },
+        { .Name = SC("license=BSD3"),              .Description = SC("BSD 3-Clause license file") },
+        { .Name = SC("license=FuckYou"),           .Description = SC("Do What The Fuck You Want To Public License") },
+        { .Name = SC("license=Unlicense"),         .Description = SC("The Unlicense") },
+    };
+
+    LOG("Available export types:\n");
+
+    u32 LongestName = 0;
+    for (u32 i = 0; i < SArray_Capacity(ExportTypes); i++)
+    {
+        if (ExportTypes[i].Name.Length > LongestName)
+        {
+            LongestName = ExportTypes[i].Name.Length;
+        }
+    }
+    LongestName += 1;
+
+    for (u32 i = 0; i < SArray_Capacity(ExportTypes); i++)
+    {
+        StringLocal(Spaces, 64);
+        Spaces.Length = LongestName - ExportTypes[i].Name.Length;
+        String_Fill(&Spaces, ' ');
+
+        LOG("   %S%S  %S", ExportTypes[i].Name, Spaces, ExportTypes[i].Description);
+    }
+
+    LOG_INLINE_WARNING("\nUsage");
+    LOG("\n     riftbuild export:compile_commands");
+    LOG("  or riftbuild export:plist,bat,sh");
+}
+
 bool Export_FromArg(LinearAllocator Scratch, const BuildParams* Params, const String Arg, TArray(FileVariable) ExpandedVariablesDB)
 {
     bool bSuccess = true;
@@ -1410,7 +1464,9 @@ bool Export_FromArg(LinearAllocator Scratch, const BuildParams* Params, const St
     
     if (!bAnyExported)
     {
-        LOG_INLINE("Nothing happened. No export logic was implemented for ");
+        Export_PrintAvailableTypes();
+
+        LOG_INLINE("\nNothing happened. No export logic was implemented for ");
 
         u32 i = 0;
         for each_str_i (i, var, Vars)
@@ -1425,10 +1481,7 @@ bool Export_FromArg(LinearAllocator Scratch, const BuildParams* Params, const St
                 LOG_INLINE("%S \"%S\" ", Prefix, *var);
             }
         }
-
         LOG_LINE_BREAK();
-
-        //TODO: list all export types
     }
 
     return bSuccess;
@@ -1600,7 +1653,6 @@ bool TryBuildOrCleanUnixExeIcon(String IconFilePath, const BuildParams* Params)
                     PlatformHandle H = {0};
                     u32 ExitCode = 0;
 
-                    // todo: remove defines, use runtime check for gnome/xfce4
                     if (Platform_DesktopIsGnome())
                     {
                         if (Platform_FindProgram(S("xdg-mime")))
@@ -2222,8 +2274,6 @@ bool Export_WindowsBatchScript(const BuildParams* Params)
     String_BuildPath(&ExportPath, Params->IntermediateDirectory, S("__Exports"), S("build"));
     String_Append(&ExportPath, S(".bat"));
 
-    // TODO: Linker flags not here when using Linker. whatever keys. fix this
-
     FileHandle f = {0};
     if (Filesystem_Open(ExportPath, FileMode_Write, &f))
     {
@@ -2293,8 +2343,6 @@ bool Export_UnixShellScript(const BuildParams* Params)
     StringLocal(ExportPath, MAX_PATH_LENGTH);
     String_BuildPath(&ExportPath, Params->IntermediateDirectory, S("__Exports"), S("build"));
     String_Append(&ExportPath, S(".sh"));
-
-    // TODO: Linker flags not here when using Linker. whatever keys. fix this
 
     FileHandle f = {0};
     if (Filesystem_Open(ExportPath, FileMode_Write, &f))
