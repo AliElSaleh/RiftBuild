@@ -3013,6 +3013,65 @@ static void ExpandPathFlags(LinearAllocator Scratch, String* Dest, const String 
     PrefixVariables(Dest, NonWildcardFlags, FlagPrefix, bWrapWithQuotes);
 }
 
+static void Internal_RunAssembly_CmdLine(const String WorkingPath, const String BuildDirectory, const String AssemblyNameWithExt, const String Args, const String EnvArgs)
+{
+    StringLocal(ExecutableWorkingPath, MAX_PATH_LENGTH);
+    String_Copy(&ExecutableWorkingPath, WorkingPath);
+    xx Filesystem_ConvertRelativeToAbsolutePath(&ExecutableWorkingPath);
+
+    StringLocal(ExePath, MAX_PATH_LENGTH);
+    String_Append(&ExePath, BuildDirectory);
+    String_Append(&ExePath, AssemblyNameWithExt);
+
+    StringLocal(CmdLine, 8192);
+
+    #if PLATFORM_WINDOWS
+    String_Append(&CmdLine, S("cmd.exe /c \""));
+    #endif
+
+    String_Append(&CmdLine, S("cd \""));
+    String_Append(&CmdLine, ExecutableWorkingPath);
+    String_Append(&CmdLine, S("\" && "));
+
+    String_AppendChar(&CmdLine, '"');
+    String_Append(&CmdLine, ExePath);
+    String_AppendChar(&CmdLine, '"');
+
+    String_AppendSpace(&CmdLine);
+    String_Append(&CmdLine, Args);
+
+    xx String_EatSpacesInlineFromEnd(&CmdLine);
+
+    #if PLATFORM_WINDOWS
+    String_AppendChar(&CmdLine, '"');
+
+    LOG_LINE_BREAK();
+    #endif
+
+    if (AssemblyNameWithExt.Length > 0 && Filesystem_DoesFileExist(ExePath))
+    {
+        if (!bQuietBuild)
+        {
+            LOG("Launching %S ...", AssemblyNameWithExt);
+            LOG(" -> Working Directory: %S", ExecutableWorkingPath);
+
+            if (Args.Length > 0)
+            {
+                LOG(" -> Parameters: %S", Args);
+            }
+
+            if (EnvArgs.Length > 0)
+            {
+                LOG(" -> Environment: %S", EnvArgs);
+            }
+
+            LOG_LINE_BREAK();
+        }
+
+        Platform_WaitForHandle(Platform_RunCommand(CmdLine, ExecutableWorkingPath, EnvArgs), -1);
+    }
+}
+
 static void Internal_RunAssembly(LinearAllocator Scratch, const String WorkingPath, const String BuildDirectory, const String AssemblyNameWithExt, const String ArgString)
 {
     u32 PipeIndex = 0;
@@ -3043,12 +3102,6 @@ static void Internal_RunAssembly(LinearAllocator Scratch, const String WorkingPa
 
     xx String_EatSpacesInlineFromEnd(&ProgramArgs);
 
-    StringLocal(CmdLine, 8192);
-
-    #if PLATFORM_WINDOWS
-    String_Append(&CmdLine, S("cmd.exe /c \""));
-    #endif
-
     StringLocal(ExecutableWorkingPath, MAX_PATH_LENGTH);
 
     if (CustomPath.Length > 0)
@@ -3064,53 +3117,7 @@ static void Internal_RunAssembly(LinearAllocator Scratch, const String WorkingPa
         String_Copy(&ExecutableWorkingPath, BuildDirectory);
     }
 
-    xx Filesystem_ConvertRelativeToAbsolutePath(&ExecutableWorkingPath);
-
-    String_Append(&CmdLine, S("cd \""));
-    String_Append(&CmdLine, ExecutableWorkingPath);
-    String_Append(&CmdLine, S("\" && "));
-
-    StringLocal(ExePath, MAX_PATH_LENGTH);
-    String_Append(&ExePath, BuildDirectory);
-    String_Append(&ExePath, AssemblyNameWithExt);
-
-    String_AppendChar(&CmdLine, '"');
-    String_Append(&CmdLine, ExePath);
-    String_AppendChar(&CmdLine, '"');
-
-    String_AppendSpace(&CmdLine);
-    String_Append(&CmdLine, ProgramArgs);
-
-    xx String_EatSpacesInlineFromEnd(&CmdLine);
-
-    #if PLATFORM_WINDOWS
-    String_AppendChar(&CmdLine, '"');
-
-    LOG_LINE_BREAK();
-    #endif
-
-    if (AssemblyNameWithExt.Length > 0 && Filesystem_DoesFileExist(ExePath))
-    {
-        if (!bQuietBuild)
-        {
-            LOG("Launching %S ...", AssemblyNameWithExt);
-            LOG(" -> Working Directory: %S", ExecutableWorkingPath);
-
-            if (ProgramArgs.Length > 0)
-            {
-                LOG(" -> Parameters: %S", ProgramArgs);
-            }
-
-            if (EnvArgs.Length > 0)
-            {
-                LOG(" -> Environment: %S", EnvArgs);
-            }
-
-            LOG_LINE_BREAK();
-        }
-
-        Platform_WaitForHandle(Platform_RunCommand(CmdLine, ExecutableWorkingPath, EnvArgs), -1);
-    }
+    Internal_RunAssembly_CmdLine(ExecutableWorkingPath, BuildDirectory, AssemblyNameWithExt, ProgramArgs, EnvArgs);
 }
 
 static void TimeAsPercentageOfTotal(String* Buffer, u32 Length, f64 ElapsedTime, f64 TotalTime)
@@ -6858,12 +6865,31 @@ End:
     // run the assembly (if an executable)
     if (bIsAssemblyExe)
     {
-        // todo:if we have .run keys ignore this shit
-        if (StringArray_Contains(Parameters, S("Run"), false))
+        u32 RunIndex = 0;
+        bool bRunFound = false;
+        for (u8 i = 0; i < (u8)Parameters.Num; i++)
         {
-            // todo: args like .run key
-            
-            Internal_RunAssembly(*Arena, WorkingPath, BuildBaseDirectory, AssemblyNameWithExt, String_Null());
+            if (String_IsEqual(Parameters.List[i], S("run"), false))
+            {
+                RunIndex = i;
+                bRunFound = true;
+                break;
+            }
+        }
+
+        if (bRunFound)
+        {
+            StringLocal(RunArgs, 4096);
+            for (u32 i = RunIndex + 1; i < Parameters.Num; i++)
+            {
+                if (i > RunIndex + 1)
+                {
+                    String_AppendSpace(&RunArgs);
+                }
+                String_Append(&RunArgs, Parameters.List[i]);
+            }
+
+            Internal_RunAssembly_CmdLine(BuildBaseDirectory, BuildBaseDirectory, AssemblyNameWithExt, RunArgs, String_Null());
         }
 
         for each (FileVariable, v, VariablesDB)
