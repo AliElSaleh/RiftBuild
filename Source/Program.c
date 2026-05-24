@@ -4906,17 +4906,29 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     // these directories must be relative
     if (!Filesystem_IsPathRelative(SourceDirectory))
     {
-        TODO();
+        LOG_ERROR("%S: SourceDirectory '%S' must be a relative path, not an absolute one.\n"
+                  "        It must be relative to '%S'.", BuildFileName, SourceDirectory, WorkingPath);
+
+        Receipt.ExitCode = 1;
+        return Receipt;
     }
 
     if (!Filesystem_IsPathRelative(BuildDirectory))
     {
-        TODO();
+        LOG_ERROR("%S: BuildDirectory '%S' must be a relative path, not an absolute one.\n"
+                  "        It must be relative to '%S'.", BuildFileName, BuildDirectory, WorkingPath);
+
+        Receipt.ExitCode = 1;
+        return Receipt;
     }
 
     if (!Filesystem_IsPathRelative(IntermediateDirectory))
     {
-        TODO();
+        LOG_ERROR("%S: IntermediateDirectory '%S' must be a relative path, not an absolute one.\n"
+                  "        It must be relative to '%S'.", BuildFileName, IntermediateDirectory, WorkingPath);
+
+        Receipt.ExitCode = 1;
+        return Receipt;
     }
 
     StringLocal(BuildBaseDirectory, MAX_PATH_LENGTH);
