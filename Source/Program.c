@@ -3094,6 +3094,129 @@ static void Internal_RunAssembly_CmdLine(const String WorkingPath, const String 
     }
 }
 
+#if !PLATFORM_WINDOWS && !PLATFORM_APPLE
+static void AppendShellSingleQuoteEscaped(String* Dest, const String Src)
+{
+    for (u32 i = 0; i < Src.Length; i++)
+    {
+        if (Src.Data[i] == '\'')
+        {
+            String_Append(Dest, S("'\\''"));
+        }
+        else
+        {
+            String_AppendChar(Dest, Src.Data[i]);
+        }
+    }
+}
+#endif
+
+static void Internal_RunAssembly_ExternalWindow(const String WorkingPath, const String BuildDirectory, const String AssemblyNameWithExt, const String Args)
+{
+    StringLocal(ExecutableWorkingPath, MAX_PATH_LENGTH);
+    String_Copy(&ExecutableWorkingPath, WorkingPath);
+    xx Filesystem_ConvertRelativeToAbsolutePath(&ExecutableWorkingPath);
+
+    StringLocal(ExePath, MAX_PATH_LENGTH);
+    String_Append(&ExePath, BuildDirectory);
+    String_Append(&ExePath, AssemblyNameWithExt);
+
+    if (!(AssemblyNameWithExt.Length > 0 && Filesystem_DoesFileExist(ExePath)))
+    {
+        return;
+    }
+
+    if (!bQuietBuild)
+    {
+        LOG("Launching %S in external terminal ...", AssemblyNameWithExt);
+        LOG(" -> Working Directory: %S", ExecutableWorkingPath);
+
+        if (Args.Length > 0)
+        {
+            LOG(" -> Parameters: %S", Args);
+        }
+
+        LOG_LINE_BREAK();
+    }
+
+    StringLocal(CmdLine, 8192);
+
+    #if PLATFORM_WINDOWS
+    // start "Title" /d "WorkDir" "ExePath" Args
+    String_Append(&CmdLine, S("cmd.exe /c start \""));
+    String_Append(&CmdLine, AssemblyNameWithExt);
+    String_Append(&CmdLine, S("\" /d \""));
+    String_Append(&CmdLine, ExecutableWorkingPath);
+    String_Append(&CmdLine, S("\" \""));
+    String_Append(&CmdLine, ExePath);
+    String_AppendChar(&CmdLine, '"');
+    if (Args.Length > 0)
+    {
+        String_AppendSpace(&CmdLine);
+        String_Append(&CmdLine, Args);
+    }
+    #elif PLATFORM_APPLE
+    // osascript: open Terminal.app and run the executable inside it
+    // The 'do script' command leaves the Terminal window open after the program exits
+    String_Append(&CmdLine, S("osascript -e 'tell app \"Terminal\" to do script \"cd \\\""));
+    String_Append(&CmdLine, ExecutableWorkingPath);
+    String_Append(&CmdLine, S("\\\" && \\\""));
+    String_Append(&CmdLine, ExePath);
+    String_AppendChar(&CmdLine, '"');
+    if (Args.Length > 0)
+    {
+        String_AppendSpace(&CmdLine);
+        String_Append(&CmdLine, Args);
+    }
+    String_Append(&CmdLine, S("\"' -e 'tell app \"Terminal\" to activate'"));
+    #else
+    if (Platform_DesktopIsGnome() || Platform_DesktopIsCinnamon())
+    {
+        String_Append(&CmdLine, S("gnome-terminal -- sh -c 'cd \""));
+        AppendShellSingleQuoteEscaped(&CmdLine, ExecutableWorkingPath);
+        String_Append(&CmdLine, S("\" && \""));
+        AppendShellSingleQuoteEscaped(&CmdLine, ExePath);
+        String_AppendChar(&CmdLine, '"');
+        if (Args.Length > 0)
+        {
+            String_AppendSpace(&CmdLine);
+            AppendShellSingleQuoteEscaped(&CmdLine, Args);
+        }
+        String_Append(&CmdLine, S("; printf \"Press Enter to close...\"; read _'"));
+    }
+    else if (Platform_DesktopIsKDE())
+    {
+        String_Append(&CmdLine, S("konsole -e sh -c 'cd \""));
+        AppendShellSingleQuoteEscaped(&CmdLine, ExecutableWorkingPath);
+        String_Append(&CmdLine, S("\" && \""));
+        AppendShellSingleQuoteEscaped(&CmdLine, ExePath);
+        String_AppendChar(&CmdLine, '"');
+        if (Args.Length > 0)
+        {
+            String_AppendSpace(&CmdLine);
+            AppendShellSingleQuoteEscaped(&CmdLine, Args);
+        }
+        String_Append(&CmdLine, S("; printf \"Press Enter to close...\"; read _'"));
+    }
+    else
+    {
+        String_Append(&CmdLine, S("xterm -e sh -c 'cd \""));
+        AppendShellSingleQuoteEscaped(&CmdLine, ExecutableWorkingPath);
+        String_Append(&CmdLine, S("\" && \""));
+        AppendShellSingleQuoteEscaped(&CmdLine, ExePath);
+        String_AppendChar(&CmdLine, '"');
+        if (Args.Length > 0)
+        {
+            String_AppendSpace(&CmdLine);
+            AppendShellSingleQuoteEscaped(&CmdLine, Args);
+        }
+        String_Append(&CmdLine, S("; printf \"Press Enter to close...\"; read _'"));
+    }
+    #endif
+
+    xx Platform_RunCommand(CmdLine, String_Null(), String_Null());
+}
+
 static void Internal_RunAssembly(LinearAllocator Scratch, const String WorkingPath, const String BuildDirectory, const String AssemblyNameWithExt, const String ArgString)
 {
     u32 PipeIndex = 0;
@@ -6915,12 +7038,21 @@ End:
     {
         u32 RunIndex = 0;
         bool bRunFound = false;
+        bool bRunExternal = false;
         for (u8 i = 0; i < (u8)Parameters.Num; i++)
         {
             if (String_IsEqual(Parameters.List[i], S("run"), false))
             {
                 RunIndex = i;
                 bRunFound = true;
+                break;
+            }
+
+            if (String_IsEqual(Parameters.List[i], S("run.external"), false))
+            {
+                RunIndex = i;
+                bRunFound = true;
+                bRunExternal = true;
                 break;
             }
         }
@@ -6937,23 +7069,39 @@ End:
                 String_Append(&RunArgs, Parameters.List[i]);
             }
 
-            Internal_RunAssembly_CmdLine(BuildBaseDirectory, BuildBaseDirectory, AssemblyNameWithExt, RunArgs, String_Null());
+            if (bRunExternal)
+            {
+                Internal_RunAssembly_ExternalWindow(BuildBaseDirectory, BuildBaseDirectory, AssemblyNameWithExt, RunArgs);
+            }
+            else
+            {
+                Internal_RunAssembly_CmdLine(BuildBaseDirectory, BuildBaseDirectory, AssemblyNameWithExt, RunArgs, String_Null());
+            }
         }
 
         for each (FileVariable, v, VariablesDB)
         {
             if (String_IsEqual(v.Name, S(".Run"), false))
             {
-                bool bIsSpecial = String_IsEqual(v.Params, S("Only_Done_Work"), false);
-                if (bIsSpecial)
+                LinearAllocator Scratch = *Arena;
+                StringList ParamList = String_SplitIntoList(&Scratch, v.Params, ' ', false);
+
+                bool bIsSpecial = StringList_FindIndex(ParamList, S("Only_Done_Work"), false, StringCompare_Equal, NULL);
+                bool bIsExternal = StringList_FindIndex(ParamList, S("external"), false, StringCompare_Equal, NULL);
+
+                if (bIsSpecial && NumCompiled == 0)
                 {
-                    if (NumCompiled == 0)
-                    {
-                        continue;
-                    }
+                    continue;
                 }
 
-                Internal_RunAssembly(*Arena, WorkingPath, BuildBaseDirectory, AssemblyNameWithExt, v.Value);
+                if (bIsExternal)
+                {
+                    Internal_RunAssembly_ExternalWindow(WorkingPath, BuildBaseDirectory, AssemblyNameWithExt, v.Value);
+                }
+                else
+                {
+                    Internal_RunAssembly(*Arena, WorkingPath, BuildBaseDirectory, AssemblyNameWithExt, v.Value);
+                }
             }
         }
     }
