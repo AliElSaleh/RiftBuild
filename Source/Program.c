@@ -2644,6 +2644,17 @@ void LogPathEnvVarTutorialSteps(void)
     LOG("    6. Press Y to save changes");
     LOG("    7. Press Enter to confirm");
     LOG("    8. Restart the terminal (by closing and opening it again) for changes to take effect");
+    #elif PLATFORM_BSD
+    LOG("    1. Open the terminal");
+    LOG("    2. If you use csh or tcsh (FreeBSD default), type in nano ~/.cshrc");
+    LOG("       If you use sh, type in nano ~/.profile instead");
+    LOG("    3. Go to the bottom of the file and add the path to the executable");
+    LOG("       For csh/tcsh: set path = ($path /home/bob/MyCompiler/bin)");
+    LOG("       For sh:       PATH=$PATH:/home/bob/MyCompiler/bin; export PATH");
+    LOG("    4. Press Ctrl + X to exit");
+    LOG("    5. Press Y to save changes");
+    LOG("    6. Press Enter to confirm");
+    LOG("    7. Log out and log back in for changes to take effect");
     #else
     LOG("    1. Open the terminal");
     LOG("    2. Type in nano ~/.bashrc");
@@ -2683,6 +2694,17 @@ void LogRegularEnvVarTutorialSteps(void)
     LOG("    6. Press Y to save changes");
     LOG("    7. Press Enter to confirm");
     LOG("    8. Restart the terminal (by closing and opening it again) for changes to take effect");
+    #elif PLATFORM_BSD
+    LOG("    1. Open a terminal");
+    LOG("    2. If you use csh or tcsh (FreeBSD default), type in nano ~/.cshrc");
+    LOG("       If you use sh, type in nano ~/.profile instead");
+    LOG("    3. Go to the bottom of the file and add the variable");
+    LOG("       For csh/tcsh: setenv MY_COOL_VARIABLE Some_useful_value");
+    LOG("       For sh:       MY_COOL_VARIABLE=Some_useful_value; export MY_COOL_VARIABLE");
+    LOG("    4. Press Ctrl + X to exit");
+    LOG("    5. Press Y to save changes");
+    LOG("    6. Press Enter to confirm");
+    LOG("    7. Log out and log back in for changes to take effect");
     #else
     LOG("    1. Open a terminal");
     LOG("    2. Type in nano ~/.bashrc");
