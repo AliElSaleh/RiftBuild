@@ -4207,17 +4207,28 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     // For compilers that want flags first instead of "-c some/file"
     bool bCompilerFlagsFirst = false;
     {
-        ScratchLocal(Temp, Kibibytes(1));
-        StringList CFlagParamsList = String_SplitIntoList(&Temp, CompilerFlagsParams, ' ', false);
+        // ScratchLocal(Temp, Kibibytes(1));
+        LinearAllocator Scratch = *Arena;
+        StringList CFlagParamsList = String_SplitIntoList(&Scratch, CompilerFlagsParams, ' ', false);
         bCompilerFlagsFirst = StringList_FindIndex(CFlagParamsList, S("first"), false, StringCompare_Equal, NULL);
     }
 
     // For linkers that want flags first
     bool bLinkerFlagsFirst = false;
     {
-        ScratchLocal(Temp, Kibibytes(1));
-        StringList LFlagParamsList = String_SplitIntoList(&Temp, LinkerFlagsParams, ' ', false);
+        // ScratchLocal(Temp, Kibibytes(1));
+        LinearAllocator Scratch = *Arena;
+        StringList LFlagParamsList = String_SplitIntoList(&Scratch, LinkerFlagsParams, ' ', false);
         bLinkerFlagsFirst = StringList_FindIndex(LFlagParamsList, S("first"), false, StringCompare_Equal, NULL);
+    }
+
+    bool bAssemblyPreserveCase = false;
+    {
+        const String AssemblyParams = GetVariable(VariablesDB, S("Assembly")).Params;
+        LinearAllocator Scratch = *Arena;
+        StringList AssemblyParamsList = String_SplitIntoList(&Scratch, AssemblyParams, ' ', false);
+        bAssemblyPreserveCase = StringList_FindIndex(AssemblyParamsList, S("preserve_case"), false, StringCompare_Equal, NULL);
+        xx bAssemblyPreserveCase;
     }
 
     #ifndef HOOD
@@ -4329,7 +4340,10 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         String_Copy(&FinalAssemblyName, AssemblyPrefix);
         String_Append(&FinalAssemblyName, Assembly);
         String_Append(&FinalAssemblyName, AssemblyPostfix);
-        String_ToLower(&FinalAssemblyName);
+        if (!bAssemblyPreserveCase)
+        {
+            String_ToLower(&FinalAssemblyName);
+        }
     }
     else
     {
@@ -5113,7 +5127,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     }
 
     #if !PLATFORM_WINDOWS
-    if (bIsAssemblyExe)
+    if (bIsAssemblyExe && !bAssemblyPreserveCase)
     {
         String_ToLower(&AssemblyNameWithExt);
     }
