@@ -9,6 +9,7 @@
 #include "Core/StringUtils.h"
 #include "Core/Array.h"
 #include "Core/Clock.h"
+#include "Core/Uuid.h"
 #include "Core/Log.h"
 #endif
 
@@ -6375,6 +6376,26 @@ bool ExpandBuildVariable(LinearAllocator Scratch, FileVariableList* VariablesDB,
 
         if (C == Token_Char_Mod)
         {
+            // %_uuid.gen expands to a freshly generated UUID for every mention,
+            // unlike the other internal vars which resolve to a single precomputed value.
+            if (String_IsEqual(Slice, S("_uuid.gen"), false))
+            {
+                Uuid NewID = UUID_Generate();
+                StringLocal(UuidStr, UUID_STRING_LENGTH);
+                UUID_ToStringFast(NewID, &UuidStr);
+
+                String DestEnd = StrShiftF(*Dest, Dest->Length);
+                u32 DestLengthBefore = Dest->Length;
+
+                String_Append(Dest, UuidStr);
+
+                DestEnd.Length = Dest->Length - DestLengthBefore;
+                if (bWantsToLower) { String_ToLower(&DestEnd); }
+                if (bWantsToUpper) { String_ToUpper(&DestEnd); }
+
+                continue;
+            }
+
             String VarValue = String_Null();
 
             String Trimmed = Slice;
