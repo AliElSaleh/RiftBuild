@@ -4856,6 +4856,44 @@ static bool Internal_AssertDesktopEnv(ParsingContext* Context, const String Buil
     return bSuccess;
 }
 
+static bool Internal_DoesPlatformNameMatch(LinearAllocator* Scratch, const String PlatformName, const String HostPlatform)
+{
+    bool bMatch = String_IsEqual(PlatformName, HostPlatform, false);
+    if (!bMatch)
+    {
+        StringArray HostPlatformTokens = String_ParseIntoArray(Scratch, HostPlatform, ' ', 0, 128);
+        for each_str (p, HostPlatformTokens)
+        {
+            if (String_IsEqual(PlatformName, *p, false))
+            {
+                bMatch = true;
+                break;
+            }
+        }
+    }
+
+    return bMatch;
+}
+
+static bool Internal_DoesArchNameMatch(LinearAllocator* Scratch, const String ArchName)
+{
+    bool bMatch = String_IsEqual(ArchName, S(CPU_ARCHITECTURE_STRING), false);
+    if (!bMatch)
+    {
+        StringArray HostArchTokens = String_ParseIntoArray(Scratch, S(CPU_ARCHITECTURE_STRING_EX), '|', 0, 128);
+        for each_str (p, HostArchTokens)
+        {
+            if (String_IsEqual(ArchName, *p, false))
+            {
+                bMatch = true;
+                break;
+            }
+        }
+    }
+
+    return bMatch;
+}
+
 static bool Internal_AssertPlatform(ParsingContext* Context, const String BuildFilePath, FileVariable Var)
 {
     bool bSuccess = true;
@@ -4904,22 +4942,27 @@ static bool Internal_AssertPlatform(ParsingContext* Context, const String BuildF
         {
             String Trimmed = String_EatSpaces(*s);
 
-            bool bMatch = String_IsEqual(Trimmed, HostPlatform, false);
+            // a token may optionally specify an architecture after a colon, e.g. "windows:x64".
+            // when present, both the platform and the architecture must match the host.
+            StringArray TokenParts = String_ParseIntoArray(&Scratch, Trimmed, ':', 0, 128);
+
+            String PlatformName = Trimmed;
+            if (TokenParts.Num > 0)
+            {
+                PlatformName = String_EatSpaces(TokenParts.List[0]);
+            }
+
+            bool bMatch = Internal_DoesPlatformNameMatch(&Scratch, PlatformName, HostPlatform);
+            if (bMatch && TokenParts.Num > 1)
+            {
+                String ArchName = String_EatSpaces(TokenParts.List[1]);
+                bMatch = Internal_DoesArchNameMatch(&Scratch, ArchName);
+            }
+
             if (bMatch)
             {
                 bAnyPlatformMatch = true;
                 break;
-            }
-
-            StringArray AdditionalPlatforms = String_ParseIntoArray(&Scratch, HostPlatform, ' ', 0, 128);
-            for each_str (p, AdditionalPlatforms)
-            {
-                bMatch = String_IsEqual(Trimmed, *p, false);
-                if (bMatch)
-                {
-                    bAnyPlatformMatch = true;
-                    break;
-                }
             }
         }
 
@@ -4927,7 +4970,7 @@ static bool Internal_AssertPlatform(ParsingContext* Context, const String BuildF
         {
             #ifndef HOOD
             const String BuildFileName = Filesystem_ExtractFileName(BuildFilePath, true);
-            LOG_INLINE_ERROR("\n[ASSERTION FAILURE] %S can only be built on %S. You are on %S. Aborting build...\n", BuildFileName, PlatformsLogString, S(PLATFORM_STRING));
+            LOG_INLINE_ERROR("\n[ASSERTION FAILURE] %S can only be built on %S. You are on %S %S. Aborting build...\n", BuildFileName, PlatformsLogString, S(PLATFORM_STRING), S(CPU_ARCHITECTURE_STRING));
             #else
             LOG_ERROR("yo u cant build on dis platform nigga. %S aint supportd bro\n", S(PLATFORM_STRING));
             #endif
@@ -6198,6 +6241,7 @@ NO_DISCARD bool ParseBuildFile(
     return bSuccess;
 }
 
+// TODO: rename to ExpandVariable
 bool ExpandBuildVariable(LinearAllocator Scratch, FileVariableList* VariablesDB, TArray(CmdOption) CmdOptionsDB,
                             String* Dest, const String Key, const String Value, const String Root, const String WorkingDirectory,
                             bool* bFailed)
