@@ -2504,6 +2504,21 @@ NO_DISCARD bool Platform_FindProgram_Ex(String ProgramName, String* OutProgramPa
            Platform_FindFile_Ex(ProgramName, S(".com"), OutProgramPath);
 }
 
+NO_DISCARD const String* Platform_GetExecutableExtensions(u32* OutCount)
+{
+    static const String Extensions[4] =
+    {
+        SC(".exe"), SC(".com"), SC(".bat"), SC(".cmd"),
+    };
+
+    if (OutCount)
+    {
+        *OutCount = SArray_Capacity(Extensions);
+    }
+
+    return Extensions;
+}
+
 NO_DISCARD bool Platform_FindFile(String FileName, String ExtensionWithDot)
 {
     return Platform_FindFile_Ex(FileName, ExtensionWithDot, NULL);

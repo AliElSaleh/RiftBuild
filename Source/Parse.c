@@ -516,6 +516,44 @@ static KeywordTableEntry ReservedEndingKeywordsTable[1] =
     { .Type = Token_ErrorMessage, .Name = SC(".ErrorMessage")},
 };
 
+// "Call" conditions are if-conditions that take a parenthesized argument, e.g.
+// `if program_exists(clang)` or `if find_system_header(stdio.h)`. To add a new one, write its
+// evaluator (a CallConditionFn that returns whether the condition is met) and add a single line to
+// CallConditionsTable below. Both the parser (which consumes the (...) argument) and Analyze_IfNode
+// dispatch off this table, so neither needs to change for a new addition.
+typedef bool (*CallConditionFn)(LinearAllocator* Scratch, String Argument);
+
+STRUCT(CallCondition)
+{
+    String          Name;
+    CallConditionFn Evaluate;
+};
+
+static bool CallCondition_FindSystemHeader(LinearAllocator* Scratch, String Argument);
+static bool CallCondition_ProgramExists(LinearAllocator* Scratch, String Argument);
+
+static const CallCondition CallConditionsTable[2] =
+{
+    { .Name = SC("find_system_header"), .Evaluate = CallCondition_FindSystemHeader },
+    { .Name = SC("program_exists"),     .Evaluate = CallCondition_ProgramExists    },
+};
+
+static NO_DISCARD const CallCondition* FindCallCondition(String Name)
+{
+    const CallCondition* Found = NULL;
+
+    for (u32 i = 0; i < SArray_Capacity(CallConditionsTable); i++)
+    {
+        if (String_IsEqual(Name, CallConditionsTable[i].Name, false))
+        {
+            Found = &CallConditionsTable[i];
+            break;
+        }
+    }
+
+    return Found;
+}
+
 STRUCT(ReservedKeyTable)
 {
     String Key;
@@ -1236,8 +1274,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena, Parser*
 
                 Parser_Advance(P);
 
-                // find_system_header(path/to/header.h) — consume the parenthesized argument
-                if (String_IsEqual(Lexeme, S("find_system_header"), false) && Parser_Peek(P).Type == Token_LParen)
+                if (FindCallCondition(Lexeme) && Parser_Peek(P).Type == Token_LParen)
                 {
                     Parser_Advance(P); // consume '('
 
@@ -1253,7 +1290,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena, Parser*
 
                     if (!Parser_Match(P, Token_RParen))
                     {
-                        LOG_ERROR("\n%S:%u: Expected ')' after find_system_header argument.\n", P->FilePath, Parser_Peek(P).Line);
+                        LOG_ERROR("\n%S:%u: Expected ')' after %S argument.\n", P->FilePath, Parser_Peek(P).Line, Lexeme);
                         return &Node_Null;
                     }
 
@@ -3006,7 +3043,11 @@ static bool Internal_FindSystemHeader(LinearAllocator* Scratch, String HeaderNam
 
                 if (Filesystem_DoesFileExist(FullPath))
                 {
-                    *OutDirectoryPath = Trimmed;
+                    if (OutDirectoryPath)
+                    {
+                        *OutDirectoryPath = Trimmed;
+                    }
+
                     bFound = true;
                     break;
                 }
@@ -3032,7 +3073,11 @@ static bool Internal_FindSystemHeader(LinearAllocator* Scratch, String HeaderNam
 
             if (Filesystem_DoesFileExist(FullPath))
             {
-                *OutDirectoryPath = SearchDirs[i];
+                if (OutDirectoryPath)
+                {
+                    *OutDirectoryPath = SearchDirs[i];
+                }
+
                 bFound = true;
                 break;
             }
@@ -3041,6 +3086,66 @@ static bool Internal_FindSystemHeader(LinearAllocator* Scratch, String HeaderNam
     #endif
 
     return bFound;
+}
+
+// program_exists(name) — check whether an executable can be found.
+// If the name contains a path separator it is treated as an explicit path and checked directly,
+// otherwise the search is delegated to Platform_FindProgram which walks the PATH environment variable.
+static bool Internal_ProgramExists(String ProgramName)
+{
+    bool bFound = false;
+
+    if (ProgramName.Length > 0)
+    {
+        if (String_ContainsPathSeparators(ProgramName))
+        {
+            // an explicit path was given (relative or absolute) — check it directly.
+            // First try the name as-is, then with each of the platform's executable extensions
+            // appended (e.g. "tool" -> "tool.exe" on Windows), so the caller can omit it.
+            if (Filesystem_DoesFileExist(ProgramName))
+            {
+                bFound = true;
+            }
+            else
+            {
+                u32 NumExtensions = 0;
+                const String* Extensions = Platform_GetExecutableExtensions(&NumExtensions);
+                for (u32 e = 0; e < NumExtensions; e++)
+                {
+                    StringLocal(Candidate, MAX_PATH_LENGTH);
+                    String_Copy(&Candidate, Filesystem_StripFileExtension(ProgramName));
+                    String_Append(&Candidate, Extensions[e]);
+
+                    if (Filesystem_DoesFileExist(Candidate))
+                    {
+                        bFound = true;
+                        break;
+                    }
+                }
+            }
+        }
+        else
+        {
+            bFound = Platform_FindProgram(ProgramName);
+        }
+    }
+
+    return bFound;
+}
+
+// Adapters that give the call-condition evaluators a uniform CallConditionFn signature so they can
+// be dispatched from CallConditionsTable. See the table near the top of this file.
+static bool CallCondition_FindSystemHeader(LinearAllocator* Scratch, String Argument)
+{
+    bool bResult = Internal_FindSystemHeader(Scratch, Argument, NULL);
+    return bResult;
+}
+
+static bool CallCondition_ProgramExists(LinearAllocator* Scratch, String Argument)
+{
+    xx Scratch;
+    bool bResult = Internal_ProgramExists(Argument);
+    return bResult;
 }
 
 static void Analyze_KVNode(Node* Root, ParsingContext* Context)
@@ -3178,18 +3283,19 @@ NO_DISCARD static NodeList* Analyze_IfNode(Node* Root, ParsingContext* Context, 
             String VarValue = String_Null();
             const String Condition = c.Condition;
 
-            // find_system_header(path) — check if a system header exists
-            if (String_IsEqual(Condition, S("find_system_header"), false) && c.TestValues)
+            // A "call" condition like find_system_header(path) or program_exists(name) —
+            // dispatch to its evaluator via CallConditionsTable.
+            const CallCondition* Call = FindCallCondition(Condition);
+            if (Call && c.TestValues)
             {
                 LinearAllocator Scratch = *Context->TempArena;
-                StringLocal(HeaderArg, MAX_PATH_LENGTH);
+                StringLocal(Argument, MAX_PATH_LENGTH);
                 for each_string_in_list (*c.TestValues)
                 {
-                    String_Append(&HeaderArg, It.String);
+                    String_Append(&Argument, It.String);
                 }
 
-                StringLocal(FoundPath, MAX_PATH_LENGTH);
-                bConditionMet = Internal_FindSystemHeader(&Scratch, HeaderArg, &FoundPath);
+                bConditionMet = Call->Evaluate(&Scratch, Argument);
 
                 if (bNot)
                 {

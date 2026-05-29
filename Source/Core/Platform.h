@@ -279,6 +279,7 @@ RIFT_API NO_DISCARD PlatformHandle Platform_RunProcess_Ex(const String ProcessEx
 RIFT_API NO_DISCARD bool Platform_TerminateProcess(PlatformHandle Handle, u32 ExitCode);
 RIFT_API NO_DISCARD bool Platform_FindProgram(String ProgramName);
 RIFT_API NO_DISCARD bool Platform_FindProgram_Ex(String ProgramName, String* OutProgramPath);
+RIFT_API NO_DISCARD const String* Platform_GetExecutableExtensions(u32* OutCount);
 RIFT_API NO_DISCARD bool Platform_FindFile(String FileName, String ExtensionWithDot);
 RIFT_API NO_DISCARD bool Platform_FindFile_Ex(String FileName, String ExtensionWithDot, String* OutFilePath);
 

@@ -638,6 +638,17 @@ bool Platform_FindProgram_Ex(String FileName, String* OutFilePath)
     return Platform_FindFile_Ex(FileName, S(""), OutFilePath);
 }
 
+const String* Platform_GetExecutableExtensions(u32* OutCount)
+{
+    // Unix has no executable file extensions — runnability is decided by the file mode bits.
+    if (OutCount)
+    {
+        *OutCount = 0;
+    }
+
+    return NULL;
+}
+
 bool Platform_FindFile(String FileName, String ExtensionWithDot)
 {
     return Platform_FindFile_Ex(FileName, ExtensionWithDot, NULL);
