@@ -70,6 +70,7 @@ STRUCT(CpuInfo)
     u32 SSE4             : 1;
     u32 SSE41            : 1;
     u32 SSE42            : 1;
+    u32 SSE4A            : 1;
     u32 AVX              : 1;
     u32 AVX2             : 1;
     u32 F16C             : 1;
@@ -81,6 +82,7 @@ STRUCT(CpuInfo)
     u32 MONITOR          : 1;
     u32 DSCPL            : 1;
     u32 VMX              : 1;
+    u32 SVM              : 1;
     u32 SMX              : 1;
     u32 EIST             : 1;
     u32 TM2              : 1;

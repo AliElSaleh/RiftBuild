@@ -315,8 +315,10 @@ NO_DISCARD CpuInfo Platform_QueryCPUInfo(void)
         PRAGMA_DISABLE_SIGN_CONVERSION_WARNING
 
         cpuid(info, 0x80000001U, 0);
+        Result.SVM             = BIT_TEST(info[2], 2);   // AMD-V (Secure Virtual Machine)
         Result.LZCNT           = BIT_TEST(info[2], 5);
-        
+        Result.SSE4A           = BIT_TEST(info[2], 6);
+
         PRAGMA_ENABLE_WARNINGS
     }
 

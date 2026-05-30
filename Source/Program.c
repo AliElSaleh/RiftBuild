@@ -8241,6 +8241,7 @@ static void InitInternalVars(LinearAllocator* Arena)
         AddCPUExt(SSE4,             "SSE4");
         AddCPUExt(SSE41,            "SSE4.1");
         AddCPUExt(SSE42,            "SSE4.2");
+        AddCPUExt(SSE4A,            "SSE4A");
         AddCPUExt(AES,              "AES");
         AddCPUExt(FMA3,             "FMA3");
         AddCPUExt(AVX,              "AVX");
@@ -8259,6 +8260,7 @@ static void InitInternalVars(LinearAllocator* Arena)
         AddCPUExt(MONITOR,          "MONITOR");
         AddCPUExt(DSCPL,            "DSCPL");
         AddCPUExt(VMX,              "VMX");
+        AddCPUExt(SVM,              "AMD-V");
         AddCPUExt(SMX,              "SMX");
         AddCPUExt(EIST,             "EIST");
         AddCPUExt(TM2,              "TM2");
