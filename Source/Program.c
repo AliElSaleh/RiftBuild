@@ -5181,6 +5181,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     String LinkerSubsystem            = GetVariableValue(VariablesDB, S("Linker.Subsystem"));
     String LinkerStack                = GetVariableValue(VariablesDB, S("Linker.Stack"));
     const String LinkerManifest       = GetVariableValue(VariablesDB, S("Linker.Manifest"));
+    const String LinkerDelayLoad      = GetVariableValue(VariablesDB, S("Linker.DelayLoadDLL"));
     const String RPathOrigin          = GetVariableValue(VariablesDB, S("Linker.RPathOrigin"));
     const String RPaths               = GetVariableValue(VariablesDB, S("Linker.RPath"));
     const bool bLinkerNoStd           = DoesBuildVarExist(VariablesDB, S("Linker.NoStdLib"));
@@ -6623,6 +6624,44 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
                             String_AppendF(&AdditionalLinkerFlags, S(" /MANIFESTINPUT:\"%S\""), ManifestPath);
                         }
+                    }
+                }
+            }
+        }
+
+        // Delay-loaded DLL(s). MSVC/Windows-only: link.exe takes one /DELAYLOAD:name.dll per DLL,
+        // which routes that DLL's imports through a helper stub so it isn't loaded until the first
+        // call into it. The helper lives in delayimp.lib, which must be linked in once (regardless
+        // of how many DLLs are delay-loaded). The import library for each DLL is still linked as
+        // usual via "Libraries"; /DELAYLOAD only changes *when* the DLL loads. Multiple space-
+        // separated DLLs may be given; the ".dll" extension may be omitted and is defaulted in.
+        // Other toolchains (gcc/clang/ld) have no equivalent on this link path.
+        if (String_IsValid(LinkerDelayLoad))
+        {
+            bool bLinkedOutput = AssemblyType == AssemblyType_Executable ||
+                                 AssemblyType == AssemblyType_DynamicLibrary;
+
+            if (bLinkedOutput)
+            {
+                if (bIsMicrosoftLinker)
+                {
+                    LinearAllocator Scratch = *Arena;
+                    StringList DelayLoadList = String_SplitIntoList(&Scratch, LinkerDelayLoad, ' ', true);
+
+                    // the delay-load helper (__delayLoadHelper2) lives here; link it exactly once
+                    String_Append(&AdditionalLinkerFlags, S(" delayimp.lib"));
+
+                    for each_string_in_list (DelayLoadList)
+                    {
+                        StringLocal(DllName, MAX_PATH_LENGTH);
+                        String_Copy(&DllName, It.String);
+
+                        if (!Filesystem_DoesPathHaveFileExtension(DllName))
+                        {
+                            String_Append(&DllName, S(".dll"));
+                        }
+
+                        String_AppendF(&AdditionalLinkerFlags, S(" /DELAYLOAD:\"%S\""), DllName);
                     }
                 }
             }
