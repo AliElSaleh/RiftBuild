@@ -6570,7 +6570,11 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                 }
             }
 
+            #if PLATFORM_APPLE
             String_BuildSeparator(&AdditionalLinkerFlags, ' ', NoStd, NoDefaultLibs, ExpandedFrameworks, RPathFormatted);
+            #else
+            String_BuildSeparator(&AdditionalLinkerFlags, ' ', NoStd, NoDefaultLibs, RPathFormatted);
+            #endif
             #endif
         }
 
