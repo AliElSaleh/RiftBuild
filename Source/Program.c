@@ -8165,6 +8165,30 @@ static void InitInternalVars(LinearAllocator* Arena)
     AddInternalVariable(S("PPC32"),     One);
     #endif
 
+    #if CPU_ARM
+    #if CPU_ARM_VERSION_MAJOR >= 3
+    AddInternalVariable(S("ARMv3"), One);
+    #endif
+    #if CPU_ARM_VERSION_MAJOR >= 4
+    AddInternalVariable(S("ARMv4"), One);
+    #endif
+    #if CPU_ARM_VERSION_MAJOR >= 5
+    AddInternalVariable(S("ARMv5"), One);
+    #endif
+    #if CPU_ARM_VERSION_MAJOR >= 6
+    AddInternalVariable(S("ARMv6"), One);
+    #endif
+    #if CPU_ARM_VERSION_MAJOR >= 7
+    AddInternalVariable(S("ARMv7"), One);
+    #endif
+    #if CPU_ARM_VERSION_MAJOR >= 8
+    AddInternalVariable(S("ARMv8"), One);
+    #endif
+    #if CPU_ARM_VERSION_MAJOR >= 9
+    AddInternalVariable(S("ARMv9"), One);
+    #endif
+    #endif
+
     #if defined(_M_IX86)
     AddInternalVariable(S("iX86"), One);
     #endif

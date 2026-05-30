@@ -370,6 +370,42 @@ STRUCT(StringList) // 24 bytes
 #elif defined(__arm__) || defined(__aarch64__) || defined(_M_ARM) || defined(_M_ARM64)
     #define CPU_ARM 1
 
+    // Determine ARM architecture version → CPU_ARM_VERSION (3/4/5/6/7/8/9, 0 = unknown)
+    #if defined(__ARM_ARCH)
+        #define CPU_ARM_VERSION __ARM_ARCH
+    #elif defined(_M_ARM64) || defined(__aarch64__)
+        #define CPU_ARM_VERSION 8
+    #elif defined(_M_ARM)
+        #define CPU_ARM_VERSION _M_ARM
+    #elif defined(__ARM_ARCH_8__) || defined(__ARM_ARCH_8A__)
+        #define CPU_ARM_VERSION 8
+    #elif defined(__ARM_ARCH_7__)  || defined(__ARM_ARCH_7A__) || \
+          defined(__ARM_ARCH_7R__) || defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7S__)
+        #define CPU_ARM_VERSION 7
+    #elif defined(__ARM_ARCH_6__)  || defined(__ARM_ARCH_6J__)  || defined(__ARM_ARCH_6K__) || \
+          defined(__ARM_ARCH_6Z__) || defined(__ARM_ARCH_6ZK__) || defined(__ARM_ARCH_6T2__)
+        #define CPU_ARM_VERSION 6
+    #elif defined(__ARM_ARCH_5__)  || defined(__ARM_ARCH_5T__) || \
+          defined(__ARM_ARCH_5E__) || defined(__ARM_ARCH_5TE__)
+        #define CPU_ARM_VERSION 5
+    #elif defined(__ARM_ARCH_4__) || defined(__ARM_ARCH_4T__)
+        #define CPU_ARM_VERSION 4
+    #elif defined(__ARM_ARCH_3__) || defined(__ARM_ARCH_3M__)
+        #define CPU_ARM_VERSION 3
+    #else
+        #define CPU_ARM_VERSION 0
+    #endif
+
+    // ACLE encodes minor versions as X*100+Y (e.g. Armv8.1 → 801, Armv9.0 → 900),
+    // while GCC/Clang historically report the plain major (8, 9). Normalize any
+    // value >= 100 down to its major number so version comparisons are correct
+    // under both conventions.
+    #if CPU_ARM_VERSION >= 100
+        #define CPU_ARM_VERSION_MAJOR (CPU_ARM_VERSION / 100)
+    #else
+        #define CPU_ARM_VERSION_MAJOR CPU_ARM_VERSION
+    #endif
+
     #if defined(__aarch64__) || defined(_M_ARM64)
         #define CPU_ARM64 1
         #define CPU_ARCHITECTURE_STRING "arm64"
