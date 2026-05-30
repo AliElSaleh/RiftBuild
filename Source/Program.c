@@ -5177,13 +5177,15 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     Receipt.AssemblyName    = String_Create(Arena, AssemblyName);
     Receipt.AssemblyType    = AssemblyType;
 
-    String LinkerEntryPoint         = GetVariableValue(VariablesDB, S("Linker.EntryPoint"));
-    String LinkerSubsystem          = GetVariableValue(VariablesDB, S("Linker.Subsystem"));
-    String LinkerStack              = GetVariableValue(VariablesDB, S("Linker.Stack"));
-    const String RPathOrigin        = GetVariableValue(VariablesDB, S("Linker.RPathOrigin"));
-    const String RPaths             = GetVariableValue(VariablesDB, S("Linker.RPath"));
-    const bool bLinkerNoStd         = DoesBuildVarExist(VariablesDB, S("Linker.NoStdLib"));
-    const bool bLinkerNoDefaultLibs = DoesBuildVarExist(VariablesDB, S("Linker.NoDefaultLibs"));
+    String LinkerEntryPoint           = GetVariableValue(VariablesDB, S("Linker.EntryPoint"));
+    String LinkerSubsystem            = GetVariableValue(VariablesDB, S("Linker.Subsystem"));
+    String LinkerStack                = GetVariableValue(VariablesDB, S("Linker.Stack"));
+    const String LinkerManifest       = GetVariableValue(VariablesDB, S("Linker.Manifest"));
+    const String RPathOrigin          = GetVariableValue(VariablesDB, S("Linker.RPathOrigin"));
+    const String RPaths               = GetVariableValue(VariablesDB, S("Linker.RPath"));
+    const bool bLinkerNoStd           = DoesBuildVarExist(VariablesDB, S("Linker.NoStdLib"));
+    const bool bLinkerNoDefaultLibs   = DoesBuildVarExist(VariablesDB, S("Linker.NoDefaultLibs"));
+    const bool bLinkerManifestNoEmbed = DoesBuildVarExist(VariablesDB, S("Linker.Manifest.NoEmbed"));
 
     Receipt.LinkerEntryPoint    = LinkerEntryPoint;
     Receipt.LinkerStack         = LinkerStack;
@@ -6570,6 +6572,56 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
             String_BuildSeparator(&AdditionalLinkerFlags, ' ', NoStd, NoDefaultLibs, ExpandedFrameworks, RPathFormatted);
             #endif
+        }
+
+        // Manifest input file(s). This is an MSVC/Windows-only concept: link.exe merges the given
+        // manifest(s) with /MANIFESTINPUT, which requires /MANIFEST:EMBED to embed the result into
+        // the binary. Multiple space-separated files may be given; one /MANIFESTINPUT is emitted per
+        // file. The ".manifest" extension may be omitted and is defaulted in when no extension is
+        // given. Other toolchains (gcc/clang/ld) have no equivalent linker input for this.
+        if (String_IsValid(LinkerManifest))
+        {
+            bool bLinkedOutput = AssemblyType == AssemblyType_Executable    ||
+                                 AssemblyType == AssemblyType_DynamicLibrary ||
+                                 AssemblyType == AssemblyType_Library;
+
+            if (bLinkedOutput)
+            {
+                if (bIsMicrosoftLinker)
+                {
+                    if (bLinkerManifestNoEmbed)
+                    {
+                        LOG_WARNING("\"Linker.Manifest.NoEmbed\" is set, but manifest input files require /MANIFEST:EMBED. "
+                                    "Skipping manifest input \"%S\"...", LinkerManifest);
+                    }
+                    else
+                    {
+                        LinearAllocator Scratch = *Arena;
+                        StringList ManifestList = String_SplitIntoList(&Scratch, LinkerManifest, ' ', true);
+
+                        bool bIsDllOutput = AssemblyType == AssemblyType_DynamicLibrary ||
+                        AssemblyType == AssemblyType_Library;
+                        
+                        // executables embed at the default resource id (1); isolation-aware DLLs
+                        // conventionally use id 2
+                        String EmbedFlag = bIsDllOutput ? S(" /MANIFEST:EMBED,ID=2") : S(" /MANIFEST:EMBED");
+                        String_Append(&AdditionalLinkerFlags, EmbedFlag);
+
+                        for each_string_in_list (ManifestList)
+                        {
+                            StringLocal(ManifestPath, MAX_PATH_LENGTH);
+                            String_Copy(&ManifestPath, It.String);
+
+                            if (!Filesystem_DoesPathHaveFileExtension(ManifestPath))
+                            {
+                                String_Append(&ManifestPath, S(".manifest"));
+                            }
+
+                            String_AppendF(&AdditionalLinkerFlags, S(" /MANIFESTINPUT:\"%S\""), ManifestPath);
+                        }
+                    }
+                }
+            }
         }
 
         xx String_EatSpacesInlineFromEnd(&ExpandedLinkerFlags);
