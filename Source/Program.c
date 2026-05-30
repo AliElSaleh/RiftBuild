@@ -4582,16 +4582,14 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
     // pre depend
     Clock PreDependClock = {0};
-    Clock_Start(&PreDependClock);
     if (!bExportingSomething)
     {
-        if (!TryRunBuildCommands(S("PreDepend"), WorkingPath, VariablesDB, NULL))
+        if (!TryRunBuildCommands(S("PreDepend"), WorkingPath, VariablesDB, &PreDependClock))
         {
             Receipt.ExitCode = 1;
             return Receipt;
         }
     }
-    Clock_Tick(&PreDependClock);
 
     Clock DependencyBuildClock;
     Clock_Start(&DependencyBuildClock);
@@ -5003,16 +5001,14 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     }
 
     Clock PreBuildClock = {0};
-    Clock_Start(&PreBuildClock);
     if (!bExportingSomething)
     {
-        if (!TryRunBuildCommands(S("PreBuild"), WorkingPath, VariablesDB, NULL))
+        if (!TryRunBuildCommands(S("PreBuild"), WorkingPath, VariablesDB, &PreBuildClock))
         {
             Receipt.ExitCode = 1;
             return Receipt;
         }
     }
-    Clock_Tick(&PreBuildClock);
 
     // TODO: you cannot assume a singluar source directory
     String SourceDirectory       = GetVariableValue(VariablesDB, S("SourceDirectory"));

@@ -16,6 +16,7 @@ STRUCT(CompileData)
 {
     const BuildParams* Params;
     u32* NumCompiled;
+    TArray(String)* PendingObjectRenames;
     u32 Index;
     u32 Padding;
 };
@@ -130,6 +131,12 @@ static void RC_Compile(const BuildParams* Params, const String FullRCPath, Strin
         String_Copy(OutResPath, ResPath);
     }
 
+    // emit to a throwaway ".tmp" path so an interrupted/killed resource compile can't leave a corrupt
+    // .res under the real name; Internal_DoCompile renames it onto ResPath once the compile succeeds
+    StringLocal(ResTempPath, MAX_PATH_LENGTH);
+    String_Copy(&ResTempPath, ResPath);
+    String_Append(&ResTempPath, S(".tmp"));
+
     // todo: resource defines
 
     if (bWindres)
@@ -145,11 +152,15 @@ static void RC_Compile(const BuildParams* Params, const String FullRCPath, Strin
         String_AppendChar(&CmdLine, '"');
 
         String_Append(&CmdLine, S(" -o \""));
-        String_Append(&CmdLine, ResPath);
+        String_Append(&CmdLine, ResTempPath);
         String_Append(&CmdLine, S("\""));
     }
     else
     {
+        String_Append(&CmdLine, S(" /fo \""));
+        String_Append(&CmdLine, ResTempPath);
+        String_Append(&CmdLine, S("\""));
+
         String_Append(&CmdLine, S(" \""));
         String_Append(&CmdLine, FullRCPath);
         String_AppendChar(&CmdLine, '"');
@@ -335,6 +346,13 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
 
     // ===============================================================================================
 
+    // The compiler writes to a throwaway ".tmp" path; on success we atomically rename it onto the real
+    // object path. That way an interrupted/killed/crashed compile can never leave a partial object under
+    // the real name (which the timestamp check would then wrongly treat as up-to-date and skip).
+    StringLocal(ObjectTempPath, MAX_PATH_LENGTH + 8);
+    String_Copy(&ObjectTempPath, ObjectPath);
+    String_Append(&ObjectTempPath, S(".tmp"));
+
     String ProgramPath = Params->CompilerPath;
     StringLocal(CmdLine, UINT16_MAX);
 
@@ -351,7 +369,7 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
         if (bIsMicrosoftAssembler)
         {
             String_Append(&CmdLine, S("/nologo /c /Fo\""));
-            String_Append(&CmdLine, ObjectPath);
+            String_Append(&CmdLine, ObjectTempPath);
             String_Append(&CmdLine, S("\" "));
             String_BuildSeparator(&CmdLine, ' ', FullSourcePath, Params->AssemblerFlags, Params->AssemblerDefines, Params->AssemblerIncludes);
             xx String_EatSpacesInlineFromEnd(&CmdLine);
@@ -361,7 +379,7 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
             String_BuildSeparator(&CmdLine, ' ', FullSourcePath, Params->AssemblerFlags, Params->AssemblerDefines, Params->AssemblerIncludes);
             xx String_EatSpacesInlineFromEnd(&CmdLine);
             String_Append(&CmdLine, S(" -o \""));
-            String_Append(&CmdLine, ObjectPath);
+            String_Append(&CmdLine, ObjectTempPath);
             String_Append(&CmdLine, S("\""));
         }
     }
@@ -376,6 +394,9 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
         String_Empty(&ObjectPath);
 
         RC_Compile(Params, RelativePath, &ObjectPath, &CmdLine);
+
+        String_Copy(&ObjectTempPath, ObjectPath);
+        String_Append(&ObjectTempPath, S(".tmp"));
     }
     else
     {
@@ -493,7 +514,7 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
         xx String_EatSpacesInlineFromEnd(&CmdLine);
 
         String_Append(&CmdLine, S(" \""));
-        String_Append(&CmdLine, ObjectPath);
+        String_Append(&CmdLine, ObjectTempPath);
         String_Append(&CmdLine, S("\""));
     }
 
@@ -512,7 +533,7 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
     }
     else
     {
-        xx Filesystem_NewFile(ObjectPath);
+        xx Filesystem_NewFile(ObjectTempPath);
 
         if (bQuietBuild) { Logging_Enable(); }
 
@@ -542,15 +563,28 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
                 const u32 ExitCode = Platform_WaitForProcessAndGetExitCode(Handle);
                 if (ExitCode != 0)
                 {
-                    xx Filesystem_DeleteFile(ObjectPath);
+                    xx Filesystem_DeleteFile(ObjectTempPath);
                     LOG_ERROR("Compiler errors detected. See above errors to fix. Exit code for process: %u. Aborting build...", ExitCode);
                     return false;
                 }
+
+                // compile succeeded, so atomically publish the finished object onto its real path
+                if (!Filesystem_Move(ObjectTempPath, ObjectPath, true))
+                {
+                    LOG_ERROR("Failed to finalize object file \"%S\". Aborting build...", ObjectPath);
+                    return false;
+                }
+            }
+            else
+            {
+                // parallel build: defer publishing until the whole batch has compiled (see C_Compile)
+                String Pending = String_Duplicate(Params->Arena, ObjectPath);
+                Array_Add(*Data->PendingObjectRenames, Pending);
             }
         }
         else
         {
-            xx Filesystem_DeleteFile(ObjectPath);
+            xx Filesystem_DeleteFile(ObjectTempPath);
             LOG_ERROR("Failed to spawn compiler process: \"%S\"", ProgramPath);
             return false;
         }
@@ -566,11 +600,14 @@ bool C_Compile(const BuildParams* Params, u32* OutNumCompiled)
 
     bool bSuccess = true;
 
+    ArrayLocal_Arena(String, PendingObjectRenames, Params->NumSources, Params->Arena);
+
     // compile all source files
     {
         CompileData UserData = { 0 };
         UserData.Params = Params;
         UserData.NumCompiled = OutNumCompiled;
+        UserData.PendingObjectRenames = &PendingObjectRenames;
         UserData.Index = 0;
 
         for each_string_in_list (Params->SourceFiles)
@@ -614,6 +651,30 @@ bool C_Compile(const BuildParams* Params, u32* OutNumCompiled)
             }
         }
     }
+
+    // every compile in the batch finished cleanly: atomically publish each deferred object by renaming
+    // its ".tmp" onto the real path. If anything failed above we skip this, leaving the real objects
+    // untouched (and the stray ".tmp" files inert) so the next build recompiles them.
+    if (bSuccess)
+    {
+        Array_For(PendingObjectRenames)
+        {
+            const String FinalPath = PendingObjectRenames[i];
+
+            StringLocal(TempPath, MAX_PATH_LENGTH + 8);
+            String_Copy(&TempPath, FinalPath);
+            String_Append(&TempPath, S(".tmp"));
+
+            if (!Filesystem_Move(TempPath, FinalPath, true))
+            {
+                LOG_ERROR("Failed to finalize object file \"%S\". Aborting build...", FinalPath);
+                bSuccess = false;
+                break;
+            }
+        }
+    }
+
+    Array_Destroy(PendingObjectRenames);
 
     return bSuccess;
 }
