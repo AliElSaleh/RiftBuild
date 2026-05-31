@@ -22,12 +22,14 @@ void AddVariable(LinearAllocator* Arena,
                 const String Name,
                 const String Value,
                 const String Params,
+                const String Content,
                 u32 MaxValueLength)
 {
     FileVariable var;
     var.Params       = String_Create(Arena, Params);
     var.Name         = String_CreateMax(Arena, Name, MAX_KEY_LENGTH);
     var.Value        = String_ReserveAndCopy(Arena, MaxValueLength, Value);
+    var.Content      = String_Create(Arena, Content);
 
     Array_Add(VariablesDB, var);
 }
@@ -58,7 +60,7 @@ void AddOrAppendVariable(LinearAllocator* Arena,
     }
     else
     {
-        AddVariable(Arena, VariablesDB, Name, Value, Params, MaxValueLength);
+        AddVariable(Arena, VariablesDB, Name, Value, Params, String_Null(), MaxValueLength);
     }
 }
 
@@ -135,14 +137,20 @@ FORCEINLINE NO_DISCARD RETURN_NON_NULL static FileVariableList* FileVariableList
     return List;
 }
 
-static void AddVariableToList(LinearAllocator* Arena, ParsingContext* Context, const String Key, const String Value, const String Params)
+static void AddVariableToListEx(LinearAllocator* Arena, ParsingContext* Context, const String Key, const String Value, const String Params, const String Content)
 {
     FileVariable var = {0};
     var.Params       = String_Create(Arena, Params);
     var.Name         = String_Create(Arena, Key);
     var.Value        = String_Create(Arena, Value);
+    var.Content      = String_Create(Arena, Content);
 
     SLinkedList_Push(Context->VarListTail, FileVariableList_Create(Arena, var));
+}
+
+static void AddVariableToList(LinearAllocator* Arena, ParsingContext* Context, const String Key, const String Value, const String Params)
+{
+    AddVariableToListEx(Arena, Context, Key, Value, Params, String_Null());
 }
 
 ENUM_T(ETokenType, u32)
@@ -421,6 +429,7 @@ STRUCT(Node)
 
     String      Key;
     StringList* Value;
+    StringList* Content;
     StringList* Parameters;
     IfConditionList* ConditionList;
 
@@ -663,6 +672,8 @@ u32 GetMaxValueLengthForReservedKey(const String Key)
 STRUCT(DeferredKVData)
 {
     Token* Key;
+    StringList* Value;
+    StringList* Content;
     StringList* Params;
     Node* FilterNode;
     Node* LastIfNode;
@@ -1261,6 +1272,8 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena, Parser*
                     else    {}
                 }
 
+                bool bHasLParen = Parser_Match(P, Token_LParen);
+
                 if (Parser_Peek(P).Type != Token_Text)
                 {
                     LOG_ERROR("\n%S:%u: '%S' is not valid in an if condition. Expected a name like 'windows', 'debug', etc.\n\n"
@@ -1276,6 +1289,17 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena, Parser*
                 Condition.Condition = Lexeme;
 
                 Parser_Advance(P);
+
+                if (bHasLParen)
+                {
+                    if (!Parser_Match(P, Token_RParen))
+                    {
+                        LOG_ERROR("\n%S:%u: Missing closing ')' for '%S'.\n\n"
+                                "  Make sure every '(' has a matching ')'.\n", P->FilePath, Parser_LookBack(P).Line, Lexeme);
+
+                        return &Node_Null;
+                    }
+                }
 
                 if (FindCallCondition(Lexeme) && Parser_Peek(P).Type == Token_LParen)
                 {
@@ -1454,7 +1478,9 @@ static void Internal_AssignParentToChildrenRecursively(Node* Parent, NodeList* C
 NO_DISCARD RETURN_NON_NULL static NodeList* Internal_CreateNodeListFromDeferred(LinearAllocator* Arena, DeferredKVData Deferred)
 {
     NodeList* List = NodeList_CreateNull(Arena);
-    Node* KV_Node = Node_Create_KeyValue(Arena, Deferred.Key->Lexeme, NULL);
+
+    Node* KV_Node = Node_Create_KeyValue(Arena, Deferred.Key->Lexeme, Deferred.Value);
+    KV_Node->Content = Deferred.Content;
     KV_Node->Parameters = Deferred.Params;
 
     if (Deferred.FilterNode != &Node_Null)
@@ -1468,6 +1494,81 @@ NO_DISCARD RETURN_NON_NULL static NodeList* Internal_CreateNodeListFromDeferred(
     }
 
     return List;
+}
+
+static bool Internal_IsRawContentKey(const String Key)
+{
+    bool bResult = false;
+
+    if (String_EndsWith(Key, S("WriteFile"), false) ||
+        String_EndsWith(Key, S("AppendFile"), false))
+    {
+        bResult = true;
+    }
+
+    return bResult;
+}
+
+// If the next significant token (skipping whitespace/newlines) opens a '{' block,
+// capture its body as raw, newline-preserving content and return it. Otherwise the
+// parser position is left untouched and NULL is returned. Brace depth is tracked so
+// balanced '{'/'}' inside the body (e.g. C code) pass through verbatim.
+static StringList* Parse_HeredocContent(LinearAllocator* Arena, Parser* P)
+{
+    StringList* ValueList = NULL;
+
+    u32 SavedPosition = P->Current;
+
+    while (Parser_Peek(P).Type == Token_Newline ||
+           Parser_Peek(P).Type == Token_Whitespace)
+    {
+        Parser_Advance(P);
+    }
+
+    if (Parser_Peek(P).Type == Token_LCurly)
+    {
+        Parser_Advance(P);
+        xx Parser_Match(P, Token_Newline);
+
+        StringList** Next = &ValueList;
+
+        u32 Depth = 0;
+        while (Parser_Peek(P).Type != Token_None)
+        {
+            Token Peek = Parser_Peek(P);
+
+            if (Peek.Type == Token_RCurly && Depth == 0)
+            {
+                break;
+            }
+
+            if (Peek.Type == Token_LCurly)
+            {
+                Depth++;
+            }
+            else if (Peek.Type == Token_RCurly)
+            {
+                Depth--;
+            }
+
+            String Lexeme = Peek.Lexeme;
+            if (Peek.Type == Token_Newline)
+            {
+                Lexeme = S("\n");
+            }
+
+            SLinkedList_Push(Next, StringList_Create(Arena, Lexeme, NULL));
+            Parser_Advance(P);
+        }
+
+        xx Parser_Match(P, Token_RCurly);
+    }
+    else
+    {
+        P->Current = SavedPosition;
+    }
+
+    return ValueList;
 }
 
 NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Parser* P, u32 Offset, bool bInlineIf)
@@ -1906,39 +2007,49 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Pars
 
             bool bFoundTokens = false;
 
-            // this means we are multiline
-            if (Parser_Peek(P).Type == Token_Newline ||
+            NodeList* List = NodeList_CreateNull(Arena);
+
+            // now we are the value to that key
+            StringList* ValueList = NULL;
+            StringList** NextValue = &ValueList;
+
+            while (!(Parser_Peek(P).Type == Token_Newline  ||
+                    Parser_Peek(P).Type == Token_Semicolon ||
+                    Parser_Peek(P).Type == Token_LCurly    ||
+                    Parser_Peek(P).Type == Token_RCurly    ||
+                    Parser_Peek(P).Type == Token_None      ||
+                    (Parser_Peek(P).Type == Token_Else && bInlineIf)))
+            {
+                bFoundTokens = true;
+
+                String Lexeme = Parser_Peek(P).Lexeme;
+                SLinkedList_Push(NextValue, StringList_Create(Arena, Lexeme, NULL));
+
+                Parser_Advance(P);
+            }
+
+            // WriteFile/AppendFile may follow their inline path with a heredoc '{ }'
+            // body (possibly on the next line); capture it as raw content.
+            StringList* RawContent = NULL;
+            if (Internal_IsRawContentKey(tPtr->Lexeme))
+            {
+                RawContent = Parse_HeredocContent(Arena, P);
+            }
+
+            if (RawContent != NULL ||
+                (Parser_Peek(P).Type == Token_Newline && ValueList == NULL) ||
                 Parser_Peek(P).Type == Token_LSquare ||
                 Parser_Peek(P).Type == Token_LCurly)
             {
                 Deferred.Key        = tPtr;
+                Deferred.Value      = ValueList;
+                Deferred.Content    = RawContent;
                 Deferred.Params     = ParamList;
                 Deferred.FilterNode = FilterNode;
                 Deferred.LastIfNode = LastIfNode;
             }
             else
             {
-                NodeList* List = NodeList_CreateNull(Arena);
-
-                // now we are the value to that key
-                StringList* ValueList = NULL;
-                StringList** NextValue = &ValueList;
-
-                while (!(Parser_Peek(P).Type == Token_Newline  ||
-                        Parser_Peek(P).Type == Token_Semicolon ||
-                        Parser_Peek(P).Type == Token_LCurly    ||
-                        Parser_Peek(P).Type == Token_RCurly    ||
-                        Parser_Peek(P).Type == Token_None      ||
-                        (Parser_Peek(P).Type == Token_Else && bInlineIf)))
-                {
-                    bFoundTokens = true;
-
-                    String Lexeme = Parser_Peek(P).Lexeme;
-                    SLinkedList_Push(NextValue, StringList_Create(Arena, Lexeme, NULL));
-
-                    Parser_Advance(P);
-                }
-
                 Node* KV_Node = Node_Create_KeyValue(Arena, tPtr->Lexeme, ValueList);
                 KV_Node->Parameters = ParamList;
                 KV_Node->bResetValue = bResetValue;
@@ -3155,6 +3266,7 @@ static void Analyze_KVNode(Node* Root, ParsingContext* Context)
 {
     StringLocal(FinalKey, MAX_KEY_LENGTH);
     StringLocal(Val,      Kibibytes(32));
+    StringLocal(Content,  Kibibytes(32));
     StringLocal(Params,   64);
 
     // this is a namespace basically
@@ -3195,6 +3307,16 @@ static void Analyze_KVNode(Node* Root, ParsingContext* Context)
         }
 
         xx String_EatSpacesInlineFromEnd(&Val);
+    }
+
+    if (Root->Content)
+    {
+        for each_string_in_list (*Root->Content)
+        {
+            String_Append(&Content, It.String);
+        }
+
+        xx String_EatSpacesInlineFromEnd(&Content);
     }
 
     if (Root->Parameters)
@@ -3253,7 +3375,14 @@ static void Analyze_KVNode(Node* Root, ParsingContext* Context)
             
         if (!bResettedExisting)
         {
-            AddVariableToList(Context->TempArena, Context, FinalKey, Val, Params);
+            if (Root->Content)
+            {
+                AddVariableToListEx(Context->TempArena, Context, FinalKey, Val, Params, Content);
+            }
+            else
+            {
+                AddVariableToList(Context->TempArena, Context, FinalKey, Val, Params);
+            }
         }
     }
 }
@@ -6327,7 +6456,15 @@ NO_DISCARD bool ParseBuildFile(
 
                 if (bExcludeFromConcat)
                 {
-                    AddVariable(Context.PermanentArena, Context.VariablesDB, Var.Name, Expanded, Var.Params, MaxValueLength);
+                    String ExpandedContent = String_Null();
+                    if (Var.Content.Length > 0)
+                    {
+                        u32 ContentCapacity = Var.Content.Length + MaxValueLength;
+                        ExpandedContent = String_Reserve(&Scratch, ContentCapacity);
+                        xx ExpandBuildVariable(Scratch, Context.VarListHead, Context.CmdOptionsDB, &ExpandedContent, Var.Name, Var.Content, Var.Name, Context.WorkingDirectory, NULL);
+                    }
+
+                    AddVariable(Context.PermanentArena, Context.VariablesDB, Var.Name, Expanded, Var.Params, ExpandedContent, MaxValueLength);
                 }
                 else
                 {

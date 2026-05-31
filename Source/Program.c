@@ -1706,9 +1706,10 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const FileVa
 {
     bool bSuccess = true;
 
-    const String Params = Var.Params;
-    const String Name   = Var.Name;
-    const String Value  = Var.Value;
+    const String Params  = Var.Params;
+    const String Name    = Var.Name;
+    const String Value   = Var.Value;
+    const String Content = Var.Content;
 
     if (ALWAYS(String_IsValid(Name)) && ALWAYS(String_IsValid(Value)))
     {
@@ -2118,10 +2119,88 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const FileVa
             }
         }
         else if (String_EndsWith(Name, S("WriteFile"), false) ||
-                String_EndsWith(Name, S("WriteFileLines"), false))
+                String_EndsWith(Name, S("AppendFile"), false))
         {
-            bSuccess = false;
-            UNIMPLEMENTED;
+            const bool bAppend = String_EndsWith(Name, S("AppendFile"), false);
+
+            String Path = Value;
+            String Body = String_Null();
+
+            if (Content.Length > 0)
+            {
+                Path = Value;
+                Body = Content;
+            }
+            else
+            {
+                u32 SpaceIndex = 0;
+                if (String_IndexOfChar(Value, ' ', &SpaceIndex))
+                {
+                    Path = StrSlice(Value.Data, SpaceIndex);
+                    Body = StrShiftF(Value, SpaceIndex + 1);
+
+                    // strip a single pair of surrounding double-quotes from the body
+                    if (Body.Length >= 2 && Body.Data[0] == '"' && Body.Data[Body.Length - 1] == '"')
+                    {
+                        Body = StrSlice(Body.Data + 1, Body.Length - 2);
+                    }
+                }
+            }
+
+            StringLocal(FullFilePath, MAX_PATH_LENGTH);
+            String_BuildPath(&FullFilePath, WorkingDirectory, Path);
+
+            bool bSkip = false;
+            if (bParam_NotExist && Filesystem_DoesFileExist(FullFilePath))
+            {
+                LOG("[Skipping] %S: %S", bAppend ? S("AppendFile") : S("WriteFile"), Path);
+                bSkip = true;
+            }
+
+            if (!bSkip)
+            {
+                LOG(" > %S: %S", bAppend ? S("AppendFile") : S("WriteFile"), Path);
+
+                u32 LastSlash = 0;
+                if (String_IndexOfLastPathSlash(FullFilePath, &LastSlash))
+                {
+                    xx Filesystem_OpenDirectory(StrSlice(FullFilePath.Data, LastSlash));
+                }
+
+                if (bIgnoreErrors) { Logging_Disable(); }
+
+                FileHandle Handle = {0};
+                bool bResult = false;
+                EFileMode FileMode = bAppend ? FileMode_Read | FileMode_Write : FileMode_Write;
+                bResult = Filesystem_Open(FullFilePath, FileMode, &Handle);
+                
+                if (bResult)
+                {
+                    if (bAppend)
+                    {
+                        Filesystem_WriteLine(Handle, S("\n"), NULL);
+                        bResult = Filesystem_WriteLine(Handle, Body, NULL);
+                    }
+                    else
+                    {
+                        bResult = Filesystem_Write(Handle, Body.Length, Body.Data, NULL);
+                    }
+
+                    Filesystem_Close(&Handle);
+                }
+
+                if (bIgnoreErrors) { Logging_Enable(); }
+
+                if (!bResult && !bIgnoreErrors)
+                {
+                    LOG(
+                    "\n    You can ignore this error by using %S\n",
+                    bAppend ? S(".AppendFile(ignore_error)") : S(".WriteFile(ignore_error)"));
+
+                    if (ExitCode) { *ExitCode = 1; }
+                    bSuccess = false;
+                }
+            }
         }
         else if (String_EndsWith(Name, S("Download"), false))
         {

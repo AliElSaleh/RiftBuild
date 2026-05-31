@@ -20,6 +20,7 @@ STRUCT(FileVariable)
     String Params;
     String Name;
     String Value;
+    String Content; // heredoc body for WriteFile/AppendFile commands; empty otherwise
 };
 
 global FileVariable FileVariable_Empty;
@@ -351,6 +352,7 @@ void AddVariable(LinearAllocator* Arena,
                 const String Name,
                 const String Value,
                 const String Params,
+                const String Content,
                 u32 MaxValueLength);
 
 void AddOrAppendVariable(LinearAllocator* Arena,
