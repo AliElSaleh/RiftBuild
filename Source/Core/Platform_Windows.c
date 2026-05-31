@@ -421,49 +421,77 @@ void Platform_ConsoleWrite(const char* Message, u8 Color, bool bIsError)
 
 void Platform_ConsoleWrite_CustomLength(const char* Message, u32 Length, u8 Color, bool bIsError)
 {
-    UNUSED_PARAM(bIsError);
+    // Errors go to stderr, everything else to stdout, so `b.exe | tool` captures normal output on
+    // stdout while leaving errors on stderr.
+    HANDLE OutputHandle = GetStdHandle(bIsError ? STD_ERROR_HANDLE : STD_OUTPUT_HANDLE);
 
-    DWORD OutputHandle = STD_ERROR_HANDLE;// bIsError ? STD_ERROR_HANDLE : STD_OUTPUT_HANDLE;
-    HANDLE ConsoleHandle = GetStdHandle(OutputHandle);
-
-    static u8 GConsoleColorLevels[7] = { CONSOLE_INFO_COLOR, CONSOLE_SUCCESS_COLOR, CONSOLE_WARNING_COLOR, CONSOLE_ERROR_COLOR, CONSOLE_FATAL_COLOR, CONSOLE_INFO_COLOR, CONSOLE_MUTE_COLOR };
-    const u8 ConsoleColor = GConsoleColorLevels[Color];
-
-    // SetConsoleTextAttribute is slow, so only call it when the color changes
-    if (ConsoleColor != CONSOLE_INFO_COLOR)
+    bool bDone = (Length == 0) || (OutputHandle == NULL) || (OutputHandle == INVALID_HANDLE_VALUE);
+    if (!bDone)
     {
-        xx SetConsoleTextAttribute(ConsoleHandle, ConsoleColor);
-    }
+        // WriteConsole and SetConsoleTextAttribute only work on a real console screen buffer: when our
+        // output is redirected to a pipe or file (a build server, `b.exe > out.txt`, a captured child
+        // process) those calls fail silently and nothing is written. A true console returns
+        // FILE_TYPE_CHAR and a valid console mode; a pipe/file returns neither. So we detect which we
+        // have and fall back to WriteFile -- which writes raw bytes to any handle -- when redirected.
+        DWORD ConsoleMode = 0;
+        bool bIsConsole = (GetFileType(OutputHandle) == FILE_TYPE_CHAR) && GetConsoleMode(OutputHandle, &ConsoleMode);
 
-    bool bIgnoreNewLine = Color == 4 && Message[Length-1] == '\n';
-    if (UNLIKELY(bIgnoreNewLine))
-    {
-        Length--;
-    }
+        static const u8 GConsoleColorLevels[7] = { CONSOLE_INFO_COLOR, CONSOLE_SUCCESS_COLOR, CONSOLE_WARNING_COLOR, CONSOLE_ERROR_COLOR, CONSOLE_FATAL_COLOR, CONSOLE_INFO_COLOR, CONSOLE_MUTE_COLOR };
+        const u8 ConsoleColor = GConsoleColorLevels[Color];
 
-    #if _DEBUG
-    {
-        StringLocal(Temp, 32768);
-        String_Copy(&Temp, StrSlice((uchar*)Message, Length));
-        OutputDebugString((char*)Temp.Data);
-    }
-    #endif
+        // SetConsoleTextAttribute is slow (and console-only), so only call it when the color changes
+        bool bColored = bIsConsole && (ConsoleColor != CONSOLE_INFO_COLOR);
+        if (bColored)
+        {
+            xx SetConsoleTextAttribute(OutputHandle, ConsoleColor);
+        }
 
-    xx WriteConsole(ConsoleHandle, Message, (DWORD)Length, NULL, 0);
+        bool bIgnoreNewLine = (Color == 4) && (Length > 0) && (Message[Length-1] == '\n');
+        if (UNLIKELY(bIgnoreNewLine))
+        {
+            Length--;
+        }
 
-    // Reset back to white
-    if (ConsoleColor != CONSOLE_INFO_COLOR)
-    {
-        xx SetConsoleTextAttribute(ConsoleHandle, CONSOLE_INFO_COLOR);
-    }
-
-    if (UNLIKELY(bIgnoreNewLine))
-    {
         #if _DEBUG
-        OutputDebugString("\n");
+        {
+            StringLocal(Temp, 32768);
+            String_Copy(&Temp, StrSlice((uchar*)Message, Length));
+            OutputDebugString((char*)Temp.Data);
+        }
         #endif
 
-        xx WriteConsole(ConsoleHandle, "\n", 1, NULL, 0);
+        if (bIsConsole)
+        {
+            xx WriteConsole(OutputHandle, Message, (DWORD)Length, NULL, NULL);
+        }
+        else
+        {
+            DWORD Written = 0;
+            xx WriteFile(OutputHandle, Message, (DWORD)Length, &Written, NULL);
+        }
+
+        // Reset back to white
+        if (bColored)
+        {
+            xx SetConsoleTextAttribute(OutputHandle, CONSOLE_INFO_COLOR);
+        }
+
+        if (UNLIKELY(bIgnoreNewLine))
+        {
+            #if _DEBUG
+            OutputDebugString("\n");
+            #endif
+
+            if (bIsConsole)
+            {
+                xx WriteConsole(OutputHandle, "\n", 1, NULL, NULL);
+            }
+            else
+            {
+                DWORD Written = 0;
+                xx WriteFile(OutputHandle, "\n", 1, &Written, NULL);
+            }
+        }
     }
 }
 
