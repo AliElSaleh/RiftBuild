@@ -1210,6 +1210,12 @@ typedef void (WINAPI *PIO_APC_ROUTINE)(PVOID ApcContext, PIO_STATUS_BLOCK IoStat
 #define FILE_MAP_TARGETS_INVALID  0x40000000
 #define FILE_MAP_LARGE_PAGES      0x20000000
 
+#define FILE_TYPE_UNKNOWN   0x0000
+#define FILE_TYPE_DISK      0x0001
+#define FILE_TYPE_CHAR      0x0002
+#define FILE_TYPE_PIPE      0x0003
+#define FILE_TYPE_REMOTE    0x8000
+
 #define STD_INPUT_HANDLE    ((DWORD)-10)
 #define STD_OUTPUT_HANDLE   ((DWORD)-11)
 #define STD_ERROR_HANDLE    ((DWORD)-12)
@@ -1758,6 +1764,8 @@ WINBASEAPI            void       WINAPI OutputDebugStringA(LPCSTR lpOutputString
 WINBASEAPI            void       WINAPI OutputDebugStringW(LPCWSTR lpOutputString);
 WINBASEAPI NO_DISCARD BOOL       WINAPI WriteConsoleA(HANDLE hConsoleOutput, const void* lpBuffer, DWORD nNumberOfCharsToWrite, LPDWORD lpNumberOfCharsWritten, LPVOID lpReserved);
 WINBASEAPI NO_DISCARD BOOL       WINAPI WriteConsoleW(HANDLE hConsoleOutput, const void* lpBuffer, DWORD nNumberOfCharsToWrite, LPDWORD lpNumberOfCharsWritten, LPVOID lpReserved);
+WINBASEAPI NO_DISCARD BOOL       WINAPI GetConsoleMode(HANDLE hConsoleHandle, LPDWORD lpMode);
+WINBASEAPI NO_DISCARD DWORD      WINAPI GetFileType(HANDLE hFile);
 WINBASEAPI            void       WINAPI GetLocalTime(LPSYSTEMTIME lpSystemTime);
 WINBASEAPI NO_DISCARD HCURSOR    WINAPI SetCursor(HCURSOR hCursor);
 WINBASEAPI NO_DISCARD HCURSOR    WINAPI LoadCursorA(HINSTANCE hInstance, LPCSTR lpCursorName);
