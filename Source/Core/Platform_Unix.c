@@ -320,21 +320,39 @@ void Platform_ConsoleWrite_CustomLength(const char* Message, u32 Length, u8 Colo
 {
     static String colors[] = {S("0;37"), S("0;32"), S("1;33"), S("1;31"), S("0;41"), S("0;37"), S("0;37")};
 
-    bool bIgnoreNewLine = Color == 4 && Message[Length-1] == '\n';
-    if (UNLIKELY(bIgnoreNewLine)) Length--;
+    // Errors to stderr, everything else to stdout (mirrors the Windows path).
+    int Fd = bIsError ? STDERR_FILENO : STDOUT_FILENO;
 
-    StringLocal(Temp, 16384);
-    String_Append(&Temp, S("\033["));
-    String_Append(&Temp, LIKELY(Color < 6) ? colors[Color] : S("0:37"));
-    String_Append(&Temp, S("m"));
-    String_Append(&Temp, StrSlice((uchar*)Message, Length));
-    String_Append(&Temp, S("\033[0m"));
+    bool bDone = (Length == 0);
+    if (!bDone)
+    {
+        bool bIgnoreNewLine = (Color == 4) && (Length > 0) && (Message[Length-1] == '\n');
+        if (UNLIKELY(bIgnoreNewLine)) { Length--; }
 
-    (void)write(STDOUT_FILENO, Temp.Data, Temp.Length);
+        // write() delivers bytes the same to a tty, pipe or file, so output is never lost when
+        // redirected (unlike Windows' WriteConsole). ANSI color escapes, however, only belong on a
+        // real terminal -- writing them into a pipe or file would pollute the captured text -- so we
+        // only wrap the message in color when the target fd is actually a tty.
+        bool bIsTTY = isatty(Fd) != 0;
 
-    if (UNLIKELY(bIgnoreNewLine)) (void)write(STDOUT_FILENO, "\n", 1);
+        StringLocal(Temp, 16384);
+        if (bIsTTY)
+        {
+            String_Append(&Temp, S("\033["));
+            String_Append(&Temp, LIKELY(Color < 6) ? colors[Color] : S("0;37"));
+            String_Append(&Temp, S("m"));
+            String_Append(&Temp, StrSlice((uchar*)Message, Length));
+            String_Append(&Temp, S("\033[0m"));
+        }
+        else
+        {
+            String_Append(&Temp, StrSlice((uchar*)Message, Length));
+        }
 
-    fflush(stdout);
+        (void)write(Fd, Temp.Data, Temp.Length);
+
+        if (UNLIKELY(bIgnoreNewLine)) { (void)write(Fd, "\n", 1); }
+    }
 }
 
 PRAGMA_ENABLE_WARNINGS
