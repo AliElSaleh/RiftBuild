@@ -44,6 +44,8 @@ bool bVerboseLog = false;
 static bool bSingleThread = false;
 static bool bIsClean = false;
 
+#define RIFT_LEGACY_CLEAN 0
+
 STRUCT(BuiltinOptionInfo)
 {
     String Short;
@@ -3786,6 +3788,128 @@ static bool TryDetectDirectoryStateChangeAndUpdate(const String DirectoryStatePa
 
 
 
+// Write every path this build produced (one per line) into <buildfile>.artifact_paths inside the
+// intermediate directory. A subsequent clean/rebuild reads this manifest back and deletes exactly
+// those files, so renamed assemblies no longer orphan their old outputs and unrelated files parked
+// in the build/intermediate directories are left untouched.
+static void WriteArtifactManifest(const String IntermediateBaseDirectory, const String BuildFileName, TArray(String) Artifacts)
+{
+    if (Array_Num(Artifacts) > 0)
+    {
+        StringLocal(ManifestName, 256);
+        String_Append(&ManifestName, BuildFileName);
+        String_Append(&ManifestName, S(".artifact_paths"));
+        String_ToLower(&ManifestName);
+
+        StringLocal(ManifestPath, MAX_PATH_LENGTH);
+        String_BuildPath(&ManifestPath, IntermediateBaseDirectory, ManifestName);
+
+        FileHandle f = FileHandle_Null();
+        if (Filesystem_Open(ManifestPath, FileMode_Write, &f))
+        {
+            Array_For(Artifacts)
+            {
+                const String Path = Artifacts[i];
+                if (Path.Length > 0)
+                {
+                    StringLocal(Line, MAX_PATH_LENGTH + 2);
+                    String_Copy(&Line, Path);
+                    String_AppendChar(&Line, '\n');
+                    xx Filesystem_WriteLine(f, Line, NULL);
+                }
+            }
+
+            Filesystem_Close(&f);
+        }
+    }
+}
+
+// Manifest-driven clean: delete the exact files recorded in <buildfile>.artifact_paths, then the
+// manifest itself. Returns true if anything was removed.
+//
+// Every line read back is treated as untrusted input. The manifest lives in the intermediate
+// directory and could be tampered with, so before acting on a line we (1) reject any path carrying
+// shell metacharacters, this neutralizes an injected "&& <command>" or an attempt to smuggle the
+// path into a shell, (2) reject path-traversal ("..") so a poisoned line cannot climb out of the
+// build tree, and (3) require the path to live inside the build or intermediate directory. Deletion
+// itself goes through Filesystem_DeleteFile (the Win32 DeleteFile API / unlink), never a shell, so a
+// rejected-but-somehow-missed line still cannot execute a command, the checks are defense in depth.
+static bool TryCleanFromManifest(const String IntermediateBaseDirectory, const String BuildBaseDirectory, const String BuildFileName)
+{
+    bool bCleanedSomething = false;
+
+    StringLocal(ManifestName, 256);
+    String_Append(&ManifestName, BuildFileName);
+    String_Append(&ManifestName, S(".artifact_paths"));
+    String_ToLower(&ManifestName);
+
+    StringLocal(ManifestPath, MAX_PATH_LENGTH);
+    String_BuildPath(&ManifestPath, IntermediateBaseDirectory, ManifestName);
+
+    FileHandle f = FileHandle_Null();
+    if (Filesystem_Open(ManifestPath, FileMode_Read, &f))
+    {
+        #ifndef HOOD
+        LOG("Cleaning %S", BuildBaseDirectory);
+        LOG("Cleaning %S", IntermediateBaseDirectory);
+        #else
+        LOG("cleaning dis fuckin' shit %S", BuildBaseDirectory);
+        LOG("cleaning dis stoopid shit %S", IntermediateBaseDirectory);
+        #endif
+
+        const String ShellMetaChars = S("&|;<>`$\n\r\"'*?");
+
+        StringLocal(Line, MAX_PATH_LENGTH);
+        while (Filesystem_ReadLine(f, &Line))
+        {
+            const String Path = String_EatSpacesFromEnd(String_EatSpaces(Line));
+
+            bool bPathOK = Path.Length > 0;
+
+            if (bPathOK && String_ContainsChars(Path, ShellMetaChars))
+            {
+                // LOG_WARNING("Skipping suspicious artifact path (illegal characters): %S", Path);
+                bPathOK = false;
+            }
+
+            if (bPathOK && String_Contains(Path, S(".."), false))
+            {
+                // LOG_WARNING("Skipping suspicious artifact path (path traversal): %S", Path);
+                bPathOK = false;
+            }
+
+            if (bPathOK)
+            {
+                bool bInsideBuild        = String_StartsWith(Path, BuildBaseDirectory, false);
+                bool bInsideIntermediate = String_StartsWith(Path, IntermediateBaseDirectory, false);
+                if (!bInsideBuild && !bInsideIntermediate)
+                {
+                    LOG_INFO("Skipping deletion of artifact path outside the build tree: %S", Path);
+                    bPathOK = false;
+                }
+            }
+
+            if (bPathOK)
+            {
+                if (Filesystem_DeleteFile(Path))
+                {
+                    bCleanedSomething = true;
+                }
+            }
+        }
+
+        Filesystem_Close(&f);
+
+        // remove the manifest itself last, once everything it referenced is gone
+        if (Filesystem_DeleteFile(ManifestPath))
+        {
+            bCleanedSomething = true;
+        }
+    }
+
+    return bCleanedSomething;
+}
+
 static BuildReceipt BuildTarget(LinearAllocator* Arena,
                         const FileHandle BuildFileHandle, const String BuildFilePath, PlatformMutex* BuildMutex,
                         const String WorkingPath, const StringArray Parameters, const String CameFromBuildFile,
@@ -5150,6 +5274,13 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     const bool bDidIntermediateDirectoryExist = Filesystem_DoesDirectoryExist(IntermediateBaseDirectory);
     const bool bDidBuildDirectoryExist        = Filesystem_DoesDirectoryExist(BuildBaseDirectory);
 
+    #if !RIFT_LEGACY_CLEAN
+    // only the legacy extension-wildcard clean consumes these; silence unused warnings otherwise
+    xx bBuildDirSameAsSource;
+    xx bIntermediateDirSameAsSource;
+    xx bDidBuildDirectoryExist;
+    #endif
+
     // actual source path cannot be inside of the build or intermediate directory, this is an error
     {
         StringLocal(Test, MAX_PATH_LENGTH);
@@ -5761,19 +5892,16 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         }
 
 
-        // TODO: we should write to a .artifact_paths file in the intermediate directory and go through paths in that file that we can delete
-        //       i think it is safer and more robust this way. if we rename the assembly in the build file, it will now be able to delete the old assembly
-        //       plus the benefit of this is, we can store other files inside these build/intermediate directories and it will only delete
-        //       what this program has generated; and not what we have hardcoded to delete.
-        //       Also: check if you can do some cmd injection when reading each line, say an attacker
-        //       injected an && command and something else after, will delete that file also try to run
-        //       the injected command? prevent this from happening
-        // TryClean();
-
+        // Clean/rebuild deletes build outputs. The manifest-driven path (default) reads back the exact
+        // paths this program recorded in <buildfile>.artifact_paths last build and deletes only those,
+        // so renames don't orphan old outputs and unrelated files in these directories are left alone.
+        // See TryCleanFromManifest for the untrusted-input handling (the old cmd-injection concern).
+        // Set RIFT_LEGACY_CLEAN to 1 to fall back to the old extension-wildcard behavior below.
         if (bIsClean || bIsRebuild)
         {
             bool bCleanedSomething = false;
 
+            #if RIFT_LEGACY_CLEAN
             const String Exts[42] =
             {
                 String_Null(),
@@ -5919,6 +6047,9 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
                 bCleanedSomething = true;
             }
+            #else
+            bCleanedSomething = TryCleanFromManifest(IntermediateBaseDirectory, BuildBaseDirectory, BuildFileName);
+            #endif
 
             if (bCleanedSomething)
             {
@@ -6814,8 +6945,14 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         }
     }
 
+    // every output the backend produces is recorded here, then written to <buildfile>.artifact_paths
+    // so a later clean/rebuild can delete exactly what we generated. Up to 3 entries per source
+    // (object, its .tmp, its .o.d dep file) plus link outputs/sidecars and generated helper files.
+    ArrayLocal_Arena(String, GeneratedArtifacts, (NumSources*3) + 64, Arena);
+
     BuildParams p = {0};
     p.Arena                         = Arena;
+    p.GeneratedArtifacts            = &GeneratedArtifacts;
     p.CompilerVendor                = CompilerVendor;
     p.CompilerProgram               = CompilerProgram;
     p.CompilerPath                  = CompilerPath;
@@ -7106,6 +7243,28 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         Clock_Tick(&IconClock);
     }
     #endif
+
+    {
+        StringLocal(GeneratedName, 256);
+        String_Append(&GeneratedName, BuildFileName);
+        String_Append(&GeneratedName, S(".generated"));
+        StringLocal(GeneratedPath, MAX_PATH_LENGTH);
+        String_BuildPath(&GeneratedPath, IntermediateBaseDirectory, GeneratedName);
+        RecordArtifactPath(&GeneratedArtifacts, Arena, WorkingPath, GeneratedPath);
+
+        StringLocal(DirStateName, 256);
+        String_Append(&DirStateName, BuildFileName);
+        String_Append(&DirStateName, S(".directory_state"));
+        StringLocal(DirStatePath, MAX_PATH_LENGTH);
+        String_BuildPath(&DirStatePath, IntermediateBaseDirectory, DirStateName);
+        RecordArtifactPath(&GeneratedArtifacts, Arena, WorkingPath, DirStatePath);
+
+        RecordArtifactPath(&GeneratedArtifacts, Arena, WorkingPath, IconRcFilePath);
+        RecordArtifactPath(&GeneratedArtifacts, Arena, WorkingPath, VersionRCFilePath);
+    }
+
+    // record everything this build produced so a future clean/rebuild can delete exactly these files
+    WriteArtifactManifest(IntermediateBaseDirectory, BuildFileName, GeneratedArtifacts);
 
     Clock_Tick(&BuildRuntime);
 

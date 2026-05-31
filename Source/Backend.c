@@ -21,6 +21,55 @@ STRUCT(CompileData)
     u32 Padding;
 };
 
+// Record a single produced path into an artifact list, normalized to absolute (relative paths are
+// anchored to RootDirectory, then canonicalized). Shared by the backend's per-output recording and the
+// frontend's generated-helper-file recording so both build the manifest identically. A NULL list or an
+// empty path is a no-op.
+void RecordArtifactPath(TArray(String)* Artifacts, LinearAllocator* Arena, const String RootDirectory, const String Path)
+{
+    if (Artifacts && *Artifacts && Path.Length > 0)
+    {
+        StringLocal(AbsolutePath, MAX_PATH_LENGTH);
+        if (Filesystem_IsPathRelative(Path))
+        {
+            String_BuildPath(&AbsolutePath, RootDirectory, Path);
+        }
+        else
+        {
+            String_Copy(&AbsolutePath, Path);
+        }
+
+        xx Filesystem_ConvertRelativeToAbsolutePath(&AbsolutePath);
+
+        String Dup = String_Duplicate(Arena, AbsolutePath);
+        Array_Add(*Artifacts, Dup);
+    }
+}
+
+static void Internal_RecordLinkArtifacts(const BuildParams* Params, const String BaseDir, const String OutputName)
+{
+    StringLocal(OutputPath, MAX_PATH_LENGTH);
+    String_Append(&OutputPath, BaseDir);
+    String_Append(&OutputPath, OutputName);
+    RecordArtifactPath(Params->GeneratedArtifacts, Params->Arena, Params->RootDirectory,OutputPath);
+
+    #if PLATFORM_WINDOWS
+    {
+        const String Exts[5] = { S(".pdb"), S(".ilk"), S(".exp"), S(".lib"), S(".def") };
+        const u32 NumExts = SArray_Capacity(Exts);
+
+        for (u32 i = 0; i < NumExts; i++)
+        {
+            StringLocal(Path, MAX_PATH_LENGTH);
+            String_Append(&Path, BaseDir);
+            String_Append(&Path, Filesystem_StripFileExtension(OutputName));
+            String_Append(&Path, Exts[i]);
+            RecordArtifactPath(Params->GeneratedArtifacts, Params->Arena, Params->RootDirectory,Path);
+        }
+    }
+    #endif
+}
+
 static void LogCompilingFile(u32 Index, u32 NumSources, String FullPath)
 {
     if (bQuietBuild) { Logging_Enable(); }
@@ -519,6 +568,21 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
     }
 
     // ===============================================================================================
+
+    // Record the object this source maps to, its in-flight ".tmp", and the compiler's sibling ".d"
+    // dependency file (e.g. Foo.c.o.d) that lands next to it.
+    RecordArtifactPath(Params->GeneratedArtifacts, Params->Arena, Params->RootDirectory, ObjectPath);
+    RecordArtifactPath(Params->GeneratedArtifacts, Params->Arena, Params->RootDirectory, ObjectTempPath);
+    {
+        StringLocal(DepPath, MAX_PATH_LENGTH + 4);
+        String_Copy(&DepPath, ObjectPath);
+        String_Append(&DepPath, S(".d"));
+        RecordArtifactPath(Params->GeneratedArtifacts, Params->Arena, Params->RootDirectory, DepPath);
+    }
+    if (Params->Type == AssemblyType_PCH)
+    {
+        RecordArtifactPath(Params->GeneratedArtifacts, Params->Arena, Params->RootDirectory, PCHObjectPath);
+    }
 
     u64 ObjectFileWriteTime = Filesystem_GetLastWriteTime(ObjectPath);
     u64 SourceFileWriteTime = Filesystem_GetLastWriteTime(FullPath);
@@ -1385,6 +1449,8 @@ bool C_Link(const BuildParams* Params)
             return false;
         }
 
+        Internal_RecordLinkArtifacts(Params, BuildPath, Params->AssemblyWithExt);
+
         return true;
     }
 
@@ -1559,6 +1625,8 @@ bool C_Link(const BuildParams* Params)
         {
             return false;
         }
+
+        Internal_RecordLinkArtifacts(Params, BuildPath, Params->AssemblyWithExt);
     }
 
 
@@ -1650,6 +1718,11 @@ bool C_Link(const BuildParams* Params)
         {
             return false;
         }
+
+        StringLocal(LibOutputPath, MAX_PATH_LENGTH);
+        String_Append(&LibOutputPath, BuildPath);
+        String_Append(&LibOutputPath, LibFile);
+        RecordArtifactPath(Params->GeneratedArtifacts, Params->Arena, Params->RootDirectory, LibOutputPath);
     }
 
 

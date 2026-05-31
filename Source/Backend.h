@@ -235,6 +235,7 @@ STRUCT(BuildParams)
     LinearAllocator* Arena;
 
     TArray(PlatformHandle)* Processes;
+    TArray(String)* GeneratedArtifacts;
 
     u32 NumSources;
 
@@ -402,5 +403,7 @@ bool TryBuildOrCleanUnixExeIcon(String IconFilePath, const BuildParams* Params);
 bool TryBuildOrCleanMacExeIcon(String IconFilePath, const BuildParams* Params);
 bool TryBuildMacBundle(LinearAllocator Scratch, const BuildParams* Params, TArray(FileVariable) VariablesDB);
 #endif
+
+void RecordArtifactPath(TArray(String)* Artifacts, LinearAllocator* Arena, const String RootDirectory, const String Path);
 
 #endif // _BACKEND_H_
