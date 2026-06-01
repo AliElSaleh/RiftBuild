@@ -105,6 +105,8 @@ STRUCT(BuildReceipt)
     String LinkerStack;
     String LinkerRPaths;
 
+    FileHandle ArtifactManifestHandle;
+
     u32 ExitCode;
     u32 Padding;
     b64 bWorkWasDone;
@@ -3788,40 +3790,21 @@ static bool TryDetectDirectoryStateChangeAndUpdate(const String DirectoryStatePa
 
 
 
-// Write every path this build produced (one per line) into <buildfile>.artifact_paths inside the
-// intermediate directory. A subsequent clean/rebuild reads this manifest back and deletes exactly
-// those files, so renamed assemblies no longer orphan their old outputs and unrelated files parked
-// in the build/intermediate directories are left untouched.
-static void WriteArtifactManifest(const String IntermediateBaseDirectory, const String BuildFileName, TArray(String) Artifacts)
+static void RecordGeneratedHelperFiles(const BuildParams* p)
 {
-    if (Array_Num(Artifacts) > 0)
-    {
-        StringLocal(ManifestName, 256);
-        String_Append(&ManifestName, BuildFileName);
-        String_Append(&ManifestName, S(".artifact_paths"));
-        String_ToLower(&ManifestName);
+    StringLocal(GeneratedName, 256);
+    String_Append(&GeneratedName, p->BuildFileName);
+    String_Append(&GeneratedName, S(".generated"));
+    StringLocal(GeneratedPath, MAX_PATH_LENGTH);
+    String_BuildPath(&GeneratedPath, p->IntermediateBaseDirectory, GeneratedName);
+    RecordArtifactPath(p->ArtifactManifestHandle, p->RootDirectory, GeneratedPath);
 
-        StringLocal(ManifestPath, MAX_PATH_LENGTH);
-        String_BuildPath(&ManifestPath, IntermediateBaseDirectory, ManifestName);
-
-        FileHandle f = FileHandle_Null();
-        if (Filesystem_Open(ManifestPath, FileMode_Write, &f))
-        {
-            Array_For(Artifacts)
-            {
-                const String Path = Artifacts[i];
-                if (Path.Length > 0)
-                {
-                    StringLocal(Line, MAX_PATH_LENGTH + 2);
-                    String_Copy(&Line, Path);
-                    String_AppendChar(&Line, '\n');
-                    xx Filesystem_WriteLine(f, Line, NULL);
-                }
-            }
-
-            Filesystem_Close(&f);
-        }
-    }
+    StringLocal(DirStateName, 256);
+    String_Append(&DirStateName, p->BuildFileName);
+    String_Append(&DirStateName, S(".directory_state"));
+    StringLocal(DirStatePath, MAX_PATH_LENGTH);
+    String_BuildPath(&DirStatePath, p->IntermediateBaseDirectory, DirStateName);
+    RecordArtifactPath(p->ArtifactManifestHandle, p->RootDirectory, DirStatePath);
 }
 
 // Manifest-driven clean: delete the exact files recorded in <buildfile>.artifact_paths, then the
@@ -5065,6 +5048,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
             PlatformMutex NewMutex = {0};
             BuildReceipt FreshReceipt = BuildTarget(&NewArena, f, NewBuildFilePath, &NewMutex, CustomWorkingPath_Full, NewParams, BuildFileName, -1, -1);
+            Filesystem_Close(&FreshReceipt.ArtifactManifestHandle);
             if (NewMutex.Handle) { xx Platform_ReleaseMutex(&NewMutex); }
 
             Filesystem_Close(&f);
@@ -5104,9 +5088,9 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                 AddOrAppendVariable(Arena, VariablesDB, S("Linker.Flags"),        FreshReceipt.LinkerFlags, String_Null(), GetMaxValueLengthForReservedKey(S("Linker.Flags.Public")));
                 AddOrAppendVariable(Arena, VariablesDB, S("Linker.Flags.Public"), FreshReceipt.LinkerFlags, String_Null(), GetMaxValueLengthForReservedKey(S("Linker.Flags.Public")));
 
-                AddOrAppendVariable(Arena, VariablesDB, S("Linker.EntryPoint"),    FreshReceipt.LinkerEntryPoint, String_Null(),    GetMaxValueLengthForReservedKey(S("Linker.EntryPoint")));
-                AddOrAppendVariable(Arena, VariablesDB, S("Linker.Stack"),         FreshReceipt.LinkerStack, String_Null(),         GetMaxValueLengthForReservedKey(S("Linker.Stack")));
-                AddOrAppendVariable(Arena, VariablesDB, S("Linker.Subsystem"),     FreshReceipt.LinkerSubsystem, String_Null(),     GetMaxValueLengthForReservedKey(S("Linker.Subsystem")));
+                // AddOrAppendVariable(Arena, VariablesDB, S("Linker.EntryPoint"),    FreshReceipt.LinkerEntryPoint, String_Null(),    GetMaxValueLengthForReservedKey(S("Linker.EntryPoint")));
+                // AddOrAppendVariable(Arena, VariablesDB, S("Linker.Stack"),         FreshReceipt.LinkerStack, String_Null(),         GetMaxValueLengthForReservedKey(S("Linker.Stack")));
+                // AddOrAppendVariable(Arena, VariablesDB, S("Linker.Subsystem"),     FreshReceipt.LinkerSubsystem, String_Null(),     GetMaxValueLengthForReservedKey(S("Linker.Subsystem")));
 
                 if (FreshReceipt.LinkerNoStdLib)      { AddOrAppendVariable(Arena, VariablesDB, S("Linker.NoStdLib"), String_Null(), String_Null(),      GetMaxValueLengthForReservedKey(S("Linker.NoStdLib"))); }
                 if (FreshReceipt.LinkerNoDefaultLibs) { AddOrAppendVariable(Arena, VariablesDB, S("Linker.NoDefaultLibs"), String_Null(), String_Null(), GetMaxValueLengthForReservedKey(S("Linker.NoDefaultLibs"))); }
@@ -6099,6 +6083,11 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             {
                 Spaces.Length = (LongestName - v.Name.Length) + 1; // +1 for extra space
 
+                if (String_StartsWith(v.Name, S("Option."), false))
+                {
+                    continue;
+                }
+
                 String_Append(&Buffer, v.Name);
                 String_Append(&Buffer, Spaces);
                 String_Append(&Buffer, v.Value);
@@ -6945,14 +6934,14 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         }
     }
 
-    // every output the backend produces is recorded here, then written to <buildfile>.artifact_paths
-    // so a later clean/rebuild can delete exactly what we generated. Up to 3 entries per source
-    // (object, its .tmp, its .o.d dep file) plus link outputs/sidecars and generated helper files.
-    ArrayLocal_Arena(String, GeneratedArtifacts, (NumSources*3) + 64, Arena);
+    StringLocal(ManifestName, 256);
+    String_Append(&ManifestName, BuildFileName);
+    String_Append(&ManifestName, S(".artifact_paths"));
+    StringLocal(ArtifactManifestPath, MAX_PATH_LENGTH);
+    String_BuildPath(&ArtifactManifestPath, IntermediateBaseDirectory, ManifestName);
 
     BuildParams p = {0};
     p.Arena                         = Arena;
-    p.GeneratedArtifacts            = &GeneratedArtifacts;
     p.CompilerVendor                = CompilerVendor;
     p.CompilerProgram               = CompilerProgram;
     p.CompilerPath                  = CompilerPath;
@@ -7102,6 +7091,21 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         }
     }
 
+    xx Filesystem_Open(ArtifactManifestPath, FileMode_Write, &p.ArtifactManifestHandle);
+    Receipt.ArtifactManifestHandle = p.ArtifactManifestHandle;
+
+    RecordGeneratedHelperFiles(&p);
+
+    if (Filesystem_DoesFileExist(IconRcFilePath))
+    {
+        RecordArtifactPath(p.ArtifactManifestHandle, WorkingPath, IconRcFilePath);
+    }
+
+    if (Filesystem_DoesFileExist(VersionRCFilePath))
+    {
+        RecordArtifactPath(p.ArtifactManifestHandle, WorkingPath, VersionRCFilePath);
+    }
+
     bool bSuccess = false;
 
     Clock CompileClock;
@@ -7243,28 +7247,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         Clock_Tick(&IconClock);
     }
     #endif
-
-    {
-        StringLocal(GeneratedName, 256);
-        String_Append(&GeneratedName, BuildFileName);
-        String_Append(&GeneratedName, S(".generated"));
-        StringLocal(GeneratedPath, MAX_PATH_LENGTH);
-        String_BuildPath(&GeneratedPath, IntermediateBaseDirectory, GeneratedName);
-        RecordArtifactPath(&GeneratedArtifacts, Arena, WorkingPath, GeneratedPath);
-
-        StringLocal(DirStateName, 256);
-        String_Append(&DirStateName, BuildFileName);
-        String_Append(&DirStateName, S(".directory_state"));
-        StringLocal(DirStatePath, MAX_PATH_LENGTH);
-        String_BuildPath(&DirStatePath, IntermediateBaseDirectory, DirStateName);
-        RecordArtifactPath(&GeneratedArtifacts, Arena, WorkingPath, DirStatePath);
-
-        RecordArtifactPath(&GeneratedArtifacts, Arena, WorkingPath, IconRcFilePath);
-        RecordArtifactPath(&GeneratedArtifacts, Arena, WorkingPath, VersionRCFilePath);
-    }
-
-    // record everything this build produced so a future clean/rebuild can delete exactly these files
-    WriteArtifactManifest(IntermediateBaseDirectory, BuildFileName, GeneratedArtifacts);
 
     Clock_Tick(&BuildRuntime);
 
@@ -8112,6 +8094,7 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments, const 
 
     PlatformMutex BuildMutex = {0};
     BuildReceipt Receipt = BuildTarget(Arena, BuildFileHandle, BuildFilePathFull, &BuildMutex, WorkingDirectory, BuildArguments, String_Null(), BuildFileIndex, RootPathIndex);
+    Filesystem_Close(&Receipt.ArtifactManifestHandle);
     if (BuildMutex.Handle) { xx Platform_ReleaseMutex(&BuildMutex); }
 
     Filesystem_Close(&BuildFileHandle);

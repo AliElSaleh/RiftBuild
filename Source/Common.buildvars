@@ -5,10 +5,6 @@ SharedDefines:debug              _DEBUG RIFT_DEBUG
 SharedDefines:!debug             NDEBUG RIFT_RELEASE NO_ASSERT 
 SharedDefines:asan               RIFT_ASAN
 
-Linker.EntryPoint:windows:!asan  EntryPoint
-Linker.Subsystem                 Console
-Linker.Stack                     8000000 # 8MB
-
 if msvc
 {
     WarningFlags                     /Wall /W4 /WX

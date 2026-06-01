@@ -235,7 +235,8 @@ STRUCT(BuildParams)
     LinearAllocator* Arena;
 
     TArray(PlatformHandle)* Processes;
-    TArray(String)* GeneratedArtifacts;
+
+    FileHandle ArtifactManifestHandle;
 
     u32 NumSources;
 
@@ -404,6 +405,9 @@ bool TryBuildOrCleanMacExeIcon(String IconFilePath, const BuildParams* Params);
 bool TryBuildMacBundle(LinearAllocator Scratch, const BuildParams* Params, TArray(FileVariable) VariablesDB);
 #endif
 
-void RecordArtifactPath(TArray(String)* Artifacts, LinearAllocator* Arena, const String RootDirectory, const String Path);
+// Write a produced path (normalized to absolute, relative paths anchored to RootDirectory) straight to
+// the already-open <buildfile>.artifact_paths manifest handle. Writes immediately so the manifest
+// survives a mid-build crash and needs no in-memory buffer. No-op if the handle is invalid.
+void RecordArtifactPath(const FileHandle ManifestHandle, const String RootDirectory, const String Path);
 
 #endif // _BACKEND_H_

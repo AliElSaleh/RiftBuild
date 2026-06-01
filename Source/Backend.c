@@ -16,18 +16,13 @@ STRUCT(CompileData)
 {
     const BuildParams* Params;
     u32* NumCompiled;
-    TArray(String)* PendingObjectRenames;
     u32 Index;
     u32 Padding;
 };
 
-// Record a single produced path into an artifact list, normalized to absolute (relative paths are
-// anchored to RootDirectory, then canonicalized). Shared by the backend's per-output recording and the
-// frontend's generated-helper-file recording so both build the manifest identically. A NULL list or an
-// empty path is a no-op.
-void RecordArtifactPath(TArray(String)* Artifacts, LinearAllocator* Arena, const String RootDirectory, const String Path)
+void RecordArtifactPath(const FileHandle ManifestHandle, const String RootDirectory, const String Path)
 {
-    if (Artifacts && *Artifacts && Path.Length > 0)
+    if (IsValidFileHandle(ManifestHandle) && Path.Length > 0)
     {
         StringLocal(AbsolutePath, MAX_PATH_LENGTH);
         if (Filesystem_IsPathRelative(Path))
@@ -41,8 +36,10 @@ void RecordArtifactPath(TArray(String)* Artifacts, LinearAllocator* Arena, const
 
         xx Filesystem_ConvertRelativeToAbsolutePath(&AbsolutePath);
 
-        String Dup = String_Duplicate(Arena, AbsolutePath);
-        Array_Add(*Artifacts, Dup);
+        StringLocal(Line, MAX_PATH_LENGTH + 2);
+        String_Copy(&Line, AbsolutePath);
+        String_AppendChar(&Line, '\n');
+        xx Filesystem_WriteLine(ManifestHandle, Line, NULL);
     }
 }
 
@@ -51,7 +48,7 @@ static void Internal_RecordLinkArtifacts(const BuildParams* Params, const String
     StringLocal(OutputPath, MAX_PATH_LENGTH);
     String_Append(&OutputPath, BaseDir);
     String_Append(&OutputPath, OutputName);
-    RecordArtifactPath(Params->GeneratedArtifacts, Params->Arena, Params->RootDirectory,OutputPath);
+    RecordArtifactPath(Params->ArtifactManifestHandle, Params->RootDirectory, OutputPath);
 
     #if PLATFORM_WINDOWS
     {
@@ -64,7 +61,7 @@ static void Internal_RecordLinkArtifacts(const BuildParams* Params, const String
             String_Append(&Path, BaseDir);
             String_Append(&Path, Filesystem_StripFileExtension(OutputName));
             String_Append(&Path, Exts[i]);
-            RecordArtifactPath(Params->GeneratedArtifacts, Params->Arena, Params->RootDirectory,Path);
+            RecordArtifactPath(Params->ArtifactManifestHandle, Params->RootDirectory,Path);
         }
     }
     #endif
@@ -180,12 +177,6 @@ static void RC_Compile(const BuildParams* Params, const String FullRCPath, Strin
         String_Copy(OutResPath, ResPath);
     }
 
-    // emit to a throwaway ".tmp" path so an interrupted/killed resource compile can't leave a corrupt
-    // .res under the real name; Internal_DoCompile renames it onto ResPath once the compile succeeds
-    StringLocal(ResTempPath, MAX_PATH_LENGTH);
-    String_Copy(&ResTempPath, ResPath);
-    String_Append(&ResTempPath, S(".tmp"));
-
     // todo: resource defines
 
     if (bWindres)
@@ -201,13 +192,13 @@ static void RC_Compile(const BuildParams* Params, const String FullRCPath, Strin
         String_AppendChar(&CmdLine, '"');
 
         String_Append(&CmdLine, S(" -o \""));
-        String_Append(&CmdLine, ResTempPath);
+        String_Append(&CmdLine, ResPath);
         String_Append(&CmdLine, S("\""));
     }
     else
     {
         String_Append(&CmdLine, S(" /fo \""));
-        String_Append(&CmdLine, ResTempPath);
+        String_Append(&CmdLine, ResPath);
         String_Append(&CmdLine, S("\""));
 
         String_Append(&CmdLine, S(" \""));
@@ -321,6 +312,26 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
         DefaultObjExtension = S(".obj");
     }
 
+    String ObjDestinationDirectory = Params->IntermediateDirectory;
+    if (String_IsValid(Params->CompilerObjectDirectory))
+    {
+        ObjDestinationDirectory = Params->CompilerObjectDirectory;
+    }
+
+    String SourceFileName = Filesystem_ExtractFileName(RelativePath, true);
+    String PathOfObj = Filesystem_ExtractFilePath(RelativePath, false);
+
+    if (Params->bDumpObjFilesInOneDirectory)
+    {
+        PathOfObj = String_Null();
+    }
+
+    // handle a special case where we are compiling something in the intermediate directory
+    if (String_StartsWith(ObjDestinationDirectory, PathOfObj, false))
+    {
+        PathOfObj = String_Null();
+    }
+
     // this is the format we're going for:
     // int/relativepath/assmeblyprefix|filename.no_ext|assemblypostfix|ext
     StringLocal(ObjectPath, MAX_PATH_LENGTH);
@@ -328,7 +339,6 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
     {
         StringLocal(ObjFile, MAX_PATH_LENGTH);
         {
-            String Name    = Filesystem_ExtractFileName(RelativePath, true);
             String Prefix  = String_Null();
             String Postfix = String_Null();
             String ObjExt  = String_IsValid(Params->CompilerObjectExt) ? Params->CompilerObjectExt : DefaultObjExtension;
@@ -341,32 +351,13 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
             }
 
             String_Append(&ObjFile, Prefix);
-            String_Append(&ObjFile, Name);
+            String_Append(&ObjFile, SourceFileName);
             String_Append(&ObjFile, Postfix);
             if (ObjExt.Length > 0 && !String_IsFirst(ObjExt, '.'))
             {
                 String_AppendChar(&ObjFile, '.');
             }
             String_Append(&ObjFile, ObjExt);
-        }
-
-        String PathOfObj = Filesystem_ExtractFilePath(RelativePath, false);
-
-        if (Params->bDumpObjFilesInOneDirectory)
-        {
-            PathOfObj = String_Null();
-        }
-
-        String ObjDestinationDirectory = Params->IntermediateDirectory;
-        if (String_IsValid(Params->CompilerObjectDirectory))
-        {
-            ObjDestinationDirectory = Params->CompilerObjectDirectory;
-        }
-
-        // handle a special case where we are compiling something in the intermediate directory
-        if (String_StartsWith(ObjDestinationDirectory, PathOfObj, false))
-        {
-            PathOfObj = String_Null();
         }
 
         String_BuildPath(&ObjectPath, Params->RootDirectory, ObjDestinationDirectory, PathOfObj, ObjFile);
@@ -395,13 +386,6 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
 
     // ===============================================================================================
 
-    // The compiler writes to a throwaway ".tmp" path; on success we atomically rename it onto the real
-    // object path. That way an interrupted/killed/crashed compile can never leave a partial object under
-    // the real name (which the timestamp check would then wrongly treat as up-to-date and skip).
-    StringLocal(ObjectTempPath, MAX_PATH_LENGTH + 8);
-    String_Copy(&ObjectTempPath, ObjectPath);
-    String_Append(&ObjectTempPath, S(".tmp"));
-
     String ProgramPath = Params->CompilerPath;
     StringLocal(CmdLine, UINT16_MAX);
 
@@ -418,7 +402,7 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
         if (bIsMicrosoftAssembler)
         {
             String_Append(&CmdLine, S("/nologo /c /Fo\""));
-            String_Append(&CmdLine, ObjectTempPath);
+            String_Append(&CmdLine, ObjectPath);
             String_Append(&CmdLine, S("\" "));
             String_BuildSeparator(&CmdLine, ' ', FullSourcePath, Params->AssemblerFlags, Params->AssemblerDefines, Params->AssemblerIncludes);
             xx String_EatSpacesInlineFromEnd(&CmdLine);
@@ -428,7 +412,7 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
             String_BuildSeparator(&CmdLine, ' ', FullSourcePath, Params->AssemblerFlags, Params->AssemblerDefines, Params->AssemblerIncludes);
             xx String_EatSpacesInlineFromEnd(&CmdLine);
             String_Append(&CmdLine, S(" -o \""));
-            String_Append(&CmdLine, ObjectTempPath);
+            String_Append(&CmdLine, ObjectPath);
             String_Append(&CmdLine, S("\""));
         }
     }
@@ -443,9 +427,6 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
         String_Empty(&ObjectPath);
 
         RC_Compile(Params, RelativePath, &ObjectPath, &CmdLine);
-
-        String_Copy(&ObjectTempPath, ObjectPath);
-        String_Append(&ObjectTempPath, S(".tmp"));
     }
     else
     {
@@ -563,26 +544,41 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
         xx String_EatSpacesInlineFromEnd(&CmdLine);
 
         String_Append(&CmdLine, S(" \""));
-        String_Append(&CmdLine, ObjectTempPath);
+        String_Append(&CmdLine, ObjectPath);
         String_Append(&CmdLine, S("\""));
     }
 
+    // Record the object this source maps to, and the compiler's sibling ".d"
+    // dependency file (e.g. Foo.c.d) that lands next to it.
     // ===============================================================================================
-
-    // Record the object this source maps to, its in-flight ".tmp", and the compiler's sibling ".d"
-    // dependency file (e.g. Foo.c.o.d) that lands next to it.
-    RecordArtifactPath(Params->GeneratedArtifacts, Params->Arena, Params->RootDirectory, ObjectPath);
-    RecordArtifactPath(Params->GeneratedArtifacts, Params->Arena, Params->RootDirectory, ObjectTempPath);
-    {
-        StringLocal(DepPath, MAX_PATH_LENGTH + 4);
-        String_Copy(&DepPath, ObjectPath);
-        String_Append(&DepPath, S(".d"));
-        RecordArtifactPath(Params->GeneratedArtifacts, Params->Arena, Params->RootDirectory, DepPath);
-    }
+    RecordArtifactPath(Params->ArtifactManifestHandle, Params->RootDirectory, ObjectPath);
     if (Params->Type == AssemblyType_PCH)
     {
-        RecordArtifactPath(Params->GeneratedArtifacts, Params->Arena, Params->RootDirectory, PCHObjectPath);
+        RecordArtifactPath(Params->ArtifactManifestHandle, Params->RootDirectory, PCHObjectPath);
     }
+
+    struct MiscArtifactTable
+    {
+        String Extension;
+        b64 bRecord;
+    };
+    struct MiscArtifactTable MiscArtifacts[2] =
+    {
+        { .Extension = S(".d"),                      .bRecord = !bIsMicrosoftCompiler },
+        { .Extension = S(".nativecodeanalysis.xml"), .bRecord = bIsMicrosoftCompiler },
+    };
+    for (u32 i = 0; i < SArray_Capacity(MiscArtifacts); i++)
+    {
+        struct MiscArtifactTable Entry = MiscArtifacts[i];
+        if (Entry.bRecord)
+        {
+            StringLocal(MiscPath, MAX_PATH_LENGTH);
+            String_BuildPath(&MiscPath, Params->RootDirectory, ObjDestinationDirectory, PathOfObj, SourceFileName);
+            String_Append(&MiscPath, Entry.Extension);
+            RecordArtifactPath(Params->ArtifactManifestHandle, Params->RootDirectory, MiscPath);
+        }
+    }
+    // ===============================================================================================
 
     u64 ObjectFileWriteTime = Filesystem_GetLastWriteTime(ObjectPath);
     u64 SourceFileWriteTime = Filesystem_GetLastWriteTime(FullPath);
@@ -597,7 +593,7 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
     }
     else
     {
-        xx Filesystem_NewFile(ObjectTempPath);
+        xx Filesystem_OpenDirectory(Filesystem_ExtractFilePath(ObjectPath, false));
 
         if (bQuietBuild) { Logging_Enable(); }
 
@@ -627,28 +623,15 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
                 const u32 ExitCode = Platform_WaitForProcessAndGetExitCode(Handle);
                 if (ExitCode != 0)
                 {
-                    xx Filesystem_DeleteFile(ObjectTempPath);
+                    xx Filesystem_DeleteFile(ObjectPath);
                     LOG_ERROR("Compiler errors detected. See above errors to fix. Exit code for process: %u. Aborting build...", ExitCode);
                     return false;
                 }
-
-                // compile succeeded, so atomically publish the finished object onto its real path
-                if (!Filesystem_Move(ObjectTempPath, ObjectPath, true))
-                {
-                    LOG_ERROR("Failed to finalize object file \"%S\". Aborting build...", ObjectPath);
-                    return false;
-                }
-            }
-            else
-            {
-                // parallel build: defer publishing until the whole batch has compiled (see C_Compile)
-                String Pending = String_Duplicate(Params->Arena, ObjectPath);
-                Array_Add(*Data->PendingObjectRenames, Pending);
             }
         }
         else
         {
-            xx Filesystem_DeleteFile(ObjectTempPath);
+            xx Filesystem_DeleteFile(ObjectPath);
             LOG_ERROR("Failed to spawn compiler process: \"%S\"", ProgramPath);
             return false;
         }
@@ -664,14 +647,11 @@ bool C_Compile(const BuildParams* Params, u32* OutNumCompiled)
 
     bool bSuccess = true;
 
-    ArrayLocal_Arena(String, PendingObjectRenames, Params->NumSources, Params->Arena);
-
     // compile all source files
     {
         CompileData UserData = { 0 };
         UserData.Params = Params;
         UserData.NumCompiled = OutNumCompiled;
-        UserData.PendingObjectRenames = &PendingObjectRenames;
         UserData.Index = 0;
 
         for each_string_in_list (Params->SourceFiles)
@@ -715,30 +695,6 @@ bool C_Compile(const BuildParams* Params, u32* OutNumCompiled)
             }
         }
     }
-
-    // every compile in the batch finished cleanly: atomically publish each deferred object by renaming
-    // its ".tmp" onto the real path. If anything failed above we skip this, leaving the real objects
-    // untouched (and the stray ".tmp" files inert) so the next build recompiles them.
-    if (bSuccess)
-    {
-        Array_For(PendingObjectRenames)
-        {
-            const String FinalPath = PendingObjectRenames[i];
-
-            StringLocal(TempPath, MAX_PATH_LENGTH + 8);
-            String_Copy(&TempPath, FinalPath);
-            String_Append(&TempPath, S(".tmp"));
-
-            if (!Filesystem_Move(TempPath, FinalPath, true))
-            {
-                LOG_ERROR("Failed to finalize object file \"%S\". Aborting build...", FinalPath);
-                bSuccess = false;
-                break;
-            }
-        }
-    }
-
-    Array_Destroy(PendingObjectRenames);
 
     return bSuccess;
 }
@@ -1405,6 +1361,8 @@ bool C_Link(const BuildParams* Params)
 
         String_Concat(&CmdLine, OutputFlag, S(" \""), BuildPath, Params->AssemblyWithExt, S("\""));
 
+        Internal_RecordLinkArtifacts(Params, BuildPath, Params->AssemblyWithExt);
+
         if (bQuietBuild) { Logging_Enable(); }
 
         #ifndef HOOD
@@ -1448,8 +1406,6 @@ bool C_Link(const BuildParams* Params)
         {
             return false;
         }
-
-        Internal_RecordLinkArtifacts(Params, BuildPath, Params->AssemblyWithExt);
 
         return true;
     }
@@ -1554,6 +1510,7 @@ bool C_Link(const BuildParams* Params)
         
         String_Concat(&CmdLine, OutputFlag, SpaceAfterOut, S("\""), BuildPath, Params->AssemblyWithExt, S("\""));
 
+        Internal_RecordLinkArtifacts(Params, BuildPath, Params->AssemblyWithExt);
 
         if (bQuietBuild) { Logging_Enable(); }
 
@@ -1625,8 +1582,6 @@ bool C_Link(const BuildParams* Params)
         {
             return false;
         }
-
-        Internal_RecordLinkArtifacts(Params, BuildPath, Params->AssemblyWithExt);
     }
 
 
@@ -1676,6 +1631,10 @@ bool C_Link(const BuildParams* Params)
 
         Internal_AppendObjSourceFiles(Params, &CmdLine, DefaultObjExtension);
 
+        StringLocal(LibOutputPath, MAX_PATH_LENGTH);
+        String_Append(&LibOutputPath, BuildPath);
+        String_Append(&LibOutputPath, LibFile);
+        RecordArtifactPath(Params->ArtifactManifestHandle, Params->RootDirectory, LibOutputPath);
 
         if (bQuietBuild) { Logging_Enable(); }
 
@@ -1718,11 +1677,6 @@ bool C_Link(const BuildParams* Params)
         {
             return false;
         }
-
-        StringLocal(LibOutputPath, MAX_PATH_LENGTH);
-        String_Append(&LibOutputPath, BuildPath);
-        String_Append(&LibOutputPath, LibFile);
-        RecordArtifactPath(Params->GeneratedArtifacts, Params->Arena, Params->RootDirectory, LibOutputPath);
     }
 
 
