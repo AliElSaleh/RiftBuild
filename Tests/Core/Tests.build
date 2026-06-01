@@ -1,4 +1,11 @@
+Depend ../../Source/Core | %_args
+include ../../Source/Common.buildvars
+
 Assembly CoreTests
 .Run
 
-Depend ../../Source/Core | %_args
+Compiler.Flags $SharedCompilerFlags
+
+Linker.EntryPoint:windows:!asan  EntryPoint
+Linker.Subsystem                 Console
+Linker.Stack                     8000000 # 8MB
