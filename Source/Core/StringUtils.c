@@ -667,12 +667,12 @@ static void Internal_Format(String* Dest, const String Format, va_list List)
                     Char = String_GetCharFromIndexOrLast(Format, FormatIndex++);
                     if (Char == 'l')
                     {
-                        LengthMod = 2;
+                        LengthMod = 3;
                         Char = String_GetCharFromIndexOrLast(Format, FormatIndex++);
                     }
                     else
                     {
-                        LengthMod = 3;
+                        LengthMod = 2;
                     }
                 }
             }
@@ -3550,6 +3550,7 @@ NO_DISCARD bool StringArray_Find(StringArray Array, const String Source, u32* Fo
 
     for each_str_i (Index, s, Array)
     {
+        // TODO: case insensitive option?
         if (String_IsEqual(*s, Source, true))
         {
             if (FoundIndex)
