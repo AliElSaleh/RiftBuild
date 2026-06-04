@@ -311,6 +311,40 @@ PlatformVersion Platform_GetVersion(void)
     return Result;
 }
 
+u64 Platform_GetTotalRam(void)
+{
+    u64 TotalBytes = 0;
+
+    long Pages    = sysconf(_SC_PHYS_PAGES);
+    long PageSize = sysconf(_SC_PAGE_SIZE);
+    if (Pages > 0 && PageSize > 0)
+    {
+        TotalBytes = (u64)Pages * (u64)PageSize;
+    }
+
+    return TotalBytes;
+}
+
+u32 Platform_GetUpdateBuildRevision(void)
+{
+    return 0; // no UBR-equivalent on Linux
+}
+
+void Platform_GetDisplayVersion(String* OutVersion)
+{
+    UNUSED_PARAM(OutVersion); // no DisplayVersion-equivalent on Linux
+}
+
+void Platform_GetMachineId(String* OutId)
+{
+    UNUSED_PARAM(OutId); // TODO: /etc/machine-id
+}
+
+void Platform_GetDeviceId(String* OutId)
+{
+    UNUSED_PARAM(OutId); // no Settings "Device ID" equivalent on Linux
+}
+
 bool Platform_IsWindowFocused(void)
 {
     // no linux implementation

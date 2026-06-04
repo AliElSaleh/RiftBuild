@@ -8230,10 +8230,70 @@ static void InitInternalVars(LinearAllocator* Arena)
         }
     }
 
-    // TODO _Ram
-    //AddInternalVariable(S("_Platform.KernelVersion"), OSVersionString);
-    //AddInternalVariable(S("_Platform.BuildVersion"), OSVersionString);
-    
+    // total physical RAM, in bytes (plus KB/MB/GB convenience variants)
+    {
+        u64 TotalRam = Platform_GetTotalRam();
+
+        StringLocal(Temp, 24);
+        String_Format(&Temp, S("%llu"), TotalRam);
+        AddInternalVariable(S("_Ram"), String_Create(Arena, Temp));
+
+        StringLocal(TempKB, 24);
+        String_Format(&TempKB, S("%llu"), TotalRam / Kibibytes(1));
+        AddInternalVariable(S("_Ram.KB"), String_Create(Arena, TempKB));
+
+        StringLocal(TempMB, 24);
+        String_Format(&TempMB, S("%llu"), TotalRam / Mebibytes(1));
+        AddInternalVariable(S("_Ram.MB"), String_Create(Arena, TempMB));
+
+        StringLocal(TempGB, 24);
+        String_Format(&TempGB, S("%llu"), TotalRam / Gibibytes(1));
+        AddInternalVariable(S("_Ram.GB"), String_Create(Arena, TempGB));
+    }
+
+    // build version: major.minor.build's "build" plus the OS update revision when present (e.g. 22621.2134)
+    {
+        u32 UBR = Platform_GetUpdateBuildRevision();
+        StringLocal(BuildVer, 24);
+        if (UBR > 0)
+        {
+            String_Format(&BuildVer, S("%u.%u"), OSVersion.Patch, UBR);
+        }
+        else
+        {
+            String_Format(&BuildVer, S("%u"), OSVersion.Patch);
+        }
+        AddInternalVariable(S("_Platform.BuildVersion"), String_Create(Arena, BuildVer));
+    }
+
+    {
+        StringLocal(DisplayVersion, 24);
+        Platform_GetDisplayVersion(&DisplayVersion);
+        if (DisplayVersion.Length > 0)
+        {
+            AddInternalVariable(S("_Platform.DisplayVersion"), String_Create(Arena, DisplayVersion));
+        }
+    }
+
+    {
+        StringLocal(MachineId, 64);
+        Platform_GetMachineId(&MachineId);
+        if (MachineId.Length > 0)
+        {
+            AddInternalVariable(S("_Platform.MachineId"), String_Create(Arena, MachineId));
+        }
+    }
+
+    {
+        StringLocal(DeviceId, 64);
+        Platform_GetDeviceId(&DeviceId);
+        if (DeviceId.Length > 0)
+        {
+            AddInternalVariable(S("_Platform.DeviceId"), String_Create(Arena, DeviceId));
+        }
+    }
+
+
     #if PLATFORM_WINDOWS
     AddInternalVariable(S("_Platform"), S("Windows"));
     AddInternalVariable(S("Win32"),     String_Null());

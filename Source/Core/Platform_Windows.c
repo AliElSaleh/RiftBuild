@@ -2774,6 +2774,124 @@ NO_DISCARD PlatformVersion Platform_GetVersion(void)
     return Result;
 }
 
+NO_DISCARD u64 Platform_GetTotalRam(void)
+{
+    u64 TotalBytes = 0;
+
+    ULONGLONG TotalKilobytes = 0;
+    if (GetPhysicallyInstalledSystemMemory(&TotalKilobytes))
+    {
+        TotalBytes = (u64)TotalKilobytes * 1024;
+    }
+
+    return TotalBytes;
+}
+
+NO_DISCARD u32 Platform_GetUpdateBuildRevision(void)
+{
+    u32 Revision = 0;
+
+    // The UBR is not reported by any version API; it only lives in
+    // the registry under SOFTWARE\Microsoft\Windows NT\CurrentVersion as the "UBR" REG_DWORD.
+    HKEY Key = NULL;
+    LSTATUS Status = RegOpenKeyExA(HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion", 0, KEY_QUERY_VALUE, &Key);
+    if (Status == ERROR_SUCCESS)
+    {
+        DWORD Value = 0;
+        DWORD Size  = sizeof(Value);
+        if (RegQueryValueExA(Key, "UBR", NULL, NULL, (LPBYTE)&Value, &Size) == ERROR_SUCCESS)
+        {
+            Revision = (u32)Value;
+        }
+
+        xx RegCloseKey(Key);
+    }
+
+    return Revision;
+}
+
+void Platform_GetDisplayVersion(String* OutVersion)
+{
+    if (OutVersion)
+    {
+        // The feature-update label ("22H2") lives in the registry as the "DisplayVersion" REG_SZ.
+        // Older Windows 10 builds predate it, so fall back to the legacy "ReleaseId" value.
+        char Buffer[64] = {0};
+
+        HKEY Key = NULL;
+        LSTATUS Status = RegOpenKeyExA(HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion", 0, KEY_QUERY_VALUE, &Key);
+        if (Status == ERROR_SUCCESS)
+        {
+            DWORD Size = sizeof(Buffer);
+            LSTATUS Result = RegQueryValueExA(Key, "DisplayVersion", NULL, NULL, (LPBYTE)Buffer, &Size);
+            if (Result != ERROR_SUCCESS)
+            {
+                Size = sizeof(Buffer);
+                Result = RegQueryValueExA(Key, "ReleaseId", NULL, NULL, (LPBYTE)Buffer, &Size);
+            }
+
+            if (Result == ERROR_SUCCESS && Size > 0)
+            {
+                String_Copy(OutVersion, CStrEx(Buffer, sizeof(Buffer)));
+            }
+
+            xx RegCloseKey(Key);
+        }
+    }
+}
+
+void Platform_GetMachineId(String* OutId)
+{
+    if (OutId)
+    {
+        // Per-install GUID written at OS setup. Note: this is a shared (non-redirected) key, so the
+        // value is the same regardless of 32/64-bit process view.
+        char Buffer[64] = {0};
+
+        HKEY Key = NULL;
+        LSTATUS Status = RegOpenKeyExA(HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Cryptography", 0, KEY_QUERY_VALUE, &Key);
+        if (Status == ERROR_SUCCESS)
+        {
+            DWORD Size = sizeof(Buffer);
+            if (RegQueryValueExA(Key, "MachineGuid", NULL, NULL, (LPBYTE)Buffer, &Size) == ERROR_SUCCESS && Size > 0)
+            {
+                String_Copy(OutId, CStrEx(Buffer, sizeof(Buffer)));
+            }
+
+            xx RegCloseKey(Key);
+        }
+    }
+}
+
+void Platform_GetDeviceId(String* OutId)
+{
+    if (OutId)
+    {
+        // This is what Settings > About labels "Device ID": the SQMClient MachineId, which is stored
+        // as a brace-wrapped GUID ({GUID}). Settings shows it without the braces, so strip them.
+        char Buffer[64] = {0};
+
+        HKEY Key = NULL;
+        LSTATUS Status = RegOpenKeyExA(HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\SQMClient", 0, KEY_QUERY_VALUE, &Key);
+        if (Status == ERROR_SUCCESS)
+        {
+            DWORD Size = sizeof(Buffer);
+            if (RegQueryValueExA(Key, "MachineId", NULL, NULL, (LPBYTE)Buffer, &Size) == ERROR_SUCCESS && Size > 0)
+            {
+                String Value = CStrEx(Buffer, sizeof(Buffer));
+                if (Value.Length >= 2 && Value.Data[0] == '{' && Value.Data[Value.Length - 1] == '}')
+                {
+                    Value = StrSlice(Value.Data + 1, Value.Length - 2);
+                }
+
+                String_Copy(OutId, Value);
+            }
+
+            xx RegCloseKey(Key);
+        }
+    }
+}
+
 NO_DISCARD bool Platform_IsConsoleFocused(void)
 {
     bool bIsFocused = false;

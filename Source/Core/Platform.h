@@ -351,12 +351,23 @@ RIFT_API NO_DISCARD CpuInfo Platform_QueryCPUInfo(void);
 // TODO: kernel version
 RIFT_API NO_DISCARD PlatformVersion Platform_GetVersion(void);
 
+RIFT_API NO_DISCARD u64 Platform_GetTotalRam(void);
+RIFT_API NO_DISCARD u32 Platform_GetUpdateBuildRevision(void);
+
+// OS feature-update / "DisplayVersion" string (e.g. "22H2"). Left empty on platforms with no equivalent.
+RIFT_API void Platform_GetDisplayVersion(String* OutVersion);
+
+// Per-install machine identifier (Windows Cryptography MachineGuid). Left empty where unavailable.
+RIFT_API void Platform_GetMachineId(String* OutId);
+
+// The "Device ID" shown in Windows Settings > About (SQMClient MachineId, braces stripped). Empty elsewhere.
+RIFT_API void Platform_GetDeviceId(String* OutId);
+
 RIFT_API NO_DISCARD bool Platform_IsWindowFocused(void);
 RIFT_API NO_DISCARD bool Platform_IsConsoleFocused(void);
 
 RIFT_API NO_DISCARD u32 Platform_GetPosixVersion(void);
 
-// Returns the C runtime library the program was built against ("msvcrt", "macos", "glibc", "musl", "bsd").
 RIFT_API NO_DISCARD String Platform_GetCLibraryName(void);
 
 #if PLATFORM_WINDOWS || PLATFORM_MAC

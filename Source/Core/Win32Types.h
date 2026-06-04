@@ -694,6 +694,18 @@ typedef POSVERSIONINFOA POSVERSIONINFO;
 typedef LPOSVERSIONINFOA LPOSVERSIONINFO;
 #endif // UNICODE
 
+typedef struct _MEMORYSTATUSEX {
+    DWORD     dwLength;
+    DWORD     dwMemoryLoad;
+    ULONGLONG ullTotalPhys;
+    ULONGLONG ullAvailPhys;
+    ULONGLONG ullTotalPageFile;
+    ULONGLONG ullAvailPageFile;
+    ULONGLONG ullTotalVirtual;
+    ULONGLONG ullAvailVirtual;
+    ULONGLONG ullAvailExtendedVirtual;
+} MEMORYSTATUSEX, *LPMEMORYSTATUSEX;
+
 
 typedef enum _COMPUTER_NAME_FORMAT {
   ComputerNameNetBIOS,
@@ -1869,7 +1881,9 @@ WINBASEAPI NO_DISCARD BOOL       WINAPI SetCurrentDirectoryW(LPCWSTR lpPathName)
 WINBASEAPI NO_DISCARD BOOL       WINAPI SetCurrentDirectoryA(LPCTSTR lpPathName);
 WINBASEAPI NO_DISCARD BOOL       WINAPI GetVersionExA(LPOSVERSIONINFOA lpVersionInformation);
 WINBASEAPI NO_DISCARD BOOL       WINAPI GetVersionExW(LPOSVERSIONINFOW lpVersionInformation);
-WINBASEAPI            LONG       WINAPI RtlGetVersion(PRTL_OSVERSIONINFOW lpVersionInformation); 
+WINBASEAPI            LONG       WINAPI RtlGetVersion(PRTL_OSVERSIONINFOW lpVersionInformation);
+WINBASEAPI NO_DISCARD BOOL       WINAPI GlobalMemoryStatusEx(LPMEMORYSTATUSEX lpBuffer);
+WINBASEAPI NO_DISCARD BOOL       WINAPI GetPhysicallyInstalledSystemMemory(ULONGLONG* TotalMemoryInKilobytes);
 WINBASEAPI NO_DISCARD HWND       WINAPI GetForegroundWindow(void);
 WINBASEAPI NO_DISCARD HWND       WINAPI GetFocus(void);
 WINBASEAPI NO_DISCARD HWND       WINAPI GetActiveWindow(void);

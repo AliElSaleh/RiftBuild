@@ -376,6 +376,40 @@ PlatformVersion Platform_GetVersion(void)
     return Result;
 }
 
+u64 Platform_GetTotalRam(void)
+{
+    u64 TotalBytes = 0;
+
+    u64 MemSize = 0;
+    usize Size = sizeof(MemSize);
+    if (sysctlbyname("hw.physmem", &MemSize, &Size, NULL, 0) == 0)
+    {
+        TotalBytes = MemSize;
+    }
+
+    return TotalBytes;
+}
+
+u32 Platform_GetUpdateBuildRevision(void)
+{
+    return 0; // no UBR-equivalent on BSD
+}
+
+void Platform_GetDisplayVersion(String* OutVersion)
+{
+    UNUSED_PARAM(OutVersion); // no DisplayVersion-equivalent on BSD
+}
+
+void Platform_GetMachineId(String* OutId)
+{
+    UNUSED_PARAM(OutId); // TODO: sysctl kern.hostuuid
+}
+
+void Platform_GetDeviceId(String* OutId)
+{
+    UNUSED_PARAM(OutId); // no Settings "Device ID" equivalent on BSD
+}
+
 bool Platform_IsWindowFocused(void)
 {
     // no BSD implementation
