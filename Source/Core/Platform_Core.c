@@ -9,6 +9,10 @@
 #include "Uuid.h"
 #endif
 
+#if PLATFORM_LINUX
+#include <features.h> // defines __GLIBC__ when building against glibc (absent on musl)
+#endif
+
 read_only FileHandle g_FileHandle = { .Data = &(u8[64]){0} };
 
 #if CPU_X86 || CPU_X64
@@ -1236,6 +1240,29 @@ NO_DISCARD bool Platform_IsLittleEndian(void)
     uchar* c = (uchar*)&a;
     bool bLittle = c[0] == 1;
     return bLittle;
+}
+
+NO_DISCARD String Platform_GetCLibraryName(void)
+{
+    String Name;
+
+    #if PLATFORM_WINDOWS
+    Name = S("msvcrt");
+    #elif PLATFORM_MAC
+    Name = S("macos");
+    #elif PLATFORM_LINUX
+    #if defined(__GLIBC__)
+    Name = S("glibc");
+    #else
+    Name = S("musl");
+    #endif
+    #elif PLATFORM_BSD
+    Name = S("bsd");
+    #else
+    Name = String_Null();
+    #endif
+
+    return Name;
 }
 
 NO_DISCARD ECpuClipBehaviour Platform_GetCpuClippingBehaviour(void)

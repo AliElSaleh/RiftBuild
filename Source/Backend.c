@@ -75,8 +75,8 @@ static void LogCompilingFile(u32 Index, u32 NumSources, String FullPath)
     u8 NumDigits2 = Integer_CountDigits(Index);
     u8 Diff = (u8)(NumDigits1 - NumDigits2) + 1;
 
-    StringLocal(Spaces, 128);
-    Spaces.Length = Diff;
+    StringLocal(Spaces, 16);
+    Spaces.Length = Min(Diff, 16);
     String_Fill(&Spaces, ' ');
 
     LOG("[%i/%i]%SCompiling %S", Index, NumSources, Spaces, FullPath);

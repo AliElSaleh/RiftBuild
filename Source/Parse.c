@@ -6726,7 +6726,8 @@ bool ExpandBuildVariable(LinearAllocator Scratch, FileVariableList* VariablesDB,
                     // the output of a found empty % cmd depends on the context...
                     // if we're inside certain keywords (like "Depends") then expand to nothing if we didnt find a value
                     bool bExpandToNothing = false;
-                    if (String_IsEqual(Root, S("Depends"), false))
+                    if (String_IsEqual(Root, S("Depend"), false) ||
+                        String_IsEqual(Root, S("Depends"), false))
                     {
                         bExpandToNothing = true;
                     }

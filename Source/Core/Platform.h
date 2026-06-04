@@ -356,6 +356,9 @@ RIFT_API NO_DISCARD bool Platform_IsConsoleFocused(void);
 
 RIFT_API NO_DISCARD u32 Platform_GetPosixVersion(void);
 
+// Returns the C runtime library the program was built against ("msvcrt", "macos", "glibc", "musl", "bsd").
+RIFT_API NO_DISCARD String Platform_GetCLibraryName(void);
+
 #if PLATFORM_WINDOWS || PLATFORM_MAC
 RIFT_API            void Platform_DetectDesktopEnvironment(String* DesktopEnv);
 #elif PLATFORM_BSD || PLATFORM_LINUX

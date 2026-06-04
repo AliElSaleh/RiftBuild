@@ -56,19 +56,9 @@ if windows
     Libraries:32:!debug  libcmt  libvcruntime
     Libraries:32: debug  libcmtd libvcruntimed
 
-    if asan
-    {
-        if msvc
-        {
-            Libraries clang_rt.asan_dynamic_runtime_thunk-x86_64.lib
-        }
-
-        if clang
-        {
-            Libraries:debug  clang_rt.asan_dbg_dynamic-x86_64.lib
-            Libraries:!debug clang_rt.asan_dynamic-x86_64
-        }
-    }
+    Libraries:asan:msvc         clang_rt.asan_dynamic_runtime_thunk-x86_64.lib
+    Libraries:asan:clang:debug  clang_rt.asan_dbg_dynamic-x86_64.lib
+    Libraries:asan:clang:!debug clang_rt.asan_dynamic-x86_64
 }
 
 option.compiler(clang gcc cl tcc)   Select a compiler vendor to build with.

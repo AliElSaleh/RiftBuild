@@ -18,7 +18,7 @@ if msvc
     SharedLinkerFlags                /SAFESEH:NO /INCREMENTAL:NO
     SharedLinkerFlags                /MACHINE:$MachineType
 
-    DebugFlags                       /Zi /FS /Fd"$IntermediateDirectory\$(Assembly).pdb"
+    DebugFlags                       /Zi /FS /Fd"$IntermediateDirectory/$(Assembly).pdb"
     
     if asan
     {
@@ -28,8 +28,8 @@ if msvc
         SharedLinkerFlags            /DEBUG
 
         Library.Paths                "%Compiler.LibraryPath"
-        PostBuild.copy               "%Compiler.InstallPath\clang_rt.asan_dynamic-x86_64.dll"     $BuildDirectory
-        PostBuild.copy               "%Compiler.InstallPath\clang_rt.asan_dbg_dynamic-x86_64.dll" $BuildDirectory
+        PostBuild.copy               "%Compiler.InstallPath/clang_rt.asan_dynamic-x86_64.dll"     $BuildDirectory
+        PostBuild.copy               "%Compiler.InstallPath/clang_rt.asan_dbg_dynamic-x86_64.dll" $BuildDirectory
     }
     else
     {
@@ -120,7 +120,7 @@ if clang|gcc
 
         if windows
         {
-            PostBuild.copy "%Compiler.LibraryPath\clang\20\lib\windows\clang_rt.asan_dynamic-x86_64.dll" $BuildDirectory
+            PostBuild.copy "%Compiler.LibraryPath/clang/20/lib/windows/clang_rt.asan_dynamic-x86_64.dll" $BuildDirectory
         }
     }
     else
