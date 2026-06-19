@@ -187,8 +187,6 @@ STRUCT(StringList) // 24 bytes
 #define each_string_in_list(x)              each_str_list(x)
 #define each_string_in_list_i(i, x)         each_str_list_i(i, x)
 
-#define StringN(n)  		                struct { uchar Data[n]; u32 Length; u32 Capacity; }
-
 #define StringLocal(Name, n) 	            String   Name; uchar MACRO_VAR(CONCAT(Buffer_, Name))[n+1] = {0}; Name.Data = MACRO_VAR(CONCAT(Buffer_, Name)); Name.Length = 0; Name.Capacity = (n)
 #define String16Local(Name, n) 	            String16 Name; wchar MACRO_VAR(CONCAT(Buffer_, Name))[n+1] = {0}; Name.Data = MACRO_VAR(CONCAT(Buffer_, Name)), Name.Length = 0, Name.Capacity = (n)
 

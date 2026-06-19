@@ -20,13 +20,6 @@
 const usize GEngineMemoryAmount  = Kibibytes(128);
 const usize GEngineScratchAmount = Kibibytes(8);
 
-// TODO: we need the ability to run a custom program for each source file and for all source files at once.
-//       something like <program> <source_file_path>
-//       in the build file we could do something like:
-//           PreCompileFile.Exec <program> "source_file_path" <args>
-//           PreCompileAllFileFiles.Exec <program> "source_file_path" etc. <args>
-//        the "source_file_path" is inserted by the build system, everything else is user specified
-
 // TODO: new assembly type. AssemblyType_NoAssembly or AssemblyType_SourceTransform.
 //       behaves like "no compiler object" type but has extra checks (like no linking) and ui changes
 //       instead of saying "building", we change the language to "transforming", etc.
@@ -2415,6 +2408,24 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const FileVa
     return bSuccess;
 }
 
+// Returns true if VarName names a build command for exactly this phase Key (e.g. "PreCompile.Exec" matches
+// Key "PreCompile"), but not a longer phase that merely shares the prefix (e.g. "PreCompileFile.Exec" must NOT
+// match Key "PreCompile"). Phase commands are always written as "<Phase>.<Verb>".
+static bool Internal_PhaseKeyMatches(const String VarName, const String Key)
+{
+    bool bResult = false;
+
+    if (String_StartsWith(VarName, Key, false))
+    {
+        if (VarName.Length == Key.Length || VarName.Data[Key.Length] == '.')
+        {
+            bResult = true;
+        }
+    }
+
+    return bResult;
+}
+
 static bool TryRunBuildCommands(const String Key, const String WorkingPath, TArray(FileVariable) VariablesDB, Clock* Timer, bool bIsClean)
 {
     bool bSuccess = true;
@@ -2424,7 +2435,7 @@ static bool TryRunBuildCommands(const String Key, const String WorkingPath, TArr
     u8 NumCmds = 0;
     for each (FileVariable, Var, VariablesDB)
     {
-        if (String_StartsWith(Var.Name, Key, false))
+        if (Internal_PhaseKeyMatches(Var.Name, Key))
         {
             Cmds[NumCmds] = Var_;
             NumCmds++;
@@ -2469,6 +2480,116 @@ static bool TryRunBuildCommands(const String Key, const String WorkingPath, TArr
 
                 bSuccess = false;
                 break;
+            }
+        }
+
+        if (Timer)
+        {
+            Clock_Tick(Timer);
+            Timer->ElapsedTime += ElapsedSoFar;
+        }
+
+        LOG_LINE_BREAK();
+    }
+
+    return bSuccess;
+}
+
+// Runs build commands that operate on the assembly's source files. Two phases are supported:
+//   PreCompileFile     - the command is run once per source file, with that file's full path appended as the last argument.
+//   PreCompileAllFiles - the command is run a single time, with every source file's full path appended as arguments.
+// In both cases the source path(s) are supplied by the build system; the build file only specifies the program and its
+// own arguments, e.g.  PreCompileFile.Exec my_codegen --flag
+static bool TryRunPerSourceFileBuildCommands(const String Key, const BuildParams* Params, const String WorkingPath, TArray(FileVariable) VariablesDB, Clock* Timer, bool bIsClean, bool bAllFilesAtOnce)
+{
+    bool bSuccess = true;
+
+    FileVariable* Cmds[64] = {0}; // reasonable max limit
+
+    u8 NumCmds = 0;
+    for each (FileVariable, Var, VariablesDB)
+    {
+        if (Internal_PhaseKeyMatches(Var.Name, Key))
+        {
+            Cmds[NumCmds] = Var_;
+            NumCmds++;
+            if (NumCmds >= 64)
+            {
+                break;
+            }
+        }
+    }
+
+    if (NumCmds > 0 && !bIsClean)
+    {
+        LOG("%S:", Key);
+
+        f64 ElapsedSoFar = 0;
+        if (Timer)
+        {
+            ElapsedSoFar = Timer->ElapsedTime;
+            Clock_Start(Timer);
+        }
+
+        for (u8 i = 0; i < NumCmds && bSuccess; i++)
+        {
+            const FileVariable* Var = Cmds[i];
+
+            if (bAllFilesAtOnce)
+            {
+                StringLocal(CmdValue, 8192);
+                String_Append(&CmdValue, Var->Value);
+
+                for each_string_in_list (Params->SourceFiles)
+                {
+                    StringLocal(FullPath, MAX_PATH_LENGTH);
+                    bool bInsideIntermediatePath = String_StartsWith(It.String, Params->IntermediateDirectory, false);
+                    String_BuildPath(&FullPath, Params->RootDirectory, bInsideIntermediatePath ? String_Null() : Params->SourceDirectory, It.String);
+
+                    StringLocal(WrappedPath, MAX_PATH_LENGTH + 2);
+                    String_WrapPath(&WrappedPath, FullPath);
+
+                    String_AppendSpace(&CmdValue);
+                    String_Append(&CmdValue, WrappedPath);
+                }
+
+                FileVariable RunVar = *Var;
+                RunVar.Value = CmdValue;
+
+                u32 ExitCode = 0;
+                if (!Internal_ExecuteBuildCmd(WorkingPath, RunVar, &ExitCode))
+                {
+                    LOG_ERROR("%S command exited with a failure result: %u", Key, ExitCode);
+                    bSuccess = false;
+                }
+            }
+            else
+            {
+                for each_string_in_list (Params->SourceFiles)
+                {
+                    StringLocal(FullPath, MAX_PATH_LENGTH);
+                    bool bInsideIntermediatePath = String_StartsWith(It.String, Params->IntermediateDirectory, false);
+                    String_BuildPath(&FullPath, Params->RootDirectory, bInsideIntermediatePath ? String_Null() : Params->SourceDirectory, It.String);
+
+                    StringLocal(WrappedPath, MAX_PATH_LENGTH + 2);
+                    String_WrapPath(&WrappedPath, FullPath);
+
+                    StringLocal(CmdValue, 8192);
+                    String_Append(&CmdValue, Var->Value);
+                    String_AppendSpace(&CmdValue);
+                    String_Append(&CmdValue, WrappedPath);
+
+                    FileVariable RunVar = *Var;
+                    RunVar.Value = CmdValue;
+
+                    u32 ExitCode = 0;
+                    if (!Internal_ExecuteBuildCmd(WorkingPath, RunVar, &ExitCode))
+                    {
+                        LOG_ERROR("%S command exited with a failure result: %u", Key, ExitCode);
+                        bSuccess = false;
+                        break;
+                    }
+                }
             }
         }
 
@@ -7066,6 +7187,18 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     Clock_Start(&ExternalClock);
 
     if (!TryRunBuildCommands(S("PreCompile"), WorkingPath, VariablesDB, &ExternalClock, bIsClean))
+    {
+        Receipt.ExitCode = 1;
+        return Receipt;
+    }
+
+    if (!TryRunPerSourceFileBuildCommands(S("PreCompileAllFiles"), &p, WorkingPath, VariablesDB, &ExternalClock, bIsClean, true))
+    {
+        Receipt.ExitCode = 1;
+        return Receipt;
+    }
+
+    if (!TryRunPerSourceFileBuildCommands(S("PreCompileFile"), &p, WorkingPath, VariablesDB, &ExternalClock, bIsClean, false))
     {
         Receipt.ExitCode = 1;
         return Receipt;
