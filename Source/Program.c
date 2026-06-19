@@ -20,6 +20,17 @@
 const usize GEngineMemoryAmount  = Kibibytes(128);
 const usize GEngineScratchAmount = Kibibytes(8);
 
+// TODO: we need the ability to run a custom program for each source file and for all source files at once.
+//       something like <program> <source_file_path>
+//       in the build file we could do something like:
+//           PreCompileFile.Exec <program> "source_file_path" <args>
+//           PreCompileAllFileFiles.Exec <program> "source_file_path" etc. <args>
+//        the "source_file_path" is inserted by the build system, everything else is user specified
+
+// TODO: new assembly type. AssemblyType_NoAssembly or AssemblyType_SourceTransform.
+//       behaves like "no compiler object" type but has extra checks (like no linking) and ui changes
+//       instead of saying "building", we change the language to "transforming", etc.
+
 // Let the user in the build script customize how much memory we should pre-allocate.
 // Default is 1MiB
 #ifndef MAX_MEMORY_MB
@@ -6263,6 +6274,11 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     bool bCanLink = AssemblyType != AssemblyType_CustomCompilerObject ||
                     (AssemblyType == AssemblyType_CustomCompilerObject && bExplicitLinker);
 
+    if (AssemblyType == AssemblyType_NoCompilerObject)
+    {
+        bCanLink = false;
+    }
+
     #if !NO_PRINT_BUILD_CONFIG
     if (!bExportingSomething)
     {
@@ -6285,17 +6301,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                     LOG("    Assembly:             %S and %S%S", AssemblyNameWithExt, AssemblyName, NextExt);
                 }
             }
-
-            const String AssemblyTypeStringTable[7] =
-            {
-                S("None"),
-                S("Executable"),
-                S("Library"),
-                S("Static Library"),
-                S("Shared Library"),
-                S("Pre Compiled Header"),
-                S("Compiler Object"),
-            };
 
             StringLocal(ExtInfo, 32);
             String_Format(&ExtInfo, S(" (%S)"), Extension_Og);
@@ -6919,28 +6924,31 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
     //LOG_INFO("Max compilers: %u", MaxCompilersAtOnce);
 
-    if (!String_IsEqual(BuildDirectory, S("."), false))
+    if (AssemblyType != AssemblyType_NoCompilerObject)
     {
-        StringLocal(FullBuildDirectory, MAX_PATH_LENGTH);
-        String_BuildPath(&FullBuildDirectory, WorkingPath, BuildDirectory);
-        if (!Filesystem_DoesDirectoryExist(FullBuildDirectory))
+        if (!String_IsEqual(BuildDirectory, S("."), false))
         {
-            if (!Filesystem_OpenDirectory(FullBuildDirectory))
+            StringLocal(FullBuildDirectory, MAX_PATH_LENGTH);
+            String_BuildPath(&FullBuildDirectory, WorkingPath, BuildDirectory);
+            if (!Filesystem_DoesDirectoryExist(FullBuildDirectory))
+            {
+                if (!Filesystem_OpenDirectory(FullBuildDirectory))
+                {
+                    Receipt.ExitCode = 1;
+                    return Receipt;
+                }
+            }
+        }
+    
+        StringLocal(IntSrcDir, MAX_PATH_LENGTH);
+        String_BuildPath(&IntSrcDir, IntermediateBaseDirectory, SourceDirectory);
+        if (!Filesystem_DoesDirectoryExist(IntermediateBaseDirectory))
+        {
+            if (!Filesystem_OpenDirectory(IntermediateBaseDirectory))
             {
                 Receipt.ExitCode = 1;
                 return Receipt;
             }
-        }
-    }
-
-    StringLocal(IntSrcDir, MAX_PATH_LENGTH);
-    String_BuildPath(&IntSrcDir, IntermediateBaseDirectory, SourceDirectory);
-    if (!Filesystem_DoesDirectoryExist(IntermediateBaseDirectory))
-    {
-        if (!Filesystem_OpenDirectory(IntermediateBaseDirectory))
-        {
-            Receipt.ExitCode = 1;
-            return Receipt;
         }
     }
 
@@ -7302,7 +7310,8 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     String_Append(&OutputPath, AssemblyNameWithExt);
     String_AppendChar(&OutputPath, '"');
 
-    if (AssemblyType == AssemblyType_CustomCompilerObject)
+    if (AssemblyType == AssemblyType_CustomCompilerObject ||
+        AssemblyType == AssemblyType_NoCompilerObject)
     {
         #ifndef HOOD
         LOG_SUCCESS("Build complete", OutputPath);

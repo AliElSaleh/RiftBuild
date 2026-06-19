@@ -86,7 +86,21 @@ ENUM(EAssemblyType)
     AssemblyType_DynamicLibrary,
     AssemblyType_PCH,
     AssemblyType_CustomCompilerObject,
+    AssemblyType_NoCompilerObject,
     AssemblyType_Null
+};
+
+static String AssemblyTypeStringTable[9] =
+{
+    S("None"),
+    S("Executable"),
+    S("Library"),
+    S("Static Library"),
+    S("Shared Library"),
+    S("Pre Compiled Header"),
+    S("Compiler Object"),
+    S("No Compiler Object"),
+    S("Null"),
 };
 
 ENUM(ECompiler)

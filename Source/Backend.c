@@ -441,7 +441,21 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
         String_Append    (&CmdLine, Params->CompilerPath);
         String_AppendChar(&CmdLine, '"');
 
-        if (Params->Type == AssemblyType_CustomCompilerObject)
+        if (Params->Type == AssemblyType_NoCompilerObject)
+        {
+            OutputFlag = String_Null();
+            String_Empty(&ObjectPath);
+
+            if (String_IsValid(Params->CompilerCompileFlag))
+            {
+                CompileFlag = Params->CompilerCompileFlag;
+            }
+            else
+            {
+                CompileFlag = String_Null();
+            }
+        }
+        else if (Params->Type == AssemblyType_CustomCompilerObject)
         {
             if (String_IsValid(Params->CompilerOutputFlag))
             {
@@ -543,9 +557,12 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
         String_BuildSeparator(&CmdLine, ' ', CompilerFlagsLeft, CompileFlag, FullSourcePath, CompilerFlagsRight, Params->IncludeFlags, Params->DefineFlags, AdditionalFlags, PCHFlags, OutputFlag);
         xx String_EatSpacesInlineFromEnd(&CmdLine);
 
-        String_Append(&CmdLine, S(" \""));
-        String_Append(&CmdLine, ObjectPath);
-        String_Append(&CmdLine, S("\""));
+        if (String_IsValid(ObjectPath))
+        {
+            String_Append(&CmdLine, S(" \""));
+            String_Append(&CmdLine, ObjectPath);
+            String_Append(&CmdLine, S("\""));
+        }
     }
 
     // Record the object this source maps to, and the compiler's sibling ".d"
@@ -974,6 +991,11 @@ EAssemblyType StringToAssemblyTypeEnum(String Type)
              String_IsEqual(Type, S("compiler_object"), false))
     {
         AssemblyType = AssemblyType_CustomCompilerObject;
+    }
+    else if (String_IsEqual(Type, S("no_object"), false) ||
+             String_IsEqual(Type, S("no_compiler_object"), false))
+    {
+        AssemblyType = AssemblyType_NoCompilerObject;
     }
     else if (String_IsEqual(Type, S("null"), false) ||
              String_IsEqual(Type, S("none"), false) ||
