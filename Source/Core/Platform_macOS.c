@@ -294,8 +294,8 @@ u64 Platform_GetTotalRam(void)
 {
     u64 TotalBytes = 0;
 
-    u64 MemSize = 0;
-    usize Size = sizeof(MemSize);
+    ulong MemSize = 0;
+    ulong Size = sizeof(MemSize);
     if (sysctlbyname("hw.memsize", &MemSize, &Size, NULL, 0) == 0)
     {
         TotalBytes = MemSize;
