@@ -4602,9 +4602,20 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     // each resolved module without copying, everything it references -- including its inputs -- must live
     // in the module arena. (BuildFilePathFull and BuildFileName below are derived from BuildFilePath, so
     // they inherit the arena backing automatically.)
-    if (String_IsValid(WorkingPath))       { WorkingPath       = String_Create(Arena, WorkingPath); }
-    if (String_IsValid(BuildFilePath))     { BuildFilePath     = String_Create(Arena, BuildFilePath); }
-    if (String_IsValid(CameFromBuildFile)) { CameFromBuildFile = String_Create(Arena, CameFromBuildFile); }
+    if (String_IsValid(WorkingPath))
+    {
+        WorkingPath = String_Create(Arena, WorkingPath);
+    }
+
+    if (String_IsValid(BuildFilePath))
+    {
+        BuildFilePath = String_Create(Arena, BuildFilePath);
+    }
+
+    if (String_IsValid(CameFromBuildFile))
+    {
+        CameFromBuildFile = String_Create(Arena, CameFromBuildFile);
+    }
 
     if (!Platform_SetWorkingDirectory(WorkingPath))
     {
@@ -7806,7 +7817,11 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     // lifecycle hook, the compile, and the link to ExecuteBuildPlan's phase-global barriers.
     if (bPlanOnly)
     {
-        if (NEVER(Plan == NULL)) { Receipt.ExitCode = 1; return Receipt; }
+        if (NEVER(Plan == NULL))
+        {
+            Receipt.ExitCode = 1;
+            return Receipt;
+        }
 
         ModuleNode Temp = {0};
         Temp.Params               = p;
@@ -8254,7 +8269,10 @@ static bool Plan_RunHook(const String Key, ModuleNode* Node)
 
 static bool Plan_AssemblyExists(ModuleNode* Node)
 {
-    if (!Node->bCanLink) { return true; }
+    if (!Node->bCanLink)
+    {
+        return true;
+    }
 
     StringLocal(AssemblyPath, MAX_PATH_LENGTH);
     String_BuildPath(&AssemblyPath, Node->BuildBaseDirectory, Node->Params.AssemblyWithExt);
@@ -8265,9 +8283,20 @@ static bool Plan_ExecPreCompilePrep(ModuleNode* Node)
 {
     BuildParams* p = &Node->Params;
 
-    if (!TryRunBuildCommands(S("PreCompile"), Node->WorkingPath, Node->VariablesDB, NULL, Node->bIsClean)) { return false; }
-    if (!TryRunPerSourceFileBuildCommands(S("PreCompileAllFiles"), p, Node->WorkingPath, Node->VariablesDB, NULL, Node->bIsClean, true))  { return false; }
-    if (!TryRunPerSourceFileBuildCommands(S("PreCompileFile"),     p, Node->WorkingPath, Node->VariablesDB, NULL, Node->bIsClean, false)) { return false; }
+    if (!TryRunBuildCommands(S("PreCompile"), Node->WorkingPath, Node->VariablesDB, NULL, Node->bIsClean))
+    {
+        return false;
+    }
+
+    if (!TryRunPerSourceFileBuildCommands(S("PreCompileAllFiles"), p, Node->WorkingPath, Node->VariablesDB, NULL, Node->bIsClean, true))
+    {
+        return false;
+    }
+
+    if (!TryRunPerSourceFileBuildCommands(S("PreCompileFile"), p, Node->WorkingPath, Node->VariablesDB, NULL, Node->bIsClean, false))
+    {
+        return false;
+    }
 
     if (p->NumSources > 0)
     {
@@ -8300,13 +8329,23 @@ static bool Plan_ExecFinalizeArtifacts(ModuleNode* Node)
     #if PLATFORM_APPLE
     if (Node->bBundleApp && p->bIsAssemblyExe)
     {
-        if (!TryBuildMacBundle(Node->Arena, p, Node->VariablesDB)) { return false; }
+        if (!TryBuildMacBundle(Node->Arena, p, Node->VariablesDB))
+        {
+            return false;
+        }
     }
-    if (!TryBuildOrCleanMacExeIcon(p->IconFilePath, p)) { return false; }
+
+    if (!TryBuildOrCleanMacExeIcon(p->IconFilePath, p))
+    {
+        return false;
+    }
     #elif PLATFORM_LINUX || PLATFORM_BSD
     if (Platform_GetDesktopEnvironment() != Desktop_Unknown)
     {
-        if (!TryBuildOrCleanUnixExeIcon(p->IconFilePath, p)) { return false; }
+        if (!TryBuildOrCleanUnixExeIcon(p->IconFilePath, p))
+        {
+            return false;
+        }
     }
     #else
     (void)p;
@@ -8318,15 +8357,30 @@ static bool Plan_ExecFinalizeArtifacts(ModuleNode* Node)
 static void Plan_RunRootAssemblyIfRequested(ModuleNode* Node, const StringArray Parameters)
 {
     BuildParams* p = &Node->Params;
-    if (!p->bIsAssemblyExe) { return; }
+    if (!p->bIsAssemblyExe)
+    {
+        return;
+    }
 
     u32 RunIndex = 0;
     bool bRunFound = false;
     bool bRunExternal = false;
     for (u8 i = 0; i < (u8)Parameters.Num; i++)
     {
-        if (String_IsEqual(Parameters.List[i], S("run"), false))          { RunIndex = i; bRunFound = true; break; }
-        if (String_IsEqual(Parameters.List[i], S("run.external"), false)) { RunIndex = i; bRunFound = true; bRunExternal = true; break; }
+        if (String_IsEqual(Parameters.List[i], S("run"), false))
+        {
+            RunIndex = i;
+            bRunFound = true;
+            break;
+        }
+
+        if (String_IsEqual(Parameters.List[i], S("run.external"), false))
+        {
+            RunIndex = i;
+            bRunFound = true;
+            bRunExternal = true;
+            break;
+        }
     }
 
     if (bRunFound)
@@ -8334,12 +8388,22 @@ static void Plan_RunRootAssemblyIfRequested(ModuleNode* Node, const StringArray 
         StringLocal(RunArgs, 4096);
         for (u32 i = RunIndex + 1; i < Parameters.Num; i++)
         {
-            if (i > RunIndex + 1) { String_AppendSpace(&RunArgs); }
+            if (i > RunIndex + 1)
+            {
+                String_AppendSpace(&RunArgs);
+            }
+
             String_Append(&RunArgs, Parameters.List[i]);
         }
 
-        if (bRunExternal) { Internal_RunAssembly_ExternalWindow(Node->BuildBaseDirectory, Node->BuildBaseDirectory, p->AssemblyWithExt, RunArgs); }
-        else              { Internal_RunAssembly_CmdLine(Node->BuildBaseDirectory, Node->BuildBaseDirectory, p->AssemblyWithExt, RunArgs, String_Null()); }
+        if (bRunExternal)
+        {
+            Internal_RunAssembly_ExternalWindow(Node->BuildBaseDirectory, Node->BuildBaseDirectory, p->AssemblyWithExt, RunArgs);
+        }
+        else
+        {
+            Internal_RunAssembly_CmdLine(Node->BuildBaseDirectory, Node->BuildBaseDirectory, p->AssemblyWithExt, RunArgs, String_Null());
+        }
     }
 
     for each (FileVariable, v, Node->VariablesDB)
@@ -8352,10 +8416,19 @@ static void Plan_RunRootAssemblyIfRequested(ModuleNode* Node, const StringArray 
             bool bIsSpecial  = StringList_FindIndex(ParamList, S("Only_Done_Work"), false, StringCompare_Equal, NULL);
             bool bIsExternal = StringList_FindIndex(ParamList, S("external"), false, StringCompare_Equal, NULL);
 
-            if (bIsSpecial && Node->NumCompiled == 0) { continue; }
+            if (bIsSpecial && Node->NumCompiled == 0)
+            {
+                continue;
+            }
 
-            if (bIsExternal) { Internal_RunAssembly_ExternalWindow(Node->WorkingPath, Node->BuildBaseDirectory, p->AssemblyWithExt, v.Value); }
-            else             { Internal_RunAssembly(Node->Arena, Node->WorkingPath, Node->BuildBaseDirectory, p->AssemblyWithExt, v.Value); }
+            if (bIsExternal)
+            {
+                Internal_RunAssembly_ExternalWindow(Node->WorkingPath, Node->BuildBaseDirectory, p->AssemblyWithExt, v.Value);
+            }
+            else
+            {
+                Internal_RunAssembly(Node->Arena, Node->WorkingPath, Node->BuildBaseDirectory, p->AssemblyWithExt, v.Value);
+            }
         }
     }
 }
@@ -8366,14 +8439,21 @@ static void Plan_Free(BuildPlan* Plan)
     for (usize i = 0; i < Plan->NumModules; i++)
     {
         ModuleNode* Node = Plan->Modules[i];
-        if (IsValidFileHandle(Node->Params.ArtifactManifestHandle)) { Filesystem_Close(&Node->Params.ArtifactManifestHandle); }
+        if (IsValidFileHandle(Node->Params.ArtifactManifestHandle))
+        {
+            Filesystem_Close(&Node->Params.ArtifactManifestHandle);
+        }
     }
 
     // Release every per-module arena block (each module resolved directly into one; nothing was
     // copied out). This also covers deduped diamond re-resolutions that never became a module.
     for (u32 i = 0; i < Plan->NumArenaBlocks; i++)
     {
-        if (Plan->ArenaBlocks[i]) { Platform_MemFree(Plan->ArenaBlocks[i]); Plan->ArenaBlocks[i] = NULL; }
+        if (Plan->ArenaBlocks[i])
+        {
+            Platform_MemFree(Plan->ArenaBlocks[i]);
+            Plan->ArenaBlocks[i] = NULL;
+        }
     }
     Plan->NumArenaBlocks = 0;
 }
@@ -8383,20 +8463,43 @@ static BuildReceipt ExecuteBuildPlan(BuildPlan* Plan, const StringArray RootPara
     BuildReceipt Result = {0};
 
     const usize N = Plan->NumModules;
-    if (N == 0) { return Result; }
+    if (N == 0)
+    {
+        return Result;
+    }
 
     #define PLAN_FAIL() do { Result.ExitCode = 1; return Result; } while (0)
 
     // PreDepend + PreBuild barriers (dependency order)
-    for (usize i = 0; i < N; i++) { if (!Plan_RunHook(S("PreDepend"), Plan->Modules[i])) { PLAN_FAIL(); } }
-    for (usize i = 0; i < N; i++) { if (!Plan_RunHook(S("PreBuild"),  Plan->Modules[i])) { PLAN_FAIL(); } }
+    for (usize i = 0; i < N; i++)
+    {
+        if (!Plan_RunHook(S("PreDepend"), Plan->Modules[i]))
+        {
+            PLAN_FAIL();
+        }
+    }
+
+    for (usize i = 0; i < N; i++)
+    {
+        if (!Plan_RunHook(S("PreBuild"), Plan->Modules[i]))
+        {
+            PLAN_FAIL();
+        }
+    }
 
     // PreCompile barrier: hooks, "Building" banner, manifest open, generated/icon/version records
     for (usize i = 0; i < N; i++)
     {
         ModuleNode* Node = Plan->Modules[i];
-        if (Node->bIsPhony) { continue; }
-        if (!Plan_ExecPreCompilePrep(Node)) { PLAN_FAIL(); }
+        if (Node->bIsPhony)
+        {
+            continue;
+        }
+
+        if (!Plan_ExecPreCompilePrep(Node))
+        {
+            PLAN_FAIL();
+        }
     }
 
     // One shared parallel compile batch: every module's source files spawn onto the same throttled
@@ -8409,8 +8512,17 @@ static BuildReceipt ExecuteBuildPlan(BuildPlan* Plan, const StringArray RootPara
     for (usize i = 0; i < N; i++)
     {
         ModuleNode* Node = Plan->Modules[i];
-        if (Node->bIsPhony) { continue; }
-        if (!C_Compile_Spawn(&Node->Params, &Node->NumCompiled)) { bSpawnOk = false; break; }
+        if (Node->bIsPhony)
+        {
+            continue;
+        }
+
+        if (!C_Compile_Spawn(&Node->Params, &Node->NumCompiled))
+        {
+            bSpawnOk = false;
+            break;
+        }
+
         TotalCompiled += Node->NumCompiled;
     }
 
@@ -8421,9 +8533,15 @@ static BuildReceipt ExecuteBuildPlan(BuildPlan* Plan, const StringArray RootPara
     }
 
     Clock_Tick(&CompileClock);
-    if (OutCompileClock) { *OutCompileClock = CompileClock; }
+    if (OutCompileClock)
+    {
+        *OutCompileClock = CompileClock;
+    }
 
-    if (!bSpawnOk || !bCompileOk) { PLAN_FAIL(); }
+    if (!bSpawnOk || !bCompileOk)
+    {
+        PLAN_FAIL();
+    }
 
     // Decide per module whether any link/finalize work remains. Processed in dependency order, so
     // bAnyPriorWork conservatively means "a dependency (an earlier module) did work" -> relink.
@@ -8434,23 +8552,40 @@ static BuildReceipt ExecuteBuildPlan(BuildPlan* Plan, const StringArray RootPara
         Node->bAssemblyExists = Plan_AssemblyExists(Node);
         Node->bNoMoreWork  = (Node->NumCompiled == 0 && Node->bAssemblyExists && !Node->bForceRelink && !bAnyPriorWork);
         Node->bWorkWasDone = (Node->NumCompiled > 0) || (Node->bForceRelink && Node->bCanLink);
-        if (!Node->bNoMoreWork) { bAnyPriorWork = true; }
+        if (!Node->bNoMoreWork)
+        {
+            bAnyPriorWork = true;
+        }
     }
 
     // PostCompile barrier
     for (usize i = 0; i < N; i++)
     {
         ModuleNode* Node = Plan->Modules[i];
-        if (Node->bIsPhony || Node->bNoMoreWork) { continue; }
-        if (!Plan_RunHook(S("PostCompile"), Node)) { PLAN_FAIL(); }
+        if (Node->bIsPhony || Node->bNoMoreWork)
+        {
+            continue;
+        }
+
+        if (!Plan_RunHook(S("PostCompile"), Node))
+        {
+            PLAN_FAIL();
+        }
     }
 
     // PreLink barrier
     for (usize i = 0; i < N; i++)
     {
         ModuleNode* Node = Plan->Modules[i];
-        if (Node->bNoMoreWork || !Node->bCanLink) { continue; }
-        if (!Plan_RunHook(S("PreLink"), Node)) { PLAN_FAIL(); }
+        if (Node->bNoMoreWork || !Node->bCanLink)
+        {
+            continue;
+        }
+
+        if (!Plan_RunHook(S("PreLink"), Node))
+        {
+            PLAN_FAIL();
+        }
     }
 
     // Link barrier -- dependency order (C, then B, then App)
@@ -8460,36 +8595,66 @@ static BuildReceipt ExecuteBuildPlan(BuildPlan* Plan, const StringArray RootPara
     for (usize i = 0; i < N; i++)
     {
         ModuleNode* Node = Plan->Modules[i];
-        if (Node->bNoMoreWork || !Node->bCanLink) { continue; }
+        if (Node->bNoMoreWork || !Node->bCanLink)
+        {
+            continue;
+        }
 
-        if (!C_Link(&Node->Params)) { PLAN_FAIL(); }
+        if (!C_Link(&Node->Params))
+        {
+            PLAN_FAIL();
+        }
     }
 
     Clock_Tick(&LinkClock);
-    if (OutLinkClock) { *OutLinkClock = LinkClock; }
+    if (OutLinkClock)
+    {
+        *OutLinkClock = LinkClock;
+    }
 
     // PostLink barrier
     for (usize i = 0; i < N; i++)
     {
         ModuleNode* Node = Plan->Modules[i];
-        if (Node->bNoMoreWork || !Node->bCanLink) { continue; }
-        if (!Plan_RunHook(S("PostLink"), Node)) { PLAN_FAIL(); }
+        if (Node->bNoMoreWork || !Node->bCanLink)
+        {
+            continue;
+        }
+
+        if (!Plan_RunHook(S("PostLink"), Node))
+        {
+            PLAN_FAIL();
+        }
     }
 
     // Bundle/icon barrier
     for (usize i = 0; i < N; i++)
     {
         ModuleNode* Node = Plan->Modules[i];
-        if (Node->bIsPhony || Node->bNoMoreWork) { continue; }
-        if (!Plan_ExecFinalizeArtifacts(Node)) { PLAN_FAIL(); }
+        if (Node->bIsPhony || Node->bNoMoreWork)
+        {
+            continue;
+        }
+
+        if (!Plan_ExecFinalizeArtifacts(Node))
+        {
+            PLAN_FAIL();
+        }
     }
 
     // PostBuild barrier (every module; ".RunPostBuildIfWorkDone" skips it when nothing was done)
     for (usize i = 0; i < N; i++)
     {
         ModuleNode* Node = Plan->Modules[i];
-        if (Node->bSkipPostBuild && Node->bNoMoreWork) { continue; }
-        if (!Plan_RunHook(S("PostBuild"), Node)) { PLAN_FAIL(); }
+        if (Node->bSkipPostBuild && Node->bNoMoreWork)
+        {
+            continue;
+        }
+
+        if (!Plan_RunHook(S("PostBuild"), Node))
+        {
+            PLAN_FAIL();
+        }
     }
 
     // Announce the root artifact (the last module is the top-level target).

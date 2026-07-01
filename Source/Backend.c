@@ -266,13 +266,30 @@ static void Internal_AppendFileOverrideFlags(const BuildParams* Params, const St
 // directory named "int", which then drops the source directory and loses the file.
 static bool Internal_IsPathUnderDirectory(const String Path, const String Dir)
 {
-    if (!String_IsValid(Dir) || Dir.Length == 0)   { return false; }
-    if (!String_StartsWith(Path, Dir, false))       { return false; }
-    if (Path.Length == Dir.Length)                  { return true; }  // exact match
+    if (!String_IsValid(Dir) || Dir.Length == 0)
+    {
+        return false;
+    }
 
+    if (!String_StartsWith(Path, Dir, false))
+    {
+        return false;
+    }
+
+    // Exact match: the path is the directory itself.
+    if (Path.Length == Dir.Length)
+    {
+        return true;
+    }
+
+    // Dir already ends in a separator, so it is a full leading path component.
     const uchar Last = Dir.Data[Dir.Length - 1];
-    if (Last == '/' || Last == '\\')                { return true; }  // Dir already ends in a separator
+    if (Last == '/' || Last == '\\')
+    {
+        return true;
+    }
 
+    // Otherwise Dir is only a real component when a separator follows it in Path.
     const uchar Next = Path.Data[Dir.Length];
     return Next == '/' || Next == '\\';
 }
@@ -736,8 +753,15 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
 // how source files across independent modules end up compiling in one cross-module parallel batch.
 bool C_Compile_Spawn(const BuildParams* Params, u32* OutNumCompiled)
 {
-    if (NEVER(Params == NULL))         { return false; }
-    if (NEVER(OutNumCompiled == NULL)) { return false; }
+    if (NEVER(Params == NULL))
+    {
+        return false;
+    }
+
+    if (NEVER(OutNumCompiled == NULL))
+    {
+        return false;
+    }
 
     CompileData UserData = { 0 };
     UserData.Params = Params;
@@ -760,7 +784,10 @@ bool C_Compile_Spawn(const BuildParams* Params, u32* OutNumCompiled)
 // spawned, so NumCompiled is the total across everything that was enqueued.
 bool C_Compile_Wait(const BuildParams* Params, u32 NumCompiled)
 {
-    if (NEVER(Params == NULL)) { return false; }
+    if (NEVER(Params == NULL))
+    {
+        return false;
+    }
 
     bool bSuccess = true;
 
@@ -798,8 +825,15 @@ bool C_Compile_Wait(const BuildParams* Params, u32 NumCompiled)
 
 bool C_Compile(const BuildParams* Params, u32* OutNumCompiled)
 {
-    if (NEVER(Params == NULL))         { return false; }
-    if (NEVER(OutNumCompiled == NULL)) { return false; }
+    if (NEVER(Params == NULL))
+    {
+        return false;
+    }
+
+    if (NEVER(OutNumCompiled == NULL))
+    {
+        return false;
+    }
 
     // On spawn failure the original code broke out and returned without waiting on the already-spawned
     // processes; preserve that by short-circuiting here.

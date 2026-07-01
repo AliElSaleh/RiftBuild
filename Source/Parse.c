@@ -4511,12 +4511,20 @@ static ToolchainCacheEntry* Internal_FindToolchainCache(const String Key)
 
 static void Internal_StoreToolchainCache(const String Key, bool bFound, const CompilerPaths* Paths, const String Version)
 {
-    if (g_ToolchainCacheNum >= SArray_Capacity(g_ToolchainCache)) { return; } // full: >8 distinct toolchains, just re-detect
+    // Full: more than 8 distinct toolchains in one build; just re-detect the rest.
+    if (g_ToolchainCacheNum >= SArray_Capacity(g_ToolchainCache))
+    {
+        return;
+    }
 
     if (!g_ToolchainCacheInit)
     {
         void* Mem = Platform_MemAlloc(Kibibytes(64));
-        if (!Mem) { return; }
+        if (!Mem)
+        {
+            return;
+        }
+
         LinearAllocator_Create(Kibibytes(64), Mem, &g_ToolchainCacheArena);
         g_ToolchainCacheInit = true;
     }
