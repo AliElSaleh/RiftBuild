@@ -279,6 +279,12 @@ StringList GetVariableValueList(LinearAllocator* Arena, TArray(FileVariable) Var
     return list;
 }
 
+UNUSED static bool FileVariable_IsValid(const FileVariable* Var)
+{
+    bool bValid = !MemEqual(&Var, &FileVariable_Empty, sizeof(FileVariable));
+    return bValid;
+}
+
 FileVariable GetVariable(TArray(FileVariable) Variables, const String Name)
 {
     FileVariable FoundVar = FileVariable_Empty;
@@ -2646,7 +2652,7 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const Stri
             }
         }
 
-        FileVariable Expanded;
+        FileVariable Expanded = {0};
         Expanded.Name = S("Assembly");
         Expanded.Value = String_Create(Arena, Name);
 
@@ -2658,7 +2664,7 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const Stri
     {
         String Extension = AssemblyTypeStringToExtension(Type);
         
-        FileVariable Expanded;
+        FileVariable Expanded = {0};
         Expanded.Name = S("Extension");
         Expanded.Value = Extension;
 
@@ -2667,7 +2673,7 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const Stri
 
     if (!DoesBuildVarExist(VariablesDB, S("Extension")))
     {
-        FileVariable Expanded;
+        FileVariable Expanded = {0};
         Expanded.Name = S("Extension");
 
         #if PLATFORM_WINDOWS
@@ -2684,7 +2690,7 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const Stri
     /*
     if (!DoesBuildVarExist(VariablesDB, S("Compiler")))
     {
-        FileVariable Expanded;
+        FileVariable Expanded = {0};
         Expanded.Name = S("Compiler");
         Expanded.Value = String_Null();
 
@@ -2694,7 +2700,7 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const Stri
 
     if (!DoesBuildVarExist(VariablesDB, S("Version")))
     {
-        FileVariable Expanded;
+        FileVariable Expanded = {0};
         Expanded.Name = S("Version");
         Expanded.Value = S("1.0.0");
 
@@ -2703,7 +2709,7 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const Stri
 
     if (!DoesBuildVarExist(VariablesDB, S("BuildDirectory")))
     {
-        FileVariable Expanded;
+        FileVariable Expanded = {0};
         Expanded.Name = S("BuildDirectory");
         Expanded.Value = S("Build");
 
@@ -2712,7 +2718,7 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const Stri
 
     if (!DoesBuildVarExist(VariablesDB, S("IntermediateDirectory")))
     {
-        FileVariable Expanded;
+        FileVariable Expanded = {0};
         Expanded.Name = S("IntermediateDirectory");
         Expanded.Value = S("Intermediate");
 
@@ -2721,7 +2727,7 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const Stri
 
     if (!DoesBuildVarExist(VariablesDB, S("SourceDirectory")))
     {
-        FileVariable Expanded;
+        FileVariable Expanded = {0};
         Expanded.Name = S("SourceDirectory");
         Expanded.Value = String_Null();
 
@@ -2786,7 +2792,7 @@ static bool CheckForBuildVariableOverrides(TArray(FileVariable) VariablesDB, TAr
             {
                 LOG("New override: \"%S\" = \"%S\"", VarToOverride, o.Value);
 
-                FileVariable NewOverride;
+                FileVariable NewOverride = {0};
                 NewOverride.Name = VarToOverride;
                 NewOverride.Value = o.Value;
                 // NewOverride.bHasSpecial = false;
@@ -3898,6 +3904,269 @@ static bool TryDetectDirectoryStateChangeAndUpdate(const String DirectoryStatePa
 }
 
 
+// ===================================================================================================
+// .build diff system
+// ---------------------------------------------------------------------------------------------------
+// Rather than throwing away every object file whenever a .build file is touched, we snapshot the
+// *resolved* build variables into <buildfile>.generated after each build and, on the next run,
+// compare the current resolved variables against that snapshot. Every changed/added/removed key is
+// classified by how it affects the output so we do the minimal amount of work:
+//
+//   BuildKeyImpact_Recompile - the key feeds the compiler for each source file (flags, defines,
+//                              includes, a `define` param, ...) -> full recompile (a normal rebuild).
+//   BuildKeyImpact_Relink    - the key only affects the final link/archive/output (libraries, linker
+//                              flags, output name, the SourceFiles list, ...) -> relink, keep objects.
+//   BuildKeyImpact_None      - the key doesn't change the produced assembly (.Help, .Run, License,
+//                              descriptions, custom keys, phase commands, ...) -> no work.
+// ===================================================================================================
+
+#define BUILD_STATE_MAGIC "##RIFTBUILDSTATE_V2"
+
+// Save the resolved build variables so the next run can diff against them. Each variable is written as
+// a length-prefixed record:
+//
+//     <nameLen> <paramsLen> <valueLen>\n
+//     <name bytes><params bytes><value bytes>\n
+//
+// Prefixing each field with its byte length lets us store the value verbatim - no escaping - so a
+// newline or tab inside a value (a .Help or Info.plist block, say) can never be mistaken for a record
+// boundary. It stays reasonably readable as a dump of what the build resolved to.
+static void WriteGeneratedBuildState(const String StatePath, TArray(FileVariable) VariablesDB)
+{
+    FileHandle f = FileHandle_Null();
+    if (!Filesystem_Open(StatePath, FileMode_Write, &f))
+    {
+        return;
+    }
+
+    xx Filesystem_WriteLine(f, S(BUILD_STATE_MAGIC "\n"), NULL);
+
+    for each (FileVariable, v, VariablesDB)
+    {
+        // Options only carry help text; they never affect the produced assembly.
+        if (String_StartsWith(v.Name, S("Option."), false))
+        {
+            continue;
+        }
+
+        StringLocal(Header, 64);
+        String_AppendF(&Header, S("%u %u %u\n"), v.Name.Length, v.Params.Length, v.Value.Length);
+        xx Filesystem_WriteLine(f, Header, NULL);
+
+        // Skip zero-length fields so we never hand fwrite a NULL data pointer.
+        if (v.Name.Length   > 0) { xx Filesystem_WriteLine(f, v.Name,   NULL); }
+        if (v.Params.Length > 0) { xx Filesystem_WriteLine(f, v.Params, NULL); }
+        if (v.Value.Length  > 0) { xx Filesystem_WriteLine(f, v.Value,  NULL); }
+        xx Filesystem_WriteLine(f, S("\n"), NULL);
+    }
+
+    Filesystem_Close(&f);
+}
+
+// Read a snapshot written by WriteGeneratedBuildState into OutState. The parsed variables are slices
+// into the file buffer we allocate from Arena (no per-field copies); that buffer outlives the diff, so
+// the slices stay valid. Returns false (no usable snapshot) when the file is missing, empty, or
+// doesn't start with our magic (e.g. a snapshot from an older riftbuild version).
+static bool ReadGeneratedBuildState(LinearAllocator* Arena, const String StatePath, TArray(FileVariable) OutState)
+{
+    if (!Filesystem_DoesFileExist(StatePath))
+    {
+        return false;
+    }
+
+    FileHandle f = FileHandle_Null();
+    if (!Filesystem_Open(StatePath, FileMode_Read, &f))
+    {
+        return false;
+    }
+
+    usize FileSize = 0;
+    xx Filesystem_GetFileSize(f, &FileSize);
+
+    String Text = String_Reserve(Arena, (u32)FileSize + 1);
+    if (FileSize == 0 || !String_IsDataValid(Text)) // String_IsValid would reject the empty buffer
+    {
+        Filesystem_Close(&f);
+        return false;
+    }
+
+    usize BytesRead = 0;
+    const bool bRead = Filesystem_ReadEntireFile(f, Text.Data, &BytesRead);
+    Filesystem_Close(&f);
+
+    if (!bRead)
+    {
+        return false;
+    }
+
+    Text.Length = (u32)Min(BytesRead, FileSize);
+
+    // The first line must be our magic, otherwise it's an old or foreign file we can't trust.
+    const String Magic = S(BUILD_STATE_MAGIC);
+    if (Text.Length <= Magic.Length ||
+        !String_IsEqual(StrSlice(Text.Data, Magic.Length), Magic, true) ||
+        Text.Data[Magic.Length] != '\n')
+    {
+        return false;
+    }
+
+    u32 Offset = Magic.Length + 1;
+
+    while (Offset < Text.Length)
+    {
+        // Header line: "<nameLen> <paramsLen> <valueLen>".
+        u32 LineEnd = Offset;
+        while (LineEnd < Text.Length && Text.Data[LineEnd] != '\n')
+        {
+            LineEnd += 1;
+        }
+
+        LinearAllocator Scratch = *Arena;
+        const String HeaderLine = StrSlice(Text.Data + Offset, LineEnd - Offset);
+        const StringList Fields = String_SplitIntoList(&Scratch, HeaderLine, ' ', false);
+
+        u32 Lengths[3] = {0};
+        u32 FieldCount = 0;
+        for each_string_in_list (Fields)
+        {
+            if (FieldCount < 3)
+            {
+                xx String_ToU32(It.String, &Lengths[FieldCount]);
+            }
+            FieldCount += 1;
+        }
+
+        const u32 Offset_BodyStart = LineEnd + 1; // start of the record body (past the header's '\n')
+        const u64 Offset_BodyEnd = (u64)Offset_BodyStart + Lengths[0] + Lengths[1] + Lengths[2];
+
+        // Stop on a truncated or malformed record rather than slicing out of bounds.
+        if (FieldCount < 3 || Offset_BodyEnd > Text.Length)
+        {
+            break;
+        }
+
+        FileVariable Var = {0};
+        Var.Name   = StrSlice(Text.Data + Offset_BodyStart,  Lengths[0]);
+        Var.Params = StrSlice(Text.Data + Offset_BodyStart + Lengths[0], Lengths[1]);
+        Var.Value  = StrSlice(Text.Data + Offset_BodyStart + Lengths[0] + Lengths[1], Lengths[2]);
+        Array_Add(OutState, Var);
+
+        Offset = (u32)Offset_BodyEnd + 1; // past the record body's trailing '\n'
+    }
+
+    return true;
+}
+
+// Value/params equality for the diff. Treats every empty string as equal regardless of its Data
+// pointer: an in-memory variable can carry a zero-length value with Data == NULL (from a `{0}` init)
+// while the same value parsed back from the snapshot is an allocated empty string, and String_IsEqual
+// considers those two unequal (it requires both Data pointers to be non-NULL).
+static bool Internal_StateValueEqual(const String A, const String B)
+{
+    if (A.Length == 0 && B.Length == 0)
+    {
+        return true;
+    }
+
+    return String_IsEqual(A, B, true);
+}
+
+// Compare the current resolved variables against the previous snapshot and return the strongest
+// impact found, logging each key that forces work along the way.
+static EBuildKeyImpact DiffAndClassifyBuildState(const String BuildFileName, TArray(FileVariable) PrevState, TArray(FileVariable) CurrentState)
+{
+    EBuildKeyImpact MaxImpact = BuildKeyImpact_None;
+    bool bAnyChange   = false;
+    bool bLoggedHeader = false;
+
+    // Added or changed keys (present in this build).
+    for each (FileVariable, Cur, CurrentState)
+    {
+        if (String_StartsWith(Cur.Name, S("Option."), false))
+        {
+            continue;
+        }
+
+        const FileVariable Prev = GetVariable(PrevState, Cur.Name);
+
+        const bool bChanged = !DoesBuildVarExist(PrevState, Cur.Name) ||
+                              !Internal_StateValueEqual(Prev.Value, Cur.Value) ||
+                              !Internal_StateValueEqual(Prev.Params, Cur.Params);
+        if (bChanged)
+        {
+            bAnyChange = true;
+
+            EBuildKeyImpact Impact = GetBuildKeyImpact(Cur.Name);
+
+            if (Impact > MaxImpact)
+            {
+                MaxImpact = Impact;
+            }
+
+            if (Impact != BuildKeyImpact_None)
+            {
+                if (!bLoggedHeader)
+                {
+                    LOG("\"%S\" changed since last build:", BuildFileName);
+                    bLoggedHeader = true;
+                }
+
+                LOG("    %S", Cur.Name);
+            }
+        }
+    }
+
+    // Removed keys (were in the last snapshot, gone now).
+    for each (FileVariable, Old, PrevState)
+    {
+        if (String_StartsWith(Old.Name, S("Option."), false))
+        {
+            continue;
+        }
+
+        if (DoesBuildVarExist(CurrentState, Old.Name))
+        {
+            continue;
+        }
+
+        bAnyChange = true;
+
+        const EBuildKeyImpact Impact = GetBuildKeyImpact(Old.Name);
+        if (Impact > MaxImpact)
+        {
+            MaxImpact = Impact;
+        }
+
+        if (Impact != BuildKeyImpact_None)
+        {
+            if (!bLoggedHeader)
+            {
+                LOG("\"%S\" changed since last build:", BuildFileName);
+                bLoggedHeader = true;
+            }
+
+            LOG("    %S (removed)", Old.Name);
+        }
+    }
+    
+    if (bAnyChange)
+    {
+        LOG_LINE_BREAK();
+
+        if (MaxImpact == BuildKeyImpact_Recompile)
+        {
+        }
+        else if (MaxImpact == BuildKeyImpact_Relink)
+        {
+        }
+        else
+        {
+            // cosmetic-only edits (.Help, .Run, descriptions, custom keys, ...): nothing to do
+        }
+    }
+
+    return MaxImpact;
+}
 
 static void RecordGeneratedHelperFiles(const BuildParams* p)
 {
@@ -4370,7 +4639,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         bool bIsAssemblyExe = Type.Length == 0 && Ext.Length == 0;
         if (bIsAssemblyExe)
         {
-            FileVariable Var;
+            FileVariable Var = {0};
             Var.Name = S("Type");
             Var.Value = S("app");
             Array_Add(VariablesDB, Var);
@@ -4854,6 +5123,10 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
     bool bIsRebuild = StringArray_Contains(Parameters, S("rebuild"), false) || bRebuildAll;
     bool bIsClean   = StringArray_Contains(Parameters, S("clean"), false)   || bCleanAll;
+
+    // Set by the .build diff system when only link-affecting keys changed: relink the final assembly
+    // but keep every object file (no recompile). See DiffAndClassifyBuildState.
+    bool bForceRelink = false;
 
     // force rebuild if we say so in the build file
     if (!bIsRebuild)
@@ -5819,121 +6092,157 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
     if (!bExportingSomething)
     {
-        // force a rebuild if the .build file has been modified
+        // .build diff system: compare the resolved variables against the snapshot we saved last build
+        // and do the minimal work (relink, or nothing) instead of blindly forcing a full rebuild just
+        // because the .build file's timestamp is newer. When there is no usable snapshot (first build
+        // after upgrading, or a deleted state file) bUsedDiff stays false and we fall back to the old
+        // timestamp-based triggers below so we never under-build.
+        bool bUsedDiff = false;
+
         if (!bIsRebuild && !bIsClean && bFoundBuildFile && AssemblyType != AssemblyType_CustomCompilerObject)
         {
-            // build the full assembly path
-            StringLocal(AssemblyPath, MAX_PATH_LENGTH);
+            StringLocal(StateName, 256);
+            String_Append(&StateName, BuildFileName);
+            String_Append(&StateName, S(".generated"));
 
-            bool bAnyExist = false;
+            StringLocal(StatePath, MAX_PATH_LENGTH);
+            String_BuildPath(&StatePath, IntermediateBaseDirectory, StateName);
 
-            if (AssemblyType == AssemblyType_PCH)
+            ArrayLocal_Arena(FileVariable, PrevState, 256, Arena);
+            if (ReadGeneratedBuildState(Arena, StatePath, PrevState))
             {
-                const String PCHExts[11] =
-                {
-                    S(".pch"),
-                    S(".h.pch"),
-                    S(".h.gch"),
-                    S(".hpp.pch"),
-                    S(".hpp.gch"),
-                    S(".h++.pch"),
-                    S(".h++.gch"),
-                    S(".hh.pch"),
-                    S(".hh.gch"),
-                    S(".hxx.pch"),
-                    S(".hxx.gch"),
-                };
+                bUsedDiff = true;
 
-                for (u32 i = 0; i < SArray_Capacity(PCHExts); i++)
-                {
-                    StringLocal(Name, 256);
-                    String_Copy(&Name, AssemblyName);
-                    String_Append(&Name, PCHExts[i]);
-
-                    String_Empty(&AssemblyPath);
-                    String_BuildPath(&AssemblyPath, WorkingPath, BuildDirectory, Name);
-
-                    if (Filesystem_DoesFileExist(AssemblyPath))
-                    {
-                        bAnyExist = true;
-                        break;
-                    }
-                }
-            }
-            else
-            {
-                String_BuildPath(&AssemblyPath, WorkingPath, BuildDirectory, AssemblyNameWithExt);
-
-                if (Filesystem_DoesFileExist(AssemblyPath))
-                {
-                    bAnyExist = true;
-                }
-            }
-
-            if (!bAnyExist)
-            {
-                /*
-                bIsRebuild = true;
-                
-                StringLocal(Temp, MAX_PATH_LENGTH);
-                String_BuildPath(&Temp, WorkingPath, BuildDirectory);
-                if (Filesystem_DoesDirectoryExist(Temp))
-                {
-                    // only say this if we have a build directory but no assembly file
-                    LOG("Assembly file \"%S\" does not exist. Forcing rebuild...\n", AssemblyPath);
-                }
-                */
-            }
-
-            if (!bIsRebuild)
-            {
-                u64 AssemblyFileTime = Filesystem_GetLastWriteTime(AssemblyPath);
-                u64 BuildFileTime = Filesystem_GetLastWriteTimeH(BuildFileHandle);
-
-                if (BuildFileTime >= AssemblyFileTime && AssemblyFileTime > 0)
+                const EBuildKeyImpact Impact = DiffAndClassifyBuildState(BuildFileName, PrevState, VariablesDB);
+                if (Impact == BuildKeyImpact_Recompile)
                 {
                     bIsRebuild = true;
-
-                    #ifndef HOOD
-                    LOG("Assembly file older than build file. Forcing rebuild...");
-                    #else
-                    LOG("dawwwg, da assembly file is older than da buil fil. gon force a rebuild...");
-                    #endif
-
-                    LOG_LINE_BREAK();
+                }
+                else if (Impact == BuildKeyImpact_Relink)
+                {
+                    bForceRelink = true;
                 }
             }
         }
 
-        // force a rebuild if any of the included files have been modified
-        if (!bIsRebuild && !bIsClean && bFoundBuildFile && Array_Num(IncludeFiles) > 0 && AssemblyType != AssemblyType_CustomCompilerObject)
+        // force a rebuild if the .build file has been modified
+        if (!bUsedDiff)
         {
-            StringLocal(AssemblyPath, MAX_PATH_LENGTH);
-            String_BuildPath(&AssemblyPath, WorkingPath, BuildDirectory, AssemblyNameWithExt);
-
-            u64 AssemblyFileTime = Filesystem_GetLastWriteTime(AssemblyPath);
-
-            if (AssemblyFileTime > 0)
+            if (!bIsRebuild && !bIsClean && bFoundBuildFile && AssemblyType != AssemblyType_CustomCompilerObject)
             {
-                for (u32 IncIdx = 0; IncIdx < Array_Num(IncludeFiles); IncIdx++)
-                {
-                    u64 IncludeFileTime = Filesystem_GetLastWriteTimeH(IncludeFiles[IncIdx].Handle);
+                // build the full assembly path
+                StringLocal(AssemblyPath, MAX_PATH_LENGTH);
 
-                    if (IncludeFileTime >= AssemblyFileTime)
+                bool bAnyExist = false;
+
+                if (AssemblyType == AssemblyType_PCH)
+                {
+                    const String PCHExts[11] =
+                    {
+                        S(".pch"),
+                        S(".h.pch"),
+                        S(".h.gch"),
+                        S(".hpp.pch"),
+                        S(".hpp.gch"),
+                        S(".h++.pch"),
+                        S(".h++.gch"),
+                        S(".hh.pch"),
+                        S(".hh.gch"),
+                        S(".hxx.pch"),
+                        S(".hxx.gch"),
+                    };
+
+                    for (u32 i = 0; i < SArray_Capacity(PCHExts); i++)
+                    {
+                        StringLocal(Name, 256);
+                        String_Copy(&Name, AssemblyName);
+                        String_Append(&Name, PCHExts[i]);
+
+                        String_Empty(&AssemblyPath);
+                        String_BuildPath(&AssemblyPath, WorkingPath, BuildDirectory, Name);
+
+                        if (Filesystem_DoesFileExist(AssemblyPath))
+                        {
+                            bAnyExist = true;
+                            break;
+                        }
+                    }
+                }
+                else
+                {
+                    String_BuildPath(&AssemblyPath, WorkingPath, BuildDirectory, AssemblyNameWithExt);
+
+                    if (Filesystem_DoesFileExist(AssemblyPath))
+                    {
+                        bAnyExist = true;
+                    }
+                }
+
+                if (!bAnyExist)
+                {
+                    /*
+                    bIsRebuild = true;
+                    
+                    StringLocal(Temp, MAX_PATH_LENGTH);
+                    String_BuildPath(&Temp, WorkingPath, BuildDirectory);
+                    if (Filesystem_DoesDirectoryExist(Temp))
+                    {
+                        // only say this if we have a build directory but no assembly file
+                        LOG("Assembly file \"%S\" does not exist. Forcing rebuild...\n", AssemblyPath);
+                    }
+                    */
+                }
+
+                if (!bIsRebuild)
+                {
+                    u64 AssemblyFileTime = Filesystem_GetLastWriteTime(AssemblyPath);
+                    u64 BuildFileTime = Filesystem_GetLastWriteTimeH(BuildFileHandle);
+
+                    if (BuildFileTime >= AssemblyFileTime && AssemblyFileTime > 0)
                     {
                         bIsRebuild = true;
 
-                        String Path = IncludeFiles[IncIdx].Path;
-
                         #ifndef HOOD
-                        LOG("Build variables file \"%S\" has been modified since last build. Forcing rebuild...", Path);
+                        LOG("Assembly file older than build file. Forcing rebuild...");
                         #else
-                        LOG("dawwwg, dis build vars file \"%S\" has been modified since last build. gon force a rebuild...", Path);
+                        LOG("dawwwg, da assembly file is older than da buil fil. gon force a rebuild...");
                         #endif
 
                         LOG_LINE_BREAK();
+                    }
+                }
+            }
 
-                        break;
+            // force a rebuild if any of the included files have been modified
+            if (!bIsRebuild && !bIsClean && bFoundBuildFile && Array_Num(IncludeFiles) > 0 && AssemblyType != AssemblyType_CustomCompilerObject)
+            {
+                StringLocal(AssemblyPath, MAX_PATH_LENGTH);
+                String_BuildPath(&AssemblyPath, WorkingPath, BuildDirectory, AssemblyNameWithExt);
+
+                u64 AssemblyFileTime = Filesystem_GetLastWriteTime(AssemblyPath);
+
+                if (AssemblyFileTime > 0)
+                {
+                    for (u32 IncIdx = 0; IncIdx < Array_Num(IncludeFiles); IncIdx++)
+                    {
+                        u64 IncludeFileTime = Filesystem_GetLastWriteTimeH(IncludeFiles[IncIdx].Handle);
+
+                        if (IncludeFileTime >= AssemblyFileTime)
+                        {
+                            bIsRebuild = true;
+
+                            String Path = IncludeFiles[IncIdx].Path;
+
+                            #ifndef HOOD
+                            LOG("Build variables file \"%S\" has been modified since last build. Forcing rebuild...", Path);
+                            #else
+                            LOG("dawwwg, dis build vars file \"%S\" has been modified since last build. gon force a rebuild...", Path);
+                            #endif
+
+                            LOG_LINE_BREAK();
+
+                            break;
+                        }
                     }
                 }
             }
@@ -5954,9 +6263,10 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             }
         }
 
-        // force a rebuild if the cmd line given to this program was different than the previous run
-        /// TODO: fix this, idk what to do
-        if (!bIsRebuild && !bIsClean)// && !String_IsValid(CameFromBuildFile))
+        // force a rebuild if the cmd line given to this program was different than the previous run.
+        // (Superseded by the diff system, which detects command-line effects through the resolved
+        // variables; this only runs as a fallback when there is no usable snapshot.)
+        if (!bUsedDiff && !bIsRebuild && !bIsClean)
         {
             StringLocal(OutputDebugFile, MAX_PATH_LENGTH);
             StringLocal(GenFileName, 256);
@@ -6192,53 +6502,15 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
     if (bFoundBuildFile)
     {
+        // Snapshot the resolved variables so the next run can diff against them (see the .build diff
+        // system above). This doubles as a human-readable record of what this build resolved to.
         StringLocal(Name, 256);
         String_Append(&Name, BuildFileName);
         String_Append(&Name, S(".generated"));
-        StringLocal(OutputDebugFile, MAX_PATH_LENGTH);
-        String_BuildPath(&OutputDebugFile, IntermediateBaseDirectory, Name);
+        StringLocal(StatePath, MAX_PATH_LENGTH);
+        String_BuildPath(&StatePath, IntermediateBaseDirectory, Name);
 
-        FileHandle f = FileHandle_Null();
-        if (Filesystem_Open(OutputDebugFile, FileMode_Write, &f))
-        {
-            // write the cmd line of this program to a file in the intermediate directory for comparison between subsequent runs
-            Filesystem_Write(f, RiftCmdLine.Length, RiftCmdLine.Data, NULL);
-
-            StringLocal(Spaces, 64);
-            Spaces.Length = 64;
-            String_Fill(&Spaces, ' ');
-
-            StringLocal(Buffer, Kibibytes(32));
-            String_AppendChar(&Buffer, '\n');
-
-            u32 LongestName = 4;
-            for each (FileVariable, v, VariablesDB)
-            {
-                u32 Length = v.Name.Length;
-                if (Length > LongestName)
-                {
-                    LongestName = Length;
-                }
-            }
-
-            for each (FileVariable, v, VariablesDB)
-            {
-                Spaces.Length = (LongestName - v.Name.Length) + 1; // +1 for extra space
-
-                if (String_StartsWith(v.Name, S("Option."), false))
-                {
-                    continue;
-                }
-
-                String_Append(&Buffer, v.Name);
-                String_Append(&Buffer, Spaces);
-                String_Append(&Buffer, v.Value);
-                String_AppendChar(&Buffer, '\n');
-            }
-
-            Filesystem_WriteLine(f, Buffer, NULL);
-            Filesystem_Close(&f);
-        }
+        WriteGeneratedBuildState(StatePath, VariablesDB);
     }
 
     if (Array_Num(Messages) > 0)
@@ -7288,7 +7560,10 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         }
     }
 
-    bool bNoMoreWorkToDo = NumCompiled == 0 && bAssemblyExists && !bAnyDependenciesDidWork;
+    // bForceRelink keeps the link step alive when only link-affecting .build keys changed and nothing
+    // needed recompiling (see the .build diff system), so the final assembly is rebuilt from the
+    // existing objects with the new linker settings/output.
+    bool bNoMoreWorkToDo = NumCompiled == 0 && bAssemblyExists && !bAnyDependenciesDidWork && !bForceRelink;
     if (bNoMoreWorkToDo)
     {
         if (bSkipPostBuild)
@@ -7571,7 +7846,7 @@ End:
 
     if (bQuietBuild) { Logging_Disable(); }
 
-    Receipt.bWorkWasDone = NumCompiled > 0;
+    Receipt.bWorkWasDone = NumCompiled > 0 || (bForceRelink && bCanLink);
 
     return Receipt;
 }

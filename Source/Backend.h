@@ -170,6 +170,16 @@ ENUM(EBuildMode)
     BuildMode_Export
 };
 
+// How a change to a build key affects the output, used by the .build diff system to do the minimal
+// amount of work. Every reserved key carries one of these (see the ReservedKeys table in Parse.c).
+// Ordered by severity so a diff can keep the strongest impact with a simple max.
+ENUM(EBuildKeyImpact)
+{
+    BuildKeyImpact_None = 0,   // cosmetic - does not affect the produced assembly
+    BuildKeyImpact_Relink,     // affects only the final link/output, not per-file compilation
+    BuildKeyImpact_Recompile   // affects what every source file is compiled with
+};
+
 STRUCT(BuildParams)
 {
     String RootDirectory;             // absolute
@@ -362,6 +372,7 @@ bool ExpandBuildVariable(LinearAllocator Scratch, FileVariableList* VariablesDB,
                          bool* bFailed);
 
 u32 GetMaxValueLengthForReservedKey(const String Key);
+EBuildKeyImpact GetBuildKeyImpact(const String Key);
 
 void AddVariable(LinearAllocator* Arena,
                 TArray(FileVariable) VariablesDB,

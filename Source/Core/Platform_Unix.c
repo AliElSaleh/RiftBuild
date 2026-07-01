@@ -1156,6 +1156,7 @@ bool Filesystem_Open(const String FilePath, EFileMode Mode, FileHandle* OutHandl
     FILE* File = fopen((const char*)FilePath.Data, (const char*)ModeStr.Data); // refactor to just use open() instead of fopen()
     if (!File)
     {
+        /*
         String ModeString;
         if (((Mode & FileMode_Read) != 0) && ((Mode & FileMode_Write) != 0)) // read and write
         {
@@ -1173,6 +1174,8 @@ bool Filesystem_Open(const String FilePath, EFileMode Mode, FileHandle* OutHandl
         StringLocal(Message, MAX_PATH_LENGTH);
         String_Format(&Message, S("Failed to open file %S -> \"%S\""), ModeString, FilePath);
         LogLastError(Message);
+        */
+
         return false;
     }
 

@@ -565,93 +565,100 @@ static NO_DISCARD const CallCondition* FindCallCondition(String Name)
 
 STRUCT(ReservedKeyTable)
 {
-    String Key;
-    u32    MaxValueLength;
-    u32    Padding;
+    String          Key;
+    u32             MaxValueLength;
+    EBuildKeyImpact Impact; // how a change to this key affects the output (see the .build diff system)
 };
 
+// The .Impact column drives the .build diff system (GetBuildKeyImpact / ClassifyBuildKeyImpact):
+//   Recompile - the resolved value is fed to the compiler for each source file (flags, defines,
+//               includes, compiler/assembler selection, source layout, ...) -> full recompile.
+//   Relink    - the value only affects the final link/archive/output (libraries, linker flags, output
+//               name & metadata, the SourceFiles list, bundle contents, ...) -> relink, keep objects.
+//   None      - the value doesn't change the produced assembly (License, phase commands, MaxCores,
+//               AlwaysRebuild flags, ...).
 static ReservedKeyTable ReservedKeys[79] =
 {
-    { .Key = SC("Assembly"),                  .MaxValueLength = 256 },
-    { .Key = SC("Assembly.Prefix"),           .MaxValueLength = 128 },
-    { .Key = SC("Assembly.Postfix"),          .MaxValueLength = 128 },
-    { .Key = SC("Extension"),                 .MaxValueLength = 64 },
-    { .Key = SC("Type"),                      .MaxValueLength = 64 },
-    { .Key = SC("SourceDirectory"),           .MaxValueLength = 256 },
-    { .Key = SC("BuildDirectory"),            .MaxValueLength = 256 },
-    { .Key = SC("IntermediateDirectory"),     .MaxValueLength = 256 },
+    { .Key = SC("Assembly"),                  .MaxValueLength = 256,   .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("Assembly.Prefix"),           .MaxValueLength = 128,   .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("Assembly.Postfix"),          .MaxValueLength = 128,   .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("Extension"),                 .MaxValueLength = 64,    .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("Type"),                      .MaxValueLength = 64,    .Impact = BuildKeyImpact_Recompile },
+    { .Key = SC("SourceDirectory"),           .MaxValueLength = 256,   .Impact = BuildKeyImpact_Recompile },
+    { .Key = SC("BuildDirectory"),            .MaxValueLength = 256,   .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("IntermediateDirectory"),     .MaxValueLength = 256,   .Impact = BuildKeyImpact_Recompile },
     // { .Key = SC("Compiler"),                  .MaxValueLength = 256 },
-    { .Key = SC("Compiler.Path"),             .MaxValueLength = 1024 },
-    { .Key = SC("Compiler.Flags"),            .MaxValueLength = 4096 },
-    { .Key = SC("Compiler.MaxCores"),         .MaxValueLength = 16 },
-    { .Key = SC("Compiler.OutputFlag"),       .MaxValueLength = 16 },
-    { .Key = SC("Compiler.CompileFlag"),      .MaxValueLength = 16 },
-    { .Key = SC("Compiler.ObjectExtension"),  .MaxValueLength = 32 },
-    { .Key = SC("Compiler.ObjectDirectory"),  .MaxValueLength = 1024 },
-    { .Key = SC("Linker.RPath"),              .MaxValueLength = 4096 },
-    { .Key = SC("Linker.RPathOrigin"),        .MaxValueLength = 1024 },
-    { .Key = SC("Linker.Path"),               .MaxValueLength = 1024 },
-    { .Key = SC("Linker.Flags"),              .MaxValueLength = 8192 },
-    { .Key = SC("Linker.Flags.Public"),       .MaxValueLength = 8192 },
-    { .Key = SC("Linker.Defines"),            .MaxValueLength = 4096 },
-    { .Key = SC("Linker.EntryPoint"),         .MaxValueLength = 256 },
-    { .Key = SC("Linker.Subsystem"),          .MaxValueLength = 128 },
-    { .Key = SC("Linker.Stack"),              .MaxValueLength = 64 },
-    { .Key = SC("Linker.Manifest"),           .MaxValueLength = 1024 },
-    { .Key = SC("Linker.Manifest.NoEmbed"),   .MaxValueLength = 0 },
-    { .Key = SC("Linker.DelayLoadDLL"),       .MaxValueLength = 1024 },
-    { .Key = SC("Linker.OutputFlag"),         .MaxValueLength = 32 },
-    { .Key = SC("Linker.NoStdLib"),           .MaxValueLength = 0 },
-    { .Key = SC("Linker.NoDefaultLibs"),      .MaxValueLength = 0 },
-    { .Key = SC("Assembler.Path"),            .MaxValueLength = 1024 },
-    { .Key = SC("Assembler.Flags"),           .MaxValueLength = 4096 },
-    { .Key = SC("Assembler.Includes"),        .MaxValueLength = 8192 },
-    { .Key = SC("Assembler.Defines"),         .MaxValueLength = 4096 },
-    { .Key = SC("Archiver.Path"),             .MaxValueLength = 1024 },
-    { .Key = SC("Archiver.Flags"),            .MaxValueLength = 4096 },
-    { .Key = SC("Archiver.OutputFlag"),       .MaxValueLength = 32 },
-    { .Key = SC("Defines"),                   .MaxValueLength = 8192 },
-    { .Key = SC("Defines.Public"),            .MaxValueLength = 8192 },
-    { .Key = SC("UnDefines"),                 .MaxValueLength = 2048 },
-    { .Key = SC("Includes"),                  .MaxValueLength = 8192 },
-    { .Key = SC("Includes.Public"),           .MaxValueLength = 8192 },
-    { .Key = SC("Libraries"),                 .MaxValueLength = 2048 },
-    { .Key = SC("Libraries.Public"),          .MaxValueLength = 2048 },
-    { .Key = SC("Library.Paths"),             .MaxValueLength = 8192 },
-    { .Key = SC("Library.Paths.Public"),      .MaxValueLength = 8192 },
-    { .Key = SC("Frameworks"),                .MaxValueLength = 2048 },
-    { .Key = SC("SourceFiles"),               .MaxValueLength = 32767 },
-    { .Key = SC("SourceFiles.Exclude"),       .MaxValueLength = 8192 },
-    { .Key = SC("SourceDirectories"),         .MaxValueLength = 8192 },
-    { .Key = SC("SourceDirectories.Exclude"), .MaxValueLength = 8192 },
-    { .Key = SC("Icon"),                      .MaxValueLength = 256 },
-    { .Key = SC("PCH"),                       .MaxValueLength = 256 },
-    { .Key = SC("PCH.h"),                     .MaxValueLength = 256 },
-    { .Key = SC("Bundle"),                    .MaxValueLength = 0 },
-    { .Key = SC("Bundle.IsTerminal"),         .MaxValueLength = 0 },
-    { .Key = SC("Bundle.InfoPlist"),          .MaxValueLength = 256 },
-    { .Key = SC("Bundle.VersionPlist"),       .MaxValueLength = 256 },
-    { .Key = SC("Bundle.PkgInfo"),            .MaxValueLength = 256 },
-    { .Key = SC("Info.plist"),                .MaxValueLength = 8192 },
-    { .Key = SC("Version.plist"),             .MaxValueLength = 8192 },
-    { .Key = SC("TitleName"),                 .MaxValueLength = 1024 },
-    { .Key = SC("InternalName"),              .MaxValueLength = 256 },
-    { .Key = SC("Description"),               .MaxValueLength = 1024 },
-    { .Key = SC("CompanyName"),               .MaxValueLength = 128 },
-    { .Key = SC("Copyright"),                 .MaxValueLength = 256 },
-    { .Key = SC("Version"),                   .MaxValueLength = 256 },
-    { .Key = SC("License"),                   .MaxValueLength = 128 },
-    { .Key = SC("License.Path"),              .MaxValueLength = 256 },
-    { .Key = SC("License.FileName"),          .MaxValueLength = 128 },
-    { .Key = SC("AlwaysRebuild"),             .MaxValueLength = 0 },
-    { .Key = SC("AlwaysRebuildAll"),          .MaxValueLength = 0 },
-    { .Key = SC("PreDepend"),                 .MaxValueLength = 256 },
-    { .Key = SC("PreBuild"),                  .MaxValueLength = 256 },
-    { .Key = SC("PostBuild"),                 .MaxValueLength = 256 },
-    { .Key = SC("PreCompile"),                .MaxValueLength = 256 },
-    { .Key = SC("PostCompile"),               .MaxValueLength = 256 },
-    { .Key = SC("PreLink"),                   .MaxValueLength = 256 },
-    { .Key = SC("PostLink"),                  .MaxValueLength = 256 },
+    { .Key = SC("Compiler.Path"),             .MaxValueLength = 1024,  .Impact = BuildKeyImpact_Recompile },
+    { .Key = SC("Compiler.Flags"),            .MaxValueLength = 4096,  .Impact = BuildKeyImpact_Recompile },
+    { .Key = SC("Compiler.MaxCores"),         .MaxValueLength = 16,    .Impact = BuildKeyImpact_None      },
+    { .Key = SC("Compiler.OutputFlag"),       .MaxValueLength = 16,    .Impact = BuildKeyImpact_Recompile },
+    { .Key = SC("Compiler.CompileFlag"),      .MaxValueLength = 16,    .Impact = BuildKeyImpact_Recompile },
+    { .Key = SC("Compiler.ObjectExtension"),  .MaxValueLength = 32,    .Impact = BuildKeyImpact_Recompile },
+    { .Key = SC("Compiler.ObjectDirectory"),  .MaxValueLength = 1024,  .Impact = BuildKeyImpact_Recompile },
+    { .Key = SC("Linker.RPath"),              .MaxValueLength = 4096,  .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("Linker.RPathOrigin"),        .MaxValueLength = 1024,  .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("Linker.Path"),               .MaxValueLength = 1024,  .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("Linker.Flags"),              .MaxValueLength = 8192,  .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("Linker.Flags.Public"),       .MaxValueLength = 8192,  .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("Linker.Defines"),            .MaxValueLength = 4096,  .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("Linker.EntryPoint"),         .MaxValueLength = 256,   .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("Linker.Subsystem"),          .MaxValueLength = 128,   .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("Linker.Stack"),              .MaxValueLength = 64,    .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("Linker.Manifest"),           .MaxValueLength = 1024,  .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("Linker.Manifest.NoEmbed"),   .MaxValueLength = 0,     .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("Linker.DelayLoadDLL"),       .MaxValueLength = 1024,  .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("Linker.OutputFlag"),         .MaxValueLength = 32,    .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("Linker.NoStdLib"),           .MaxValueLength = 0,     .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("Linker.NoDefaultLibs"),      .MaxValueLength = 0,     .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("Assembler.Path"),            .MaxValueLength = 1024,  .Impact = BuildKeyImpact_Recompile },
+    { .Key = SC("Assembler.Flags"),           .MaxValueLength = 4096,  .Impact = BuildKeyImpact_Recompile },
+    { .Key = SC("Assembler.Includes"),        .MaxValueLength = 8192,  .Impact = BuildKeyImpact_Recompile },
+    { .Key = SC("Assembler.Defines"),         .MaxValueLength = 4096,  .Impact = BuildKeyImpact_Recompile },
+    { .Key = SC("Archiver.Path"),             .MaxValueLength = 1024,  .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("Archiver.Flags"),            .MaxValueLength = 4096,  .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("Archiver.OutputFlag"),       .MaxValueLength = 32,    .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("Defines"),                   .MaxValueLength = 8192,  .Impact = BuildKeyImpact_Recompile },
+    { .Key = SC("Defines.Public"),            .MaxValueLength = 8192,  .Impact = BuildKeyImpact_Recompile },
+    { .Key = SC("UnDefines"),                 .MaxValueLength = 2048,  .Impact = BuildKeyImpact_Recompile },
+    { .Key = SC("Includes"),                  .MaxValueLength = 8192,  .Impact = BuildKeyImpact_Recompile },
+    { .Key = SC("Includes.Public"),           .MaxValueLength = 8192,  .Impact = BuildKeyImpact_Recompile },
+    { .Key = SC("Libraries"),                 .MaxValueLength = 2048,  .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("Libraries.Public"),          .MaxValueLength = 2048,  .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("Library.Paths"),             .MaxValueLength = 8192,  .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("Library.Paths.Public"),      .MaxValueLength = 8192,  .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("Frameworks"),                .MaxValueLength = 2048,  .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("SourceFiles"),               .MaxValueLength = 32767, .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("SourceFiles.Exclude"),       .MaxValueLength = 8192,  .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("SourceDirectories"),         .MaxValueLength = 8192,  .Impact = BuildKeyImpact_Recompile },
+    { .Key = SC("SourceDirectories.Exclude"), .MaxValueLength = 8192,  .Impact = BuildKeyImpact_Recompile },
+    { .Key = SC("Icon"),                      .MaxValueLength = 256,   .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("PCH"),                       .MaxValueLength = 256,   .Impact = BuildKeyImpact_Recompile },
+    { .Key = SC("PCH.h"),                     .MaxValueLength = 256,   .Impact = BuildKeyImpact_Recompile },
+    { .Key = SC("Bundle"),                    .MaxValueLength = 0,     .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("Bundle.IsTerminal"),         .MaxValueLength = 0,     .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("Bundle.InfoPlist"),          .MaxValueLength = 256,   .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("Bundle.VersionPlist"),       .MaxValueLength = 256,   .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("Bundle.PkgInfo"),            .MaxValueLength = 256,   .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("Info.plist"),                .MaxValueLength = 8192,  .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("Version.plist"),             .MaxValueLength = 8192,  .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("TitleName"),                 .MaxValueLength = 1024,  .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("InternalName"),              .MaxValueLength = 256,   .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("Description"),               .MaxValueLength = 1024,  .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("CompanyName"),               .MaxValueLength = 128,   .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("Copyright"),                 .MaxValueLength = 256,   .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("Version"),                   .MaxValueLength = 256,   .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("License"),                   .MaxValueLength = 128,   .Impact = BuildKeyImpact_None      },
+    { .Key = SC("License.Path"),              .MaxValueLength = 256,   .Impact = BuildKeyImpact_None      },
+    { .Key = SC("License.FileName"),          .MaxValueLength = 128,   .Impact = BuildKeyImpact_None      },
+    { .Key = SC("AlwaysRebuild"),             .MaxValueLength = 0,     .Impact = BuildKeyImpact_None      },
+    { .Key = SC("AlwaysRebuildAll"),          .MaxValueLength = 0,     .Impact = BuildKeyImpact_None      },
+    { .Key = SC("PreDepend"),                 .MaxValueLength = 256,   .Impact = BuildKeyImpact_None      },
+    { .Key = SC("PreBuild"),                  .MaxValueLength = 256,   .Impact = BuildKeyImpact_None      },
+    { .Key = SC("PostBuild"),                 .MaxValueLength = 256,   .Impact = BuildKeyImpact_None      },
+    { .Key = SC("PreCompile"),                .MaxValueLength = 256,   .Impact = BuildKeyImpact_None      },
+    { .Key = SC("PostCompile"),               .MaxValueLength = 256,   .Impact = BuildKeyImpact_None      },
+    { .Key = SC("PreLink"),                   .MaxValueLength = 256,   .Impact = BuildKeyImpact_None      },
+    { .Key = SC("PostLink"),                  .MaxValueLength = 256,   .Impact = BuildKeyImpact_None      },
 };
 
 u32 GetMaxValueLengthForReservedKey(const String Key)
@@ -667,6 +674,19 @@ u32 GetMaxValueLengthForReservedKey(const String Key)
     }
 
     return MaxLength;
+}
+
+EBuildKeyImpact GetBuildKeyImpact(const String Key)
+{
+    for (u8 i = 0; i < SArray_Capacity(ReservedKeys); i++)
+    {
+        if (String_IsEqual(Key, ReservedKeys[i].Key, false))
+        {
+            return ReservedKeys[i].Impact;
+        }
+    }
+
+    return BuildKeyImpact_None;
 }
 
 STRUCT(DeferredKVData)
@@ -4926,6 +4946,7 @@ static bool Internal_AssertCompiler(ParsingContext* Context, const String BuildF
             }
 
             #else
+            xx BuildFileName;
             LOG_ERROR("yo dis compiler program \"%S\" cant be used cuh", CompilerProgram);
             #endif
 
@@ -5009,6 +5030,7 @@ static bool Internal_AssertAssembler(ParsingContext* Context, const String Build
             }
 
             #else
+            xx BuildFileName;
             LOG_ERROR("yo dis assembler program \"%S\" cant be used cuh", AsmProgram);
             #endif
 
