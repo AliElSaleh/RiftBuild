@@ -165,6 +165,30 @@ LibraryDirectories $(ThirdPartyFolder)/SomeLib/bin
 
 ---
 
+### Per-file compiler settings
+Sometimes one file needs extra flags, includes or defines on top of the shared ones. Name the file (with its extension) and give it its own `Compiler.Flags`, `Includes`, `Defines` and/or `UnDefines` - as a block:
+```make
+Compiler.Flags   -O2
+Defines          NDEBUG
+
+Parse.c
+{
+    Compiler.Flags   -O0 -fno-inline   # this one file builds unoptimised
+    Defines          PARSER_TRACE
+    Includes         thirdparty/pcre
+}
+```
+...or inline, one key at a time:
+```make
+Parse.c.Compiler.Flags   -O0 -fno-inline
+Parse.c.Defines          PARSER_TRACE
+```
+Both forms are equivalent. These are added *on top of* the shared settings, only for that file.
+
+Files are matched by bare filename (case-insensitive) - no directory paths, no wildcards. If two source files share a name across different folders, both get the override.
+
+---
+
 ### Environment Variables
 To reference environment variables, place an `@` before the name of the environment variable. (Case sensitive)
 ```make
