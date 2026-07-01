@@ -260,6 +260,23 @@ static void Internal_AppendFileOverrideFlags(const BuildParams* Params, const St
     xx String_EatSpacesInlineFromEnd(Dest);
 }
 
+// A relative source path counts as "already inside the intermediate directory" only when that
+// directory name is a full leading path component -- i.e. the whole path, or followed by a
+// separator. A plain string prefix wrongly matches, e.g., "intra_edge.c" against an intermediate
+// directory named "int", which then drops the source directory and loses the file.
+static bool Internal_IsPathUnderDirectory(const String Path, const String Dir)
+{
+    if (!String_IsValid(Dir) || Dir.Length == 0)   { return false; }
+    if (!String_StartsWith(Path, Dir, false))       { return false; }
+    if (Path.Length == Dir.Length)                  { return true; }  // exact match
+
+    const uchar Last = Dir.Data[Dir.Length - 1];
+    if (Last == '/' || Last == '\\')                { return true; }  // Dir already ends in a separator
+
+    const uchar Next = Path.Data[Dir.Length];
+    return Next == '/' || Next == '\\';
+}
+
 static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
 {
     if (NEVER(Data == NULL))         { return false; }
@@ -343,7 +360,7 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
     }
 
     StringLocal(FullPath, MAX_PATH_LENGTH);
-    bool bInsideIntermediatePath = String_StartsWith(RelativePathCopy, Params->IntermediateDirectory, false);
+    bool bInsideIntermediatePath = Internal_IsPathUnderDirectory(RelativePathCopy, Params->IntermediateDirectory);
     String_BuildPath(&FullPath, Params->RootDirectory, bInsideIntermediatePath ? String_Null() : Params->SourceDirectory, RelativePathCopy);
 
     StringLocal(FullSourcePath, MAX_PATH_LENGTH+2);
@@ -817,7 +834,7 @@ static void Internal_AppendObjSourceFiles(const BuildParams* Params, String* Cmd
                 continue;
             }
 
-            bool bInsideIntermediatePath = String_StartsWith(RelativePath, Params->IntermediateDirectory, false);
+            bool bInsideIntermediatePath = Internal_IsPathUnderDirectory(RelativePath, Params->IntermediateDirectory);
 
             u32 LastDot = 0;
             bool bHasDot = String_IndexOfLastChar(RelativePath, '.', &LastDot);
