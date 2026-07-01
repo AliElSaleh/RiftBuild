@@ -195,8 +195,13 @@ STRUCT(BuildPlan)
     // resolved data lives in that module's own ModuleNode.Arena instead.
     LinearAllocator* Arena;
 
+    // Backing blocks of every per-module arena we hand out (see Plan_NewModuleArena). Tracked here so
+    // they can all be freed together in Plan_Free once the build has run -- including the arenas of
+    // deduplicated diamond re-resolutions, which are not attached to any module.
+    void** ArenaBlocks;
+    u32    NumArenaBlocks;
+
     u32 NumModules;
-    u32 Padding;
 };
 
 STRUCT(BuildFileDirectoryIteratorData)
@@ -4515,128 +4520,16 @@ static bool TryCleanFromManifest(const String IntermediateBaseDirectory, const S
     return bCleanedSomething;
 }
 
-// --- Parallel build plan: deep-copy helpers -----------------------------------------------------
-//
-// A ModuleNode has to outlive the BuildTarget call that produced it (every module's resolved state
-// is held at once so their source files can compile in one batch). But BuildParams and VariablesDB
-// are full of pointers into stack StringLocal buffers and into the per-call arena that the old
-// dependency loop resets between deps. So planning deep-copies everything a module needs into that
-// module's own arena. This mirrors how the receipt already copies its exports (String_Create).
-
-static String Internal_CopyStrToArena(LinearAllocator* Arena, const String S)
-{
-    return String_IsValid(S) ? String_Create(Arena, S) : String_Null();
-}
-
-static StringList Internal_CopyStringListToArena(LinearAllocator* Arena, StringList Src)
-{
-    StringList Head = {0};
-    StringList* Tail = NULL;
-
-    for each_string_in_list (Src)
-    {
-        StringList* Node = StringList_CreateWithCopy(Arena, It.String, NULL);
-        if (Tail == NULL) { Head = *Node; Tail = &Head; }
-        else              { Tail->Next = Node; Tail = Node; }
-    }
-
-    return Head;
-}
-
-static TArray(FileVariable) Internal_DeepCopyVariablesDB(LinearAllocator* Arena, TArray(FileVariable) Src)
-{
-    const usize Num = Src ? Array_Num(Src) : 0;
-    const usize Cap = Num > 0 ? Num : 1;
-
-    FileVariable* Dst = Internal_ArrayCreateStatic(LinearAllocator_Allocate(Arena, Array_CalculateMemRequirement(Cap, sizeof(FileVariable))), Cap, sizeof(FileVariable));
-
-    for (usize i = 0; i < Num; i++)
-    {
-        FileVariable Copy = {0};
-        Copy.Params  = Internal_CopyStrToArena(Arena, Src[i].Params);
-        Copy.Name    = Internal_CopyStrToArena(Arena, Src[i].Name);
-        Copy.Value   = Internal_CopyStrToArena(Arena, Src[i].Value);
-        Copy.Content = Internal_CopyStrToArena(Arena, Src[i].Content);
-        Array_Add(Dst, Copy);
-    }
-
-    return Dst;
-}
-
-static void Internal_DeepCopyBuildParams(LinearAllocator* Arena, const BuildParams* Src, BuildParams* Dst)
-{
-    *Dst = *Src; // scalars, enums, bools and pointers; the owned/stack-backed fields are fixed up below
-
-    #define CP(F) Dst->F = Internal_CopyStrToArena(Arena, Src->F)
-    CP(RootDirectory); CP(SourceDirectory); CP(BuildDirectory); CP(IntermediateDirectory); CP(IntermediateBaseDirectory);
-    CP(BuildFileName); CP(PCHPath); CP(PCHHeaderPath);
-    CP(Assembly); CP(AssemblyWithExt); CP(AssemblyPrefix); CP(AssemblyPostfix); CP(Extension); CP(Extension_Og);
-    CP(CompilerProgram); CP(CompilerPath); CP(CompilerObjectExt); CP(CompilerObjectDirectory);
-    CP(LinkerPath); CP(ArchiverPath); CP(ArchiverOutputFlag); CP(DumpBinPath);
-    CP(CompilerOutputFlag); CP(CompilerCompileFlag);
-    CP(AsmProgram); CP(AsmPath); CP(RCProgram); CP(RCProgramPath); CP(RCProgramFlags);
-    CP(CompilerFlags); CP(AssemblerFlags); CP(AssemblerIncludes); CP(AssemblerDefines);
-    CP(LinkerFlags); CP(ArchiverFlags); CP(IncludeFlags); CP(DefineFlags); CP(UnDefineFlags); CP(LinkerDefineFlags);
-    CP(Libraries); CP(LibraryDirectories);
-    CP(LinkerEntryPoint); CP(LinkerSubsystem); CP(LinkerStack); CP(LinkerOutputFlag);
-    CP(CameFromBuildFile); CP(IconFilePath);
-    CP(TitleName); CP(InternalName); CP(CompanyName); CP(Description); CP(Copyright); CP(Version);
-    CP(RPathOrigin); CP(RPaths);
-    CP(WindowsSDKIncludePath); CP(WindowsSDKLibUmPath); CP(WindowsSDKLibUcrtPath);
-    CP(VisualStudioIncludePath); CP(VisualStudioLibraryPath);
-    CP(Timestamp);
-    #undef CP
-
-    Dst->SourceFiles = Internal_CopyStringListToArena(Arena, Src->SourceFiles);
-
-    if (Src->FileOverrides && Src->NumFileOverrides > 0)
-    {
-        FileOverride* Copy = LinearAllocator_Allocate(Arena, sizeof(FileOverride) * Src->NumFileOverrides);
-        for (u32 i = 0; i < Src->NumFileOverrides; i++)
-        {
-            Copy[i].FileName     = Internal_CopyStrToArena(Arena, Src->FileOverrides[i].FileName);
-            Copy[i].CompilerFlags= Internal_CopyStrToArena(Arena, Src->FileOverrides[i].CompilerFlags);
-            Copy[i].IncludeFlags = Internal_CopyStrToArena(Arena, Src->FileOverrides[i].IncludeFlags);
-            Copy[i].DefineFlags  = Internal_CopyStrToArena(Arena, Src->FileOverrides[i].DefineFlags);
-            Copy[i].UnDefineFlags= Internal_CopyStrToArena(Arena, Src->FileOverrides[i].UnDefineFlags);
-        }
-        Dst->FileOverrides = Copy;
-    }
-    else
-    {
-        Dst->FileOverrides = NULL;
-        Dst->NumFileOverrides = 0;
-    }
-
-    if (Src->ForceRecompileFiles && Array_Num(Src->ForceRecompileFiles) > 0)
-    {
-        const usize Num = Array_Num(Src->ForceRecompileFiles);
-        String* Copy = Internal_ArrayCreateStatic(LinearAllocator_Allocate(Arena, Array_CalculateMemRequirement(Num, sizeof(String))), Num, sizeof(String));
-        for (usize i = 0; i < Num; i++)
-        {
-            String C = Internal_CopyStrToArena(Arena, Src->ForceRecompileFiles[i]);
-            Array_Add(Copy, C);
-        }
-        Dst->ForceRecompileFiles = Copy;
-    }
-    else
-    {
-        Dst->ForceRecompileFiles = NULL;
-    }
-
-    // Processes (shared pool), Arena and the manifest handle are set by the caller after the copy.
-    Dst->ArtifactManifestHandle = (FileHandle){0};
-}
-
-// Allocate a persistent per-module arena, deep-copy Src into it, and append the finished node to the
-// plan (in dependency/post-order). Src holds pointers into the caller's transient memory; nothing
-// from Src is referenced after this returns.
-static bool Plan_AppendModule(BuildPlan* Plan, const ModuleNode* Src)
+// Append a fully-resolved module to the plan, in dependency (post-order)
+// order. The module resolved directly into ModuleArena, so every string in Src (BuildParams,
+// VariablesDB, paths) already lives there: we take the whole node by value, with no copy. The plan
+// owns ModuleArena's backing block and frees it once the whole build has run (see Plan_Free).
+static bool Plan_AppendModule(BuildPlan* Plan, const ModuleNode* Src, LinearAllocator ModuleArena)
 {
     // Diamond dependencies (two modules that both depend on the same library) reach this build file
-    // more than once. Add it to the plan only the first time, so its source files are not compiled
-    // twice in the same batch (which would race two compiler processes on the same object files). The
-    // parent's export fold still works: it uses the receipt returned from re-resolving, not this node.
+    // more than once. Add it only the first time, so its source files are not compiled twice in the
+    // same batch (which would race two compiler processes on the same object files). The parent's
+    // export fold still works: it uses the receipt returned from re-resolving, not this node.
     if (String_IsValid(Src->BuildFilePath))
     {
         for (usize i = 0; i < Plan->NumModules; i++)
@@ -4648,60 +4541,78 @@ static bool Plan_AppendModule(BuildPlan* Plan, const ModuleNode* Src)
         }
     }
 
-    void* Mem = Platform_MemAlloc(MAX_RIFTBUILD_MEMORY);
-    if (!Mem)
-    {
-        LOG_FATAL("Failed to allocate memory for a module in the build plan!");
-        return false;
-    }
-
     ModuleNode* Node = LinearAllocator_Allocate(Plan->Arena, sizeof(ModuleNode));
-    MemZero(Node, sizeof(ModuleNode));
+    *Node = *Src; // shallow: every string already lives in ModuleArena, nothing to deep-copy
 
-    Node->ArenaMemory = Mem;
-    LinearAllocator_Create(MAX_RIFTBUILD_MEMORY, Mem, &Node->Arena);
-
-    LinearAllocator* A = &Node->Arena;
-
-    Internal_DeepCopyBuildParams(A, &Src->Params, &Node->Params);
-    Node->Params.Processes = &Plan->Processes; // one shared pool -> cross-module parallel batch
-    Node->Params.Arena     = A;                // execution scratch lives in this module's arena
-
-    Node->VariablesDB          = Internal_DeepCopyVariablesDB(A, Src->VariablesDB);
-    Node->Receipt              = Src->Receipt; // only scalar fields are read after planning
-    Node->WorkingPath          = Internal_CopyStrToArena(A, Src->WorkingPath);
-    Node->BuildFilePath        = Internal_CopyStrToArena(A, Src->BuildFilePath);
-    Node->BuildFileName        = Internal_CopyStrToArena(A, Src->BuildFileName);
-    Node->BuildBaseDirectory   = Internal_CopyStrToArena(A, Src->BuildBaseDirectory);
-    Node->ArtifactManifestPath = Internal_CopyStrToArena(A, Src->ArtifactManifestPath);
-    Node->IconRcFilePath       = Internal_CopyStrToArena(A, Src->IconRcFilePath);
-    Node->VersionRCFilePath    = Internal_CopyStrToArena(A, Src->VersionRCFilePath);
-
-    Node->Type           = Src->Type;
-    Node->bCanLink       = Src->bCanLink;
-    Node->bBundleApp     = Src->bBundleApp;
-    Node->bIsClean       = Src->bIsClean;
-    Node->bSkipPostBuild = Src->bSkipPostBuild;
-    Node->bForceRelink   = Src->bForceRelink;
-    Node->bIsPhony       = (Src->Type == AssemblyType_Null);
+    Node->Arena            = ModuleArena;       // the module's live arena handle (execution scratch)
+    Node->ArenaMemory      = NULL;              // backing block is tracked and freed at plan level
+    Node->Params.Processes = &Plan->Processes;  // one shared pool -> cross-module parallel batch
+    Node->Params.Arena     = &Node->Arena;      // execution scratch continues in this module's arena
+    Node->bIsPhony         = (Src->Type == AssemblyType_Null);
 
     Array_Add(Plan->Modules, Node);
     Plan->NumModules += 1;
     return true;
 }
 
+// A module resolves everything (VariablesDB, BuildParams flag strings, paths) into one arena and it
+// must all stay alive at once for the batch, so give each module a generous block: the configured
+// build memory plus headroom for the flag strings that used to live on the stack.
+#define MODULE_ARENA_SIZE (MAX_RIFTBUILD_MEMORY + Mebibytes(1))
+#define MAX_PLAN_ARENA_BLOCKS 1024
+
+// Hand out a fresh persistent arena for one module and remember its backing block so Plan_Free can
+// release it later. Returns a zeroed allocator on OOM (the caller's resolution then fails cleanly).
+static LinearAllocator Plan_NewModuleArena(BuildPlan* Plan)
+{
+    LinearAllocator Arena = {0};
+
+    void* Mem = Platform_MemAlloc(MODULE_ARENA_SIZE);
+    if (!Mem)
+    {
+        LOG_FATAL("Failed to allocate memory for a module in the build plan!");
+        return Arena;
+    }
+
+    LinearAllocator_Create(MODULE_ARENA_SIZE, Mem, &Arena);
+
+    if (Plan->ArenaBlocks && Plan->NumArenaBlocks < MAX_PLAN_ARENA_BLOCKS)
+    {
+        Plan->ArenaBlocks[Plan->NumArenaBlocks++] = Mem;
+    }
+
+    return Arena;
+}
+
+// Arena-backed scratch string: same shape as StringLocal, but the buffer comes from the passed-in
+// module Arena instead of the stack, so a value built here survives past BuildTarget. The planner
+// resolves each module directly into its own persistent arena and keeps the resolved BuildParams as
+// is -- there is no separate copy step -- so every string that ends up in `p` or the ModuleNode must
+// be arena-backed. (Pure scratch that never escapes stays on StringLocal.) Relies on `Arena` being in
+// scope, which it always is inside BuildTarget; #undef'd right after the function.
+#define ArenaStr(Name, Cap) String Name = String_Reserve(Arena, (Cap))
+
 // When bPlanOnly is true, BuildTarget resolves the module (parse, absolute paths, fold in dependency
 // exports, run the incremental diff) and appends a ModuleNode to Plan instead of compiling/linking.
 // The lifecycle hooks, compile, and link are then driven later by ExecuteBuildPlan as phase-global
 // barriers. When bPlanOnly is false it behaves as the original serial build (resolve + execute inline).
 static BuildReceipt BuildTarget(LinearAllocator* Arena,
-                        const FileHandle BuildFileHandle, const String BuildFilePath, PlatformMutex* BuildMutex,
-                        const String WorkingPath, const StringArray Parameters, const String CameFromBuildFile,
+                        const FileHandle BuildFileHandle, String BuildFilePath, PlatformMutex* BuildMutex,
+                        String WorkingPath, const StringArray Parameters, String CameFromBuildFile,
                         i8 BuildFileIndex, i8 RootPathIndex,
                         BuildPlan* Plan, bool bPlanOnly)
 {
     // BuildResult BuildOutputResult = {0};
     BuildReceipt Receipt = {0};
+
+    // Copy the transient input paths into this module's persistent arena. For a dependency these point
+    // into the parent's dep-loop StringLocals, which are gone by execution time; since the planner keeps
+    // each resolved module without copying, everything it references -- including its inputs -- must live
+    // in the module arena. (BuildFilePathFull and BuildFileName below are derived from BuildFilePath, so
+    // they inherit the arena backing automatically.)
+    if (String_IsValid(WorkingPath))       { WorkingPath       = String_Create(Arena, WorkingPath); }
+    if (String_IsValid(BuildFilePath))     { BuildFilePath     = String_Create(Arena, BuildFilePath); }
+    if (String_IsValid(CameFromBuildFile)) { CameFromBuildFile = String_Create(Arena, CameFromBuildFile); }
 
     if (!Platform_SetWorkingDirectory(WorkingPath))
     {
@@ -4885,7 +4796,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         String_Copy(&TimeZone, S("Unknown"));
     }
 
-    StringLocal(TimeStamp, 64);
+    ArenaStr(TimeStamp, 64);
     String_Format(&TimeStamp, S("%hu-%.2hu-%.2hu %.2hu:%.2hu:%.2hu [%S]"), TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second, TimeZone);
 
     {
@@ -5215,10 +5126,10 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
         // find the first compiler available on this machine
 
-        StringLocal(CompilerPath, MAX_PATH_LENGTH);
-        StringLocal(LinkerPath, MAX_PATH_LENGTH);
+        ArenaStr(CompilerPath, MAX_PATH_LENGTH);
+        ArenaStr(LinkerPath, MAX_PATH_LENGTH);
         StringLocal(AssemblerPath, MAX_PATH_LENGTH);
-        StringLocal(ArchiverPath, MAX_PATH_LENGTH);
+        ArenaStr(ArchiverPath, MAX_PATH_LENGTH);
         StringLocal(CompilerInstallPath, MAX_PATH_LENGTH);
         StringLocal(CompilerToolPath, MAX_PATH_LENGTH);
         StringLocal(CompilerBasePath, MAX_PATH_LENGTH);
@@ -5464,7 +5375,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         Version = S("1.0.0");
     }
 
-    StringLocal(FinalAssemblyName, 256);
+    ArenaStr(FinalAssemblyName, 256);
 
     // to make life easier on linux because of case fuckjing sensitive commands
     #if !PLATFORM_WINDOWS
@@ -5497,15 +5408,15 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
     const String AssemblyName = FinalAssemblyName;
 
-    StringLocal(RCCompilerPath,  MAX_PATH_LENGTH);
+    ArenaStr(RCCompilerPath,  MAX_PATH_LENGTH);
     StringLocal(MTCompilerPath,  MAX_PATH_LENGTH);
-    StringLocal(DumpBinPath,     MAX_PATH_LENGTH);
+    ArenaStr(DumpBinPath,     MAX_PATH_LENGTH);
 
     #if PLATFORM_WINDOWS
     StringLocal(WindowsSDKBinaryPath,    MAX_PATH_LENGTH);
-    StringLocal(WindowsSDKIncludePath,   MAX_PATH_LENGTH);
-    StringLocal(WindowsSDKLibUmPath,     MAX_PATH_LENGTH);
-    StringLocal(WindowsSDKLibUcrtPath,   MAX_PATH_LENGTH);
+    ArenaStr(WindowsSDKIncludePath,   MAX_PATH_LENGTH);
+    ArenaStr(WindowsSDKLibUmPath,     MAX_PATH_LENGTH);
+    ArenaStr(WindowsSDKLibUcrtPath,   MAX_PATH_LENGTH);
 
     if (!bWasVCVarsBatchExecuted)
     {
@@ -5627,25 +5538,18 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         //            we aren't dynamically shitting memory out everytime we need some :P
         //            So just allocate one big chunk and let our allocator dish out the memory.
         //i8 ArenaMemory[Mebibytes(1)] = {0};
-        usize TotalMem = MAX_RIFTBUILD_MEMORY;
-        void* ArenaMemory = Platform_MemAlloc(TotalMem);
-
-        if (!ArenaMemory)
-        {
-            LOG_FATAL("Failed to allocate memory from the operating system!");
-
-            Receipt.ExitCode = 1;
-            return Receipt;
-        }
-
-        LinearAllocator NewArena = {0};
-        LinearAllocator_Create(TotalMem, ArenaMemory, &NewArena);
-
         for (u32 i = 0; !bSkipDependencies && i < Depends_Count; i++)
         {
-            //MemZero(ArenaMemory, TotalMem);
-
-            LinearAllocator_Reset(&NewArena, 0); // "free" the memory
+            // Each dependency resolves into its own persistent per-module arena, which the plan keeps
+            // and frees once the whole build has run. There is no shared/reset scratch arena anymore:
+            // the planner never copies a resolved module back out, so its arena has to survive until
+            // execution finishes.
+            LinearAllocator NewArena = Plan_NewModuleArena(Plan);
+            if (!NewArena.Memory)
+            {
+                Receipt.ExitCode = 1;
+                return Receipt;
+            }
 
             FileVariable Var = *Depends[i];
 
@@ -6011,8 +5915,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             LOG_LINE_BREAK();
         }
 
-        LinearAllocator_Destroy(&NewArena);
-        Platform_MemFree(ArenaMemory);
+        // Dependency arenas are owned by the plan now (freed in Plan_Free), not here.
 
         if (bRanAnyDependencies && !bIsClean)
         {
@@ -6081,12 +5984,12 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         return Receipt;
     }
 
-    StringLocal(BuildBaseDirectory, MAX_PATH_LENGTH);
+    ArenaStr(BuildBaseDirectory, MAX_PATH_LENGTH);
     String_BuildPath(&BuildBaseDirectory, WorkingPath, BuildDirectory);
     String_AppendPathSeparator(&BuildBaseDirectory);
     xx Filesystem_ConvertRelativeToAbsolutePath(&BuildBaseDirectory);
 
-    StringLocal(IntermediateBaseDirectory, MAX_PATH_LENGTH);
+    ArenaStr(IntermediateBaseDirectory, MAX_PATH_LENGTH);
     String_BuildPath(&IntermediateBaseDirectory, WorkingPath, IntermediateDirectory);
     String_AppendPathSeparator(&IntermediateBaseDirectory);
     xx Filesystem_ConvertRelativeToAbsolutePath(&IntermediateBaseDirectory);
@@ -6308,7 +6211,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         }
     }
 
-    StringLocal(AssemblyNameWithExt, 256);
+    ArenaStr(AssemblyNameWithExt, 256);
     String_Copy(&AssemblyNameWithExt, FinalAssemblyName);
     if (Extension.Length > 0)
     {
@@ -6953,9 +6856,9 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     }
 
     // find the icon path (if specified)
-    StringLocal(IconFilePath, MAX_PATH_LENGTH);
-    StringLocal(IconRcFilePath, MAX_PATH_LENGTH);
-    StringLocal(VersionRCFilePath, MAX_PATH_LENGTH);
+    ArenaStr(IconFilePath, MAX_PATH_LENGTH);
+    ArenaStr(IconRcFilePath, MAX_PATH_LENGTH);
+    ArenaStr(VersionRCFilePath, MAX_PATH_LENGTH);
 
     if (Icon.Length > 0)
     {
@@ -7166,17 +7069,17 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     xx bExplicitAsmPath;
     #endif
 
-    StringLocal(ExpandedIncludeFlags, 4096);
-    StringLocal(ExpandedLibraries, 2048);
-    StringLocal(ExpandedLibraryDirectories, 4096);
-    StringLocal(ExpandedDefineFlags, 2048);
-    StringLocal(ExpandedUnDefineFlags, 1024);
-    
-    StringLocal(ExpandedCompilerFlags, 4096);
-    StringLocal(ExpandedLinkerFlags, 4096);
-    StringLocal(ExpandedLinkerDefineFlags, 1024);
-    StringLocal(ExpandedAssemblerIncludeFlags, 4096);
-    StringLocal(ExpandedAssemblerDefineFlags, 1024);
+    ArenaStr(ExpandedIncludeFlags, 4096);
+    ArenaStr(ExpandedLibraries, 2048);
+    ArenaStr(ExpandedLibraryDirectories, 4096);
+    ArenaStr(ExpandedDefineFlags, 2048);
+    ArenaStr(ExpandedUnDefineFlags, 1024);
+
+    ArenaStr(ExpandedCompilerFlags, 4096);
+    ArenaStr(ExpandedLinkerFlags, 4096);
+    ArenaStr(ExpandedLinkerDefineFlags, 1024);
+    ArenaStr(ExpandedAssemblerIncludeFlags, 4096);
+    ArenaStr(ExpandedAssemblerDefineFlags, 1024);
     
     #if PLATFORM_APPLE
     StringLocal(ExpandedFrameworks, 2048);
@@ -7931,7 +7834,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         Temp.bSkipPostBuild       = bSkipPostBuild;
         Temp.bForceRelink         = bForceRelink;
 
-        if (!Plan_AppendModule(Plan, &Temp))
+        if (!Plan_AppendModule(Plan, &Temp, *Arena))
         {
             Receipt.ExitCode = 1;
             return Receipt;
@@ -8344,6 +8247,8 @@ End:
     return Receipt;
 }
 
+#undef ArenaStr
+
 // --- Parallel build plan: executor --------------------------------------------------------------
 //
 // Runs a fully-resolved BuildPlan as phase-global barriers, iterating every module in dependency
@@ -8467,12 +8372,20 @@ static void Plan_RunRootAssemblyIfRequested(ModuleNode* Node, const StringArray 
 
 static void Plan_Free(BuildPlan* Plan)
 {
+    // Close any manifests the executor left open.
     for (usize i = 0; i < Plan->NumModules; i++)
     {
         ModuleNode* Node = Plan->Modules[i];
         if (IsValidFileHandle(Node->Params.ArtifactManifestHandle)) { Filesystem_Close(&Node->Params.ArtifactManifestHandle); }
-        if (Node->ArenaMemory) { Platform_MemFree(Node->ArenaMemory); Node->ArenaMemory = NULL; }
     }
+
+    // Release every per-module arena block (each module resolved directly into one; nothing was
+    // copied out). This also covers deduped diamond re-resolutions that never became a module.
+    for (u32 i = 0; i < Plan->NumArenaBlocks; i++)
+    {
+        if (Plan->ArenaBlocks[i]) { Platform_MemFree(Plan->ArenaBlocks[i]); Plan->ArenaBlocks[i] = NULL; }
+    }
+    Plan->NumArenaBlocks = 0;
 }
 
 static BuildReceipt ExecuteBuildPlan(BuildPlan* Plan, const StringArray RootParameters, Clock* OutCompileClock, Clock* OutLinkClock)
@@ -9304,16 +9217,23 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments, const 
     // link nothing), then execute the plan as phase-global barriers with one shared parallel compile
     // batch across every module. See ExecuteBuildPlan.
     BuildPlan Plan = {0};
-    Plan.Arena    = Arena;
-    Plan.Modules  = Internal_ArrayCreateStatic(LinearAllocator_Allocate(Arena, Array_CalculateMemRequirement(256, sizeof(ModuleNode*))),  256, sizeof(ModuleNode*));
-    Plan.Processes= Internal_ArrayCreateStatic(LinearAllocator_Allocate(Arena, Array_CalculateMemRequirement(256, sizeof(PlatformHandle))), 256, sizeof(PlatformHandle));
+    Plan.Arena       = Arena; // plan bookkeeping (Modules/Processes/ArenaBlocks arrays) only
+    Plan.Modules     = Internal_ArrayCreateStatic(LinearAllocator_Allocate(Arena, Array_CalculateMemRequirement(256, sizeof(ModuleNode*))),  256, sizeof(ModuleNode*));
+    Plan.Processes   = Internal_ArrayCreateStatic(LinearAllocator_Allocate(Arena, Array_CalculateMemRequirement(256, sizeof(PlatformHandle))), 256, sizeof(PlatformHandle));
+    Plan.ArenaBlocks = LinearAllocator_Allocate(Arena, sizeof(void*) * MAX_PLAN_ARENA_BLOCKS);
 
     Clock TotalClock = {0};
     Clock_Start(&TotalClock);
 
+    // The root module gets its own persistent arena too, so it resolves in place like every dependency
+    // (ProgramArena is reserved for the plan's bookkeeping arrays).
+    LinearAllocator RootArena = Plan_NewModuleArena(&Plan);
+
     Clock PlanClock = {0};
     Clock_Start(&PlanClock);
-    BuildReceipt Receipt = BuildTarget(Arena, BuildFileHandle, BuildFilePathFull, &BuildMutex, WorkingDirectory, BuildArguments, String_Null(), BuildFileIndex, RootPathIndex, &Plan, true);
+    BuildReceipt Receipt = RootArena.Memory
+        ? BuildTarget(&RootArena, BuildFileHandle, BuildFilePathFull, &BuildMutex, WorkingDirectory, BuildArguments, String_Null(), BuildFileIndex, RootPathIndex, &Plan, true)
+        : (BuildReceipt){ .ExitCode = 1 };
     Clock_Tick(&PlanClock);
 
     Clock CompileClock = {0};
