@@ -4633,6 +4633,21 @@ static void Internal_DeepCopyBuildParams(LinearAllocator* Arena, const BuildPara
 // from Src is referenced after this returns.
 static bool Plan_AppendModule(BuildPlan* Plan, const ModuleNode* Src)
 {
+    // Diamond dependencies (two modules that both depend on the same library) reach this build file
+    // more than once. Add it to the plan only the first time, so its source files are not compiled
+    // twice in the same batch (which would race two compiler processes on the same object files). The
+    // parent's export fold still works: it uses the receipt returned from re-resolving, not this node.
+    if (String_IsValid(Src->BuildFilePath))
+    {
+        for (usize i = 0; i < Plan->NumModules; i++)
+        {
+            if (String_IsEqual(Plan->Modules[i]->BuildFilePath, Src->BuildFilePath, false))
+            {
+                return true;
+            }
+        }
+    }
+
     void* Mem = Platform_MemAlloc(MAX_RIFTBUILD_MEMORY);
     if (!Mem)
     {
