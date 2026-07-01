@@ -8475,7 +8475,7 @@ static void Plan_Free(BuildPlan* Plan)
     }
 }
 
-static BuildReceipt ExecuteBuildPlan(BuildPlan* Plan, const StringArray RootParameters)
+static BuildReceipt ExecuteBuildPlan(BuildPlan* Plan, const StringArray RootParameters, Clock* OutCompileClock, Clock* OutLinkClock)
 {
     BuildReceipt Result = {0};
 
@@ -8498,6 +8498,9 @@ static BuildReceipt ExecuteBuildPlan(BuildPlan* Plan, const StringArray RootPara
 
     // One shared parallel compile batch: every module's source files spawn onto the same throttled
     // process pool, then a single wait-barrier drains them all.
+    Clock CompileClock = {0};
+    Clock_Start(&CompileClock);
+
     u32 TotalCompiled = 0;
     bool bSpawnOk = true;
     for (usize i = 0; i < N; i++)
@@ -8513,6 +8516,9 @@ static BuildReceipt ExecuteBuildPlan(BuildPlan* Plan, const StringArray RootPara
     {
         xx Platform_WaitForMultipleHandles(Plan->Processes, (u32)Array_Num(Plan->Processes), -1, true);
     }
+
+    Clock_Tick(&CompileClock);
+    if (OutCompileClock) { *OutCompileClock = CompileClock; }
 
     if (!bSpawnOk || !bCompileOk) { PLAN_FAIL(); }
 
@@ -8545,6 +8551,9 @@ static BuildReceipt ExecuteBuildPlan(BuildPlan* Plan, const StringArray RootPara
     }
 
     // Link barrier -- dependency order (C, then B, then App)
+    Clock LinkClock = {0};
+    Clock_Start(&LinkClock);
+
     for (usize i = 0; i < N; i++)
     {
         ModuleNode* Node = Plan->Modules[i];
@@ -8552,6 +8561,9 @@ static BuildReceipt ExecuteBuildPlan(BuildPlan* Plan, const StringArray RootPara
 
         if (!C_Link(&Node->Params)) { PLAN_FAIL(); }
     }
+
+    Clock_Tick(&LinkClock);
+    if (OutLinkClock) { *OutLinkClock = LinkClock; }
 
     // PostLink barrier
     for (usize i = 0; i < N; i++)
@@ -8575,6 +8587,21 @@ static BuildReceipt ExecuteBuildPlan(BuildPlan* Plan, const StringArray RootPara
         ModuleNode* Node = Plan->Modules[i];
         if (Node->bSkipPostBuild && Node->bNoMoreWork) { continue; }
         if (!Plan_RunHook(S("PostBuild"), Node)) { PLAN_FAIL(); }
+    }
+
+    // Announce the root artifact (the last module is the top-level target).
+    {
+        ModuleNode* Root = Plan->Modules[N - 1];
+        if (!Root->bIsPhony)
+        {
+            StringLocal(OutputPath, MAX_PATH_LENGTH);
+            String_BuildPath(&OutputPath, Root->BuildBaseDirectory, Root->Params.AssemblyWithExt);
+            #ifndef HOOD
+            LOG_SUCCESS("Build complete: %S", OutputPath);
+            #else
+            LOG_SUCCESS("lessss fuckinggg goooo: %S", OutputPath);
+            #endif
+        }
     }
 
     // Run the root executable if requested on the command line (the root is the last module).
@@ -9281,13 +9308,42 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments, const 
     Plan.Modules  = Internal_ArrayCreateStatic(LinearAllocator_Allocate(Arena, Array_CalculateMemRequirement(256, sizeof(ModuleNode*))),  256, sizeof(ModuleNode*));
     Plan.Processes= Internal_ArrayCreateStatic(LinearAllocator_Allocate(Arena, Array_CalculateMemRequirement(256, sizeof(PlatformHandle))), 256, sizeof(PlatformHandle));
 
-    BuildReceipt Receipt = BuildTarget(Arena, BuildFileHandle, BuildFilePathFull, &BuildMutex, WorkingDirectory, BuildArguments, String_Null(), BuildFileIndex, RootPathIndex, &Plan, true);
+    Clock TotalClock = {0};
+    Clock_Start(&TotalClock);
 
+    Clock PlanClock = {0};
+    Clock_Start(&PlanClock);
+    BuildReceipt Receipt = BuildTarget(Arena, BuildFileHandle, BuildFilePathFull, &BuildMutex, WorkingDirectory, BuildArguments, String_Null(), BuildFileIndex, RootPathIndex, &Plan, true);
+    Clock_Tick(&PlanClock);
+
+    Clock CompileClock = {0};
+    Clock LinkClock    = {0};
     if (Receipt.ExitCode == 0)
     {
-        BuildReceipt ExecReceipt = ExecuteBuildPlan(&Plan, BuildArguments);
+        BuildReceipt ExecReceipt = ExecuteBuildPlan(&Plan, BuildArguments, &CompileClock, &LinkClock);
         Receipt.ExitCode  = ExecReceipt.ExitCode;
         Receipt.bWorkWasDone = ExecReceipt.bWorkWasDone;
+    }
+
+    Clock_Tick(&TotalClock);
+
+    // Timing summary. "Plan" covers parsing/resolving/diffing the whole dependency graph; "Compile"
+    // is the single cross-module parallel batch; "Link" is the ordered link barrier; "Overhead" is
+    // whatever is left (process teardown, logging, the plan free).
+    if (Receipt.ExitCode == 0 && !bQuietBuild && Plan.NumModules > 0)
+    {
+        Clock OverheadClock = {0};
+        OverheadClock.StartTime = 1;
+        OverheadClock.ElapsedTime = TotalClock.ElapsedTime - (PlanClock.ElapsedTime + CompileClock.ElapsedTime + LinkClock.ElapsedTime);
+        if (OverheadClock.ElapsedTime < 0) { OverheadClock.ElapsedTime = 0; }
+
+        StringLocal(TimingBuffer, 512);
+        PrintClockTimeToBuffer(&TimingBuffer, &PlanClock,    &TotalClock, S("\nPlan        Time: "), false);
+        PrintClockTimeToBuffer(&TimingBuffer, &CompileClock, &TotalClock, S(  "Compile     Time: "), false);
+        PrintClockTimeToBuffer(&TimingBuffer, &LinkClock,    &TotalClock, S(  "Link        Time: "), false);
+        PrintClockTimeToBuffer(&TimingBuffer, &OverheadClock,&TotalClock, S(  "Overhead    Time: "), true);
+        PrintClockTimeToBuffer(&TimingBuffer, &TotalClock,   NULL,        S(  "Total build Time: "), false);
+        LOG("%S", TimingBuffer);
     }
 
     Plan_Free(&Plan);
