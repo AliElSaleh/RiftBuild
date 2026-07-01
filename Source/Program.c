@@ -120,6 +120,76 @@ STRUCT(BuildReceipt)
     u8 blah[2];
 };
 
+// ------------------------------------------------------------------------------------------------
+// Parallel build plan
+//
+// The build runs in two passes. The planner walks the dependency graph once (depth-first,
+// post-order) and produces one ModuleNode per unique .build file, each fully resolved: absolute
+// paths, child exports already folded in, and the incremental diff already computed. Nothing is
+// compiled or linked during planning. The executor then runs the plan in phase-global barriers:
+// PreDepend, PreBuild, PreCompile across every module in dependency order (C -> B -> A); then a
+// single shared parallel batch compiles every module's source files at once; then PostCompile,
+// PreLink, link, PostLink, PostBuild barriers, again in dependency order. Linking happens in
+// dependency order so a dependency's artifact exists before anything that links against it.
+// ------------------------------------------------------------------------------------------------
+
+STRUCT(ModuleNode)
+{
+    // Fully-resolved build description handed to C_Compile_Spawn / C_Link during execution.
+    BuildParams Params;
+
+    // Public keys this module exports to modules that depend on it (includes, defines, libraries,
+    // library paths, linker flags). Consumed by parents during planning, before the parent builds
+    // its own Params, so the parent compiles with its dependencies' exports already applied.
+    BuildReceipt Receipt;
+
+    // Parsed + resolved variable database, retained so the lifecycle-hook barriers (PreDepend,
+    // PreBuild, PreCompile, PostCompile, PreLink, PostLink, PostBuild) can be run for this module
+    // during execution via TryRunBuildCommands.
+    TArray(FileVariable) VariablesDB;
+
+    String WorkingPath;    // absolute module directory
+    String BuildFilePath;  // absolute path to this module's .build file; also the graph dedup key
+    String BuildFileName;
+
+    // Each module owns its own arena chunk so every module's resolved state can stay alive at the
+    // same time during execution. (The old serial path reset a single ~1 MiB arena between
+    // dependencies; the batch model holds them all, so we allocate per module and free after the
+    // whole plan finishes executing.)
+    void*           ArenaMemory;
+    LinearAllocator Arena;
+
+    // In-flight compile process handles are appended to the plan-wide shared pool
+    // (BuildPlan.Processes), not here, so a single wait-barrier drains every module at once.
+
+    u32 NumSourcesToCompile;   // dirty source files actually enqueued for this module
+    EAssemblyType Type;
+
+    bool bNeedsRelink;   // diff decided the final artifact must relink even if nothing recompiled
+    bool bWorkWasDone;
+    bool bIsPhony;       // AssemblyType_Null: participates in the graph but has no compile/link work
+    bool bPadding[1];
+};
+
+STRUCT(BuildPlan)
+{
+    // Modules in dependency (post-order) order: deepest dependency first, root last. Every barrier
+    // phase iterates this array in this order (C -> B -> A in the canonical example).
+    TArray(ModuleNode*) Modules;
+
+    // One shared compile-process pool across every module. C_Compile_Spawn appends here (throttled
+    // by a single global MaxCompilersAtOnce) and one C_Compile_Wait barrier drains it, which is what
+    // makes source files across independent modules compile in one parallel batch.
+    TArray(PlatformHandle) Processes;
+
+    // Arena for the plan's own bookkeeping (the Modules array and ModuleNode headers). Each module's
+    // resolved data lives in that module's own ModuleNode.Arena instead.
+    LinearAllocator* Arena;
+
+    u32 NumModules;
+    u32 Padding;
+};
+
 STRUCT(BuildFileDirectoryIteratorData)
 {
     String*     Name;
@@ -4436,10 +4506,15 @@ static bool TryCleanFromManifest(const String IntermediateBaseDirectory, const S
     return bCleanedSomething;
 }
 
+// When bPlanOnly is true, BuildTarget resolves the module (parse, absolute paths, fold in dependency
+// exports, run the incremental diff) and appends a ModuleNode to Plan instead of compiling/linking.
+// The lifecycle hooks, compile, and link are then driven later by ExecuteBuildPlan as phase-global
+// barriers. When bPlanOnly is false it behaves as the original serial build (resolve + execute inline).
 static BuildReceipt BuildTarget(LinearAllocator* Arena,
                         const FileHandle BuildFileHandle, const String BuildFilePath, PlatformMutex* BuildMutex,
                         const String WorkingPath, const StringArray Parameters, const String CameFromBuildFile,
-                        i8 BuildFileIndex, i8 RootPathIndex)
+                        i8 BuildFileIndex, i8 RootPathIndex,
+                        BuildPlan* Plan, bool bPlanOnly)
 {
     // BuildResult BuildOutputResult = {0};
     BuildReceipt Receipt = {0};
@@ -5631,7 +5706,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             String RelativeWorkingPathFromMe = bUsingRelativePath ? CustomRelativePath : CustomWorkingPath_Full;
 
             PlatformMutex NewMutex = {0};
-            BuildReceipt FreshReceipt = BuildTarget(&NewArena, f, NewBuildFilePath, &NewMutex, CustomWorkingPath_Full, NewParams, BuildFileName, -1, -1);
+            BuildReceipt FreshReceipt = BuildTarget(&NewArena, f, NewBuildFilePath, &NewMutex, CustomWorkingPath_Full, NewParams, BuildFileName, -1, -1, Plan, bPlanOnly);
             Filesystem_Close(&FreshReceipt.ArtifactManifestHandle);
             if (NewMutex.Handle) { xx Platform_ReleaseMutex(&NewMutex); }
 
@@ -8726,7 +8801,7 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments, const 
     }
 
     PlatformMutex BuildMutex = {0};
-    BuildReceipt Receipt = BuildTarget(Arena, BuildFileHandle, BuildFilePathFull, &BuildMutex, WorkingDirectory, BuildArguments, String_Null(), BuildFileIndex, RootPathIndex);
+    BuildReceipt Receipt = BuildTarget(Arena, BuildFileHandle, BuildFilePathFull, &BuildMutex, WorkingDirectory, BuildArguments, String_Null(), BuildFileIndex, RootPathIndex, NULL, false);
     Filesystem_Close(&Receipt.ArtifactManifestHandle);
     if (BuildMutex.Handle) { xx Platform_ReleaseMutex(&BuildMutex); }
 
