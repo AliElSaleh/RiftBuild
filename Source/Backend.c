@@ -1464,9 +1464,64 @@ static void Internal_ProcessLinkerOutput_MSVC(PlatformPipe StdOutHandle)
 #endif // PLATFORM_WINDOWS
 
 
+// Given a C compiler/linker driver path, return the path to its C++ counterpart in the same
+// directory (clang -> clang++, gcc -> g++, cc -> c++) if that binary exists, otherwise a null string.
+// Linking a C++ target through the C++ driver is what pulls in the correct C++ runtime for the
+// platform (libc++ or libstdc++), instead of guessing the standard-library flag ourselves.
+static String Internal_DeriveCppDriverPath(LinearAllocator* Arena, const String DriverPath, ECompiler Vendor)
+{
+    const String Name = Filesystem_ExtractFileName(DriverPath, false);
+
+    String CppName = String_Null();
+    if (Vendor == Compiler_Clang)
+    {
+        if (String_IsEqual(Name, S("clang"), false))
+        {
+            CppName = S("clang++");
+        }
+    }
+    else if (Vendor == Compiler_GCC || Vendor == Compiler_MINGW)
+    {
+        if (String_IsEqual(Name, S("gcc"), false))
+        {
+            CppName = S("g++");
+        }
+        else if (String_IsEqual(Name, S("cc"), false))
+        {
+            CppName = S("c++");
+        }
+    }
+
+    if (!String_IsValid(CppName))
+    {
+        return String_Null();
+    }
+
+    u32 LastSlash = 0;
+    xx String_IndexOfLastPathSlash(DriverPath, &LastSlash);
+    const String Dir = StrSlice(DriverPath.Data, LastSlash);
+
+    StringLocal(CppPath, MAX_PATH_LENGTH);
+    String_BuildPath(&CppPath, Dir, CppName);
+
+    #if PLATFORM_WINDOWS
+    String_Append(&CppPath, S(".exe"));
+    #endif
+
+    if (!Filesystem_DoesFileExist(CppPath))
+    {
+        return String_Null();
+    }
+
+    return String_Create(Arena, CppPath);
+}
+
 bool C_Link(const BuildParams* Params)
 {
-    if (NEVER(Params == NULL)) { return false; }
+    if (NEVER(Params == NULL))
+    {
+        return false;
+    }
 
     if (Params->Type == AssemblyType_PCH ||
         Params->Type == AssemblyType_Null)
@@ -1579,6 +1634,20 @@ bool C_Link(const BuildParams* Params)
     String ProgramPath = Params->LinkerPath;
     String VerboseFlag = S("-v");
 
+    // A target with C++ translation units must link through the C++ compiler driver (clang++/g++) so
+    // the correct C++ runtime is pulled in. If we can resolve one next to the C driver, use it; if not
+    // (e.g. an explicit non-driver linker), fall back to adding the standard-library flag ourselves.
+    bool bUsingCppDriver = false;
+    if (Params->bHasCppFiles && !bIsMicrosoftLinker)
+    {
+        const String CppDriver = Internal_DeriveCppDriverPath(Params->Arena, Params->LinkerPath, Params->CompilerVendor);
+        if (String_IsValid(CppDriver))
+        {
+            ProgramPath = CppDriver;
+            bUsingCppDriver = true;
+        }
+    }
+
     StringLocal(CmdLine, UINT16_MAX);
     String_AppendChar(&CmdLine, '"');
     String_Append    (&CmdLine, ProgramPath);
@@ -1650,11 +1719,10 @@ bool C_Link(const BuildParams* Params)
                                              Params->Libraries,
                                              Params->LibraryDirectories);
 
-        // A target with C++ translation units needs the C++ runtime linked in. The compiler builds
-        // .cc/.cpp/... as C++, but linking with the C driver (clang/gcc) does not pull in
-        // libc++/libstdc++, so the C++ standard-library symbols come up undefined. Add it explicitly,
-        // after the objects (link order matters). MSVC/clang-cl link their C++ runtime automatically.
-        if (Params->bHasCppFiles && !bIsMicrosoftLinker)
+        // Fallback for a C++ target when we could not switch to the C++ driver above (see
+        // bUsingCppDriver): add the C++ standard library to the C driver's link ourselves, after the
+        // objects (link order matters). MSVC/clang-cl link their C++ runtime automatically.
+        if (Params->bHasCppFiles && !bIsMicrosoftLinker && !bUsingCppDriver)
         {
             if (Params->CompilerVendor == Compiler_GCC || Params->CompilerVendor == Compiler_MINGW)
             {
