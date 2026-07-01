@@ -8704,9 +8704,75 @@ static void LogDividerLine(void)
     if (bQuietBuild) { Logging_Disable(); }
 }
 
-static u32 RiftBuild(LinearAllocator* Arena, const StringArray Arguments, const String BaseDirectory)
+// An argument prefixed with '/' is "commented out": it is removed from the
+// command line so the rest of the program behaves as if it were never passed.
+// A leading '/' followed by another path separator is a real filesystem path
+// (e.g. "/Users/me/project"), not a comment, so it is left untouched.
+static bool IsDisabledArgument(const String Argument)
+{
+    if (Argument.Length < 2)
+    {
+        return false;
+    }
+
+    if (Argument.Data[0] != '/')
+    {
+        return false;
+    }
+
+    for (u32 i = 1; i < Argument.Length; i++)
+    {
+        if (Argument.Data[i] == '/' || Argument.Data[i] == '\\')
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+static StringArray StripDisabledArguments(LinearAllocator* Arena, const StringArray Arguments)
+{
+    u32 KeepCount = 0;
+    for (u32 i = 0; i < Arguments.Num; i++)
+    {
+        if (!IsDisabledArgument(Arguments.List[i]))
+        {
+            KeepCount++;
+        }
+    }
+
+    if (KeepCount == Arguments.Num)
+    {
+        return Arguments;
+    }
+
+    StringArray Result = StringArray_Null();
+    Result.Num = KeepCount;
+
+    if (KeepCount > 0)
+    {
+        Result.List = LinearAllocator_Allocate(Arena, sizeof(String) * KeepCount);
+
+        u32 j = 0;
+        for (u32 i = 0; i < Arguments.Num; i++)
+        {
+            if (!IsDisabledArgument(Arguments.List[i]))
+            {
+                Result.List[j] = Arguments.List[i];
+                j++;
+            }
+        }
+    }
+
+    return Result;
+}
+
+static u32 RiftBuild(LinearAllocator* Arena, const StringArray RawArguments, const String BaseDirectory)
 {
     if (NEVER(Arena == NULL)) { return 1; }
+
+    const StringArray Arguments = StripDisabledArguments(Arena, RawArguments);
 
     StringLocal(BuildFileName, 128);
     StringLocal(BuildFilePath, MAX_PATH_LENGTH);
