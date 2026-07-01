@@ -1,0 +1,10 @@
+Assembly SampleC
+Type     static_lib
+
+BuildDirectory        Build
+IntermediateDirectory Intermediate
+
+# Anything that depends on C can #include "c.h" without knowing where C lives.
+Includes.Public       .
+
+SourceFiles           c_core c_util
