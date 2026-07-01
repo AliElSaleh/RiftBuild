@@ -188,6 +188,9 @@ STRUCT(StringList) // 24 bytes
 #define each_string_in_list_i(i, x)         each_str_list_i(i, x)
 
 #define StringLocal(Name, n) 	            String   Name; uchar MACRO_VAR(CONCAT(Buffer_, Name))[n+1] = {0}; Name.Data = MACRO_VAR(CONCAT(Buffer_, Name)); Name.Length = 0; Name.Capacity = (n)
+// Like StringLocal, but the buffer is reserved from Arena instead of the stack, so the value outlives
+// the current scope (e.g. a resolved string a planner keeps past the function that built it).
+#define StringArena(Name, n, Arena)         String   Name = String_Reserve((Arena), (n))
 #define String16Local(Name, n) 	            String16 Name; wchar MACRO_VAR(CONCAT(Buffer_, Name))[n+1] = {0}; Name.Data = MACRO_VAR(CONCAT(Buffer_, Name)), Name.Length = 0, Name.Capacity = (n)
 
 #define CStr(s)                             (String)         {.Data = (uchar*)(s),          .Length = String_GetLength_Fast(s),              .Capacity = 0}

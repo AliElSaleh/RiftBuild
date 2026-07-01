@@ -4584,14 +4584,6 @@ static LinearAllocator Plan_NewModuleArena(BuildPlan* Plan)
     return Arena;
 }
 
-// Arena-backed scratch string: same shape as StringLocal, but the buffer comes from the passed-in
-// module Arena instead of the stack, so a value built here survives past BuildTarget. The planner
-// resolves each module directly into its own persistent arena and keeps the resolved BuildParams as
-// is -- there is no separate copy step -- so every string that ends up in `p` or the ModuleNode must
-// be arena-backed. (Pure scratch that never escapes stays on StringLocal.) Relies on `Arena` being in
-// scope, which it always is inside BuildTarget; #undef'd right after the function.
-#define ArenaStr(Name, Cap) String Name = String_Reserve(Arena, (Cap))
-
 // When bPlanOnly is true, BuildTarget resolves the module (parse, absolute paths, fold in dependency
 // exports, run the incremental diff) and appends a ModuleNode to Plan instead of compiling/linking.
 // The lifecycle hooks, compile, and link are then driven later by ExecuteBuildPlan as phase-global
@@ -4796,7 +4788,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         String_Copy(&TimeZone, S("Unknown"));
     }
 
-    ArenaStr(TimeStamp, 64);
+    StringArena(TimeStamp, 64, Arena);
     String_Format(&TimeStamp, S("%hu-%.2hu-%.2hu %.2hu:%.2hu:%.2hu [%S]"), TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second, TimeZone);
 
     {
@@ -5126,10 +5118,10 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
         // find the first compiler available on this machine
 
-        ArenaStr(CompilerPath, MAX_PATH_LENGTH);
-        ArenaStr(LinkerPath, MAX_PATH_LENGTH);
+        StringArena(CompilerPath, MAX_PATH_LENGTH, Arena);
+        StringArena(LinkerPath, MAX_PATH_LENGTH, Arena);
         StringLocal(AssemblerPath, MAX_PATH_LENGTH);
-        ArenaStr(ArchiverPath, MAX_PATH_LENGTH);
+        StringArena(ArchiverPath, MAX_PATH_LENGTH, Arena);
         StringLocal(CompilerInstallPath, MAX_PATH_LENGTH);
         StringLocal(CompilerToolPath, MAX_PATH_LENGTH);
         StringLocal(CompilerBasePath, MAX_PATH_LENGTH);
@@ -5375,7 +5367,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         Version = S("1.0.0");
     }
 
-    ArenaStr(FinalAssemblyName, 256);
+    StringArena(FinalAssemblyName, 256, Arena);
 
     // to make life easier on linux because of case fuckjing sensitive commands
     #if !PLATFORM_WINDOWS
@@ -5408,15 +5400,15 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
     const String AssemblyName = FinalAssemblyName;
 
-    ArenaStr(RCCompilerPath,  MAX_PATH_LENGTH);
+    StringArena(RCCompilerPath,  MAX_PATH_LENGTH, Arena);
     StringLocal(MTCompilerPath,  MAX_PATH_LENGTH);
-    ArenaStr(DumpBinPath,     MAX_PATH_LENGTH);
+    StringArena(DumpBinPath,     MAX_PATH_LENGTH, Arena);
 
     #if PLATFORM_WINDOWS
     StringLocal(WindowsSDKBinaryPath,    MAX_PATH_LENGTH);
-    ArenaStr(WindowsSDKIncludePath,   MAX_PATH_LENGTH);
-    ArenaStr(WindowsSDKLibUmPath,     MAX_PATH_LENGTH);
-    ArenaStr(WindowsSDKLibUcrtPath,   MAX_PATH_LENGTH);
+    StringArena(WindowsSDKIncludePath,   MAX_PATH_LENGTH, Arena);
+    StringArena(WindowsSDKLibUmPath,     MAX_PATH_LENGTH, Arena);
+    StringArena(WindowsSDKLibUcrtPath,   MAX_PATH_LENGTH, Arena);
 
     if (!bWasVCVarsBatchExecuted)
     {
@@ -5984,12 +5976,12 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         return Receipt;
     }
 
-    ArenaStr(BuildBaseDirectory, MAX_PATH_LENGTH);
+    StringArena(BuildBaseDirectory, MAX_PATH_LENGTH, Arena);
     String_BuildPath(&BuildBaseDirectory, WorkingPath, BuildDirectory);
     String_AppendPathSeparator(&BuildBaseDirectory);
     xx Filesystem_ConvertRelativeToAbsolutePath(&BuildBaseDirectory);
 
-    ArenaStr(IntermediateBaseDirectory, MAX_PATH_LENGTH);
+    StringArena(IntermediateBaseDirectory, MAX_PATH_LENGTH, Arena);
     String_BuildPath(&IntermediateBaseDirectory, WorkingPath, IntermediateDirectory);
     String_AppendPathSeparator(&IntermediateBaseDirectory);
     xx Filesystem_ConvertRelativeToAbsolutePath(&IntermediateBaseDirectory);
@@ -6211,7 +6203,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         }
     }
 
-    ArenaStr(AssemblyNameWithExt, 256);
+    StringArena(AssemblyNameWithExt, 256, Arena);
     String_Copy(&AssemblyNameWithExt, FinalAssemblyName);
     if (Extension.Length > 0)
     {
@@ -6856,9 +6848,9 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     }
 
     // find the icon path (if specified)
-    ArenaStr(IconFilePath, MAX_PATH_LENGTH);
-    ArenaStr(IconRcFilePath, MAX_PATH_LENGTH);
-    ArenaStr(VersionRCFilePath, MAX_PATH_LENGTH);
+    StringArena(IconFilePath, MAX_PATH_LENGTH, Arena);
+    StringArena(IconRcFilePath, MAX_PATH_LENGTH, Arena);
+    StringArena(VersionRCFilePath, MAX_PATH_LENGTH, Arena);
 
     if (Icon.Length > 0)
     {
@@ -7069,17 +7061,17 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     xx bExplicitAsmPath;
     #endif
 
-    ArenaStr(ExpandedIncludeFlags, 4096);
-    ArenaStr(ExpandedLibraries, 2048);
-    ArenaStr(ExpandedLibraryDirectories, 4096);
-    ArenaStr(ExpandedDefineFlags, 2048);
-    ArenaStr(ExpandedUnDefineFlags, 1024);
+    StringArena(ExpandedIncludeFlags, 4096, Arena);
+    StringArena(ExpandedLibraries, 2048, Arena);
+    StringArena(ExpandedLibraryDirectories, 4096, Arena);
+    StringArena(ExpandedDefineFlags, 2048, Arena);
+    StringArena(ExpandedUnDefineFlags, 1024, Arena);
 
-    ArenaStr(ExpandedCompilerFlags, 4096);
-    ArenaStr(ExpandedLinkerFlags, 4096);
-    ArenaStr(ExpandedLinkerDefineFlags, 1024);
-    ArenaStr(ExpandedAssemblerIncludeFlags, 4096);
-    ArenaStr(ExpandedAssemblerDefineFlags, 1024);
+    StringArena(ExpandedCompilerFlags, 4096, Arena);
+    StringArena(ExpandedLinkerFlags, 4096, Arena);
+    StringArena(ExpandedLinkerDefineFlags, 1024, Arena);
+    StringArena(ExpandedAssemblerIncludeFlags, 4096, Arena);
+    StringArena(ExpandedAssemblerDefineFlags, 1024, Arena);
     
     #if PLATFORM_APPLE
     StringLocal(ExpandedFrameworks, 2048);
@@ -8246,8 +8238,6 @@ End:
 
     return Receipt;
 }
-
-#undef ArenaStr
 
 // --- Parallel build plan: executor --------------------------------------------------------------
 //
