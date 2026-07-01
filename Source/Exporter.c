@@ -282,8 +282,7 @@ bool Export_InfoPlist(LinearAllocator Arena, const BuildParams* Params, const St
 
             for each (FileVariable, v, ExpandedVariablesDB)
             {
-                // TODO: change :: to .
-                if (String_StartsWith(v.Name, S("Info.plist::"), false))
+                if (String_StartsWith(v.Name, S("Info.plist."), false))
                 {
                     const String Key = StrShiftF(v.Name, 12);
 
@@ -368,7 +367,7 @@ bool Export_VersionPlist(LinearAllocator Arena, const BuildParams* Params, const
 
             for each (FileVariable, v, ExpandedVariablesDB)
             {
-                if (String_StartsWith(v.Name, S("Version.plist::"), false))
+                if (String_StartsWith(v.Name, S("Version.plist."), false))
                 {
                     const String Key = StrShiftF(v.Name, 15);
 

@@ -213,6 +213,53 @@ static void RC_Compile(const BuildParams* Params, const String FullRCPath, Strin
     #endif
 }
 
+// True if this source file's per-file override changed since the last build (its bare name is in the diff's
+// dirty set), meaning it must recompile even though its source timestamp is unchanged.
+static bool Internal_IsForcedRecompile(const BuildParams* Params, const String RelativePath)
+{
+    if (!Params->ForceRecompileFiles || Array_Num(Params->ForceRecompileFiles) == 0)
+    {
+        return false;
+    }
+
+    const String FileName = Filesystem_ExtractFileName(RelativePath, true);
+
+    for each (String, DirtyFile, Params->ForceRecompileFiles)
+    {
+        if (String_IsEqual(FileName, DirtyFile, false))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+// Append the extra compiler flags, include flags, defines and undefines from every per-file override that
+// names this source file. Matching is by bare filename (case-insensitive, extension included) - no paths,
+// no globs - so two files with the same name in different directories share an override by design.
+static void Internal_AppendFileOverrideFlags(const BuildParams* Params, const String RelativePath, String* Dest)
+{
+    if (Params->NumFileOverrides == 0)
+    {
+        return;
+    }
+
+    const String FileName = Filesystem_ExtractFileName(RelativePath, true);
+
+    for (u32 i = 0; i < Params->NumFileOverrides; i++)
+    {
+        const FileOverride* Override = &Params->FileOverrides[i];
+
+        if (String_IsEqual(FileName, Override->FileName, false))
+        {
+            String_BuildSeparator(Dest, ' ', Override->CompilerFlags, Override->IncludeFlags, Override->DefineFlags, Override->UnDefineFlags);
+        }
+    }
+
+    xx String_EatSpacesInlineFromEnd(Dest);
+}
+
 static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
 {
     if (NEVER(Data == NULL))         { return false; }
@@ -433,7 +480,9 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
         String OutputFlag  = S("-o");
         String CompileFlag = S("-c");
 
-        String AdditionalFlags = String_Null();
+        // extra flags/includes/defines from any per-file override naming this source file
+        StringLocal(AdditionalFlags, 8192);
+        Internal_AppendFileOverrideFlags(Params, RelativePath, &AdditionalFlags);
 
         StringLocal(PCHFlags, MAX_PATH_LENGTH*2);
 
@@ -600,7 +649,11 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
     u64 ObjectFileWriteTime = Filesystem_GetLastWriteTime(ObjectPath);
     u64 SourceFileWriteTime = Filesystem_GetLastWriteTime(FullPath);
 
-    if (ObjectFileWriteTime >= SourceFileWriteTime)
+    // The diff system flags a file when its per-file override changed but its source didn't - the object is
+    // stale even though timestamps say otherwise, so force it to recompile.
+    bool bForcedRecompile = Internal_IsForcedRecompile(Params, RelativePath);
+
+    if (ObjectFileWriteTime >= SourceFileWriteTime && !bForcedRecompile)
     {
         #ifndef HOOD
         LOG("[Skipping] %S", FullPath);

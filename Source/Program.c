@@ -3233,6 +3233,129 @@ static void ExpandPathFlags(LinearAllocator Scratch, String* Dest, const String 
     PrefixVariables(Dest, NonWildcardFlags, FlagPrefix, bWrapWithQuotes);
 }
 
+#define MAX_FILE_OVERRIDES 128
+
+// Rewrite the flag-prefix symbol ('-' or '/') of every token in a compiler-flag string in place, exactly
+// like the global Compiler.Flags handling, so a per-file override can be written with '-' flags regardless
+// of the selected compiler.
+static void Internal_NormalizeCompilerFlagPrefix(String* Flags, const String CompilerFlagPrefixSymbol)
+{
+    for (u32 i = 0; i < Flags->Length; i++)
+    {
+        if (i == 0 || IsWhitespace(Flags->Data[i-1]))
+        {
+            if (Flags->Data[i] == '-' || Flags->Data[i] == '/')
+            {
+                Flags->Data[i] = CompilerFlagPrefixSymbol.Data[0];
+            }
+        }
+    }
+}
+
+// Collect the per-file overrides (stored during parsing as "<filename>.<Setting>" variables) into one
+// FileOverride per distinct filename, expanding includes and defines into command-line flags the same way
+// their global counterparts are. Returns the count and, via OutOverrides, an Arena-allocated array (or NULL
+// when there are none).
+static u32 Internal_BuildFileOverrides(LinearAllocator* Arena, TArray(FileVariable) VariablesDB,
+                                       const String CompilerFlagPrefixSymbol, bool bWrapWithQuotes, bool bExportingSomething,
+                                       const FileOverride** OutOverrides)
+{
+    *OutOverrides = NULL;
+
+    FileOverride Temp[MAX_FILE_OVERRIDES] = {0};
+    u32 Count = 0;
+
+    StringLocal(FlagPrefix, 4);
+    String_Append(&FlagPrefix, CompilerFlagPrefixSymbol);
+    String_AppendChar(&FlagPrefix, 'I');
+
+    for each (FileVariable, Var, VariablesDB)
+    {
+        String FileName = String_Null();
+        String Setting  = String_Null();
+        if (!IsPerFileOverrideKey(Var.Name, &FileName, &Setting))
+        {
+            continue;
+        }
+
+        // find (or start) the entry for this file - a file gets the union of all blocks naming it
+        FileOverride* Entry = NULL;
+        for (u32 i = 0; i < Count; i++)
+        {
+            if (String_IsEqual(Temp[i].FileName, FileName, false))
+            {
+                Entry = &Temp[i];
+                break;
+            }
+        }
+
+        if (!Entry)
+        {
+            if (Count >= MAX_FILE_OVERRIDES)
+            {
+                LOG_WARNING("Too many per-file overrides (max %u); ignoring the rest.", (u32)MAX_FILE_OVERRIDES);
+                break;
+            }
+
+            Entry = &Temp[Count++];
+
+            Entry->FileName      = String_Create(Arena, FileName);
+            Entry->CompilerFlags = String_Reserve(Arena, 8192);
+            Entry->IncludeFlags  = String_Reserve(Arena, 8192);
+            Entry->DefineFlags   = String_Reserve(Arena, 4096);
+            Entry->UnDefineFlags = String_Reserve(Arena, 2048);
+        }
+
+        if (String_IsEqual(Setting, S("Compiler.Flags"), false))
+        {
+            if (Entry->CompilerFlags.Length) { String_AppendSpace(&Entry->CompilerFlags); }
+            String_Append(&Entry->CompilerFlags, Var.Value);
+        }
+        else if (String_IsEqual(Setting, S("Includes"), false))
+        {
+            StringLocal(IncludeFlags, 8192);
+            String_Copy(&IncludeFlags, Var.Value);
+            String_ConvertSlashToPlatformSlash(&IncludeFlags);
+
+            FlagPrefix.Data[1] = 'I';
+            ExpandPathFlags(*Arena, &Entry->IncludeFlags, IncludeFlags, FlagPrefix, bWrapWithQuotes);
+        }
+        else if (String_IsEqual(Setting, S("Defines"), false))
+        {
+            FlagPrefix.Data[1] = 'D';
+            ExpandDefineFlags(&Entry->DefineFlags, Var.Value, FlagPrefix, bExportingSomething);
+        }
+        else if (String_IsEqual(Setting, S("UnDefines"), false))
+        {
+            FlagPrefix.Data[1] = 'U';
+            ExpandDefineFlags(&Entry->UnDefineFlags, Var.Value, FlagPrefix, bExportingSomething);
+        }
+        else
+        {
+            // unknown setting slipped through - the parser already warned; nothing to add here
+        }
+    }
+
+    if (Count == 0)
+    {
+        return 0;
+    }
+
+    for (u32 i = 0; i < Count; i++)
+    {
+        Internal_NormalizeCompilerFlagPrefix(&Temp[i].CompilerFlags, CompilerFlagPrefixSymbol);
+    }
+
+    FileOverride* Result = LinearAllocator_Allocate(Arena, sizeof(FileOverride) * Count);
+    for (u32 i = 0; i < Count; i++)
+    {
+        Result[i] = Temp[i];
+    }
+
+    *OutOverrides = Result;
+    return Count;
+}
+
 static void Internal_RunAssembly_CmdLine(const String WorkingPath, const String BuildDirectory, const String AssemblyNameWithExt, const String Args, const String EnvArgs)
 {
     StringLocal(ExecutableWorkingPath, MAX_PATH_LENGTH);
@@ -4071,9 +4194,29 @@ static bool Internal_StateValueEqual(const String A, const String B)
     return String_IsEqual(A, B, true);
 }
 
-// Compare the current resolved variables against the previous snapshot and return the strongest
+// Record a source filename whose per-file override changed, so only that file gets recompiled (deduped).
+static void Internal_AddDirtyOverrideFile(TArray(String) DirtyFiles, const String FileName)
+{
+    for each (String, f, DirtyFiles)
+    {
+        if (String_IsEqual(f, FileName, false))
+        {
+            return;
+        }
+    }
+
+    String Copy = FileName;
+    Array_Add(DirtyFiles, Copy);
+}
+
+// Compare the current resolved variables against the previous snapshot and return the strongest global
 // impact found, logging each key that forces work along the way.
-static EBuildKeyImpact DiffAndClassifyBuildState(const String BuildFileName, TArray(FileVariable) PrevState, TArray(FileVariable) CurrentState)
+//
+// A per-file override ("<filename>.<Setting>") only affects the one file it names, so it never contributes
+// to the global impact; instead its filename is appended to OutDirtyFiles and the caller recompiles just
+// that file (see how p.ForceRecompileFiles is used). This keeps changing one file's flags from rebuilding
+// every other file.
+static EBuildKeyImpact DiffAndClassifyBuildState(const String BuildFileName, TArray(FileVariable) PrevState, TArray(FileVariable) CurrentState, TArray(String) OutDirtyFiles)
 {
     EBuildKeyImpact MaxImpact = BuildKeyImpact_None;
     bool bAnyChange   = false;
@@ -4095,6 +4238,17 @@ static EBuildKeyImpact DiffAndClassifyBuildState(const String BuildFileName, TAr
         if (bChanged)
         {
             bAnyChange = true;
+
+            String OverrideFile = String_Null();
+            if (IsPerFileOverrideKey(Cur.Name, &OverrideFile, NULL))
+            {
+                // scoped to one file - don't force a global recompile, just mark that file
+                Internal_AddDirtyOverrideFile(OutDirtyFiles, OverrideFile);
+
+                if (!bLoggedHeader) { LOG("\"%S\" changed since last build:", BuildFileName); bLoggedHeader = true; }
+                LOG("    %S", Cur.Name);
+                continue;
+            }
 
             EBuildKeyImpact Impact = GetBuildKeyImpact(Cur.Name);
 
@@ -4131,6 +4285,17 @@ static EBuildKeyImpact DiffAndClassifyBuildState(const String BuildFileName, TAr
 
         bAnyChange = true;
 
+        String OverrideFile = String_Null();
+        if (IsPerFileOverrideKey(Old.Name, &OverrideFile, NULL))
+        {
+            // the file needs recompiling without its removed override, but nothing else does
+            Internal_AddDirtyOverrideFile(OutDirtyFiles, OverrideFile);
+
+            if (!bLoggedHeader) { LOG("\"%S\" changed since last build:", BuildFileName); bLoggedHeader = true; }
+            LOG("    %S (removed)", Old.Name);
+            continue;
+        }
+
         const EBuildKeyImpact Impact = GetBuildKeyImpact(Old.Name);
         if (Impact > MaxImpact)
         {
@@ -4148,7 +4313,7 @@ static EBuildKeyImpact DiffAndClassifyBuildState(const String BuildFileName, TAr
             LOG("    %S (removed)", Old.Name);
         }
     }
-    
+
     if (bAnyChange)
     {
         LOG_LINE_BREAK();
@@ -5127,6 +5292,10 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     // Set by the .build diff system when only link-affecting keys changed: relink the final assembly
     // but keep every object file (no recompile). See DiffAndClassifyBuildState.
     bool bForceRelink = false;
+
+    // Bare filenames whose per-file overrides changed since the last build. These get recompiled even
+    // though their source is untouched, while every other file is left alone. See DiffAndClassifyBuildState.
+    ArrayLocal_Arena(String, DirtyOverrideFiles, MAX_FILE_OVERRIDES, Arena);
 
     // force rebuild if we say so in the build file
     if (!bIsRebuild)
@@ -6113,7 +6282,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             {
                 bUsedDiff = true;
 
-                const EBuildKeyImpact Impact = DiffAndClassifyBuildState(BuildFileName, PrevState, VariablesDB);
+                const EBuildKeyImpact Impact = DiffAndClassifyBuildState(BuildFileName, PrevState, VariablesDB, DirtyOverrideFiles);
                 if (Impact == BuildKeyImpact_Recompile)
                 {
                     bIsRebuild = true;
@@ -6897,6 +7066,10 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     PrefixVariables(&ExpandedFrameworks, Frameworks, S("-framework "), false);
     #endif
 
+    // per-file compiler settings declared via File.ext { ... } blocks
+    const FileOverride* FileOverrides = NULL;
+    const u32 NumFileOverrides = Internal_BuildFileOverrides(Arena, VariablesDB, CompilerFlagPrefixSymbol, bWrapWithQuotes, bExportingSomething, &FileOverrides);
+
     // TODO: move the rest down here
     const String CompilerFlags              = GetVariableValue(VariablesDB, S("Compiler.Flags"));
 
@@ -7289,6 +7462,21 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         LogNameValuePair(*Arena, S("    Assembler Flags:      "), AssemblerFlags,                !bNoWordWrapLogging);
         LogNameValuePair(*Arena, S("    Assembler Includes:   "), ExpandedAssemblerIncludeFlags, !bNoWordWrapLogging);
         LogNameValuePair(*Arena, S("    Assembler Defines:    "), ExpandedAssemblerDefineFlags,  !bNoWordWrapLogging);
+
+        if (NumFileOverrides > 0)
+        {
+            LOG("    File Overrides:");
+            for (u32 i = 0; i < NumFileOverrides; i++)
+            {
+                const FileOverride* Override = &FileOverrides[i];
+
+                LOG("      %S:", Override->FileName);
+                LogNameValuePair(*Arena, S("        Compiler Flags:  "), Override->CompilerFlags, !bNoWordWrapLogging);
+                LogNameValuePair(*Arena, S("        Include  Flags:  "), Override->IncludeFlags,  !bNoWordWrapLogging);
+                LogNameValuePair(*Arena, S("        Define   Flags:  "), Override->DefineFlags,   !bNoWordWrapLogging);
+                LogNameValuePair(*Arena, S("        UnDefine Flags:  "), Override->UnDefineFlags, !bNoWordWrapLogging);
+            }
+        }
     }
     #endif
 
@@ -7411,6 +7599,9 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     p.Copyright                     = Copyright;
     p.Version                       = Version;
     p.SourceFiles                   = *CountData.FilteredFiles;
+    p.FileOverrides                 = FileOverrides;
+    p.NumFileOverrides              = NumFileOverrides;
+    p.ForceRecompileFiles           = DirtyOverrideFiles; // only consulted when we're not doing a full rebuild
     p.NumSources                    = NumSources;
     p.bHasCppFiles                  = CountData.bHasCppFiles;
     p.bDumpObjFilesInOneDirectory   = bDumpObjFilesInOneDirectory;

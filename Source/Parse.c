@@ -676,8 +676,63 @@ u32 GetMaxValueLengthForReservedKey(const String Key)
     return MaxLength;
 }
 
+// The compiler-facing settings a source file may override, as the trailing "<Setting>" of a
+// "<filename>.<Setting>" key. Each has a global counterpart that feeds every source file's command line.
+static const String GPerFileSettings[4] =
+{
+    SC("Compiler.Flags"),
+    SC("Includes"),
+    SC("Defines"),
+    SC("UnDefines"),
+};
+
+// A per-file override key looks like "<filename>.<Setting>", e.g. "main.c.Compiler.Flags", produced either
+// by the block form (main.c { Compiler.Flags ... }) or the flat form (main.c.Compiler.Flags ...). The
+// <filename> part must carry a file extension so it can't be confused with reserved keys such as
+// Assembler.Includes or Linker.Defines (whose prefix has no extension).
+bool IsPerFileOverrideKey(const String Key, String* OutFileName, String* OutSetting)
+{
+    for (u32 i = 0; i < SArray_Capacity(GPerFileSettings); i++)
+    {
+        const String Setting = GPerFileSettings[i];
+
+        // we need "<filename>." before the setting, so the key must be longer than ".<Setting>"
+        if (Key.Length <= Setting.Length + 1 || !String_EndsWith(Key, Setting, false))
+        {
+            continue;
+        }
+
+        // the char just before the setting must be the '.' separator (rules out e.g. "...UnDefines" when
+        // testing the "Defines" setting)
+        const u32 SepIndex = Key.Length - Setting.Length - 1;
+        if (Key.Data[SepIndex] != '.')
+        {
+            continue;
+        }
+
+        const String FileName = StrSlice(Key.Data, SepIndex); // everything before the ".<Setting>"
+        if (!Filesystem_DoesPathHaveFileExtension(FileName))
+        {
+            continue;
+        }
+
+        if (OutFileName) { *OutFileName = FileName; }
+        if (OutSetting)  { *OutSetting  = Setting;  }
+        return true;
+    }
+
+    return false;
+}
+
 EBuildKeyImpact GetBuildKeyImpact(const String Key)
 {
+    // A per-file override ("<filename>.<Setting>") feeds the compiler for that file, so any change to one
+    // must force a recompile.
+    if (IsPerFileOverrideKey(Key, NULL, NULL))
+    {
+        return BuildKeyImpact_Recompile;
+    }
+
     for (u8 i = 0; i < SArray_Capacity(ReservedKeys); i++)
     {
         if (String_IsEqual(Key, ReservedKeys[i].Key, false))
@@ -6456,6 +6511,14 @@ NO_DISCARD bool ParseBuildFile(
                         break;
                     }
                 }
+            }
+
+            // per-file overrides ("<filename>.<Setting>") aren't reserved keys, so store them explicitly and
+            // give them the same headroom as their global counterparts (they can hold e.g. $SharedCompilerFlags).
+            if (IsPerFileOverrideKey(Var.Name, NULL, NULL))
+            {
+                MaxValueLength = 8192;
+                bStoreInDB = true;
             }
 
             // only store known keys

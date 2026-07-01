@@ -6,7 +6,7 @@
 #include "Core/Filesystem.h"
 #endif
 
-#define MAX_KEY_LENGTH 64
+#define MAX_KEY_LENGTH 128
 
 global bool bQuietBuild;
 global bool bNoWordWrapLogging;
@@ -180,6 +180,26 @@ ENUM(EBuildKeyImpact)
     BuildKeyImpact_Recompile   // affects what every source file is compiled with
 };
 
+// Extra compiler settings that apply to specific source files, declared in the build file either as a
+// block:
+//     Parse.c
+//     {
+//         Compiler.Flags   -O0
+//         Includes         thirdparty/pcre
+//         Defines          PCRE_STATIC
+//     }
+// or in the flat form "Parse.c.Compiler.Flags -O0". Files are matched by bare filename (case-insensitive,
+// extension included) - no paths, no globs. A file gets the union of every block naming it; the values
+// here are already expanded/prefixed exactly like their global counterparts, ready for the command line.
+STRUCT(FileOverride)
+{
+    String FileName;      // the source file this applies to, matched by bare filename (e.g. "Parse.c")
+    String CompilerFlags; // extra compiler flags (prefix-normalized), appended after the shared flags
+    String IncludeFlags;  // extra include search paths, already expanded to -I"..." / /I"..."
+    String DefineFlags;   // extra preprocessor defines, already expanded to -D... / /D...
+    String UnDefineFlags; // extra preprocessor undefines, already expanded to -U... / /U...
+};
+
 STRUCT(BuildParams)
 {
     String RootDirectory;             // absolute
@@ -256,6 +276,10 @@ STRUCT(BuildParams)
 
     StringList SourceFiles;
 
+    const FileOverride* FileOverrides; // per-file compiler setting overrides (see FileOverride), or NULL
+
+    TArray(String) ForceRecompileFiles; // bare filenames to recompile even if unchanged (per-file overrides changed), or NULL
+
     LinearAllocator* Arena;
 
     TArray(PlatformHandle)* Processes;
@@ -263,6 +287,7 @@ STRUCT(BuildParams)
     FileHandle ArtifactManifestHandle;
 
     u32 NumSources;
+    u32 NumFileOverrides;
 
     EAssemblyType Type;
     ECompiler CompilerVendor;
@@ -373,6 +398,10 @@ bool ExpandBuildVariable(LinearAllocator Scratch, FileVariableList* VariablesDB,
 
 u32 GetMaxValueLengthForReservedKey(const String Key);
 EBuildKeyImpact GetBuildKeyImpact(const String Key);
+
+// True if Key is a per-file override of the form "<filename>.<Setting>" (e.g. "main.c.Compiler.Flags").
+// On success OutFileName and OutSetting (either may be NULL) receive the two halves.
+bool IsPerFileOverrideKey(const String Key, String* OutFileName, String* OutSetting);
 
 void AddVariable(LinearAllocator* Arena,
                 TArray(FileVariable) VariablesDB,
