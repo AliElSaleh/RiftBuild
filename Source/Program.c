@@ -3920,7 +3920,7 @@ static bool TryDetectDirectoryStateChangeAndUpdate(const String DirectoryStatePa
 //                              descriptions, custom keys, phase commands, ...) -> no work.
 // ===================================================================================================
 
-#define BUILD_STATE_MAGIC "##RIFTBUILDSTATE_V2"
+#define BUILD_STATE_MAGIC "##RIFTBUILDSTATE_V1"
 
 // Save the resolved build variables so the next run can diff against them. Each variable is written as
 // a length-prefixed record:
