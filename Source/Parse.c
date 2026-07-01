@@ -4474,6 +4474,71 @@ static void StoreKVNodeAsCmdOption(LinearAllocator* Arena, const String Key, Nod
     }
 }
 
+// Toolchain detection -- walking PATH for the compiler/assembler/linker/archiver, then spawning
+// `cc -v` to read the version -- is identical for every module in a build but used to run once per
+// .build parsed. A `clang -v` spawn per module dominated the plan phase of multi-module builds. Cache
+// the result for the whole program run, keyed by the requested tool programs.
+typedef struct
+{
+    bool          bValid;
+    bool          bFound;
+    String        Key;      // "compiler|assembler|linker|archiver" request
+    CompilerPaths Paths;
+    String        Version;  // compiler version from `cc -v`, or null
+} ToolchainCacheEntry;
+
+static ToolchainCacheEntry g_ToolchainCache[8];
+static u32                 g_ToolchainCacheNum = 0;
+static LinearAllocator     g_ToolchainCacheArena;
+static bool                g_ToolchainCacheInit = false;
+
+static String Internal_ToolchainCopyStr(LinearAllocator* A, const String S)
+{
+    return String_IsValid(S) ? String_Create(A, S) : String_Null();
+}
+
+static ToolchainCacheEntry* Internal_FindToolchainCache(const String Key)
+{
+    for (u32 i = 0; i < g_ToolchainCacheNum; i++)
+    {
+        if (g_ToolchainCache[i].bValid && String_IsEqual(g_ToolchainCache[i].Key, Key, false))
+        {
+            return &g_ToolchainCache[i];
+        }
+    }
+    return NULL;
+}
+
+static void Internal_StoreToolchainCache(const String Key, bool bFound, const CompilerPaths* Paths, const String Version)
+{
+    if (g_ToolchainCacheNum >= SArray_Capacity(g_ToolchainCache)) { return; } // full: >8 distinct toolchains, just re-detect
+
+    if (!g_ToolchainCacheInit)
+    {
+        void* Mem = Platform_MemAlloc(Kibibytes(64));
+        if (!Mem) { return; }
+        LinearAllocator_Create(Kibibytes(64), Mem, &g_ToolchainCacheArena);
+        g_ToolchainCacheInit = true;
+    }
+
+    LinearAllocator* A = &g_ToolchainCacheArena;
+    ToolchainCacheEntry* E = &g_ToolchainCache[g_ToolchainCacheNum++];
+
+    E->bValid  = true;
+    E->bFound  = bFound;
+    E->Key     = Internal_ToolchainCopyStr(A, Key);
+    E->Version = Internal_ToolchainCopyStr(A, Version);
+    E->Paths.CompilerPath  = Internal_ToolchainCopyStr(A, Paths->CompilerPath);
+    E->Paths.AssemblerPath = Internal_ToolchainCopyStr(A, Paths->AssemblerPath);
+    E->Paths.LinkerPath    = Internal_ToolchainCopyStr(A, Paths->LinkerPath);
+    E->Paths.ArchiverPath  = Internal_ToolchainCopyStr(A, Paths->ArchiverPath);
+    E->Paths.InstallPath   = Internal_ToolchainCopyStr(A, Paths->InstallPath);
+    E->Paths.ToolPath      = Internal_ToolchainCopyStr(A, Paths->ToolPath);
+    E->Paths.BasePath      = Internal_ToolchainCopyStr(A, Paths->BasePath);
+    E->Paths.IncludePath   = Internal_ToolchainCopyStr(A, Paths->IncludePath);
+    E->Paths.LibraryPath   = Internal_ToolchainCopyStr(A, Paths->LibraryPath);
+}
+
 static bool Analyze_Compiler(Node* Block, ParsingContext* Context)
 {
     LinearAllocator* Arena = Context->PermanentArena;
@@ -4515,7 +4580,25 @@ static bool Analyze_Compiler(Node* Block, ParsingContext* Context)
     FoundCompilerPaths.IncludePath   = CompilerIncludePath;
     FoundCompilerPaths.LibraryPath   = CompilerLibraryPath;
 
-    bool bSuccess = FindFirstCompilerAvailable(CompilerProgram, AssemblerProgram, LinkerProgram, ArchiverProgram, &FoundCompilerPaths);
+    // Toolchain detection is cached for the whole run (see g_ToolchainCache); it is identical for
+    // every module and running it per-module used to dominate the plan phase.
+    StringLocal(ToolchainKey, 512);
+    String_BuildSeparator(&ToolchainKey, '|', CompilerProgram, AssemblerProgram, LinkerProgram, ArchiverProgram);
+
+    ToolchainCacheEntry* CacheHit = Internal_FindToolchainCache(ToolchainKey);
+    String CachedCompilerVersion  = String_Null();
+    bool bSuccess;
+
+    if (CacheHit)
+    {
+        FoundCompilerPaths    = CacheHit->Paths;
+        CachedCompilerVersion = CacheHit->Version;
+        bSuccess              = CacheHit->bFound;
+    }
+    else
+    {
+        bSuccess = FindFirstCompilerAvailable(CompilerProgram, AssemblerProgram, LinkerProgram, ArchiverProgram, &FoundCompilerPaths);
+    }
 
     if (bSuccess)
     {
@@ -4583,57 +4666,72 @@ static bool Analyze_Compiler(Node* Block, ParsingContext* Context)
             break;
         }
 
-        // now get the compiler version (by running the compiler executable)
+        // Compiler version: reuse the cached value on a hit, otherwise run `cc -v` (the slow part)
+        // and remember it. StdOutData outlives the read so FoundVersion (a slice into it) stays valid
+        // through the AddCmdOption calls below.
+        StringLocal(StdOutData, UINT16_MAX);
+        String FoundVersion = String_Null();
 
-        PlatformPipe StdOutPipe = {0};
-        StringLocal(CmdLine, 2048);
-        String_Append(&CmdLine, FoundCompilerPaths.CompilerPath);
-        String_AppendSpace(&CmdLine);
-
-        if (CompilerVendor != Compiler_MSVC)
+        if (CacheHit)
         {
-            String_Append(&CmdLine, S("-v"));
+            FoundVersion = CachedCompilerVersion;
         }
-
-        PlatformHandle H = Platform_RunProcess_Ex(FoundCompilerPaths.CompilerPath, CmdLine, Context->WorkingDirectory, &StdOutPipe);
-
-        Platform_CloseHandle(StdOutPipe[1]); // not needed
-
-        if (Platform_IsValidHandle(H))
+        else
         {
-            Platform_WaitForHandle(H, -1);
-            
-            StringLocal(StdOutData, UINT16_MAX);
+            PlatformPipe StdOutPipe = {0};
+            StringLocal(CmdLine, 2048);
+            String_Append(&CmdLine, FoundCompilerPaths.CompilerPath);
+            String_AppendSpace(&CmdLine);
 
-            usize BytesRead = 0;
-            if (Filesystem_ReadPipe(StdOutPipe, StdOutData.Capacity, StdOutData.Data, &BytesRead))
+            if (CompilerVendor != Compiler_MSVC)
             {
-                StdOutData.Length = Min((u32)BytesRead, StdOutData.Capacity);
+                String_Append(&CmdLine, S("-v"));
+            }
 
-                u32 Index = 0;
-                if (String_IndexOfSubstring(StdOutData, S("version "), false, &Index))
+            PlatformHandle H = Platform_RunProcess_Ex(FoundCompilerPaths.CompilerPath, CmdLine, Context->WorkingDirectory, &StdOutPipe);
+
+            Platform_CloseHandle(StdOutPipe[1]); // not needed
+
+            if (Platform_IsValidHandle(H))
+            {
+                Platform_WaitForHandle(H, -1);
+
+                usize BytesRead = 0;
+                if (Filesystem_ReadPipe(StdOutPipe, StdOutData.Capacity, StdOutData.Data, &BytesRead))
                 {
-                    String FoundVersion = StrShiftF(StdOutData, Index+8);
+                    StdOutData.Length = Min((u32)BytesRead, StdOutData.Capacity);
 
-                    bool bFirstSpace = String_IndexOfFirstWhitespace(FoundVersion, &Index);
-                    if (bFirstSpace)
+                    u32 Index = 0;
+                    if (String_IndexOfSubstring(StdOutData, S("version "), false, &Index))
                     {
-                        FoundVersion = StrSlice(FoundVersion.Data, Index);
-                    }
+                        FoundVersion = StrShiftF(StdOutData, Index+8);
 
-                    AddCmdOption(Context->CmdOptionsDB, S("Compiler.Version"), String_Create(Arena, FoundVersion));
-
-                    String CompilerName = Filesystem_ExtractFileName(FoundCompilerPaths.CompilerPath, false);
-
-                    StringLocal(Temp, 64);
-                    String_AppendF(&Temp, S("%S.Version"), CompilerName);
-                    AddCmdOption(Context->CmdOptionsDB, String_Create(Arena, Temp), String_Create(Arena, FoundVersion));
-
-                    if (String_IsEqual(CompilerName, S("cl"), false))
-                    {
-                        AddCmdOption(Context->CmdOptionsDB, S("MSVC.Version"), String_Create(Arena, FoundVersion));
+                        bool bFirstSpace = String_IndexOfFirstWhitespace(FoundVersion, &Index);
+                        if (bFirstSpace)
+                        {
+                            FoundVersion = StrSlice(FoundVersion.Data, Index);
+                        }
                     }
                 }
+            }
+
+            // Remember this toolchain (paths + version) for the rest of the modules in the build.
+            Internal_StoreToolchainCache(ToolchainKey, bSuccess, &FoundCompilerPaths, FoundVersion);
+        }
+
+        if (String_IsValid(FoundVersion))
+        {
+            AddCmdOption(Context->CmdOptionsDB, S("Compiler.Version"), String_Create(Arena, FoundVersion));
+
+            String CompilerName = Filesystem_ExtractFileName(FoundCompilerPaths.CompilerPath, false);
+
+            StringLocal(Temp, 64);
+            String_AppendF(&Temp, S("%S.Version"), CompilerName);
+            AddCmdOption(Context->CmdOptionsDB, String_Create(Arena, Temp), String_Create(Arena, FoundVersion));
+
+            if (String_IsEqual(CompilerName, S("cl"), false))
+            {
+                AddCmdOption(Context->CmdOptionsDB, S("MSVC.Version"), String_Create(Arena, FoundVersion));
             }
         }
     }
