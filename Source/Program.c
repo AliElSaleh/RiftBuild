@@ -7942,6 +7942,12 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         return Receipt;
     }
 
+    // NOTE: builds always take the bPlanOnly path above; the inline execution below (PreCompile ->
+    // compile -> link -> bundle -> PostBuild) has been superseded by ExecuteBuildPlan and is dead for
+    // any real build. It is kept only because the clean flow jumps past the plan-stop straight to the
+    // End: label via `goto End` (search this function). Fully excising it means reworking that clean
+    // shortcut and pruning the timing helpers it uniquely uses (e.g. PrintClockTimeToBuffer); left as a
+    // follow-up so the -Werror self-host build stays green.
     Clock ExternalClock = {0};
     Clock_Start(&ExternalClock);
 
