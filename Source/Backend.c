@@ -1650,6 +1650,22 @@ bool C_Link(const BuildParams* Params)
                                              Params->Libraries,
                                              Params->LibraryDirectories);
 
+        // A target with C++ translation units needs the C++ runtime linked in. The compiler builds
+        // .cc/.cpp/... as C++, but linking with the C driver (clang/gcc) does not pull in
+        // libc++/libstdc++, so the C++ standard-library symbols come up undefined. Add it explicitly,
+        // after the objects (link order matters). MSVC/clang-cl link their C++ runtime automatically.
+        if (Params->bHasCppFiles && !bIsMicrosoftLinker)
+        {
+            if (Params->CompilerVendor == Compiler_GCC || Params->CompilerVendor == Compiler_MINGW)
+            {
+                String_BuildSeparator(&CmdLine, ' ', S("-lstdc++"));
+            }
+            else if (Params->CompilerVendor == Compiler_Clang)
+            {
+                String_BuildSeparator(&CmdLine, ' ', S("-lc++"));
+            }
+        }
+
         xx String_EatSpacesInlineFromEnd(&CmdLine);
         String_AppendSpace(&CmdLine);
 
