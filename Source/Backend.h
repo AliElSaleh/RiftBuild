@@ -324,6 +324,8 @@ STRUCT(CompilerPaths)
 // Compiler/Building functions --------------------
 
 bool C_Compile(const BuildParams* Params, u32* OutNumCompiled);
+bool C_Compile_Spawn(const BuildParams* Params, u32* OutNumCompiled);
+bool C_Compile_Wait(const BuildParams* Params, u32 NumCompiled);
 bool C_Link(const BuildParams* Params);
 
 bool IsSource(const String Extension);

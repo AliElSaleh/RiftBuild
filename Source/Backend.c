@@ -710,63 +710,88 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
     return true;
 }
 
+// Spawn (and throttle) compile processes for this module's source files onto the shared
+// Params->Processes pool, WITHOUT waiting for them to finish. Pair with C_Compile_Wait.
+//
+// Splitting spawn from wait is what lets multiple modules enqueue their source files into one
+// shared process pool: the build executor calls C_Compile_Spawn for every module (throttled by a
+// single global MaxCompilersAtOnce), then a single C_Compile_Wait barrier drains them all. That is
+// how source files across independent modules end up compiling in one cross-module parallel batch.
+bool C_Compile_Spawn(const BuildParams* Params, u32* OutNumCompiled)
+{
+    if (NEVER(Params == NULL))         { return false; }
+    if (NEVER(OutNumCompiled == NULL)) { return false; }
+
+    CompileData UserData = { 0 };
+    UserData.Params = Params;
+    UserData.NumCompiled = OutNumCompiled;
+    UserData.Index = 0;
+
+    for each_string_in_list (Params->SourceFiles)
+    {
+        if (!Internal_DoCompile(&UserData, It.String))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+// Wait-barrier for the shared Params->Processes pool: block until every spawned compile process has
+// finished and check their exit codes. In batch mode this is called once, after all modules have
+// spawned, so NumCompiled is the total across everything that was enqueued.
+bool C_Compile_Wait(const BuildParams* Params, u32 NumCompiled)
+{
+    if (NEVER(Params == NULL)) { return false; }
+
+    bool bSuccess = true;
+
+    if (NumCompiled == 0)
+    {
+        if (!bQuietBuild)
+        {
+            //TODO: say how long ago the last build was like -> (5.3 secs ago)
+            #ifndef HOOD
+            LOG("\nNothing to compile - source files unchanged since last build");
+            #else
+            LOG("\nno work to do homie");
+            #endif
+        }
+    }
+
+    for each (PlatformHandle, Process, *Params->Processes)
+    {
+        const u32 ExitCode = Platform_WaitForProcessAndGetExitCode(Process);
+        if (ExitCode != 0)
+        {
+            // todo: better wording?
+            #ifndef HOOD
+            LOG_ERROR("Compiler errors detected. See above errors to fix. Exit code for process: %u. Aborting build...", ExitCode);
+            #else
+            LOG_ERROR("seen some compiler errors homie, gon' stop right here");
+            #endif
+
+            bSuccess = false;
+        }
+    }
+
+    return bSuccess;
+}
+
 bool C_Compile(const BuildParams* Params, u32* OutNumCompiled)
 {
     if (NEVER(Params == NULL))         { return false; }
     if (NEVER(OutNumCompiled == NULL)) { return false; }
 
-    bool bSuccess = true;
-
-    // compile all source files
+    // On spawn failure the original code broke out and returned without waiting on the already-spawned
+    // processes; preserve that by short-circuiting here.
+    if (!C_Compile_Spawn(Params, OutNumCompiled))
     {
-        CompileData UserData = { 0 };
-        UserData.Params = Params;
-        UserData.NumCompiled = OutNumCompiled;
-        UserData.Index = 0;
-
-        for each_string_in_list (Params->SourceFiles)
-        {
-            bSuccess = Internal_DoCompile(&UserData, It.String);
-            if (!bSuccess)
-            {
-                break;
-            }
-        }
+        return false;
     }
 
-    if (bSuccess)
-    {
-        if (*OutNumCompiled == 0)
-        {
-            if (!bQuietBuild)
-            {
-                //TODO: say how long ago the last build was like -> (5.3 secs ago)
-                #ifndef HOOD
-                LOG("\nNothing to compile - source files unchanged since last build");
-                #else
-                LOG("\nno work to do homie");
-                #endif
-            }
-        }
-
-        for each (PlatformHandle, Process, *Params->Processes)
-        {
-            const u32 ExitCode = Platform_WaitForProcessAndGetExitCode(Process);
-            if (ExitCode != 0)
-            {
-                // todo: better wording?
-                #ifndef HOOD
-                LOG_ERROR("Compiler errors detected. See above errors to fix. Exit code for process: %u. Aborting build...", ExitCode);
-                #else
-                LOG_ERROR("seen some compiler errors homie, gon' stop right here");
-                #endif
-
-                bSuccess = false;
-            }
-        }
-    }
-
-    return bSuccess;
+    return C_Compile_Wait(Params, *OutNumCompiled);
 }
 
 static void Internal_AppendObjSourceFiles(const BuildParams* Params, String* CmdLine, String DefaultObjExt)
