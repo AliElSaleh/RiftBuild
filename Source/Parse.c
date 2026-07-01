@@ -5752,14 +5752,14 @@ static bool Internal_AssertWorkingDirectory(ParsingContext* Context, const Strin
 
         if (bRelative)
         {
+            // The value is relative to the build file's own directory (e.g. "." means "this .build's
+            // folder"). That directory is already the leading part of BuildFilePath and is absolute,
+            // so use it as the base. Prepending Context->WorkingDirectory here joins one absolute path
+            // onto another and produces a doubled path (".../Jolt/.../Jolt").
             u32 LastSlash = 0;
-            if (String_IndexOfLastPathSlash(BuildFilePath, &LastSlash))
-            {
-                //String_Append(&AssertPath, StrSlice(BuildFilePathFull.Data, LastSlash+1));
-                //String_Append(&AssertPath, Var.Value);
-            }
-            
-            String_BuildPath(&AssertPath, Context->WorkingDirectory, StrSlice(BuildFilePath.Data, LastSlash), Var.Value);
+            xx String_IndexOfLastPathSlash(BuildFilePath, &LastSlash);
+
+            String_BuildPath(&AssertPath, StrSlice(BuildFilePath.Data, LastSlash), Var.Value);
         }
         else
         {
