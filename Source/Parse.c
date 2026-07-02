@@ -17,6 +17,8 @@
 #include "MicrosoftCraziness.h"
 #endif
 
+// TODO: rename AddCmdOption() to CmdOption_Add()
+
 void AddVariable(LinearAllocator* Arena,
                 TArray(FileVariable) VariablesDB,
                 const String Name,
@@ -4478,24 +4480,19 @@ static void StoreKVNodeAsCmdOption(LinearAllocator* Arena, const String Key, Nod
 // `cc -v` to read the version -- is identical for every module in a build but used to run once per
 // .build parsed. A `clang -v` spawn per module dominated the plan phase of multi-module builds. Cache
 // the result for the whole program run, keyed by the requested tool programs.
-typedef struct
+STRUCT(ToolchainCacheEntry)
 {
     bool          bValid;
     bool          bFound;
     String        Key;      // "compiler|assembler|linker|archiver" request
     CompilerPaths Paths;
     String        Version;  // compiler version from `cc -v`, or null
-} ToolchainCacheEntry;
+};
 
 static ToolchainCacheEntry g_ToolchainCache[8];
 static u32                 g_ToolchainCacheNum = 0;
 static LinearAllocator     g_ToolchainCacheArena;
 static bool                g_ToolchainCacheInit = false;
-
-static String Internal_ToolchainCopyStr(LinearAllocator* A, const String S)
-{
-    return String_IsValid(S) ? String_Create(A, S) : String_Null();
-}
 
 static ToolchainCacheEntry* Internal_FindToolchainCache(const String Key)
 {
@@ -4532,19 +4529,19 @@ static void Internal_StoreToolchainCache(const String Key, bool bFound, const Co
     LinearAllocator* A = &g_ToolchainCacheArena;
     ToolchainCacheEntry* E = &g_ToolchainCache[g_ToolchainCacheNum++];
 
-    E->bValid  = true;
-    E->bFound  = bFound;
-    E->Key     = Internal_ToolchainCopyStr(A, Key);
-    E->Version = Internal_ToolchainCopyStr(A, Version);
-    E->Paths.CompilerPath  = Internal_ToolchainCopyStr(A, Paths->CompilerPath);
-    E->Paths.AssemblerPath = Internal_ToolchainCopyStr(A, Paths->AssemblerPath);
-    E->Paths.LinkerPath    = Internal_ToolchainCopyStr(A, Paths->LinkerPath);
-    E->Paths.ArchiverPath  = Internal_ToolchainCopyStr(A, Paths->ArchiverPath);
-    E->Paths.InstallPath   = Internal_ToolchainCopyStr(A, Paths->InstallPath);
-    E->Paths.ToolPath      = Internal_ToolchainCopyStr(A, Paths->ToolPath);
-    E->Paths.BasePath      = Internal_ToolchainCopyStr(A, Paths->BasePath);
-    E->Paths.IncludePath   = Internal_ToolchainCopyStr(A, Paths->IncludePath);
-    E->Paths.LibraryPath   = Internal_ToolchainCopyStr(A, Paths->LibraryPath);
+    E->bValid              = true;
+    E->bFound              = bFound;
+    E->Key                 = String_Create(A, Key);
+    E->Version             = String_Create(A, Version);
+    E->Paths.CompilerPath  = String_Create(A, Paths->CompilerPath);
+    E->Paths.AssemblerPath = String_Create(A, Paths->AssemblerPath);
+    E->Paths.LinkerPath    = String_Create(A, Paths->LinkerPath);
+    E->Paths.ArchiverPath  = String_Create(A, Paths->ArchiverPath);
+    E->Paths.InstallPath   = String_Create(A, Paths->InstallPath);
+    E->Paths.ToolPath      = String_Create(A, Paths->ToolPath);
+    E->Paths.BasePath      = String_Create(A, Paths->BasePath);
+    E->Paths.IncludePath   = String_Create(A, Paths->IncludePath);
+    E->Paths.LibraryPath   = String_Create(A, Paths->LibraryPath);
 }
 
 static bool Analyze_Compiler(Node* Block, ParsingContext* Context)
@@ -4621,6 +4618,33 @@ static bool Analyze_Compiler(Node* Block, ParsingContext* Context)
         AddCmdOption(Context->CmdOptionsDB, S("Assembler.Path"),       String_Create(Arena, FoundCompilerPaths.AssemblerPath));
         AddCmdOption(Context->CmdOptionsDB, S("Linker.Path"),          String_Create(Arena, FoundCompilerPaths.LinkerPath));
         AddCmdOption(Context->CmdOptionsDB, S("Archiver.Path"),        String_Create(Arena, FoundCompilerPaths.ArchiverPath));
+
+        // When the build file doesn't declare these keys, %Compiler/%Assembler/%Linker/%Archiver have
+        // nothing to resolve to. Register the auto-detected tool names so they work without an explicit
+        // key (an explicit build-file value was already stored above, so only fill in the default).
+        if (!DoesCmdOptionExist(Context->CmdOptionsDB, S("Compiler")))
+        {
+            String DetectedCompiler = Filesystem_ExtractFileName(FoundCompilerPaths.CompilerPath, false);
+            AddCmdOption(Context->CmdOptionsDB, S("Compiler"), String_Create(Arena, DetectedCompiler));
+        }
+
+        if (!DoesCmdOptionExist(Context->CmdOptionsDB, S("Assembler")))
+        {
+            String DetectedAssembler = Filesystem_ExtractFileName(FoundCompilerPaths.AssemblerPath, false);
+            AddCmdOption(Context->CmdOptionsDB, S("Assembler"), String_Create(Arena, DetectedAssembler));
+        }
+
+        if (!DoesCmdOptionExist(Context->CmdOptionsDB, S("Linker")))
+        {
+            String DetectedLinker = Filesystem_ExtractFileName(FoundCompilerPaths.LinkerPath, false);
+            AddCmdOption(Context->CmdOptionsDB, S("Linker"), String_Create(Arena, DetectedLinker));
+        }
+
+        if (!DoesCmdOptionExist(Context->CmdOptionsDB, S("Archiver")))
+        {
+            String DetectedArchiver = Filesystem_ExtractFileName(FoundCompilerPaths.ArchiverPath, false);
+            AddCmdOption(Context->CmdOptionsDB, S("Archiver"), String_Create(Arena, DetectedArchiver));
+        }
 
         ECompiler CompilerVendor = DetermineCompilerVendor(FoundCompilerPaths.CompilerPath);
 
