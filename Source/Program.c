@@ -7040,7 +7040,8 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                 LOG("    Version:              %S", Version);
             }
             
-            LOG("    Compiler:             %S -> \"%S\"", CompilerProgram, CompilerPath);
+            String CompilerVersion = GetCmdOptionValue(CmdOptionsDB, S("Compiler.Version"));
+            LOG("    Compiler:             %S -> \"%S\" (Version: %S)", CompilerProgram, CompilerPath, CompilerVersion);
 
             if (bCanLink)
             {
