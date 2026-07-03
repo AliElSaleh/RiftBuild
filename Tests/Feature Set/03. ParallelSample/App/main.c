@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include "b.h" // available transitively via B's Includes.Public
+#include "b.h" // available transitively via B's Includes.Export
 
 int app_helper(void); // from app_extra.c
 

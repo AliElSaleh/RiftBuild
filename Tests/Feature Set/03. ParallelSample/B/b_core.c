@@ -1,5 +1,5 @@
 #include "b.h"
-#include "c.h" // available transitively via C's Includes.Public
+#include "c.h" // available transitively via C's Includes.Export
 
 int b_compute(int n)
 {

@@ -3,6 +3,6 @@ Depend ../D
 Assembly DiamondC
 Type     static_lib
 
-Includes.Public .
+Includes.Export .
 
 SourceFiles c

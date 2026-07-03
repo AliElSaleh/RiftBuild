@@ -10,17 +10,17 @@ IntermediateDirectory Intermediate
 Compiler.Flags        $SharedCompilerFlags
 Linker.Flags          $SharedLinkerFlags
 Defines               $SharedDefines
-Includes.Public       ../
+Includes.Export       ../
 
 if windows
 {
-    Libraries.Public  kernel32 user32 shell32 ole32 advapi32 ntdll shlwapi bcrypt oleaut32
+    Libraries.Export  kernel32 user32 shell32 ole32 advapi32 ntdll shlwapi bcrypt oleaut32
 }
 
 if !shared
 {
     Defines        RIFT_STATIC
-    Defines.Public RIFT_STATIC
+    Defines.Export RIFT_STATIC
 }
 
 SourceFiles          Log Memory StringUtils Platform_Core

@@ -9,6 +9,6 @@ Type     static_lib
 BuildDirectory        Build
 IntermediateDirectory Intermediate
 
-Includes.Public       .
+Includes.Export       .
 
 SourceFiles           b_core b_util

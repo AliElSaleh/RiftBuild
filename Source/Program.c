@@ -5597,7 +5597,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
             // Depends(private): consume this dependency without re-exporting it (CMake PRIVATE).
             // Its exports still fold into our plain keys below, so this module compiles and links
-            // with them, but the .Public side is skipped so our own consumers never inherit them.
+            // with them, but the .Export side is skipped so our own consumers never inherit them.
             // If this module is a static library its receipt exports the plain Libraries and
             // Library.Paths keys anyway, so a private dependency's libraries still travel upward:
             // the final link needs those symbols regardless of visibility.
@@ -5867,7 +5867,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                     AddOrAppendVariable(Arena, VariablesDB, S("Library.Paths"), LibBuildPath, String_Null(), GetMaxValueLengthForReservedKey(S("Library.Paths")));
                     if (!bIsPrivateDependency)
                     {
-                        AddOrAppendVariable(Arena, VariablesDB, S("Library.Paths.Public"), LibBuildPath, String_Null(), GetMaxValueLengthForReservedKey(S("Library.Paths")));
+                        AddOrAppendVariable(Arena, VariablesDB, S("Library.Paths.Export"), LibBuildPath, String_Null(), GetMaxValueLengthForReservedKey(S("Library.Paths")));
                     }
 
                     String AssemblyNameTrimmed = FreshReceipt.AssemblyName;
@@ -5887,19 +5887,19 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                     AddOrAppendVariable(Arena, VariablesDB, S("Libraries"), AssemblyNameTrimmed, String_Null(), GetMaxValueLengthForReservedKey(S("Libraries")));
                     if (!bIsPrivateDependency)
                     {
-                        AddOrAppendVariable(Arena, VariablesDB, S("Libraries.Public"), AssemblyNameTrimmed, String_Null(), GetMaxValueLengthForReservedKey(S("Libraries")));
+                        AddOrAppendVariable(Arena, VariablesDB, S("Libraries.Export"), AssemblyNameTrimmed, String_Null(), GetMaxValueLengthForReservedKey(S("Libraries")));
                     }
                 }
 
                 AddOrAppendVariable(Arena, VariablesDB, S("Defines"),             FreshReceipt.Defines, String_Null(),     GetMaxValueLengthForReservedKey(S("Includes")));
                 AddOrAppendVariable(Arena, VariablesDB, S("Libraries"),           FreshReceipt.Libraries, String_Null(),   GetMaxValueLengthForReservedKey(S("Libraries")));
-                AddOrAppendVariable(Arena, VariablesDB, S("Linker.Flags"),        FreshReceipt.LinkerFlags, String_Null(), GetMaxValueLengthForReservedKey(S("Linker.Flags.Public")));
+                AddOrAppendVariable(Arena, VariablesDB, S("Linker.Flags"),        FreshReceipt.LinkerFlags, String_Null(), GetMaxValueLengthForReservedKey(S("Linker.Flags.Export")));
 
                 if (!bIsPrivateDependency)
                 {
-                    AddOrAppendVariable(Arena, VariablesDB, S("Defines.Public"),      FreshReceipt.Defines, String_Null(),     GetMaxValueLengthForReservedKey(S("Includes")));
-                    AddOrAppendVariable(Arena, VariablesDB, S("Libraries.Public"),    FreshReceipt.Libraries, String_Null(),   GetMaxValueLengthForReservedKey(S("Libraries")));
-                    AddOrAppendVariable(Arena, VariablesDB, S("Linker.Flags.Public"), FreshReceipt.LinkerFlags, String_Null(), GetMaxValueLengthForReservedKey(S("Linker.Flags.Public")));
+                    AddOrAppendVariable(Arena, VariablesDB, S("Defines.Export"),      FreshReceipt.Defines, String_Null(),     GetMaxValueLengthForReservedKey(S("Includes")));
+                    AddOrAppendVariable(Arena, VariablesDB, S("Libraries.Export"),    FreshReceipt.Libraries, String_Null(),   GetMaxValueLengthForReservedKey(S("Libraries")));
+                    AddOrAppendVariable(Arena, VariablesDB, S("Linker.Flags.Export"), FreshReceipt.LinkerFlags, String_Null(), GetMaxValueLengthForReservedKey(S("Linker.Flags.Export")));
                 }
 
                 // AddOrAppendVariable(Arena, VariablesDB, S("Linker.EntryPoint"),    FreshReceipt.LinkerEntryPoint, String_Null(),    GetMaxValueLengthForReservedKey(S("Linker.EntryPoint")));
@@ -5926,7 +5926,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                         AddOrAppendVariable(Arena, VariablesDB, S("Library.Paths"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Library.Paths")));
                         if (!bIsPrivateDependency)
                         {
-                            AddOrAppendVariable(Arena, VariablesDB, S("Library.Paths.Public"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Library.Paths")));
+                            AddOrAppendVariable(Arena, VariablesDB, S("Library.Paths.Export"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Library.Paths")));
                         }
                     }
                 }
@@ -5949,7 +5949,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                         AddOrAppendVariable(Arena, VariablesDB, S("Includes"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Includes")));
                         if (!bIsPrivateDependency)
                         {
-                            AddOrAppendVariable(Arena, VariablesDB, S("Includes.Public"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Includes")));
+                            AddOrAppendVariable(Arena, VariablesDB, S("Includes.Export"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Includes")));
                         }
                     }
                 }
@@ -6179,30 +6179,30 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     }
 
     Receipt.BuildDirectory  = GetVariableValue(VariablesDB, S("BuildDirectory"));
-    Receipt.Includes        = GetVariableValue(VariablesDB, S("Includes.Public"));
-    Receipt.Defines         = GetVariableValue(VariablesDB, S("Defines.Public"));
+    Receipt.Includes        = GetVariableValue(VariablesDB, S("Includes.Export"));
+    Receipt.Defines         = GetVariableValue(VariablesDB, S("Defines.Export"));
 
     // A static library never runs a link of its own: every library it lists is a requirement
     // imposed on whoever eventually links it, not a private implementation detail, so by default
     // it exports the full plain-key set. (CMake forwards static-library link inputs the same way,
-    // via LINK_ONLY, even for PRIVATE dependencies.) When it declares a .Public key it is being
+    // via LINK_ONLY, even for PRIVATE dependencies.) When it declares a .Export key it is being
     // explicit about its exports, so that list takes precedence over the plain one. Targets that
     // do link (exe/dll) resolved their libraries at their own link step, so they only export what
-    // they explicitly publish via the .Public keys.
+    // they explicitly publish via the .Export keys.
     if (AssemblyType == AssemblyType_StaticLibrary)
     {
-        if (DoesBuildVarExist(VariablesDB, S("Libraries.Public")))
+        if (DoesBuildVarExist(VariablesDB, S("Libraries.Export")))
         {
-            Receipt.Libraries = GetVariableValue(VariablesDB, S("Libraries.Public"));
+            Receipt.Libraries = GetVariableValue(VariablesDB, S("Libraries.Export"));
         }
         else
         {
             Receipt.Libraries = GetVariableValue(VariablesDB, S("Libraries"));
         }
 
-        if (DoesBuildVarExist(VariablesDB, S("Library.Paths.Public")))
+        if (DoesBuildVarExist(VariablesDB, S("Library.Paths.Export")))
         {
-            Receipt.LibraryPaths = GetVariableValue(VariablesDB, S("Library.Paths.Public"));
+            Receipt.LibraryPaths = GetVariableValue(VariablesDB, S("Library.Paths.Export"));
         }
         else
         {
@@ -6211,10 +6211,10 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     }
     else
     {
-        Receipt.Libraries    = GetVariableValue(VariablesDB, S("Libraries.Public"));
-        Receipt.LibraryPaths = GetVariableValue(VariablesDB, S("Library.Paths.Public"));
+        Receipt.Libraries    = GetVariableValue(VariablesDB, S("Libraries.Export"));
+        Receipt.LibraryPaths = GetVariableValue(VariablesDB, S("Library.Paths.Export"));
     }
-    Receipt.LinkerFlags     = GetVariableValue(VariablesDB, S("Linker.Flags.Public"));
+    Receipt.LinkerFlags     = GetVariableValue(VariablesDB, S("Linker.Flags.Export"));
     Receipt.AssemblyName    = String_Create(Arena, AssemblyName);
     Receipt.AssemblyType    = AssemblyType;
 

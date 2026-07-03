@@ -1,4 +1,4 @@
-# Depending on Lib must import its Includes.Public and Defines.Public,
+# Depending on Lib must import its Includes.Export and Defines.Export,
 # but NOT its plain Defines.
 Depend ../Lib
 

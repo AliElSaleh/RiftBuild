@@ -1,7 +1,7 @@
 #include "lib.h"
 
 #ifdef LIB_PUBLIC_DEFINE
-    #error "Defines.Public is export-only and must not apply to the library itself"
+    #error "Defines.Export is export-only and must not apply to the library itself"
 #endif
 
 #ifndef LIB_PRIVATE_DEFINE

@@ -601,7 +601,7 @@ static ReservedKeyTable ReservedKeys[79] =
     { .Key = SC("Linker.RPathOrigin"),        .MaxValueLength = 1024,  .Impact = BuildKeyImpact_Relink    },
     { .Key = SC("Linker.Path"),               .MaxValueLength = 1024,  .Impact = BuildKeyImpact_Relink    },
     { .Key = SC("Linker.Flags"),              .MaxValueLength = 8192,  .Impact = BuildKeyImpact_Relink    },
-    { .Key = SC("Linker.Flags.Public"),       .MaxValueLength = 8192,  .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("Linker.Flags.Export"),       .MaxValueLength = 8192,  .Impact = BuildKeyImpact_Relink    },
     { .Key = SC("Linker.Defines"),            .MaxValueLength = 4096,  .Impact = BuildKeyImpact_Relink    },
     { .Key = SC("Linker.EntryPoint"),         .MaxValueLength = 256,   .Impact = BuildKeyImpact_Relink    },
     { .Key = SC("Linker.Subsystem"),          .MaxValueLength = 128,   .Impact = BuildKeyImpact_Relink    },
@@ -620,14 +620,14 @@ static ReservedKeyTable ReservedKeys[79] =
     { .Key = SC("Archiver.Flags"),            .MaxValueLength = 4096,  .Impact = BuildKeyImpact_Relink    },
     { .Key = SC("Archiver.OutputFlag"),       .MaxValueLength = 32,    .Impact = BuildKeyImpact_Relink    },
     { .Key = SC("Defines"),                   .MaxValueLength = 8192,  .Impact = BuildKeyImpact_Recompile },
-    { .Key = SC("Defines.Public"),            .MaxValueLength = 8192,  .Impact = BuildKeyImpact_Recompile },
+    { .Key = SC("Defines.Export"),            .MaxValueLength = 8192,  .Impact = BuildKeyImpact_Recompile },
     { .Key = SC("UnDefines"),                 .MaxValueLength = 2048,  .Impact = BuildKeyImpact_Recompile },
     { .Key = SC("Includes"),                  .MaxValueLength = 8192,  .Impact = BuildKeyImpact_Recompile },
-    { .Key = SC("Includes.Public"),           .MaxValueLength = 8192,  .Impact = BuildKeyImpact_Recompile },
+    { .Key = SC("Includes.Export"),           .MaxValueLength = 8192,  .Impact = BuildKeyImpact_Recompile },
     { .Key = SC("Libraries"),                 .MaxValueLength = 2048,  .Impact = BuildKeyImpact_Relink    },
-    { .Key = SC("Libraries.Public"),          .MaxValueLength = 2048,  .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("Libraries.Export"),          .MaxValueLength = 2048,  .Impact = BuildKeyImpact_Relink    },
     { .Key = SC("Library.Paths"),             .MaxValueLength = 8192,  .Impact = BuildKeyImpact_Relink    },
-    { .Key = SC("Library.Paths.Public"),      .MaxValueLength = 8192,  .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("Library.Paths.Export"),      .MaxValueLength = 8192,  .Impact = BuildKeyImpact_Relink    },
     { .Key = SC("Frameworks"),                .MaxValueLength = 2048,  .Impact = BuildKeyImpact_Relink    },
     { .Key = SC("SourceFiles"),               .MaxValueLength = 32767, .Impact = BuildKeyImpact_Relink    },
     { .Key = SC("SourceFiles.Exclude"),       .MaxValueLength = 8192,  .Impact = BuildKeyImpact_Relink    },
@@ -6600,7 +6600,7 @@ NO_DISCARD bool ParseBuildFile(
 
         SLinkedList_Each(FileVariableList, This, &Context.VarListHead)
         {
-            const FileVariable Var = (*This)->Var;
+            FileVariable Var = (*This)->Var;
 
             if (String_IsEqual(Var.Name, S("Assert"), false) ||
                 String_StartsWith(Var.Name, S("Assert."), false))
@@ -6650,6 +6650,20 @@ NO_DISCARD bool ParseBuildFile(
             {
                 MaxValueLength = 8192;
                 bStoreInDB = true;
+            }
+
+            // TODO: delete before release
+            // ".Public" was renamed to ".Export": clearer about what the keys do (they only
+            // export to consumers, they never apply to the declaring module itself)
+            // Accept the old suffix as a deprecated alias so existing build files keep working, but nag about it.
+            StringLocal(ExportAliasName, 256);
+            if (String_EndsWith(Var.Name, S(".Public"), false))
+            {
+                String_Append(&ExportAliasName, String_Left(Var.Name, Var.Name.Length - 7));
+                String_Append(&ExportAliasName, S(".Export"));
+
+                LOG_WARNING("The \".Public\" key suffix is deprecated. Rename \"%S\" to \"%S\".", Var.Name, ExportAliasName);
+                Var.Name = ExportAliasName;
             }
 
             // only store known keys

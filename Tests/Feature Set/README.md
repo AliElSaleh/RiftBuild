@@ -40,7 +40,7 @@ folders - the sources only compile with the defines the .build file provides.
 | 26 | WriteFile Codegen | `PreBuild.WriteFile` generates a header the build consumes |
 | 27 | File Operations | NewDir/NewFile/WriteFile/Copy/Rename/Delete verbs |
 | 28 | Run After Build | `.Run args` executes the fresh build with arguments |
-| 29 | Public Propagation | `Defines.Public`/`Includes.Public` reach dependents; plain keys don't |
+| 29 | Public Propagation | `Defines.Export`/`Includes.Export` reach dependents; plain keys don't (also covers the deprecated `.Public` alias) |
 | 30 | Private Dependencies | `Depend(private)` links but does not re-export |
 | 31 | Diamond Dependency | Same library depended on via two paths builds/links once |
 | 32 | Dependency Filter Args | `Depend path \| options` forwards options to the dependency |
@@ -66,8 +66,9 @@ exercise their feature (documented in each .build header comment).
 
 ## Semantics verified while writing this suite
 
-- `.Public` keys (`Defines.Public`, `Includes.Public`, ...) are **export-only**:
+- `.Export` keys (`Defines.Export`, `Includes.Export`, ...) are **export-only**:
   they apply to consumers of the module, not to the module's own compilation.
+  (`.Public` is a deprecated alias for `.Export` and warns on use.)
 - Auto discovery skips files whose *name* starts with `__` (directories with
   that prefix are still traversed).
 - `!command` expansion accepts a single plain token (no arguments, dots or

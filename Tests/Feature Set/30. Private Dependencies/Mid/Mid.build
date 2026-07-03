@@ -6,6 +6,6 @@ Depend(private) ../Leaf
 Assembly MidLib
 Type     static_lib
 
-Includes.Public .
+Includes.Export .
 
 SourceFiles mid

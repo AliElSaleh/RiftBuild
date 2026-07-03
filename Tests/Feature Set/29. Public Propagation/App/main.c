@@ -2,7 +2,7 @@
 #include "lib.h"
 
 #ifndef LIB_PUBLIC_DEFINE
-    #error "Defines.Public did not propagate from the dependency"
+    #error "Defines.Export did not propagate from the dependency"
 #endif
 
 #ifdef LIB_PRIVATE_DEFINE
@@ -11,7 +11,7 @@
 
 #ifdef _WIN32
 /* From winmm, which only links because the dependency exports it via
-   Libraries.Public - this call is the propagation check. */
+   Libraries.Export - this call is the propagation check. */
 __declspec(dllimport) unsigned long __stdcall timeGetTime(void);
 #endif
 
