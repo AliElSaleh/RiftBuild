@@ -2095,6 +2095,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Pars
                     Parser_Peek(P).Type == Token_LCurly    ||
                     Parser_Peek(P).Type == Token_RCurly    ||
                     Parser_Peek(P).Type == Token_None      ||
+                    (Parser_Peek(P).Type == Token_LSquare && ValueList == NULL) ||
                     (Parser_Peek(P).Type == Token_Else && bInlineIf)))
             {
                 bFoundTokens = true;
