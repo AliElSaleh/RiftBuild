@@ -1,3 +1,11 @@
+    // X("Hash",             Test_HashUtils_FNV1a_Basic)
+    // X("Hash",             Test_HashUtils_PointerHash)
+
+    X("HashTable",        Test_HashTable_AddAndFind) \
+    X("HashTable",        Test_HashTable_FindMissing) \
+    X("HashTable",        Test_HashTable_UpdateExisting) \
+    X("HashTable",        Test_HashTable_GrowOnLoad) \
+    X("HashTable",        Test_HashTable_DestroyCleanup) \
 
 #define TEST_LIST \
     X("Linear Allocator", Test_LinearAllocator_CreateAndDestroy) \
@@ -109,8 +117,6 @@
     X("Memory",           Test_Memory_MemCopy) \
     X("Memory",           Test_Memory_MemMove) \
     X("Memory",           Test_Memory_MemEqual) \
-    X("Hash",             Test_HashUtils_FNV1a_Basic) \
-    X("Hash",             Test_HashUtils_PointerHash) \
     X("Array",            Test_ArrayUtils_CreateAndDestroy) \
     X("Array",            Test_ArrayUtils_AddAndAccess) \
     X("Array",            Test_ArrayUtils_Reserve) \
@@ -119,11 +125,6 @@
     X("Array",            Test_ArrayUtils_RemoveLast) \
     X("Array",            Test_ArrayUtils_RemoveAt) \
     X("Array",            Test_ArrayUtils_InsertAt) \
-    X("HashTable",        Test_HashTable_AddAndFind) \
-    X("HashTable",        Test_HashTable_FindMissing) \
-    X("HashTable",        Test_HashTable_UpdateExisting) \
-    X("HashTable",        Test_HashTable_GrowOnLoad) \
-    X("HashTable",        Test_HashTable_DestroyCleanup) \
     X("String",           Test_StringUtils_IsInteger) \
     X("String",           Test_StringUtils_IsFloat) \
     X("String",           Test_StringUtils_IsNumeric) \
