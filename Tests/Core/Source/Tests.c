@@ -294,10 +294,10 @@ TEST(StringUtils_ToNarrow)
 {
     // Basic ASCII conversion from wide to narrow
     String16Local(WideStr, 256);
-    wchar* WideData = (wchar*)"Hello World";
+    const char* WideData = "Hello World";
     for (u32 i = 0; i < 11; i++)
     {
-        WideStr.Data[i] = WideData[i];
+        WideStr.Data[i] = (wchar)WideData[i];
     }
     WideStr.Length = 11;
 

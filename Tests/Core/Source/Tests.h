@@ -1,11 +1,11 @@
     // X("Hash",             Test_HashUtils_FNV1a_Basic)
     // X("Hash",             Test_HashUtils_PointerHash)
 
-    X("HashTable",        Test_HashTable_AddAndFind) \
-    X("HashTable",        Test_HashTable_FindMissing) \
-    X("HashTable",        Test_HashTable_UpdateExisting) \
-    X("HashTable",        Test_HashTable_GrowOnLoad) \
-    X("HashTable",        Test_HashTable_DestroyCleanup) \
+    // X("HashTable",        Test_HashTable_AddAndFind)
+    // X("HashTable",        Test_HashTable_FindMissing)
+    // X("HashTable",        Test_HashTable_UpdateExisting)
+    // X("HashTable",        Test_HashTable_GrowOnLoad)
+    // X("HashTable",        Test_HashTable_DestroyCleanup)
 
 #define TEST_LIST \
     X("Linear Allocator", Test_LinearAllocator_CreateAndDestroy) \
