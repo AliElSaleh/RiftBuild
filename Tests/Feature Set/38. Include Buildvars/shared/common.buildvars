@@ -1,0 +1,2 @@
+# Variables shared with the .build file that includes this file.
+SharedTestDefines FROM_INCLUDED_FILE=1

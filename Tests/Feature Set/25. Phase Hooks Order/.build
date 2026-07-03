@@ -1,0 +1,35 @@
+# Every build phase hook appends its name to phase_order.txt. After a rebuild
+# the file must read: PreBuild, PreCompile, PostCompile, PreLink, PostLink,
+# PostBuild - in that order.
+Assembly    PhaseHooks
+SourceFiles main
+
+PreBuild.WriteFile phase_order.txt
+{
+PreBuild
+}
+
+PreCompile.AppendFile phase_order.txt
+{
+PreCompile
+}
+
+PostCompile.AppendFile phase_order.txt
+{
+PostCompile
+}
+
+PreLink.AppendFile phase_order.txt
+{
+PreLink
+}
+
+PostLink.AppendFile phase_order.txt
+{
+PostLink
+}
+
+PostBuild.AppendFile phase_order.txt
+{
+PostBuild
+}

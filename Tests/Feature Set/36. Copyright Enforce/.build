@@ -1,0 +1,6 @@
+# Copyright(enforce) requires every source file to carry this exact copyright
+# text; the build fails when a file is missing it.
+Assembly    CopyrightTest
+SourceFiles main helper
+
+Copyright(enforce) Copyright (c) RiftBuild Tests

@@ -1,0 +1,6 @@
+# Six translation units with a 4-process compile limit: exercises the
+# parallel spawn/throttle path in the compile scheduler.
+Assembly    MaxCores
+SourceFiles main part1 part2 part3 part4 part5
+
+Compiler.MaxCores 4

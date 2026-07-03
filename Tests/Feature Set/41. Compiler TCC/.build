@@ -1,0 +1,5 @@
+# Force the tcc toolchain.
+Compiler tcc
+
+Assembly    TccBuilt
+SourceFiles main

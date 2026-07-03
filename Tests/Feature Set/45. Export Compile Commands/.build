@@ -1,0 +1,4 @@
+# "riftbuild export:cc" must generate compile_commands.json containing an
+# entry for every source file with the exact compiler arguments.
+Assembly    ExportCC
+SourceFiles main extra

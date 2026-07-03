@@ -1,0 +1,4 @@
+# Every directory listed in Includes must land on the compiler include path.
+Assembly    IncludesTest
+SourceFiles main
+Includes    inc_a inc_b

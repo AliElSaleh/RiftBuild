@@ -1,0 +1,5 @@
+# Defines must reach the compiler both as flag-style (HAS_FEATURE) and
+# value-style (ANSWER=42) macros. The source fails to compile if either is missing.
+Assembly    DefinesTest
+SourceFiles main
+Defines     HAS_FEATURE ANSWER=42

@@ -1,0 +1,11 @@
+# A preset bundles command-line options: "riftbuild preset:quick" must behave
+# exactly like "riftbuild speedy".
+Assembly    Presets
+SourceFiles main
+
+option.speedy Makes the program report speedy mode.
+
+preset:quick speedy
+
+Defines:speedy  SPEEDY=1
+Defines:!speedy SPEEDY=0

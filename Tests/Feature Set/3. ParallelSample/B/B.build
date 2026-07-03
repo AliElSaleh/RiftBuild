@@ -1,0 +1,14 @@
+# B depends on C. Under the serial build this fully builds C (compile + link)
+# before B; under the parallel build C's and B's source files compile together
+# and C links before B.
+Depend ../C
+
+Assembly SampleB
+Type     static_lib
+
+BuildDirectory        Build
+IntermediateDirectory Intermediate
+
+Includes.Public       .
+
+SourceFiles           b_core b_util

@@ -1,0 +1,7 @@
+# Compiler.Flags applies to every file; <file>.Compiler.Flags only to that file.
+Assembly    CompilerFlags
+SourceFiles main other
+
+Compiler.Flags -DFROM_GLOBAL_FLAG=3
+
+main.c.Compiler.Flags -DFROM_FILE_FLAG=4

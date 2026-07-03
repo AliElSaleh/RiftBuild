@@ -1,0 +1,4 @@
+# Type shared_lib must produce Build/SharedThing.dll on Windows.
+Assembly    SharedThing
+Type        shared_lib
+SourceFiles shared

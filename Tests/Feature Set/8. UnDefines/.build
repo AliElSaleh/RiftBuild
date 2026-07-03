@@ -1,0 +1,11 @@
+# UnDefines emits -U flags, which strip compiler-PREDEFINED macros (they
+# cannot cancel this file's own Defines, since -U precedes -D on the command
+# line). Both the global key and the per-file form are covered; the macros
+# (__STDC_HOSTED__, __STDC_UTF_16__) are predefined to 1 by hosted compilers.
+Assembly    UnDefinesTest
+SourceFiles main
+
+Defines   KEEP_ME=1
+UnDefines __STDC_HOSTED__
+
+main.c.UnDefines __STDC_UTF_16__

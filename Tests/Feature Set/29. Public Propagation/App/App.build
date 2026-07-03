@@ -1,0 +1,6 @@
+# Depending on Lib must import its Includes.Public and Defines.Public,
+# but NOT its plain Defines.
+Depend ../Lib
+
+Assembly    PropApp
+SourceFiles main

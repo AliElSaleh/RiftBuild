@@ -1,0 +1,11 @@
+# Depend(private): Mid consumes Leaf (headers, defines, symbols) but must NOT
+# re-export Leaf's public defines/includes to modules that depend on Mid.
+# Leaf's static-library symbols still travel upward so the final link works.
+Depend(private) ../Leaf
+
+Assembly MidLib
+Type     static_lib
+
+Includes.Public .
+
+SourceFiles mid

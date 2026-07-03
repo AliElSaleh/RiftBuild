@@ -1,0 +1,5 @@
+# SourceDirectory makes SourceFiles entries relative to it, and extensionless
+# names must resolve to .c files inside it.
+Assembly        SourceDirApp
+SourceDirectory src
+SourceFiles     main util

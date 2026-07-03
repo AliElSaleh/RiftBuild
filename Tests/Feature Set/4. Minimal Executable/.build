@@ -1,0 +1,4 @@
+# The smallest useful build file: name the output and list one source file.
+# Everything else (Type, Extension, BuildDirectory, IntermediateDirectory) uses defaults.
+Assembly    Minimal
+SourceFiles main

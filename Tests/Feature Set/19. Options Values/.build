@@ -1,0 +1,8 @@
+# A value option: %level pastes the value given on the command line
+# (riftbuild level=7), or 0 when the option was not specified.
+Assembly    OptionsValues
+SourceFiles main
+
+option.level Sets the LEVEL define for this test program.
+
+Defines LEVEL=%level

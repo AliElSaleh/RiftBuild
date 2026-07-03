@@ -1,0 +1,5 @@
+# Force the gcc toolchain regardless of what the machine would auto-detect.
+Compiler gcc
+
+Assembly    GccBuilt
+SourceFiles main

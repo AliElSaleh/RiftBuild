@@ -1,0 +1,7 @@
+# Mix a C file with a NASM assembly file. add_asm.asm implements
+# add_numbers() with the Windows x64 calling convention.
+Assembly    NasmMix
+SourceFiles main add_asm
+
+Assembler       nasm
+Assembler.Flags -f win64

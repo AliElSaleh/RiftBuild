@@ -1,0 +1,12 @@
+# Classic codegen flow: PreBuild writes a header that the source file includes.
+# If the hook does not run before compilation, the build fails.
+# NOTE: '#' starts a .build comment even inside a heredoc, so preprocessor
+# lines must be escaped with a backslash.
+Assembly    Codegen
+SourceFiles main
+
+PreBuild.WriteFile generated.h
+{
+\#pragma once
+\#define GENERATED_VALUE 99
+}

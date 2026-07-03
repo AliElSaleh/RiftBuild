@@ -1,0 +1,6 @@
+# Custom (nested) output directories: the exe must land in Out/Final and objects
+# in Cache/Obj, and both directory trees must be created on demand.
+Assembly              RenamedOut
+BuildDirectory        Out/Final
+IntermediateDirectory Cache/Obj
+SourceFiles           main

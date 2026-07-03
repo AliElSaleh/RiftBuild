@@ -1,0 +1,6 @@
+# Incremental build behavior (verified by building multiple times):
+#   1st build: compiles main.c and util.c, links.
+#   2nd build: "Nothing to compile - source files unchanged since last build".
+#   touch util.c, 3rd build: recompiles ONLY util.c ([Skipping] main.c).
+Assembly    Incremental
+SourceFiles main util

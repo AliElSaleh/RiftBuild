@@ -1,0 +1,4 @@
+# No SourceFiles key: every source file in this directory tree must be discovered
+# automatically, including sub/nested.c. Files whose NAME starts with "__" must
+# be skipped - __skipme.c contains #error and fails the build if compiled.
+Assembly AutoDiscover

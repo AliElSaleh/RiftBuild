@@ -1,0 +1,10 @@
+# A binary user option used as a condition. Build plain: TURBO must be 0.
+# Build with "riftbuild turbo": TURBO must be 1 (and the change must trigger
+# a recompile because the define set changed).
+Assembly    OptionsBinary
+SourceFiles main
+
+option.turbo Enables turbo mode for this test program.
+
+Defines:turbo  TURBO=1
+Defines:!turbo TURBO=0

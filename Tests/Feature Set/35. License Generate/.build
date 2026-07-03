@@ -1,0 +1,6 @@
+# License(generate) must write a LICENSE file next to this build file.
+Assembly    LicenseGen
+SourceFiles main
+
+CompanyName       RiftBuild Tests
+License(generate) MIT

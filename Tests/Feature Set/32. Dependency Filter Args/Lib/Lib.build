@@ -1,0 +1,14 @@
+Assembly FilterLib
+Type     static_lib
+
+Includes.Public .
+
+option.variant Turn on the variant build of this library.
+
+# The define carries whatever the option resolved to (0 or 1). The plain key
+# applies to this library's own sources; the .Public key is export-only and
+# tells consumers which flavor of the library they got.
+Defines        LIB_VARIANT=%variant
+Defines.Public LIB_VARIANT=%variant
+
+SourceFiles flib

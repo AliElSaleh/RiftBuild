@@ -1,0 +1,10 @@
+# A { } block nests keys under a namespace: this is identical to writing
+# Linker.Subsystem and Linker.Stack on their own lines.
+Assembly    BlockKeys
+SourceFiles main
+
+Linker
+{
+    Subsystem Console
+    Stack     4194304
+}

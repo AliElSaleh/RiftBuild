@@ -1,0 +1,6 @@
+# @NAME expands an environment variable. On Windows the OS env var is always
+# "Windows_NT", so the define below only exists if expansion worked.
+Assembly    EnvVars
+SourceFiles main
+
+Defines:windows HOST_OS_@OS

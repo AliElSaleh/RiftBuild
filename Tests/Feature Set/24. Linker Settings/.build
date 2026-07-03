@@ -1,0 +1,7 @@
+# Linker.Subsystem and Linker.Stack must translate to the active linker's
+# flags (/SUBSYSTEM and /STACK for lld-link and MSVC link).
+Assembly    LinkerSettings
+SourceFiles main
+
+Linker.Subsystem Console
+Linker.Stack     16777216

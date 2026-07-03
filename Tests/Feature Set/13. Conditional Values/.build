@@ -1,0 +1,9 @@
+# Condition suffixes: platform (windows/!windows) and architecture (x64/!x64).
+# The source has #error traps for every wrong combination.
+Assembly    Conditional
+SourceFiles main
+
+Defines:windows  PLAT_WINDOWS=1
+Defines:!windows PLAT_OTHER=1
+Defines:x64      ARCH_X64=1
+Defines:!x64     ARCH_OTHER=1

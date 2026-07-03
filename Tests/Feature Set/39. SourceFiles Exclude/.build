@@ -1,0 +1,5 @@
+# Auto discovery plus SourceFiles.Exclude: broken.c contains #error, so the
+# build only succeeds if the exclusion actually works.
+Assembly AutoExclude
+
+SourceFiles.Exclude broken.c

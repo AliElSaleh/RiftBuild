@@ -1,0 +1,17 @@
+# Multi-line ## comments, a multi-line value block, and the backtick reset
+# (Key` replaces any previously accumulated value instead of appending).
+Assembly Multiline
+
+##
+Everything in here is a comment, including this fake key:
+Defines SHOULD_NOT_EXIST=1
+##
+
+SourceFiles
+{
+    main
+    helper
+}
+
+Defines  FIRST_TRY=1
+Defines` FINAL_ONLY=1

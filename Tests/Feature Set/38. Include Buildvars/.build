@@ -1,0 +1,8 @@
+# "include" pulls variables from an external .buildvars file, the same way
+# the real RiftBuild.build includes Source/Common.buildvars.
+include shared/common.buildvars
+
+Assembly    IncludeVars
+SourceFiles main
+
+Defines $SharedTestDefines

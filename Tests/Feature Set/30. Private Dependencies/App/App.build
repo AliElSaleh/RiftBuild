@@ -1,0 +1,6 @@
+# App -> Mid -> (private) Leaf. App must link fine (Leaf's objects reach the
+# final link) but must NOT inherit Leaf's public defines or includes.
+Depend ../Mid
+
+Assembly    PrivateDepApp
+SourceFiles main

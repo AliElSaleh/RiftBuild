@@ -1,0 +1,12 @@
+# Version(define) must inject <ASSEMBLY>_VERSION_STRING and the split
+# <ASSEMBLY>_MAJOR/MINOR/PATCH_VERSION defines. The metadata keys feed the Windows version
+# resource that gets embedded into the exe.
+Assembly    VersionInfo
+SourceFiles main
+
+Version(define) 3.1.4
+
+TitleName   Version Info Test
+Description Verifies version defines and the embedded version resource
+CompanyName RiftBuild Tests
+Copyright   Copyright (c) RiftBuild Tests

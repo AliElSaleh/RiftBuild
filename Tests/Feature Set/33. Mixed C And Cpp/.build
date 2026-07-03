@@ -1,0 +1,4 @@
+# One .c file and one .cpp file: RiftBuild must compile each with the right
+# driver and link with the C++ driver automatically.
+Assembly    MixedLang
+SourceFiles main bridge

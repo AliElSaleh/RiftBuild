@@ -1,0 +1,7 @@
+# .Run executes the freshly built program after a successful build, passing
+# these arguments. The part after | sets the working directory (default is the
+# Build directory); "." makes the program write run_args.txt next to this file.
+Assembly    RunAfter
+SourceFiles main
+
+.Run alpha beta | .

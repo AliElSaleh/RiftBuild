@@ -1,0 +1,6 @@
+# Everything after | is passed to the dependency as its command-line options,
+# so the library must be built with its "variant" option enabled here.
+Depend ../Lib | variant
+
+Assembly    FilterApp
+SourceFiles main

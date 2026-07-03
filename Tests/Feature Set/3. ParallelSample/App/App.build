@@ -1,0 +1,13 @@
+# The root of the sample (like RiftEngine in the diagram): an executable that
+# depends on B, which depends on C. Build it with:  riftbuild   (from this dir)
+#
+# Dependency graph:   App -> B -> C
+# Required link order: C, then B, then App.
+Depend ../B
+
+Assembly SampleApp
+
+BuildDirectory        Build
+IntermediateDirectory Intermediate
+
+SourceFiles           main app_extra

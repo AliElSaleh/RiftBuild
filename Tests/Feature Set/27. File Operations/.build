@@ -1,0 +1,20 @@
+# File-operation verbs across phases. Copy's second argument is a destination
+# DIRECTORY (the file keeps its name inside it). After a build:
+#   backup/original.txt  exists (Copy into directory)
+#   staging/renamed.txt  exists (Rename, which removes original.txt)
+#   scratch.tmp          is gone (NewFile then Delete)
+Assembly    FileOps
+SourceFiles main
+
+PreBuild.NewDir staging
+
+PreBuild.WriteFile staging/original.txt
+{
+payload
+}
+
+PreBuild.NewFile scratch.tmp
+
+PostBuild.Copy   staging/original.txt backup
+PostBuild.Rename staging/original.txt staging/renamed.txt
+PostBuild.Delete scratch.tmp

@@ -1,0 +1,6 @@
+# "riftbuild clean" must delete exactly the artifacts listed in the
+# .artifact_paths manifest (exe + objects), after which a fresh build works.
+# This must hold even after a no-op incremental build: the rewritten manifest
+# has to keep the linker outputs (see RecordSkippedLinkArtifacts).
+Assembly    CleanMe
+SourceFiles main

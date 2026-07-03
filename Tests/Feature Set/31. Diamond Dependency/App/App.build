@@ -1,0 +1,8 @@
+# Diamond: App -> B -> D and App -> C -> D. D is reached twice; it must build
+# once and link cleanly (regression guard for duplicate-export of a library
+# that is depended on multiple times).
+Depend ../B
+Depend ../C
+
+Assembly    DiamondApp
+SourceFiles main

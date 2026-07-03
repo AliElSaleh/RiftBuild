@@ -1,0 +1,10 @@
+# User-defined variables expand with $Name, and $-Name / $^Name force
+# lower/upper case on the pasted value.
+Assembly    CustomVars
+SourceFiles main
+
+SharedFlagDefines CORE_ON=1 EXTRA_ON=2
+Defines           $SharedFlagDefines
+
+ProjectTag Rift
+Defines    TAG_LOWER_$-ProjectTag TAG_UPPER_$^ProjectTag

@@ -1,0 +1,5 @@
+# The Icon key embeds app.ico (found in this directory) into the exe via a
+# generated icon .rc that the resource compiler turns into a .res.
+# NOTE: absolute Windows paths do not work here - backslashes are treated as
+# escape characters by the parser, so name a file relative to this folder.
+Icon app

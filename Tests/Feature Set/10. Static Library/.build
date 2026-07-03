@@ -1,0 +1,5 @@
+# Type static_lib must archive the objects into Build/MathLib.lib (Windows)
+# instead of linking an executable.
+Assembly    MathLib
+Type        static_lib
+SourceFiles add mul

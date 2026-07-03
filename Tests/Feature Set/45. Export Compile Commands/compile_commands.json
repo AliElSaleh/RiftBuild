@@ -1,0 +1,16 @@
+[
+    {
+        "directory": "C:/RiftBuild/Tests/Feature Set/45. Export Compile Commands",
+        "file": "extra.c",
+        "arguments": [
+            "C:/Program Files/LLVM/bin/clang.exe", "extra.c", "-c"
+        ]
+    },
+    {
+        "directory": "C:/RiftBuild/Tests/Feature Set/45. Export Compile Commands",
+        "file": "main.c",
+        "arguments": [
+            "C:/Program Files/LLVM/bin/clang.exe", "main.c", "-c"
+        ]
+    }
+]
