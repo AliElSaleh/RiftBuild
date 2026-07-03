@@ -7837,7 +7837,9 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         Temp.VersionRCFilePath    = VersionRCFilePath;
         Temp.Type                 = AssemblyType;
         Temp.bCanLink             = bCanLink;
+        #if PLATFORM_APPLE
         Temp.bBundleApp           = bBundleApp;
+        #endif
         Temp.bIsClean             = bIsClean;
         Temp.bSkipPostBuild       = bSkipPostBuild;
         Temp.bForceRelink         = bForceRelink;
