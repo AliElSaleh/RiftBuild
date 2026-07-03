@@ -299,6 +299,16 @@ FORCEINLINE NO_DISCARD static StringList StringList_Null(void)
     return g_StringListNil;
 }
 
+FORCEINLINE NO_DISCARD static String String_True(void)
+{
+    return g_StringTrue;
+}
+
+FORCEINLINE NO_DISCARD static String String_False(void)
+{
+    return g_StringFalse;
+}
+
 FORCEINLINE NO_DISCARD static String StrSub(const String s, u32 Offset, u32 Len)
 {
     const u32 MinLength   = Min(Offset, s.Length);

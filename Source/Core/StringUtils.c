@@ -17,6 +17,9 @@ read_only String      g_StringNil      = SC("");
 read_only StringArray g_StringArrayNil = { .List = &(String){.Data = (uchar*)(""), .Length = 0, .Capacity = 0}, .Num = 0, .IterIndex = 0 };
 read_only StringList  g_StringListNil  = { .String = SC(""), .Next = &g_StringListNil};
 
+read_only String      g_StringTrue  = SC("True");
+read_only String      g_StringFalse = SC("False");
+
 NO_DISCARD bool String_IsValid(const String Str)
 {
     bool bValid = true;

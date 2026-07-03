@@ -799,5 +799,7 @@ typedef u32 usize;
 read_only global String      g_StringNil;
 read_only global StringArray g_StringArrayNil;
 read_only global StringList  g_StringListNil;
+read_only global String      g_StringTrue;
+read_only global String      g_StringFalse;
 
 #endif // ENGINE_TYPES_H

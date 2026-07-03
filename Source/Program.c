@@ -4138,7 +4138,7 @@ static bool TryDetectDirectoryStateChangeAndUpdate(const String DirectoryStatePa
 // Prefixing each field with its byte length lets us store the value verbatim - no escaping - so a
 // newline or tab inside a value (a .Help or Info.plist block, say) can never be mistaken for a record
 // boundary. It stays reasonably readable as a dump of what the build resolved to.
-static void WriteGeneratedBuildState(const String StatePath, TArray(FileVariable) VariablesDB)
+static void WriteGeneratedBuildState(const String StatePath, TArray(FileVariable) VariablesDB, const String CmdLine)
 {
     FileHandle f = FileHandle_Null();
     if (!Filesystem_Open(StatePath, FileMode_Write, &f))
@@ -4147,6 +4147,22 @@ static void WriteGeneratedBuildState(const String StatePath, TArray(FileVariable
     }
 
     xx Filesystem_WriteLine(f, S(BUILD_STATE_MAGIC "\n"), NULL);
+
+    // First record: the command line this build ran with, under a reserved "##" name that can never
+    // clash with a parsed key ('#' starts a comment in .build files). Modules that skip the variable
+    // diff (custom compiler objects) compare this record against the current command line to decide
+    // whether to rebuild - the legacy format kept the raw command line as the file's first line, and
+    // this record replaces that. The differ ignores "##" records (see DiffAndClassifyBuildState).
+    {
+        const String CmdKey = S("##CmdLine");
+
+        StringLocal(Header, 64);
+        String_AppendF(&Header, S("%u %u %u\n"), CmdKey.Length, 0, CmdLine.Length);
+        xx Filesystem_WriteLine(f, Header, NULL);
+        xx Filesystem_WriteLine(f, CmdKey, NULL);
+        if (CmdLine.Length > 0) { xx Filesystem_WriteLine(f, CmdLine, NULL); }
+        xx Filesystem_WriteLine(f, S("\n"), NULL);
+    }
 
     for each (FileVariable, v, VariablesDB)
     {
@@ -4309,7 +4325,8 @@ static EBuildKeyImpact DiffAndClassifyBuildState(const String BuildFileName, TAr
     // Added or changed keys (present in this build).
     for each (FileVariable, Cur, CurrentState)
     {
-        if (String_StartsWith(Cur.Name, S("Option."), false))
+        if (String_StartsWith(Cur.Name, S("Option."), false) ||
+            String_StartsWith(Cur.Name, S("##"), false))
         {
             continue;
         }
@@ -4354,10 +4371,12 @@ static EBuildKeyImpact DiffAndClassifyBuildState(const String BuildFileName, TAr
         }
     }
 
-    // Removed keys (were in the last snapshot, gone now).
+    // Removed keys (were in the last snapshot, gone now). "##" records are snapshot metadata
+    // (e.g. ##CmdLine), never resolved variables, so they are not part of the diff.
     for each (FileVariable, Old, PrevState)
     {
-        if (String_StartsWith(Old.Name, S("Option."), false))
+        if (String_StartsWith(Old.Name, S("Option."), false) ||
+            String_StartsWith(Old.Name, S("##"), false))
         {
             continue;
         }
@@ -4424,14 +4443,14 @@ static void RecordGeneratedHelperFiles(const BuildParams* p)
     String_Append(&GeneratedName, S(".generated"));
     StringLocal(GeneratedPath, MAX_PATH_LENGTH);
     String_BuildPath(&GeneratedPath, p->IntermediateBaseDirectory, GeneratedName);
-    RecordArtifactPath(p->ArtifactManifestHandle, p->RootDirectory, GeneratedPath);
+    RecordArtifactPath(p->ArtifactManifestHandle, GeneratedPath);
 
     StringLocal(DirStateName, 256);
     String_Append(&DirStateName, p->BuildFileName);
     String_Append(&DirStateName, S(".directory_state"));
     StringLocal(DirStatePath, MAX_PATH_LENGTH);
     String_BuildPath(&DirStatePath, p->IntermediateBaseDirectory, DirStateName);
-    RecordArtifactPath(p->ArtifactManifestHandle, p->RootDirectory, DirStatePath);
+    RecordArtifactPath(p->ArtifactManifestHandle, DirStatePath);
 }
 
 // Manifest-driven clean: delete the exact files recorded in <buildfile>.artifact_paths, then the
@@ -6164,14 +6183,31 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     Receipt.Defines         = GetVariableValue(VariablesDB, S("Defines.Public"));
 
     // A static library never runs a link of its own: every library it lists is a requirement
-    // imposed on whoever eventually links it, not a private implementation detail, so export the
-    // full plain-key set. (CMake forwards static-library link inputs the same way, via LINK_ONLY,
-    // even for PRIVATE dependencies.) Targets that do link (exe/dll) resolved their libraries at
-    // their own link step, so they only export what they explicitly publish via the .Public keys.
+    // imposed on whoever eventually links it, not a private implementation detail, so by default
+    // it exports the full plain-key set. (CMake forwards static-library link inputs the same way,
+    // via LINK_ONLY, even for PRIVATE dependencies.) When it declares a .Public key it is being
+    // explicit about its exports, so that list takes precedence over the plain one. Targets that
+    // do link (exe/dll) resolved their libraries at their own link step, so they only export what
+    // they explicitly publish via the .Public keys.
     if (AssemblyType == AssemblyType_StaticLibrary)
     {
-        Receipt.Libraries    = GetVariableValue(VariablesDB, S("Libraries"));
-        Receipt.LibraryPaths = GetVariableValue(VariablesDB, S("Library.Paths"));
+        if (DoesBuildVarExist(VariablesDB, S("Libraries.Public")))
+        {
+            Receipt.Libraries = GetVariableValue(VariablesDB, S("Libraries.Public"));
+        }
+        else
+        {
+            Receipt.Libraries = GetVariableValue(VariablesDB, S("Libraries"));
+        }
+
+        if (DoesBuildVarExist(VariablesDB, S("Library.Paths.Public")))
+        {
+            Receipt.LibraryPaths = GetVariableValue(VariablesDB, S("Library.Paths.Public"));
+        }
+        else
+        {
+            Receipt.LibraryPaths = GetVariableValue(VariablesDB, S("Library.Paths"));
+        }
     }
     else
     {
@@ -6682,20 +6718,38 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                 if (Filesystem_Open(OutputDebugFile, FileMode_Read, &h))
                 {
                     StringLocal(SavedCmdLine, 2048);
-                    if (Filesystem_ReadLine(h, &SavedCmdLine))
-                    {
-                        if (!String_IsEqual(SavedCmdLine, RiftCmdLine, false))
-                        {
-                            LOG("Different command line given. Forcing rebuild...");
-                            LOG("    Previous: %S", SavedCmdLine.Length == 0 ? S("<empty>") : SavedCmdLine);
-                            LOG("    Current:  %S", RiftCmdLine.Length == 0 ? S("<empty>") : RiftCmdLine);
-                            LOG_LINE_BREAK();
+                    bool bHaveSavedCmdLine = Filesystem_ReadLine(h, &SavedCmdLine);
+                    Filesystem_Close(&h);
 
-                            bIsRebuild = true;
+                    // A V1 snapshot's first line is the state magic, not the raw command line the
+                    // legacy format stored - the command line lives in its ##CmdLine record instead.
+                    // (Snapshots written before that record existed force one rebuild here, which
+                    // rewrites them with the record and stabilizes the next run.)
+                    if (bHaveSavedCmdLine && String_IsEqual(SavedCmdLine, S(BUILD_STATE_MAGIC), false))
+                    {
+                        bHaveSavedCmdLine = false;
+
+                        ArrayLocal_Arena(FileVariable, SavedState, 256, Arena);
+                        if (ReadGeneratedBuildState(Arena, OutputDebugFile, SavedState))
+                        {
+                            const String CmdKey = S("##CmdLine");
+                            if (DoesBuildVarExist(SavedState, CmdKey))
+                            {
+                                String_Copy(&SavedCmdLine, GetVariable(SavedState, CmdKey).Value);
+                                bHaveSavedCmdLine = true;
+                            }
                         }
                     }
 
-                    Filesystem_Close(&h);
+                    if (!bHaveSavedCmdLine || !String_IsEqual(SavedCmdLine, RiftCmdLine, false))
+                    {
+                        LOG("Different command line given. Forcing rebuild...");
+                        LOG("    Previous: %S", (!bHaveSavedCmdLine || SavedCmdLine.Length == 0) ? S("<unknown>") : SavedCmdLine);
+                        LOG("    Current:  %S", RiftCmdLine.Length == 0 ? S("<empty>") : RiftCmdLine);
+                        LOG_LINE_BREAK();
+
+                        bIsRebuild = true;
+                    }
                 }
             }
         }
@@ -6910,7 +6964,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         StringLocal(StatePath, MAX_PATH_LENGTH);
         String_BuildPath(&StatePath, IntermediateBaseDirectory, Name);
 
-        WriteGeneratedBuildState(StatePath, VariablesDB);
+        WriteGeneratedBuildState(StatePath, VariablesDB, RiftCmdLine);
     }
 
     if (Array_Num(Messages) > 0)
@@ -7106,7 +7160,8 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             }
             
             String CompilerVersion = GetCmdOptionValue(CmdOptionsDB, S("Compiler.Version"));
-            LOG("    Compiler:             %S -> \"%S\" (Version: %S)", CompilerProgram, CompilerPath, CompilerVersion);
+            bool bValidVersion = String_CountChar(CompilerVersion, '.') > 0;
+            LOG("    Compiler:             %S -> \"%S\" %S", CompilerProgram, CompilerPath, (bValidVersion ? CompilerVersion : String_Null()));
 
             if (bCanLink)
             {
@@ -7768,7 +7823,12 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     StringLocal(ManifestName, 256);
     String_Append(&ManifestName, BuildFileName);
     String_Append(&ManifestName, S(".artifact_paths"));
-    StringLocal(ArtifactManifestPath, MAX_PATH_LENGTH);
+
+    // Arena-backed (not StringLocal): this path is captured into the ModuleNode below, which is
+    // shallow-copied into the plan and read long after this stack frame is gone. A stack-backed
+    // buffer here left dependency modules with a dangling manifest path, so they never wrote an
+    // artifact manifest and "clean_all" could not remove their build outputs.
+    StringArena(ArtifactManifestPath, MAX_PATH_LENGTH, Arena);
     String_BuildPath(&ArtifactManifestPath, IntermediateBaseDirectory, ManifestName);
 
     BuildParams p = {0};
@@ -7990,14 +8050,23 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
     RecordGeneratedHelperFiles(&p);
 
-    if (Filesystem_DoesFileExist(IconRcFilePath))
+    // The generated .rc paths are built relative to the module root; anchor them before touching
+    // the filesystem or the manifest so neither depends on the process working directory.
     {
-        RecordArtifactPath(p.ArtifactManifestHandle, WorkingPath, IconRcFilePath);
-    }
+        StringLocal(FullRcPath, MAX_PATH_LENGTH);
 
-    if (Filesystem_DoesFileExist(VersionRCFilePath))
-    {
-        RecordArtifactPath(p.ArtifactManifestHandle, WorkingPath, VersionRCFilePath);
+        String_BuildPath(&FullRcPath, WorkingPath, IconRcFilePath);
+        if (Filesystem_DoesFileExist(FullRcPath))
+        {
+            RecordArtifactPath(p.ArtifactManifestHandle, FullRcPath);
+        }
+
+        String_Empty(&FullRcPath);
+        String_BuildPath(&FullRcPath, WorkingPath, VersionRCFilePath);
+        if (Filesystem_DoesFileExist(FullRcPath))
+        {
+            RecordArtifactPath(p.ArtifactManifestHandle, FullRcPath);
+        }
     }
 
     bool bSuccess = false;
@@ -8037,6 +8106,13 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     bool bNoMoreWorkToDo = NumCompiled == 0 && bAssemblyExists && !bAnyDependenciesDidWork && !bForceRelink;
     if (bNoMoreWorkToDo)
     {
+        // The link step is being skipped, but the manifest was rewritten this build - keep the
+        // linker outputs in it so a later "clean" still removes them.
+        if (bCanLink)
+        {
+            RecordSkippedLinkArtifacts(&p);
+        }
+
         if (bSkipPostBuild)
         {
             goto End;
@@ -8378,13 +8454,23 @@ static bool Plan_ExecPreCompilePrep(ModuleNode* Node)
     xx Filesystem_Open(Node->ArtifactManifestPath, FileMode_Write, &p->ArtifactManifestHandle);
     RecordGeneratedHelperFiles(p);
 
-    if (Filesystem_DoesFileExist(Node->IconRcFilePath))
+    // The generated .rc paths are built relative to the module root; anchor them before touching
+    // the filesystem or the manifest so neither depends on the process working directory.
     {
-        RecordArtifactPath(p->ArtifactManifestHandle, Node->WorkingPath, Node->IconRcFilePath);
-    }
-    if (Filesystem_DoesFileExist(Node->VersionRCFilePath))
-    {
-        RecordArtifactPath(p->ArtifactManifestHandle, Node->WorkingPath, Node->VersionRCFilePath);
+        StringLocal(FullRcPath, MAX_PATH_LENGTH);
+
+        String_BuildPath(&FullRcPath, Node->WorkingPath, Node->IconRcFilePath);
+        if (Filesystem_DoesFileExist(FullRcPath))
+        {
+            RecordArtifactPath(p->ArtifactManifestHandle, FullRcPath);
+        }
+
+        String_Empty(&FullRcPath);
+        String_BuildPath(&FullRcPath, Node->WorkingPath, Node->VersionRCFilePath);
+        if (Filesystem_DoesFileExist(FullRcPath))
+        {
+            RecordArtifactPath(p->ArtifactManifestHandle, FullRcPath);
+        }
     }
 
     return true;
@@ -8526,7 +8612,7 @@ static void Plan_Free(BuildPlan* Plan)
     Plan->NumArenaBlocks = 0;
 }
 
-static BuildReceipt ExecuteBuildPlan(BuildPlan* Plan, const StringArray RootParameters, Clock* OutCompileClock, Clock* OutLinkClock)
+static BuildReceipt ExecuteBuildPlan(BuildPlan* Plan, Clock* OutCompileClock, Clock* OutLinkClock)
 {
     BuildReceipt Result = {0};
 
@@ -8611,18 +8697,33 @@ static BuildReceipt ExecuteBuildPlan(BuildPlan* Plan, const StringArray RootPara
         PLAN_FAIL();
     }
 
-    // Decide per module whether any link/finalize work remains. Processed in dependency order, so
-    // bAnyPriorWork conservatively means "a dependency (an earlier module) did work" -> relink.
+    // Decide per module whether any link/finalize work remains. Processed in dependency order.
+    //
+    // A dependency doing work does NOT force later library modules to relink: an archive only
+    // contains its own objects, so if none of them changed the archive is already correct. The one
+    // exception is the final module when it is an executable - its link pulls in every dependency's
+    // artifacts, so any earlier module doing work means the exe must relink.
     bool bAnyPriorWork = false;
     for (usize i = 0; i < N; i++)
     {
         ModuleNode* Node = Plan->Modules[i];
+
+        const bool bIsFinalModule = (i == N - 1);
+        const bool bRelinkFromPriorWork = bIsFinalModule && Node->Params.bIsAssemblyExe && bAnyPriorWork;
+
         Node->bAssemblyExists = Plan_AssemblyExists(Node);
-        Node->bNoMoreWork  = (Node->NumCompiled == 0 && Node->bAssemblyExists && !Node->bForceRelink && !bAnyPriorWork);
+        Node->bNoMoreWork  = (Node->NumCompiled == 0 && Node->bAssemblyExists && !Node->bForceRelink && !bRelinkFromPriorWork);
         Node->bWorkWasDone = (Node->NumCompiled > 0) || (Node->bForceRelink && Node->bCanLink);
         if (!Node->bNoMoreWork)
         {
             bAnyPriorWork = true;
+        }
+
+        // The link barrier below will skip this module, but its manifest was rewritten this
+        // build - keep the linker outputs in it so a later "clean" still removes them.
+        if (Node->bNoMoreWork && Node->bCanLink && !Node->bIsPhony)
+        {
+            RecordSkippedLinkArtifacts(&Node->Params);
         }
     }
 
@@ -8740,8 +8841,9 @@ static BuildReceipt ExecuteBuildPlan(BuildPlan* Plan, const StringArray RootPara
         }
     }
 
-    // Run the root executable if requested on the command line (the root is the last module).
-    Plan_RunRootAssemblyIfRequested(Plan->Modules[N - 1], RootParameters);
+    // The root executable's .Run happens in our caller, after the timing summary has printed:
+    // the timing report belongs right under the "Build complete" line, not after the program
+    // being launched eventually exits (which also kept the app's runtime out of "Total build Time").
 
     #undef PLAN_FAIL
 
@@ -9520,16 +9622,14 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray RawArguments, con
 
     Clock PlanClock = {0};
     Clock_Start(&PlanClock);
-    BuildReceipt Receipt = RootArena.Memory
-        ? BuildTarget(&RootArena, BuildFileHandle, BuildFilePathFull, &BuildMutex, WorkingDirectory, BuildArguments, String_Null(), BuildFileIndex, RootPathIndex, &Plan, true)
-        : (BuildReceipt){ .ExitCode = 1 };
+    BuildReceipt Receipt = BuildTarget(&RootArena, BuildFileHandle, BuildFilePathFull, &BuildMutex, WorkingDirectory, BuildArguments, String_Null(), BuildFileIndex, RootPathIndex, &Plan, true);
     Clock_Tick(&PlanClock);
 
     Clock CompileClock = {0};
     Clock LinkClock    = {0};
     if (Receipt.ExitCode == 0)
     {
-        BuildReceipt ExecReceipt = ExecuteBuildPlan(&Plan, BuildArguments, &CompileClock, &LinkClock);
+        BuildReceipt ExecReceipt = ExecuteBuildPlan(&Plan, &CompileClock, &LinkClock);
         Receipt.ExitCode  = ExecReceipt.ExitCode;
         Receipt.bWorkWasDone = ExecReceipt.bWorkWasDone;
     }
@@ -9539,7 +9639,7 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray RawArguments, con
     // Timing summary. "Plan" covers parsing/resolving/diffing the whole dependency graph; "Compile"
     // is the single cross-module parallel batch; "Link" is the ordered link barrier; "Overhead" is
     // whatever is left (process teardown, logging, the plan free).
-    if (Receipt.ExitCode == 0 && !bQuietBuild && Plan.NumModules > 0)
+    if (Receipt.ExitCode == 0 && !bQuietBuild && Plan.NumModules > 0 && Receipt.bWorkWasDone)
     {
         Clock OverheadClock = {0};
         OverheadClock.StartTime = 1;
@@ -9553,6 +9653,14 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray RawArguments, con
         PrintClockTimeToBuffer(&TimingBuffer, &OverheadClock,&TotalClock, S(  "Overhead    Time: "), true);
         PrintClockTimeToBuffer(&TimingBuffer, &TotalClock,   NULL,        S(  "Total build Time: "), false);
         LOG("%S", TimingBuffer);
+    }
+
+    // Run the root executable if requested (.Run / "run"), now that the timing summary sits
+    // directly under the "Build complete" line. Running last also keeps the launched program's
+    // lifetime out of the build timings.
+    if (Receipt.ExitCode == 0 && Plan.NumModules > 0)
+    {
+        Plan_RunRootAssemblyIfRequested(Plan.Modules[Plan.NumModules - 1], BuildArguments);
     }
 
     Plan_Free(&Plan);

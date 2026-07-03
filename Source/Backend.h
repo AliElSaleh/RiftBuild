@@ -461,9 +461,17 @@ bool TryBuildOrCleanMacExeIcon(String IconFilePath, const BuildParams* Params);
 bool TryBuildMacBundle(LinearAllocator Scratch, const BuildParams* Params, TArray(FileVariable) VariablesDB);
 #endif
 
-// Write a produced path (normalized to absolute, relative paths anchored to RootDirectory) straight to
-// the already-open <buildfile>.artifact_paths manifest handle. Writes immediately so the manifest
-// survives a mid-build crash and needs no in-memory buffer. No-op if the handle is invalid.
-void RecordArtifactPath(const FileHandle ManifestHandle, const String RootDirectory, const String Path);
+// Write a produced path straight to the already-open <buildfile>.artifact_paths manifest handle.
+// Path must be ABSOLUTE (embedded ".." segments are fine and get normalized); relative paths are
+// rejected with a warning, because the manifest is consumed by clean whose working directory is
+// not guaranteed to match the module that wrote it. Writes immediately so the manifest survives
+// a mid-build crash and needs no in-memory buffer. No-op if the handle is invalid.
+void RecordArtifactPath(const FileHandle ManifestHandle, const String Path);
+
+// Re-record the linker/archiver output paths (exe/dll/lib and Windows pdb/ilk/exp/def siblings)
+// into the manifest for a build whose link step was skipped. The manifest is truncated at the
+// start of every build, so a no-op incremental build would otherwise lose these entries and a
+// later "clean" would leave the final artifacts behind.
+void RecordSkippedLinkArtifacts(const BuildParams* Params);
 
 #endif // _BACKEND_H_

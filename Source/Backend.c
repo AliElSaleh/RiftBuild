@@ -20,26 +20,29 @@ STRUCT(CompileData)
     u32 Padding;
 };
 
-void RecordArtifactPath(const FileHandle ManifestHandle, const String RootDirectory, const String Path)
+
+void RecordArtifactPath(const FileHandle ManifestHandle, const String Path)
 {
     if (IsValidFileHandle(ManifestHandle) && Path.Length > 0)
     {
-        StringLocal(AbsolutePath, MAX_PATH_LENGTH);
         if (Filesystem_IsPathRelative(Path))
         {
-            String_BuildPath(&AbsolutePath, RootDirectory, Path);
+            LOG_WARNING("Not recording relative artifact path \"%S\" in the manifest. This is a bug: artifact paths must be absolute.", Path);
         }
         else
         {
+            // Still normalized: absolute paths routinely carry embedded "..\" segments (e.g. a
+            // "BuildDirectory ../bin"), which the manifest's path-traversal defense would reject
+            // when read back.
+            StringLocal(AbsolutePath, MAX_PATH_LENGTH);
             String_Copy(&AbsolutePath, Path);
+            xx Filesystem_ConvertRelativeToAbsolutePath(&AbsolutePath);
+
+            StringLocal(Line, MAX_PATH_LENGTH + 2);
+            String_Copy(&Line, AbsolutePath);
+            String_AppendChar(&Line, '\n');
+            xx Filesystem_WriteLine(ManifestHandle, Line, NULL);
         }
-
-        xx Filesystem_ConvertRelativeToAbsolutePath(&AbsolutePath);
-
-        StringLocal(Line, MAX_PATH_LENGTH + 2);
-        String_Copy(&Line, AbsolutePath);
-        String_AppendChar(&Line, '\n');
-        xx Filesystem_WriteLine(ManifestHandle, Line, NULL);
     }
 }
 
@@ -48,7 +51,7 @@ static void Internal_RecordLinkArtifacts(const BuildParams* Params, const String
     StringLocal(OutputPath, MAX_PATH_LENGTH);
     String_Append(&OutputPath, BaseDir);
     String_Append(&OutputPath, OutputName);
-    RecordArtifactPath(Params->ArtifactManifestHandle, Params->RootDirectory, OutputPath);
+    RecordArtifactPath(Params->ArtifactManifestHandle, OutputPath);
 
     #if PLATFORM_WINDOWS
     {
@@ -61,10 +64,59 @@ static void Internal_RecordLinkArtifacts(const BuildParams* Params, const String
             String_Append(&Path, BaseDir);
             String_Append(&Path, Filesystem_StripFileExtension(OutputName));
             String_Append(&Path, Exts[i]);
-            RecordArtifactPath(Params->ArtifactManifestHandle, Params->RootDirectory,Path);
+            RecordArtifactPath(Params->ArtifactManifestHandle, Path);
         }
     }
     #endif
+}
+
+// The artifact manifest is rewritten from scratch on every build, but the linker/archiver output
+// paths are only recorded inside C_Link. When an incremental build skips the link step entirely,
+// this re-records those paths so a later "clean" still knows about the exe/lib in the build
+// directory. Mirrors the per-type recording that C_Link performs.
+void RecordSkippedLinkArtifacts(const BuildParams* Params)
+{
+    if (Params != NULL &&
+        Params->Type != AssemblyType_PCH &&
+        Params->Type != AssemblyType_Null &&
+        Params->Type != AssemblyType_NoCompilerObject)
+    {
+        StringLocal(BuildPath, MAX_PATH_LENGTH);
+        String_BuildPath(&BuildPath, Params->RootDirectory, Params->BuildDirectory);
+        String_AppendPathSeparator(&BuildPath);
+
+        const bool bIsCustomObject = Params->Type == AssemblyType_CustomCompilerObject;
+        const bool bIsExe          = Params->Type == AssemblyType_Executable;
+        const bool bIsDLL          = Params->Type == AssemblyType_Library || Params->Type == AssemblyType_DynamicLibrary;
+        const bool bIsLib          = Params->Type == AssemblyType_Library || Params->Type == AssemblyType_StaticLibrary;
+
+        if (bIsCustomObject || bIsExe || bIsDLL)
+        {
+            Internal_RecordLinkArtifacts(Params, BuildPath, Params->AssemblyWithExt);
+        }
+
+        if (bIsLib)
+        {
+            StringLocal(LibFile, MAX_PATH_LENGTH);
+            String_Append(&LibFile, Params->Assembly);
+
+            if (Params->Type == AssemblyType_Library)
+            {
+                String_AppendChar(&LibFile, 'S');
+            }
+
+            #if PLATFORM_WINDOWS
+            String_Append(&LibFile, S(".lib"));
+            #else
+            String_Append(&LibFile, S(".a"));
+            #endif
+
+            StringLocal(LibOutputPath, MAX_PATH_LENGTH);
+            String_Append(&LibOutputPath, BuildPath);
+            String_Append(&LibOutputPath, LibFile);
+            RecordArtifactPath(Params->ArtifactManifestHandle,LibOutputPath);
+        }
+    }
 }
 
 static void LogCompilingFile(u32 Index, u32 NumSources, String FullPath)
@@ -420,6 +472,7 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
     {
         StringLocal(ObjFile, MAX_PATH_LENGTH);
         {
+            String Name    = SourceFileName;
             String Prefix  = String_Null();
             String Postfix = String_Null();
             String ObjExt  = String_IsValid(Params->CompilerObjectExt) ? Params->CompilerObjectExt : DefaultObjExtension;
@@ -428,11 +481,16 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
             {
                 Prefix  = Params->AssemblyPrefix;
                 Postfix = Params->AssemblyPostfix;
-                //ObjExt  = Params->Extension;
+
+                if (String_IsValid(Params->Extension))
+                {
+                    Name   = Filesystem_ExtractFileName(RelativePath, false);
+                    ObjExt = Params->Extension;
+                }
             }
 
             String_Append(&ObjFile, Prefix);
-            String_Append(&ObjFile, SourceFileName);
+            String_Append(&ObjFile, Name);
             String_Append(&ObjFile, Postfix);
             if (ObjExt.Length > 0 && !String_IsFirst(ObjExt, '.'))
             {
@@ -507,7 +565,7 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
 
         String_Empty(&ObjectPath);
 
-        RC_Compile(Params, RelativePath, &ObjectPath, &CmdLine);
+        RC_Compile(Params, FullPath, &ObjectPath, &CmdLine);
     }
     else
     {
@@ -637,7 +695,7 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
         String CompilerFlagsLeft  = Params->bCompilerFlagsFirst ? Params->CompilerFlags : String_Null();
         String CompilerFlagsRight = Params->bCompilerFlagsFirst ? String_Null() : Params->CompilerFlags;
 
-        String_BuildSeparator(&CmdLine, ' ', CompilerFlagsLeft, CompileFlag, FullSourcePath, CompilerFlagsRight, Params->IncludeFlags, Params->DefineFlags, AdditionalFlags, PCHFlags, OutputFlag);
+        String_BuildSeparator(&CmdLine, ' ', CompilerFlagsLeft, CompileFlag, FullSourcePath, CompilerFlagsRight, Params->IncludeFlags, Params->DefineFlags, Params->UnDefineFlags, AdditionalFlags, PCHFlags, OutputFlag);
         xx String_EatSpacesInlineFromEnd(&CmdLine);
 
         if (String_IsValid(ObjectPath))
@@ -651,10 +709,10 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
     // Record the object this source maps to, and the compiler's sibling ".d"
     // dependency file (e.g. Foo.c.d) that lands next to it.
     // ===============================================================================================
-    RecordArtifactPath(Params->ArtifactManifestHandle, Params->RootDirectory, ObjectPath);
+    RecordArtifactPath(Params->ArtifactManifestHandle,ObjectPath);
     if (Params->Type == AssemblyType_PCH)
     {
-        RecordArtifactPath(Params->ArtifactManifestHandle, Params->RootDirectory, PCHObjectPath);
+        RecordArtifactPath(Params->ArtifactManifestHandle,PCHObjectPath);
     }
 
     struct MiscArtifactTable
@@ -675,7 +733,7 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
             StringLocal(MiscPath, MAX_PATH_LENGTH);
             String_BuildPath(&MiscPath, Params->RootDirectory, ObjDestinationDirectory, PathOfObj, SourceFileName);
             String_Append(&MiscPath, Entry.Extension);
-            RecordArtifactPath(Params->ArtifactManifestHandle, Params->RootDirectory, MiscPath);
+            RecordArtifactPath(Params->ArtifactManifestHandle,MiscPath);
         }
     }
     // ===============================================================================================
@@ -1869,7 +1927,7 @@ bool C_Link(const BuildParams* Params)
         StringLocal(LibOutputPath, MAX_PATH_LENGTH);
         String_Append(&LibOutputPath, BuildPath);
         String_Append(&LibOutputPath, LibFile);
-        RecordArtifactPath(Params->ArtifactManifestHandle, Params->RootDirectory, LibOutputPath);
+        RecordArtifactPath(Params->ArtifactManifestHandle,LibOutputPath);
 
         if (bQuietBuild) { Logging_Enable(); }
 
