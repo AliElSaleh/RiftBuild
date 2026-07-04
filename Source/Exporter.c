@@ -2270,7 +2270,9 @@ bool TryBuildMacBundle(LinearAllocator Scratch, const BuildParams* Params, TArra
 //       is in and perform that. the default mode would be just regular execution of
 //       commands and another mode is that it redirects those commands to a file that
 //       it writes to. think of it like a good logging system where you can change where
-//       the data goes, either to a file of console (stdout/stderr) or in memory.
+//       the data goes, either to a file or console (stdout/stderr) or in memory.
+//       and not just that but what if we are mixing .asm or .rc files in between c files
+//       how would they resolve? lot of things to think about.
 
 bool Export_WindowsBatchScript(const BuildParams* Params)
 {

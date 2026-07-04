@@ -1253,8 +1253,10 @@ NO_DISCARD String Platform_GetCLibraryName(void)
     #elif PLATFORM_LINUX
     #if defined(__GLIBC__)
     Name = S("glibc");
-    #else
-    Name = S("musl");
+    #elif defined(__UCLIBC__)
+    Name = S("uclibc");
+    #elif defined(__BIONIC__)
+    Name = S("bionic");
     #endif
     #elif PLATFORM_BSD
     Name = S("bsd");

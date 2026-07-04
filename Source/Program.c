@@ -9771,6 +9771,7 @@ static void InitInternalVars(LinearAllocator* Arena)
 
     // C library detection
     AddInternalVariable(S("_LibC"), Platform_GetCLibraryName());
+    AddInternalVariable(Platform_GetCLibraryName(), String_Null());
 
     // Executable binary format
     #if PLATFORM_WINDOWS
