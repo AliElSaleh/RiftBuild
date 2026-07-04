@@ -2287,9 +2287,10 @@ bool Export_WindowsBatchScript(const BuildParams* Params)
         String NoLogoFlag_LINK     = bIsMicrosoftLinker ? S("/nologo ") : String_Null();
 
         StringLocal(IntermediateOutputFlag, MAX_PATH_LENGTH);
-        String_Append(&IntermediateOutputFlag, S("/Fo\""));
         if (bIsMicrosoftCompiler)
         {
+            String_Append(&IntermediateOutputFlag, S("/Fo\""));
+
             StringLocal(ObjectPath, MAX_PATH_LENGTH);
             String ObjDestinationDirectory = Params->IntermediateDirectory;
             if (String_IsValid(Params->CompilerObjectDirectory))
@@ -2347,9 +2348,12 @@ bool Export_WindowsBatchScript(const BuildParams* Params)
             xx Filesystem_WriteLine(f, S("    %LinkerFlags% ^\n    %LibraryPaths% ^\n    %Libraries% ^\n    "), NULL);
         }
 
-        xx Filesystem_WriteLineFormatted(f, S("%S\"%S\\%S\"\n"), NULL, Params->LinkerOutputFlag, Params->BuildDirectory, Params->AssemblyWithExt);
+        StringLocal(OutputAssemblyPath, MAX_PATH_LENGTH);
+        String_BuildPath(&OutputAssemblyPath, Params->BuildDirectory, Params->AssemblyWithExt);
+        
+        xx Filesystem_WriteLineFormatted(f, S("%S\"%S\"\n"), NULL, Params->LinkerOutputFlag, OutputAssemblyPath);
 
-        xx Filesystem_WriteLineFormatted(f, S("\necho [32m  Done: %S\\%S[0m\n"), NULL, Params->BuildDirectory, Params->AssemblyWithExt);
+        xx Filesystem_WriteLineFormatted(f, S("\necho [32m  Done: %S[0m\n"), NULL, OutputAssemblyPath);
 
         /*
         xx Filesystem_WriteLine(f, S(
