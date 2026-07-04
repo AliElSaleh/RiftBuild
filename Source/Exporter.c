@@ -2263,6 +2263,15 @@ bool TryBuildMacBundle(LinearAllocator Scratch, const BuildParams* Params, TArra
 }
 #endif
 
+
+// TODO: i wanna rewrite these export bat/sh functions so that it goes through the backend,
+//       and the backend can just switch to a routine that does this accruately without
+//       having to write this stuff twice. like the backend, just can choose what mode it
+//       is in and perform that. the default mode would be just regular execution of
+//       commands and another mode is that it redirects those commands to a file that
+//       it writes to. think of it like a good logging system where you can change where
+//       the data goes, either to a file of console (stdout/stderr) or in memory.
+
 bool Export_WindowsBatchScript(const BuildParams* Params)
 {
     if (NEVER(Params == NULL)) { return false; }
