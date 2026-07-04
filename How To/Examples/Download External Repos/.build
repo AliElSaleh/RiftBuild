@@ -1,0 +1,11 @@
+if !external/glfw/
+{
+    PreDepend.Cmd git clone https://github.com/AliElSaleh/glfw external/glfw
+}
+
+Depend libs/MyLib
+Depend external/glfw
+
+SourceDirectory src
+
+.run
