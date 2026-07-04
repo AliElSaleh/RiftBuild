@@ -1,0 +1,7 @@
+# Depend builds MathLib first, links its archive into this executable, and
+# imports its .Export keys - that is how main.c finds "mathlib.h" without
+# this file declaring any Compiler.Includes of its own.
+Depend ../MathLib
+
+Assembly    Calculator
+SourceFiles main

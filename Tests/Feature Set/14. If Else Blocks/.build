@@ -4,11 +4,11 @@ SourceFiles main
 
 if windows
 {
-    Defines FROM_IF_BLOCK=1
+    Compiler.Defines FROM_IF_BLOCK=1
 }
 else
 {
-    Defines FROM_ELSE_BLOCK=1
+    Compiler.Defines FROM_ELSE_BLOCK=1
 }
 
-if x64 Defines INLINE_IF=1
+if x64 Compiler.Defines INLINE_IF=1

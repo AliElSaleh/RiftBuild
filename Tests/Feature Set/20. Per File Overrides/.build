@@ -1,5 +1,5 @@
-# <filename>.Defines applies to exactly that source file and no other.
+# <filename>.Compiler.Defines applies to exactly that source file and no other.
 Assembly    PerFile
 SourceFiles main special
 
-special.c.Defines ONLY_SPECIAL=1
+special.c.Compiler.Defines ONLY_SPECIAL=1

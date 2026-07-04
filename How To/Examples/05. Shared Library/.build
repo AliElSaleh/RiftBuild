@@ -1,0 +1,5 @@
+# Type shared_lib produces Build/Greeter.dll on Windows (a .so on Linux,
+# .dylib on macOS) instead of an executable.
+Assembly    Greeter
+Type        shared_lib
+SourceFiles greeter

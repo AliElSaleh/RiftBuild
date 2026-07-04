@@ -5,4 +5,4 @@ Assembly    CmdExpansion
 SourceFiles main
 
 HostFromCmd !hostname
-Defines     BUILD_HOST=$HostFromCmd
+Compiler.Defines BUILD_HOST=$HostFromCmd

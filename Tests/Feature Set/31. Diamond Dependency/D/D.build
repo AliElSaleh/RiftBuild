@@ -1,6 +1,6 @@
 Assembly DiamondD
 Type     static_lib
 
-Includes.Export .
+Compiler.Includes.Export .
 
 SourceFiles d

@@ -1,0 +1,11 @@
+Assembly    Pantry
+SourceFiles main
+
+# Every folder listed here lands on the compiler's include path, so main.c
+# can write #include "config.h" instead of #include "include/config.h".
+Compiler.Includes include
+
+# Defines become preprocessor macros. Both styles work:
+#   ENABLE_GREETING  - a flag macro (defined, no value)
+#   MAX_ITEMS=4      - a value macro
+Compiler.Defines  ENABLE_GREETING MAX_ITEMS=4

@@ -1,0 +1,5 @@
+# Variables shared by every build file that includes this file. A .buildvars
+# file contains ordinary key lines - typically version numbers, common
+# defines, or flag sets you want defined in exactly one place.
+ProductVersion 1.8.0
+CommonDefines  RIFT_PRODUCT_FAMILY=1

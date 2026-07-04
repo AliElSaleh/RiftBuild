@@ -1,5 +1,5 @@
-# Depending on Lib must import its Includes.Export and Defines.Export,
-# but NOT its plain Defines.
+# Depending on Lib must import its Compiler.Includes.Export and
+# Compiler.Defines.Export, but NOT its plain Compiler.Defines.
 Depend ../Lib
 
 Assembly    PropApp

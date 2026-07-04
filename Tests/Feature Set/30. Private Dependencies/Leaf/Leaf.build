@@ -1,7 +1,7 @@
 Assembly LeafLib
 Type     static_lib
 
-Includes.Export .
-Defines.Export  LEAF_PUBLIC=1
+Compiler.Includes.Export .
+Compiler.Defines.Export  LEAF_PUBLIC=1
 
 SourceFiles leaf

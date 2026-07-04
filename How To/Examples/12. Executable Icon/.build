@@ -1,0 +1,9 @@
+Assembly    Iconic
+SourceFiles main
+
+# Icon embeds app.ico into the executable: RiftBuild generates an icon .rc,
+# runs the resource compiler, and links the .res in. The value is the icon
+# file's name relative to this folder (extension optional).
+# NOTE: absolute Windows paths do not work here - backslashes are treated as
+# escape characters by the parser - so keep the icon next to the build file.
+Icon app

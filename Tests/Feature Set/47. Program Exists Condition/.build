@@ -5,10 +5,10 @@ SourceFiles main
 
 if program_exists(cmd)
 {
-    Defines HAVE_CMD=1
+    Compiler.Defines HAVE_CMD=1
 }
 
 if program_exists(zz_no_such_tool_zz)
 {
-    Defines HAVE_FAKE_TOOL=1
+    Compiler.Defines HAVE_FAKE_TOOL=1
 }

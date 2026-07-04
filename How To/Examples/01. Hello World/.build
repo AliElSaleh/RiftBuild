@@ -1,0 +1,4 @@
+# The smallest useful build file: just name the output (Assembly).
+# Everything else - the compiler, which sources to build, output folders,
+# executable extension - uses sensible defaults.
+Assembly    Hello

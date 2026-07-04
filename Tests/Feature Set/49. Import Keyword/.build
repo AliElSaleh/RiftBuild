@@ -5,4 +5,4 @@ import shared/common.buildvars
 Assembly    ImportKeyword
 SourceFiles main
 
-Defines $SharedTestDefines
+Compiler.Defines $SharedTestDefines

@@ -1,4 +1,4 @@
-# Every directory listed in Includes must land on the compiler include path.
+# Every directory listed in Compiler.Includes must land on the compiler include path.
 Assembly    IncludesTest
 SourceFiles main
-Includes    inc_a inc_b
+Compiler.Includes inc_a inc_b

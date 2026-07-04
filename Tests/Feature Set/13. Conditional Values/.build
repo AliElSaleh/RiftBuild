@@ -3,7 +3,7 @@
 Assembly    Conditional
 SourceFiles main
 
-Defines:windows  PLAT_WINDOWS=1
-Defines:!windows PLAT_OTHER=1
-Defines:x64      ARCH_X64=1
-Defines:!x64     ARCH_OTHER=1
+Compiler.Defines:windows  PLAT_WINDOWS=1
+Compiler.Defines:!windows PLAT_OTHER=1
+Compiler.Defines:x64      ARCH_X64=1
+Compiler.Defines:!x64     ARCH_OTHER=1

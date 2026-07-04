@@ -1,0 +1,22 @@
+Assembly    Ship
+SourceFiles main
+
+option.release Optimized build without debug info.
+
+# The classic two-configuration setup: one option drives the compiler flags,
+# the defines, and where the outputs go. Separate Build/Intermediate folders
+# mean switching configurations never trashes the other one's objects.
+if release
+{
+    BuildDirectory        Build/Release
+    IntermediateDirectory Intermediate/Release
+    Compiler.Flags        -O2
+    Compiler.Defines      NDEBUG CONFIG_NAME=\"Release\"
+}
+else
+{
+    BuildDirectory        Build/Debug
+    IntermediateDirectory Intermediate/Debug
+    Compiler.Flags        -g
+    Compiler.Defines      CONFIG_NAME=\"Debug\"
+}

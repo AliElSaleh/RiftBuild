@@ -18,9 +18,9 @@ folders - the sources only compile with the defines the .build file provides.
 | 4 | Minimal Executable | Smallest valid .build (Assembly + SourceFiles) |
 | 5 | Auto Source Discovery | No SourceFiles key; recursive discovery; `__` dirs skipped |
 | 6 | Source Directory | `SourceDirectory` + extensionless SourceFiles |
-| 7 | Defines | Flag and value macros via `Defines` |
-| 8 | UnDefines | per-file `<file>.UnDefines` strips a compiler-predefined macro |
-| 9 | Includes | Multiple `Includes` directories |
+| 7 | Defines | Flag and value macros via `Compiler.Defines` |
+| 8 | UnDefines | per-file `<file>.Compiler.UnDefines` strips a compiler-predefined macro |
+| 9 | Includes | Multiple `Compiler.Includes` directories |
 | 10 | Static Library | `Type static_lib` produces a .lib |
 | 11 | Shared Library | `Type shared_lib` produces a .dll |
 | 12 | Output Naming | Nested custom Build/Intermediate directories |
@@ -31,7 +31,7 @@ folders - the sources only compile with the defines the .build file provides.
 | 17 | Command Expansion | `!command` runs a shell command at parse time |
 | 18 | Options Binary | `option.name` as a build condition (run with/without `turbo`) |
 | 19 | Options Values | `%option` value paste (run with `level=7`) |
-| 20 | Per File Overrides | `<file>.Defines` scoped to one translation unit |
+| 20 | Per File Overrides | `<file>.Compiler.Defines` scoped to one translation unit |
 | 21 | Compiler Flags | Global `Compiler.Flags` + per-file `<file>.Compiler.Flags` |
 | 22 | Block Namespaces | `Linker { ... }` block = `Linker.*` keys |
 | 23 | Multiline And Comments | `## ##` comments, block values, `` Key` `` value reset |
@@ -40,7 +40,7 @@ folders - the sources only compile with the defines the .build file provides.
 | 26 | WriteFile Codegen | `PreBuild.WriteFile` generates a header the build consumes |
 | 27 | File Operations | NewDir/NewFile/WriteFile/Copy/Rename/Delete verbs |
 | 28 | Run After Build | `.Run args` executes the fresh build with arguments |
-| 29 | Public Propagation | `Defines.Export`/`Includes.Export` reach dependents; plain keys don't (also covers the deprecated `.Public` alias) |
+| 29 | Public Propagation | `Compiler.Defines.Export`/`Compiler.Includes.Export` reach dependents; plain keys don't (also keeps one bare `Defines.Public` key covering the deprecated alias and bare-key forms) |
 | 30 | Private Dependencies | `Depend(private)` links but does not re-export |
 | 31 | Diamond Dependency | Same library depended on via two paths builds/links once |
 | 32 | Dependency Filter Args | `Depend path \| options` forwards options to the dependency |
@@ -68,9 +68,11 @@ exercise their feature (documented in each .build header comment).
 
 ## Semantics verified while writing this suite
 
-- `.Export` keys (`Defines.Export`, `Includes.Export`, ...) are **export-only**:
-  they apply to consumers of the module, not to the module's own compilation.
-  (`.Public` is a deprecated alias for `.Export` and warns on use.)
+- `.Export` keys (`Compiler.Defines.Export`, `Compiler.Includes.Export`, ...) are
+  **export-only**: they apply to consumers of the module, not to the module's own
+  compilation. (`.Public` is a deprecated alias for `.Export` and warns on use;
+  bare `Defines`/`Includes`/`UnDefines` are deprecated in favor of the
+  `Compiler.*` namespaced forms.)
 - Auto discovery skips files whose *name* starts with `__` (directories with
   that prefix are still traversed).
 - `!command` expansion accepts a single plain token (no arguments, dots or

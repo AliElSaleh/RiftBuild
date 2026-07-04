@@ -5,4 +5,4 @@ SourceFiles main
 
 option.level Sets the LEVEL define for this test program.
 
-Defines LEVEL=%level
+Compiler.Defines LEVEL=%level

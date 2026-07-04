@@ -1,0 +1,11 @@
+Assembly    Licensed
+SourceFiles main
+
+# The Copyright key supplies the notice that License(generate) writes into
+# the LICENSE file (and that the version resource embeds, see example 13).
+Copyright         Copyright (c) 2026 Riftling Labs
+
+# License(generate) writes a complete LICENSE file of the given type next to
+# this build file. Without (generate) the key would only record the license
+# name as metadata.
+License(generate) MIT

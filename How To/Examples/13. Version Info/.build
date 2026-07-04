@@ -1,0 +1,19 @@
+Assembly    Stamp
+SourceFiles main
+
+# Some keys accept a (parameter) that extends what they do. Plain "Version"
+# only records the number; Version(define) ALSO injects it into every source
+# file as macros:
+#   STAMP_VERSION_STRING   "2.4.1"
+#   STAMP_MAJOR_VERSION    2
+#   STAMP_MINOR_VERSION    4
+#   STAMP_PATCH_VERSION    1
+# (the prefix is the Assembly name, uppercased)
+Version(define) 2.4.1
+
+# These metadata keys feed the Windows version resource embedded in the exe -
+# right-click Build/Stamp.exe -> Properties -> Details to see them.
+TitleName   Stamp
+Description Shows off Version(define) and the embedded version resource
+CompanyName Riftling Labs
+Copyright   Copyright (c) 2026 Riftling Labs

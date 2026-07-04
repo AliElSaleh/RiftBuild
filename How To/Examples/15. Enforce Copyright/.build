@@ -1,0 +1,7 @@
+Assembly    Guarded
+SourceFiles main helper
+
+# Copyright(enforce) fails the build if any source file is missing this exact
+# copyright text. Open main.c and helper.c - both carry the notice on their
+# first line; delete one of them and the build stops.
+Copyright(enforce) Copyright (c) 2026 Riftling Labs

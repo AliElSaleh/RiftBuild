@@ -1,0 +1,7 @@
+# The App depends on the Engine only. Through the Engine's exports it gets
+# engine.h and ENGINE_API_VERSION - but nothing of Compression leaks through,
+# because the Engine declared that dependency (private).
+Depend ../Engine
+
+Assembly    SaveTool
+SourceFiles main

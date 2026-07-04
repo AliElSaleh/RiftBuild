@@ -1,0 +1,16 @@
+Assembly    Prospector
+SourceFiles main
+
+# program_exists() is an if-condition: the build adapts to the tools on the
+# machine instead of failing. Compare with Assert.Program (example 16), which
+# HALTS when a tool is missing - use asserts for hard requirements and
+# program_exists for optional ones.
+if program_exists(git)
+{
+    Compiler.Defines HAVE_GIT=1
+}
+
+if program_exists(zz_no_such_tool_zz)
+{
+    Compiler.Defines HAVE_IMAGINARY_TOOL=1
+}

@@ -56,8 +56,8 @@ STRUCT(BuiltinOptionInfo)
 
     String Description;
 
-    b64 bHidden;
-    b64 bAllowInBuildFile;
+    b32 bHidden;
+    b32 bAllowInBuildFile;
 };
 
 read_only BuiltinOptionInfo BuiltinOptionsTable[26] =
@@ -239,7 +239,7 @@ static bool IsOptionBuiltin(String Param)
 
     for (u8 i = 0; i < SArray_Capacity(BuiltinOptionsTable); i++)
     {
-        const bool bAllowedInBuildFile = BuiltinOptionsTable[i].bAllowInBuildFile;
+        const b32 bAllowedInBuildFile = BuiltinOptionsTable[i].bAllowInBuildFile;
         const String ShortOption = BuiltinOptionsTable[i].Short;
         const String LongOption = BuiltinOptionsTable[i].Long;
 

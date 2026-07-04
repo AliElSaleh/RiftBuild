@@ -1,0 +1,10 @@
+# A static library: the objects are archived into Build/MathLib.lib
+# (MathLib.a on other platforms) instead of being linked into an executable.
+Assembly    MathLib
+Type        static_lib
+SourceFiles add mul
+
+# .Export keys describe how CONSUMERS use this library: whoever Depends on
+# MathLib automatically gets this folder on their include path. Export keys
+# do NOT apply to the library's own compilation - plain keys do that.
+Compiler.Includes.Export .

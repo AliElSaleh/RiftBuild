@@ -1,0 +1,18 @@
+Assembly    Checked
+SourceFiles main
+
+# Asserts run before anything compiles and stop the build with a clear
+# message when the environment is wrong - much friendlier than a cryptic
+# compiler or linker error twenty steps later.
+
+# This project only supports Windows on x64 (edit these if you are porting
+# the example to another machine):
+Assert.Platform windows
+Assert.Arch     x64
+
+# A required environment variable and a required tool on PATH:
+Assert.EnvVarExists OS
+Assert.Program      cmd
+
+# A file that must exist relative to this folder:
+Assert.File main.c

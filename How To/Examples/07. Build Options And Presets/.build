@@ -1,0 +1,19 @@
+Assembly    Rocket
+SourceFiles main
+
+# option.<name> declares a user-facing command-line option; the rest of the
+# line is its help text ("riftbuild help" lists all of them).
+option.turbo Enables turbo mode.
+option.level Sets the launch level (pass level=N on the command line).
+
+# A binary option is a condition, exactly like the platform conditions in
+# the previous example.
+Compiler.Defines:turbo  TURBO=1
+Compiler.Defines:!turbo TURBO=0
+
+# %name pastes a value option's value (0 when it was not passed).
+Compiler.Defines LEVEL=%level
+
+# A preset bundles options so users do not have to remember combinations:
+# "riftbuild preset:max" behaves exactly like "riftbuild turbo level=9".
+preset:max turbo level=9

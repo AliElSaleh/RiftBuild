@@ -5,6 +5,6 @@ BuildDirectory        Build
 IntermediateDirectory Intermediate
 
 # Anything that depends on C can #include "c.h" without knowing where C lives.
-Includes.Export       .
+Compiler.Includes.Export .
 
 SourceFiles           c_core c_util

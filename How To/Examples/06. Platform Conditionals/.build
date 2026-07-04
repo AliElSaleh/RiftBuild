@@ -1,0 +1,22 @@
+Assembly    Compass
+SourceFiles main
+
+# Any key can take a :condition suffix. The built-in conditions are the
+# platform names (windows, linux, macos, ...) and the architecture names
+# (x64, x86, ...). A leading ! negates the condition.
+Compiler.Defines:windows  ON_WINDOWS=1
+Compiler.Defines:!windows ON_WINDOWS=0
+
+# The same conditions drive if/else blocks for bigger differences...
+if windows
+{
+    Compiler.Defines PLATFORM_NAME=\"Windows\"
+}
+else
+{
+    Compiler.Defines PLATFORM_NAME=\"POSIX\"
+}
+
+# ...and single-line ifs for small ones. A single-line if must stay on ONE line.
+if x64  Compiler.Defines POINTER_BITS=64
+if !x64 Compiler.Defines POINTER_BITS=32

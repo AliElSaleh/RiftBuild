@@ -1,0 +1,9 @@
+Assembly    Compression
+Type        static_lib
+SourceFiles compression
+
+# Usage requirements: whoever depends on this library gets the include path
+# and the define automatically. Remember: .Export keys apply to CONSUMERS,
+# not to this module's own compilation.
+Compiler.Includes.Export .
+Compiler.Defines.Export  HAS_COMPRESSION=1

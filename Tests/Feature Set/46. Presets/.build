@@ -7,5 +7,5 @@ option.speedy Makes the program report speedy mode.
 
 preset:quick speedy
 
-Defines:speedy  SPEEDY=1
-Defines:!speedy SPEEDY=0
+Compiler.Defines:speedy  SPEEDY=1
+Compiler.Defines:!speedy SPEEDY=0

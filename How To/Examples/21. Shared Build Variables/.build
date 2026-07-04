@@ -1,0 +1,9 @@
+# "include" pulls the variables from an external .buildvars file into this
+# build file, as if they were written right here. "import" is an alias.
+include shared/common.buildvars
+
+Assembly    Family
+SourceFiles main
+
+Version(define)  $ProductVersion
+Compiler.Defines $CommonDefines

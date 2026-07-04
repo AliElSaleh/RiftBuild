@@ -3,6 +3,6 @@ Depend ../D
 Assembly DiamondB
 Type     static_lib
 
-Includes.Export .
+Compiler.Includes.Export .
 
 SourceFiles b

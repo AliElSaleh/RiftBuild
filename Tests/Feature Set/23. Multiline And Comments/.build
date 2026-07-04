@@ -4,7 +4,7 @@ Assembly Multiline
 
 ##
 Everything in here is a comment, including this fake key:
-Defines SHOULD_NOT_EXIST=1
+Compiler.Defines SHOULD_NOT_EXIST=1
 ##
 
 SourceFiles
@@ -13,5 +13,5 @@ SourceFiles
     helper
 }
 
-Defines  FIRST_TRY=1
-Defines` FINAL_ONLY=1
+Compiler.Defines  FIRST_TRY=1
+Compiler.Defines` FINAL_ONLY=1

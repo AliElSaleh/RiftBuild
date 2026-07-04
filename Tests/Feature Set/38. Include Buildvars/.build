@@ -5,4 +5,4 @@ include shared/common.buildvars
 Assembly    IncludeVars
 SourceFiles main
 
-Defines $SharedTestDefines
+Compiler.Defines $SharedTestDefines

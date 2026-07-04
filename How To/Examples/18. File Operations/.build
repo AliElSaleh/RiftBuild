@@ -1,0 +1,22 @@
+Assembly    Packer
+SourceFiles main
+
+# File-operation verbs hang off any phase hook (see example 09 for the phase
+# order). This build stages the finished executable plus a version note into
+# a dist/ folder - a miniature "package" step.
+
+# Copy's second argument is a destination DIRECTORY (the file keeps its name):
+PostBuild.NewDir dist
+PostBuild.Copy   Build/Packer.exe dist
+
+PostBuild.WriteFile dist/README.txt
+{
+Packer - built by RiftBuild.
+Unzip anywhere and run Packer.exe.
+}
+
+# The full verb set: NewDir, NewFile, WriteFile, AppendFile, Copy, Rename,
+# Delete, and Cmd (run any command). A quick Rename/Delete demo:
+PostBuild.NewFile scratch.tmp
+PostBuild.Rename  scratch.tmp notes.tmp
+PostBuild.Delete  notes.tmp

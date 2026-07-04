@@ -4,7 +4,7 @@ Assembly    CustomVars
 SourceFiles main
 
 SharedFlagDefines CORE_ON=1 EXTRA_ON=2
-Defines           $SharedFlagDefines
+Compiler.Defines  $SharedFlagDefines
 
 ProjectTag Rift
-Defines    TAG_LOWER_$-ProjectTag TAG_UPPER_$^ProjectTag
+Compiler.Defines TAG_LOWER_$-ProjectTag TAG_UPPER_$^ProjectTag

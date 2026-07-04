@@ -6,5 +6,5 @@ SourceFiles main
 
 option.turbo Enables turbo mode for this test program.
 
-Defines:turbo  TURBO=1
-Defines:!turbo TURBO=0
+Compiler.Defines:turbo  TURBO=1
+Compiler.Defines:!turbo TURBO=0

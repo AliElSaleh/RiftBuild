@@ -1,0 +1,27 @@
+Assembly Toolbox
+
+##
+This is a block comment: everything until the closing marker is ignored,
+even things that look like keys:
+Compiler.Defines SHOULD_NOT_EXIST=1
+##
+
+# Long values can be split into a block instead of one huge line:
+SourceFiles
+{
+    main
+    helper
+}
+
+# A { } block after a key nests everything under that namespace - these two
+# lines are identical to writing Linker.Subsystem and Linker.Stack:
+Linker
+{
+    Subsystem Console
+    Stack     4194304
+}
+
+# Values normally ACCUMULATE: a second Compiler.Defines line adds to the
+# first. A backtick after the key REPLACES instead:
+Compiler.Defines  FIRST_TRY=1
+Compiler.Defines` FINAL_ONLY=1

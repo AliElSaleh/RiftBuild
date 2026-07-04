@@ -1,0 +1,16 @@
+Assembly    Nametag
+SourceFiles main
+
+# Any key that is not a built-in becomes a user variable. $Name pastes it,
+# and $-name / $^NAME paste it forced to lower / upper case.
+Project          Comet
+Compiler.Defines PROJECT_NAME=\"$Project\" TAG_$^Project
+
+# @NAME pastes an environment variable. (The OS env var is always set to
+# Windows_NT on Windows, so this is a safe demo value there.)
+Compiler.Defines:windows HOST_OS=\"@OS\"
+
+# !command runs a shell command at parse time and pastes its stdout. The
+# command must be a single plain word - no arguments or paths.
+HostName         !hostname
+Compiler.Defines BUILD_HOST=\"$HostName\"

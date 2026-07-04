@@ -1,0 +1,8 @@
+Assembly    Echo
+SourceFiles main
+
+# .Run executes the freshly built program after every successful build.
+# Everything before | is passed to the program as arguments. The part after |
+# is the working directory: the default is the Build folder, "." means "run
+# from this folder" (where the .build file lives).
+.Run hello world | .

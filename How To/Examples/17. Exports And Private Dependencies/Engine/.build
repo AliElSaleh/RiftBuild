@@ -1,0 +1,13 @@
+# Depend(private): the Engine uses Compression internally - it sees the
+# headers, the HAS_COMPRESSION define, and links the code - but modules that
+# depend on the Engine do NOT inherit any of that. Compression stays an
+# implementation detail.
+Depend(private) ../Compression
+
+Assembly    Engine
+Type        static_lib
+SourceFiles engine
+
+# The Engine's own public surface for ITS consumers:
+Compiler.Includes.Export .
+Compiler.Defines.Export  ENGINE_API_VERSION=3

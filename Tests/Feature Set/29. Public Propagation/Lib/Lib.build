@@ -3,10 +3,11 @@ Type     static_lib
 
 # Export keys are EXPORT-ONLY: they reach whoever depends on this library but
 # are NOT applied to the library's own compilation...
-Includes.Export .
+Compiler.Includes.Export .
 
-# Deliberately uses the deprecated ".Public" alias (must behave exactly like
-# .Export and emit a deprecation warning) so the alias stays covered.
+# Deliberately stays on the deprecated bare-key ".Public" alias (must behave
+# exactly like Compiler.Defines.Export and emit a deprecation warning) so both
+# the alias and the bare-key deprecation path stay covered.
 Defines.Public  LIB_PUBLIC_DEFINE=1
 
 # ...and a static library's Libraries.Export must reach the consumer's LINK:
@@ -16,6 +17,6 @@ Defines.Public  LIB_PUBLIC_DEFINE=1
 Libraries.Export:windows winmm
 
 # ...while plain (private) defines apply here and stay inside this module.
-Defines LIB_PRIVATE_DEFINE=1
+Compiler.Defines LIB_PRIVATE_DEFINE=1
 
 SourceFiles lib

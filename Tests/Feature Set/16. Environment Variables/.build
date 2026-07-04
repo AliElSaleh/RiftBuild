@@ -3,4 +3,4 @@
 Assembly    EnvVars
 SourceFiles main
 
-Defines:windows HOST_OS_@OS
+Compiler.Defines:windows HOST_OS_@OS
