@@ -2279,8 +2279,34 @@ bool Export_WindowsBatchScript(const BuildParams* Params)
         xx Filesystem_WriteLine(f, S("@echo off\n"), NULL);
         xx Filesystem_WriteLine(f, S("\nset ScriptPath=%~dp0\n\n"), NULL);
 
-        xx Filesystem_WriteLineFormatted(f, S("set CompilerFlags=%S\n"), NULL, Params->CompilerFlags);
-        xx Filesystem_WriteLineFormatted(f, S("set LinkerFlags=%S\n"),   NULL, Params->LinkerFlags);
+        bool bIsMicrosoftCompiler  = Params->CompilerVendor == Compiler_MSVC;
+        bool bIsMicrosoftLinker    = String_EndsWith(Params->LinkerPath, S("link.exe"), false);
+
+        String MultithreadFlag_CL  = bIsMicrosoftCompiler ? S("/MP ") : String_Null();
+        String NoLogoFlag_CL       = bIsMicrosoftCompiler ? S("/nologo ") : String_Null();
+        String NoLogoFlag_LINK     = bIsMicrosoftLinker ? S("/nologo ") : String_Null();
+
+        StringLocal(IntermediateOutputFlag, MAX_PATH_LENGTH);
+        String_Append(&IntermediateOutputFlag, S("/Fo\""));
+        if (bIsMicrosoftCompiler)
+        {
+            StringLocal(ObjectPath, MAX_PATH_LENGTH);
+            String ObjDestinationDirectory = Params->IntermediateDirectory;
+            if (String_IsValid(Params->CompilerObjectDirectory))
+            {
+                ObjDestinationDirectory = Params->CompilerObjectDirectory;
+            }
+    
+            String_BuildPath(&ObjectPath, Params->RootDirectory, ObjDestinationDirectory);
+            xx Filesystem_ConvertRelativeToAbsolutePath(&ObjectPath);
+            
+            String_Append(&IntermediateOutputFlag, ObjectPath);
+            String_Append(&IntermediateOutputFlag, S("\\\\\""));
+            String_AppendSpace(&IntermediateOutputFlag);
+        }
+
+        xx Filesystem_WriteLineFormatted(f, S("set CompilerFlags=%S%S%S%S\n"), NULL, NoLogoFlag_CL, MultithreadFlag_CL, IntermediateOutputFlag, Params->CompilerFlags);
+        xx Filesystem_WriteLineFormatted(f, S("set LinkerFlags=%S%S\n"),   NULL, NoLogoFlag_LINK, Params->LinkerFlags);
         xx Filesystem_WriteLineFormatted(f, S("set IncludeFlags=%S\n"),  NULL, Params->IncludeFlags);
         xx Filesystem_WriteLineFormatted(f, S("set Defines=%S\n"),       NULL, Params->DefineFlags);
         xx Filesystem_WriteLineFormatted(f, S("set UnDefines=%S\n"),     NULL, Params->UnDefineFlags);
@@ -2295,6 +2321,16 @@ bool Export_WindowsBatchScript(const BuildParams* Params)
         {
             String SourceRelativePath = It.String;
 
+            if (bIsMicrosoftCompiler)
+            {
+                String Ext = Filesystem_ExtractFileExtension(SourceRelativePath, true);
+                bool bIsCFile = IsCSource(Ext) || IsCppSource(Ext);
+                if (!bIsCFile)
+                {
+                    continue;
+                }
+            }
+
             StringLocal(Path, MAX_PATH_LENGTH);
             String_BuildPath(&Path, Params->SourceDirectory, SourceRelativePath);
             xx Filesystem_WriteLineFormatted(f, S("    \"%S\" ^\n"), NULL, Path);
@@ -2302,18 +2338,20 @@ bool Export_WindowsBatchScript(const BuildParams* Params)
 
         xx Filesystem_WriteLine(f, S("    %CompilerFlags% ^\n    %Defines% ^\n    %IncludeFlags% ^\n"), NULL);
 
-        bool bIsMicrosoftLinker = String_EndsWith(Params->LinkerPath, S("link.exe"), false);
         if (bIsMicrosoftLinker)
         {
-            xx Filesystem_WriteLine(f, S("    /link ^\n"), NULL);
+            xx Filesystem_WriteLine(f, S("    /link %LinkerFlags% %LibraryPaths% %Libraries% "), NULL);
+        }
+        else
+        {
+            xx Filesystem_WriteLine(f, S("    %LinkerFlags% ^\n    %LibraryPaths% ^\n    %Libraries% ^\n    "), NULL);
         }
 
-        xx Filesystem_WriteLine(f, S("    %LinkerFlags% ^\n    %LibraryPaths% ^\n    %Libraries% ^\n"), NULL);
+        xx Filesystem_WriteLineFormatted(f, S("%S\"%S\\%S\"\n"), NULL, Params->LinkerOutputFlag, Params->BuildDirectory, Params->AssemblyWithExt);
 
-        xx Filesystem_WriteLineFormatted(f, S("    %S\"%S\" || goto end\n"), NULL, Params->LinkerOutputFlag, Params->AssemblyWithExt);
+        xx Filesystem_WriteLineFormatted(f, S("\necho [32m  Done: %S\\%S[0m\n"), NULL, Params->BuildDirectory, Params->AssemblyWithExt);
 
-        xx Filesystem_WriteLineFormatted(f, S("\necho [32m  Done: %S%S[0m\n"), NULL, Params->BuildDirectory, Params->AssemblyWithExt);
-
+        /*
         xx Filesystem_WriteLine(f, S(
             "\n:end\n"
             ":: pause if we double clicked this in a file explorer\n"
@@ -2322,6 +2360,7 @@ bool Export_WindowsBatchScript(const BuildParams* Params)
             "set testr=!testl:%~nx0=!\n"
             "if not \"%testl%\" == \"%testr%\" pause\n"
         ), NULL);
+        */
 
         Filesystem_Close(&f);
         bSuccess = true;
@@ -2367,16 +2406,24 @@ bool Export_UnixShellScript(const BuildParams* Params)
         {
             String SourceRelativePath = It.String;
 
+            // TODO: this is bad. what if i am exporting a build file that is not a bunch of c files?
+            String Ext = Filesystem_ExtractFileExtension(SourceRelativePath, true);
+            bool bIsCFile = IsCSource(Ext) || IsCppSource(Ext);
+            if (!bIsCFile)
+            {
+                continue;
+            }
+
             StringLocal(Path, MAX_PATH_LENGTH);
             String_BuildPath(&Path, Params->SourceDirectory, SourceRelativePath);
             xx Filesystem_WriteLineFormatted(f, S("    \"%S\" \\\n"), NULL, Path);
         }
 
         xx Filesystem_WriteLine(f, S("    ${CompilerFlags} \\\n    ${Defines} \\\n    ${IncludeFlags} \\\n"), NULL);
-        xx Filesystem_WriteLineFormatted(f, S("    -o %S \\\n"), NULL, Params->AssemblyWithExt);
+        xx Filesystem_WriteLineFormatted(f, S("    -o %S/%S \\\n"), NULL, Params->BuildDirectory, Params->AssemblyWithExt);
         xx Filesystem_WriteLine(f, S("    ${LinkerFlags} \\\n    ${LibraryPaths} \\\n    ${Libraries}\n"), NULL);
 
-        xx Filesystem_WriteLineFormatted(f, S("\nprintf \"\033[0;32m  Done: %S%S\033[0m\\n\"\n"), NULL, Params->BuildDirectory, Params->AssemblyWithExt);
+        xx Filesystem_WriteLineFormatted(f, S("\nprintf \"\033[0;32m  Done: %S/%S\033[0m\\n\"\n"), NULL, Params->BuildDirectory, Params->AssemblyWithExt);
 
         Filesystem_Close(&f);
         bSuccess = true;
