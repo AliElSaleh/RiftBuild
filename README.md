@@ -48,7 +48,7 @@ Library.Paths         path/to/lib/dir another/dir etc.
 ---
 
 # I'm not sold on this
-You are wise to be skeptical of new tools.
+You are wise to be skeptical of new tools that claim to be "better" than existing ones.
 
 Below are forks of a few open-source projects that I've translated from CMake (and other build systems) to Rift Build. They can be built with just a single `riftbuild` call on the terminal at the project root directory.
 
