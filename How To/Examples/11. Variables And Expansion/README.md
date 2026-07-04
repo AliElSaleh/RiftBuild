@@ -43,4 +43,5 @@ Notes:
 That wraps the fundamentals. Examples 12-21 each showcase one production
 feature: icons, version stamping, license generation, copyright enforcement,
 asserts, exports, file operations, and more - dip in wherever your project
-needs it.
+needs it. Example 22 shows how to fetch and build a real third-party
+library.

@@ -1,4 +1,6 @@
+# %_DirectoryName is a built-in variable: this module is named after its
+# folder, so renaming the folder renames the library.
 Assembly %_DirectoryName
-Type static_lib
+Type     static_lib
 
-Includes.Public .
+Compiler.Includes.Export .

@@ -1,11 +1,22 @@
+# A project that depends on a real third-party library (GLFW) which is not
+# even on disk yet - the build fetches it.
+
+# "if !path/" (note the trailing slash) tests that a DIRECTORY does not
+# exist. PreDepend.Cmd runs its command before dependencies are parsed, so
+# the clone lands just in time for the Depend line below to find
+# external/glfw/glfw.build. On later builds the folder exists and the whole
+# block is skipped.
 if !external/glfw/
 {
     PreDepend.Cmd git clone https://github.com/AliElSaleh/glfw external/glfw
 }
 
+# One local library, one freshly cloned one - Depend treats them the same.
 Depend libs/MyLib
 Depend external/glfw
 
+Assembly        MyProject
 SourceDirectory src
 
-.run
+# Build-and-run in one command (example 10).
+.Run

@@ -28,7 +28,7 @@ each one also stands alone.
 | 19 | [Detecting Programs](19.%20Detecting%20Programs/) | `if program_exists(...)`, choosing a compiler |
 | 20 | [Syntax Toolbox](20.%20Syntax%20Toolbox/) | `##` comments, value blocks, namespace blocks, the backtick reset |
 | 21 | [Shared Build Variables](21.%20Shared%20Build%20Variables/) | `include x.buildvars` - one version number for many modules |
-| ★ | [Download External Repos](Download%20External%20Repos/) | Capstone: `PreDepend.Cmd git clone`, building a real third-party library (GLFW) |
+| 22 | [Download External Repos](22.%20Download%20External%20Repos/) | `PreDepend.Cmd git clone`, building a real third-party library (GLFW) |
 
 Two housekeeping notes:
 
