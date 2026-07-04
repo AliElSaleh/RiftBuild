@@ -15,38 +15,39 @@
    --------------------------------------------
 }
 
-include Source/Common.buildvars
+import Source/Common.buildvars
 
-Compiler                 %compiler
-Assembly                 RiftBuild
-Icon                     riftbuild
+Compiler                  %compiler
+Assembly                  RiftBuild
+Icon                      riftbuild
 
-TitleName                Rift Build %^%debug
-Description              A simpler build tool for C/C++, because fuck cmake
-Version(define)          0.2.0-beta-%_date.nosep
-CompanyName              Artisan Softworks
-Copyright(enforce)       Copyright (c) $CompanyName
-License(generate)        BSD 3-Clause
+TitleName                 Rift Build %^%debug
+Description               A simpler build tool for C/C++, because fuck cmake
+Version(define)           0.2.0-beta-%_date.nosep
+CompanyName               Artisan Softworks
+Copyright(enforce)        Copyright (c) $CompanyName
+License(generate)         BSD 3-Clause
 
-SourceDirectory          Source
-BuildDirectory:debug     Build/Debug%%32/%%Hood
-BuildDirectory:!debug    Build/Dist%%32/%%Hood
-IntermediateDirectory    Intermediate/$SourceDirectory
+SourceDirectory           Source
+BuildDirectory:debug      Build/Debug%%32/%%Hood
+BuildDirectory:!debug     Build/Dist%%32/%%Hood
+IntermediateDirectory     Intermediate/$SourceDirectory
 
-RiftCoreFiles            Core/Memory Core/StringUtils Core/Log Core/Platform_Core Core/Platform_%(_platform)
-RiftCoreFiles:unix       Core/Platform_Unix
-RiftCoreFiles:bsd        Core/Platform_BSD
-SourceFiles              $RiftCoreFiles Program Backend Exporter Parse
-SourceFiles:windows      MicrosoftCraziness
+RiftCoreFiles             Core/Memory Core/StringUtils Core/Log Core/Platform_Core Core/Platform_%(_platform)
+RiftCoreFiles:unix        Core/Platform_Unix
+RiftCoreFiles:bsd         Core/Platform_BSD
+SourceFiles               $RiftCoreFiles Program Backend Exporter Parse
+SourceFiles:windows       MicrosoftCraziness
 
-Compiler.Flags           $SharedCompilerFlags
-Linker.Flags             $SharedLinkerFlags
-Includes                 $SharedIncludeFlags
-Defines                  $SharedDefines %^%hood NO_PRINT_BUILD_CONFIG=%no_print_config
-Defines:mem              MAX_MEMORY_MB=%mem
-Defines:parallel         PARALLEL_BUILD_GRAPH=1
-Linker.Subsystem         Console
-Linker.Stack             8000000 # 8MB
+Compiler.Flags            $SharedCompilerFlags
+Compiler.Includes         $SharedIncludeFlags
+Compiler.Defines          $SharedDefines %^%hood NO_PRINT_BUILD_CONFIG=%no_print_config
+Compiler.Defines:mem      MAX_MEMORY_MB=%mem
+Compiler.Defines:parallel PARALLEL_BUILD_GRAPH=1
+
+Linker.Flags              $SharedLinkerFlags
+Linker.Subsystem          Console
+Linker.Stack              8000000 # 8MB
 
 if windows
 {

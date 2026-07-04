@@ -1,0 +1,2 @@
+# Variables shared with the .build file that imports this file.
+SharedTestDefines FROM_IMPORTED_FILE=1

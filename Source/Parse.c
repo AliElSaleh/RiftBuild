@@ -578,8 +578,7 @@ STRUCT(ReservedKeyTable)
 //               includes, compiler/assembler selection, source layout, ...) -> full recompile.
 //   Relink    - the value only affects the final link/archive/output (libraries, linker flags, output
 //               name & metadata, the SourceFiles list, bundle contents, ...) -> relink, keep objects.
-//   None      - the value doesn't change the produced assembly (License, phase commands, MaxCores,
-//               AlwaysRebuild flags, ...).
+//   None      - the value doesn't change the produced assembly (License, phase commands, MaxCores, etc.).
 static ReservedKeyTable ReservedKeys[79] =
 {
     { .Key = SC("Assembly"),                  .MaxValueLength = 256,   .Impact = BuildKeyImpact_Relink    },
@@ -593,6 +592,11 @@ static ReservedKeyTable ReservedKeys[79] =
     // { .Key = SC("Compiler"),                  .MaxValueLength = 256 },
     { .Key = SC("Compiler.Path"),             .MaxValueLength = 1024,  .Impact = BuildKeyImpact_Recompile },
     { .Key = SC("Compiler.Flags"),            .MaxValueLength = 4096,  .Impact = BuildKeyImpact_Recompile },
+    { .Key = SC("Compiler.Includes"),         .MaxValueLength = 8192,  .Impact = BuildKeyImpact_Recompile },
+    { .Key = SC("Compiler.Includes.Export"),  .MaxValueLength = 8192,  .Impact = BuildKeyImpact_Recompile },
+    { .Key = SC("Compiler.Defines"),          .MaxValueLength = 1024,  .Impact = BuildKeyImpact_Recompile },
+    { .Key = SC("Compiler.Defines.Export"),   .MaxValueLength = 1024,  .Impact = BuildKeyImpact_Recompile },
+    { .Key = SC("Compiler.UnDefines"),        .MaxValueLength = 1024,  .Impact = BuildKeyImpact_Recompile },
     { .Key = SC("Compiler.MaxCores"),         .MaxValueLength = 16,    .Impact = BuildKeyImpact_None      },
     { .Key = SC("Compiler.OutputFlag"),       .MaxValueLength = 16,    .Impact = BuildKeyImpact_Recompile },
     { .Key = SC("Compiler.CompileFlag"),      .MaxValueLength = 16,    .Impact = BuildKeyImpact_Recompile },
@@ -620,11 +624,6 @@ static ReservedKeyTable ReservedKeys[79] =
     { .Key = SC("Archiver.Path"),             .MaxValueLength = 1024,  .Impact = BuildKeyImpact_Relink    },
     { .Key = SC("Archiver.Flags"),            .MaxValueLength = 4096,  .Impact = BuildKeyImpact_Relink    },
     { .Key = SC("Archiver.OutputFlag"),       .MaxValueLength = 32,    .Impact = BuildKeyImpact_Relink    },
-    { .Key = SC("Defines"),                   .MaxValueLength = 8192,  .Impact = BuildKeyImpact_Recompile },
-    { .Key = SC("Defines.Export"),            .MaxValueLength = 8192,  .Impact = BuildKeyImpact_Recompile },
-    { .Key = SC("UnDefines"),                 .MaxValueLength = 2048,  .Impact = BuildKeyImpact_Recompile },
-    { .Key = SC("Includes"),                  .MaxValueLength = 8192,  .Impact = BuildKeyImpact_Recompile },
-    { .Key = SC("Includes.Export"),           .MaxValueLength = 8192,  .Impact = BuildKeyImpact_Recompile },
     { .Key = SC("Libraries"),                 .MaxValueLength = 2048,  .Impact = BuildKeyImpact_Relink    },
     { .Key = SC("Libraries.Export"),          .MaxValueLength = 2048,  .Impact = BuildKeyImpact_Relink    },
     { .Key = SC("Library.Paths"),             .MaxValueLength = 8192,  .Impact = BuildKeyImpact_Relink    },
@@ -684,9 +683,9 @@ u32 GetMaxValueLengthForReservedKey(const String Key)
 static const String GPerFileSettings[4] =
 {
     SC("Compiler.Flags"),
-    SC("Includes"),
-    SC("Defines"),
-    SC("UnDefines"),
+    SC("Compiler.Includes"),
+    SC("Compiler.Defines"),
+    SC("Compiler.UnDefines"),
 };
 
 // A per-file override key looks like "<filename>.<Setting>", e.g. "main.c.Compiler.Flags", produced either
@@ -6646,14 +6645,6 @@ NO_DISCARD bool ParseBuildFile(
                 }
             }
 
-            // per-file overrides ("<filename>.<Setting>") aren't reserved keys, so store them explicitly and
-            // give them the same headroom as their global counterparts (they can hold e.g. $SharedCompilerFlags).
-            if (IsPerFileOverrideKey(Var.Name, NULL, NULL))
-            {
-                MaxValueLength = 8192;
-                bStoreInDB = true;
-            }
-
             // TODO: delete before release
             // ".Public" was renamed to ".Export": clearer about what the keys do (they only
             // export to consumers, they never apply to the declaring module itself)
@@ -6666,6 +6657,69 @@ NO_DISCARD bool ParseBuildFile(
 
                 LOG_WARNING("The \".Public\" key suffix is deprecated. Rename \"%S\" to \"%S\".", Var.Name, ExportAliasName);
                 Var.Name = ExportAliasName;
+            }
+
+            // TODO: delete before release
+            // The bare "Includes", "Defines" and "UnDefines" keys (and their ".Export" forms) moved
+            // under the "Compiler." namespace, matching Assembler.Includes / Linker.Defines. Accept the
+            // bare spellings (global and per-file) as deprecated aliases so existing build files keep
+            // working, but nag about it.
+            StringLocal(CompilerAliasName, 512);
+            {
+                local_persist const String BareCompilerKeys[7] =
+                {
+                    SC("Includes.Public"),
+                    SC("Defines.Public"),
+                    SC("Includes.Export"),
+                    SC("Defines.Export"),
+                    SC("Includes"),
+                    SC("Defines"),
+                    SC("UnDefines"),
+                };
+
+                for EachE(i, BareCompilerKeys)
+                {
+                    const String BareName = BareCompilerKeys[i];
+
+                    if (String_IsEqual(Var.Name, BareName, false))
+                    {
+                        String_Append(&CompilerAliasName, S("Compiler."));
+                        String_Append(&CompilerAliasName, BareName);
+
+                        LOG_WARNING("The \"%S\" key is deprecated. Rename it to \"%S\".", Var.Name, CompilerAliasName);
+                        Var.Name = CompilerAliasName;
+                        break;
+                    }
+
+                    // per-file form: "main.c.Defines" -> "main.c.Compiler.Defines"
+                    if (Var.Name.Length > BareName.Length + 1 &&
+                        String_EndsWith(Var.Name, BareName, false) &&
+                        Var.Name.Data[Var.Name.Length - BareName.Length - 1] == '.')
+                    {
+                        const String FileName = StrSlice(Var.Name.Data, Var.Name.Length - BareName.Length - 1);
+
+                        // "main.c.Compiler.Defines" ends with ".Defines" too - already the new spelling
+                        if (Filesystem_DoesPathHaveFileExtension(FileName) &&
+                            !String_EndsWith(FileName, S(".Compiler"), false))
+                        {
+                            String_Append(&CompilerAliasName, FileName);
+                            String_Append(&CompilerAliasName, S(".Compiler."));
+                            String_Append(&CompilerAliasName, BareName);
+
+                            LOG_WARNING("The \"%S\" key is deprecated. Rename it to \"%S\".", Var.Name, CompilerAliasName);
+                            Var.Name = CompilerAliasName;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // per-file overrides ("<filename>.<Setting>") aren't reserved keys, so store them explicitly and
+            // give them the same headroom as their global counterparts (they can hold e.g. $SharedCompilerFlags).
+            if (IsPerFileOverrideKey(Var.Name, NULL, NULL))
+            {
+                MaxValueLength = 8192;
+                bStoreInDB = true;
             }
 
             // only store known keys
@@ -7212,7 +7266,7 @@ bool ExpandBuildVariable(LinearAllocator Scratch, FileVariableList* VariablesDB,
                         SC("BuildDirectory"),
                         SC("IntermediateDirectory"),
                         SC("Library.Paths"),
-                        SC("Includes"),
+                        SC("Compiler.Includes"),
                         SC("Icon"),
                         SC("Compiler"),
                         SC("PCH"),

@@ -1,0 +1,8 @@
+# "import" is an alias for "include": it pulls variables from an external
+# .buildvars file exactly the same way (test 38 covers the "include" spelling).
+import shared/common.buildvars
+
+Assembly    ImportKeyword
+SourceFiles main
+
+Defines $SharedTestDefines

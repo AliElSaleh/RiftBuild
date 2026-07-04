@@ -3400,7 +3400,7 @@ static u32 Internal_BuildFileOverrides(LinearAllocator* Arena, TArray(FileVariab
             if (Entry->CompilerFlags.Length) { String_AppendSpace(&Entry->CompilerFlags); }
             String_Append(&Entry->CompilerFlags, Var.Value);
         }
-        else if (String_IsEqual(Setting, S("Includes"), false))
+        else if (String_IsEqual(Setting, S("Compiler.Includes"), false))
         {
             StringLocal(IncludeFlags, 8192);
             String_Copy(&IncludeFlags, Var.Value);
@@ -3409,12 +3409,12 @@ static u32 Internal_BuildFileOverrides(LinearAllocator* Arena, TArray(FileVariab
             FlagPrefix.Data[1] = 'I';
             ExpandPathFlags(*Arena, &Entry->IncludeFlags, IncludeFlags, FlagPrefix, bWrapWithQuotes);
         }
-        else if (String_IsEqual(Setting, S("Defines"), false))
+        else if (String_IsEqual(Setting, S("Compiler.Defines"), false))
         {
             FlagPrefix.Data[1] = 'D';
             ExpandDefineFlags(&Entry->DefineFlags, Var.Value, FlagPrefix, bExportingSomething);
         }
-        else if (String_IsEqual(Setting, S("UnDefines"), false))
+        else if (String_IsEqual(Setting, S("Compiler.UnDefines"), false))
         {
             FlagPrefix.Data[1] = 'U';
             ExpandDefineFlags(&Entry->UnDefineFlags, Var.Value, FlagPrefix, bExportingSomething);
@@ -5086,7 +5086,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                     StringLocal(VersionDefineString, 256);
                     String_Format(&VersionDefineString, S("%S_VERSION_STRING=\"%S\""), AssemblyNameUpper, ExpandedVar);
 
-                    AddOrAppendVariable(Arena, VariablesDB, S("Defines"), VersionDefineString, String_Null(), 8192); // TODO: read from reservedkeys table
+                    AddOrAppendVariable(Arena, VariablesDB, S("Compiler.Defines"), VersionDefineString, String_Null(), 8192); // TODO: read from reservedkeys table
                 }
 
                 xx String_ReplaceNonAlphaNumericCharInline(&ExpandedVar, '.');
@@ -5127,7 +5127,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                                 }
                             }
 
-                            AddOrAppendVariable(Arena, VariablesDB, S("Defines"), VersionDefine, String_Null(), 8192); // TODO
+                            AddOrAppendVariable(Arena, VariablesDB, S("Compiler.Defines"), VersionDefine, String_Null(), 8192); // TODO
 
                             i++;
                         }
@@ -5148,7 +5148,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                         String_Format(&VersionDefine, S("%S_VERSION=%S"), AssemblyNameUpper, ExpandedVar);
                     }
 
-                    AddOrAppendVariable(Arena, VariablesDB, S("Defines"), VersionDefine, String_Null(), 8192); // TODO
+                    AddOrAppendVariable(Arena, VariablesDB, S("Compiler.Defines"), VersionDefine, String_Null(), 8192); // TODO
                 }
             }
         }
@@ -5163,7 +5163,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                 StringLocal(CopyrightDefine, 256);
                 String_Format(&CopyrightDefine, S("%S_COPYRIGHT_STRING=\"%S\""), AssemblyNameUpper, CopyrightVar.Value);
 
-                AddOrAppendVariable(Arena, VariablesDB, S("Defines"), CopyrightDefine, String_Null(), 8192); // TODO
+                AddOrAppendVariable(Arena, VariablesDB, S("Compiler.Defines"), CopyrightDefine, String_Null(), 8192); // TODO
             }
         }
     }
@@ -5921,13 +5921,13 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                     }
                 }
 
-                AddOrAppendVariable(Arena, VariablesDB, S("Defines"),             FreshReceipt.Defines, String_Null(),     GetMaxValueLengthForReservedKey(S("Includes")));
+                AddOrAppendVariable(Arena, VariablesDB, S("Compiler.Defines"),    FreshReceipt.Defines, String_Null(),     GetMaxValueLengthForReservedKey(S("Compiler.Defines")));
                 AddOrAppendVariable(Arena, VariablesDB, S("Libraries"),           FreshReceipt.Libraries, String_Null(),   GetMaxValueLengthForReservedKey(S("Libraries")));
                 AddOrAppendVariable(Arena, VariablesDB, S("Linker.Flags"),        FreshReceipt.LinkerFlags, String_Null(), GetMaxValueLengthForReservedKey(S("Linker.Flags.Export")));
 
                 if (!bIsPrivateDependency)
                 {
-                    AddOrAppendVariable(Arena, VariablesDB, S("Defines.Export"),      FreshReceipt.Defines, String_Null(),     GetMaxValueLengthForReservedKey(S("Includes")));
+                    AddOrAppendVariable(Arena, VariablesDB, S("Compiler.Defines.Export"), FreshReceipt.Defines, String_Null(), GetMaxValueLengthForReservedKey(S("Compiler.Defines")));
                     AddOrAppendVariable(Arena, VariablesDB, S("Libraries.Export"),    FreshReceipt.Libraries, String_Null(),   GetMaxValueLengthForReservedKey(S("Libraries")));
                     AddOrAppendVariable(Arena, VariablesDB, S("Linker.Flags.Export"), FreshReceipt.LinkerFlags, String_Null(), GetMaxValueLengthForReservedKey(S("Linker.Flags.Export")));
                 }
@@ -5976,10 +5976,10 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                             String_Copy(&Temp, It.String);
                         }
 
-                        AddOrAppendVariable(Arena, VariablesDB, S("Includes"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Includes")));
+                        AddOrAppendVariable(Arena, VariablesDB, S("Compiler.Includes"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Compiler.Includes")));
                         if (!bIsPrivateDependency)
                         {
-                            AddOrAppendVariable(Arena, VariablesDB, S("Includes.Export"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Includes")));
+                            AddOrAppendVariable(Arena, VariablesDB, S("Compiler.Includes.Export"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Compiler.Includes")));
                         }
                     }
                 }
@@ -6214,8 +6214,8 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     }
 
     Receipt.BuildDirectory  = GetVariableValue(VariablesDB, S("BuildDirectory"));
-    Receipt.Includes        = GetVariableValue(VariablesDB, S("Includes.Export"));
-    Receipt.Defines         = GetVariableValue(VariablesDB, S("Defines.Export"));
+    Receipt.Includes        = GetVariableValue(VariablesDB, S("Compiler.Includes.Export"));
+    Receipt.Defines         = GetVariableValue(VariablesDB, S("Compiler.Defines.Export"));
 
     // A static library never runs a link of its own: every library it lists is a requirement
     // imposed on whoever eventually links it, not a private implementation detail, so by default
@@ -7252,7 +7252,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
     bool bWrapWithQuotes = !bExportingSomething;
 
-    String IncludeFlags = GetVariableValue(VariablesDB, S("Includes"));
+    String IncludeFlags = GetVariableValue(VariablesDB, S("Compiler.Includes"));
     String_ConvertSlashToPlatformSlash(&IncludeFlags);
 
     ExpandPathFlags(*Arena, &ExpandedIncludeFlags, IncludeFlags, FlagPrefix, bWrapWithQuotes);
@@ -7366,13 +7366,13 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         ExpandPathFlags(*Arena, &ExpandedLibraryDirectories, LibraryDirectories, FlagPrefix, bWrapWithQuotes);
     }
 
-    String Defines = GetVariableValue(VariablesDB, S("Defines"));
+    String Defines = GetVariableValue(VariablesDB, S("Compiler.Defines"));
 
     FlagPrefix.Data[1] = 'D';
     ExpandDefineFlags(&ExpandedDefineFlags, Defines, FlagPrefix, bExportingSomething);
     ExpandDefineFlags(&ExpandedLinkerDefineFlags, LinkerDefines, FlagPrefix, bExportingSomething);
 
-    String UnDefines = GetVariableValue(VariablesDB, S("UnDefines"));
+    String UnDefines = GetVariableValue(VariablesDB, S("Compiler.UnDefines"));
 
     FlagPrefix.Data[1] = 'U';
     ExpandDefineFlags(&ExpandedUnDefineFlags, UnDefines, FlagPrefix, bExportingSomething);

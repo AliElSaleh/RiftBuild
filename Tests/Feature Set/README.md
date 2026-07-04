@@ -60,6 +60,7 @@ folders - the sources only compile with the defines the .build file provides.
 | 46 | Presets | `preset:name` bundles command-line options |
 | 47 | Program Exists Condition | `if program_exists(...)` blocks |
 | 48 | Nasm Assembly | .asm source assembled by nasm, linked with C |
+| 49 | Import Keyword | `import` as an alias for `include` |
 
 Tests 18, 19, 28, 43, 44, 45, 46 need extra invocations beyond a plain build to
 exercise their feature (documented in each .build header comment).
