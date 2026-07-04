@@ -90,17 +90,19 @@ ENUM(EAssemblyType)
     AssemblyType_Null
 };
 
-static String AssemblyTypeStringTable[9] =
+// const so translation units that include this header without using the table (Backend.c, Parse.c)
+// do not trip gcc's -Wunused-variable, which exempts const definitions that come from headers.
+static const String AssemblyTypeStringTable[9] =
 {
-    S("None"),
-    S("Executable"),
-    S("Library"),
-    S("Static Library"),
-    S("Shared Library"),
-    S("Pre Compiled Header"),
-    S("Compiler Object"),
-    S("No Compiler Object"),
-    S("Null"),
+    SC("None"),
+    SC("Executable"),
+    SC("Library"),
+    SC("Static Library"),
+    SC("Shared Library"),
+    SC("Pre Compiled Header"),
+    SC("Compiler Object"),
+    SC("No Compiler Object"),
+    SC("Null"),
 };
 
 ENUM(ECompiler)
@@ -305,7 +307,7 @@ STRUCT(BuildParams)
     bool bCompilerFlagsFirst;
     bool bLinkerFlagsFirst;
 
-    bool bPadding[6];
+    bool bPadding[11];
 };
 
 STRUCT(CompilerPaths)

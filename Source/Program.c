@@ -117,7 +117,7 @@ STRUCT(BuildReceipt)
     bool LinkerNoStdLib;
     bool LinkerNoDefaultLibs;
 
-    u8 blah[2];
+    u8 blah[5];
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -182,7 +182,7 @@ STRUCT(ModuleNode)
     bool bNoMoreWork;      // computed after the batch: nothing to compile or link for this module
     bool bWorkWasDone;     // this module compiled and/or relinked something
     bool bIsPhony;         // AssemblyType_Null: in the graph but has no compile/link work
-    bool bPadding[6];
+    bool bPadding[10];
 };
 
 STRUCT(BuildPlan)
@@ -6371,6 +6371,17 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
     u32 NumCompiled = 0;
 
+    // Declared before the "Nothing to compile" goto End below: the End: tail reads bCanLink for
+    // Receipt.bWorkWasDone, so jumping there must not skip this initialization.
+    bool bExplicitLinker = DoesCmdOptionExist(CmdOptionsDB, S("Linker.Explicit"));
+    bool bCanLink = AssemblyType != AssemblyType_CustomCompilerObject ||
+                    (AssemblyType == AssemblyType_CustomCompilerObject && bExplicitLinker);
+
+    if (AssemblyType == AssemblyType_NoCompilerObject)
+    {
+        bCanLink = false;
+    }
+
     {
         const u32 NumSources = CountData.NumSources + CountData.NumAsmSources + CountData.NumRcSources;
 
@@ -7152,15 +7163,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
     const u32 NumSources = CountData.NumSources + CountData.NumAsmSources + CountData.NumRcSources;
 
-    bool bExplicitLinker = DoesCmdOptionExist(CmdOptionsDB, S("Linker.Explicit"));
-    bool bCanLink = AssemblyType != AssemblyType_CustomCompilerObject ||
-                    (AssemblyType == AssemblyType_CustomCompilerObject && bExplicitLinker);
-
-    if (AssemblyType == AssemblyType_NoCompilerObject)
-    {
-        bCanLink = false;
-    }
-
     #if !NO_PRINT_BUILD_CONFIG
     if (!bExportingSomething)
     {
@@ -7632,8 +7634,14 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                         }
                         else // GCC
                         {
-                            // apparently you cant specify a commit here
-                            String_AppendF(&WlFlags, S("--stack,%S"), Reserve);
+                            // The commit size matters: gcc builds compile with -mno-stack-arg-probe
+                            // (freestanding, so libgcc's ___chkstk_ms is unavailable), and without
+                            // probes a large stack frame can jump past the guard page of a partially
+                            // committed stack and crash. Committing the full stack up front removes
+                            // the guard page mechanism entirely, exactly like the clang path above.
+                            // -Wl splits its argument on commas, so "reserve,commit" has to go
+                            // through -Xlinker, which forwards the next argument verbatim.
+                            String_AppendF(&XlinkerFlags, S("-Xlinker --stack=%S,%S"), Reserve, Commit);
                         }
                     }
                 }
@@ -8048,7 +8056,13 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         {
             if (AssemblyType == AssemblyType_CustomCompilerObject && !bCanLink)
             {
-                LOG("Building *%S files [%S] (%u %S) (with %u %S max)\n", CompilerObjectExt, S(CPU_ARCHITECTURE_STRING), NumSources, NumSources == 1 ? S("source file") : S("source files"), MaxCompilersAtOnce, MaxCompilersAtOnce == 1 ? S("core") : S("cores"));
+                String ExtToUse = CompilerObjectExt;
+                if (String_IsValid(Extension))
+                {
+                    ExtToUse = Extension;
+                }
+
+                LOG("Building *%S files [%S] (%u %S) (with %u %S max)\n", ExtToUse, S(CPU_ARCHITECTURE_STRING), NumSources, NumSources == 1 ? S("source file") : S("source files"), MaxCompilersAtOnce, MaxCompilersAtOnce == 1 ? S("core") : S("cores"));
             }
             else
             {

@@ -569,7 +569,8 @@ STRUCT(ReservedKeyTable)
 {
     String          Key;
     u32             MaxValueLength;
-    EBuildKeyImpact Impact; // how a change to this key affects the output (see the .build diff system)
+    EBuildKeyImpact Impact;
+    u8              _Padding[3];
 };
 
 // The .Impact column drives the .build diff system (GetBuildKeyImpact / ClassifyBuildKeyImpact):
@@ -4483,11 +4484,12 @@ static void StoreKVNodeAsCmdOption(LinearAllocator* Arena, const String Key, Nod
 // the result for the whole program run, keyed by the requested tool programs.
 STRUCT(ToolchainCacheEntry)
 {
+    String        Key;
+    CompilerPaths Paths;
+    String        Version;
     bool          bValid;
     bool          bFound;
-    String        Key;      // "compiler|assembler|linker|archiver" request
-    CompilerPaths Paths;
-    String        Version;  // compiler version from `cc -v`, or null
+    bool          bPadding[6];
 };
 
 static ToolchainCacheEntry g_ToolchainCache[8];

@@ -94,6 +94,17 @@ if clang|gcc
     if gcc
     {
         SharedCompilerFlags          -mno-stack-arg-probe
+
+        # gcc on Windows only keeps the stack 16-byte aligned but with -march=native it still
+        # emits aligned 32-byte AVX stores (vmovdqa ymm) for struct copies/zeroing - whenever the
+        # runtime stack lands on the wrong 32-byte parity that instruction faults (gcc PR 54412,
+        # unfixed for years; observed as an instant segfault in any function copying a 32-byte
+        # struct). clang realigns properly and is unaffected. Capping gcc at 128-bit vectors keeps
+        # every stack access within the guaranteed 16-byte alignment.
+        # GCC is so fucking ass i swear man, look at this thread: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=54412
+        # this has been a BUG SINCE 2012 and it only got fixed last month in May 2026.
+        SharedCompilerFlags:windows  -mno-avx
+
         SharedCompilerFlags:analyze  --analyzer -funsigned-char
         
         WarningFlagsDisabled         -Wno-unused-result
