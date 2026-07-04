@@ -44,6 +44,7 @@ Linker.Flags             $SharedLinkerFlags
 Includes                 $SharedIncludeFlags
 Defines                  $SharedDefines %^%hood NO_PRINT_BUILD_CONFIG=%no_print_config
 Defines:mem              MAX_MEMORY_MB=%mem
+Defines:parallel         PARALLEL_BUILD_GRAPH=1
 Linker.Subsystem         Console
 Linker.Stack             8000000 # 8MB
 
@@ -61,7 +62,7 @@ if windows
     Libraries:asan:clang:!debug clang_rt.asan_dynamic-x86_64
 }
 
-option.compiler(clang gcc cl tcc)   Select a compiler vendor to build with.
+option.compiler(clang gcc msvc tcc) Select a compiler vendor to build with.
 option.debug                        Build the debug version of this program.
 option.32                           Build for 32-bit architectures.
 option.asan                         Enable address sanitizer for memory debugging purposes.
@@ -69,3 +70,4 @@ option.hood                         Enable hood mode, the program will talk to y
 option.no_print_config              Disable printing of the build configuration flags.
 option.asm                          Generate disassembly (.S) files.
 option.mem                          Specify the max memory amount in mebibytes riftbuild should pre-allocate.
+option.parallel                     Compile in the experimental parallel build graph (plan + batched cross-module compile).

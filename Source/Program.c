@@ -131,6 +131,11 @@ STRUCT(BuildReceipt)
 // single shared parallel batch compiles every module's source files at once; then PostCompile,
 // PreLink, link, PostLink, PostBuild barriers, again in dependency order. Linking happens in
 // dependency order so a dependency's artifact exists before anything that links against it.
+//
+// The whole feature is compiled in only when PARALLEL_BUILD_GRAPH is defined (RiftBuild.build's
+// "parallel" option). Without it the build runs the original serial path: BuildTarget resolves and
+// executes each module inline, dependencies deepest-first. Only the types below stay compiled
+// either way, so BuildTarget's signature does not change with the option.
 // ------------------------------------------------------------------------------------------------
 
 STRUCT(ModuleNode)
@@ -4539,6 +4544,7 @@ static bool TryCleanFromManifest(const String IntermediateBaseDirectory, const S
     return bCleanedSomething;
 }
 
+#if PARALLEL_BUILD_GRAPH
 // Append a fully-resolved module to the plan, in dependency (post-order)
 // order. The module resolved directly into ModuleArena, so every string in Src (BuildParams,
 // VariablesDB, paths) already lives there: we take the whole node by value, with no copy. The plan
@@ -4622,6 +4628,7 @@ static LinearAllocator Plan_NewModuleArena(BuildPlan* Plan)
 
     return Arena;
 }
+#endif // PARALLEL_BUILD_GRAPH
 
 // When bPlanOnly is true, BuildTarget resolves the module (parse, absolute paths, fold in dependency
 // exports, run the incremental diff) and appends a ModuleNode to Plan instead of compiling/linking.
@@ -5580,8 +5587,25 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         //            we aren't dynamically shitting memory out everytime we need some :P
         //            So just allocate one big chunk and let our allocator dish out the memory.
         //i8 ArenaMemory[Mebibytes(1)] = {0};
+        #if !PARALLEL_BUILD_GRAPH
+        usize TotalMem = MAX_RIFTBUILD_MEMORY;
+        void* ArenaMemory = Platform_MemAlloc(TotalMem);
+
+        if (!ArenaMemory)
+        {
+            LOG_FATAL("Failed to allocate memory from the operating system!");
+
+            Receipt.ExitCode = 1;
+            return Receipt;
+        }
+
+        LinearAllocator SerialArena = {0};
+        LinearAllocator_Create(TotalMem, ArenaMemory, &SerialArena);
+        #endif
+
         for (u32 i = 0; !bSkipDependencies && i < Depends_Count; i++)
         {
+            #if PARALLEL_BUILD_GRAPH
             // Each dependency resolves into its own persistent per-module arena, which the plan keeps
             // and frees once the whole build has run. There is no shared/reset scratch arena anymore:
             // the planner never copies a resolved module back out, so its arena has to survive until
@@ -5592,6 +5616,12 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                 Receipt.ExitCode = 1;
                 return Receipt;
             }
+            #else
+            // Serial build: each dependency resolves and executes inline, so nothing from this
+            // iteration needs to survive the next one - reuse a single scratch arena.
+            LinearAllocator_Reset(&SerialArena, 0); // "free" the memory
+            LinearAllocator NewArena = SerialArena;
+            #endif
 
             FileVariable Var = *Depends[i];
 
@@ -5988,7 +6018,12 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             LOG_LINE_BREAK();
         }
 
-        // Dependency arenas are owned by the plan now (freed in Plan_Free), not here.
+        #if PARALLEL_BUILD_GRAPH
+        // Dependency arenas are owned by the plan (freed in Plan_Free), not here.
+        #else
+        LinearAllocator_Destroy(&SerialArena);
+        Platform_MemFree(ArenaMemory);
+        #endif
 
         if (bRanAnyDependencies && !bIsClean)
         {
@@ -7938,6 +7973,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     // @license generate
     TryGenerateLicense(*Arena, VariablesDB, &p, BuildFilePathFull, bIsRebuild);
 
+    #if PARALLEL_BUILD_GRAPH
     // Plan-only mode: 'p', the receipt exports, and the incremental diff are now fully resolved.
     // Capture this module into the plan (deep-copied into its own arena) and return, deferring every
     // lifecycle hook, the compile, and the link to ExecuteBuildPlan's phase-global barriers.
@@ -7979,13 +8015,12 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         Receipt.ExitCode = 0;
         return Receipt;
     }
+    #endif // PARALLEL_BUILD_GRAPH
 
-    // NOTE: builds always take the bPlanOnly path above; the inline execution below (PreCompile ->
-    // compile -> link -> bundle -> PostBuild) has been superseded by ExecuteBuildPlan and is dead for
-    // any real build. It is kept only because the clean flow jumps past the plan-stop straight to the
-    // End: label via `goto End` (search this function). Fully excising it means reworking that clean
-    // shortcut and pruning the timing helpers it uniquely uses (e.g. PrintClockTimeToBuffer); left as a
-    // follow-up so the -Werror self-host build stays green.
+    // NOTE: with PARALLEL_BUILD_GRAPH, builds always take the bPlanOnly path above and the inline
+    // execution below (PreCompile -> compile -> link -> bundle -> PostBuild) only runs for the clean
+    // flow, which jumps straight to the End: label via `goto End` (search this function). Without the
+    // define this inline tail IS the build: the original serial path, executing each module in place.
     Clock ExternalClock = {0};
     Clock_Start(&ExternalClock);
 
@@ -8398,6 +8433,7 @@ End:
     return Receipt;
 }
 
+#if PARALLEL_BUILD_GRAPH
 // --- Parallel build plan: executor --------------------------------------------------------------
 //
 // Runs a fully-resolved BuildPlan as phase-global barriers, iterating every module in dependency
@@ -8851,6 +8887,7 @@ static BuildReceipt ExecuteBuildPlan(BuildPlan* Plan, Clock* OutCompileClock, Cl
     Result.bWorkWasDone = bAnyPriorWork;
     return Result;
 }
+#endif // PARALLEL_BUILD_GRAPH
 
 static void LogDividerLine(void)
 {
@@ -9603,6 +9640,7 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray RawArguments, con
 
     PlatformMutex BuildMutex = {0};
 
+    #if PARALLEL_BUILD_GRAPH
     // Two-pass parallel build: first plan the whole dependency graph into a BuildPlan (parse, resolve
     // to absolute paths, fold in each dependency's exports, run the incremental diff -- but compile or
     // link nothing), then execute the plan as phase-global barriers with one shared parallel compile
@@ -9664,6 +9702,10 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray RawArguments, con
     }
 
     Plan_Free(&Plan);
+    #else
+    BuildReceipt Receipt = BuildTarget(Arena, BuildFileHandle, BuildFilePathFull, &BuildMutex, WorkingDirectory, BuildArguments, String_Null(), BuildFileIndex, RootPathIndex, NULL, false);
+    Filesystem_Close(&Receipt.ArtifactManifestHandle);
+    #endif // PARALLEL_BUILD_GRAPH
 
     if (BuildMutex.Handle) { xx Platform_ReleaseMutex(&BuildMutex); }
 
