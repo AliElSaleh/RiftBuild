@@ -9,6 +9,8 @@ and test programs.
 riftbuild
 ```
 
+Note: i have `riftbuild` symlinked to just `b`, so building literally takes two taps. `b` + `Enter`.
+
 The program builds *and runs*: you see its output ("Echo ran with 2
 argument(s)...") right after the link step.
 

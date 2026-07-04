@@ -11,6 +11,8 @@ riftbuild
 Build/Stamped.exe
 ```
 
+Note: i have `riftbuild` symlinked to just `b`, so building literally takes two taps. `b` + `Enter`.
+
 After the build, look at the two files the hooks produced next to this README:
 `generated.h` (written fresh every build) and `build_log.txt` (one line
 appended per build).

@@ -9,6 +9,8 @@ riftbuild
 Build/Compass.exe
 ```
 
+Note: i have `riftbuild` symlinked to just `b`, so building literally takes two taps. `b` + `Enter`.
+
 ## Three ways to write a condition
 
 1. **Suffix on a key** - best for a single conditional value:

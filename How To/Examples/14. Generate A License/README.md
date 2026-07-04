@@ -8,6 +8,8 @@ Never paste license boilerplate again: the build writes the LICENSE file.
 riftbuild
 ```
 
+Note: i have `riftbuild` symlinked to just `b`, so building literally takes two taps. `b` + `Enter`.
+
 A complete `LICENSE` file appears next to the build file: the MIT license
 text with your `Copyright` line filled in.
 

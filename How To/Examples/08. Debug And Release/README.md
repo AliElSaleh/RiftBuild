@@ -10,6 +10,8 @@ riftbuild            # debug build  -> Build/Debug/Ship.exe
 riftbuild release    # release build -> Build/Release/Ship.exe
 ```
 
+Note: i have `riftbuild` symlinked to just `b`, so building literally takes two taps. `b` + `Enter`.
+
 Run both executables and compare the output.
 
 ## The key ideas

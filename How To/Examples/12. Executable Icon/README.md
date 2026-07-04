@@ -8,6 +8,8 @@ Giving your program a face: embedding an `.ico` file into the executable.
 riftbuild
 ```
 
+Note: i have `riftbuild` symlinked to just `b`, so building literally takes two taps. `b` + `Enter`.
+
 Open `Build/` in Explorer - `Iconic.exe` shows the icon instead of the generic
 executable glyph.
 

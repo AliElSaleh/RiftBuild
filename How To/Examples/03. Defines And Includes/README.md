@@ -10,6 +10,8 @@ riftbuild
 Build/Pantry.exe
 ```
 
+Note: i have `riftbuild` symlinked to just `b`, so building literally takes two taps. `b` + `Enter`.
+
 ## How it works
 
 - `Compiler.Includes include` puts the `include/` folder on the compiler's

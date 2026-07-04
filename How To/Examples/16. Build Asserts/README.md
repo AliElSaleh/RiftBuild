@@ -8,6 +8,8 @@ Failing fast with a clear message when the build environment is wrong.
 riftbuild
 ```
 
+Note: i have `riftbuild` symlinked to just `b`, so building literally takes two taps. `b` + `Enter`.
+
 The asserts all hold on a Windows x64 machine, so the build proceeds.
 
 ## Now break one

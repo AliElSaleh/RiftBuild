@@ -10,6 +10,8 @@ riftbuild
 Build/Shouter.exe
 ```
 
+Note: i have `riftbuild` symlinked to just `b`, so building literally takes two taps. `b` + `Enter`.
+
 ## How it works
 
 When there is no `SourceFiles` key, RiftBuild recursively discovers every

@@ -10,6 +10,8 @@ riftbuild
 Build/Stamp.exe
 ```
 
+Note: i have `riftbuild` symlinked to just `b`, so building literally takes two taps. `b` + `Enter`.
+
 Then right-click `Build/Stamp.exe` -> Properties -> Details: the description,
 company, copyright, and version are all filled in.
 
