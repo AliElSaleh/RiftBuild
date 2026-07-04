@@ -1,0 +1,7 @@
+# IntermediateDirectory ending in /. dumps every object flat into that directory,
+# ignoring the source's relative path. Regression: the compiler flattened but the
+# linker still looked for sub/util's object under Intermediate/sub/ (never created)
+# and failed with "no such file or directory". Linking must use the flat path too.
+Assembly              FlatObjApp
+IntermediateDirectory Intermediate/.
+SourceFiles           main sub/util

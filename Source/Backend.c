@@ -940,12 +940,32 @@ static void Internal_AppendObjSourceFiles(const BuildParams* Params, String* Cmd
         else
         #endif
         {
+            String ObjDestinationDirectory = Params->IntermediateDirectory;
+            if (String_IsValid(Params->CompilerObjectDirectory))
+            {
+                ObjDestinationDirectory = Params->CompilerObjectDirectory;
+            }
+
+            // the object must be looked up where Internal_DoCompile wrote it: next to the source's
+            // relative path, unless the objects were dumped flat into one directory
+            String PathOfObj = Filesystem_ExtractFilePath(RelativePath, false);
+
+            if (Params->bDumpObjFilesInOneDirectory)
+            {
+                PathOfObj = String_Null();
+            }
+
+            // handle a special case where we are compiling something in the intermediate directory
+            if (String_StartsWith(ObjDestinationDirectory, PathOfObj, false))
+            {
+                PathOfObj = String_Null();
+            }
+
             // make the object file string
             // example: some_file.c now becomes some_file.o
             StringLocal(ObjFile, MAX_PATH_LENGTH);
             {
-                // String_Append(&ObjFile, bHasDot ? StrSlice(RelativePath.Data, LastDot) : RelativePath);
-                String_Append(&ObjFile, RelativePath);
+                String_Append(&ObjFile, Filesystem_ExtractFileName(RelativePath, true));
 
                 const String Ext = String_IsValid(Params->CompilerObjectExt) ? Params->CompilerObjectExt : DefaultObjExt;
                 if (!String_IsFirst(Ext, '.'))
@@ -956,13 +976,7 @@ static void Internal_AppendObjSourceFiles(const BuildParams* Params, String* Cmd
                 String_Append(&ObjFile, Ext);
             }
 
-            String ObjDestinationDirectory = Params->IntermediateDirectory;
-            if (String_IsValid(Params->CompilerObjectDirectory))
-            {
-                ObjDestinationDirectory = Params->CompilerObjectDirectory;
-            }
-
-            String_BuildPath(&ObjectPath, ObjDestinationDirectory, ObjFile);
+            String_BuildPath(&ObjectPath, ObjDestinationDirectory, PathOfObj, ObjFile);
         }
 
         String_AppendChar (CmdLine, '"');

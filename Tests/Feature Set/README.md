@@ -61,6 +61,7 @@ folders - the sources only compile with the defines the .build file provides.
 | 47 | Program Exists Condition | `if program_exists(...)` blocks |
 | 48 | Nasm Assembly | .asm source assembled by nasm, linked with C |
 | 49 | Import Keyword | `import` as an alias for `include` |
+| 50 | Flat Intermediate Objects | `IntermediateDirectory X/.` flat object dump; link finds flattened objects |
 
 Tests 18, 19, 28, 43, 44, 45, 46 need extra invocations beyond a plain build to
 exercise their feature (documented in each .build header comment).
@@ -100,3 +101,10 @@ exercise their feature (documented in each .build header comment).
    `clean_all` left dependency Build outputs behind. Fixed by making the path
    arena-backed (StringArena) in Program.c; `clean_all` on the diamond test now
    removes every Build output.
+4. (FIXED) `IntermediateDirectory X/.` flat-object mode was honored when
+   compiling (Internal_DoCompile dropped the source's relative path) but not
+   when linking/archiving (Internal_AppendObjSourceFiles still built
+   `Intermediate/./sub/file.c.o`), so any flat-mode build with sources in
+   subdirectories failed at link with "no such file or directory". Fixed by
+   mirroring the compile-side flattening rules in Internal_AppendObjSourceFiles.
+   Test 50 covers it.

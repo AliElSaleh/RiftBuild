@@ -4045,6 +4045,8 @@ bool FindFirstCompilerAvailable(const String CompilerToFind, const String Assemb
     {
         String_Copy(&OutCompilerPaths->LinkerPath, LinkerToFind);
         Filesystem_AppendExeExtension(&OutCompilerPaths->LinkerPath);
+        String_ConvertSlashToPlatformSlash(&OutCompilerPaths->LinkerPath);
+        xx Filesystem_ConvertRelativeToAbsolutePath(&OutCompilerPaths->LinkerPath);
 
         bLinkerProgramFound = Filesystem_DoesFileExist(OutCompilerPaths->LinkerPath);
     }
@@ -4060,6 +4062,8 @@ bool FindFirstCompilerAvailable(const String CompilerToFind, const String Assemb
     {
         String_Copy(&OutCompilerPaths->ArchiverPath, ArchiverToFind);
         Filesystem_AppendExeExtension(&OutCompilerPaths->ArchiverPath);
+        String_ConvertSlashToPlatformSlash(&OutCompilerPaths->ArchiverPath);
+        xx Filesystem_ConvertRelativeToAbsolutePath(&OutCompilerPaths->ArchiverPath);
 
         bArchiverProgramFound = Filesystem_DoesFileExist(OutCompilerPaths->ArchiverPath);
     }
@@ -4075,6 +4079,8 @@ bool FindFirstCompilerAvailable(const String CompilerToFind, const String Assemb
     {
         String_Copy(&OutCompilerPaths->AssemblerPath, AssemblerToFind);
         Filesystem_AppendExeExtension(&OutCompilerPaths->AssemblerPath);
+        String_ConvertSlashToPlatformSlash(&OutCompilerPaths->AssemblerPath);
+        xx Filesystem_ConvertRelativeToAbsolutePath(&OutCompilerPaths->AssemblerPath);
 
         bAssemblerProgramFound = Filesystem_DoesFileExist(OutCompilerPaths->AssemblerPath);
     }
@@ -4085,6 +4091,11 @@ bool FindFirstCompilerAvailable(const String CompilerToFind, const String Assemb
     {
         String_Copy(&OutCompilerPaths->CompilerPath, CompilerToFind);
         Filesystem_AppendExeExtension(&OutCompilerPaths->CompilerPath);
+
+        // canonicalize before the derived paths below so none of them carry "../" segments
+        // (e.g. a Compiler key built from %_WorkingDirectory/../../<tool>)
+        String_ConvertSlashToPlatformSlash(&OutCompilerPaths->CompilerPath);
+        xx Filesystem_ConvertRelativeToAbsolutePath(&OutCompilerPaths->CompilerPath);
 
         String CompilerInstallPath = Filesystem_ExtractFilePath(OutCompilerPaths->CompilerPath, false);
         String BasePath = Filesystem_ExtractFilePath(CompilerInstallPath, false);
