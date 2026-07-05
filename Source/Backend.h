@@ -306,8 +306,9 @@ STRUCT(BuildParams)
     bool bLinkerNoDefaultLibs;
     bool bCompilerFlagsFirst;
     bool bLinkerFlagsFirst;
+    bool bCanLink; // false for codegen modules (custom objects, no_object), they have no link stage
 
-    bool bPadding[11];
+    bool bPadding[10];
 };
 
 STRUCT(CompilerPaths)
@@ -434,6 +435,10 @@ bool ExtensionStringIsStaticLibrary(String Ext);
 bool ExtensionStringIsPCH(String Ext);
 
 // Export functions --------------------
+
+bool Export_IsCapturingCommands(void);
+bool Export_EmitScriptCommand(const String EchoText, const String ToolVarName, const String ProgramPath, const String CmdLine);
+String Export_TryWriteFlagsAndReturnThisValue(const String Name, const String Value);
 
 //bool Export(EExportType Type, LinearAllocator Scratch, const BuildParams* Params, const String OutputPath, ExportMetaData MetaData);
 

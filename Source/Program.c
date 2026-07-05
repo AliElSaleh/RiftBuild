@@ -7926,6 +7926,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     p.PCHHeaderPath                 = PCHHeaderPath;
     p.MaxCompilersAtOnce            = MaxCompilersAtOnce;
     p.bShouldWaitPerCompileProcess  = bSingleThread;
+    p.bCanLink                      = bCanLink;
     p.CompilerFlags                 = ExpandedCompilerFlags;
     p.bCompilerFlagsFirst           = bCompilerFlagsFirst;
     p.bLinkerFlagsFirst             = bLinkerFlagsFirst;

@@ -1104,8 +1104,11 @@ bool Export_FromArg(LinearAllocator Scratch, const BuildParams* Params, const St
                                                     String_IsEqual(*var, S("version.rc"), false);
         const bool bGenIconRc                     = String_IsEqual(*var, S("iconrc"), false) ||
                                                     String_IsEqual(*var, S("icon.rc"), false);
+
+        // i can't be bothered with these, who cares i guess
         //const bool bGenVisualStudio             = String_IsEqual(*var, S("export:visual_studio"), false);
         //const bool bGenXCode                    = String_IsEqual(*var, S("export:xcode"), false);
+
         const bool bGenWindowsBatchScript         = String_IsEqual(*var, S("bat"), false);
         const bool bGenUnixShellScript            = String_IsEqual(*var, S("sh"), false);
 
@@ -1158,7 +1161,7 @@ bool Export_FromArg(LinearAllocator Scratch, const BuildParams* Params, const St
             if (bQuietBuild) { Logging_Enable(); }
 
             StringLocal(ShPath, MAX_PATH_LENGTH);
-            String_BuildPath(&ShPath, Params->IntermediateDirectory, S("build"));
+            String_BuildPath(&ShPath, Params->IntermediateDirectory, S("__Exports"), S("build"));
             String_Append(&ShPath, S(".sh"));
 
             LOG("Generating %S ...", ShPath);
@@ -2264,184 +2267,345 @@ bool TryBuildMacBundle(LinearAllocator Scratch, const BuildParams* Params, TArra
 #endif
 
 
-// TODO: i wanna rewrite these export bat/sh functions so that it goes through the backend,
-//       and the backend can just switch to a routine that does this accruately without
-//       having to write this stuff twice. like the backend, just can choose what mode it
-//       is in and perform that. the default mode would be just regular execution of
-//       commands and another mode is that it redirects those commands to a file that
-//       it writes to. think of it like a good logging system where you can change where
-//       the data goes, either to a file or console (stdout/stderr) or in memory.
-//       and not just that but what if we are mixing .asm or .rc files in between c files
-//       how would they resolve? lot of things to think about.
+// Script command capture ------------------------------------------------------------------------
+//
+// Both script exporters route through the backend's command construction: while capture is active
+// (Export_BeginCommandCapture .. Export_EndCommandCapture), C_Compile_Spawn and C_Link redirect
+// every command line they build into the script instead of spawning it, via the three hooks
+// declared in Backend.h (Export_IsCapturingCommands, Export_EmitScriptCommand,
+// Export_TryWriteFlagsAndReturnThisValue). The scripts therefore contain the exact commands a real
+// build runs - .asm and .rc sources, PCHs, per-file overrides and all - without duplicating the
+// backend's logic, while all capture state and script formatting lives here.
 
-bool Export_WindowsBatchScript(const BuildParams* Params)
+static EBuildMode GBuildMode = BuildMode_Build;
+static FileHandle GExportScript = {0};
+static EGenerator GExportFormat = Generator_None;
+
+// Tool variables already defined in the current export script ("Compiler", "Linker", ...), so the
+// tool path is written once as a script variable instead of repeated for every source file.
+#define MAX_EXPORT_TOOL_VARS 32
+static String GExportToolVars[MAX_EXPORT_TOOL_VARS] = {0};
+static u32 GNumExportToolVars = 0;
+
+struct ExportFlagGroupEntry
 {
-    if (NEVER(Params == NULL)) { return false; }
+    String Name;
+    String BatRef;
+    String ShRef;
+};
 
+static const struct ExportFlagGroupEntry GExportFlagGroups[13] =
+{
+    { SC("CompilerFlags"),          SC("%CompilerFlags%"),          SC("${CompilerFlags}") },
+    { SC("IncludeFlags"),           SC("%IncludeFlags%"),           SC("${IncludeFlags}") },
+    { SC("Defines"),                SC("%Defines%"),                SC("${Defines}") },
+    { SC("UnDefines"),              SC("%UnDefines%"),              SC("${UnDefines}") },
+    { SC("AssemblerFlags"),         SC("%AssemblerFlags%"),         SC("${AssemblerFlags}") },
+    { SC("AssemblerDefines"),       SC("%AssemblerDefines%"),       SC("${AssemblerDefines}") },
+    { SC("AssemblerIncludes"),      SC("%AssemblerIncludes%"),      SC("${AssemblerIncludes}") },
+    { SC("ResourceCompilerFlags"),  SC("%ResourceCompilerFlags%"),  SC("${ResourceCompilerFlags}") },
+    { SC("LinkerFlags"),            SC("%LinkerFlags%"),            SC("${LinkerFlags}") },
+    { SC("LinkerDefines"),          SC("%LinkerDefines%"),          SC("${LinkerDefines}") },
+    { SC("Libraries"),              SC("%Libraries%"),              SC("${Libraries}") },
+    { SC("LibraryPaths"),           SC("%LibraryPaths%"),           SC("${LibraryPaths}") },
+    { SC("ArchiverFlags"),          SC("%ArchiverFlags%"),          SC("${ArchiverFlags}") },
+};
+
+static bool GExportFlagGroupDefined[SArray_Capacity(GExportFlagGroups)];
+
+// A failed definition write would otherwise go unnoticed and leave a script referencing an
+// undefined variable; Export_EmitScriptCommand checks this and aborts the export.
+static bool GExportWriteFailed;
+
+static void Export_BeginCommandCapture(const FileHandle Script, const EGenerator Format)
+{
+    GBuildMode          = BuildMode_Export;
+    GExportScript       = Script;
+    GExportFormat       = Format;
+    GNumExportToolVars  = 0;
+    GExportWriteFailed  = false;
+
+    for (u32 i = 0; i < SArray_Capacity(GExportFlagGroups); i++)
+    {
+        GExportFlagGroupDefined[i] = false;
+    }
+}
+
+static void Export_EndCommandCapture(void)
+{
+    GBuildMode          = BuildMode_Build;
+    GExportScript       = FileHandle_Null();
+    GExportFormat       = Generator_None;
+    GNumExportToolVars  = 0;
+    GExportWriteFailed  = false;
+
+    for (u32 i = 0; i < SArray_Capacity(GExportFlagGroups); i++)
+    {
+        GExportFlagGroupDefined[i] = false;
+    }
+}
+
+bool Export_IsCapturingCommands(void)
+{
+    return GBuildMode == BuildMode_Export;
+}
+
+String Export_TryWriteFlagsAndReturnThisValue(const String Name, const String Value)
+{
+    String Result = Value;
+
+    if (GBuildMode == BuildMode_Export && Value.Length > 0)
+    {
+        for (u32 i = 0; i < SArray_Capacity(GExportFlagGroups); i++)
+        {
+            if (String_IsEqual(GExportFlagGroups[i].Name, Name, true))
+            {
+                if (!GExportFlagGroupDefined[i])
+                {
+                    bool bWritten;
+                    if (GExportFormat == Generator_Bat)
+                    {
+                        bWritten = Filesystem_WriteLineFormatted(GExportScript, S("set %S=%S\n\n"), NULL, Name, Value);
+                    }
+                    else
+                    {
+                        bWritten = Filesystem_WriteLineFormatted(GExportScript, S("%S=\"%S\"\n\n"), NULL, Name, Value);
+                    }
+
+                    if (!bWritten)
+                    {
+                        GExportWriteFailed = true;
+                    }
+
+                    GExportFlagGroupDefined[i] = true;
+                }
+
+                Result = GExportFormat == Generator_Bat ? GExportFlagGroups[i].BatRef : GExportFlagGroups[i].ShRef;
+                break;
+            }
+        }
+    }
+
+    return Result;
+}
+
+// Capture sink: append one command to the export script, preceded by a progress echo.
+// ToolVarName names the script variable that holds ProgramPath ("Compiler", "Linker", ...); it is
+// defined on first use and the command references it instead of repeating the full tool path per
+// file. Commands whose CmdLine does not begin with the plain quoted program path (e.g. the windres
+// quoting workaround in RC_Compile) are emitted verbatim. Batch needs explicit error propagation
+// per command; sh scripts get a "set -e" header instead.
+bool Export_EmitScriptCommand(const String EchoText, const String ToolVarName, const String ProgramPath, const String CmdLine)
+{
+    // a flag-group definition write may have failed while this command was being constructed
+    bool bSuccess = !GExportWriteFailed;
+
+    const bool bBat = GExportFormat == Generator_Bat;
+
+    // the command can only reference the variable when it literally starts with "<ProgramPath>"
+    StringLocal(QuotedProgram, MAX_PATH_LENGTH+2);
+    String_AppendChar(&QuotedProgram, '"');
+    String_Append    (&QuotedProgram, ProgramPath);
+    String_AppendChar(&QuotedProgram, '"');
+
+    bool bUseVariable = ToolVarName.Length > 0 && String_StartsWith(CmdLine, QuotedProgram, true);
+
+    if (bSuccess && bUseVariable)
+    {
+        bool bAlreadyDefined = false;
+        for (u32 i = 0; i < GNumExportToolVars; i++)
+        {
+            if (String_IsEqual(GExportToolVars[i], ToolVarName, true))
+            {
+                bAlreadyDefined = true;
+                break;
+            }
+        }
+
+        if (!bAlreadyDefined)
+        {
+            if (GNumExportToolVars < MAX_EXPORT_TOOL_VARS)
+            {
+                if (bBat)
+                {
+                    bSuccess = Filesystem_WriteLineFormatted(GExportScript, S("set %S=%S\n\n"), NULL, ToolVarName, ProgramPath);
+                }
+                else
+                {
+                    bSuccess = Filesystem_WriteLineFormatted(GExportScript, S("%S=\"%S\"\n\n"), NULL, ToolVarName, ProgramPath);
+                }
+
+                GExportToolVars[GNumExportToolVars] = ToolVarName;
+                GNumExportToolVars++;
+            }
+            else
+            {
+                bUseVariable = false;
+            }
+        }
+    }
+
+    if (bSuccess && EchoText.Length > 0)
+    {
+        if (bBat)
+        {
+            bSuccess = Filesystem_WriteLineFormatted(GExportScript, S("echo %S\n"), NULL, EchoText);
+        }
+        else
+        {
+            bSuccess = Filesystem_WriteLineFormatted(GExportScript, S("echo \"%S\"\n"), NULL, EchoText);
+        }
+    }
+
+    if (bSuccess)
+    {
+        StringLocal(Line, UINT16_MAX);
+
+        if (bUseVariable)
+        {
+            const String Remainder = StrShiftF(CmdLine, QuotedProgram.Length);
+
+            if (bBat)
+            {
+                String_Concat(&Line, S("\"%"), ToolVarName, S("%\""), Remainder);
+            }
+            else
+            {
+                String_Concat(&Line, S("\"${"), ToolVarName, S("}\""), Remainder);
+            }
+        }
+        else
+        {
+            String_Append(&Line, CmdLine);
+        }
+
+        if (bBat)
+        {
+            String_Append(&Line, S(" || exit /b 1"));
+        }
+
+        String_Append(&Line, S("\n\n"));
+
+        bSuccess = Filesystem_WriteLine(GExportScript, Line, NULL);
+    }
+
+    if (!bSuccess)
+    {
+        LOG_ERROR("Failed to write a command to the export script. Aborting export...");
+    }
+
+    return bSuccess;
+}
+
+static bool Internal_ExportBuildScript(const BuildParams* Params, const EGenerator Format)
+{
     bool bSuccess = false;
 
+    const bool bBat = Format == Generator_Bat;
+
+    StringLocal(ExportDirectory, MAX_PATH_LENGTH);
+    String_BuildPath(&ExportDirectory, Params->IntermediateDirectory, S("__Exports"));
+    xx Filesystem_OpenDirectory(ExportDirectory);
+
     StringLocal(ExportPath, MAX_PATH_LENGTH);
-    String_BuildPath(&ExportPath, Params->IntermediateDirectory, S("__Exports"), S("build"));
-    String_Append(&ExportPath, S(".bat"));
+    String_BuildPath(&ExportPath, ExportDirectory, S("build"));
+    String_Append(&ExportPath, bBat ? S(".bat") : S(".sh"));
 
     FileHandle f = {0};
     if (Filesystem_Open(ExportPath, FileMode_Write, &f))
     {
-        xx Filesystem_WriteLine(f, S("@echo off\n"), NULL);
-        xx Filesystem_WriteLine(f, S("\nset ScriptPath=%~dp0\n\n"), NULL);
-
-        bool bIsMicrosoftCompiler  = Params->CompilerVendor == Compiler_MSVC;
-        bool bIsMicrosoftLinker    = String_EndsWith(Params->LinkerPath, S("link.exe"), false);
-
-        String MultithreadFlag_CL  = bIsMicrosoftCompiler ? S("/MP ") : String_Null();
-        String NoLogoFlag_CL       = bIsMicrosoftCompiler ? S("/nologo ") : String_Null();
-        String NoLogoFlag_LINK     = bIsMicrosoftLinker ? S("/nologo ") : String_Null();
-
-        StringLocal(IntermediateOutputFlag, MAX_PATH_LENGTH);
-        if (bIsMicrosoftCompiler)
+        // the backend runs every command with the root directory as its working directory, and the
+        // command lines reference intermediate objects relative to it - anchor the script the same way
+        if (bBat)
         {
-            String_Append(&IntermediateOutputFlag, S("/Fo\""));
-
-            StringLocal(ObjectPath, MAX_PATH_LENGTH);
-            String ObjDestinationDirectory = Params->IntermediateDirectory;
-            if (String_IsValid(Params->CompilerObjectDirectory))
-            {
-                ObjDestinationDirectory = Params->CompilerObjectDirectory;
-            }
-    
-            String_BuildPath(&ObjectPath, Params->RootDirectory, ObjDestinationDirectory);
-            xx Filesystem_ConvertRelativeToAbsolutePath(&ObjectPath);
-            
-            String_Append(&IntermediateOutputFlag, ObjectPath);
-            String_Append(&IntermediateOutputFlag, S("\\\\\""));
-            String_AppendSpace(&IntermediateOutputFlag);
-        }
-
-        xx Filesystem_WriteLineFormatted(f, S("set CompilerFlags=%S%S%S%S\n"), NULL, NoLogoFlag_CL, MultithreadFlag_CL, IntermediateOutputFlag, Params->CompilerFlags);
-        xx Filesystem_WriteLineFormatted(f, S("set LinkerFlags=%S%S\n"),   NULL, NoLogoFlag_LINK, Params->LinkerFlags);
-        xx Filesystem_WriteLineFormatted(f, S("set IncludeFlags=%S\n"),  NULL, Params->IncludeFlags);
-        xx Filesystem_WriteLineFormatted(f, S("set Defines=%S\n"),       NULL, Params->DefineFlags);
-        xx Filesystem_WriteLineFormatted(f, S("set UnDefines=%S\n"),     NULL, Params->UnDefineFlags);
-        xx Filesystem_WriteLineFormatted(f, S("set Libraries=%S\n"),     NULL, Params->Libraries);
-        xx Filesystem_WriteLineFormatted(f, S("set LibraryPaths=%S\n"),  NULL, Params->LibraryDirectories);
-
-        xx Filesystem_WriteLineFormatted(f, S("\necho Compiling sources (%S)\n"), NULL, S(PLATFORM_STRING));
-
-        xx Filesystem_WriteLineFormatted(f, S("\n\"%S\" ^\n"), NULL, Params->CompilerPath);
-
-        for each_string_in_list (Params->SourceFiles)
-        {
-            String SourceRelativePath = It.String;
-
-            if (bIsMicrosoftCompiler)
-            {
-                String Ext = Filesystem_ExtractFileExtension(SourceRelativePath, true);
-                bool bIsCFile = IsCSource(Ext) || IsCppSource(Ext);
-                if (!bIsCFile)
-                {
-                    continue;
-                }
-            }
-
-            StringLocal(Path, MAX_PATH_LENGTH);
-            String_BuildPath(&Path, Params->SourceDirectory, SourceRelativePath);
-            xx Filesystem_WriteLineFormatted(f, S("    \"%S\" ^\n"), NULL, Path);
-        }
-
-        xx Filesystem_WriteLine(f, S("    %CompilerFlags% ^\n    %Defines% ^\n    %IncludeFlags% ^\n"), NULL);
-
-        if (bIsMicrosoftLinker)
-        {
-            xx Filesystem_WriteLine(f, S("    /link %LinkerFlags% %LibraryPaths% %Libraries% "), NULL);
+            xx Filesystem_WriteLine(f, S("@echo off\n\n"), NULL);
+            xx Filesystem_WriteLineFormatted(f, S("cd /d \"%S\"\n\n"), NULL, Params->RootDirectory);
+            xx Filesystem_WriteLineFormatted(f, S("echo Compiling sources (%S)\n\n"), NULL, S(PLATFORM_STRING));
         }
         else
         {
-            xx Filesystem_WriteLine(f, S("    %LinkerFlags% ^\n    %LibraryPaths% ^\n    %Libraries% ^\n    "), NULL);
+            xx Filesystem_WriteLine(f, S("#!/bin/sh\n\n"), NULL);
+            xx Filesystem_WriteLine(f, S("set -e\n\n"), NULL);
+            xx Filesystem_WriteLineFormatted(f, S("cd \"%S\"\n\n"), NULL, Params->RootDirectory);
+
+            // report whatever the script actually runs on, not the platform that exported it
+            xx Filesystem_WriteLine(f, S("Platform=$(uname)\n\n"), NULL);
+            xx Filesystem_WriteLine(f, S("echo \"Compiling sources (${Platform})\"\n\n"), NULL);
         }
 
-        StringLocal(OutputAssemblyPath, MAX_PATH_LENGTH);
-        String_BuildPath(&OutputAssemblyPath, Params->BuildDirectory, Params->AssemblyWithExt);
-        
-        xx Filesystem_WriteLineFormatted(f, S("%S\"%S\"\n"), NULL, Params->LinkerOutputFlag, OutputAssemblyPath);
+        // The backend allocates from Params->Arena (e.g. deriving the C++ linker driver), but our
+        // caller parsed its export list from a by-value copy of that same arena - an allocation
+        // through the original pointer would land on top of it. Give the backend a private arena.
+        ScratchLocal(ExportArena, Kibibytes(16));
+        BuildParams ExportParams = *Params;
+        ExportParams.Arena = &ExportArena;
 
-        xx Filesystem_WriteLineFormatted(f, S("\necho [32m  Done: %S[0m\n"), NULL, OutputAssemblyPath);
+        Export_BeginCommandCapture(f, Format);
 
-        /*
-        xx Filesystem_WriteLine(f, S(
-            "\n:end\n"
-            ":: pause if we double clicked this in a file explorer\n"
-            "setlocal enabledelayedexpansion\n"
-            "set testl=%cmdcmdline:\"=%\n"
-            "set testr=!testl:%~nx0=!\n"
-            "if not \"%testl%\" == \"%testr%\" pause\n"
-        ), NULL);
-        */
+        u32 NumCommands = 0;
+        bSuccess = C_Compile_Spawn(&ExportParams, &NumCommands);
+
+        // codegen modules (custom objects without Linker.Explicit, no_object) have no link
+        // stage - a real build skips it too, so the script must not invent one
+        if (bSuccess && Params->bCanLink)
+        {
+            bSuccess = C_Link(&ExportParams);
+        }
+
+        Export_EndCommandCapture();
+
+        if (bSuccess)
+        {
+            StringLocal(DoneText, MAX_PATH_LENGTH + 16);
+            String_Append(&DoneText, S("  Done"));
+
+            if (Params->bCanLink)
+            {
+                StringLocal(OutputAssemblyPath, MAX_PATH_LENGTH);
+                String_BuildPath(&OutputAssemblyPath, Params->BuildDirectory, Params->AssemblyWithExt);
+
+                String_Append(&DoneText, S(": "));
+                String_Append(&DoneText, OutputAssemblyPath);
+            }
+
+            if (bBat)
+            {
+                xx Filesystem_WriteLineFormatted(f, S("\necho \x1B[32m%S\x1B[0m\n"), NULL, DoneText);
+            }
+            else
+            {
+                xx Filesystem_WriteLineFormatted(f, S("\nprintf \"\\033[0;32m%S\\033[0m\\n\"\n"), NULL, DoneText);
+            }
+        }
 
         Filesystem_Close(&f);
-        bSuccess = true;
+    }
+
+    return bSuccess;
+}
+
+bool Export_WindowsBatchScript(const BuildParams* Params)
+{
+    bool bSuccess = false;
+
+    if (!(NEVER(Params == NULL)))
+    {
+        bSuccess = Internal_ExportBuildScript(Params, Generator_Bat);
     }
 
     return bSuccess;
 }
 
 
-// If you run this on a non-Unix system, then you will export incorrect compiler paths 
+// If you run this on a non-Unix system, then you will export incorrect compiler paths
 // and output executable extension. so it's best to just run this on a unix OS.
 bool Export_UnixShellScript(const BuildParams* Params)
 {
-    if (NEVER(Params == NULL)) { return false; }
-
     bool bSuccess = false;
 
-    StringLocal(ExportPath, MAX_PATH_LENGTH);
-    String_BuildPath(&ExportPath, Params->IntermediateDirectory, S("__Exports"), S("build"));
-    String_Append(&ExportPath, S(".sh"));
-
-    FileHandle f = {0};
-    if (Filesystem_Open(ExportPath, FileMode_Write, &f))
+    if (!(NEVER(Params == NULL)))
     {
-        xx Filesystem_WriteLine(f, S("#!/bin/sh\n\n"), NULL);
-        xx Filesystem_WriteLine(f, S("set -e\n\n"), NULL);
-
-        xx Filesystem_WriteLine(f, S("Platform=$(uname)\n"), NULL);
-
-        xx Filesystem_WriteLineFormatted(f, S("CompilerFlags=\"%S\"\n"), NULL, Params->CompilerFlags);
-        xx Filesystem_WriteLineFormatted(f, S("LinkerFlags=\"%S\"\n"),   NULL, Params->LinkerFlags);
-        xx Filesystem_WriteLineFormatted(f, S("IncludeFlags=\"%S\"\n"),  NULL, Params->IncludeFlags);
-        xx Filesystem_WriteLineFormatted(f, S("Defines=\"%S\"\n"),       NULL, Params->DefineFlags);
-        xx Filesystem_WriteLineFormatted(f, S("UnDefines=\"%S\"\n"),     NULL, Params->UnDefineFlags);
-        xx Filesystem_WriteLineFormatted(f, S("Libraries=\"%S\"\n"),     NULL, Params->Libraries);
-        xx Filesystem_WriteLineFormatted(f, S("LibraryPaths=\"%S\"\n"),  NULL, Params->LibraryDirectories);
-
-        xx Filesystem_WriteLine(f, S("\necho Compiling sources (${Platform})\n"), NULL);
-
-        xx Filesystem_WriteLineFormatted(f, S("\n\"%S\" \\\n"), NULL, Params->CompilerPath);
-
-        for each_string_in_list (Params->SourceFiles)
-        {
-            String SourceRelativePath = It.String;
-
-            // TODO: this is bad. what if i am exporting a build file that is not a bunch of c files?
-            String Ext = Filesystem_ExtractFileExtension(SourceRelativePath, true);
-            bool bIsCFile = IsCSource(Ext) || IsCppSource(Ext);
-            if (!bIsCFile)
-            {
-                continue;
-            }
-
-            StringLocal(Path, MAX_PATH_LENGTH);
-            String_BuildPath(&Path, Params->SourceDirectory, SourceRelativePath);
-            xx Filesystem_WriteLineFormatted(f, S("    \"%S\" \\\n"), NULL, Path);
-        }
-
-        xx Filesystem_WriteLine(f, S("    ${CompilerFlags} \\\n    ${Defines} \\\n    ${IncludeFlags} \\\n"), NULL);
-        xx Filesystem_WriteLineFormatted(f, S("    -o %S/%S \\\n"), NULL, Params->BuildDirectory, Params->AssemblyWithExt);
-        xx Filesystem_WriteLine(f, S("    ${LinkerFlags} \\\n    ${LibraryPaths} \\\n    ${Libraries}\n"), NULL);
-
-        xx Filesystem_WriteLineFormatted(f, S("\nprintf \"\033[0;32m  Done: %S/%S\033[0m\\n\"\n"), NULL, Params->BuildDirectory, Params->AssemblyWithExt);
-
-        Filesystem_Close(&f);
-        bSuccess = true;
+        bSuccess = Internal_ExportBuildScript(Params, Generator_Sh);
     }
 
     return bSuccess;

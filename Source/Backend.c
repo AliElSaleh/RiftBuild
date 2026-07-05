@@ -21,6 +21,7 @@ STRUCT(CompileData)
 };
 
 
+
 void RecordArtifactPath(const FileHandle ManifestHandle, const String Path)
 {
     if (IsValidFileHandle(ManifestHandle) && Path.Length > 0)
@@ -160,10 +161,9 @@ static void RC_Compile(const BuildParams* Params, const String FullRCPath, Strin
     
     if (Params->RCProgramFlags.Length > 0)
     {
-        String_AppendSpace(&CmdLine);
-        String_Append(&CmdLine, Params->RCProgramFlags);
-        xx String_EatSpacesInlineFromEnd(&CmdLine);
-        String_AppendSpace(&CmdLine);
+        StringLocal(RCFlags, MAX_PATH_LENGTH*8); // flags + up to 7 include paths
+        String_Append(&RCFlags, Params->RCProgramFlags);
+        xx String_EatSpacesInlineFromEnd(&RCFlags);
 
         // ergghh i hate this... TODO: something better
         #if PLATFORM_WINDOWS
@@ -212,9 +212,16 @@ static void RC_Compile(const BuildParams* Params, const String FullRCPath, Strin
 
             xx String_EatSpacesInlineFromEnd(&WinSDKInclude);
 
-            String_Append(&CmdLine, WinSDKInclude);
+            if (WinSDKInclude.Length > 0)
+            {
+                String_AppendSpace(&RCFlags);
+                String_Append(&RCFlags, WinSDKInclude);
+            }
         }
         #endif
+
+        String_AppendSpace(&CmdLine);
+        String_Append(&CmdLine, Export_TryWriteFlagsAndReturnThisValue(S("ResourceCompilerFlags"), RCFlags));
     }
 
     u32 LastDot = 0;
@@ -533,6 +540,10 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
     {
         ProgramPath = Params->AsmPath;
 
+        String AssemblerFlags    = Export_TryWriteFlagsAndReturnThisValue(S("AssemblerFlags"),    Params->AssemblerFlags);
+        String AssemblerDefines  = Export_TryWriteFlagsAndReturnThisValue(S("AssemblerDefines"),  Params->AssemblerDefines);
+        String AssemblerIncludes = Export_TryWriteFlagsAndReturnThisValue(S("AssemblerIncludes"), Params->AssemblerIncludes);
+
         String_AppendChar(&CmdLine, '"');
         String_Append    (&CmdLine, Params->AsmPath);
         String_AppendChar(&CmdLine, '"');
@@ -543,12 +554,12 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
             String_Append(&CmdLine, S("/nologo /c /Fo\""));
             String_Append(&CmdLine, ObjectPath);
             String_Append(&CmdLine, S("\" "));
-            String_BuildSeparator(&CmdLine, ' ', FullSourcePath, Params->AssemblerFlags, Params->AssemblerDefines, Params->AssemblerIncludes);
+            String_BuildSeparator(&CmdLine, ' ', FullSourcePath, AssemblerFlags, AssemblerDefines, AssemblerIncludes);
             xx String_EatSpacesInlineFromEnd(&CmdLine);
         }
         else
         {
-            String_BuildSeparator(&CmdLine, ' ', FullSourcePath, Params->AssemblerFlags, Params->AssemblerDefines, Params->AssemblerIncludes);
+            String_BuildSeparator(&CmdLine, ' ', FullSourcePath, AssemblerFlags, AssemblerDefines, AssemblerIncludes);
             xx String_EatSpacesInlineFromEnd(&CmdLine);
             String_Append(&CmdLine, S(" -o \""));
             String_Append(&CmdLine, ObjectPath);
@@ -692,10 +703,15 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
             }
         }
 
-        String CompilerFlagsLeft  = Params->bCompilerFlagsFirst ? Params->CompilerFlags : String_Null();
-        String CompilerFlagsRight = Params->bCompilerFlagsFirst ? String_Null() : Params->CompilerFlags;
+        String CompilerFlags = Export_TryWriteFlagsAndReturnThisValue(S("CompilerFlags"), Params->CompilerFlags);
+        String IncludeFlags  = Export_TryWriteFlagsAndReturnThisValue(S("IncludeFlags"),  Params->IncludeFlags);
+        String Defines       = Export_TryWriteFlagsAndReturnThisValue(S("Defines"),       Params->DefineFlags);
+        String UnDefines     = Export_TryWriteFlagsAndReturnThisValue(S("UnDefines"),     Params->UnDefineFlags);
 
-        String_BuildSeparator(&CmdLine, ' ', CompilerFlagsLeft, CompileFlag, FullSourcePath, CompilerFlagsRight, Params->IncludeFlags, Params->DefineFlags, Params->UnDefineFlags, AdditionalFlags, PCHFlags, OutputFlag);
+        String CompilerFlagsLeft  = Params->bCompilerFlagsFirst ? CompilerFlags : String_Null();
+        String CompilerFlagsRight = Params->bCompilerFlagsFirst ? String_Null() : CompilerFlags;
+
+        String_BuildSeparator(&CmdLine, ' ', CompilerFlagsLeft, CompileFlag, FullSourcePath, CompilerFlagsRight, IncludeFlags, Defines, UnDefines, AdditionalFlags, PCHFlags, OutputFlag);
         xx String_EatSpacesInlineFromEnd(&CmdLine);
 
         if (String_IsValid(ObjectPath))
@@ -745,7 +761,31 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
     // stale even though timestamps say otherwise, so force it to recompile.
     bool bForcedRecompile = Internal_IsForcedRecompile(Params, RelativePath);
 
-    if (ObjectFileWriteTime >= SourceFileWriteTime && !bForcedRecompile)
+    bool bSuccess = true;
+
+    if (Export_IsCapturingCommands())
+    {
+        // Emit unconditionally - the script must be able to build from a clean tree, so the
+        // timestamp skip below does not apply. The object directory still has to exist when the
+        // script runs; create it now exactly like a real build would.
+        xx Filesystem_OpenDirectory(Filesystem_ExtractFilePath(ObjectPath, false));
+
+        String ToolVarName = S("Compiler");
+        if (IsAsmSource(Ext))
+        {
+            ToolVarName = S("Assembler");
+        }
+        else if (String_EndsWith(RelativePath, S(".rc"), false))
+        {
+            ToolVarName = S("ResourceCompiler");
+        }
+
+        StringLocal(EchoText, MAX_PATH_LENGTH + 16);
+        String_Format(&EchoText, S("Compiling %S"), FullPath);
+
+        bSuccess = Export_EmitScriptCommand(EchoText, ToolVarName, ProgramPath, CmdLine);
+    }
+    else if (ObjectFileWriteTime >= SourceFileWriteTime && !bForcedRecompile)
     {
         #ifndef HOOD
         LOG("[Skipping] %S", FullPath);
@@ -799,7 +839,7 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
         }
     }
 
-    return true;
+    return bSuccess;
 }
 
 // Spawn (and throttle) compile processes for this module's source files onto the shared
@@ -1616,8 +1656,13 @@ bool C_Link(const BuildParams* Params)
         String_AppendChar(&CmdLine, '"');
         String_AppendSpace(&CmdLine);
 
-        String LinkerFlagsLeft  = Params->bLinkerFlagsFirst ? Params->LinkerFlags : String_Null();
-        String LinkerFlagsRight = Params->bLinkerFlagsFirst ? String_Null() : Params->LinkerFlags;
+        String LinkerFlags   = Export_TryWriteFlagsAndReturnThisValue(S("LinkerFlags"),   Params->LinkerFlags);
+        String LinkerDefines = Export_TryWriteFlagsAndReturnThisValue(S("LinkerDefines"), Params->LinkerDefineFlags);
+        String Libraries     = Export_TryWriteFlagsAndReturnThisValue(S("Libraries"),     Params->Libraries);
+        String LibraryPaths  = Export_TryWriteFlagsAndReturnThisValue(S("LibraryPaths"),  Params->LibraryDirectories);
+
+        String LinkerFlagsLeft  = Params->bLinkerFlagsFirst ? LinkerFlags : String_Null();
+        String LinkerFlagsRight = Params->bLinkerFlagsFirst ? String_Null() : LinkerFlags;
 
         String_Append(&CmdLine, LinkerFlagsLeft);
         xx String_EatSpacesInlineFromEnd(&CmdLine);
@@ -1628,61 +1673,74 @@ bool C_Link(const BuildParams* Params)
 
         // These must come after obj files because on some operating systems
         // the linker is sensitive to the order of how the flags are positioned
-        // 
+        //
         String_BuildSeparator(&CmdLine, ' ', LinkerFlagsRight,
-                                             Params->LinkerDefineFlags,
-                                             Params->Libraries,
-                                             Params->LibraryDirectories);
+                                             LinkerDefines,
+                                             Libraries,
+                                             LibraryPaths);
 
         xx String_EatSpacesInlineFromEnd(&CmdLine);
         String_AppendSpace(&CmdLine);
 
         String_Concat(&CmdLine, OutputFlag, S(" \""), BuildPath, Params->AssemblyWithExt, S("\""));
 
-        Internal_RecordLinkArtifacts(Params, BuildPath, Params->AssemblyWithExt);
-
-        if (bQuietBuild) { Logging_Enable(); }
-
-        #ifndef HOOD
-        LOG("Linking %S", Params->AssemblyWithExt);
-        #else
-        LOG("linkn' shit up %S", Params->AssemblyWithExt);
-        #endif
-
-        if (bQuietBuild) { Logging_Disable(); }
-
-        if (Params->bVerbose)
+        if (Export_IsCapturingCommands())
         {
-            if (bNoWordWrapLogging)
-            {
-                LOG("\n    %S\n", CmdLine);
-            }
-            else
-            {
-                LogString_WordWrapped(*Params->Arena, S("    "), CmdLine, false);
-            }
-        }
+            StringLocal(EchoText, MAX_PATH_LENGTH + 16);
+            String_Format(&EchoText, S("Linking %S"), Params->AssemblyWithExt);
 
-
-        PlatformHandle Handle = Platform_RunProcess(ProgramPath, CmdLine, Params->RootDirectory, String_Null());
-
-        if (Platform_IsValidHandle(Handle))
-        {
-            u32 ExitCode = Platform_WaitForProcessAndGetExitCode(Handle);
-            if (ExitCode != 0)
+            if (!Export_EmitScriptCommand(EchoText, S("Linker"), ProgramPath, CmdLine))
             {
-                #ifndef HOOD
-                LOG_ERROR("\nLinker errors detected. See above errors to fix. Exit code for process: %u. Aborting build...", ExitCode);
-                #else
-                LOG_ERROR("seen some linker errors homie. fix yo shit up, something aint linkin' right");
-                #endif
-                
                 return false;
             }
         }
         else
         {
-            return false;
+            Internal_RecordLinkArtifacts(Params, BuildPath, Params->AssemblyWithExt);
+
+            if (bQuietBuild) { Logging_Enable(); }
+
+            #ifndef HOOD
+            LOG("Linking %S", Params->AssemblyWithExt);
+            #else
+            LOG("linkn' shit up %S", Params->AssemblyWithExt);
+            #endif
+
+            if (bQuietBuild) { Logging_Disable(); }
+
+            if (Params->bVerbose)
+            {
+                if (bNoWordWrapLogging)
+                {
+                    LOG("\n    %S\n", CmdLine);
+                }
+                else
+                {
+                    LogString_WordWrapped(*Params->Arena, S("    "), CmdLine, false);
+                }
+            }
+
+
+            PlatformHandle Handle = Platform_RunProcess(ProgramPath, CmdLine, Params->RootDirectory, String_Null());
+
+            if (Platform_IsValidHandle(Handle))
+            {
+                u32 ExitCode = Platform_WaitForProcessAndGetExitCode(Handle);
+                if (ExitCode != 0)
+                {
+                    #ifndef HOOD
+                    LOG_ERROR("\nLinker errors detected. See above errors to fix. Exit code for process: %u. Aborting build...", ExitCode);
+                    #else
+                    LOG_ERROR("seen some linker errors homie. fix yo shit up, something aint linkin' right");
+                    #endif
+
+                    return false;
+                }
+            }
+            else
+            {
+                return false;
+            }
         }
 
         return true;
@@ -1772,8 +1830,13 @@ bool C_Link(const BuildParams* Params)
             String_Append(&CmdLine, S("\" "));
         }
 
-        String LinkerFlagsLeft  = Params->bLinkerFlagsFirst ? Params->LinkerFlags : String_Null();
-        String LinkerFlagsRight = Params->bLinkerFlagsFirst ? String_Null() : Params->LinkerFlags;
+        String LinkerFlags   = Export_TryWriteFlagsAndReturnThisValue(S("LinkerFlags"),   Params->LinkerFlags);
+        String LinkerDefines = Export_TryWriteFlagsAndReturnThisValue(S("LinkerDefines"), Params->LinkerDefineFlags);
+        String Libraries     = Export_TryWriteFlagsAndReturnThisValue(S("Libraries"),     Params->Libraries);
+        String LibraryPaths  = Export_TryWriteFlagsAndReturnThisValue(S("LibraryPaths"),  Params->LibraryDirectories);
+
+        String LinkerFlagsLeft  = Params->bLinkerFlagsFirst ? LinkerFlags : String_Null();
+        String LinkerFlagsRight = Params->bLinkerFlagsFirst ? String_Null() : LinkerFlags;
 
         String_Append(&CmdLine, LinkerFlagsLeft);
         xx String_EatSpacesInlineFromEnd(&CmdLine);
@@ -1783,13 +1846,13 @@ bool C_Link(const BuildParams* Params)
 
         // These must come after obj files because on some operating systems
         // the linker is sensitive to the order of how the flags are positioned
-        // 
+        //
         String_BuildSeparator(&CmdLine, ' ', //AdditionalFlags,
                                              //RunPathLinkFlag,
                                              LinkerFlagsRight,
-                                             Params->LinkerDefineFlags,
-                                             Params->Libraries,
-                                             Params->LibraryDirectories);
+                                             LinkerDefines,
+                                             Libraries,
+                                             LibraryPaths);
 
         // Fallback for a C++ target when we could not switch to the C++ driver above (see
         // bUsingCppDriver): add the C++ standard library to the C driver's link ourselves, after the
@@ -1817,77 +1880,90 @@ bool C_Link(const BuildParams* Params)
         
         String_Concat(&CmdLine, OutputFlag, SpaceAfterOut, S("\""), BuildPath, Params->AssemblyWithExt, S("\""));
 
-        Internal_RecordLinkArtifacts(Params, BuildPath, Params->AssemblyWithExt);
-
-        if (bQuietBuild) { Logging_Enable(); }
-
-        #ifndef HOOD
-        LOG("Linking %S", Params->AssemblyWithExt);
-        #else
-        LOG("linkn' shit up %S", Params->AssemblyWithExt);
-        #endif
-
-        if (bQuietBuild) { Logging_Disable(); }
-
-        if (Params->bVerbose)
+        if (Export_IsCapturingCommands())
         {
-            if (bNoWordWrapLogging)
-            {
-                LOG("\n    %S\n", CmdLine);
-            }
-            else
-            {
-                LogString_WordWrapped(*Params->Arena, S("    "), CmdLine, false);
-            }
-        }
+            StringLocal(EchoText, MAX_PATH_LENGTH + 16);
+            String_Format(&EchoText, S("Linking %S"), Params->AssemblyWithExt);
 
-
-        PlatformHandle Handle = {0};
-        #if PLATFORM_WINDOWS
-        PlatformPipe StdOutHandle = {0};
-        Handle = Platform_RunProcess_Ex(ProgramPath, CmdLine, Params->RootDirectory, &StdOutHandle);
-        #else
-        Handle = Platform_RunProcess(ProgramPath, CmdLine, Params->RootDirectory, String_Null());
-        #endif
-        /*
-        if (bIsMicrosoftLinker)
-        {
-            Handle = Platform_RunProcess_Ex(ProgramPath, CmdLine, Params->RootDirectory, &StdOutHandle);
-        }
-        */
-        /*
-        else
-        #endif
-        {
-            Handle = Platform_RunProcess(ProgramPath, CmdLine, Params->RootDirectory, String_Null());
-        }
-        */
-
-        if (Platform_IsValidHandle(Handle))
-        {
-            // TODO: switch between fancy and non fancy logging
-            #if PLATFORM_WINDOWS
-            // if (bIsMicrosoftLinker)
+            if (!Export_EmitScriptCommand(EchoText, S("Linker"), ProgramPath, CmdLine))
             {
-                Internal_ProcessLinkerOutput_MSVC(StdOutHandle);
-            }
-            #endif
-
-            u32 ExitCode = Platform_WaitForProcessAndGetExitCode(Handle);
-            if (ExitCode != 0)
-            {
-                #ifndef HOOD
-                LOG_ERROR("\nLinker errors detected. See above errors to fix. Exit code for process: %u. Aborting build...", ExitCode);
-                #else
-                LOG_ERROR("seen some linker errors homie. fix yo shit up, something aint linkin' right");
-                #endif
-                
                 return false;
             }
         }
         else
         {
-            return false;
+            Internal_RecordLinkArtifacts(Params, BuildPath, Params->AssemblyWithExt);
+
+            if (bQuietBuild) { Logging_Enable(); }
+
+            #ifndef HOOD
+            LOG("Linking %S", Params->AssemblyWithExt);
+            #else
+            LOG("linkn' shit up %S", Params->AssemblyWithExt);
+            #endif
+
+            if (bQuietBuild) { Logging_Disable(); }
+
+            if (Params->bVerbose)
+            {
+                if (bNoWordWrapLogging)
+                {
+                    LOG("\n    %S\n", CmdLine);
+                }
+                else
+                {
+                    LogString_WordWrapped(*Params->Arena, S("    "), CmdLine, false);
+                }
+            }
+
+
+            PlatformHandle Handle = {0};
+            #if PLATFORM_WINDOWS
+            PlatformPipe StdOutHandle = {0};
+            Handle = Platform_RunProcess_Ex(ProgramPath, CmdLine, Params->RootDirectory, &StdOutHandle);
+            #else
+            Handle = Platform_RunProcess(ProgramPath, CmdLine, Params->RootDirectory, String_Null());
+            #endif
+            /*
+            if (bIsMicrosoftLinker)
+            {
+                Handle = Platform_RunProcess_Ex(ProgramPath, CmdLine, Params->RootDirectory, &StdOutHandle);
+            }
+            */
+            /*
+            else
+            #endif
+            {
+                Handle = Platform_RunProcess(ProgramPath, CmdLine, Params->RootDirectory, String_Null());
+            }
+            */
+
+            if (Platform_IsValidHandle(Handle))
+            {
+                // TODO: switch between fancy and non fancy logging
+                #if PLATFORM_WINDOWS
+                // if (bIsMicrosoftLinker)
+                {
+                    Internal_ProcessLinkerOutput_MSVC(StdOutHandle);
+                }
+                #endif
+
+                u32 ExitCode = Platform_WaitForProcessAndGetExitCode(Handle);
+                if (ExitCode != 0)
+                {
+                    #ifndef HOOD
+                    LOG_ERROR("\nLinker errors detected. See above errors to fix. Exit code for process: %u. Aborting build...", ExitCode);
+                    #else
+                    LOG_ERROR("seen some linker errors homie. fix yo shit up, something aint linkin' right");
+                    #endif
+
+                    return false;
+                }
+            }
+            else
+            {
+                return false;
+            }
         }
     }
 
@@ -1931,58 +2007,71 @@ bool C_Link(const BuildParams* Params)
 
         String_Concat(&CmdLine, OutputFlag, S("\""), BuildPath, LibFile, S("\" "));
 
-        String_BuildSeparator(&CmdLine, ' ', VerboseFlag, Params->ArchiverFlags);
+        String_BuildSeparator(&CmdLine, ' ', VerboseFlag, Export_TryWriteFlagsAndReturnThisValue(S("ArchiverFlags"), Params->ArchiverFlags));
 
         xx String_EatSpacesInlineFromEnd(&CmdLine);
         String_AppendSpace(&CmdLine);
 
         Internal_AppendObjSourceFiles(Params, &CmdLine, DefaultObjExtension);
 
-        StringLocal(LibOutputPath, MAX_PATH_LENGTH);
-        String_Append(&LibOutputPath, BuildPath);
-        String_Append(&LibOutputPath, LibFile);
-        RecordArtifactPath(Params->ArtifactManifestHandle,LibOutputPath);
-
-        if (bQuietBuild) { Logging_Enable(); }
-
-        #ifndef HOOD
-        LOG("Linking %S [static]", LibFile);
-        #else
-        LOG("linkn' shit up %S [static]", LibFile);
-        #endif
-
-        if (bQuietBuild) { Logging_Disable(); }
-
-        if (Params->bVerbose)
+        if (Export_IsCapturingCommands())
         {
-            if (bNoWordWrapLogging)
-            {
-                LOG("\n    %S\n", CmdLine);
-            }
-            else
-            {
-                LogString_WordWrapped(*Params->Arena, S("    "), CmdLine, false);
-            }
-        }
+            StringLocal(EchoText, MAX_PATH_LENGTH + 16);
+            String_Format(&EchoText, S("Linking %S [static]"), LibFile);
 
-        PlatformHandle Handle = Platform_RunProcess(ProgramPath, CmdLine, Params->RootDirectory, String_Null());
-        if (Platform_IsValidHandle(Handle))
-        {
-            u32 ExitCode = Platform_WaitForProcessAndGetExitCode(Handle);
-            if (ExitCode != 0)
+            if (!Export_EmitScriptCommand(EchoText, S("Archiver"), ProgramPath, CmdLine))
             {
-                #ifndef HOOD
-                LOG_ERROR("\nLinker errors detected. See above errors to fix. Exit code for process: %u. Aborting build...", ExitCode);
-                #else
-                LOG_ERROR("seen some linker errors homie. fix yo shit up, something aint linkin' right");
-                #endif
-                
                 return false;
             }
         }
         else
         {
-            return false;
+            StringLocal(LibOutputPath, MAX_PATH_LENGTH);
+            String_Append(&LibOutputPath, BuildPath);
+            String_Append(&LibOutputPath, LibFile);
+            RecordArtifactPath(Params->ArtifactManifestHandle,LibOutputPath);
+
+            if (bQuietBuild) { Logging_Enable(); }
+
+            #ifndef HOOD
+            LOG("Linking %S [static]", LibFile);
+            #else
+            LOG("linkn' shit up %S [static]", LibFile);
+            #endif
+
+            if (bQuietBuild) { Logging_Disable(); }
+
+            if (Params->bVerbose)
+            {
+                if (bNoWordWrapLogging)
+                {
+                    LOG("\n    %S\n", CmdLine);
+                }
+                else
+                {
+                    LogString_WordWrapped(*Params->Arena, S("    "), CmdLine, false);
+                }
+            }
+
+            PlatformHandle Handle = Platform_RunProcess(ProgramPath, CmdLine, Params->RootDirectory, String_Null());
+            if (Platform_IsValidHandle(Handle))
+            {
+                u32 ExitCode = Platform_WaitForProcessAndGetExitCode(Handle);
+                if (ExitCode != 0)
+                {
+                    #ifndef HOOD
+                    LOG_ERROR("\nLinker errors detected. See above errors to fix. Exit code for process: %u. Aborting build...", ExitCode);
+                    #else
+                    LOG_ERROR("seen some linker errors homie. fix yo shit up, something aint linkin' right");
+                    #endif
+
+                    return false;
+                }
+            }
+            else
+            {
+                return false;
+            }
         }
     }
 
@@ -2009,23 +2098,36 @@ bool C_Link(const BuildParams* Params)
         String_Append(&CmdLine, Params->Assembly);
         String_Append(&CmdLine, S(".dll\""));
 
-        PlatformHandle H = Platform_RunProcess(Params->DumpBinPath, CmdLine, Params->RootDirectory, String_Null());
-        if (Platform_IsValidHandle(H))
+        if (Export_IsCapturingCommands())
         {
-            u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
-            if (ExitCode != 0)
+            StringLocal(EchoText, MAX_PATH_LENGTH + 16);
+            String_Format(&EchoText, S("Generating %S.def"), Params->Assembly);
+
+            if (!Export_EmitScriptCommand(EchoText, S("DumpBin"), Params->DumpBinPath, CmdLine))
             {
-                #ifndef HOOD
-                LOG_ERROR("Dumpbin errors detected. See above errors to fix. Aborting build...");
-                #else
-                LOG_ERROR("seen some dump bin errors homie. fix yo shit up, something aint right");
-                #endif
                 return false;
             }
         }
         else
         {
-            return false;
+            PlatformHandle H = Platform_RunProcess(Params->DumpBinPath, CmdLine, Params->RootDirectory, String_Null());
+            if (Platform_IsValidHandle(H))
+            {
+                u32 ExitCode = Platform_WaitForProcessAndGetExitCode(H);
+                if (ExitCode != 0)
+                {
+                    #ifndef HOOD
+                    LOG_ERROR("Dumpbin errors detected. See above errors to fix. Aborting build...");
+                    #else
+                    LOG_ERROR("seen some dump bin errors homie. fix yo shit up, something aint right");
+                    #endif
+                    return false;
+                }
+            }
+            else
+            {
+                return false;
+            }
         }
     }
     #endif // PLATFORM_WINDOWS
