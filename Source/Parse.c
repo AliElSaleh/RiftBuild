@@ -4028,7 +4028,27 @@ EAssembler DetermineAssemblerVendor(String AssemblerPath)
     return Vendor;
 }
 
-bool FindFirstCompilerAvailable(const String CompilerToFind, const String AssemblerToFind, const String LinkerToFind, const String ArchiverToFind, CompilerPaths* OutCompilerPaths)
+// An explicit tool path in a .build file resolves like every other .build path: relative to the
+// build file's directory, NOT the process working directory (a dependency module can be parsed
+// from anywhere, so cwd-relative resolution only worked by luck). Canonicalize afterwards so no
+// "../" segments or mixed separators survive into the resolved toolchain paths, the display, or
+// the install/base paths derived from them.
+static void Internal_ResolveExplicitToolPath(const String WorkingPath, String* ToolPath)
+{
+    Filesystem_AppendExeExtension(ToolPath);
+    String_ConvertSlashToPlatformSlash(ToolPath);
+
+    if (Filesystem_IsPathRelative(*ToolPath) && WorkingPath.Length > 0)
+    {
+        StringLocal(Resolved, MAX_PATH_LENGTH);
+        String_BuildPath(&Resolved, WorkingPath, *ToolPath);
+        String_Copy(ToolPath, Resolved);
+    }
+
+    xx Filesystem_ConvertRelativeToAbsolutePath(ToolPath);
+}
+
+bool FindFirstCompilerAvailable(const String CompilerToFind, const String AssemblerToFind, const String LinkerToFind, const String ArchiverToFind, const String WorkingPath, CompilerPaths* OutCompilerPaths)
 {
     bool bCompilerProgramFound = false;
     bool bLinkerProgramFound = false;
@@ -4044,9 +4064,7 @@ bool FindFirstCompilerAvailable(const String CompilerToFind, const String Assemb
     if (bExplicitLinkerPath)
     {
         String_Copy(&OutCompilerPaths->LinkerPath, LinkerToFind);
-        Filesystem_AppendExeExtension(&OutCompilerPaths->LinkerPath);
-        String_ConvertSlashToPlatformSlash(&OutCompilerPaths->LinkerPath);
-        xx Filesystem_ConvertRelativeToAbsolutePath(&OutCompilerPaths->LinkerPath);
+        Internal_ResolveExplicitToolPath(WorkingPath, &OutCompilerPaths->LinkerPath);
 
         bLinkerProgramFound = Filesystem_DoesFileExist(OutCompilerPaths->LinkerPath);
     }
@@ -4061,9 +4079,7 @@ bool FindFirstCompilerAvailable(const String CompilerToFind, const String Assemb
     if (bExplicitArchiverPath)
     {
         String_Copy(&OutCompilerPaths->ArchiverPath, ArchiverToFind);
-        Filesystem_AppendExeExtension(&OutCompilerPaths->ArchiverPath);
-        String_ConvertSlashToPlatformSlash(&OutCompilerPaths->ArchiverPath);
-        xx Filesystem_ConvertRelativeToAbsolutePath(&OutCompilerPaths->ArchiverPath);
+        Internal_ResolveExplicitToolPath(WorkingPath, &OutCompilerPaths->ArchiverPath);
 
         bArchiverProgramFound = Filesystem_DoesFileExist(OutCompilerPaths->ArchiverPath);
     }
@@ -4078,9 +4094,7 @@ bool FindFirstCompilerAvailable(const String CompilerToFind, const String Assemb
     if (bExplicitAssemblerPath)
     {
         String_Copy(&OutCompilerPaths->AssemblerPath, AssemblerToFind);
-        Filesystem_AppendExeExtension(&OutCompilerPaths->AssemblerPath);
-        String_ConvertSlashToPlatformSlash(&OutCompilerPaths->AssemblerPath);
-        xx Filesystem_ConvertRelativeToAbsolutePath(&OutCompilerPaths->AssemblerPath);
+        Internal_ResolveExplicitToolPath(WorkingPath, &OutCompilerPaths->AssemblerPath);
 
         bAssemblerProgramFound = Filesystem_DoesFileExist(OutCompilerPaths->AssemblerPath);
     }
@@ -4090,12 +4104,10 @@ bool FindFirstCompilerAvailable(const String CompilerToFind, const String Assemb
     if (bExplicitCompilerPath)
     {
         String_Copy(&OutCompilerPaths->CompilerPath, CompilerToFind);
-        Filesystem_AppendExeExtension(&OutCompilerPaths->CompilerPath);
 
-        // canonicalize before the derived paths below so none of them carry "../" segments
+        // resolve before the derived paths below so none of them carry "../" segments
         // (e.g. a Compiler key built from %_WorkingDirectory/../../<tool>)
-        String_ConvertSlashToPlatformSlash(&OutCompilerPaths->CompilerPath);
-        xx Filesystem_ConvertRelativeToAbsolutePath(&OutCompilerPaths->CompilerPath);
+        Internal_ResolveExplicitToolPath(WorkingPath, &OutCompilerPaths->CompilerPath);
 
         String CompilerInstallPath = Filesystem_ExtractFilePath(OutCompilerPaths->CompilerPath, false);
         String BasePath = Filesystem_ExtractFilePath(CompilerInstallPath, false);
@@ -4603,6 +4615,28 @@ static bool Analyze_Compiler(Node* Block, ParsingContext* Context)
     StringLocal(ToolchainKey, 512);
     String_BuildSeparator(&ToolchainKey, '|', CompilerProgram, AssemblerProgram, LinkerProgram, ArchiverProgram);
 
+    // A relative explicit tool path resolves against this module's directory, so two modules
+    // declaring the same relative string from different directories must not share a cache entry.
+    // Plain tool names (no separators) stay directory-independent so the common case still shares one.
+    {
+        const String ToolPrograms[4] = { CompilerProgram, AssemblerProgram, LinkerProgram, ArchiverProgram };
+
+        bool bAnyRelativeToolPath = false;
+        for (u8 i = 0; i < SArray_Capacity(ToolPrograms); i++)
+        {
+            if (String_IndexOfFirstPathSlash(ToolPrograms[i], NULL) && Filesystem_IsPathRelative(ToolPrograms[i]))
+            {
+                bAnyRelativeToolPath = true;
+            }
+        }
+
+        if (bAnyRelativeToolPath)
+        {
+            String_AppendChar(&ToolchainKey, '|');
+            String_Append(&ToolchainKey, Context->WorkingDirectory);
+        }
+    }
+
     ToolchainCacheEntry* CacheHit = Internal_FindToolchainCache(ToolchainKey);
     String CachedCompilerVersion  = String_Null();
     bool bSuccess;
@@ -4615,7 +4649,7 @@ static bool Analyze_Compiler(Node* Block, ParsingContext* Context)
     }
     else
     {
-        bSuccess = FindFirstCompilerAvailable(CompilerProgram, AssemblerProgram, LinkerProgram, ArchiverProgram, &FoundCompilerPaths);
+        bSuccess = FindFirstCompilerAvailable(CompilerProgram, AssemblerProgram, LinkerProgram, ArchiverProgram, Context->WorkingDirectory, &FoundCompilerPaths);
     }
 
     if (bSuccess)

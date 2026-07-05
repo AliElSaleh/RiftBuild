@@ -5204,7 +5204,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         FoundCompilerPaths.IncludePath   = CompilerIncludePath;
         FoundCompilerPaths.LibraryPath   = CompilerLibraryPath;
 
-        if (!FindFirstCompilerAvailable(String_Null(), String_Null(), String_Null(), String_Null(), &FoundCompilerPaths))
+        if (!FindFirstCompilerAvailable(String_Null(), String_Null(), String_Null(), String_Null(), String_Null(), &FoundCompilerPaths))
         {
             Receipt.ExitCode = 1;
             return Receipt;
