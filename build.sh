@@ -34,10 +34,16 @@ elif [ "$unamestr" = 'OpenBSD' ]; then
     #
     # spent about two hours tryin to fix it... i just wanna punch the screen...
     MiscFlags='-fno-builtin-memcpy' # prevents clang/gcc from replacing memmove with memcpy
+
+    BSDLinkerFlags='-lpthread'
 elif [ "$unamestr" = 'NetBSD' ]; then
     Platform='BSD'
+
+    BSDLinkerFlags='-lpthread'
 elif [ "$unamestr" = 'FreeBSD' ]; then
     Platform='BSD'
+
+    BSDLinkerFlags='-lpthread'
 else
     printf "\n[ERROR] Compiling on \"$unamestr\" is not supported.\n"
     printf "\nHere is a list of supported platforms:\n"
