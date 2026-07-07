@@ -10006,13 +10006,38 @@ static void InitInternalVars(LinearAllocator* Arena)
                                "wldap32 crypt32 rpcrt4 shlwapi dbghelp bcrypt version imm32 cfgmgr32 setupapi oleaut32 shcore "
                                "uuid odbc32 odbccp32 delayimp userenv pathcch");
 
-    const String LinuxLibs = S("m");
+    // Only libraries shipped by libc itself (glibc/musl both provide these, as stubs on modern
+    // glibc where they merged into libc). libcrypt is deliberately absent: glibc moved it to the
+    // separately-packaged libxcrypt, so it is not guaranteed on a stock system.
+    const String LinuxLibs = S("m pthread dl rt util resolv");
+
+    // BSD base-system libraries (present without any package manager), plus per-flavor extras.
+    // OpenBSD has no librt or libexecinfo; FreeBSD has no libcurses/libevent in base.
+    #if PLATFORM_FREE_BSD
+    #define BSD_EXTRA_LIBS " execinfo elf fetch jail ncursesw"
+    #elif PLATFORM_NET_BSD
+    #define BSD_EXTRA_LIBS " execinfo curses terminfo event"
+    #elif PLATFORM_OPEN_BSD
+    #define BSD_EXTRA_LIBS " curses event tls sndio"
+    #else
+    #define BSD_EXTRA_LIBS ""
+    #endif
+    const String BsdLibs = S("m pthread util z edit crypto ssl kvm pcap" BSD_EXTRA_LIBS);
+
+    // macOS resolves all of these through libSystem/SDK stubs; librt does not exist there.
+    const String MacLibs = S("m pthread dl util resolv z iconv ncurses edit sqlite3 objc");
 
     AddInternalVariable(S("_Win32Libs"), Win32Libs);
     AddInternalVariable(S("_LinuxLibs"), LinuxLibs);
+    AddInternalVariable(S("_BSDLibs"),   BsdLibs);
+    AddInternalVariable(S("_MacLibs"),   MacLibs);
 
     #if PLATFORM_WINDOWS
     AddInternalVariable(S("_NativeLibs"), Win32Libs);
+    #elif PLATFORM_BSD
+    AddInternalVariable(S("_NativeLibs"), BsdLibs);
+    #elif PLATFORM_MAC
+    AddInternalVariable(S("_NativeLibs"), MacLibs);
     #elif PLATFORM_LINUX || PLATFORM_UNIX
     AddInternalVariable(S("_NativeLibs"), LinuxLibs);
     #endif

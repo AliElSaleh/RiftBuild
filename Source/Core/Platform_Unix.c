@@ -2076,6 +2076,12 @@ void Platform_DetectDesktopEnvironment(String* DesktopEnv, String* DesktopSessio
             {
                 String_Copy(SessionType, XdgSession);
             }
+            else if (Platform_DoesEnvironmentVariableExist(S("DISPLAY")))
+            {
+                // XDG_SESSION_TYPE is set by systemd-logind, so it does not exist on the BSDs or
+                // non-systemd Linux. A set DISPLAY still means an X server session.
+                String_Copy(SessionType, S("X11"));
+            }
             else
             {
                 String_Copy(SessionType, S("Unknown"));
