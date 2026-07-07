@@ -967,14 +967,12 @@ void Internal_ArrayInsertAt(void* Array, const void* ValuePtr, usize Index)
 
     usize Addr = (usize)Array;
 
-    // If not last element, snip out the entry and copy the rest outward
-    if (Index != Num-1)
     {
         void* Dest       = (void*)(Addr + ((Index + 1) * Stride));
         const void* Src  = (void*)(Addr + (Index * Stride));
         usize Len        = Stride * (Num - Index);
 
-        MemCopy(Dest, Src, Len);
+        MemMove(Dest, Src, Len);
     }
 
     MemCopy((void*)(Addr + (Index * Stride)), ValuePtr, Stride);
@@ -1013,13 +1011,14 @@ void Array_RemoveAt(void* Array, void* ValuePtr, usize Index)
         MemCopy(ValuePtr, (void*)(Addr + (Index * Stride)), Stride);
     }
 
-    // If not last element, snip out the entry and copy the rest inward
+    // If not last element, snip out the entry and copy the rest inward. Only Num-Index-1
+    // elements live after Index; one more would read past the allocation when the array is full.
     if (Index != Num-1)
     {
         void* Dest       = (void*)(Addr + (Index * Stride));
         const void* Src  = (void*)(Addr + ((Index + 1) * Stride));
 
-        MemMove(Dest, Src, Stride * (Num - Index));		
+        MemMove(Dest, Src, Stride * (Num - Index - 1));
     }
 
     Array_FieldSet(Array, ArrayField_Num, Num-1);
