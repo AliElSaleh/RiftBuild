@@ -1,4 +1,4 @@
-include ../Common.buildvars
+import ../Common.buildvars
 
 Assembly              RiftCore
 Type:shared           shared_lib
@@ -9,8 +9,8 @@ IntermediateDirectory Intermediate
 
 Compiler.Flags        $SharedCompilerFlags
 Linker.Flags          $SharedLinkerFlags
-Defines               $SharedDefines
-Includes.Export       ../
+Compiler.Defines      $SharedDefines
+Compiler.Includes.Export ../
 
 if windows
 {
@@ -24,8 +24,8 @@ if bsd
 
 if !shared
 {
-    Defines        RIFT_STATIC
-    Defines.Export RIFT_STATIC
+    Compiler.Defines        RIFT_STATIC
+    Compiler.Defines.Export RIFT_STATIC
 }
 
 SourceFiles          Log Memory StringUtils Platform_Core
