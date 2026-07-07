@@ -1953,8 +1953,9 @@ bool Filesystem_DeleteFiles(const String FilePath, const String Wildcard, bool b
     String_Append(&Cmd, S("rm -f "));
     if (bRecursive)
     {
-        String_Append(&Cmd, S("-r \""));
+        String_Append(&Cmd, S("-r "));
     }
+    String_AppendChar(&Cmd, '"');
     String_Append(&Cmd, FilePath);
     String_AppendPathSeparator_Checked(&Cmd);
     String_AppendChar(&Cmd, '"');
