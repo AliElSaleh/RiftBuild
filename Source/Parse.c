@@ -4048,7 +4048,7 @@ static void Internal_ResolveExplicitToolPath(const String WorkingPath, String* T
     xx Filesystem_ConvertRelativeToAbsolutePath(ToolPath);
 }
 
-bool FindFirstCompilerAvailable(const String CompilerToFind, const String AssemblerToFind, const String LinkerToFind, const String ArchiverToFind, const String WorkingPath, CompilerPaths* OutCompilerPaths)
+bool FindFirstCompilerAvailable(const String CompilerToFind, const String AssemblerToFind, const String LinkerToFind, const String ArchiverToFind, const String WorkingPath, bool bTarget32Bit, CompilerPaths* OutCompilerPaths)
 {
     bool bCompilerProgramFound = false;
     bool bLinkerProgramFound = false;
@@ -4129,57 +4129,14 @@ bool FindFirstCompilerAvailable(const String CompilerToFind, const String Assemb
             // .MSVCVersion key?
             // auxliarry include vs paths?
 
-            if (bWasVCVarsBatchExecuted)
+            // find the latest version of visual studio and extract all the useful directories.
+            // deliberately ignores any vcvars/developer-prompt environment so builds behave the
+            // same in every terminal
             {
-                // PlatformPipe StdOutHandle = {0};
-                if (Platform_FindProgram_Ex(S("cl"), &OutCompilerPaths->CompilerPath))
-                // PlatformHandle ShellCmd = Platform_RunCommand_Ex(S("where cl"), String_Null(), &StdOutHandle);
-                // if (Platform_IsValidHandle(ShellCmd))
-                {
-                    // u32 ExitCode = Platform_WaitForProcessAndGetExitCode(ShellCmd);
-                    // if (ExitCode == 0)
-                    {
-                        // StringLocal(StdOutData, 8192);
-                        // usize BytesRead = 0;
-                        // if (!Filesystem_ReadPipe(StdOutHandle, StdOutData.Capacity, StdOutData.Data, &BytesRead))
-                        {
-                            // LOG_ERROR("Failed to read from standard output pipe for command -> \"where cl\"");
-                            // return false;
-                        }
-
-                        // StdOutData.Length = Min((u32)BytesRead, StdOutData.Capacity);
-                        // xx String_EatNewLinesInlineFromEnd(&StdOutData);
-                        
-                        String InstallPath = Filesystem_ExtractFilePath(OutCompilerPaths->CompilerPath, false);
-                        String_Copy(&OutCompilerPaths->InstallPath, InstallPath);
-
-                        // String_Copy(&OutCompilerPaths->CompilerPath, InstallPath);
-                        // String_Append(&OutCompilerPaths->CompilerPath, S("\\cl.exe"));
-
-                        bCompilerProgramFound = true;
-
-                        xx Platform_GetEnvironmentVariableValue(S("VCToolsInstallDir"), &OutCompilerPaths->ToolPath);
-                        xx String_EatPathSeparatorsInlineFromEnd(&OutCompilerPaths->ToolPath);
-                        String_BuildPath(&OutCompilerPaths->IncludePath, OutCompilerPaths->ToolPath, S("include"));
-
-                        xx String_EatPathSeparatorsInlineFromEnd(&OutCompilerPaths->IncludePath);
-                        StringLocal(TargetArch, 32);
-                        xx Platform_GetEnvironmentVariableValue(S("VSCMD_ARG_TGT_ARCH"), &TargetArch);
-                        String_BuildPath(&OutCompilerPaths->LibraryPath, OutCompilerPaths->ToolPath, S("lib"), TargetArch);
-                        xx String_EatPathSeparatorsInlineFromEnd(&OutCompilerPaths->LibraryPath);
-
-                        xx Platform_GetEnvironmentVariableValue(S("VSINSTALLDIR"), &OutCompilerPaths->BasePath);
-                    }
-                }
-            }
-            else
-            {
-                // find the latest version of visual studio and extract all the useful directories
-
                 ScratchLocal(Scratch, Kibibytes(8));
 
                 MicrosoftVisualStudioPaths VSPaths = {0};
-                bool bFoundVS = FindVisualStudio(&Scratch, &VSPaths);
+                bool bFoundVS = FindVisualStudio(&Scratch, bTarget32Bit, &VSPaths);
                 if (bFoundVS)
                 {
                     String_Copy(&OutCompilerPaths->CompilerPath, VSPaths.ExePath);
@@ -4610,10 +4567,19 @@ static bool Analyze_Compiler(Node* Block, ParsingContext* Context)
     FoundCompilerPaths.IncludePath   = CompilerIncludePath;
     FoundCompilerPaths.LibraryPath   = CompilerLibraryPath;
 
+    // Building for 32-bit means a different toolchain directory and library set on Windows
+    // (Hostx64\x86 + x86 libs for MSVC), so the discovery below must know about it.
+    const bool bTarget32Bit = DoesCmdOptionExist(Context->CmdOptionsDB, S("32"));
+
     // Toolchain detection is cached for the whole run (see g_ToolchainCache); it is identical for
     // every module and running it per-module used to dominate the plan phase.
     StringLocal(ToolchainKey, 512);
     String_BuildSeparator(&ToolchainKey, '|', CompilerProgram, AssemblerProgram, LinkerProgram, ArchiverProgram);
+
+    if (bTarget32Bit)
+    {
+        String_Append(&ToolchainKey, S("|32"));
+    }
 
     // A relative explicit tool path resolves against this module's directory, so two modules
     // declaring the same relative string from different directories must not share a cache entry.
@@ -4649,7 +4615,7 @@ static bool Analyze_Compiler(Node* Block, ParsingContext* Context)
     }
     else
     {
-        bSuccess = FindFirstCompilerAvailable(CompilerProgram, AssemblerProgram, LinkerProgram, ArchiverProgram, Context->WorkingDirectory, &FoundCompilerPaths);
+        bSuccess = FindFirstCompilerAvailable(CompilerProgram, AssemblerProgram, LinkerProgram, ArchiverProgram, Context->WorkingDirectory, bTarget32Bit, &FoundCompilerPaths);
     }
 
     if (bSuccess)

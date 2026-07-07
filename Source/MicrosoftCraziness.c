@@ -115,7 +115,7 @@ struct ISetupConfiguration
 
 // -------------------- Visual Studio discovery (COM + ) --------------------
 
-static bool FindVisualStudioViaCOM(LinearAllocator* Arena, MicrosoftVisualStudioPaths* Result)
+static bool FindVisualStudioViaCOM(LinearAllocator* Arena, bool bTarget32Bit, MicrosoftVisualStudioPaths* Result)
 {
     xx CoInitializeEx(NULL, COINIT_MULTITHREADED);
 
@@ -182,13 +182,13 @@ static bool FindVisualStudioViaCOM(LinearAllocator* Arena, MicrosoftVisualStudio
                     String_Append(&ToolLibPath, InstallPath);
                     String_Append(&ToolLibPath, ToolsMSVCPath);
                     String_Append(&ToolLibPath, Line);
-                    String_Append(&ToolLibPath, S("\\lib\\x64"));
+                    String_Append(&ToolLibPath, bTarget32Bit ? S("\\lib\\x86") : S("\\lib\\x64"));
 
                     StringLocal(ToolExePath, MAX_PATH_LENGTH);
                     String_Append(&ToolExePath, InstallPath);
                     String_Append(&ToolExePath, ToolsMSVCPath);
                     String_Append(&ToolExePath, Line);
-                    String_Append(&ToolExePath, S("\\bin\\Hostx64\\x64"));
+                    String_Append(&ToolExePath, bTarget32Bit ? S("\\bin\\Hostx64\\x86") : S("\\bin\\Hostx64\\x64"));
 
                     if (Filesystem_DoesDirectoryExist(ToolLibPath))
                     {
@@ -221,7 +221,7 @@ static bool FindVisualStudioViaCOM(LinearAllocator* Arena, MicrosoftVisualStudio
     return bFound;
 }
 
-static bool FindVisualStudioViaRegistry(LinearAllocator* Arena, MicrosoftVisualStudioPaths* Result)
+static bool FindVisualStudioViaRegistry(LinearAllocator* Arena, bool bTarget32Bit, MicrosoftVisualStudioPaths* Result)
 {
     bool bFound = false;
 
@@ -250,13 +250,15 @@ static bool FindVisualStudioViaRegistry(LinearAllocator* Arena, MicrosoftVisualS
             String_Append(&ToolBasePath, InstallPath);
             String_Append(&ToolBasePath, S("VC"));
 
+            // pre-2017 layout: x86 tools/libs sit at the VC root, amd64 in a subdirectory.
+            // From an x64 host the x86-targeting compiler is the amd64_x86 cross toolset.
             StringLocal(ToolExePath, MAX_PATH_LENGTH);
             String_Append(&ToolExePath, InstallPath);
-            String_Append(&ToolExePath, S("VC\\bin\\amd64"));
+            String_Append(&ToolExePath, bTarget32Bit ? S("VC\\bin\\amd64_x86") : S("VC\\bin\\amd64"));
 
             StringLocal(ToolLibPath, MAX_PATH_LENGTH);
             String_Append(&ToolLibPath, InstallPath);
-            String_Append(&ToolLibPath, S("VC\\lib\\amd64"));
+            String_Append(&ToolLibPath, bTarget32Bit ? S("VC\\lib") : S("VC\\lib\\amd64"));
 
             StringLocal(ToolIncludePath, MAX_PATH_LENGTH);
             String_Append(&ToolIncludePath, InstallPath);
@@ -280,14 +282,14 @@ static bool FindVisualStudioViaRegistry(LinearAllocator* Arena, MicrosoftVisualS
     return bFound;
 }
 
-bool FindVisualStudio(LinearAllocator* Arena, MicrosoftVisualStudioPaths* Result)
+bool FindVisualStudio(LinearAllocator* Arena, bool bTarget32Bit, MicrosoftVisualStudioPaths* Result)
 {
-    bool bSuccess = FindVisualStudioViaCOM(Arena, Result);
+    bool bSuccess = FindVisualStudioViaCOM(Arena, bTarget32Bit, Result);
 
     // fallback to searching the registry if we didn't find anything using COM
     if (!bSuccess)
     {
-        bSuccess = FindVisualStudioViaRegistry(Arena, Result);
+        bSuccess = FindVisualStudioViaRegistry(Arena, bTarget32Bit, Result);
     }
 
     return bSuccess;
@@ -310,7 +312,7 @@ static bool WinKitVerBest(const String FullPath, const String RelativePath, cons
 }
 
 
-static bool FindWindowsSDKViaRegistry(LinearAllocator* Arena, MicrosoftWindowsSDKPaths* Result)
+static bool FindWindowsSDKViaRegistry(LinearAllocator* Arena, bool bTarget32Bit, MicrosoftWindowsSDKPaths* Result)
 {
     HKEY Key = NULL;
     LSTATUS Status = RegOpenKeyExA(HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Windows Kits\\Installed Roots", 0, KEY_QUERY_VALUE | KEY_WOW64_32KEY | KEY_ENUMERATE_SUB_KEYS, &Key);
@@ -371,10 +373,10 @@ static bool FindWindowsSDKViaRegistry(LinearAllocator* Arena, MicrosoftWindowsSD
                 String_Append(&KitsLibPath, BestVersionName);
 
                 String_Append(&KitsLibUcrtPath, KitsLibPath);
-                String_Append(&KitsLibUcrtPath, S("\\ucrt\\x64"));
+                String_Append(&KitsLibUcrtPath, bTarget32Bit ? S("\\ucrt\\x86") : S("\\ucrt\\x64"));
 
                 String_Append(&KitsLibUmPath, KitsLibPath);
-                String_Append(&KitsLibUmPath, S("\\um\\x64"));
+                String_Append(&KitsLibUmPath, bTarget32Bit ? S("\\um\\x86") : S("\\um\\x64"));
             }
 
             if (i == 0) { Result->Version = 10; }
@@ -395,9 +397,9 @@ static bool FindWindowsSDKViaRegistry(LinearAllocator* Arena, MicrosoftWindowsSD
     return Result->Version != 0;
 }
 
-bool FindWindowsSDK(LinearAllocator* Arena, MicrosoftWindowsSDKPaths* Result)
+bool FindWindowsSDK(LinearAllocator* Arena, bool bTarget32Bit, MicrosoftWindowsSDKPaths* Result)
 {
-    bool bSuccess = FindWindowsSDKViaRegistry(Arena, Result);
+    bool bSuccess = FindWindowsSDKViaRegistry(Arena, bTarget32Bit, Result);
 
     return bSuccess;
 }

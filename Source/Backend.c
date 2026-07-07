@@ -173,7 +173,6 @@ static void RC_Compile(const BuildParams* Params, const String FullRCPath, Strin
         {
             // TODO: this is duplicated code, collapse this in one place
             StringLocal(WinSDKInclude, MAX_PATH_LENGTH*7); // 7 paths
-            if (!bWasVCVarsBatchExecuted)
             {
                 if (Params->WindowsSDKIncludePath.Length)
                 {

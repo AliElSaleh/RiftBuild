@@ -265,6 +265,9 @@ PRAGMA_DISABLE_WARNINGS
 #if COMPILER_MSVC
 #pragma intrinsic(memset, memcpy, memmove, memcmp)
 #pragma function(memset, memcpy, memmove, memcmp)
+// /analyze models these CRT functions with SAL annotations and complains that our
+// freestanding definitions carry none (C28251); the annotations are irrelevant here
+#pragma warning(disable: 28251)
 #endif
 
 ASAN_NO_SANITIZE_ADDRESS void* memset(void *dst, int c, SIZE_T len)
@@ -764,6 +767,17 @@ NO_DISCARD bool Platform_SetEnvironmentVariableValue(String Name, String Value)
     String_Copy(&ValueCopy, Value);
 
     BOOL bSuccess = SetEnvironmentVariable((char*)NameCopy.Data, (char*)ValueCopy.Data);
+    return bSuccess;
+}
+
+NO_DISCARD bool Platform_RemoveEnvironmentVariable(String Name)
+{
+    StringLocal(NameCopy, 128); // we copy the name because the passed in Name could have had its length altered but not the data, so create a copy with a null terminator at the length so windows gets the correct string
+    String_Copy(&NameCopy, Name);
+
+    // a NULL value deletes the variable; an empty string would leave it set-but-empty,
+    // which tools like clang still treat as present
+    BOOL bSuccess = SetEnvironmentVariable((char*)NameCopy.Data, NULL);
     return bSuccess;
 }
 

@@ -9,9 +9,14 @@ if msvc
 {
     WarningFlags                     /Wall /W4 /WX
     WarningFlagsDisabled             /wd4100 /wd4164 /wd4668 /wd5045 /wd4711
+    WarningFlagsDisabled:32          /wd4820
 
     SharedCompilerFlags              $WarningFlags $WarningFlagsDisabled /TC /GS- /Gs999999999 /EHs- /permissive- /analyze /analyze:stacksize 8000000
-    #SharedCompilerFlags:32           /d2noftol3
+
+    # x86 float->int conversions normally call the _ftol3 helpers, whose libcmt object
+    # depends on __except1 from libucrt (which we don't link); this switches back to the
+    # self-contained _ftol2 helpers
+    SharedCompilerFlags:32           /d2noftol3
     
     MachineType:32                   X86
     MachineType:!32                  X64

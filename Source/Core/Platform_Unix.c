@@ -937,6 +937,14 @@ bool Platform_GetEnvironmentVariableValue(String Name, String* OutVariable)
     return true;
 }
 
+bool Platform_RemoveEnvironmentVariable(String Name)
+{
+    StringLocal(NameCopy, MAX_PATH_LENGTH);
+    String_Copy(&NameCopy, Name);
+
+    return unsetenv((const char*)NameCopy.Data) == 0;
+}
+
 bool Platform_DoesEnvironmentVariableExist(String Name)
 {
     StringLocal(NameCopy, MAX_PATH_LENGTH);

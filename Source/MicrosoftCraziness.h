@@ -35,8 +35,8 @@ STRUCT(MicrosoftWindowsSDKPaths)
     i32 Padding;
 };
 
-bool FindVisualStudio(LinearAllocator* Arena, MicrosoftVisualStudioPaths* Result);
-bool FindWindowsSDK(LinearAllocator* Arena, MicrosoftWindowsSDKPaths* Result);
+bool FindVisualStudio(LinearAllocator* Arena, bool bTarget32Bit, MicrosoftVisualStudioPaths* Result);
+bool FindWindowsSDK(LinearAllocator* Arena, bool bTarget32Bit, MicrosoftWindowsSDKPaths* Result);
 
 #endif
 

@@ -42,7 +42,6 @@ bool bQuietBuild = false;
 bool bNoWordWrapLogging = false;
 bool bHelp = false;
 bool bOptions = false;
-bool bWasVCVarsBatchExecuted = false;
 bool bVerboseLog = false;
 
 static bool bSingleThread = false;
@@ -5203,7 +5202,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         FoundCompilerPaths.IncludePath   = CompilerIncludePath;
         FoundCompilerPaths.LibraryPath   = CompilerLibraryPath;
 
-        if (!FindFirstCompilerAvailable(String_Null(), String_Null(), String_Null(), String_Null(), String_Null(), &FoundCompilerPaths))
+        if (!FindFirstCompilerAvailable(String_Null(), String_Null(), String_Null(), String_Null(), String_Null(), DoesCmdOptionExist(CmdOptionsDB, S("32")), &FoundCompilerPaths))
         {
             Receipt.ExitCode = 1;
             return Receipt;
@@ -5275,6 +5274,9 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     const String ArchiverProgram            = Filesystem_ExtractFileName(ArchiverPath, false);
 
     String CompilerFlagPrefixSymbol         = S("-");
+
+    // what we are building for, not what we are running on
+    const String TargetArchString           = DoesCmdOptionExist(CmdOptionsDB, S("32")) ? S("x86") : S(CPU_ARCHITECTURE_STRING);
 
     String IncludedSourceFiles              = GetVariableValue(VariablesDB, S("SourceFiles"));
     String ExcludedSourceFiles              = GetVariableValue(VariablesDB, S("SourceFiles.Exclude"));
@@ -5474,14 +5476,13 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     StringArena(WindowsSDKLibUmPath,     MAX_PATH_LENGTH, Arena);
     StringArena(WindowsSDKLibUcrtPath,   MAX_PATH_LENGTH, Arena);
 
-    if (!bWasVCVarsBatchExecuted)
     {
         // find the latest version of windows sdk and extract all the useful directories
 
         LinearAllocator Scratch = *Arena;
 
         MicrosoftWindowsSDKPaths SDKPaths = {0};
-        bool bFoundSDK = FindWindowsSDK(&Scratch, &SDKPaths);
+        bool bFoundSDK = FindWindowsSDK(&Scratch, DoesCmdOptionExist(CmdOptionsDB, S("32")), &SDKPaths);
         if (bFoundSDK)
         {
             String_Copy(&WindowsSDKBinaryPath,  SDKPaths.BinPath);
@@ -6534,16 +6535,8 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
             String_BuildPath(&DumpBinPath, CompilerBasePath, S("dumpbin.exe"));
 
-            if (bWasVCVarsBatchExecuted)
-            {
-                xx Platform_FindProgram_Ex(S("rc"), &RCCompilerPath);
-                xx Platform_FindProgram_Ex(S("mt"), &MTCompilerPath);
-            }
-            else
-            {
-                String_BuildPath(&RCCompilerPath, WindowsSDKBinaryPath, S("\\"CPU_ARCHITECTURE_STRING"\\rc.exe"));
-                String_BuildPath(&MTCompilerPath, WindowsSDKBinaryPath, S("\\"CPU_ARCHITECTURE_STRING"\\mt.exe"));
-            }
+            String_BuildPath(&RCCompilerPath, WindowsSDKBinaryPath, S("\\"CPU_ARCHITECTURE_STRING"\\rc.exe"));
+            String_BuildPath(&MTCompilerPath, WindowsSDKBinaryPath, S("\\"CPU_ARCHITECTURE_STRING"\\mt.exe"));
         }
         #endif
         else
@@ -6551,18 +6544,10 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             #if PLATFORM_WINDOWS
             RCProgramFlags = S("/nologo");
 
-            if (bWasVCVarsBatchExecuted)
+            if (WindowsSDKBinaryPath.Length > 0)
             {
-                xx Platform_FindProgram_Ex(S("rc"), &RCCompilerPath);
-                xx Platform_FindProgram_Ex(S("mt"), &MTCompilerPath);
-            }
-            else
-            {
-                if (WindowsSDKBinaryPath.Length > 0)
-                {
-                    String_BuildPath(&RCCompilerPath, WindowsSDKBinaryPath, S("\\"CPU_ARCHITECTURE_STRING"\\rc.exe"));
-                    String_BuildPath(&MTCompilerPath, WindowsSDKBinaryPath, S("\\"CPU_ARCHITECTURE_STRING"\\mt.exe"));
-                }
+                String_BuildPath(&RCCompilerPath, WindowsSDKBinaryPath, S("\\"CPU_ARCHITECTURE_STRING"\\rc.exe"));
+                String_BuildPath(&MTCompilerPath, WindowsSDKBinaryPath, S("\\"CPU_ARCHITECTURE_STRING"\\mt.exe"));
             }
             #else
             String_Copy(&DumpBinPath, S("objdump"));
@@ -7244,7 +7229,9 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         }
     }
     #else
-    xx bExplicitAsmPath;
+    // only referenced by the config printing above
+    xx LinkerProgram;
+    xx ArchiverProgram;
     #endif
 
     StringArena(ExpandedIncludeFlags, 4096, Arena);
@@ -7277,46 +7264,43 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     #if PLATFORM_WINDOWS
     if (CompilerVendor == Compiler_MSVC)
     {
-        if (!bWasVCVarsBatchExecuted)
+        StringLocal(WinSDKInclude, MAX_PATH_LENGTH*7); // 7 paths
+        if (WindowsSDKIncludePath.Length)
         {
-            StringLocal(WinSDKInclude, MAX_PATH_LENGTH*7); // 7 paths
-            if (WindowsSDKIncludePath.Length)
-            {
-                String_Append(&WinSDKInclude, S("\"/I"));
-                String_Append(&WinSDKInclude, WindowsSDKIncludePath);
-                String_Append(&WinSDKInclude, S("\" "));
+            String_Append(&WinSDKInclude, S("\"/I"));
+            String_Append(&WinSDKInclude, WindowsSDKIncludePath);
+            String_Append(&WinSDKInclude, S("\" "));
 
-                String_Append(&WinSDKInclude, S("\"/I"));
-                String_Append(&WinSDKInclude, WindowsSDKIncludePath);
-                String_Append(&WinSDKInclude, S("\\shared\" "));
+            String_Append(&WinSDKInclude, S("\"/I"));
+            String_Append(&WinSDKInclude, WindowsSDKIncludePath);
+            String_Append(&WinSDKInclude, S("\\shared\" "));
 
-                String_Append(&WinSDKInclude, S("\"/I"));
-                String_Append(&WinSDKInclude, WindowsSDKIncludePath);
-                String_Append(&WinSDKInclude, S("\\ucrt\" "));
+            String_Append(&WinSDKInclude, S("\"/I"));
+            String_Append(&WinSDKInclude, WindowsSDKIncludePath);
+            String_Append(&WinSDKInclude, S("\\ucrt\" "));
 
-                String_Append(&WinSDKInclude, S("\"/I"));
-                String_Append(&WinSDKInclude, WindowsSDKIncludePath);
-                String_Append(&WinSDKInclude, S("\\um\" "));
+            String_Append(&WinSDKInclude, S("\"/I"));
+            String_Append(&WinSDKInclude, WindowsSDKIncludePath);
+            String_Append(&WinSDKInclude, S("\\um\" "));
 
-                String_Append(&WinSDKInclude, S("\"/I"));
-                String_Append(&WinSDKInclude, WindowsSDKIncludePath);
-                String_Append(&WinSDKInclude, S("\\winrt\" "));
+            String_Append(&WinSDKInclude, S("\"/I"));
+            String_Append(&WinSDKInclude, WindowsSDKIncludePath);
+            String_Append(&WinSDKInclude, S("\\winrt\" "));
 
-                String_Append(&WinSDKInclude, S("\"/I"));
-                String_Append(&WinSDKInclude, WindowsSDKIncludePath);
-                String_Append(&WinSDKInclude, S("\\cppwinrt\" "));
-            }
-
-            String VisualStudioIncludePath = GetCmdOptionValue(CmdOptionsDB, S("Compiler.IncludePath"));
-            if (VisualStudioIncludePath.Length)
-            {
-                String_Append(&WinSDKInclude, S("\"/I"));
-                String_Append(&WinSDKInclude, VisualStudioIncludePath);
-                String_Append(&WinSDKInclude, S("\" "));
-            }
-
-            String_BuildSeparator(&ExpandedIncludeFlags, ' ', WinSDKInclude);
+            String_Append(&WinSDKInclude, S("\"/I"));
+            String_Append(&WinSDKInclude, WindowsSDKIncludePath);
+            String_Append(&WinSDKInclude, S("\\cppwinrt\" "));
         }
+
+        String VisualStudioIncludePath = GetCmdOptionValue(CmdOptionsDB, S("Compiler.IncludePath"));
+        if (VisualStudioIncludePath.Length)
+        {
+            String_Append(&WinSDKInclude, S("\"/I"));
+            String_Append(&WinSDKInclude, VisualStudioIncludePath);
+            String_Append(&WinSDKInclude, S("\" "));
+        }
+
+        String_BuildSeparator(&ExpandedIncludeFlags, ' ', WinSDKInclude);
     }
     #endif
 
@@ -7341,28 +7325,27 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         ExpandPathFlags(*Arena, &ExpandedLibraryDirectories, LibraryDirectories, S("/LIBPATH:"), bWrapWithQuotes);
 
         #if PLATFORM_WINDOWS
-        if (!bWasVCVarsBatchExecuted)
+        if (WindowsSDKLibUmPath.Length)
         {
-            if (WindowsSDKLibUmPath.Length)
-            {
-                StringLocal(WinSDKLibPaths, MAX_PATH_LENGTH + 16);
-                String_Append(&WinSDKLibPaths, S("/LIBPATH:\""));
-                String_Append(&WinSDKLibPaths, WindowsSDKLibUmPath);
-                String_Append(&WinSDKLibPaths, S("\" "));
+            StringLocal(WinSDKLibPaths, MAX_PATH_LENGTH + 16);
+            String_Append(&WinSDKLibPaths, S("/LIBPATH:\""));
+            String_Append(&WinSDKLibPaths, WindowsSDKLibUmPath);
+            String_Append(&WinSDKLibPaths, S("\" "));
 
-                String_BuildSeparator(&ExpandedLibraryDirectories, ' ', WinSDKLibPaths);
-            }
+            String_BuildSeparator(&ExpandedLibraryDirectories, ' ', WinSDKLibPaths);
+        }
 
-            if (WindowsSDKLibUcrtPath.Length)
-            {
-                StringLocal(WinSDKLibPaths, MAX_PATH_LENGTH + 16);
-                String_Append(&WinSDKLibPaths, S("/LIBPATH:\""));
-                String_Append(&WinSDKLibPaths, WindowsSDKLibUcrtPath);
-                String_Append(&WinSDKLibPaths, S("\" "));
+        if (WindowsSDKLibUcrtPath.Length)
+        {
+            StringLocal(WinSDKLibPaths, MAX_PATH_LENGTH + 16);
+            String_Append(&WinSDKLibPaths, S("/LIBPATH:\""));
+            String_Append(&WinSDKLibPaths, WindowsSDKLibUcrtPath);
+            String_Append(&WinSDKLibPaths, S("\" "));
 
-                String_BuildSeparator(&ExpandedLibraryDirectories, ' ', WinSDKLibPaths);
-            }
+            String_BuildSeparator(&ExpandedLibraryDirectories, ' ', WinSDKLibPaths);
+        }
 
+        {
             String VisualStudioLibraryPath = GetCmdOptionValue(CmdOptionsDB, S("Compiler.LibraryPath"));
             if (VisualStudioLibraryPath.Length)
             {
@@ -7907,6 +7890,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     p.AssemblerVendor               = AssemblerVendor;
     p.AsmProgram                    = AsmProgram;
     p.AsmPath                       = AsmCompilerPath;
+    p.TargetArchString              = TargetArchString;
     p.BuildFileName                 = BuildFileName;
     p.Assembly                      = AssemblyName;
     p.AssemblyWithExt               = AssemblyNameWithExt;
@@ -8081,7 +8065,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                 }
                 ExtToUse = String_EatChar(ExtToUse, '.');
 
-                LOG("Building *.%S files [%S] (%u %S) (with %u %S max)\n", ExtToUse, S(CPU_ARCHITECTURE_STRING), NumSources, NumSources == 1 ? S("source file") : S("source files"), MaxCompilersAtOnce, MaxCompilersAtOnce == 1 ? S("core") : S("cores"));
+                LOG("Building *.%S files [%S] (%u %S) (with %u %S max)\n", ExtToUse, TargetArchString, NumSources, NumSources == 1 ? S("source file") : S("source files"), MaxCompilersAtOnce, MaxCompilersAtOnce == 1 ? S("core") : S("cores"));
             }
             else
             {
@@ -8091,12 +8075,12 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                 #ifndef HOOD
                 if (bIsAssemblyExe || !bHasSpace)
                 {
-                    LOG("Building %S [%S] (%u %S) (with %u %S max)\n", AssemblyNameWithExt, S(CPU_ARCHITECTURE_STRING), NumSources, NumSources == 1 ? S("source file") : S("source files"), MaxCompilersAtOnce, MaxCompilersAtOnce == 1 ? S("core") : S("cores"));
+                    LOG("Building %S [%S] (%u %S) (with %u %S max)\n", AssemblyNameWithExt, TargetArchString, NumSources, NumSources == 1 ? S("source file") : S("source files"), MaxCompilersAtOnce, MaxCompilersAtOnce == 1 ? S("core") : S("cores"));
                 }
                 else
                 {
                     String NextExt = StrShiftF(Extension_Og, WhitespaceIndex+1);
-                    LOG("Building %S/%S [%S] (%u %S) (with %u %S max)\n", AssemblyNameWithExt, NextExt, S(CPU_ARCHITECTURE_STRING), NumSources, NumSources == 1 ? S("source file") : S("source files"), MaxCompilersAtOnce, MaxCompilersAtOnce == 1 ? S("core") : S("cores"));
+                    LOG("Building %S/%S [%S] (%u %S) (with %u %S max)\n", AssemblyNameWithExt, NextExt, TargetArchString, NumSources, NumSources == 1 ? S("source file") : S("source files"), MaxCompilersAtOnce, MaxCompilersAtOnce == 1 ? S("core") : S("cores"));
                 }
                 #else
                 if (bIsAssemblyExe || !bHasSpace)
@@ -8514,7 +8498,7 @@ static bool Plan_ExecPreCompilePrep(ModuleNode* Node)
     if (p->NumSources > 0)
     {
         #ifndef HOOD
-        LOG("Building %S [%S] (%u %S) (with %u %S max)\n", p->AssemblyWithExt, S(CPU_ARCHITECTURE_STRING), p->NumSources, p->NumSources == 1 ? S("source file") : S("source files"), p->MaxCompilersAtOnce, p->MaxCompilersAtOnce == 1 ? S("core") : S("cores"));
+        LOG("Building %S [%S] (%u %S) (with %u %S max)\n", p->AssemblyWithExt, p->TargetArchString, p->NumSources, p->NumSources == 1 ? S("source file") : S("source files"), p->MaxCompilersAtOnce, p->MaxCompilersAtOnce == 1 ? S("core") : S("cores"));
         #else
         LOG("build'n dis fooo %S\n", p->AssemblyWithExt);
         #endif
@@ -10623,7 +10607,15 @@ u32 RunApplication(const StringArray Arguments)
 
     InitInternalVars(&ProgramArena);
 
-    bWasVCVarsBatchExecuted = Platform_DoesEnvironmentVariableExist(S("VSCMD_ARG_TGT_ARCH"));
+    #if PLATFORM_WINDOWS
+    // Builds must behave the same in every terminal. A vcvars/developer prompt pins the LIB
+    // and INCLUDE env vars (which cl, link and clang/lld all search) to a single target
+    // architecture, overriding the toolchain we discover ourselves — so remove them here and
+    // rely purely on the explicit /I and /LIBPATH flags we pass. They must be deleted, not
+    // emptied: clang skips its own library auto-detection whenever LIB merely exists.
+    xx Platform_RemoveEnvironmentVariable(S("LIB"));
+    xx Platform_RemoveEnvironmentVariable(S("INCLUDE"));
+    #endif
 
     u32 ExitCode = RiftBuild(&ProgramArena, Arguments, WorkingDirectory);
 

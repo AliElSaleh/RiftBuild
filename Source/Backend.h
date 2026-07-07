@@ -12,7 +12,6 @@ global bool bQuietBuild;
 global bool bNoWordWrapLogging;
 global bool bHelp;
 global bool bOptions;
-global bool bWasVCVarsBatchExecuted;
 global bool bVerboseLog;
 
 STRUCT(FileVariable)
@@ -233,6 +232,7 @@ STRUCT(BuildParams)
     String CompilerCompileFlag;
     String AsmProgram;
     String AsmPath;
+    String TargetArchString;
     String RCProgram;
     String RCProgramPath;
     String RCProgramFlags;
@@ -363,7 +363,7 @@ bool LogCustomErrorMessage(TArray(FileVariable) VariablesDB, const String Contex
 void LogPathEnvVarTutorialSteps(void);
 void LogRegularEnvVarTutorialSteps(void);
 
-bool FindFirstCompilerAvailable(const String CompilerToFind, const String AssemblerToFind, const String LinkerToFind, const String ArchiverToFind, const String WorkingPath, CompilerPaths* OutCompilerPaths);
+bool FindFirstCompilerAvailable(const String CompilerToFind, const String AssemblerToFind, const String LinkerToFind, const String ArchiverToFind, const String WorkingPath, bool bTarget32Bit, CompilerPaths* OutCompilerPaths);
 ECompiler DetermineCompilerVendor(String CompilerPath);
 EAssembler DetermineAssemblerVendor(String CompilerPath);
 

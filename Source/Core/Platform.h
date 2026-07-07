@@ -325,6 +325,7 @@ RIFT_API            void Platform_GetWorkingDirectory(String* OutPath);
 
 RIFT_API NO_DISCARD bool Platform_GetEnvironmentVariableValue(String Name, String* OutVariable);
 RIFT_API NO_DISCARD bool Platform_SetEnvironmentVariableValue(String Name, String Value);
+RIFT_API NO_DISCARD bool Platform_RemoveEnvironmentVariable(String Name);
 RIFT_API NO_DISCARD bool Platform_DoesEnvironmentVariableExist(String Name);
 
 RIFT_API NO_DISCARD u32 Platform_GetNumLogicalProcessors(void);
