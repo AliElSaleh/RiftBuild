@@ -4482,7 +4482,6 @@ static bool TryCleanFromManifest(const String IntermediateBaseDirectory, const S
     StringLocal(ManifestName, 256);
     String_Append(&ManifestName, BuildFileName);
     String_Append(&ManifestName, S(".artifact_paths"));
-    String_ToLower(&ManifestName);
 
     StringLocal(ManifestPath, MAX_PATH_LENGTH);
     String_BuildPath(&ManifestPath, IntermediateBaseDirectory, ManifestName);
