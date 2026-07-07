@@ -1484,7 +1484,7 @@ usize Filesystem_GetLastWriteTimeH(const FileHandle Handle)
 {
     usize Result = 0;
     struct stat FileStat = {0};
-    if (fstat(fileno(Handle.Data), &FileStat) != -1)
+    if (fstat(fileno((FILE*)Handle.Data), &FileStat) != -1)
     {
         Result = (usize)FileStat.st_mtime;
     }
@@ -1496,7 +1496,7 @@ usize Filesystem_GetLastAccessTimeH(const FileHandle Handle)
 {
     usize Result = 0;
     struct stat FileStat = {0};
-    if (fstat(fileno(Handle.Data), &FileStat) != -1)
+    if (fstat(fileno((FILE*)Handle.Data), &FileStat) != -1)
     {
         Result = (usize)FileStat.st_atime;
     }
@@ -1508,7 +1508,7 @@ usize Filesystem_GetCreationTimeH(const FileHandle Handle)
 {
     usize Result = 0;
     struct stat FileStat = {0};
-    if (fstat(fileno(Handle.Data), &FileStat) != -1)
+    if (fstat(fileno((FILE*)Handle.Data), &FileStat) != -1)
     {
         Result = (usize)birthtime(FileStat);
     }
@@ -1520,7 +1520,7 @@ FileTimeData Filesystem_GetFileTimeH(const FileHandle Handle)
 {
     FileTimeData a = {0};
     struct stat FileStat = {0};
-    if (fstat(fileno(Handle.Data), &FileStat) != -1)
+    if (fstat(fileno((FILE*)Handle.Data), &FileStat) != -1)
     {
         a.CreationTime = (usize)birthtime(FileStat);
         a.LastAccessTime = (usize)FileStat.st_atime;
@@ -1779,7 +1779,7 @@ bool Filesystem_DoesDirectoryExist(const String FilePath)
 bool Filesystem_GetFileSize(const FileHandle File, usize* OutSize)
 {
     struct stat FileStat = {0};
-    i32 Result = fstat(fileno(File.Data), &FileStat);
+    i32 Result = fstat(fileno((FILE*)File.Data), &FileStat);
     bool bSuccess = Result == 0;
 
     if (OutSize)
