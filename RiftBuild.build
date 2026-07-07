@@ -49,6 +49,8 @@ Linker.Flags              $SharedLinkerFlags
 Linker.Subsystem          Console
 Linker.Stack              8000000 # 8MB
 
+Libraries:bsd             pthread
+
 if windows
 {
     Linker.EntryPoint:!asan  EntryPoint

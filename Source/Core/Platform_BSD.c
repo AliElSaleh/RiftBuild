@@ -44,8 +44,17 @@
 
 #if PLATFORM_FREE_BSD
 #include <sys/user.h>
+#include <sys/thr.h>
 #else
 #include <sys/vnode.h>
+#endif
+
+#if PLATFORM_NET_BSD
+#include <lwp.h>
+#endif
+
+#if PLATFORM_OPEN_BSD && (defined(__x86_64__) || defined(__i386__))
+#include <cpuid.h>
 #endif
 #include <spawn.h>
 #include <termios.h>
@@ -235,8 +244,19 @@ bool Platform_ReleaseMutex(PlatformMutex* Mutex)
 
 u64 Platform_GetCurrentThreadID(void)
 {
-    UNIMPLEMENTED;
-    return 0;
+    u64 Result = 0;
+
+#if PLATFORM_FREE_BSD
+    long ThreadID = 0;
+    (void)thr_self(&ThreadID);
+    Result = (u64)ThreadID;
+#elif PLATFORM_OPEN_BSD
+    Result = (u64)getthrid();
+#elif PLATFORM_NET_BSD
+    Result = (u64)_lwp_self();
+#endif
+
+    return Result;
 }
 
 bool Filesystem_GetFilePath(const FileHandle Handle, String* OutPath)
@@ -289,22 +309,20 @@ bool Filesystem_GetFilePath(const FileHandle Handle, String* OutPath)
 
 bool Platform_GetCpuBrandName(String* OutName)
 {
-#if PLATFORM_OPEN_BSD
-    // TODO: can't be bothered right now
-    // hw.model
-    return false;
-#else
+    bool bResult = false;
+
+    // hw.model is the CPU brand string on all BSDs, and the MIB form works everywhere
+    // (OpenBSD has no sysctlbyname).
+    i32 Mib[2] = { CTL_HW, HW_MODEL };
     char Vendor[128] = {0};
     size_t Size = sizeof(Vendor);
-    i32 Result = sysctlbyname("machdep.cpu_brand", Vendor, &Size, NULL, 0);
-    if (Result == -1)
+    if (sysctl(Mib, 2, Vendor, &Size, NULL, 0) != -1)
     {
-        return false;
+        String_Copy(OutName, CStrEx(Vendor, 127));
+        bResult = true;
     }
 
-    String_Copy(OutName, CStrEx(Vendor, 127));
-    return true;
-#endif
+    return bResult;
 }
 
 bool Platform_GetFullCpuName(String* OutName)
@@ -314,20 +332,31 @@ bool Platform_GetFullCpuName(String* OutName)
 
 u32 Platform_GetCpuCacheLineSize(void)
 {
+    u32 Result = CACHE_LINE_SIZE;
+
 #if PLATFORM_OPEN_BSD
-    // TODO: can't be bothered right now
-    return CACHE_LINE_SIZE;
+    // OpenBSD has no sysctl for this; CPUID leaf 1 EBX[15:8] is the CLFLUSH line size in 8-byte units.
+    #if defined(__x86_64__) || defined(__i386__)
+    u32 Eax = 0, Ebx = 0, Ecx = 0, Edx = 0;
+    if (__get_cpuid(1, &Eax, &Ebx, &Ecx, &Edx) != 0)
+    {
+        const u32 LineSize = ((Ebx >> 8) & 0xFF) * 8;
+        if (LineSize != 0)
+        {
+            Result = LineSize;
+        }
+    }
+    #endif
 #else
     i64 LineSize = 0;
     size_t Size = sizeof(LineSize);
-    i32 Result = sysctlbyname("hw.cachelinesize", &LineSize, &Size, NULL, 0);
-    if (Result == -1)
+    if (sysctlbyname("hw.cachelinesize", &LineSize, &Size, NULL, 0) != -1)
     {
-        return CACHE_LINE_SIZE;
+        Result = (u32)LineSize;
     }
-
-    return (u32)LineSize;
 #endif
+
+    return Result;
 }
 
 f64 Platform_GetAbsoluteTime(void)
@@ -380,12 +409,23 @@ u64 Platform_GetTotalRam(void)
 {
     u64 TotalBytes = 0;
 
+#if PLATFORM_OPEN_BSD
+    // OpenBSD has no sysctlbyname; use the MIB form. HW_PHYSMEM is a 32-bit int, so use HW_PHYSMEM64.
+    i32 Mib[2] = { CTL_HW, HW_PHYSMEM64 };
+    i64 MemSize = 0;
+    size_t Size = sizeof(MemSize);
+    if (sysctl(Mib, 2, &MemSize, &Size, NULL, 0) == 0)
+    {
+        TotalBytes = (u64)MemSize;
+    }
+#else
     u64 MemSize = 0;
-    usize Size = sizeof(MemSize);
+    size_t Size = sizeof(MemSize);
     if (sysctlbyname("hw.physmem", &MemSize, &Size, NULL, 0) == 0)
     {
         TotalBytes = MemSize;
     }
+#endif
 
     return TotalBytes;
 }
@@ -402,7 +442,26 @@ void Platform_GetDisplayVersion(String* OutVersion)
 
 void Platform_GetMachineId(String* OutId)
 {
-    UNUSED_PARAM(OutId); // TODO: sysctl kern.hostuuid
+    if (OutId)
+    {
+        char Buffer[64] = {0};
+        size_t Size = sizeof(Buffer);
+
+#if PLATFORM_OPEN_BSD
+        // SMBIOS system UUID; may fail on machines whose firmware does not provide one.
+        i32 Mib[2] = { CTL_HW, HW_UUID };
+        i32 Result = sysctl(Mib, 2, Buffer, &Size, NULL, 0);
+#elif PLATFORM_NET_BSD
+        i32 Result = sysctlbyname("machdep.dmi.system-uuid", Buffer, &Size, NULL, 0);
+#else
+        i32 Result = sysctlbyname("kern.hostuuid", Buffer, &Size, NULL, 0);
+#endif
+
+        if (Result != -1)
+        {
+            String_Copy(OutId, CStrEx(Buffer, sizeof(Buffer)));
+        }
+    }
 }
 
 void Platform_GetDeviceId(String* OutId)
