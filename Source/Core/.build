@@ -17,6 +17,11 @@ if windows
     Libraries.Export  kernel32 user32 shell32 ole32 advapi32 ntdll shlwapi bcrypt oleaut32
 }
 
+if bsd
+{
+    Libraries.Export  pthread
+}
+
 if !shared
 {
     Defines        RIFT_STATIC
