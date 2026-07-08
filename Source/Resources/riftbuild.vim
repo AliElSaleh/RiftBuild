@@ -97,7 +97,13 @@ highlight link riftbuildCondKeyword riftbuildIfElseColor
 " -------------------------------
 " Quoted strings
 " -------------------------------
-syntax match riftbuildString /"[^"]*"/ contains=riftbuildBuiltinVar,riftbuildVarReferenceSymbols
+" \" and \# are escaped characters - they do not start strings or comments
+syntax match riftbuildEscape "\\[\"#]"
+highlight link riftbuildEscape riftbuildRefSymbolColor
+
+" a string starts at a quote NOT preceded by a backslash and may contain
+" escaped quotes
+syntax match riftbuildString /\\\@<!"\%(\\.\|[^"]\)*"/ contains=riftbuildEscape,riftbuildBuiltinVar,riftbuildVarReferenceSymbols
 highlight riftbuildString guifg=#CE9178 ctermfg=214
 
 " -------------------------------

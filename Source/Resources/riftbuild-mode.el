@@ -102,8 +102,9 @@ Group 1 is the opening brace when it sits on the same line.")
 
 (defconst riftbuild--syntax-propertize-comments
   (syntax-propertize-rules
-   ;; \# is an escaped hash, not a comment
-   ("\\\\\\(#\\)" (1 "."))
+   ;; \# is an escaped hash (not a comment) and \" is an escaped quote
+   ;; (not a string delimiter)
+   ("\\\\\\([\"#]\\)" (1 "."))
    ;; ## opens/closes a block comment; the second # must not start a
    ;; line comment of its own after the closing pair
    ("\\(#\\)\\(#\\)" (1 "!") (2 "."))
