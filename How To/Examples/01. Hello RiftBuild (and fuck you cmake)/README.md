@@ -14,9 +14,9 @@ object files in `Intermediate/`.
 ## What just happened
 
 The `.build` file says exactly one thing: `Assembly Hello`, the name of the
-thing being built.
+thing being built, and even this is optional!
 
-Everything else is a default: RiftBuild finds a compiler on your machine,
+Every key has a default value: RiftBuild finds a compiler on your machine,
 discovers `main.c` on its own, builds an executable (`Type executable` is the
 default), and puts outputs in `Build/` and `Intermediate/`. If you prefer to be
 explicit, then add `SourceFiles main` to list the sources by hand (extension optional).
