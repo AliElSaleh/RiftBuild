@@ -37,9 +37,10 @@ Score is top-left, lives are top-right. Clear all the bricks to win.
 - `libs/Engine` talks to raw OpenGL only - it never includes GLFW - so it is
   a dependency-free module. The game exe is the only place the two meet.
 - Nobody in this project mentions `opengl32`: GLFW's own build file exports
-  the Win32 libraries it needs via `Libraries.Public`, and the exe inherits
-  them by depending on it. (On Linux, `GL` and `m` are not exported, so the
-  root `.build` adds them.)
+  the Win32 libraries it needs via `Libraries.Export`, and the exe inherits
+  them by depending on it. On macOS the Cocoa/OpenGL frameworks travel the
+  same way through the `Apple.Frameworks` key (a static library auto-exports
+  it, and `Apple.Frameworks.Export` exists for being explicit).
 - The score display has no font files: `Engine/Digits.c` builds
   seven-segment digits out of the same `Render_Rect` everything else uses.
 

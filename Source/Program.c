@@ -101,6 +101,7 @@ STRUCT(BuildReceipt)
     String Defines;
     String Libraries;
     String LibraryPaths;
+    String Frameworks;
     String LinkerFlags;
 
     String LinkerEntryPoint;
@@ -5674,9 +5675,9 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             // Depends(private): consume this dependency without re-exporting it (CMake PRIVATE).
             // Its exports still fold into our plain keys below, so this module compiles and links
             // with them, but the .Export side is skipped so our own consumers never inherit them.
-            // If this module is a static library its receipt exports the plain Libraries and
-            // Library.Paths keys anyway, so a private dependency's libraries still travel upward:
-            // the final link needs those symbols regardless of visibility.
+            // If this module is a static library its receipt exports the plain Libraries,
+            // Library.Paths and Frameworks keys anyway, so a private dependency's libraries still
+            // travel upward: the final link needs those symbols regardless of visibility.
             const bool bIsPrivateDependency = String_Contains(Var.Params, S("private"), false);
 
             String Value = Var.Value;
@@ -5969,13 +5970,15 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
                 AddOrAppendVariable(Arena, VariablesDB, S("Compiler.Defines"),    FreshReceipt.Defines, String_Null(),     GetMaxValueLengthForReservedKey(S("Compiler.Defines")));
                 AddOrAppendVariable(Arena, VariablesDB, S("Libraries"),           FreshReceipt.Libraries, String_Null(),   GetMaxValueLengthForReservedKey(S("Libraries")));
+                AddOrAppendVariable(Arena, VariablesDB, S("Apple.Frameworks"),    FreshReceipt.Frameworks, String_Null(),  GetMaxValueLengthForReservedKey(S("Apple.Frameworks")));
                 AddOrAppendVariable(Arena, VariablesDB, S("Linker.Flags"),        FreshReceipt.LinkerFlags, String_Null(), GetMaxValueLengthForReservedKey(S("Linker.Flags.Export")));
 
                 if (!bIsPrivateDependency)
                 {
                     AddOrAppendVariable(Arena, VariablesDB, S("Compiler.Defines.Export"), FreshReceipt.Defines, String_Null(), GetMaxValueLengthForReservedKey(S("Compiler.Defines")));
-                    AddOrAppendVariable(Arena, VariablesDB, S("Libraries.Export"),    FreshReceipt.Libraries, String_Null(),   GetMaxValueLengthForReservedKey(S("Libraries")));
-                    AddOrAppendVariable(Arena, VariablesDB, S("Linker.Flags.Export"), FreshReceipt.LinkerFlags, String_Null(), GetMaxValueLengthForReservedKey(S("Linker.Flags.Export")));
+                    AddOrAppendVariable(Arena, VariablesDB, S("Libraries.Export"),        FreshReceipt.Libraries, String_Null(),   GetMaxValueLengthForReservedKey(S("Libraries")));
+                    AddOrAppendVariable(Arena, VariablesDB, S("Apple.Frameworks.Export"), FreshReceipt.Frameworks, String_Null(),  GetMaxValueLengthForReservedKey(S("Apple.Frameworks")));
+                    AddOrAppendVariable(Arena, VariablesDB, S("Linker.Flags.Export"),     FreshReceipt.LinkerFlags, String_Null(), GetMaxValueLengthForReservedKey(S("Linker.Flags.Export")));
                 }
 
                 // AddOrAppendVariable(Arena, VariablesDB, S("Linker.EntryPoint"),    FreshReceipt.LinkerEntryPoint, String_Null(),    GetMaxValueLengthForReservedKey(S("Linker.EntryPoint")));
@@ -6299,11 +6302,21 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         {
             Receipt.LibraryPaths = GetVariableValue(VariablesDB, S("Library.Paths"));
         }
+
+        if (DoesBuildVarExist(VariablesDB, S("Apple.Frameworks.Export")))
+        {
+            Receipt.Frameworks = GetVariableValue(VariablesDB, S("Apple.Frameworks.Export"));
+        }
+        else
+        {
+            Receipt.Frameworks = GetVariableValue(VariablesDB, S("Apple.Frameworks"));
+        }
     }
     else
     {
         Receipt.Libraries    = GetVariableValue(VariablesDB, S("Libraries.Export"));
         Receipt.LibraryPaths = GetVariableValue(VariablesDB, S("Library.Paths.Export"));
+        Receipt.Frameworks   = GetVariableValue(VariablesDB, S("Apple.Frameworks.Export"));
     }
     Receipt.LinkerFlags     = GetVariableValue(VariablesDB, S("Linker.Flags.Export"));
     Receipt.AssemblyName    = String_Create(Arena, AssemblyName);
@@ -7424,7 +7437,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     ExpandDefineFlags(&ExpandedAssemblerDefineFlags, AssemblerDefines, FlagPrefix, bExportingSomething);
 
     #if PLATFORM_APPLE
-    String Frameworks = GetVariableValue(VariablesDB, S("Frameworks"));
+    String Frameworks = GetVariableValue(VariablesDB, S("Apple.Frameworks"));
     PrefixVariables(&ExpandedFrameworks, Frameworks, S("-framework "), false);
     #endif
 

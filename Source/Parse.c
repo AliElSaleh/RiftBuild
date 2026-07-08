@@ -579,7 +579,7 @@ STRUCT(ReservedKeyTable)
 //   Relink    - the value only affects the final link/archive/output (libraries, linker flags, output
 //               name & metadata, the SourceFiles list, bundle contents, ...) -> relink, keep objects.
 //   None      - the value doesn't change the produced assembly (License, phase commands, MaxCores, etc.).
-static ReservedKeyTable ReservedKeys[79] =
+static ReservedKeyTable ReservedKeys[80] =
 {
     { .Key = SC("Assembly"),                  .MaxValueLength = 256,   .Impact = BuildKeyImpact_Relink    },
     { .Key = SC("Assembly.Prefix"),           .MaxValueLength = 128,   .Impact = BuildKeyImpact_Relink    },
@@ -628,7 +628,8 @@ static ReservedKeyTable ReservedKeys[79] =
     { .Key = SC("Libraries.Export"),          .MaxValueLength = 2048,  .Impact = BuildKeyImpact_Relink    },
     { .Key = SC("Library.Paths"),             .MaxValueLength = 8192,  .Impact = BuildKeyImpact_Relink    },
     { .Key = SC("Library.Paths.Export"),      .MaxValueLength = 8192,  .Impact = BuildKeyImpact_Relink    },
-    { .Key = SC("Frameworks"),                .MaxValueLength = 2048,  .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("Apple.Frameworks"),          .MaxValueLength = 2048,  .Impact = BuildKeyImpact_Relink    },
+    { .Key = SC("Apple.Frameworks.Export"),   .MaxValueLength = 2048,  .Impact = BuildKeyImpact_Relink    },
     { .Key = SC("SourceFiles"),               .MaxValueLength = 32767, .Impact = BuildKeyImpact_Relink    },
     { .Key = SC("SourceFiles.Exclude"),       .MaxValueLength = 8192,  .Impact = BuildKeyImpact_Relink    },
     { .Key = SC("SourceDirectories"),         .MaxValueLength = 8192,  .Impact = BuildKeyImpact_Recompile },
