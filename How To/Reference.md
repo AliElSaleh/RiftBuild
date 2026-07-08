@@ -3,9 +3,6 @@
 
 This is the full reference for the `.build` file syntax. If you are new, do the [Examples](Examples/) first - they teach the same material as small projects you can poke at. This document is for looking things up, including the edge cases.
 
-**Contents:**
-[Basics](#basics) · [Comments](#comments) · [Values](#values) · [Variables](#variables) · [Environment Variables](#environment-variables) · [Internal Variables/Command Line Arguments](#internal-variablescommand-line-arguments) · [Command Expansion](#command-expansion) · [Conditions](#conditions) · [Options](#options) · [Presets](#preset-options) · [Help Text](#help-text) · [Asserts](#asserts) · [Imports](#imports) · [The Assembly](#the-assembly) · [Sources](#sources) · [Directories](#directories) · [Choosing Tools](#choosing-tools) · [Compiler Keys](#compiler-keys) · [Per-file Settings](#per-file-compiler-settings) · [Assembler Keys](#assembler-keys) · [Linker Keys](#linker-keys) · [Archiver Keys](#archiver-keys) · [Libraries](#libraries) · [Exports](#exports) · [Dependencies](#dependencies) · [Phase Hooks](#build-phase-hooks) · [Writing Files](#writing-files) · [Version And Metadata](#version-and-metadata) · [Copyright](#copyright) · [License](#license) · [Icon](#icon) · [Precompiled Headers](#precompiled-headers) · [macOS Bundles](#macos-bundles) · [Incremental Builds](#incremental-builds-and-rebuild-control) · [Old Key Names](#appendix-old-key-names) · [Gotchas](#appendix-gotchas)
-
 ---
 
 ### Basics
