@@ -15,12 +15,4 @@ Depend external/glfw
 Assembly        Breakout
 SourceDirectory src
 
-# GLFW's build file exports the Win32 libraries it needs (including
-# opengl32), but on Linux the GL and math libraries must come from us.
-if linux
-{
-    Libraries GL m
-}
-
-# Build-and-run in one command (example 10).
 .Run
