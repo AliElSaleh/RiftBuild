@@ -1,4 +1,4 @@
-# 01. Hello World
+# 01. Hello RiftBuild
 
 The smallest possible project: one source file and a two-line `.build` file.
 
