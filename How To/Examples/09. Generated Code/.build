@@ -4,20 +4,17 @@ SourceFiles main
 # PreBuild runs before anything is compiled; WriteFile writes the block's
 # contents to a file. main.c #includes the result, so the program is partly
 # written by the build file itself.
+
+# Hooks exist for every phase, in this order:
+#   PreDepend, PreBuild, PreCompile, PostCompile, PreLink, PostLink, PostBuild.
+
+PreBuild.WriteFile config.h
+{
 # NOTE: '#' still starts a .build comment inside the block - preprocessor
 # lines need a leading backslash.
-PreBuild.WriteFile generated.h
-{
+
 \#pragma once
 \#define BUILD_MESSAGE "this header was written by a PreBuild hook"
 \#define BUILD_NUMBER  7
-}
-
-# Hooks exist for every phase, in this order:
-#   PreBuild, PreCompile, PostCompile, PreLink, PostLink, PostBuild.
-# AppendFile appends instead of overwriting - build_log.txt grows by one
-# line every time the build actually runs.
-PostBuild.AppendFile build_log.txt
-{
-build finished
+\#define BUILD_TIMESTAMP "%_Date.DayName %_Date.Day %_Date.MonthName %_Date.Year"
 }
