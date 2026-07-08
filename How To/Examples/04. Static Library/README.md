@@ -6,8 +6,7 @@ static library (`MathLib/`), each with its own `.build` file.
 ## Try it
 
 ```
-cd App
-riftbuild
+riftbuild app/
 Build/Calculator.exe
 ```
 
