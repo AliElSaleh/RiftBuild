@@ -1,5 +1,0 @@
-# No SourceFiles key at all: RiftBuild discovers every source file in this
-# folder tree automatically, including files in subfolders like text/.
-# Files whose NAME starts with "__" are skipped (see __scratch.c), which is
-# handy for scratch or work-in-progress files.
-Assembly Shouter

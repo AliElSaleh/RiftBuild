@@ -6578,6 +6578,14 @@ NO_DISCARD bool ParseBuildFile(
             if (!DoesVarExistInList(Context.VarListHead, S("Assembly")))
             {
                 String FinalName = Filesystem_ExtractFileName(BuildFilePath, false);
+
+                // a build file named just ".build" has no base name, which would leave the
+                // assembly nameless - fall back to the same default as having no build file
+                if (FinalName.Length == 0)
+                {
+                    FinalName = S("Untitled");
+                }
+
                 AddVariableToList(Context.TempArena, &Context, S("Assembly"), FinalName, String_Null());
             }
 

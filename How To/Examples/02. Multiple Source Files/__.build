@@ -1,0 +1,4 @@
+# Nothing in here at all: RiftBuild discovers every source file in this
+# folder tree automatically, including files in subfolders like src/math/.
+# Files whose NAME starts with "__" are skipped (see src/__scratch.c), which is
+# handy for scratch or work-in-progress files.

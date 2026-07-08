@@ -3677,6 +3677,44 @@ static void Internal_RunAssembly(LinearAllocator Scratch, const String WorkingPa
     Internal_RunAssembly_CmdLine(ExecutableWorkingPath, BuildDirectory, AssemblyNameWithExt, ProgramArgs, EnvArgs);
 }
 
+// The shell strips quotes before argv reaches us, so an argument that was passed as
+// "one quoted string" would lose its grouping when forwarded to the launched assembly.
+// Re-quote anything with whitespace (and escape embedded quotes) to preserve it.
+static void Internal_AppendRunArg(String* RunArgs, const String Arg)
+{
+    u32 FoundIndex = 0;
+    bool bNeedsQuotes = Arg.Length == 0 ||
+                        String_IndexOfChar(Arg, ' ', &FoundIndex) ||
+                        String_IndexOfChar(Arg, '\t', &FoundIndex) ||
+                        String_IndexOfChar(Arg, '"', &FoundIndex);
+
+    if (RunArgs->Length > 0)
+    {
+        String_AppendSpace(RunArgs);
+    }
+
+    if (bNeedsQuotes)
+    {
+        String_AppendChar(RunArgs, '"');
+
+        for (u32 i = 0; i < Arg.Length; i++)
+        {
+            if (Arg.Data[i] == '"')
+            {
+                String_AppendChar(RunArgs, '\\');
+            }
+
+            String_AppendChar(RunArgs, Arg.Data[i]);
+        }
+
+        String_AppendChar(RunArgs, '"');
+    }
+    else
+    {
+        String_Append(RunArgs, Arg);
+    }
+}
+
 static void TimeAsPercentageOfTotal(String* Buffer, u32 Length, f64 ElapsedTime, f64 TotalTime)
 {
     i32 SpacesToAppend = Max(0, 12 - (i32)Length) + 2;
@@ -6354,8 +6392,8 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     }
     */
 
-    // use the first source file as the assembly name (if none provided or if "untitled" was set)
-    if (CountData.NumSources == 1 || CountData.NumAsmSources == 1)
+    // use the first discovered source file as the assembly name (if none provided or if "untitled" was set)
+    if (FirstSourceFileName.Length > 0)
     {
         if (!String_IsValid(Assembly) ||
             String_IsEqual(Assembly, S("Untitled"), false))
@@ -8399,11 +8437,7 @@ End:
             StringLocal(RunArgs, 4096);
             for (u32 i = RunIndex + 1; i < Parameters.Num; i++)
             {
-                if (i > RunIndex + 1)
-                {
-                    String_AppendSpace(&RunArgs);
-                }
-                String_Append(&RunArgs, Parameters.List[i]);
+                Internal_AppendRunArg(&RunArgs, Parameters.List[i]);
             }
 
             if (bRunExternal)
@@ -8595,12 +8629,7 @@ static void Plan_RunRootAssemblyIfRequested(ModuleNode* Node, const StringArray 
         StringLocal(RunArgs, 4096);
         for (u32 i = RunIndex + 1; i < Parameters.Num; i++)
         {
-            if (i > RunIndex + 1)
-            {
-                String_AppendSpace(&RunArgs);
-            }
-
-            String_Append(&RunArgs, Parameters.List[i]);
+            Internal_AppendRunArg(&RunArgs, Parameters.List[i]);
         }
 
         if (bRunExternal)
