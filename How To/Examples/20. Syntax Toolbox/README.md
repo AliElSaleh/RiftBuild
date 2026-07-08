@@ -12,10 +12,10 @@ behaves as described.
 2. **Value blocks** - a long value can be split across lines:
    ```
    SourceFiles
-   {
+   [
        main
        helper
-   }
+   ]
    ```
 
 3. **Namespace blocks** - group related keys instead of repeating a prefix:
