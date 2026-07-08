@@ -1,0 +1,26 @@
+# A small but complete video game: Breakout. Same shape as example 22 - an
+# executable, a local static library, and a third-party library (GLFW) that
+# is fetched on the first build - just with a real program on top.
+
+# Fetch GLFW once (see example 22 for how this guard works).
+if !external/glfw/
+{
+    PreDepend.Cmd git clone https://github.com/AliElSaleh/glfw external/glfw
+}
+
+# Engine is our own little rendering library, GLFW does windows and input.
+Depend libs/Engine
+Depend external/glfw
+
+Assembly        Breakout
+SourceDirectory src
+
+# GLFW's build file exports the Win32 libraries it needs (including
+# opengl32), but on Linux the GL and math libraries must come from us.
+if linux
+{
+    Libraries GL m
+}
+
+# Build-and-run in one command (example 10).
+.Run

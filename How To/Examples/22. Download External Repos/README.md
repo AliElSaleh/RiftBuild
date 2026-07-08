@@ -43,3 +43,5 @@ recompile, straight to the window.
 - Explore `external/glfw/glfw.build` - a real library's build file, with
   platform blocks and option-driven configuration, using the ideas from
   examples 06-08.
+
+Next: [23. Video Game](../23.%20Video%20Game/) - this exact structure, grown into a playable game.
