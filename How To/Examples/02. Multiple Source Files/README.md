@@ -2,7 +2,7 @@
 
 A little expression calculator split across several source files and subfolders - a lexer, a recursive descent parser, and a math module.
 
-You actually do not need a `.build` file at all for simple programs like this. This is perfect for when you have an idea about something and want to quickly start writing code without having to think about how you are going to build it.
+You actually do not need a `.build` file at all for simple programs like this. This is perfect for when you have an idea about something and you want to quickly start writing code without having to spend any energy thinking about how you are going to build it.
 
 ## Try it
 
@@ -23,7 +23,7 @@ source file under the build file's folder: `calc.c`, `src/lexer.c`,
 With no `Assembly` key either, the output is named after the first source
 file discovered - here that is `calc.c`, so the build produces `calc.exe`.
 
-One exception: files whose **name** starts with `__` are skipped.
+For source files whose name starts with `__` are skipped.
 `src/__scratch.c` contains an `#error` directive, so the fact that this project
 builds at all proves it was never compiled. Use this for scratch files you
 want to keep around without building.
