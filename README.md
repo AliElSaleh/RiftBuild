@@ -59,7 +59,6 @@ They work on Windows, macOS and Linux (where appropriate).
 | [Jolt Physics](https://github.com/AliElSaleh/JoltPhysics)       | Physics Engine                     |
 | [Craft](https://github.com/AliElSaleh/Craft)                    | Minecraft Clone                    |
 | [RAD Debugger](https://github.com/AliElSaleh/raddebugger)       | Graphical Native Debugger          |
-| [Refterm](https://github.com/AliElSaleh/refterm)                | Terminal Renderer                  |
 | [Box3D](https://github.com/AliElSaleh/box3d)                    | Physics Engine                     |
 | [PhysX 4.1](https://github.com/AliElSaleh/PhysX)                | Physics Library                    |
 | [SDL2 TODO](https://google.com)                                 | Framework Library                  |
@@ -71,18 +70,12 @@ They work on Windows, macOS and Linux (where appropriate).
 | [libpng](https://github.com/AliElSaleh/libpng)                  | PNG Library                        |
 | [zlib](https://github.com/AliElSaleh/zlib)                      | Data Compression Library           |
 | [dav1d](https://github.com/AliElSaleh/dav1d)                    | AV1 Decoder                        |
-| [PCSX2 TODO](https://google.com)                                | PS2 Emulator                       |
+| [PCSX2](https://github.com/AliElSaleh/pcsx2)                    | PS2 Emulator                       |
 | [RPCS3 TODO](https://google.com)                                | PS3 Emulator                       |
 | [Raylib TODO](https://google.com)                               | Game Framework Library             |
-| [Playdate SDK TODO](https://google.com)                         | Playdate SDK                       |
 | [Kinema](https://github.com/AliElSaleh/kinema)                  | Voxel Tech Demo                    |
 | [PhysFS](https://github.com/AliElSaleh/physfs)                  | Multi-platform Virtual File System |
-| [Zydis](https://github.com/AliElSaleh/zydis)                    |                                    |
-| [Tracy](https://github.com/AliElSaleh/tracy)                    | Profiler                           |
 | [Ninja](https://github.com/AliElSaleh/ninja)                    | Build Tool                         |
-| [Z3 TODO](https://github.com/AliElSaleh/z3)                     |                                    |
-
-[Extended list can be found here]()
 
 ---
 
@@ -120,7 +113,7 @@ The guiding north star of RiftBuild, followed in design and implementation.
 - Runs on all major operating systems: Windows, macOS, Linux (five major distros), FreeBSD, OpenBSD and NetBSD. Supporting x86 and ARM architectures for 32/64-bit systems.
 
 ### Performance
-- RiftBuild is written in pure C, from scratch, with **zero** dynamic memory allocation, everything happens on the stack, therefore it is fast by default.
+- RiftBuild is written in pure C, from scratch, with **zero** dynamic memory allocation, everything happens on the stack.
 - RiftBuild automatically utilizes all cores of the CPU for efficient compilation. This means less time building and more time programming.
 - RiftBuild should essentially only be a wrapper over the compiler and linker with a minimal amount of overhead, **always** in the order of milliseconds.
 
@@ -128,133 +121,13 @@ The guiding north star of RiftBuild, followed in design and implementation.
 
 ---
 
-# Advanced Stuff (Work In Progress!)
-The above .build file example is the simplest way to write one for a basic project. In fact, for "hello world" type programs, you don't even need to write a build file.
+# Reference Manual
 
-However, complex projects require some quality-of-life features, like referencing variables, the PATH, command line args, control flow, includes, dependencies, pre/post build commands, icons, windows .rc files, platform-specific options and excluding specific files and directories.
-
-Let's go through each aspect.
-
-### Variables
-A .build file is made up of key-value pairs. Before the first whitespace is the Key, anything after that is the Value. Keys are case-insensitive.
-
-Note: keywords like `if`, `switch`, `goto`, etc are not considered variables.
-```make
--------------------------------------
-|    Key     |        Value         |
--------------------------------------
-CompilerFlags -std=c99 -O3 -Wall ...
-```
-
-To reference a variable in another variable, place a `$` before the name of the variable. (Case Insensitive)
-```make
-CommonFlags some flags
-CompilerFlags $CommonFlags
-```
-
-This will expand to
-```make
-CommonFlags some flags
-CompilerFlags some flags
-```
-
-Sometimes you would want to concatenate using a variable. Wrap the variable around with `$()`.
-```make
-ThirdPartyFolder Source/ThirdParty
-LibraryDirectories $(ThirdPartyFolder)/SomeLib/bin
-```
-
----
-
-### Per-file compiler settings
-Sometimes one file needs extra flags, includes or defines on top of the shared ones. Name the file (with its extension) and give it its own `Compiler.Flags`, `Includes`, `Defines` and/or `UnDefines` - as a block:
-```make
-Compiler.Flags   -O2
-Defines          NDEBUG
-
-Parse.c
-{
-    Compiler.Flags   -O0 -fno-inline   # this one file builds unoptimised
-    Defines          PARSER_TRACE
-    Includes         thirdparty/pcre
-}
-```
-...or inline, one key at a time:
-```make
-Parse.c.Compiler.Flags   -O0 -fno-inline
-Parse.c.Defines          PARSER_TRACE
-```
-Both forms are equivalent. These are added *on top of* the shared settings, only for that file.
-
-Files are matched by bare filename (case-insensitive) - no directory paths, no wildcards. If two source files share a name across different folders, both get the override.
-
----
-
-### Environment Variables
-To reference environment variables, place an `@` before the name of the environment variable. (Case sensitive)
-```make
-LibraryDirectories @(CURL_PATH)/lib
-```
-This will expand to
-```ini
-LibraryDirectories "C:/Program Files/curl/lib"
-```
-
----
-
-### Internal Variables/Command Line Arguments
-To reference a command line argument passed into `riftbuild` or an internal variable, place a `%` before the variable. (Case Insensitive)
-```make
-Assembly %_FileName # an internal variable that will expand to whatever the .build is called (without the extension)
-```
-
-Sometimes you need to access a value inside the build file from what was given on the command line. Command line arguments can be a singular phrase or a `Key=Value` option.
-```make
-# on the cmd line
-> riftbuild someapp.build somearg
-> riftbuild someapp.build somekey=somevalue
-
-# inside the .build file
-CompilerFlags %somekey # this will expand to somevalue (or nothing if not mentioned on the cmd line)
-Hello %somearg         # this will expand to 1         (or 0 if not mentioned on the cmd line)
-Hello %%somearg        # this will expand to somearg   (or nothing if not mentioned on the cmd line)
-```
-
-Command line arguments can come in handy when you want to do some basic control flow. Like enabling address sanitizer for example.
-```make
-# on the cmd line
-> riftbuild someapp.build asan mode=debug
-
-# inside the .build file
-if asan AsanFlags -fsantize=address -fsanitize-trap
-if mode == debug   CompilerFlags -O0
-if mode == release CompilerFlags -O3
-
-CompilerFlags -std=c99 -Wall $AsanFlags
-```
-Notice how `%` was not present in the `asan` and `mode` if statement. This is because we search all variables whether it be a user made build file variable or a command line argument, therefore to save on typing and to simplify the syntax, the `%` or `$` is optional.
-
----
-
-# Icon
-To set an icon for an executable, specify the name of the icon file (with or without the extension)
-```make
-Icon someicon.ico # or path/to/icon/file.ico
-```
-The fact that other build systems are unable to do this is fucking pathetic and embarrassing.
-
-If no extension was specified, RiftBuild will automatically choose the correct extension based on the operating system. So that means you can have an icon.ico and icon.png in the same directory and the correct one will always be chosen.
-
-| Windows | Linux  | Mac    | BSD    | 
-|---------|--------|--------|--------|
-| `.ico`  | `.png` | `.png` | `.png` |
-
-On Linux and BSD, the following Desktop Environments are supported:
-- GNOME
-- KDE
-- XFCE4
-- MATE
-- Cinnamon
+See the [How To](How%20To/README.md): a numbered series of tiny example
+projects covering every feature. From a one-line hello world up to building
+third-party libraries and a playable video game, plus syntax reference in
+[Reference.md](How%20To/Reference.md) and editor syntax highlighting setup
+for VS Code, Vim and Emacs.
 
 ---
 

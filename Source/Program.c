@@ -9670,22 +9670,30 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray RawArguments, con
             if (bFoundPreset)
             {
                 StringList List = String_SplitIntoList(Arena, PresetArgumentLine, ' ', true);
-                u16 Num = (u16)StringList_Count(List);
+                u32 NumPresetArgs = StringList_Count(List);
 
-                StringArray NewArguments = {0};
-                if (Num > 0)
+                if (NumPresetArgs > 0)
                 {
-                    NewArguments.List = LinearAllocator_Allocate(Arena, sizeof(String) * Num);
-                    NewArguments.Num = Num;
+                    // keep the original arguments (so "riftbuild preset:name extra opt=x" still sees the
+                    // extras) and append the preset's tokens after them. options are looked up first-match,
+                    // so anything the user typed alongside the preset overrides the preset's own value.
+                    // appending also keeps BuildFileIndex/RootPathIndex pointing at the right elements.
+                    StringArray NewArguments = {0};
+                    NewArguments.Num = BuildArguments.Num + NumPresetArgs;
+                    NewArguments.List = LinearAllocator_Allocate(Arena, sizeof(String) * NewArguments.Num);
 
-                    u16 i = 0;
+                    u32 i = 0;
+                    for (; i < BuildArguments.Num; i++)
+                    {
+                        NewArguments.List[i] = BuildArguments.List[i];
+                    }
+
                     for each_str_list (List)
                     {
                         NewArguments.List[i] = String_Create(Arena, It.String);
                         i++;
                     }
 
-                    // TODO: other args too, make it more dynamic
                     BuildArguments = NewArguments;
                 }
             }

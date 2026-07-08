@@ -28,9 +28,9 @@ deep inside the build, or worse, a successful build that misbehaves.
 | `Assert.File path` / `Assert.Directory path` | A file / folder exists (relative to the build file) |
 | `Assert.Compiler name` (+ `.Version`) | Which compiler was selected, and how new it is |
 
-A caution: **misspelled assert names are silently ignored** - an
-`Assert.Programm` checks nothing. If an assert never fires when you expect it
-to, check the spelling first.
+Misspelled assert names are errors too: an `Assert.Programm` stops the build
+and lists every assert that exists - so a typo can never silently check
+nothing.
 
 ## Things to try
 

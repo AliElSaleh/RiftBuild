@@ -590,7 +590,7 @@ static ReservedKeyTable ReservedKeys[80] =
     { .Key = SC("BuildDirectory"),            .MaxValueLength = 256,   .Impact = BuildKeyImpact_Relink    },
     { .Key = SC("IntermediateDirectory"),     .MaxValueLength = 256,   .Impact = BuildKeyImpact_Recompile },
     // { .Key = SC("Compiler"),                  .MaxValueLength = 256 },
-    { .Key = SC("Compiler.Path"),             .MaxValueLength = 1024,  .Impact = BuildKeyImpact_Recompile },
+    // { .Key = SC("Compiler.Path"),             .MaxValueLength = 1024,  .Impact = BuildKeyImpact_Recompile },
     { .Key = SC("Compiler.Flags"),            .MaxValueLength = 4096,  .Impact = BuildKeyImpact_Recompile },
     { .Key = SC("Compiler.Includes"),         .MaxValueLength = 8192,  .Impact = BuildKeyImpact_Recompile },
     { .Key = SC("Compiler.Includes.Export"),  .MaxValueLength = 8192,  .Impact = BuildKeyImpact_Recompile },
@@ -6337,6 +6337,34 @@ static bool Internal_AssertOptionValue(ParsingContext* Context, const String Bui
     return bSuccess;
 }
 
+// every assert key Internal_RunAsserts recognizes. keep this in sync with the if-chain below --
+// any other "Assert.*" key is reported as an unknown assert instead of silently checking nothing.
+static const String KnownAssertNames[22] =
+{
+    SC("Assert.Version"),
+    SC("Assert.EnvVar"),
+    SC("Assert.EnvVarExists"),
+    SC("Assert.Environment"),
+    SC("Assert.BuildVar"),
+    SC("Assert.Var"),
+    SC("Assert.Compiler"),
+    SC("Assert.Compiler.Version"),
+    SC("Assert.Assembler"),
+    SC("Assert.Desktop"),
+    SC("Assert.DesktopEnvironment"),
+    SC("Assert.Platform"),
+    SC("Assert.Platform.Version"),
+    SC("Assert.Arch"),
+    SC("Assert.Architecture"),
+    SC("Assert.WorkingDirectory"),
+    SC("Assert.File"),
+    SC("Assert.Directory"),
+    SC("Assert.Arg"),
+    SC("Assert.Program"),
+    SC("Assert.CPUVendor"),
+    SC("Assert.CPUExtensions"),
+};
+
 static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFilePath)
 {
     bool bAssertionFailed = false;
@@ -6420,6 +6448,35 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
             else if (String_IsEqual(Var.Name, S("Assert.CPUExtensions"), false))
             {
                 bAssertionFailed = Internal_AssertCPUExtensions(Context, BuildFilePath, Var) == false;
+            }
+            else if (String_StartsWith(Var.Name, S("Assert."), false) &&
+                     !String_EndsWith(Var.Name, S(".ErrorMessage"), false))
+            {
+                // Assert.BuildVar/Assert.Var are gated behind bNoFail above, so a known name can
+                // still land here -- only names missing from the table are an error. these used to
+                // be silently ignored, which meant a typo'd assert checked nothing at all.
+                bool bKnownAssert = false;
+                for (u32 i = 0; i < SArray_Capacity(KnownAssertNames); i++)
+                {
+                    if (String_IsEqual(Var.Name, KnownAssertNames[i], false))
+                    {
+                        bKnownAssert = true;
+                        break;
+                    }
+                }
+
+                if (!bKnownAssert)
+                {
+                    LOG_INLINE_ERROR("\n[UNKNOWN ASSERT] \"%S\" is not a recognized assert. Aborting build...\n", Var.Name);
+
+                    LOG("\n    Here are the available asserts:");
+                    for (u32 i = 0; i < SArray_Capacity(KnownAssertNames); i++)
+                    {
+                        LOG("      - %S", KnownAssertNames[i]);
+                    }
+
+                    bAssertionFailed = true;
+                }
             }
             else
             {

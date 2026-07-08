@@ -25,7 +25,8 @@ options changes the define set, which automatically triggers a recompile - no
   expands to `0` when the user did not pass it.
 - `preset:max turbo level=9` names a bundle of options. Users invoke it with
   `riftbuild preset:max` and can still stack extra options on top
-  (`riftbuild preset:max some_other_option`).
+  (`riftbuild preset:max some_other_option`). On a conflict, what the user
+  typed wins: `riftbuild preset:max level=2` launches at level 2.
 
 ## Things to try
 

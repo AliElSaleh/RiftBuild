@@ -1,7 +1,7 @@
 # Build-time environment assertions. All of these hold on any Windows x64
 # machine with a working shell, so the build must succeed. (Unknown Assert.*
-# names are silently ignored, so only real ones are used here: Assert.Platform,
-# Assert.Arch, Assert.EnvVarExists, Assert.Program.)
+# names are a hard error, so only real ones can be used here:
+# Assert.Platform, Assert.Arch, Assert.EnvVarExists, Assert.Program.)
 Assembly    AssertsTest
 SourceFiles main
 
