@@ -10,7 +10,7 @@ riftbuild turbo           # turbo on
 riftbuild level=7         # level 7
 riftbuild turbo level=7   # both
 riftbuild preset:max      # same as: riftbuild turbo level=9
-riftbuild help            # lists the options with their help text
+riftbuild options         # lists the options with their help text
 ```
 
 Note: i have `riftbuild` symlinked to just `b`, so building literally takes two taps. `b` + `Enter`.
