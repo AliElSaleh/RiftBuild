@@ -1,6 +1,6 @@
 # 01. Hello RiftBuild
 
-The smallest possible project: one source file and a two-line `.build` file.
+The smallest possible project: one source file and a one line `.build` file.
 
 ## Try it
 
@@ -18,8 +18,8 @@ thing being built.
 
 Everything else is a default: RiftBuild finds a compiler on your machine,
 discovers `main.c` on its own, builds an executable (`Type executable` is the
-default), and puts outputs in `Build/` and `Intermediate/`. Prefer to be
-explicit? `SourceFiles main` lists the sources by hand (extension optional).
+default), and puts outputs in `Build/` and `Intermediate/`. If you prefer to be
+explicit, then add `SourceFiles main` to list the sources by hand (extension optional).
 
 ## Things to try
 
