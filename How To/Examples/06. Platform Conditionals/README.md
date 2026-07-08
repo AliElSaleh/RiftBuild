@@ -34,6 +34,9 @@ Built-in conditions are the platform names (`windows`, `linux`, `macos`, ...)
 and architectures (`x64`, `x86`, ...). `!` negates any of them. User-defined
 options (next example) become conditions too, using exactly the same syntax.
 
+Try running `riftbuild --internals` to see the full list of internal variables
+that you can use as conditions!
+
 Note the `\"` escapes: `PLATFORM_NAME=\"Windows\"` defines a C *string* macro.
 Without the escaped quotes the macro would be a bare identifier.
 
