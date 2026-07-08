@@ -41,7 +41,5 @@ riftbuild
 Build/Toolbox.exe
 ```
 
-Note: i have `riftbuild` symlinked to just `b`, so building literally takes two taps. `b` + `Enter`.
-
 Then try to make it fail: move the fake define out of the block comment, or
 remove the backtick - the corresponding trap in `main.c` fires.

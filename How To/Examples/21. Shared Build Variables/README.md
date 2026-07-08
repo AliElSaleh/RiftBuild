@@ -9,8 +9,6 @@ riftbuild
 Build/Family.exe
 ```
 
-Note: i have `riftbuild` symlinked to just `b`, so building literally takes two taps. `b` + `Enter`.
-
 ## How it works
 
 `shared/common.buildvars` holds ordinary key lines - here a version number

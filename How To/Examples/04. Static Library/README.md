@@ -10,8 +10,6 @@ riftbuild app/
 Build/Calculator.exe
 ```
 
-Note: i have `riftbuild` symlinked to just `b`, so building literally takes two taps. `b` + `Enter`.
-
 One command builds *both* modules: RiftBuild follows the `Depend` line, builds
 `MathLib` first (into `MathLib/Build/MathLib.lib`), then compiles and links
 the app against it.

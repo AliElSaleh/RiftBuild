@@ -10,8 +10,6 @@ riftbuild
 Build/Nametag.exe
 ```
 
-Note: i have `riftbuild` symlinked to just `b`, so building literally takes two taps. `b` + `Enter`.
-
 The program prints values that all originated *outside* `main.c`: a variable
 from the build file, an environment variable, and your machine's hostname.
 

@@ -13,8 +13,6 @@ riftbuild preset:max      # same as: riftbuild turbo level=9
 riftbuild options         # lists the options with their help text
 ```
 
-Note: i have `riftbuild` symlinked to just `b`, so building literally takes two taps. `b` + `Enter`.
-
 Run `Build/Rocket.exe` after each build and watch the output change. Changing
 options changes the define set, which automatically triggers a recompile - no
 `rebuild` needed.

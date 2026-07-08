@@ -10,8 +10,6 @@ riftbuild
 Build/Guarded.exe
 ```
 
-Note: i have `riftbuild` symlinked to just `b`, so building literally takes two taps. `b` + `Enter`.
-
 It builds, because both `main.c` and `helper.c` start with the exact notice
 named in the build file.
 

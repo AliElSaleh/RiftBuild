@@ -10,8 +10,6 @@ riftbuild
 Build/Prospector.exe
 ```
 
-Note: i have `riftbuild` symlinked to just `b`, so building literally takes two taps. `b` + `Enter`.
-
 If `git` is on your PATH the program says so; if not, it falls back - same
 build file either way.
 

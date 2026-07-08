@@ -8,8 +8,6 @@ Building a dynamic library: a DLL on Windows, a shared object elsewhere.
 riftbuild
 ```
 
-Note: i have `riftbuild` symlinked to just `b`, so building literally takes two taps. `b` + `Enter`.
-
 `Build/` now contains `Greeter.dll` - and, because the source exports symbols,
 an import library (`Greeter.lib`) that executables link against.
 

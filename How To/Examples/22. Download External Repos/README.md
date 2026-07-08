@@ -16,8 +16,6 @@ MyProject (exe, src/)
 riftbuild
 ```
 
-Note: i have `riftbuild` symlinked to just `b`, so building literally takes two taps. `b` + `Enter`.
-
 The first build takes a while: it clones GLFW into `external/glfw`, compiles
 it, and links everything. When the window titled "Hello Worldo" opens, the
 whole chain worked - close it to end the run. Build again: no clone, no

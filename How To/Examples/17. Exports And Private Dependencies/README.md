@@ -15,8 +15,6 @@ riftbuild
 Build/SaveTool.exe
 ```
 
-Note: i have `riftbuild` symlinked to just `b`, so building literally takes two taps. `b` + `Enter`.
-
 One command builds all three modules in dependency order.
 
 ## The two ideas

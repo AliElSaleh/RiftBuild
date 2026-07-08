@@ -10,8 +10,6 @@ riftbuild
 dist/Packer.exe
 ```
 
-Note: i have `riftbuild` symlinked to just `b`, so building literally takes two taps. `b` + `Enter`.
-
 After the build, `dist/` contains the executable and a `README.txt` - both
 placed there by `PostBuild` verbs. The `scratch.tmp`/`notes.tmp` pair from
 the Rename/Delete demo is already gone: created, renamed, and deleted within
