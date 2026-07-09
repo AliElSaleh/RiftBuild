@@ -1,0 +1,23 @@
+# InstallPackage resolves the system's package manager (winget on Windows;
+# apt-get/dnf/yum/zypper/pacman on Linux; pkg/pkg_add/pkgin on the BSDs), queries whether
+# the listed packages are present and only runs an install transaction when something is
+# missing. The packages below are chosen to already exist everywhere this suite runs
+# (bash/coreutils ship with every supported distro, Edge with every Windows), so the query
+# short-circuits and no install (or sudo/UAC prompt) happens. The BSDs are deliberately
+# skipped - they do NOT preinstall bash/coreutils, so there the query would miss and
+# trigger a real doas/sudo install.
+Assembly    InstallPkg
+SourceFiles main
+
+BasePkgs bash coreutils
+WinPkgs  Microsoft.Edge
+
+PreBuild:linux
+{
+    InstallPackage $BasePkgs
+}
+
+PreBuild:win32
+{
+    InstallPackage $WinPkgs
+}

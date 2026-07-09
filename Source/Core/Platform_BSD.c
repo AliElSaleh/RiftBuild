@@ -475,4 +475,67 @@ bool Platform_IsWindowFocused(void)
     return true;
 }
 
+// The system's native package manager, probed once and cached - each BSD ships exactly one:
+// pkg (FreeBSD), pkg_add (OpenBSD), pkgin (NetBSD). NetBSD's base pkg_add is deliberately not
+// a fallback: it needs a PKG_PATH setup and its -I flag means something dangerous there
+// (skip install scripts), so pkgin it is. Empty when the manager is not installed.
+String Platform_DetectPackageManager(void)
+{
+    local_persist bool bProbed = false;
+    local_persist String ManagerName = {0};
+
+    if (!bProbed)
+    {
+#if PLATFORM_FREE_BSD
+        if (Platform_FindProgram(S("pkg")))
+        {
+            ManagerName = S("pkg");
+        }
+#elif PLATFORM_OPEN_BSD
+        if (Platform_FindProgram(S("pkg_add")))
+        {
+            ManagerName = S("pkg_add");
+        }
+#elif PLATFORM_NET_BSD
+        if (Platform_FindProgram(S("pkgin")))
+        {
+            ManagerName = S("pkgin");
+        }
+#endif
+
+        bProbed = true;
+    }
+
+    return ManagerName;
+}
+
+// The privilege-escalation prefix for commands that need root, probed once and cached.
+// doas is the native escalation tool on the BSDs; sudo is an optional port. Empty when
+// already root or when neither tool exists - the command then runs unprefixed and fails
+// with the tool's own permission error.
+String Platform_GetRootCmdPrefix(void)
+{
+    local_persist bool bProbed = false;
+    local_persist String Prefix = {0};
+
+    if (!bProbed)
+    {
+        if (!Platform_IsRunningAsAdmin())
+        {
+            if (Platform_FindProgram(S("doas")))
+            {
+                Prefix = S("doas ");
+            }
+            else if (Platform_FindProgram(S("sudo")))
+            {
+                Prefix = S("sudo ");
+            }
+        }
+
+        bProbed = true;
+    }
+
+    return Prefix;
+}
+
 #endif // PLATFORM_BSD

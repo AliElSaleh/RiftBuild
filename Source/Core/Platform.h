@@ -371,6 +371,17 @@ RIFT_API NO_DISCARD u32 Platform_GetPosixVersion(void);
 
 RIFT_API NO_DISCARD String Platform_GetCLibraryName(void);
 
+// The system's native package manager, probed once and cached: "winget" on Windows; "apt",
+// "dnf", "yum", "zypper" or "pacman" on Linux; "brew" (Homebrew) on macOS; "pkg" (FreeBSD),
+// "pkg_add" (OpenBSD) or "pkgin" (NetBSD) on the BSDs. Empty when none is installed.
+RIFT_API NO_DISCARD String Platform_DetectPackageManager(void);
+
+// The privilege-escalation prefix ("sudo " or "doas ") for commands that need root, probed
+// once and cached. Empty when already root, when neither tool exists (the command then runs
+// unprefixed and fails with the tool's own permission error), and always on Windows (UAC
+// elevation there is per-program, not a command prefix).
+RIFT_API NO_DISCARD String Platform_GetRootCmdPrefix(void);
+
 #if PLATFORM_WINDOWS || PLATFORM_MAC
 RIFT_API            void Platform_DetectDesktopEnvironment(String* DesktopEnv);
 #elif PLATFORM_BSD || PLATFORM_LINUX

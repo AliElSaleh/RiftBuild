@@ -68,7 +68,7 @@ syntax match riftbuildInclude "\<\(include\|import\)\>"
 highlight link riftbuildInclude riftbuildKeywordColor
 
 " build phase hooks and their file-operation verbs
-syntax match riftbuildBuildCmd "^\s*\(Pre\|Post\)\(Depend\|Build\|Compile\(AllFiles\|File\)\?\|Link\)\(\.\(Cmd\|Copy\|NewDir\|NewFile\|WriteFile\|AppendFile\|Rename\|Delete\)\)\?\>"
+syntax match riftbuildBuildCmd "^\s*\(Pre\|Post\)\(Depend\|Build\|Compile\(AllFiles\|File\)\?\|Link\)\(\.\(Cmd\|Copy\|NewDir\|NewFile\|WriteFile\|AppendFile\|Rename\|Delete\|InstallPackages\?\)\)\?\>"
 highlight link riftbuildBuildCmd riftbuildKeywordColor
 
 " options and presets

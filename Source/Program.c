@@ -2497,6 +2497,249 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const FileVa
                 }
             }
         }
+        else if (String_EndsWith(Name, S("InstallPackage"), false) ||
+                String_EndsWith(Name, S("InstallPackages"), false))
+        {
+            const String Packages = Value;
+            const String Manager  = Platform_DetectPackageManager();
+
+            if (Manager.Length == 0)
+            {
+                LOG_ERROR("InstallPackage is not supported on this system: no package manager was found (looked for winget on Windows; apt-get, dnf, yum, zypper and pacman on Linux; brew on macOS; pkg, pkg_add or pkgin on the BSDs)");
+
+                if (ExitCode) { *ExitCode = 1; }
+
+                if (!bIgnoreErrors)
+                {
+                    bSuccess = false;
+                }
+            }
+            else
+            {
+                LOG(" > InstallPackage (%S): %S", Manager, Packages);
+
+                // one silent query pass: when everything is already present the install
+                // transaction (and its sudo/doas prompt) is skipped, keeping rebuilds fast
+                bool bAllInstalled = false;
+                StringLocal(MissingPackages, 2048);
+                {
+                    StringLocal(QueryCmd, 8192);
+
+                    if (String_IsEqual(Manager, S("winget"), false))
+                    {
+                        // winget refuses to reinstall an already-present package (it tries to
+                        // upgrade it instead and errors), so query each package individually
+                        // and collect only the missing ones for the install
+                        StringList PackageList = String_SplitIntoList(&Scratch, Packages, ' ', true);
+                        for each_string_in_list (PackageList)
+                        {
+                            StringLocal(OneQuery, 1024);
+                            String_Concat(&OneQuery, S("cmd.exe /c \"winget list -e "), It.String, S(" >NUL 2>&1\""));
+
+                            if (bVerboseLog) { LOG("    %S", OneQuery); }
+
+                            bool bInstalled = false;
+                            PlatformHandle H = Platform_RunCommand(OneQuery, WorkingDirectory, String_Null());
+                            if (Platform_IsValidHandle(H))
+                            {
+                                bInstalled = Platform_WaitForProcessAndGetExitCode(H) == 0;
+                            }
+
+                            if (!bInstalled)
+                            {
+                                if (MissingPackages.Length > 0)
+                                {
+                                    String_AppendChar(&MissingPackages, ' ');
+                                }
+
+                                String_Append(&MissingPackages, It.String);
+                            }
+                        }
+
+                        bAllInstalled = MissingPackages.Length == 0;
+                    }
+                    else if (String_IsEqual(Manager, S("apt"), false))
+                    {
+                        String_Concat(&QueryCmd, S("dpkg -s "), Packages, S(" >/dev/null 2>&1"));
+                    }
+                    else if (String_IsEqual(Manager, S("pacman"), false))
+                    {
+                        String_Concat(&QueryCmd, S("pacman -Q "), Packages, S(" >/dev/null 2>&1"));
+                    }
+                    else if (String_IsEqual(Manager, S("pkg"), false) ||
+                            String_IsEqual(Manager, S("pkgin"), false) ||
+                            String_IsEqual(Manager, S("pkg_add"), false))
+                    {
+                        // the BSD query flags check one package at a time - chain one query per
+                        // package. OpenBSD's pkg_info takes a pkgspec, so the name gets a
+                        // version glob appended
+                        const bool bFreeBSDQuery = String_IsEqual(Manager, S("pkg"), false);
+                        const bool bOpenBSDQuery = String_IsEqual(Manager, S("pkg_add"), false);
+
+                        StringList PackageList = String_SplitIntoList(&Scratch, Packages, ' ', true);
+                        for each_string_in_list (PackageList)
+                        {
+                            if (QueryCmd.Length > 0)
+                            {
+                                String_Append(&QueryCmd, S(" && "));
+                            }
+
+                            String_Append(&QueryCmd, bFreeBSDQuery ? S("pkg info -e \"") : S("pkg_info -e \""));
+                            String_Append(&QueryCmd, It.String);
+                            String_Append(&QueryCmd, bOpenBSDQuery ? S("-*\" >/dev/null 2>&1") : S("\" >/dev/null 2>&1"));
+                        }
+                    }
+                    else if (String_IsEqual(Manager, S("brew"), false))
+                    {
+                        // brew list checks one formula at a time - chain one query per package
+                        StringList PackageList = String_SplitIntoList(&Scratch, Packages, ' ', true);
+                        for each_string_in_list (PackageList)
+                        {
+                            if (QueryCmd.Length > 0)
+                            {
+                                String_Append(&QueryCmd, S(" && "));
+                            }
+
+                            String_Append(&QueryCmd, S("brew list --versions \""));
+                            String_Append(&QueryCmd, It.String);
+                            String_Append(&QueryCmd, S("\" >/dev/null 2>&1"));
+                        }
+                    }
+                    else // dnf, yum and zypper all query through rpm
+                    {
+                        String_Concat(&QueryCmd, S("rpm -q "), Packages, S(" >/dev/null 2>&1"));
+                    }
+
+                    // winget ran its queries above and left QueryCmd empty
+                    if (QueryCmd.Length > 0)
+                    {
+                        if (bVerboseLog) { LOG("    %S", QueryCmd); }
+
+                        PlatformHandle H = Platform_RunCommand(QueryCmd, WorkingDirectory, String_Null());
+                        if (Platform_IsValidHandle(H))
+                        {
+                            bAllInstalled = Platform_WaitForProcessAndGetExitCode(H) == 0;
+                        }
+                    }
+                }
+
+                if (bAllInstalled)
+                {
+                    LOG("    All packages already installed. Skipping...\n");
+
+                    if (ExitCode) { *ExitCode = 0; }
+                }
+                else
+                {
+                    StringLocal(CmdLine, 8192);
+
+                    // installs need root; outside root shells (docker, CI) that means sudo or
+                    // doas, which may prompt for a password on the terminal. Two exceptions:
+                    // winget elevates itself (UAC) when a package needs it, and brew refuses
+                    // to run as root at all
+                    if (!String_IsEqual(Manager, S("winget"), false) &&
+                        !String_IsEqual(Manager, S("brew"), false))
+                    {
+                        const String RootPrefix = Platform_GetRootCmdPrefix();
+                        if (RootPrefix.Length > 0)
+                        {
+                            String_Append(&CmdLine, RootPrefix);
+                        }
+                    }
+
+                    if (String_IsEqual(Manager, S("winget"), false))
+                    {
+                        // winget installs one package per invocation - chain them through
+                        // cmd.exe, and only the missing ones (see the query pass above)
+                        StringList PackageList = String_SplitIntoList(&Scratch, MissingPackages, ' ', true);
+
+                        String_Append(&CmdLine, S("cmd.exe /c \""));
+
+                        bool bFirstPackage = true;
+                        for each_string_in_list (PackageList)
+                        {
+                            if (!bFirstPackage)
+                            {
+                                String_Append(&CmdLine, S(" && "));
+                            }
+
+                            // pinned to the winget community source: deterministic, and a broken
+                            // or unreachable msstore source can't turn the install ambiguous
+                            String_Append(&CmdLine, S("winget install -e "));
+                            String_Append(&CmdLine, It.String);
+                            String_Append(&CmdLine, S(" -s winget --accept-source-agreements --accept-package-agreements --silent"));
+
+                            bFirstPackage = false;
+                        }
+
+                        String_AppendChar(&CmdLine, '"');
+                    }
+                    else
+                    {
+                        if (String_IsEqual(Manager, S("apt"), false))
+                        {
+                            String_Append(&CmdLine, S("apt-get install -y "));
+                        }
+                        else if (String_IsEqual(Manager, S("dnf"), false))
+                        {
+                            String_Append(&CmdLine, S("dnf install -y "));
+                        }
+                        else if (String_IsEqual(Manager, S("yum"), false))
+                        {
+                            String_Append(&CmdLine, S("yum install -y "));
+                        }
+                        else if (String_IsEqual(Manager, S("zypper"), false))
+                        {
+                            String_Append(&CmdLine, S("zypper --non-interactive install "));
+                        }
+                        else if (String_IsEqual(Manager, S("pacman"), false))
+                        {
+                            // --needed skips reinstalling up-to-date packages
+                            String_Append(&CmdLine, S("pacman -S --needed --noconfirm "));
+                        }
+                        else if (String_IsEqual(Manager, S("pkg"), false))
+                        {
+                            String_Append(&CmdLine, S("pkg install -y "));
+                        }
+                        else if (String_IsEqual(Manager, S("pkgin"), false))
+                        {
+                            String_Append(&CmdLine, S("pkgin -y install "));
+                        }
+                        else if (String_IsEqual(Manager, S("brew"), false))
+                        {
+                            // installing already-present formulae is a warning, not an error, so
+                            // the batch is safe; skipping brew's auto-update keeps it predictable
+                            String_Append(&CmdLine, S("HOMEBREW_NO_AUTO_UPDATE=1 brew install "));
+                        }
+                        else // pkg_add (OpenBSD): -I forces non-interactive mode
+                        {
+                            String_Append(&CmdLine, S("pkg_add -I "));
+                        }
+
+                        String_Append(&CmdLine, Packages);
+                    }
+
+                    if (bVerboseLog) { LOG("    %S", CmdLine); }
+
+                    PlatformHandle H = Platform_RunCommand(CmdLine, WorkingDirectory, String_Null());
+                    bSuccess = Platform_IsValidHandle(H);
+                    if (bSuccess)
+                    {
+                        u32 ProcessCode = Platform_WaitForProcessAndGetExitCode(H);
+                        if (ExitCode) { *ExitCode = ProcessCode; }
+
+                        if (ProcessCode != 0 && !bIgnoreErrors)
+                        {
+                            bSuccess = false;
+                        }
+                        else
+                        {
+                            LOG_LINE_BREAK();
+                        }
+                    }
+                }
+            }
+        }
         else
         {
             // no action required
@@ -10081,6 +10324,15 @@ static void InitInternalVars(LinearAllocator* Arena)
     AddInternalVariable(S("_Platform"), S("Unix"));
     AddInternalVariable(S("Unix"),      String_Null());
     #endif
+
+    {
+        const String PackageManager = Platform_DetectPackageManager();
+        if (PackageManager.Length > 0)
+        {
+            AddInternalVariable(S("_PackageManager"), PackageManager);
+            AddInternalVariable(PackageManager,       String_Null()); // enables "if apt" / ":pacman" conditionals
+        }
+    }
 
     #if PLATFORM_WINDOWS || PLATFORM_MAC
     {

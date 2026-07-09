@@ -195,6 +195,7 @@ Notice how `%` was not present in the `asan` and `mode` if statement. This is be
 | `%_Version` (+ `.Major` `.Minor` `.Patch`) | RiftBuild's own version |
 | `%_ExeExtension`, `%_ExeType`, `%_LibC` | `.exe`/empty, pe/macho/elf, the libc |
 | `%_Distro`, `%_DesktopEnvironment` | Linux distro / desktop environment |
+| `%_PackageManager` | The system's package manager: `winget`, `apt`, `dnf`, `yum`, `zypper`, `pacman`, `brew`, `pkg`, `pkg_add` or `pkgin` |
 | `%_NativeLibs` (also `%_Win32Libs`, `%_LinuxLibs`, ...) | The platform's standard system libraries |
 | `%_UUID` | A UUID, fixed for this run |
 | `%_uuid.gen` | A fresh UUID at *every* mention |
@@ -716,6 +717,7 @@ PostBuild
 | `Wait ms` (or `Sleep`) | Pause |
 | `Download url dest` | Fetch a file from the web (dest may be a directory; skips if the file exists) |
 | `Zip` / `Unzip` | Archive / extract |
+| `InstallPackage pkgs...` (or `InstallPackages`) | Install system packages with the native package manager - see [Installing System Packages](#installing-system-packages) |
 
 The big gotcha: **`Copy`'s second argument is a directory**, not a target filename. `Copy Build/Packer.exe dist` produces `dist/Packer.exe`; to change the name too, `Copy` then `Rename`.
 
@@ -753,6 +755,41 @@ PreBuild.WriteFile config.h
 The one rule to remember: **`#` still starts a build-file comment inside the block.** Escape preprocessor lines as `\#define` / `\#pragma` / `\#include`, or the line silently vanishes into a comment.
 
 For version stamping specifically, skip the hook entirely - `Version(define)` (see below) generates the macros for you.
+
+---
+
+### Installing System Packages
+`InstallPackage` installs system packages through the machine's native package manager - the "first install these dev packages" paragraph from a README becomes part of the build:
+
+```make
+X11Pkgs xcb libxcb-xkb-dev libx11-dev libxkbcommon-x11-dev
+
+PreBuild:linux
+{
+    InstallPackage $X11Pkgs
+}
+```
+
+The rules:
+- On Linux the manager is found by probing for the binary, in order: `apt-get`, `dnf`, `yum`, `zypper`, `pacman` - covering the Debian, Red Hat, Fedora, SUSE and Arch families, derivatives included. On the BSDs the OS decides: FreeBSD uses `pkg`, OpenBSD `pkg_add`, NetBSD `pkgin` (install pkgin first - base pkg_add is not used there). On Windows it is `winget`, and on macOS `brew` (Homebrew - install it first, macOS has no native manager). `%_PackageManager` holds the result.
+- Already-installed packages are detected with one quick query and the install is skipped entirely - rebuilds never pay for an install transaction. (One caveat: winget itself takes a second or two per query - that cost is winget's, not RiftBuild's.)
+- Installs run as root: outside root shells (docker, CI) the command is prefixed with `sudo` (or `doas`, which the BSDs prefer), which may prompt for a password on the terminal. Two exceptions: on Windows winget elevates itself (UAC) when a package needs it, and brew is never run through sudo (Homebrew refuses root).
+- On Windows, package names are winget ids or monikers (`Git.Git`, `7zip.7zip`, ...), matched exactly and pinned to the `winget` community source - a broken or unreachable msstore source can't interfere, and msstore-only apps are out of scope. Only the packages that are actually missing get installed (winget errors when told to install something already present).
+- No supported manager on the system (no winget on Windows, no Homebrew on macOS) is a build error; `(ignore_errors)` turns the whole verb into best-effort.
+- Per-platform hooks: use `PreBuild:win32`, `PreBuild:linux`, `PreBuild:mac` and `PreBuild:bsd` blocks (or one `PreBuild` block when the .build only targets systems with a manager).
+
+Package names differ per ecosystem (`libgl1-mesa-dev` on apt is `mesa-libGL-devel` on dnf and plain `mesa` on pacman), so condition the list on the *manager*, not the distro - the manager name works as a conditional:
+
+```make
+if apt    MesaPkgs libgl1-mesa-dev libglu1-mesa-dev
+if dnf    MesaPkgs mesa-libGL-devel mesa-libGLU-devel
+if pacman MesaPkgs mesa glu
+
+PreBuild:linux
+{
+    InstallPackage $MesaPkgs
+}
+```
 
 ---
 

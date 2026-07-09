@@ -384,4 +384,52 @@ void Platform_DetectDesktopEnvironment(String* DesktopEnv)
     String_Copy(DesktopEnv, Name);
 }
 
+// The system's package manager, probed once and cached. macOS has no native one; Homebrew
+// is the de-facto standard. Empty when brew is not installed (or not on PATH).
+String Platform_DetectPackageManager(void)
+{
+    local_persist bool bProbed = false;
+    local_persist String ManagerName = {0};
+
+    if (!bProbed)
+    {
+        if (Platform_FindProgram(S("brew")))
+        {
+            ManagerName = S("brew");
+        }
+
+        bProbed = true;
+    }
+
+    return ManagerName;
+}
+
+// The privilege-escalation prefix for commands that need root, probed once and cached.
+// Empty when already root or when neither tool exists - the command then runs unprefixed
+// and fails with the tool's own permission error.
+String Platform_GetRootCmdPrefix(void)
+{
+    local_persist bool bProbed = false;
+    local_persist String Prefix = {0};
+
+    if (!bProbed)
+    {
+        if (!Platform_IsRunningAsAdmin())
+        {
+            if (Platform_FindProgram(S("sudo")))
+            {
+                Prefix = S("sudo ");
+            }
+            else if (Platform_FindProgram(S("doas")))
+            {
+                Prefix = S("doas ");
+            }
+        }
+
+        bProbed = true;
+    }
+
+    return Prefix;
+}
+
 #endif // PLATFORM_MAC

@@ -3005,4 +3005,30 @@ void ___chkstk_ms(void)
 PRAGMA_ENABLE_WARNINGS
 */
 
+// The system's native package manager, probed once and cached. On Windows that is winget;
+// empty when it is not installed.
+NO_DISCARD String Platform_DetectPackageManager(void)
+{
+    local_persist bool bProbed = false;
+    local_persist String ManagerName = {0};
+
+    if (!bProbed)
+    {
+        if (Platform_FindProgram(S("winget")))
+        {
+            ManagerName = S("winget");
+        }
+
+        bProbed = true;
+    }
+
+    return ManagerName;
+}
+
+NO_DISCARD String Platform_GetRootCmdPrefix(void)
+{
+    // no command prefix on Windows - programs that need elevation request it themselves (UAC)
+    return String_Null();
+}
+
 #endif // PLATFORM_WINDOWS

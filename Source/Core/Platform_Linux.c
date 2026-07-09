@@ -351,4 +351,61 @@ bool Platform_IsWindowFocused(void)
     return true;
 }
 
+// The system's native package manager, probed once and cached: "apt", "dnf", "yum", "zypper"
+// or "pacman", or an empty string when none is present. Probes for the manager binary instead
+// of mapping from the distro name: derivative distros (Mint, Manjaro, Rocky, ...) inherit
+// their parent's manager, but carry their own /etc/os-release ID.
+String Platform_DetectPackageManager(void)
+{
+    local_persist bool bProbed = false;
+    local_persist String ManagerName = {0};
+
+    if (!bProbed)
+    {
+        local_persist const String Programs[5] = { SC("apt-get"), SC("dnf"), SC("yum"), SC("zypper"), SC("pacman") };
+        local_persist const String Names[5]    = { SC("apt"),     SC("dnf"), SC("yum"), SC("zypper"), SC("pacman") };
+
+        for (u8 i = 0; i < SArray_Capacity(Programs); i++)
+        {
+            if (Platform_FindProgram(Programs[i]))
+            {
+                ManagerName = Names[i];
+                break;
+            }
+        }
+
+        bProbed = true;
+    }
+
+    return ManagerName;
+}
+
+// The privilege-escalation prefix for commands that need root, probed once and cached.
+// Empty when already root or when neither tool exists - the command then runs unprefixed
+// and fails with the tool's own permission error.
+String Platform_GetRootCmdPrefix(void)
+{
+    local_persist bool bProbed = false;
+    local_persist String Prefix = {0};
+
+    if (!bProbed)
+    {
+        if (!Platform_IsRunningAsAdmin())
+        {
+            if (Platform_FindProgram(S("sudo")))
+            {
+                Prefix = S("sudo ");
+            }
+            else if (Platform_FindProgram(S("doas")))
+            {
+                Prefix = S("doas ");
+            }
+        }
+
+        bProbed = true;
+    }
+
+    return Prefix;
+}
+
 #endif // PLATFORM_LINUX

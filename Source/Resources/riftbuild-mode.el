@@ -39,7 +39,7 @@
    "^\\s-*\\(?:Pre\\|Post\\)"
    "\\(?:Depend\\|Build\\|Compile\\(?:AllFiles\\|File\\)?\\|Link\\)"
    "\\(?:\\.\\(?:Cmd\\|Copy\\|NewDir\\|NewFile\\|WriteFile\\|AppendFile"
-   "\\|Rename\\|Delete\\)\\)?\\_>")
+   "\\|Rename\\|Delete\\|InstallPackages?\\)\\)?\\_>")
   "Build phase hooks and their file-operation verbs.")
 
 (defconst riftbuild-font-lock-keywords
