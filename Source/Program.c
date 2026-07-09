@@ -5308,6 +5308,13 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     const String AssemblerIncludes          = GetVariableValue(VariablesDB, S("Assembler.Includes"));
     const String AssemblerDefines           = GetVariableValue(VariablesDB, S("Assembler.Defines"));
 
+    #if PLATFORM_WINDOWS
+    const String ResourceFlags              = GetVariableValue(VariablesDB, S("Resource.Flags"));
+    String ResourceIncludes                 = GetVariableValue(VariablesDB, S("Resource.Includes"));
+    const String ResourceDefines            = GetVariableValue(VariablesDB, S("Resource.Defines"));
+    const String ResourceUnDefines          = GetVariableValue(VariablesDB, S("Resource.UnDefines"));
+    #endif
+
     String ArchiverOutputFlag               = GetVariableValue(VariablesDB, S("Archiver.OutputFlag"));
     const String ArchiverPath               = GetCmdOptionValue(CmdOptionsDB, S("Archiver.Path"));
     const String ArchiverProgram            = Filesystem_ExtractFileName(ArchiverPath, false);
@@ -7296,7 +7303,14 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     StringArena(ExpandedLinkerDefineFlags, 1024, Arena);
     StringArena(ExpandedAssemblerIncludeFlags, 4096, Arena);
     StringArena(ExpandedAssemblerDefineFlags, 1024, Arena);
-    
+
+    #if PLATFORM_WINDOWS
+    StringArena(ExpandedResourceFlags, 4096, Arena);
+    StringArena(ExpandedResourceIncludeFlags, 4096, Arena);
+    StringArena(ExpandedResourceDefineFlags, 1024, Arena);
+    StringArena(ExpandedResourceUnDefineFlags, 1024, Arena);
+    #endif
+
     #if PLATFORM_APPLE
     StringLocal(ExpandedFrameworks, 2048);
     #endif
@@ -7435,6 +7449,41 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
     FlagPrefix.Data[1] = 'D';
     ExpandDefineFlags(&ExpandedAssemblerDefineFlags, AssemblerDefines, FlagPrefix, bExportingSomething);
+
+    // resource compiler stuff
+    #if PLATFORM_WINDOWS
+    {
+        // rc.exe and llvm-rc take /I,/D,/U; windres takes the gcc-style -I,-D,-U
+        const u8 RCPrefixSymbol = String_IsEqual(RCProgram, S("windres"), false) ? '-' : '/';
+
+        // auto flags (/nologo for rc.exe) followed by the user's Resource.Flags, prefix-normalized
+        // the same way Compiler.Flags is
+        String_BuildSeparator(&ExpandedResourceFlags, ' ', RCProgramFlags, ResourceFlags);
+        for (u32 i = 0; i < ExpandedResourceFlags.Length; i++)
+        {
+            if (i == 0 || IsWhitespace(ExpandedResourceFlags.Data[i-1]))
+            {
+                if (ExpandedResourceFlags.Data[i] == '-' || ExpandedResourceFlags.Data[i] == '/')
+                {
+                    ExpandedResourceFlags.Data[i] = RCPrefixSymbol;
+                }
+            }
+        }
+        xx String_EatSpacesInlineFromEnd(&ExpandedResourceFlags);
+
+        String_ConvertSlashToPlatformSlash(&ResourceIncludes);
+
+        FlagPrefix.Data[0] = RCPrefixSymbol;
+        FlagPrefix.Data[1] = 'I';
+        ExpandPathFlags(*Arena, &ExpandedResourceIncludeFlags, ResourceIncludes, FlagPrefix, bWrapWithQuotes);
+
+        FlagPrefix.Data[1] = 'D';
+        ExpandDefineFlags(&ExpandedResourceDefineFlags, ResourceDefines, FlagPrefix, bExportingSomething);
+
+        FlagPrefix.Data[1] = 'U';
+        ExpandDefineFlags(&ExpandedResourceUnDefineFlags, ResourceUnDefines, FlagPrefix, bExportingSomething);
+    }
+    #endif
 
     #if PLATFORM_APPLE
     String Frameworks = GetVariableValue(VariablesDB, S("Apple.Frameworks"));
@@ -7843,6 +7892,15 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         LogNameValuePair(*Arena, S("    Assembler Flags:      "), AssemblerFlags,                !bNoWordWrapLogging);
         LogNameValuePair(*Arena, S("    Assembler Includes:   "), ExpandedAssemblerIncludeFlags, !bNoWordWrapLogging);
         LogNameValuePair(*Arena, S("    Assembler Defines:    "), ExpandedAssemblerDefineFlags,  !bNoWordWrapLogging);
+        #if PLATFORM_WINDOWS
+        if (CountData.NumRcSources > 0)
+        {
+            LogNameValuePair(*Arena, S("    Resource  Flags:      "), ExpandedResourceFlags,         !bNoWordWrapLogging);
+            LogNameValuePair(*Arena, S("    Resource  Includes:   "), ExpandedResourceIncludeFlags,  !bNoWordWrapLogging);
+            LogNameValuePair(*Arena, S("    Resource  Defines:    "), ExpandedResourceDefineFlags,   !bNoWordWrapLogging);
+            LogNameValuePair(*Arena, S("    Resource  UnDefines:  "), ExpandedResourceUnDefineFlags, !bNoWordWrapLogging);
+        }
+        #endif
 
         if (NumFileOverrides > 0)
         {
@@ -8003,7 +8061,10 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     #if PLATFORM_WINDOWS
     p.RCProgram                     = RCProgram;
     p.RCProgramPath                 = RCCompilerPath;
-    p.RCProgramFlags                = RCProgramFlags;
+    p.RCProgramFlags                = ExpandedResourceFlags;
+    p.RCIncludeFlags                = ExpandedResourceIncludeFlags;
+    p.RCDefineFlags                 = ExpandedResourceDefineFlags;
+    p.RCUnDefineFlags               = ExpandedResourceUnDefineFlags;
     p.WindowsSDKIncludePath         = WindowsSDKIncludePath;
     p.WindowsSDKLibUmPath           = WindowsSDKLibUmPath;
     p.WindowsSDKLibUcrtPath         = WindowsSDKLibUcrtPath;

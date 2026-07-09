@@ -1,0 +1,22 @@
+#include "resconfig.h"
+
+#ifndef RES_HEADER_FOUND
+    #error "Resource.Includes was not passed - resconfig.h was not found"
+#endif
+
+#ifndef RES_HAS_FEATURE
+    #error "Resource.Defines flag macro was not passed"
+#endif
+
+#if RES_ANSWER != 42
+    #error "Resource.Defines value macro was not passed as 42"
+#endif
+
+#ifdef _WIN32
+    #error "Resource.UnDefines was not passed - _WIN32 is still defined"
+#endif
+
+RES_DATA_ID RCDATA
+BEGIN
+    "hello"
+END

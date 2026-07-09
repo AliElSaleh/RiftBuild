@@ -369,7 +369,7 @@ Assert.EnvVarExists VULKAN_SDK
 | `Assert.Compiler.Version >=17` | How new the compiler is |
 | `Assert.Version 0.2.0` | Minimum RiftBuild version |
 | `Assert.WorkingDirectory path` | The build must be run from this directory |
-| `Assert.Arg [names...]` | At least one (or these specific) command line arguments were given |
+| `Assert.Arg [names...]` | Command line arguments were given - takes optional count parameters (see below) |
 | `Assert.BuildVar names...` | Build variables exist |
 | `Assert.Desktop names...` | The desktop environment (Linux/BSD) |
 | `Assert.CPUVendor` / `Assert.CPUExtensions` | Processor requirements |
@@ -378,6 +378,37 @@ Assert.EnvVarExists VULKAN_SDK
 Values are space-separated lists ("any of these passes") and matching is case-insensitive. Asserts run after the whole file is parsed and stop at the first failure.
 
 A misspelled assert name is an error: `Assert.Programm` stops the build and lists the available asserts. Prefer a *conditional* to a hard failure? `if program_exists(tool)` lets the build adapt instead of stopping.
+
+##### Assert.Arg parameters
+`Assert.Arg` on its own (no names) requires that at least one command line argument of any kind was given. With names, every listed argument must be given:
+
+```make
+Assert.Arg debug fast   # both 'debug' and 'fast' are required
+```
+
+A parameter list after the key changes *how many* of the names must match. A bare number means "exactly this many"; prefix it with `>` `>=` `<` `<=` (or `=`/`==` for explicit equality) for the other comparisons:
+
+```make
+Assert.Arg(1)   debug release           # exactly one of the two
+Assert.Arg(>=1) debug release profile   # at least one of the three
+Assert.Arg(<=2) debug release profile   # no more than two
+```
+
+Several parameters can be combined with spaces - all of them must hold:
+
+```make
+Assert.Arg(>=1 <=2) debug release profile   # between one and two of these
+```
+
+Counts are clamped to `0..32`. An argument supplied with an empty value (`mode=`) does not count as present.
+
+Multiple `Assert.Arg` lines are checked independently - each line is its own assert with its own names and parameters:
+
+```make
+Assert.Arg(=1)      a c     # exactly one of 'a' or 'c'
+Assert.Arg          d       # and 'd' is required
+Assert.Arg(>1 <=3)  e f g   # and two or three of 'e' 'f' 'g'
+```
 
 ##### Custom error messages
 Attach your own message to a failing assert with a `<Context>.<Name>.ErrorMessage` key. The context is the assert family (`Platform`, `Arch`, `Program`, `File`, `Directory`, `Env`, `Compiler`, `Option`, ...), the name is the specific thing that failed - or `*` for a catch-all, with `|` separating several names:
@@ -534,6 +565,17 @@ Assembler.Includes asm/include
 Assembler.Defines  SOME_SYMBOL
 ```
 `.asm` and `.s` files go to the assembler; `.S` files are run through the C preprocessor first. Note nasm's default output format is a flat binary - you almost always want an explicit `-f` flag.
+
+---
+
+### Resource Compiler Keys (Windows)
+```make
+Resource.Flags     -v            # passed through, prefix-normalized for the active tool
+Resource.Includes  res/include   # include directories for .rc files
+Resource.Defines   APP_BUILD=42  # macros for the .rc preprocessor; NAME or NAME=value
+Resource.UnDefines SOME_SYMBOL   # strips a macro
+```
+`.rc` files go to the resource compiler derived from the chosen toolchain - `rc.exe` (msvc), `windres` (gcc) or `llvm-rc` (clang). These keys feed it the same way the `Compiler.*` keys feed the C compiler, and the flag spelling adapts to whichever tool is active (`/I /D /U` for rc.exe and llvm-rc, `-I -D -U` for windres) - write either prefix, it is rewritten to the right one.
 
 ---
 

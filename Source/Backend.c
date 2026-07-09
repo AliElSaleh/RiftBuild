@@ -139,10 +139,43 @@ static void LogCompilingFile(u32 Index, u32 NumSources, String FullPath)
     if (bQuietBuild) { Logging_Disable(); }
 }
 
-static void RC_Compile(const BuildParams* Params, const String FullRCPath, String* OutResPath, String* OutCmdLine)
+// Where a .rc's compiled .res lands, relative to the root: under the intermediate directory (or
+// Compiler.ObjectDirectory when set), mirroring the source's relative path the same way objects do,
+// so cleans, rebuilds and the .build diff can always delete it - never next to the source, which the
+// clean system refuses to touch. A .rc that already lives inside the intermediate directory (the
+// generated icon/version resources) keeps its .res next to itself.
+static void Internal_MakeResPath(const BuildParams* Params, const String RelativePath, String* OutResPath)
+{
+    String DestinationDirectory = Params->IntermediateDirectory;
+    if (String_IsValid(Params->CompilerObjectDirectory))
+    {
+        DestinationDirectory = Params->CompilerObjectDirectory;
+    }
+
+    String PathOfRes = Filesystem_ExtractFilePath(RelativePath, false);
+
+    if (Params->bDumpObjFilesInOneDirectory)
+    {
+        PathOfRes = String_Null();
+    }
+
+    // handle the special case where the .rc itself sits in the destination directory
+    if (String_StartsWith(DestinationDirectory, PathOfRes, false))
+    {
+        PathOfRes = String_Null();
+    }
+
+    StringLocal(ResFile, MAX_PATH_LENGTH);
+    String_Append(&ResFile, Filesystem_StripFileExtension(Filesystem_ExtractFileName(RelativePath, true)));
+    String_Append(&ResFile, S(".res"));
+
+    String_BuildPath(OutResPath, DestinationDirectory, PathOfRes, ResFile);
+}
+
+static void RC_Compile(const BuildParams* Params, const String FullRCPath, const String ResPath, String* OutCmdLine)
 {
     #if PLATFORM_WINDOWS
-    StringLocal(CmdLine, 1024);
+    StringLocal(CmdLine, UINT16_MAX);
 
     const bool bWindres = String_IsEqual(Params->RCProgram, S("windres"), false);
 
@@ -159,15 +192,19 @@ static void RC_Compile(const BuildParams* Params, const String FullRCPath, Strin
     if (bWindres) { String_Append(&CmdLine, S("\\")); }
     String_Append(&CmdLine, S("\""));
     
+    // Resource.Flags from the .build file (plus the automatic /nologo) come pre-merged in RCProgramFlags
     if (Params->RCProgramFlags.Length > 0)
     {
-        StringLocal(RCFlags, MAX_PATH_LENGTH*8); // flags + up to 7 include paths
-        String_Append(&RCFlags, Params->RCProgramFlags);
-        xx String_EatSpacesInlineFromEnd(&RCFlags);
+        String_AppendSpace(&CmdLine);
+        String_Append(&CmdLine, Export_TryWriteFlagsAndReturnThisValue(S("ResourceCompilerFlags"), Params->RCProgramFlags));
+    }
+
+    // Resource.Includes from the .build file, plus the Windows SDK paths rc.exe can't find on its own
+    {
+        StringLocal(RCIncludes, MAX_PATH_LENGTH*8); // user includes + up to 7 sdk paths
+        String_Append(&RCIncludes, Params->RCIncludeFlags);
 
         // ergghh i hate this... TODO: something better
-        #if PLATFORM_WINDOWS
-
         // TODO: use enum instead
         if (String_EndsWith(Params->RCProgramPath, S("rc.exe"), false))
         {
@@ -213,29 +250,24 @@ static void RC_Compile(const BuildParams* Params, const String FullRCPath, Strin
 
             if (WinSDKInclude.Length > 0)
             {
-                String_AppendSpace(&RCFlags);
-                String_Append(&RCFlags, WinSDKInclude);
+                String_AppendSpace(&RCIncludes);
+                String_Append(&RCIncludes, WinSDKInclude);
             }
         }
-        #endif
 
-        String_AppendSpace(&CmdLine);
-        String_Append(&CmdLine, Export_TryWriteFlagsAndReturnThisValue(S("ResourceCompilerFlags"), RCFlags));
+        xx String_EatSpacesInlineFromEnd(&RCIncludes);
+
+        if (RCIncludes.Length > 0)
+        {
+            String_AppendSpace(&CmdLine);
+            String_Append(&CmdLine, Export_TryWriteFlagsAndReturnThisValue(S("ResourceCompilerIncludes"), RCIncludes));
+        }
     }
 
-    u32 LastDot = 0;
-    bool bHasDot = String_IndexOfLastChar(FullRCPath, '.', &LastDot);
-
-    StringLocal(ResPath, MAX_PATH_LENGTH);
-    String_Append(&ResPath, bHasDot ? StrSlice(FullRCPath.Data, LastDot) : FullRCPath);
-    String_Append(&ResPath, S(".res"));
-
-    if (OutResPath)
-    {
-        String_Copy(OutResPath, ResPath);
-    }
-
-    // todo: resource defines
+    // Resource.Defines / Resource.UnDefines from the .build file, already expanded with the prefix
+    // the resolved RC program wants (-D for windres, /D otherwise)
+    String RCDefines   = Export_TryWriteFlagsAndReturnThisValue(S("ResourceCompilerDefines"),   Params->RCDefineFlags);
+    String RCUnDefines = Export_TryWriteFlagsAndReturnThisValue(S("ResourceCompilerUnDefines"), Params->RCUnDefineFlags);
 
     if (bWindres)
     {
@@ -243,6 +275,18 @@ static void RC_Compile(const BuildParams* Params, const String FullRCPath, Strin
         // <FLAGS> -O coff <DEFINES> -i <SOURCE> -o <OBJECT>
 
         String_Append(&CmdLine, S(" -O coff"));
+
+        if (RCDefines.Length > 0)
+        {
+            String_AppendSpace(&CmdLine);
+            String_Append(&CmdLine, RCDefines);
+        }
+
+        if (RCUnDefines.Length > 0)
+        {
+            String_AppendSpace(&CmdLine);
+            String_Append(&CmdLine, RCUnDefines);
+        }
 
         String_Append(&CmdLine, S(" -i"));
         String_Append(&CmdLine, S(" \""));
@@ -255,6 +299,18 @@ static void RC_Compile(const BuildParams* Params, const String FullRCPath, Strin
     }
     else
     {
+        if (RCDefines.Length > 0)
+        {
+            String_AppendSpace(&CmdLine);
+            String_Append(&CmdLine, RCDefines);
+        }
+
+        if (RCUnDefines.Length > 0)
+        {
+            String_AppendSpace(&CmdLine);
+            String_Append(&CmdLine, RCUnDefines);
+        }
+
         String_Append(&CmdLine, S(" /fo \""));
         String_Append(&CmdLine, ResPath);
         String_Append(&CmdLine, S("\""));
@@ -573,9 +629,14 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
     {
         ProgramPath = Params->RCProgramPath;
 
-        String_Empty(&ObjectPath);
+        StringLocal(ResRelativePath, MAX_PATH_LENGTH);
+        Internal_MakeResPath(Params, RelativePath, &ResRelativePath);
 
-        RC_Compile(Params, FullPath, &ObjectPath, &CmdLine);
+        String_Empty(&ObjectPath);
+        String_BuildPath(&ObjectPath, Params->RootDirectory, ResRelativePath);
+        xx Filesystem_ConvertRelativeToAbsolutePath(&ObjectPath);
+
+        RC_Compile(Params, FullPath, ObjectPath, &CmdLine);
     }
     else
     {
@@ -965,16 +1026,7 @@ static void Internal_AppendObjSourceFiles(const BuildParams* Params, String* Cmd
                 continue;
             }
 
-            bool bInsideIntermediatePath = Internal_IsPathUnderDirectory(RelativePath, Params->IntermediateDirectory);
-
-            u32 LastDot = 0;
-            bool bHasDot = String_IndexOfLastChar(RelativePath, '.', &LastDot);
-
-            StringLocal(ResPath, MAX_PATH_LENGTH);
-            String_Append(&ResPath, bHasDot ? StrSlice(RelativePath.Data, LastDot) : RelativePath);
-            String_Append(&ResPath, S(".res"));
-
-            String_BuildPath(&ObjectPath, bInsideIntermediatePath ? String_Null() : Params->SourceDirectory, ResPath);
+            Internal_MakeResPath(Params, RelativePath, &ObjectPath);
         }
         else
         #endif

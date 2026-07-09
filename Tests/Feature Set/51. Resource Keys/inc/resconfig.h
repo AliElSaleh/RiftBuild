@@ -1,0 +1,2 @@
+#define RES_HEADER_FOUND 1
+#define RES_DATA_ID 101

@@ -1,0 +1,11 @@
+# Resource.* keys must reach the resource compiler (rc.exe / windres / llvm-rc):
+# Resource.Includes so the .rc finds its header, Resource.Defines as flag- and
+# value-style macros, and Resource.UnDefines to strip a predefined macro. The .rc
+# contains #error traps for each, and main.c reads the RCDATA back at runtime.
+Assembly            ResourceKeysTest
+SourceFiles         main
+SourceFiles:windows res
+
+Resource.Includes   inc
+Resource.Defines    RES_HAS_FEATURE RES_ANSWER=42
+Resource.UnDefines  _WIN32

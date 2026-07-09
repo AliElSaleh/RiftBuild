@@ -47,7 +47,7 @@ syntax match riftbuildKey "^\s*[A-Za-z_][A-Za-z0-9_.]*"
 highlight link riftbuildKey riftbuildKeyColor
 
 " reserved keys get their own color
-syntax match riftbuildReservedKey "^\s*\(Assembly\|Extension\|Type\|SourceFiles\|SourceDirectory\|SourceDirectories\|BuildDirectory\|IntermediateDirectory\|Compiler\|Linker\|Assembler\|Archiver\|Libraries\|Library\|Apple\|Icon\|PCH\|Bundle\|Info\.plist\|Version\.plist\|TitleName\|InternalName\|Description\|CompanyName\|Copyright\|Version\|License\|AlwaysRebuild\|AlwaysRebuildAll\)\(\.[A-Za-z0-9_.]\+\)\?\([:( \t`]\|$\)\@="
+syntax match riftbuildReservedKey "^\s*\(Assembly\|Extension\|Type\|SourceFiles\|SourceDirectory\|SourceDirectories\|BuildDirectory\|IntermediateDirectory\|Compiler\|Linker\|Assembler\|Resource\|Archiver\|Libraries\|Library\|Apple\|Icon\|PCH\|Bundle\|Info\.plist\|Version\.plist\|TitleName\|InternalName\|Description\|CompanyName\|Copyright\|Version\|License\|AlwaysRebuild\|AlwaysRebuildAll\)\(\.[A-Za-z0-9_.]\+\)\?\([:( \t`]\|$\)\@="
 highlight link riftbuildReservedKey riftbuildReservedKeyColor
 
 " -------------------------------

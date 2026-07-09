@@ -579,7 +579,7 @@ STRUCT(ReservedKeyTable)
 //   Relink    - the value only affects the final link/archive/output (libraries, linker flags, output
 //               name & metadata, the SourceFiles list, bundle contents, ...) -> relink, keep objects.
 //   None      - the value doesn't change the produced assembly (License, phase commands, MaxCores, etc.).
-static ReservedKeyTable ReservedKeys[80] =
+static ReservedKeyTable ReservedKeys[84] =
 {
     { .Key = SC("Assembly"),                  .MaxValueLength = 256,   .Impact = BuildKeyImpact_Relink    },
     { .Key = SC("Assembly.Prefix"),           .MaxValueLength = 128,   .Impact = BuildKeyImpact_Relink    },
@@ -621,6 +621,10 @@ static ReservedKeyTable ReservedKeys[80] =
     { .Key = SC("Assembler.Flags"),           .MaxValueLength = 4096,  .Impact = BuildKeyImpact_Recompile },
     { .Key = SC("Assembler.Includes"),        .MaxValueLength = 8192,  .Impact = BuildKeyImpact_Recompile },
     { .Key = SC("Assembler.Defines"),         .MaxValueLength = 4096,  .Impact = BuildKeyImpact_Recompile },
+    { .Key = SC("Resource.Flags"),            .MaxValueLength = 4096,  .Impact = BuildKeyImpact_Recompile },
+    { .Key = SC("Resource.Includes"),         .MaxValueLength = 8192,  .Impact = BuildKeyImpact_Recompile },
+    { .Key = SC("Resource.Defines"),          .MaxValueLength = 4096,  .Impact = BuildKeyImpact_Recompile },
+    { .Key = SC("Resource.UnDefines"),        .MaxValueLength = 4096,  .Impact = BuildKeyImpact_Recompile },
     { .Key = SC("Archiver.Path"),             .MaxValueLength = 1024,  .Impact = BuildKeyImpact_Relink    },
     { .Key = SC("Archiver.Flags"),            .MaxValueLength = 4096,  .Impact = BuildKeyImpact_Relink    },
     { .Key = SC("Archiver.OutputFlag"),       .MaxValueLength = 32,    .Impact = BuildKeyImpact_Relink    },
@@ -6467,7 +6471,7 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
 
                 if (!bKnownAssert)
                 {
-                    LOG_INLINE_ERROR("\n[UNKNOWN ASSERT] \"%S\" is not a recognized assert. Aborting build...\n", Var.Name);
+                    LOG_INLINE_ERROR("\n\"%S\": \"%S\" is not a recognized assert. Aborting build...\n", BuildFilePath, Var.Name);
 
                     LOG("\n    Here are the available asserts:");
                     for (u32 i = 0; i < SArray_Capacity(KnownAssertNames); i++)

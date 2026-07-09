@@ -62,8 +62,10 @@ folders - the sources only compile with the defines the .build file provides.
 | 48 | Nasm Assembly | .asm source assembled by nasm, linked with C |
 | 49 | Import Keyword | `import` as an alias for `include` |
 | 50 | Flat Intermediate Objects | `IntermediateDirectory X/.` flat object dump; link finds flattened objects |
+| 51 | Resource Keys | `Resource.Includes/Defines/UnDefines` reach the resource compiler; RCDATA read back at runtime |
+| 52 | Assert Args | `Assert.Arg(count)` parameters (`=N` `>N` `>=N` `<N` `<=N`, combined); multiple lines assert independently |
 
-Tests 18, 19, 28, 43, 44, 45, 46 need extra invocations beyond a plain build to
+Tests 18, 19, 28, 43, 44, 45, 46, 52 need extra invocations beyond a plain build to
 exercise their feature (documented in each .build header comment).
 
 ## Semantics verified while writing this suite
@@ -84,7 +86,7 @@ exercise their feature (documented in each .build header comment).
   from the build-file directory.
 - Real assert keys: `Assert.Platform`, `Assert.Arch`, `Assert.EnvVarExists`,
   `Assert.Program`, `Assert.Compiler(.Version)`, `Assert.File`, ... Unknown
-  `Assert.*` names are silently ignored.
+  `Assert.*` names are a hard error that lists the available asserts.
 - Split version defines are named `<ASSEMBLY>_MAJOR_VERSION` (level in the
   middle), plus `<ASSEMBLY>_VERSION_STRING`.
 

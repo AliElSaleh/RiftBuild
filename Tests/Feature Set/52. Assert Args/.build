@@ -1,0 +1,20 @@
+# Assert.Arg count parameters + multiple independent Assert.Arg lines. Each
+# line is its own assert with its own names and (count) parameters: a bare
+# number means "exactly this many" of the listed names, and > >= < <= prefixes
+# give the other comparisons; several parameters space-separated must all hold.
+# The asserts are gated behind the 'check' option so a plain build succeeds.
+#
+# Extra invocations:
+#   riftbuild check a d e f     -> must succeed (every line satisfied)
+#   riftbuild check a c d e f   -> must FAIL (both 'a' and 'c' given, exactly one allowed)
+#   riftbuild check a e f       -> must FAIL ('d' missing)
+#   riftbuild check a d         -> must FAIL (none of 'e' 'f' 'g', needs two or three)
+Assembly    AssertArgs
+SourceFiles main
+
+option.check Enables the Assert.Arg checks for this test.
+
+Assert.Arg:check                    # valueless form: at least one argument of any kind ('check' itself counts)
+Assert.Arg(=1):check     a c        # exactly one of these
+Assert.Arg:check         d          # no parameters: every listed name is required
+Assert.Arg(>1 <=3):check e f g      # both must hold: two or three of these

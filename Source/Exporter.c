@@ -2294,21 +2294,24 @@ struct ExportFlagGroupEntry
     String ShRef;
 };
 
-static const struct ExportFlagGroupEntry GExportFlagGroups[13] =
+static const struct ExportFlagGroupEntry GExportFlagGroups[16] =
 {
-    { SC("CompilerFlags"),          SC("%CompilerFlags%"),          SC("${CompilerFlags}") },
-    { SC("IncludeFlags"),           SC("%IncludeFlags%"),           SC("${IncludeFlags}") },
-    { SC("Defines"),                SC("%Defines%"),                SC("${Defines}") },
-    { SC("UnDefines"),              SC("%UnDefines%"),              SC("${UnDefines}") },
-    { SC("AssemblerFlags"),         SC("%AssemblerFlags%"),         SC("${AssemblerFlags}") },
-    { SC("AssemblerDefines"),       SC("%AssemblerDefines%"),       SC("${AssemblerDefines}") },
-    { SC("AssemblerIncludes"),      SC("%AssemblerIncludes%"),      SC("${AssemblerIncludes}") },
-    { SC("ResourceCompilerFlags"),  SC("%ResourceCompilerFlags%"),  SC("${ResourceCompilerFlags}") },
-    { SC("LinkerFlags"),            SC("%LinkerFlags%"),            SC("${LinkerFlags}") },
-    { SC("LinkerDefines"),          SC("%LinkerDefines%"),          SC("${LinkerDefines}") },
-    { SC("Libraries"),              SC("%Libraries%"),              SC("${Libraries}") },
-    { SC("LibraryPaths"),           SC("%LibraryPaths%"),           SC("${LibraryPaths}") },
-    { SC("ArchiverFlags"),          SC("%ArchiverFlags%"),          SC("${ArchiverFlags}") },
+    { SC("CompilerFlags"),             SC("%CompilerFlags%"),             SC("${CompilerFlags}") },
+    { SC("IncludeFlags"),              SC("%IncludeFlags%"),              SC("${IncludeFlags}") },
+    { SC("Defines"),                   SC("%Defines%"),                   SC("${Defines}") },
+    { SC("UnDefines"),                 SC("%UnDefines%"),                 SC("${UnDefines}") },
+    { SC("AssemblerFlags"),            SC("%AssemblerFlags%"),            SC("${AssemblerFlags}") },
+    { SC("AssemblerDefines"),          SC("%AssemblerDefines%"),          SC("${AssemblerDefines}") },
+    { SC("AssemblerIncludes"),         SC("%AssemblerIncludes%"),         SC("${AssemblerIncludes}") },
+    { SC("ResourceCompilerFlags"),     SC("%ResourceCompilerFlags%"),     SC("${ResourceCompilerFlags}") },
+    { SC("ResourceCompilerIncludes"),  SC("%ResourceCompilerIncludes%"),  SC("${ResourceCompilerIncludes}") },
+    { SC("ResourceCompilerDefines"),   SC("%ResourceCompilerDefines%"),   SC("${ResourceCompilerDefines}") },
+    { SC("ResourceCompilerUnDefines"), SC("%ResourceCompilerUnDefines%"), SC("${ResourceCompilerUnDefines}") },
+    { SC("LinkerFlags"),               SC("%LinkerFlags%"),               SC("${LinkerFlags}") },
+    { SC("LinkerDefines"),             SC("%LinkerDefines%"),             SC("${LinkerDefines}") },
+    { SC("Libraries"),                 SC("%Libraries%"),                 SC("${Libraries}") },
+    { SC("LibraryPaths"),              SC("%LibraryPaths%"),              SC("${LibraryPaths}") },
+    { SC("ArchiverFlags"),             SC("%ArchiverFlags%"),             SC("${ArchiverFlags}") },
 };
 
 static bool GExportFlagGroupDefined[SArray_Capacity(GExportFlagGroups)];

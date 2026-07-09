@@ -28,7 +28,7 @@
    "^\\s-*"
    "\\(?:Assembly\\|Extension\\|Type\\|SourceFiles\\|SourceDirector\\(?:y\\|ies\\)"
    "\\|BuildDirectory\\|IntermediateDirectory\\|Compiler\\|Linker\\|Assembler"
-   "\\|Archiver\\|Libraries\\|Library\\|Apple\\|Icon\\|PCH\\|Bundle"
+   "\\|Resource\\|Archiver\\|Libraries\\|Library\\|Apple\\|Icon\\|PCH\\|Bundle"
    "\\|Info\\.plist\\|Version\\.plist\\|TitleName\\|InternalName\\|Description"
    "\\|CompanyName\\|Copyright\\|Version\\|License\\|AlwaysRebuild\\(?:All\\)?\\)"
    "\\(?:\\.[A-Za-z0-9_.]+\\)?\\_>")

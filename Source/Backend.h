@@ -236,6 +236,9 @@ STRUCT(BuildParams)
     String RCProgram;
     String RCProgramPath;
     String RCProgramFlags;
+    String RCIncludeFlags;
+    String RCDefineFlags;
+    String RCUnDefineFlags;
     String CompilerFlags;
     String AssemblerFlags;
     String AssemblerIncludes;
