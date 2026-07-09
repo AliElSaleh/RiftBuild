@@ -1,0 +1,63 @@
+# Builds every Feature Set test with one command: run riftbuild from this folder.
+# A phony assembly produces no output of its own - it only exists to pull in the
+# numbered tests as dependencies.
+#
+# Test 1 (No Build File) is absent by design: it has no .build file, which is the
+# feature it tests - run it directly from its folder.
+# Tests 18, 19, 28, 43, 44, 45, 46 build here, but need extra invocations from
+# their own folders to exercise their feature (see each .build header comment).
+
+Assembly FeatureSetTests
+Type     phony
+
+Depend "./02. Icon"
+Depend "./03. ParallelSample/App"
+Depend "./04. Minimal Executable"
+Depend "./05. Auto Source Discovery"
+Depend "./06. Source Directory"
+Depend "./07. Defines"
+Depend "./08. UnDefines"
+Depend "./09. Includes"
+Depend "./10. Static Library"
+Depend "./11. Shared Library"
+Depend "./12. Output Naming"
+Depend "./13. Conditional Values"
+Depend "./14. If Else Blocks"
+Depend "./15. Custom Variables"
+Depend "./16. Environment Variables"
+Depend "./17. Command Expansion"
+Depend "./18. Options Binary"
+Depend "./19. Options Values"
+Depend "./20. Per File Overrides"
+Depend "./21. Compiler Flags"
+Depend "./22. Block Namespaces"
+Depend "./23. Multiline And Comments"
+Depend "./24. Linker Settings"
+Depend "./25. Phase Hooks Order"
+Depend "./26. WriteFile Codegen"
+Depend "./27. File Operations"
+Depend "./28. Run After Build"
+Depend "./29. Public Propagation/App"
+Depend "./30. Private Dependencies/App"
+Depend "./31. Diamond Dependency/App"
+Depend "./32. Dependency Filter Args/App"
+Depend "./33. Mixed C And Cpp"
+Depend "./34. Version Info"
+Depend "./35. License Generate"
+Depend "./36. Copyright Enforce"
+Depend "./37. Asserts"
+Depend "./38. Include Buildvars"
+Depend "./39. SourceFiles Exclude"
+Depend "./40. Compiler GCC"
+Depend "./41. Compiler TCC"
+Depend "./42. Max Cores"
+Depend "./43. Incremental Rebuild"
+Depend "./44. Clean Command"
+Depend "./45. Export Compile Commands"
+Depend "./46. Presets"
+Depend "./47. Program Exists Condition"
+Depend "./48. Nasm Assembly"
+Depend "./49. Import Keyword"
+Depend "./50. Flat Intermediate Objects"
+Depend "./51. Resource Keys"
+Depend "./52. Assert Args"

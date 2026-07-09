@@ -656,11 +656,13 @@ Depend external/glfw               # relative to this build file
 Depend(private) ../Compression     # consume, but do not re-export (see below)
 Depend physics.build engines/      # name the .build file when a folder has several
 Depend ../Lib | turbo level=9      # forward options to the dependency's build
+Depend "../My Libs/Math Lib"       # quote a path that contains spaces
 ```
 
 The rules:
 - One command builds the whole tree: dependencies are parsed and built first, in dependency order. Diamond shapes are fine - a module shared by two dependents is built and linked once.
 - A value with a path separator is a **directory** (the `.build` inside is found automatically). A bare name is a **.build filename**. The two-token form `Depend <name> <dir>` picks a specific `.build` file in a directory that holds several.
+- A path with spaces must be **quoted**, or it parses as the two-token form. The separator rule still applies to the quoted text, so give a directory at least one `/` (`"./My Lib"` or `"My Lib/"`) - a quoted bare name is still a .build filename.
 - **`Depend(private)` stops the export chain.** The dependent consumes the private module's exports and links its objects, but passes nothing on to *its* consumers - implementation details stay contained.
 - Everything after `|` is passed to the dependency as its command line options. Combine with your own options to forward configuration down: `Depend ../ | double_precision=%double_precision`.
 - Circular dependencies are detected and rejected.

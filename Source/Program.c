@@ -5702,8 +5702,33 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
             bool bDirectoryOnly = false;
 
+            // A quoted first token keeps a path with spaces in it whole ("01. My Test/"); the
+            // whitespace scan below would otherwise cut it at the first space (the two-token
+            // <name> <dir> form). The quotes themselves vanish in the String_SanitizePath copy.
+            u32 QuotedEnd = 0; // one past the closing quote
+            if (String_IsFirst(Value, '"'))
+            {
+                u32 CloseQuote = 0;
+                if (String_IndexOfChar(StrSlice(Value.Data+1, Value.Length-1), '"', &CloseQuote))
+                {
+                    QuotedEnd = CloseQuote + 2;
+                }
+            }
+
             u32 SpaceIndex = 0;
-            if (PipeIndex)
+            if (QuotedEnd)
+            {
+                BuildFile = StrSlice(Value.Data, QuotedEnd);
+
+                // anything left between the closing quote and the pipe is the <dir> of the
+                // two-token form; SpaceIndex feeds the CustomPath slice further down
+                const u32 RestEnd = PipeIndex ? PipeIndex : Value.Length;
+                if (QuotedEnd < RestEnd && String_EatSpaces(StrSlice(Value.Data+QuotedEnd, RestEnd-QuotedEnd)).Length > 0)
+                {
+                    SpaceIndex = QuotedEnd;
+                }
+            }
+            else if (PipeIndex)
             {
                 BuildFile = StrSlice(Value.Data, PipeIndex);
             }
