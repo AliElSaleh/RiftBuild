@@ -114,6 +114,26 @@ syntax region riftbuildErrorBlock start="^\s*[A-Za-z0-9_.]*\.ErrorMessage\s*{\?\
 syntax region riftbuildHeredocBlock start="^\s*\(Pre\|Post\)\(Depend\|Build\|Compile\|Link\)\.\(WriteFile\|AppendFile\)\>[^{#]*{\?\s*$" end="^\s*}" keepend contains=riftbuildBuildCmd,riftbuildBuiltinVar,riftbuildVarReferenceSymbols
 
 " -------------------------------
+" Namespace blocks - keys written inside Key { } blocks nest under that
+" namespace (PreBuild { InstallPackage } == PreBuild.InstallPackage), so
+" highlight them like their dotted forms
+" -------------------------------
+" bare file-operation verbs inside a Pre*/Post* { } block
+syntax match riftbuildHookVerb "^\s*\(Cmd\|Copy\|NewDir\|NewFile\|WriteFile\|AppendFile\|Rename\|Delete\|InstallPackages\?\)\>" contained
+highlight link riftbuildHookVerb riftbuildKeywordColor
+
+" bare WriteFile/AppendFile heredocs inside a Pre*/Post* { } block
+syntax region riftbuildHookHeredoc start="^\s*\(WriteFile\|AppendFile\)\>[^{#]*{\?\s*$" end="^\s*}" keepend contained contains=riftbuildHookVerb,riftbuildBuiltinVar,riftbuildVarReferenceSymbols
+
+syntax region riftbuildHookBlock start="^\s*\(Pre\|Post\)\(Depend\|Build\|Compile\(AllFiles\|File\)\?\|Link\)\(:[^ \t{#]\+\)*\s*{\?\s*$" matchgroup=riftbuildBraceColor end="^\s*}" contains=riftbuildBuildCmd,riftbuildHookVerb,riftbuildHookHeredoc,riftbuildKey,riftbuildBraces,riftbuildConditionals,riftbuildVarReferenceSymbols,riftbuildBuiltinVar,riftbuildString
+
+" bare sub-keys inside a reserved namespace { } block
+syntax match riftbuildSubKey "^\s*[A-Za-z_][A-Za-z0-9_.]*" contained
+highlight link riftbuildSubKey riftbuildReservedKeyColor
+
+syntax region riftbuildReservedBlock start="^\s*\(Assembly\|Compiler\|Linker\|Assembler\|Resource\|Archiver\|Library\|Apple\|PCH\|Bundle\|License\)\(:[^ \t{#]\+\)*\s*{\?\s*$" matchgroup=riftbuildBraceColor end="^\s*}" contains=riftbuildReservedKey,riftbuildSubKey,riftbuildBraces,riftbuildConditionals,riftbuildVarReferenceSymbols,riftbuildBuiltinVar,riftbuildString
+
+" -------------------------------
 " Value blocks - [ ... ]
 " -------------------------------
 syntax region riftbuildMultiLineValue start="^\s*\[\s*$" end="\]\s*$" keepend contains=riftbuildBuiltinVar,riftbuildVarReferenceSymbols,riftbuildComment,riftbuildMultiLineComment

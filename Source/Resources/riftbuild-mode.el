@@ -4,7 +4,7 @@
 ;; Licensed under the BSD 3-Clause License. See the LICENSE file for details.
 
 ;; Author: Ali El Saleh
-;; Version: 0.6.0-beta
+;; Version: 0.6.3-beta
 ;; Keywords: languages
 ;; URL: https://github.com/AliElSaleh/RiftBuild
 
@@ -42,9 +42,51 @@
    "\\|Rename\\|Delete\\|InstallPackages?\\)\\)?\\_>")
   "Build phase hooks and their file-operation verbs.")
 
+;; Keys written inside a Key { } block nest under that namespace
+;; (PreBuild { InstallPackage } == PreBuild.InstallPackage), so bare keys
+;; inside hook / reserved-namespace blocks highlight like their dotted forms.
+
+(defconst riftbuild--hook-block-header-re
+  (concat
+   "^\\s-*\\(\\(?:Pre\\|Post\\)"
+   "\\(?:Depend\\|Build\\|Compile\\(?:AllFiles\\|File\\)?\\|Link\\)\\)"
+   "\\(?::[^ \t\n{#]+\\)*\\s-*{?\\s-*$")
+  "A Pre*/Post* hook opening a { } block (verbs written as nested keys).")
+
+(defconst riftbuild--hook-verbs-re
+  (concat
+   "^\\s-*\\(?:Cmd\\|Copy\\|NewDir\\|NewFile\\|WriteFile\\|AppendFile"
+   "\\|Rename\\|Delete\\|InstallPackages?\\)\\_>")
+  "A bare file-operation verb on its own line inside a hook block.")
+
+(defconst riftbuild--reserved-block-header-re
+  (concat
+   "^\\s-*\\(Assembly\\|Compiler\\|Linker\\|Assembler\\|Resource\\|Archiver"
+   "\\|Library\\|Apple\\|PCH\\|Bundle\\|License\\)"
+   "\\(?::[^ \t\n{#]+\\)*\\s-*{?\\s-*$")
+  "A reserved namespace opening a { } block (sub-keys written as nested keys).
+Value-list keys (SourceFiles, Libraries, ...) are excluded on purpose: their
+blocks hold values, not sub-keys.")
+
+(defun riftbuild--block-limit ()
+  "Return the position of the } closing the { } block after point.
+Used as the anchored-highlighter limit for block header matches."
+  (save-excursion
+    (if (re-search-forward "^\\s-*}" nil t) (point) (point-max))))
+
 (defconst riftbuild-font-lock-keywords
   `(;; build phase hooks + file-operation verbs
     (,riftbuild--hooks-re . font-lock-preprocessor-face)
+    ;; bare verbs nested inside a Pre*/Post* { } block
+    (,riftbuild--hook-block-header-re
+     (1 font-lock-preprocessor-face)
+     (,riftbuild--hook-verbs-re (riftbuild--block-limit) nil
+      (0 font-lock-preprocessor-face)))
+    ;; bare sub-keys nested inside a reserved namespace { } block
+    (,riftbuild--reserved-block-header-re
+     (1 font-lock-type-face)
+     ("^\\s-*[A-Za-z_][A-Za-z0-9_.]*" (riftbuild--block-limit) nil
+      (0 font-lock-type-face)))
     ;; Assert.* keys and any key ending in .ErrorMessage
     ("^\\s-*Assert\\.[A-Za-z0-9_.]*" . font-lock-preprocessor-face)
     ("[A-Za-z0-9_.]*\\.ErrorMessage\\_>" . font-lock-preprocessor-face)
@@ -94,8 +136,9 @@
    "^\\s-*\\(?:"
    "\\.help"
    "\\|[A-Za-z0-9_.]*\\.errormessage"
-   "\\|\\(?:pre\\|post\\)\\(?:depend\\|build\\|compile\\|link\\)"
-   "\\.\\(?:writefile\\|appendfile\\)\\(?:\\s-+[^{#\n]*?\\)?"
+   ;; PreX.WriteFile ... or a bare WriteFile verb nested inside a hook block
+   "\\|\\(?:\\(?:pre\\|post\\)\\(?:depend\\|build\\|compile\\|link\\)\\.\\)?"
+   "\\(?:writefile\\|appendfile\\)\\(?:\\s-+[^{#\n]*?\\)?"
    "\\)\\s-*\\(?:\\({\\)\\s-*\\)?$")
   "Start of a .Help / .ErrorMessage / WriteFile heredoc block.
 Group 1 is the opening brace when it sits on the same line.")
@@ -142,6 +185,7 @@ Group 1 is the opening brace when it sits on the same line.")
   (setq-local comment-start-skip "#+\\s-*")
   (setq-local comment-end "")
   (setq-local font-lock-defaults '(riftbuild-font-lock-keywords nil t))
+  (setq-local font-lock-multiline t)
   (setq-local syntax-propertize-function #'riftbuild--syntax-propertize))
 
 ;;;###autoload
