@@ -7,8 +7,7 @@
 # Tests 18, 19, 28, 43, 44, 45, 46 build here, but need extra invocations from
 # their own folders to exercise their feature (see each .build header comment).
 
-Assembly FeatureSetTests
-Type     phony
+Type phony
 
 Depend "./02. Icon"
 Depend "./03. ParallelSample/App"

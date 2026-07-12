@@ -88,7 +88,6 @@ read_only BuiltinOptionInfo BuiltinOptionsTable[26] =
     { .Short = {0},      .Long = SC("override"),        .Description = SC("Override a variable using override:Name=Value syntax.") },
     { .Short = {0},      .Long = SC("export"),          .Description = SC("Generate files using export:type. Examples: compile_commands, bat (batch scripts), sh (shell scripts), license files, plist. "
                                                                           "Use export: to view all supported export types. Requires a .build file.") },
-    // TODO: i barely use this option, should i delete?
     { .Short = {0},      .Long = SC("preset"),          .Description = SC("Run a predefined set of command-line options using preset:name syntax. Requires a .build file.") },
 };
 
@@ -121,95 +120,6 @@ STRUCT(BuildReceipt)
     bool LinkerNoDefaultLibs;
 
     u8 blah[5];
-};
-
-// ------------------------------------------------------------------------------------------------
-// Parallel build plan
-//
-// The build runs in two passes. The planner walks the dependency graph once (depth-first,
-// post-order) and produces one ModuleNode per unique .build file, each fully resolved: absolute
-// paths, child exports already folded in, and the incremental diff already computed. Nothing is
-// compiled or linked during planning. The executor then runs the plan in phase-global barriers:
-// PreDepend, PreBuild, PreCompile across every module in dependency order (C -> B -> A); then a
-// single shared parallel batch compiles every module's source files at once; then PostCompile,
-// PreLink, link, PostLink, PostBuild barriers, again in dependency order. Linking happens in
-// dependency order so a dependency's artifact exists before anything that links against it.
-//
-// The whole feature is compiled in only when PARALLEL_BUILD_GRAPH is defined (RiftBuild.build's
-// "parallel" option). Without it the build runs the original serial path: BuildTarget resolves and
-// executes each module inline, dependencies deepest-first. Only the types below stay compiled
-// either way, so BuildTarget's signature does not change with the option.
-// ------------------------------------------------------------------------------------------------
-
-STRUCT(ModuleNode)
-{
-    // Fully-resolved build description handed to C_Compile_Spawn / C_Link during execution.
-    BuildParams Params;
-
-    // Public keys this module exports (only scalar fields such as AssemblyType are read after
-    // planning; the string exports are consumed by parents during the plan walk itself).
-    BuildReceipt Receipt;
-
-    // Parsed + resolved variable database, retained so the lifecycle-hook barriers (PreDepend,
-    // PreBuild, PreCompile, PostCompile, PreLink, PostLink, PostBuild) can run for this module
-    // during execution via TryRunBuildCommands. Deep-copied into this node's Arena.
-    TArray(FileVariable) VariablesDB;
-
-    String WorkingPath;          // absolute module directory
-    String BuildFilePath;        // absolute path to this module's .build file; dedup key together with Receipt.AssemblyName
-    String BuildFileName;
-    String BuildBaseDirectory;   // absolute output directory (RootDirectory + BuildDirectory)
-    String ArtifactManifestPath; // where the artifact manifest is (re)written during execution
-    String IconRcFilePath;       // generated icon .rc (Windows), recorded into the manifest
-    String VersionRCFilePath;    // generated version .rc (Windows), recorded into the manifest
-
-    // Each module owns its own arena chunk so every module's resolved state can stay alive at the
-    // same time during execution. (The old serial path reset a single ~1 MiB arena between
-    // dependencies; the batch model holds them all, so we allocate per module and free after the
-    // whole plan finishes executing.)
-    void*           ArenaMemory;
-    LinearAllocator Arena;
-
-    // In-flight compile process handles are appended to the plan-wide shared pool
-    // (BuildPlan.Processes), not here, so a single wait-barrier drains every module at once.
-
-    u32 NumCompiled;   // set by the batch compile: how many of this module's files were compiled
-    EAssemblyType Type;
-
-    bool bCanLink;         // produces a linkable artifact (lib/exe), not just loose object files
-    bool bBundleApp;       // build a macOS .app bundle for this module
-    bool bIsClean;         // this build invocation is a clean
-    bool bSkipPostBuild;   // .RunPostBuildIfWorkDone was set
-    bool bForceRelink;     // diff decided the final artifact must relink even if nothing recompiled
-    bool bAssemblyExists;  // computed at execute time: the output artifact already exists on disk
-    bool bNoMoreWork;      // computed after the batch: nothing to compile or link for this module
-    bool bWorkWasDone;     // this module compiled and/or relinked something
-    bool bIsPhony;         // AssemblyType_Null: in the graph but has no compile/link work
-    bool bPadding[10];
-};
-
-STRUCT(BuildPlan)
-{
-    // Modules in dependency (post-order) order: deepest dependency first, root last. Every barrier
-    // phase iterates this array in this order (C -> B -> A in the canonical example).
-    TArray(ModuleNode*) Modules;
-
-    // One shared compile-process pool across every module. C_Compile_Spawn appends here (throttled
-    // by a single global MaxCompilersAtOnce) and one C_Compile_Wait barrier drains it, which is what
-    // makes source files across independent modules compile in one parallel batch.
-    TArray(PlatformHandle) Processes;
-
-    // Arena for the plan's own bookkeeping (the Modules array and ModuleNode headers). Each module's
-    // resolved data lives in that module's own ModuleNode.Arena instead.
-    LinearAllocator* Arena;
-
-    // Backing blocks of every per-module arena we hand out (see Plan_NewModuleArena). Tracked here so
-    // they can all be freed together in Plan_Free once the build has run -- including the arenas of
-    // deduplicated diamond re-resolutions, which are not attached to any module.
-    void** ArenaBlocks;
-    u32    NumArenaBlocks;
-
-    u32 NumModules;
 };
 
 STRUCT(BuildFileDirectoryIteratorData)
@@ -4832,110 +4742,13 @@ static bool TryCleanFromManifest(const String IntermediateBaseDirectory, const S
     return bCleanedSomething;
 }
 
-#if PARALLEL_BUILD_GRAPH
-// Append a fully-resolved module to the plan, in dependency (post-order)
-// order. The module resolved directly into ModuleArena, so every string in Src (BuildParams,
-// VariablesDB, paths) already lives there: we take the whole node by value, with no copy. The plan
-// owns ModuleArena's backing block and frees it once the whole build has run (see Plan_Free).
-static bool Plan_AppendModule(BuildPlan* Plan, const ModuleNode* Src, LinearAllocator ModuleArena)
-{
-    // Diamond dependencies (two modules that both depend on the same library) reach this build file
-    // more than once. Add it only the first time, so its source files are not compiled twice in the
-    // same batch (which would race two compiler processes on the same object files). The parent's
-    // export fold still works: it uses the receipt returned from re-resolving, not this node.
-    //
-    // The build file path alone is not the module's identity: the same build file depended on with
-    // different arguments (e.g. "Depends GS.build | isa=avx2") resolves to a different assembly, and
-    // each such variant must be planned as its own module or all but the first would silently never
-    // compile or link. So a module is a duplicate only when the file path AND assembly name match.
-    bool bAlreadyPlanned = false;
-
-    if (String_IsValid(Src->BuildFilePath))
-    {
-        for (usize i = 0; i < Plan->NumModules; i++)
-        {
-            if (String_IsEqual(Plan->Modules[i]->BuildFilePath, Src->BuildFilePath, false))
-            {
-                const String PlannedAssembly = Plan->Modules[i]->Receipt.AssemblyName;
-                const String NewAssembly     = Src->Receipt.AssemblyName;
-
-                // String_IsEqual is false when both strings are null, but two assembly-less
-                // (phony) resolutions of the same build file are still the same module.
-                if (String_IsEqual(PlannedAssembly, NewAssembly, false) ||
-                    (!String_IsValid(PlannedAssembly) && !String_IsValid(NewAssembly)))
-                {
-                    bAlreadyPlanned = true;
-                }
-            }
-        }
-    }
-
-    if (!bAlreadyPlanned)
-    {
-        ModuleNode* Node = LinearAllocator_Allocate(Plan->Arena, sizeof(ModuleNode));
-        *Node = *Src; // shallow: every string already lives in ModuleArena, nothing to deep-copy
-
-        Node->Arena            = ModuleArena;       // the module's live arena handle (execution scratch)
-        Node->ArenaMemory      = NULL;              // backing block is tracked and freed at plan level
-        Node->Params.Processes = &Plan->Processes;  // one shared pool -> cross-module parallel batch
-        Node->Params.Arena     = &Node->Arena;      // execution scratch continues in this module's arena
-        Node->bIsPhony         = (Src->Type == AssemblyType_Null);
-
-        Array_Add(Plan->Modules, Node);
-        Plan->NumModules += 1;
-    }
-
-    return true;
-}
-
-// A module resolves everything (VariablesDB, BuildParams flag strings, paths) into one arena and it
-// must all stay alive at once for the batch, so give each module a generous block: the configured
-// build memory plus headroom for the flag strings that used to live on the stack.
-#define MODULE_ARENA_SIZE (MAX_RIFTBUILD_MEMORY + Mebibytes(1))
-#define MAX_PLAN_ARENA_BLOCKS 1024
-
-// Hand out a fresh persistent arena for one module and remember its backing block so Plan_Free can
-// release it later. Returns a zeroed allocator on OOM (the caller's resolution then fails cleanly).
-static LinearAllocator Plan_NewModuleArena(BuildPlan* Plan)
-{
-    LinearAllocator Arena = {0};
-
-    void* Mem = Platform_MemAlloc(MODULE_ARENA_SIZE);
-    if (!Mem)
-    {
-        LOG_FATAL("Failed to allocate memory for a module in the build plan!");
-        return Arena;
-    }
-
-    LinearAllocator_Create(MODULE_ARENA_SIZE, Mem, &Arena);
-
-    if (Plan->ArenaBlocks && Plan->NumArenaBlocks < MAX_PLAN_ARENA_BLOCKS)
-    {
-        Plan->ArenaBlocks[Plan->NumArenaBlocks++] = Mem;
-    }
-
-    return Arena;
-}
-#endif // PARALLEL_BUILD_GRAPH
-
-// When bPlanOnly is true, BuildTarget resolves the module (parse, absolute paths, fold in dependency
-// exports, run the incremental diff) and appends a ModuleNode to Plan instead of compiling/linking.
-// The lifecycle hooks, compile, and link are then driven later by ExecuteBuildPlan as phase-global
-// barriers. When bPlanOnly is false it behaves as the original serial build (resolve + execute inline).
 static BuildReceipt BuildTarget(LinearAllocator* Arena,
                         const FileHandle BuildFileHandle, String BuildFilePath, PlatformMutex* BuildMutex,
                         String WorkingPath, const StringArray Parameters, String CameFromBuildFile,
-                        i8 BuildFileIndex, i8 RootPathIndex,
-                        BuildPlan* Plan, bool bPlanOnly)
+                        i8 BuildFileIndex, i8 RootPathIndex)
 {
-    // BuildResult BuildOutputResult = {0};
     BuildReceipt Receipt = {0};
 
-    // Copy the transient input paths into this module's persistent arena. For a dependency these point
-    // into the parent's dep-loop StringLocals, which are gone by execution time; since the planner keeps
-    // each resolved module without copying, everything it references -- including its inputs -- must live
-    // in the module arena. (BuildFilePathFull and BuildFileName below are derived from BuildFilePath, so
-    // they inherit the arena backing automatically.)
     if (String_IsValid(WorkingPath))
     {
         WorkingPath = String_Create(Arena, WorkingPath);
@@ -5839,9 +5652,8 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         }
     }
 
-    // pre depend (in plan-only mode this runs later, as a phase-global barrier in ExecuteBuildPlan)
     Clock PreDependClock = {0};
-    if (!bExportingSomething && !bPlanOnly)
+    if (!bExportingSomething)
     {
         if (!TryRunBuildCommands(S("PreDepend"), WorkingPath, VariablesDB, &PreDependClock, bIsClean))
         {
@@ -5884,7 +5696,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         //            we aren't dynamically shitting memory out everytime we need some :P
         //            So just allocate one big chunk and let our allocator dish out the memory.
         //i8 ArenaMemory[Mebibytes(1)] = {0};
-        #if !PARALLEL_BUILD_GRAPH
         usize TotalMem = MAX_RIFTBUILD_MEMORY;
         void* ArenaMemory = Platform_MemAlloc(TotalMem);
 
@@ -5896,29 +5707,12 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             return Receipt;
         }
 
-        LinearAllocator SerialArena = {0};
-        LinearAllocator_Create(TotalMem, ArenaMemory, &SerialArena);
-        #endif
+        LinearAllocator NewArena = {0};
+        LinearAllocator_Create(TotalMem, ArenaMemory, &NewArena);
 
         for (u32 i = 0; !bSkipDependencies && i < Depends_Count; i++)
         {
-            #if PARALLEL_BUILD_GRAPH
-            // Each dependency resolves into its own persistent per-module arena, which the plan keeps
-            // and frees once the whole build has run. There is no shared/reset scratch arena anymore:
-            // the planner never copies a resolved module back out, so its arena has to survive until
-            // execution finishes.
-            LinearAllocator NewArena = Plan_NewModuleArena(Plan);
-            if (!NewArena.Memory)
-            {
-                Receipt.ExitCode = 1;
-                return Receipt;
-            }
-            #else
-            // Serial build: each dependency resolves and executes inline, so nothing from this
-            // iteration needs to survive the next one - reuse a single scratch arena.
-            LinearAllocator_Reset(&SerialArena, 0); // "free" the memory
-            LinearAllocator NewArena = SerialArena;
-            #endif
+            LinearAllocator_Reset(&NewArena, 0); // "free" the memory
 
             FileVariable Var = *Depends[i];
 
@@ -6196,7 +5990,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             String RelativeWorkingPathFromMe = bUsingRelativePath ? CustomRelativePath : CustomWorkingPath_Full;
 
             PlatformMutex NewMutex = {0};
-            BuildReceipt FreshReceipt = BuildTarget(&NewArena, f, NewBuildFilePath, &NewMutex, CustomWorkingPath_Full, NewParams, BuildFileName, -1, -1, Plan, bPlanOnly);
+            BuildReceipt FreshReceipt = BuildTarget(&NewArena, f, NewBuildFilePath, &NewMutex, CustomWorkingPath_Full, NewParams, BuildFileName, -1, -1);
             Filesystem_Close(&FreshReceipt.ArtifactManifestHandle);
             if (NewMutex.Handle) { xx Platform_ReleaseMutex(&NewMutex); }
 
@@ -6342,12 +6136,8 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             LOG_LINE_BREAK();
         }
 
-        #if PARALLEL_BUILD_GRAPH
-        // Dependency arenas are owned by the plan (freed in Plan_Free), not here.
-        #else
-        LinearAllocator_Destroy(&SerialArena);
+        LinearAllocator_Destroy(&NewArena);
         Platform_MemFree(ArenaMemory);
-        #endif
 
         if (bRanAnyDependencies && !bIsClean)
         {
@@ -6365,9 +6155,8 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         return Receipt;
     }
 
-    // pre build (in plan-only mode this runs later, as a phase-global barrier in ExecuteBuildPlan)
     Clock PreBuildClock = {0};
-    if (!bExportingSomething && !bPlanOnly)
+    if (!bExportingSomething)
     {
         if (!TryRunBuildCommands(S("PreBuild"), WorkingPath, VariablesDB, &PreBuildClock, bIsClean))
         {
@@ -8244,10 +8033,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     String_Append(&ManifestName, BuildFileName);
     String_Append(&ManifestName, S(".artifact_paths"));
 
-    // Arena-backed (not StringLocal): this path is captured into the ModuleNode below, which is
-    // shallow-copied into the plan and read long after this stack frame is gone. A stack-backed
-    // buffer here left dependency modules with a dangling manifest path, so they never wrote an
-    // artifact manifest and "clean_all" could not remove their build outputs.
     StringArena(ArtifactManifestPath, MAX_PATH_LENGTH, Arena);
     String_BuildPath(&ArtifactManifestPath, IntermediateBaseDirectory, ManifestName);
 
@@ -8363,54 +8148,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     // @license generate
     TryGenerateLicense(*Arena, VariablesDB, &p, BuildFilePathFull, bIsRebuild);
 
-    #if PARALLEL_BUILD_GRAPH
-    // Plan-only mode: 'p', the receipt exports, and the incremental diff are now fully resolved.
-    // Capture this module into the plan (deep-copied into its own arena) and return, deferring every
-    // lifecycle hook, the compile, and the link to ExecuteBuildPlan's phase-global barriers.
-    if (bPlanOnly)
-    {
-        if (NEVER(Plan == NULL))
-        {
-            Receipt.ExitCode = 1;
-            return Receipt;
-        }
-
-        ModuleNode Temp = {0};
-        Temp.Params               = p;
-        Temp.Receipt              = Receipt;
-        Temp.VariablesDB          = VariablesDB;
-        Temp.WorkingPath          = WorkingPath;
-        Temp.BuildFilePath        = BuildFilePathFull;
-        Temp.BuildFileName        = BuildFileName;
-        Temp.BuildBaseDirectory   = BuildBaseDirectory;
-        Temp.ArtifactManifestPath = ArtifactManifestPath;
-        Temp.IconRcFilePath       = IconRcFilePath;
-        Temp.VersionRCFilePath    = VersionRCFilePath;
-        Temp.Type                 = AssemblyType;
-        Temp.bCanLink             = bCanLink;
-        #if PLATFORM_APPLE
-        Temp.bBundleApp           = bBundleApp;
-        #endif
-        Temp.bIsClean             = bIsClean;
-        Temp.bSkipPostBuild       = bSkipPostBuild;
-        Temp.bForceRelink         = bForceRelink;
-
-        if (!Plan_AppendModule(Plan, &Temp, *Arena))
-        {
-            Receipt.ExitCode = 1;
-            return Receipt;
-        }
-
-        // The receipt already carries this module's exports for the parent to fold in; no inline work.
-        Receipt.ExitCode = 0;
-        return Receipt;
-    }
-    #endif // PARALLEL_BUILD_GRAPH
-
-    // NOTE: with PARALLEL_BUILD_GRAPH, builds always take the bPlanOnly path above and the inline
-    // execution below (PreCompile -> compile -> link -> bundle -> PostBuild) only runs for the clean
-    // flow, which jumps straight to the End: label via `goto End` (search this function). Without the
-    // define this inline tail IS the build: the original serial path, executing each module in place.
     Clock ExternalClock = {0};
     Clock_Start(&ExternalClock);
 
@@ -8825,457 +8562,6 @@ End:
 
     return Receipt;
 }
-
-#if PARALLEL_BUILD_GRAPH
-// --- Parallel build plan: executor --------------------------------------------------------------
-//
-// Runs a fully-resolved BuildPlan as phase-global barriers, iterating every module in dependency
-// (post-order) order for each phase: PreDepend, PreBuild, PreCompile across all modules; then one
-// shared parallel compile batch of every module's source files at once; then PostCompile, PreLink,
-// link, PostLink, bundle and PostBuild. Because modules are ordered deepest-dependency-first, the
-// link barrier links a dependency before anything that links against it.
-
-static bool Plan_RunHook(const String Key, ModuleNode* Node)
-{
-    return TryRunBuildCommands(Key, Node->WorkingPath, Node->VariablesDB, NULL, Node->bIsClean);
-}
-
-static bool Plan_AssemblyExists(ModuleNode* Node)
-{
-    if (!Node->bCanLink)
-    {
-        return true;
-    }
-
-    StringLocal(AssemblyPath, MAX_PATH_LENGTH);
-    String_BuildPath(&AssemblyPath, Node->BuildBaseDirectory, Node->Params.AssemblyWithExt);
-    return Filesystem_DoesFileExist(AssemblyPath);
-}
-
-static bool Plan_ExecPreCompilePrep(ModuleNode* Node)
-{
-    BuildParams* p = &Node->Params;
-
-    if (!TryRunBuildCommands(S("PreCompile"), Node->WorkingPath, Node->VariablesDB, NULL, Node->bIsClean))
-    {
-        return false;
-    }
-
-    if (!TryRunPerSourceFileBuildCommands(S("PreCompileAllFiles"), p, Node->WorkingPath, Node->VariablesDB, NULL, Node->bIsClean, true))
-    {
-        return false;
-    }
-
-    if (!TryRunPerSourceFileBuildCommands(S("PreCompileFile"), p, Node->WorkingPath, Node->VariablesDB, NULL, Node->bIsClean, false))
-    {
-        return false;
-    }
-
-    if (p->NumSources > 0)
-    {
-        #ifndef HOOD
-        LOG("Building %S [%S] (%u %S) (with %u %S max)\n", p->AssemblyWithExt, p->TargetArchString, p->NumSources, p->NumSources == 1 ? S("source file") : S("source files"), p->MaxCompilersAtOnce, p->MaxCompilersAtOnce == 1 ? S("core") : S("cores"));
-        #else
-        LOG("build'n dis fooo %S\n", p->AssemblyWithExt);
-        #endif
-    }
-
-    xx Filesystem_Open(Node->ArtifactManifestPath, FileMode_Write, &p->ArtifactManifestHandle);
-    RecordGeneratedHelperFiles(p);
-
-    // The generated .rc paths are built relative to the module root; anchor them before touching
-    // the filesystem or the manifest so neither depends on the process working directory.
-    {
-        StringLocal(FullRcPath, MAX_PATH_LENGTH);
-
-        String_BuildPath(&FullRcPath, Node->WorkingPath, Node->IconRcFilePath);
-        if (Filesystem_DoesFileExist(FullRcPath))
-        {
-            RecordArtifactPath(p->ArtifactManifestHandle, FullRcPath);
-        }
-
-        String_Empty(&FullRcPath);
-        String_BuildPath(&FullRcPath, Node->WorkingPath, Node->VersionRCFilePath);
-        if (Filesystem_DoesFileExist(FullRcPath))
-        {
-            RecordArtifactPath(p->ArtifactManifestHandle, FullRcPath);
-        }
-    }
-
-    return true;
-}
-
-static bool Plan_ExecFinalizeArtifacts(ModuleNode* Node)
-{
-    BuildParams* p = &Node->Params;
-
-    #if PLATFORM_APPLE
-    if (Node->bBundleApp && p->bIsAssemblyExe)
-    {
-        if (!TryBuildMacBundle(Node->Arena, p, Node->VariablesDB))
-        {
-            return false;
-        }
-    }
-
-    if (!TryBuildOrCleanMacExeIcon(p->IconFilePath, p))
-    {
-        return false;
-    }
-    #elif PLATFORM_LINUX || PLATFORM_BSD
-    if (Platform_GetDesktopEnvironment() != Desktop_Unknown)
-    {
-        if (!TryBuildOrCleanUnixExeIcon(p->IconFilePath, p))
-        {
-            return false;
-        }
-    }
-    #else
-    (void)p;
-    #endif
-
-    return true;
-}
-
-static void Plan_RunRootAssemblyIfRequested(ModuleNode* Node, const StringArray Parameters)
-{
-    BuildParams* p = &Node->Params;
-    if (!p->bIsAssemblyExe)
-    {
-        return;
-    }
-
-    u32 RunIndex = 0;
-    bool bRunFound = false;
-    bool bRunExternal = false;
-    for (u8 i = 0; i < (u8)Parameters.Num; i++)
-    {
-        if (String_IsEqual(Parameters.List[i], S("run"), false))
-        {
-            RunIndex = i;
-            bRunFound = true;
-            break;
-        }
-
-        if (String_IsEqual(Parameters.List[i], S("run.external"), false))
-        {
-            RunIndex = i;
-            bRunFound = true;
-            bRunExternal = true;
-            break;
-        }
-    }
-
-    if (bRunFound)
-    {
-        StringLocal(RunArgs, 4096);
-        for (u32 i = RunIndex + 1; i < Parameters.Num; i++)
-        {
-            Internal_AppendRunArg(&RunArgs, Parameters.List[i]);
-        }
-
-        if (bRunExternal)
-        {
-            Internal_RunAssembly_ExternalWindow(Node->BuildBaseDirectory, Node->BuildBaseDirectory, p->AssemblyWithExt, RunArgs);
-        }
-        else
-        {
-            Internal_RunAssembly_CmdLine(Node->BuildBaseDirectory, Node->BuildBaseDirectory, p->AssemblyWithExt, RunArgs, String_Null());
-        }
-    }
-
-    for each (FileVariable, v, Node->VariablesDB)
-    {
-        if (String_IsEqual(v.Name, S(".Run"), false))
-        {
-            LinearAllocator Scratch = Node->Arena;
-            StringList ParamList = String_SplitIntoList(&Scratch, v.Params, ' ', false);
-
-            bool bIsSpecial  = StringList_FindIndex(ParamList, S("Only_Done_Work"), false, StringCompare_Equal, NULL);
-            bool bIsExternal = StringList_FindIndex(ParamList, S("external"), false, StringCompare_Equal, NULL);
-
-            if (bIsSpecial && Node->NumCompiled == 0)
-            {
-                continue;
-            }
-
-            if (bIsExternal)
-            {
-                Internal_RunAssembly_ExternalWindow(Node->WorkingPath, Node->BuildBaseDirectory, p->AssemblyWithExt, v.Value);
-            }
-            else
-            {
-                Internal_RunAssembly(Node->Arena, Node->WorkingPath, Node->BuildBaseDirectory, p->AssemblyWithExt, v.Value);
-            }
-        }
-    }
-}
-
-static void Plan_Free(BuildPlan* Plan)
-{
-    // Close any manifests the executor left open.
-    for (usize i = 0; i < Plan->NumModules; i++)
-    {
-        ModuleNode* Node = Plan->Modules[i];
-        if (IsValidFileHandle(Node->Params.ArtifactManifestHandle))
-        {
-            Filesystem_Close(&Node->Params.ArtifactManifestHandle);
-        }
-    }
-
-    // Release every per-module arena block (each module resolved directly into one; nothing was
-    // copied out). This also covers deduped diamond re-resolutions that never became a module.
-    for (u32 i = 0; i < Plan->NumArenaBlocks; i++)
-    {
-        if (Plan->ArenaBlocks[i])
-        {
-            Platform_MemFree(Plan->ArenaBlocks[i]);
-            Plan->ArenaBlocks[i] = NULL;
-        }
-    }
-    Plan->NumArenaBlocks = 0;
-}
-
-static BuildReceipt ExecuteBuildPlan(BuildPlan* Plan, Clock* OutCompileClock, Clock* OutLinkClock)
-{
-    BuildReceipt Result = {0};
-
-    const usize N = Plan->NumModules;
-    if (N == 0)
-    {
-        return Result;
-    }
-
-    #define PLAN_FAIL() do { Result.ExitCode = 1; return Result; } while (0)
-
-    // PreDepend + PreBuild barriers (dependency order)
-    for (usize i = 0; i < N; i++)
-    {
-        if (!Plan_RunHook(S("PreDepend"), Plan->Modules[i]))
-        {
-            PLAN_FAIL();
-        }
-    }
-
-    for (usize i = 0; i < N; i++)
-    {
-        if (!Plan_RunHook(S("PreBuild"), Plan->Modules[i]))
-        {
-            PLAN_FAIL();
-        }
-    }
-
-    // PreCompile barrier: hooks, "Building" banner, manifest open, generated/icon/version records
-    for (usize i = 0; i < N; i++)
-    {
-        ModuleNode* Node = Plan->Modules[i];
-        if (Node->bIsPhony)
-        {
-            continue;
-        }
-
-        if (!Plan_ExecPreCompilePrep(Node))
-        {
-            PLAN_FAIL();
-        }
-    }
-
-    // One shared parallel compile batch: every module's source files spawn onto the same throttled
-    // process pool, then a single wait-barrier drains them all.
-    Clock CompileClock = {0};
-    Clock_Start(&CompileClock);
-
-    u32 TotalCompiled = 0;
-    bool bSpawnOk = true;
-    for (usize i = 0; i < N; i++)
-    {
-        ModuleNode* Node = Plan->Modules[i];
-        if (Node->bIsPhony)
-        {
-            continue;
-        }
-
-        if (!C_Compile_Spawn(&Node->Params, &Node->NumCompiled))
-        {
-            bSpawnOk = false;
-            break;
-        }
-
-        TotalCompiled += Node->NumCompiled;
-    }
-
-    bool bCompileOk = C_Compile_Wait(&Plan->Modules[0]->Params, TotalCompiled);
-    if (Array_Num(Plan->Processes) > 0)
-    {
-        xx Platform_WaitForMultipleHandles(Plan->Processes, (u32)Array_Num(Plan->Processes), -1, true);
-    }
-
-    Clock_Tick(&CompileClock);
-    if (OutCompileClock)
-    {
-        *OutCompileClock = CompileClock;
-    }
-
-    if (!bSpawnOk || !bCompileOk)
-    {
-        PLAN_FAIL();
-    }
-
-    // Decide per module whether any link/finalize work remains. Processed in dependency order.
-    //
-    // A dependency doing work does NOT force later library modules to relink: an archive only
-    // contains its own objects, so if none of them changed the archive is already correct. The one
-    // exception is the final module when it is an executable - its link pulls in every dependency's
-    // artifacts, so any earlier module doing work means the exe must relink.
-    bool bAnyPriorWork = false;
-    for (usize i = 0; i < N; i++)
-    {
-        ModuleNode* Node = Plan->Modules[i];
-
-        const bool bIsFinalModule = (i == N - 1);
-        const bool bRelinkFromPriorWork = bIsFinalModule && Node->Params.bIsAssemblyExe && bAnyPriorWork;
-
-        Node->bAssemblyExists = Plan_AssemblyExists(Node);
-        Node->bNoMoreWork  = (Node->NumCompiled == 0 && Node->bAssemblyExists && !Node->bForceRelink && !bRelinkFromPriorWork);
-        Node->bWorkWasDone = (Node->NumCompiled > 0) || (Node->bForceRelink && Node->bCanLink);
-        if (!Node->bNoMoreWork)
-        {
-            bAnyPriorWork = true;
-        }
-
-        // The link barrier below will skip this module, but its manifest was rewritten this
-        // build - keep the linker outputs in it so a later "clean" still removes them.
-        if (Node->bNoMoreWork && Node->bCanLink && !Node->bIsPhony)
-        {
-            RecordSkippedLinkArtifacts(&Node->Params);
-        }
-    }
-
-    // PostCompile barrier
-    for (usize i = 0; i < N; i++)
-    {
-        ModuleNode* Node = Plan->Modules[i];
-        if (Node->bIsPhony || Node->bNoMoreWork)
-        {
-            continue;
-        }
-
-        if (!Plan_RunHook(S("PostCompile"), Node))
-        {
-            PLAN_FAIL();
-        }
-    }
-
-    // PreLink barrier
-    for (usize i = 0; i < N; i++)
-    {
-        ModuleNode* Node = Plan->Modules[i];
-        if (Node->bNoMoreWork || !Node->bCanLink)
-        {
-            continue;
-        }
-
-        if (!Plan_RunHook(S("PreLink"), Node))
-        {
-            PLAN_FAIL();
-        }
-    }
-
-    // Link barrier -- dependency order (C, then B, then App)
-    Clock LinkClock = {0};
-    Clock_Start(&LinkClock);
-
-    for (usize i = 0; i < N; i++)
-    {
-        ModuleNode* Node = Plan->Modules[i];
-        if (Node->bNoMoreWork || !Node->bCanLink)
-        {
-            continue;
-        }
-
-        if (!C_Link(&Node->Params))
-        {
-            PLAN_FAIL();
-        }
-    }
-
-    Clock_Tick(&LinkClock);
-    if (OutLinkClock)
-    {
-        *OutLinkClock = LinkClock;
-    }
-
-    // PostLink barrier
-    for (usize i = 0; i < N; i++)
-    {
-        ModuleNode* Node = Plan->Modules[i];
-        if (Node->bNoMoreWork || !Node->bCanLink)
-        {
-            continue;
-        }
-
-        if (!Plan_RunHook(S("PostLink"), Node))
-        {
-            PLAN_FAIL();
-        }
-    }
-
-    // Bundle/icon barrier
-    for (usize i = 0; i < N; i++)
-    {
-        ModuleNode* Node = Plan->Modules[i];
-        if (Node->bIsPhony || Node->bNoMoreWork)
-        {
-            continue;
-        }
-
-        if (!Plan_ExecFinalizeArtifacts(Node))
-        {
-            PLAN_FAIL();
-        }
-    }
-
-    // PostBuild barrier (every module; ".RunPostBuildIfWorkDone" skips it when nothing was done)
-    for (usize i = 0; i < N; i++)
-    {
-        ModuleNode* Node = Plan->Modules[i];
-        if (Node->bSkipPostBuild && Node->bNoMoreWork)
-        {
-            continue;
-        }
-
-        if (!Plan_RunHook(S("PostBuild"), Node))
-        {
-            PLAN_FAIL();
-        }
-    }
-
-    // Announce the root artifact (the last module is the top-level target).
-    {
-        ModuleNode* Root = Plan->Modules[N - 1];
-        if (!Root->bIsPhony)
-        {
-            StringLocal(OutputPath, MAX_PATH_LENGTH);
-            String_BuildPath(&OutputPath, Root->BuildBaseDirectory, Root->Params.AssemblyWithExt);
-            #ifndef HOOD
-            LOG_SUCCESS("Build complete: %S", OutputPath);
-            #else
-            LOG_SUCCESS("lessss fuckinggg goooo: %S", OutputPath);
-            #endif
-        }
-    }
-
-    // The root executable's .Run happens in our caller, after the timing summary has printed:
-    // the timing report belongs right under the "Build complete" line, not after the program
-    // being launched eventually exits (which also kept the app's runtime out of "Total build Time").
-
-    #undef PLAN_FAIL
-
-    Result.ExitCode = 0;
-    Result.bWorkWasDone = bAnyPriorWork;
-    return Result;
-}
-#endif // PARALLEL_BUILD_GRAPH
 
 static void LogDividerLine(void)
 {
@@ -10035,73 +9321,8 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray RawArguments, con
     }
 
     PlatformMutex BuildMutex = {0};
-
-    #if PARALLEL_BUILD_GRAPH
-    // Two-pass parallel build: first plan the whole dependency graph into a BuildPlan (parse, resolve
-    // to absolute paths, fold in each dependency's exports, run the incremental diff -- but compile or
-    // link nothing), then execute the plan as phase-global barriers with one shared parallel compile
-    // batch across every module. See ExecuteBuildPlan.
-    BuildPlan Plan = {0};
-    Plan.Arena       = Arena; // plan bookkeeping (Modules/Processes/ArenaBlocks arrays) only
-    Plan.Modules     = Internal_ArrayCreateStatic(LinearAllocator_Allocate(Arena, Array_CalculateMemRequirement(256, sizeof(ModuleNode*))),  256, sizeof(ModuleNode*));
-    Plan.Processes   = Internal_ArrayCreateStatic(LinearAllocator_Allocate(Arena, Array_CalculateMemRequirement(256, sizeof(PlatformHandle))), 256, sizeof(PlatformHandle));
-    Plan.ArenaBlocks = LinearAllocator_Allocate(Arena, sizeof(void*) * MAX_PLAN_ARENA_BLOCKS);
-
-    Clock TotalClock = {0};
-    Clock_Start(&TotalClock);
-
-    // The root module gets its own persistent arena too, so it resolves in place like every dependency
-    // (ProgramArena is reserved for the plan's bookkeeping arrays).
-    LinearAllocator RootArena = Plan_NewModuleArena(&Plan);
-
-    Clock PlanClock = {0};
-    Clock_Start(&PlanClock);
-    BuildReceipt Receipt = BuildTarget(&RootArena, BuildFileHandle, BuildFilePathFull, &BuildMutex, WorkingDirectory, BuildArguments, String_Null(), BuildFileIndex, RootPathIndex, &Plan, true);
-    Clock_Tick(&PlanClock);
-
-    Clock CompileClock = {0};
-    Clock LinkClock    = {0};
-    if (Receipt.ExitCode == 0)
-    {
-        BuildReceipt ExecReceipt = ExecuteBuildPlan(&Plan, &CompileClock, &LinkClock);
-        Receipt.ExitCode  = ExecReceipt.ExitCode;
-        Receipt.bWorkWasDone = ExecReceipt.bWorkWasDone;
-    }
-
-    Clock_Tick(&TotalClock);
-
-    // Timing summary. "Plan" covers parsing/resolving/diffing the whole dependency graph; "Compile"
-    // is the single cross-module parallel batch; "Link" is the ordered link barrier; "Overhead" is
-    // whatever is left (process teardown, logging, the plan free).
-    if (Receipt.ExitCode == 0 && !bQuietBuild && Plan.NumModules > 0 && Receipt.bWorkWasDone)
-    {
-        Clock OverheadClock = {0};
-        OverheadClock.StartTime = 1;
-        OverheadClock.ElapsedTime = TotalClock.ElapsedTime - (PlanClock.ElapsedTime + CompileClock.ElapsedTime + LinkClock.ElapsedTime);
-        if (OverheadClock.ElapsedTime < 0) { OverheadClock.ElapsedTime = 0; }
-
-        StringLocal(TimingBuffer, 512);
-        PrintClockTimeToBuffer(&TimingBuffer, &PlanClock,    &TotalClock, S("\nPlan        Time: "), false);
-        PrintClockTimeToBuffer(&TimingBuffer, &CompileClock, &TotalClock, S(  "Compile     Time: "), false);
-        PrintClockTimeToBuffer(&TimingBuffer, &LinkClock,    &TotalClock, S(  "Link        Time: "), false);
-        PrintClockTimeToBuffer(&TimingBuffer, &OverheadClock,&TotalClock, S(  "Overhead    Time: "), true);
-        PrintClockTimeToBuffer(&TimingBuffer, &TotalClock,   NULL,        S(  "Total build Time: "), false);
-        LOG("%S", TimingBuffer);
-    }
-
-    // Run the root executable if requested (.Run / "run"), now that the timing summary sits
-    // directly under the "Build complete" line. Running last also keeps the launched program's
-    // lifetime out of the build timings.
-    if (Receipt.ExitCode == 0 && Plan.NumModules > 0)
-    {
-        Plan_RunRootAssemblyIfRequested(Plan.Modules[Plan.NumModules - 1], BuildArguments);
-    }
-
-    Plan_Free(&Plan);
-    #else
-    BuildReceipt Receipt = BuildTarget(Arena, BuildFileHandle, BuildFilePathFull, &BuildMutex, WorkingDirectory, BuildArguments, String_Null(), BuildFileIndex, RootPathIndex, NULL, false);
+    BuildReceipt Receipt = BuildTarget(Arena, BuildFileHandle, BuildFilePathFull, &BuildMutex, WorkingDirectory, BuildArguments, String_Null(), BuildFileIndex, RootPathIndex);
     Filesystem_Close(&Receipt.ArtifactManifestHandle);
-    #endif // PARALLEL_BUILD_GRAPH
 
     if (BuildMutex.Handle) { xx Platform_ReleaseMutex(&BuildMutex); }
 
@@ -10766,131 +9987,6 @@ static void InitInternalVars(LinearAllocator* Arena)
     String_Format(&CacheLineSize, S("%u"), Platform_GetCpuCacheLineSize());
     AddInternalVariable(S("_CacheLineSize"), String_Create(Arena, CacheLineSize));
 
-    // todo: check if these are on bsd as well. maybe linux?
-    #if PLATFORM_APPLE
-    /*
-    hw.ncpu: 8
-    hw.byteorder: 1234
-    hw.memsize: 8589934592
-    hw.activecpu: 8
-    hw.perflevel0.physicalcpu: 4
-    hw.perflevel0.physicalcpu_max: 4
-    hw.perflevel0.logicalcpu: 4
-    hw.perflevel0.logicalcpu_max: 4
-    hw.perflevel0.l1icachesize: 196608
-    hw.perflevel0.l1dcachesize: 131072
-    hw.perflevel0.l2cachesize: 16777216
-    hw.perflevel0.cpusperl2: 4
-    hw.perflevel0.name: Performance
-    hw.perflevel1.physicalcpu: 4
-    hw.perflevel1.physicalcpu_max: 4
-    hw.perflevel1.logicalcpu: 4
-    hw.perflevel1.logicalcpu_max: 4
-    hw.perflevel1.l1icachesize: 131072
-    hw.perflevel1.l1dcachesize: 65536
-    hw.perflevel1.l2cachesize: 4194304
-    hw.perflevel1.cpusperl2: 4
-    hw.perflevel1.name: Efficiency
-    hw.optional.arm.FEAT_FlagM: 1
-    hw.optional.arm.FEAT_FlagM2: 1
-    hw.optional.arm.FEAT_FHM: 1
-    hw.optional.arm.FEAT_DotProd: 1
-    hw.optional.arm.FEAT_SHA3: 1
-    hw.optional.arm.FEAT_RDM: 1
-    hw.optional.arm.FEAT_LSE: 1
-    hw.optional.arm.FEAT_SHA256: 1
-    hw.optional.arm.FEAT_SHA512: 1
-    hw.optional.arm.FEAT_SHA1: 1
-    hw.optional.arm.FEAT_AES: 1
-    hw.optional.arm.FEAT_PMULL: 1
-    hw.optional.arm.FEAT_SPECRES: 0
-    hw.optional.arm.FEAT_SB: 1
-    hw.optional.arm.FEAT_FRINTTS: 1
-    hw.optional.arm.FEAT_LRCPC: 1
-    hw.optional.arm.FEAT_LRCPC2: 1
-    hw.optional.arm.FEAT_FCMA: 1
-    hw.optional.arm.FEAT_JSCVT: 1
-    hw.optional.arm.FEAT_PAuth: 1
-    hw.optional.arm.FEAT_PAuth2: 1
-    hw.optional.arm.FEAT_FPAC: 1
-    hw.optional.arm.FEAT_DPB: 1
-    hw.optional.arm.FEAT_DPB2: 1
-    hw.optional.arm.FEAT_BF16: 1
-    hw.optional.arm.FEAT_I8MM: 1
-    hw.optional.arm.FEAT_ECV: 1
-    hw.optional.arm.FEAT_LSE2: 1
-    hw.optional.arm.FEAT_CSV2: 1
-    hw.optional.arm.FEAT_CSV3: 1
-    hw.optional.arm.FEAT_DIT: 1
-    hw.optional.arm.FEAT_FP16: 1
-    hw.optional.arm.FEAT_SSBS: 1
-    hw.optional.arm.FEAT_BTI: 1
-    hw.optional.arm.FP_SyncExceptions: 1
-    hw.optional.floatingpoint: 1
-    hw.optional.neon: 1
-    hw.optional.neon_hpfp: 1
-    hw.optional.neon_fp16: 1
-    hw.optional.armv8_1_atomics: 1
-    hw.optional.armv8_2_fhm: 1
-    hw.optional.armv8_2_sha512: 1
-    hw.optional.armv8_2_sha3: 1
-    hw.optional.armv8_3_compnum: 1
-    hw.optional.watchpoint: 4
-    hw.optional.breakpoint: 6
-    hw.optional.armv8_crc32: 1
-    hw.optional.armv8_gpi: 1
-    hw.optional.AdvSIMD: 1
-    hw.optional.AdvSIMD_HPFPCvt: 1
-    hw.optional.ucnormal_mem: 1
-    hw.optional.arm64: 1
-    hw.features.allows_security_research: 0
-    hw.physicalcpu: 8
-    hw.physicalcpu_max: 8
-    hw.logicalcpu: 8
-    hw.logicalcpu_max: 8
-    hw.cputype: 16777228
-    hw.cpusubtype: 2
-    hw.cpu64bit_capable: 1
-    hw.cpufamily: -634136515
-    hw.cpusubfamily: 2
-    hw.cacheconfig: 8 1 4 0 0 0 0 0 0 0
-    hw.cachesize: 3697426432 65536 4194304 0 0 0 0 0 0 0
-    hw.pagesize: 16384
-    hw.pagesize32: 16384
-    hw.cachelinesize: 128
-    hw.l1icachesize: 131072
-    hw.l1dcachesize: 65536
-    hw.l2cachesize: 4194304
-    hw.tbfrequency: 24000000
-    hw.memsize_usable: 7992393728
-    hw.packages: 1
-    hw.osenvironment: 
-    hw.ephemeral_storage: 0
-    hw.use_recovery_securityd: 0
-    hw.use_kernelmanagerd: 1
-    hw.serialdebugmode: 0
-    hw.nperflevels: 2
-    hw.targettype: J413
-    machdep.cpu.cores_per_package: 8
-    machdep.cpu.core_count: 8
-    machdep.cpu.logical_per_package: 8
-    machdep.cpu.thread_count: 8
-    machdep.cpu.brand_string: Apple M2
-    machdep.user_idle_level: 0
-    machdep.wake_abstime: 11797809078509
-    machdep.time_since_reset: 44172175964
-    machdep.wake_conttime: 201324628
-    machdep.deferred_ipi_timeout: 64000
-    machdep.virtual_address_size: 47
-    machdep.report_phy_read_delay: 0
-    machdep.report_phy_write_delay: 0
-    machdep.trace_phy_read_delay: 0
-    machdep.trace_phy_write_delay: 0
-    machdep.phy_read_delay_panic: 0
-    machdep.phy_write_delay_panic: 0
-    */
-    #endif
-
     StringLocal(AccountName, 256);
     String Allocated;
     if (Platform_GetAccountName(&AccountName))
@@ -10952,7 +10048,6 @@ u32 RunApplication(const StringArray Arguments)
     Logging_ToggleLogTimeStamp(false);
     Logging_ToggleLogCategory(false);
 
-    // todo: clean, rebuild, verbose
     bNoWordWrapLogging = StringArray_Contains(Arguments, S("-w"), false) ||
                          StringArray_Contains(Arguments, S("--no-word-wrap"), false);
     bQuietBuild        = StringArray_Contains(Arguments, S("-q"), false);

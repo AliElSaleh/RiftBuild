@@ -43,7 +43,6 @@ Compiler.Flags            $SharedCompilerFlags
 Compiler.Includes         $SharedIncludeFlags
 Compiler.Defines          $SharedDefines %^%hood NO_PRINT_BUILD_CONFIG=%no_print_config
 Compiler.Defines:mem      MAX_MEMORY_MB=%mem
-Compiler.Defines:parallel PARALLEL_BUILD_GRAPH=1
 
 Linker.Flags              $SharedLinkerFlags
 Linker.Subsystem          Console
@@ -73,4 +72,3 @@ option.hood                         Enable hood mode, the program will talk to y
 option.no_print_config              Disable printing of the build configuration flags.
 option.asm                          Generate disassembly (.S) files.
 option.mem                          Specify the max memory amount in mebibytes riftbuild should pre-allocate.
-option.parallel                     Compile in the experimental parallel build graph (plan + batched cross-module compile).
