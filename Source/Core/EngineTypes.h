@@ -338,7 +338,6 @@ STRUCT(StringList) // 24 bytes
 // https://github.com/cpredef/predef/blob/master/Architectures.md
 #if defined(_M_IX86) || defined(_M_X64) || defined(__i386__) || defined(__x86_64__)
     #define CPU_X86 1
-    #define CACHE_LINE_SIZE 64
 
     #if defined(__x86_64__) || defined(_M_X64)
         #define CPU_X64 1
@@ -353,7 +352,6 @@ STRUCT(StringList) // 24 bytes
 
 #elif defined(_M_PPC) || defined(__powerpc__) || defined(__powerpc64__)
     #define CPU_PPC 1
-    #define CACHE_LINE_SIZE 128
 
     #if defined(__powerpc64__)
         #define CPU_PPC64 1
@@ -410,12 +408,10 @@ STRUCT(StringList) // 24 bytes
         #define CPU_ARCHITECTURE_STRING "arm64"
         #define CPU_ARCHITECTURE_STRING_EX "arm64|arm|aarch|aarch64"
         #define PLATFORM_64_BIT 1
-        #define CACHE_LINE_SIZE 128
     #else
         #define CPU_ARCHITECTURE_STRING "arm"
         #define CPU_ARCHITECTURE_STRING_EX "arm|aarch"
         #define PLATFORM_32_BIT 1
-        #define CACHE_LINE_SIZE 64
     #endif
 
 #else

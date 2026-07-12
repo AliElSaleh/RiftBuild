@@ -98,11 +98,6 @@ RIFT_API NO_DISCARD u32 Platform_GetCpuCacheLineSize(void)
     // EBX bits [15:8] = CLFLUSH line size in 8-byte units
     u32 LineSize = ((info[1] >> 8) & 0xFF) * 8;
 
-    if (LineSize == 0)
-    {
-        LineSize = CACHE_LINE_SIZE;
-    }
-
     return LineSize;
 }
 
