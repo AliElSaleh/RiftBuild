@@ -1628,7 +1628,7 @@ bool Filesystem_ReadLine(const FileHandle Handle, String* LineBuffer)
         {
             FilePointerOffset = Counter;
 
-            if (TempBuffer[i] == '\r' && TempBuffer[i+1] == '\n') // todo: bounds check
+            if (TempBuffer[i] == '\r' && i + 1 < BytesRead && TempBuffer[i+1] == '\n')
                 FilePointerOffset += 2;
             else
                 FilePointerOffset++;
