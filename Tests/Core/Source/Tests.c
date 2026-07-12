@@ -2245,11 +2245,11 @@ TEST(Filesystem_ReadLine)
         xx Filesystem_DeleteFile(TmpFile);
     }
 
-    // Write two lines separated by \r\n (Windows line ending)
+    // Write lines with both CRLF and a trailing CR line ending.
     xx Filesystem_NewFile(TmpFile);
     FileHandle hWrite = FileHandle_Null();
     xx Filesystem_Open(TmpFile, FileMode_Write, &hWrite);
-    String RawContent = S("First Line\r\nSecond Line\r\n");
+    String RawContent = S("First Line\r\nSecond Line\r\nTrailing CR\r");
     usize BytesWritten = 0;
     Filesystem_Write(hWrite, RawContent.Length, RawContent.Data, &BytesWritten);
     Filesystem_Close(&hWrite);
@@ -2267,6 +2267,11 @@ TEST(Filesystem_ReadLine)
     bool bLine2 = Filesystem_ReadLine(hRead, &LineBuf);
     Expect_IsTrue(bLine2);
     Expect_String_IsEqual(S("Second Line"), StrMake(LineBuf), true);
+
+    String_Empty(&LineBuf);
+    bool bLine3 = Filesystem_ReadLine(hRead, &LineBuf);
+    Expect_IsTrue(bLine3);
+    Expect_String_IsEqual(S("Trailing CR"), StrMake(LineBuf), true);
 
     Filesystem_Close(&hRead);
     xx Filesystem_DeleteFile(TmpFile);
