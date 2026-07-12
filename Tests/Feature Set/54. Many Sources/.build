@@ -1,0 +1,10 @@
+# 1000 translation units plus main, all sharing one header. Exercises the build at scale:
+#   - the header dependency cache sizing cap (NumSources > 256 -> 4096 entries)
+#   - per-file incremental skip checks across 1000+ objects
+#   - a ~24KB link command line (still under the Windows 32767 process limit)
+# Incremental behavior (verified by building multiple times):
+#   2nd build: "Nothing to compile - source files unchanged since last build".
+#   touch Source/shared.h: every unit recompiles (all of them include it).
+#   touch Source/first.h:  ONLY u000.c recompiles ([Skipping] everything else).
+Assembly        ManySources
+SourceDirectory Source

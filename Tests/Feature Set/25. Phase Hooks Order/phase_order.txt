@@ -1,6 +1,3 @@
 PreBuild
 PreCompile
-PostCompile
-PreLink
-PostLink
 PostBuild

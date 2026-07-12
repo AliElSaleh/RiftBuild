@@ -8,7 +8,7 @@ prints its `OK ...` line and exits 0.
 To build the whole suite with one command, run `riftbuild` from *this* folder:
 the [.build](.build) here is a phony aggregator that `Depend`s on every test.
 Test 1 is excluded (it has no .build file - that is its feature), and the tests
-that need extra invocations (18, 19, 28, 43-46) only get their plain build.
+that need extra invocations (18, 19, 28, 43-46, 54) only get their plain build.
 
 Wherever possible the tests are self-verifying at *compile time*: the sources
 contain `#error` traps that fire when the feature under test misbehaves, so a
@@ -69,8 +69,10 @@ folders - the sources only compile with the defines the .build file provides.
 | 50 | Flat Intermediate Objects | `IntermediateDirectory X/.` flat object dump; link finds flattened objects |
 | 51 | Resource Keys | `Resource.Includes/Defines/UnDefines` reach the resource compiler; RCDATA read back at runtime |
 | 52 | Assert Args | `Assert.Arg(count)` parameters (`=N` `>N` `>=N` `<N` `<=N`, combined); multiple lines assert independently |
+| 53 | Install Packages | `InstallPackage` resolves the system package manager, queries, installs only what is missing |
+| 54 | Many Sources | 1000 translation units: header dependency tracking at scale, per-file incremental skips, ~24KB link line |
 
-Tests 18, 19, 28, 43, 44, 45, 46, 52 need extra invocations beyond a plain build to
+Tests 18, 19, 28, 43, 44, 45, 46, 52, 54 need extra invocations beyond a plain build to
 exercise their feature (documented in each .build header comment).
 
 ## Semantics verified while writing this suite
