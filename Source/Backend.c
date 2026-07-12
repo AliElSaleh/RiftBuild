@@ -10,14 +10,34 @@
 #include "Core/Filesystem.h"
 #include "Core/Platform.h"
 #include "Core/Log.h"
+#include "Core/Memory.h"
+#include "Core/HashUtils.h"
 #endif
+
+// Cached header write times for one module's compile loop (see "Header dependency tracking" below).
+// Open-addressed, keyed by the FNV1a hash of the path exactly as the dependency file spells it (a
+// collision could reuse a wrong timestamp, but at ~10^4 entries the odds are ~10^-12 - accepted).
+// Sized to the module and carved from the build arena in C_Compile_Spawn. Lookups tolerate a NULL
+// Entries table (they fall through to the filesystem), but that is pure defense - the table is
+// always allocated.
+STRUCT(DepTimeCacheEntry)
+{
+    u64 PathHash; // 0 = empty slot
+    u64 WriteTime;
+};
+
+STRUCT(DepTimeCache)
+{
+    DepTimeCacheEntry* Entries;
+    u64 NumEntries; // power of two (index mask)
+};
 
 STRUCT(CompileData)
 {
     const BuildParams* Params;
     u32* NumCompiled;
     u32 Index;
-    u32 Padding;
+    DepTimeCache DepCache;
 };
 
 
@@ -349,6 +369,108 @@ static bool Internal_IsForcedRecompile(const BuildParams* Params, const String R
     return false;
 }
 
+static u64 Internal_GetDepWriteTimeCached(DepTimeCache* Cache, const String Path)
+{
+    u64 Result = 0;
+
+    if (Cache->Entries == NULL)
+    {
+        Result = (u64)Filesystem_GetLastWriteTime(Path);
+    }
+    else
+    {
+        u64 Hash = FNV1a_Hash(Path.Data, Path.Length);
+        if (Hash == 0)
+        {
+            Hash = 1;
+        }
+
+        bool bResolved = false;
+
+        u32 Index = (u32)(Hash & (Cache->NumEntries - 1));
+        for (u32 Probe = 0; Probe < 32 && !bResolved; Probe++)
+        {
+            DepTimeCacheEntry* Entry = &Cache->Entries[Index];
+
+            if (Entry->PathHash == Hash)
+            {
+                Result = Entry->WriteTime;
+                bResolved = true;
+            }
+            else if (Entry->PathHash == 0)
+            {
+                Result = (u64)Filesystem_GetLastWriteTime(Path);
+                Entry->PathHash  = Hash;
+                Entry->WriteTime = Result;
+                bResolved = true;
+            }
+            else
+            {
+                Index = (Index + 1) & (Cache->NumEntries - 1);
+            }
+        }
+
+        // probe window exhausted (table effectively full) - resolve without caching
+        if (!bResolved)
+        {
+            Result = (u64)Filesystem_GetLastWriteTime(Path);
+        }
+    }
+
+    return Result;
+}
+
+STRUCT(DepTimeFoldData)
+{
+    DepTimeCache* Cache;
+    String* NewestPath;
+    u64 NewestTime;
+};
+
+static void Internal_FoldDepTime(const String DepPath, void* UserData)
+{
+    DepTimeFoldData* Data = UserData;
+
+    u64 Time = Internal_GetDepWriteTimeCached(Data->Cache, DepPath);
+
+    if (Time == 0)
+    {
+        Time = UINT64_MAX;
+    }
+
+    if (Time > Data->NewestTime)
+    {
+        Data->NewestTime = Time;
+        String_Copy(Data->NewestPath, DepPath);
+    }
+}
+
+static bool Internal_TryGetNewestDepTime(DepTimeCache* Cache, const String DepFilePath, bool bIsMSVCJson, u64* OutNewestTime, String* OutNewestPath)
+{
+    DepTimeFoldData Fold = {0};
+    Fold.Cache      = Cache;
+    Fold.NewestPath = OutNewestPath;
+
+    bool bParsedOk = false;
+    bool bHaveDepFile;
+
+    if (bIsMSVCJson)
+    {
+        bHaveDepFile = ParseDependencyFile_MSVCJson(DepFilePath, &Internal_FoldDepTime, &Fold, &bParsedOk);
+    }
+    else
+    {
+        bHaveDepFile = ParseDependencyFile_Makefile(DepFilePath, &Internal_FoldDepTime, &Fold, &bParsedOk);
+    }
+
+    if (bHaveDepFile)
+    {
+        *OutNewestTime = bParsedOk ? Fold.NewestTime : UINT64_MAX;
+    }
+
+    return bHaveDepFile;
+}
+
 // Append the extra compiler flags, include flags, defines and undefines from every per-file override that
 // names this source file. Matching is by bare filename (case-insensitive, extension included) - no paths,
 // no globs - so two files with the same name in different directories share an override by design.
@@ -587,6 +709,14 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
 
     // ===============================================================================================
 
+    StringLocal(DepFilePath, MAX_PATH_LENGTH);
+    String_BuildPath(&DepFilePath, Params->RootDirectory, ObjDestinationDirectory, PathOfObj, SourceFileName);
+    String_Append(&DepFilePath, bIsMicrosoftCompiler ? S(".json") : S(".d"));
+
+    bool bUseDepFile = false;
+
+    // ===============================================================================================
+
     String ProgramPath = Params->CompilerPath;
     StringLocal(CmdLine, UINT16_MAX);
 
@@ -763,6 +893,53 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
             }
         }
 
+        // ask the compiler to record which headers this translation unit includes, so the next build
+        // can skip the object unless one of them changed (see "Header dependency tracking" above).
+        // Custom compiler/no-object modules run arbitrary tools that would choke on these flags.
+        StringLocal(DepFlags, MAX_PATH_LENGTH + 32);
+        if (Params->Type != AssemblyType_CustomCompilerObject && Params->Type != AssemblyType_NoCompilerObject)
+        {
+            if (bIsMicrosoftCompiler)
+            {
+                // VS2019 16.7+; older cl warns D9002 and ignores it, and the skip check falls back
+                String_Append(&DepFlags, S("/sourceDependencies \""));
+                String_Append(&DepFlags, DepFilePath);
+                String_Append(&DepFlags, S("\""));
+                bUseDepFile = true;
+            }
+            else if (Params->CompilerVendor == Compiler_Clang_MSVC)
+            {
+                // clang-cl: -MD means "dynamic CRT" in cl mode, so the gnu-style dep flags must go
+                // through /clang:. The path token is quoted whole - it lands as a single argument.
+                String_Append(&DepFlags, S("/clang:-MMD \"/clang:-MF"));
+                String_Append(&DepFlags, DepFilePath);
+                String_Append(&DepFlags, S("\""));
+                bUseDepFile = true;
+            }
+            else if (Params->CompilerVendor == Compiler_Clang ||
+                     Params->CompilerVendor == Compiler_GCC   ||
+                     Params->CompilerVendor == Compiler_MINGW)
+            {
+                String_Append(&DepFlags, S("-MMD -MF \""));
+                String_Append(&DepFlags, DepFilePath);
+                String_Append(&DepFlags, S("\""));
+                bUseDepFile = true;
+            }
+            else if (Params->CompilerVendor == Compiler_TCC)
+            {
+                // tcc understands -MD/-MF but not -MMD; system headers get recorded too - harmless
+                String_Append(&DepFlags, S("-MD -MF \""));
+                String_Append(&DepFlags, DepFilePath);
+                String_Append(&DepFlags, S("\""));
+                bUseDepFile = true;
+            }
+            else
+            {
+                // unknown vendor - no dependency info; the skip check below falls back to
+                // Params->NewestHeaderWriteTime
+            }
+        }
+
         String CompilerFlags = Export_TryWriteFlagsAndReturnThisValue(S("CompilerFlags"), Params->CompilerFlags);
         String IncludeFlags  = Export_TryWriteFlagsAndReturnThisValue(S("IncludeFlags"),  Params->IncludeFlags);
         String Defines       = Export_TryWriteFlagsAndReturnThisValue(S("Defines"),       Params->DefineFlags);
@@ -771,7 +948,7 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
         String CompilerFlagsLeft  = Params->bCompilerFlagsFirst ? CompilerFlags : String_Null();
         String CompilerFlagsRight = Params->bCompilerFlagsFirst ? String_Null() : CompilerFlags;
 
-        String_BuildSeparator(&CmdLine, ' ', CompilerFlagsLeft, CompileFlag, FullSourcePath, CompilerFlagsRight, IncludeFlags, Defines, UnDefines, AdditionalFlags, PCHFlags, OutputFlag);
+        String_BuildSeparator(&CmdLine, ' ', CompilerFlagsLeft, CompileFlag, FullSourcePath, CompilerFlagsRight, IncludeFlags, Defines, UnDefines, AdditionalFlags, PCHFlags, DepFlags, OutputFlag);
         xx String_EatSpacesInlineFromEnd(&CmdLine);
 
         if (String_IsValid(ObjectPath))
@@ -782,8 +959,8 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
         }
     }
 
-    // Record the object this source maps to, and the compiler's sibling ".d"
-    // dependency file (e.g. Foo.c.d) that lands next to it.
+    // Record the object this source maps to, and the compiler's sibling dependency file
+    // (e.g. Foo.c.d / Foo.c.json, see "Header dependency tracking" above) that lands next to it.
     // ===============================================================================================
     RecordArtifactPath(Params->ArtifactManifestHandle,ObjectPath);
     if (Params->Type == AssemblyType_PCH)
@@ -796,9 +973,10 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
         String Extension;
         b64 bRecord;
     };
-    struct MiscArtifactTable MiscArtifacts[2] =
+    struct MiscArtifactTable MiscArtifacts[3] =
     {
         { .Extension = S(".d"),                      .bRecord = !bIsMicrosoftCompiler },
+        { .Extension = S(".json"),                   .bRecord = bIsMicrosoftCompiler },
         { .Extension = S(".nativecodeanalysis.xml"), .bRecord = bIsMicrosoftCompiler },
     };
     for (u32 i = 0; i < SArray_Capacity(MiscArtifacts); i++)
@@ -820,6 +998,36 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
     // The diff system flags a file when its per-file override changed but its source didn't - the object is
     // stale even though timestamps say otherwise, so force it to recompile.
     bool bForcedRecompile = Internal_IsForcedRecompile(Params, RelativePath);
+
+    // The object must be newer than the source file AND every header the previous compile of it
+    // recorded (see "Header dependency tracking" above). Without dependency info, fall back to the
+    // newest header under the source directory, which over-rebuilds but never under-rebuilds.
+    u64 NewestInputTime = SourceFileWriteTime;
+    StringLocal(NewestDepPath, MAX_PATH_LENGTH);
+
+    if (ObjectFileWriteTime > 0 && !bForcedRecompile)
+    {
+        bool bHaveDepInfo = false;
+
+        if (bUseDepFile)
+        {
+            u64 NewestDepTime = 0;
+            if (Internal_TryGetNewestDepTime(&Data->DepCache, DepFilePath, bIsMicrosoftCompiler, &NewestDepTime, &NewestDepPath))
+            {
+                if (NewestDepTime > NewestInputTime)
+                {
+                    NewestInputTime = NewestDepTime;
+                }
+
+                bHaveDepInfo = true;
+            }
+        }
+
+        if (!bHaveDepInfo && Params->NewestHeaderWriteTime > NewestInputTime)
+        {
+            NewestInputTime = Params->NewestHeaderWriteTime;
+        }
+    }
 
     bool bSuccess = true;
 
@@ -845,7 +1053,7 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
 
         bSuccess = Export_EmitScriptCommand(EchoText, ToolVarName, ProgramPath, CmdLine);
     }
-    else if (ObjectFileWriteTime >= SourceFileWriteTime && !bForcedRecompile)
+    else if (ObjectFileWriteTime >= NewestInputTime && !bForcedRecompile)
     {
         #ifndef HOOD
         LOG("[Skipping] %S", FullPath);
@@ -871,6 +1079,12 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
 
         if (Params->bVerbose)
         {
+            // recompiling even though the source itself is unchanged - say which dependency did it
+            if (ObjectFileWriteTime > 0 && ObjectFileWriteTime >= SourceFileWriteTime && NewestDepPath.Length > 0)
+            {
+                LOG("    dependency modified: %S", NewestDepPath);
+            }
+
             LOG("\n    %S\n", CmdLine);
         }
 
@@ -921,10 +1135,32 @@ bool C_Compile_Spawn(const BuildParams* Params, u32* OutNumCompiled)
         return false;
     }
 
+    if (NEVER(Params->Arena == NULL))
+    {
+        return false;
+    }
+
     CompileData UserData = { 0 };
     UserData.Params = Params;
     UserData.NumCompiled = OutNumCompiled;
     UserData.Index = 0;
+
+    {
+        u32 NumEntries = 128;
+        const u32 Target = Params->NumSources > 256 ? 4096 : Params->NumSources * 16;
+
+        // round up
+        while (NumEntries < Target)
+        {
+            NumEntries *= 2;
+        }
+
+        const usize SizeNeeded = NumEntries * sizeof(DepTimeCacheEntry);
+
+        UserData.DepCache.Entries    = LinearAllocator_Allocate(Params->Arena, SizeNeeded);
+        UserData.DepCache.NumEntries = NumEntries;
+        MemZero(UserData.DepCache.Entries, SizeNeeded);
+    }
 
     for each_string_in_list (Params->SourceFiles)
     {

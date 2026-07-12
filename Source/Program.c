@@ -931,6 +931,12 @@ static bool SourceFileCounterDirectoryIterator(const String FullPath, const Stri
             {
                 Data->NumHeaders++;
 
+                u64 HeaderFileTime = Filesystem_GetLastWriteTime(FullPath);
+                if (HeaderFileTime > Data->NewestHeaderWriteTime)
+                {
+                    Data->NewestHeaderWriteTime = HeaderFileTime;
+                }
+
                 if (!Data->bHasCppFiles)
                 {
                     if (IsCppHeader(Extension))
@@ -952,54 +958,6 @@ static bool SourceFileCounterDirectoryIterator(const String FullPath, const Stri
         else
         {
             // no action required
-        }
-    }
-
-    return true;
-}
-
-static bool HeaderFileRebuildCheckDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
-{
-    UNUSED_PARAM(RelativePath);
-    UNUSED_PARAM(bIsDirectory);
-
-    if (FileSize > 0)
-    {
-        String Extension = Filesystem_ExtractFileExtension(FileName, true);
-
-        // Note: this is a problem, because it just will look for any header filer within the search
-        //       directory, we need to filter this somehow...
-        if (IsHeader(Extension))
-        {
-            // todo??
-            //if (FilterSourceFile(Data->WorkingDirectory, Data->SourceDirectory, FullPath, RelativePath, Data->WhitelistArray, Data->BlacklistArray, Data->WhitelistDirArray, Data->BlacklistDirArray))
-            {
-                struct HeaderIterData
-                {
-                    u64 AssemblyFileTime;
-                    bool* bShouldRebuild;
-                };
-
-                struct HeaderIterData* Data = UserData;
-
-                u64 HeaderFileTime = Filesystem_GetLastWriteTime(FullPath);
-
-                if (HeaderFileTime >= Data->AssemblyFileTime)
-                {
-                    *Data->bShouldRebuild = true;
-
-                    #ifndef HOOD
-                    LOG("Header file \"%S\" has been modified since last build. Forcing rebuild...", FullPath);
-                    #else
-                    LOG("yo homie, dis header file \"%S\" was recently changed. gon force a rebuild...", FullPath);
-                    #endif
-
-                    LOG_LINE_BREAK();
-
-                    return false;
-                }
-
-            }
         }
     }
 
@@ -5624,6 +5582,8 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     // though their source is untouched, while every other file is left alone. See DiffAndClassifyBuildState.
     ArrayLocal_Arena(String, DirtyOverrideFiles, MAX_FILE_OVERRIDES, Arena);
 
+    u64 NewestHeaderWriteTime = 0;
+
     // force rebuild if we say so in the build file
     if (!bIsRebuild)
     {
@@ -5684,16 +5644,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             }
         }
 
-        // Note(Ali): I would've liked to keep this allocation on the stack but it is very hard to make a 
-        //            gurantee against stackover flow errors (currently the stack size for this program is
-        //            set to 8MB). what happens if we are N "depends" deep? if i keep on allocating 1MB on
-        //            the stack for each depends, then we will defintely overflow, subsequent functions/scopes
-        //            will not have enough space on the stack for them to function properly thus causing a 
-        //            crash :( I want to revist this in the future again to see how i can make a pretty good
-        //            "gurantee" that the program won't get into that state. On the bright side, at least
-        //            we aren't dynamically shitting memory out everytime we need some :P
-        //            So just allocate one big chunk and let our allocator dish out the memory.
-        //i8 ArenaMemory[Mebibytes(1)] = {0};
         usize TotalMem = MAX_RIFTBUILD_MEMORY;
         void* ArenaMemory = Platform_MemAlloc(TotalMem);
 
@@ -6440,6 +6390,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     CountData.ArenaForFilterList          = Arena;
     CountData.bHasCppFiles                = false;
     CountData.bIsPCHBuild                 = AssemblyType == AssemblyType_PCH;
+    CountData.NewestHeaderWriteTime       = NewestHeaderWriteTime;
 
     Filesystem_IterateDirectory_Ex(SourceDir, &SourceFileCounterDirectoryIterator, true, &CountData);
 
@@ -6900,28 +6851,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                         bIsRebuild = true;
                     }
                 }
-            }
-        }
-
-        // force a rebuild if any of the .h files have been modified after a build
-        // TODO: rewrite
-        if (!bIsRebuild && !bIsClean)
-        {
-            StringLocal(AssemblyPath, MAX_PATH_LENGTH);
-            String_BuildPath(&AssemblyPath, WorkingPath, BuildDirectory, AssemblyNameWithExt);
-
-            usize AssemblyFileTime = Filesystem_GetLastWriteTime(AssemblyPath);
-
-            if (AssemblyFileTime > 0)
-            {
-                struct HeaderIterData
-                {
-                    u64 AssemblyFileTime;
-                    bool* bShouldRebuild;
-                };
-
-                struct HeaderIterData Data = { AssemblyFileTime, &bIsRebuild };
-                Filesystem_IterateDirectory_Ex(SourceDir, &HeaderFileRebuildCheckDirectoryIterator, true, &Data);
             }
         }
 
@@ -7935,7 +7864,8 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     p.SourceFiles                   = *CountData.FilteredFiles;
     p.FileOverrides                 = FileOverrides;
     p.NumFileOverrides              = NumFileOverrides;
-    p.ForceRecompileFiles           = DirtyOverrideFiles; // only consulted when we're not doing a full rebuild
+    p.ForceRecompileFiles           = DirtyOverrideFiles;
+    p.NewestHeaderWriteTime         = NewestHeaderWriteTime;
     p.NumSources                    = NumSources;
     p.bHasCppFiles                  = CountData.bHasCppFiles;
     p.bDumpObjFilesInOneDirectory   = bDumpObjFilesInOneDirectory;

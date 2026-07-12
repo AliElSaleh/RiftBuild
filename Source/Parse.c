@@ -7407,3 +7407,235 @@ bool ExpandBuildVariable(LinearAllocator Scratch, FileVariableList* VariablesDB,
 
     return true;
 }
+
+// ===================================================================================================
+// Compiler dependency file parsers
+// ---------------------------------------------------------------------------------------------------
+// Compilers record which headers each translation unit included into a file next to the object -
+// gcc/clang/tcc write a Makefile-style "<Source>.d" (-MMD -MF), MSVC a "<Source>.json"
+// (/sourceDependencies). The parsers here only extract the recorded paths and hand them to the iterator.
+// ===================================================================================================
+
+// Parse a Makefile-style dependency file ("Foo.o: Foo.c Bar.h \" ...) as written by gcc/clang/tcc,
+// invoking Iterator for every recorded prerequisite path. Returns false only when the file cannot be
+// opened. *bOutParsedOk is false when no prerequisite was found - a dependency list always records
+// at least the source file itself, so an empty result means the file is truncated or in a format we
+// do not understand.
+NO_DISCARD bool ParseDependencyFile_Makefile(const String DepFilePath, DependencyPathIterator Iterator, void* UserData, bool* bOutParsedOk)
+{
+    *bOutParsedOk = false;
+
+    FileHandle f = FileHandle_Null();
+
+    bool bHaveDepFile = Filesystem_Open(DepFilePath, FileMode_Read, &f);
+
+    if (bHaveDepFile)
+    {
+        u32 NumPrerequisites = 0;
+        bool bSeenTarget = false;
+
+        StringLocal(Line, 8190);
+        StringLocal(Token, MAX_PATH_LENGTH);
+
+        while (Filesystem_ReadLine(f, &Line))
+        {
+            u32 i = 0;
+
+            // skip the "target:" prefix; a ':' only ends the target when followed by whitespace or
+            // end of line, so the drive-letter colon in "C:/..." never matches
+            if (!bSeenTarget)
+            {
+                for (; i < Line.Length; i++)
+                {
+                    if (Line.Data[i] == ':')
+                    {
+                        if (i + 1 >= Line.Length || Line.Data[i+1] == ' ' || Line.Data[i+1] == '\t')
+                        {
+                            bSeenTarget = true;
+                            i++;
+                            break;
+                        }
+                    }
+                }
+
+                if (!bSeenTarget)
+                {
+                    continue;
+                }
+            }
+
+            // whitespace-separated prerequisites; "\" at end of line is a continuation, "\ " is an
+            // escaped space inside a path, any other backslash is literal (a Windows path separator)
+            String_Empty(&Token);
+            for (; i <= Line.Length; i++)
+            {
+                const bool bAtEnd = (i == Line.Length);
+                const uchar c = bAtEnd ? ' ' : Line.Data[i];
+
+                if (c == ' ' || c == '\t' || c == '\r')
+                {
+                    if (Token.Length > 0)
+                    {
+                        // a token ending in ':' is the target of a phony rule (-MP in user flags) -
+                        // its path was already recorded as a prerequisite of the main rule
+                        if (Token.Data[Token.Length-1] != ':')
+                        {
+                            Iterator(Token, UserData);
+                            NumPrerequisites++;
+                        }
+
+                        String_Empty(&Token);
+                    }
+                }
+                else if (c == '\\')
+                {
+                    if (i + 1 >= Line.Length || Line.Data[i+1] == '\r')
+                    {
+                        // line continuation - drop it
+                        i++;
+                    }
+                    else if (Line.Data[i+1] == ' ')
+                    {
+                        String_AppendChar(&Token, ' ');
+                        i++;
+                    }
+                    else
+                    {
+                        String_AppendChar(&Token, c);
+                    }
+                }
+                else
+                {
+                    String_AppendChar(&Token, c);
+                }
+            }
+        }
+
+        Filesystem_Close(&f);
+
+        *bOutParsedOk = NumPrerequisites > 0;
+    }
+
+    return bHaveDepFile;
+}
+
+NO_DISCARD bool ParseDependencyFile_MSVCJson(const String DepFilePath, DependencyPathIterator Iterator, void* UserData, bool* bOutParsedOk)
+{
+    *bOutParsedOk = false;
+
+    FileHandle f = FileHandle_Null();
+
+    bool bHaveDepFile = Filesystem_Open(DepFilePath, FileMode_Read, &f);
+
+    if (bHaveDepFile)
+    {
+        bool bInIncludes = false;
+        bool bInArray = false;
+        bool bDone = false;
+        bool bParseFailed = false;
+
+        const String IncludesKey = S("\"Includes\"");
+
+        StringLocal(Line, 8190);
+        StringLocal(Token, MAX_PATH_LENGTH);
+
+        while (!bDone && !bParseFailed && Filesystem_ReadLine(f, &Line))
+        {
+            u32 i = 0;
+
+            if (!bInIncludes)
+            {
+                u32 FoundIndex = 0;
+                if (!String_IndexOfSubstring(Line, IncludesKey, true, &FoundIndex))
+                {
+                    continue;
+                }
+
+                bInIncludes = true;
+                i = FoundIndex + IncludesKey.Length;
+            }
+
+            while (i < Line.Length && !bDone && !bParseFailed)
+            {
+                const uchar c = Line.Data[i];
+
+                if (!bInArray)
+                {
+                    // between the key and its '[' there is only ':' and whitespace
+                    if (c == '[')
+                    {
+                        bInArray = true;
+                    }
+
+                    i++;
+                }
+                else if (c == ' ' || c == '\t' || c == ',' || c == '\r')
+                {
+                    i++;
+                }
+                else if (c == ']')
+                {
+                    bDone = true;
+                }
+                else if (c == '"')
+                {
+                    // JSON string; cl escapes path backslashes as "\\" and never wraps across lines
+                    String_Empty(&Token);
+                    i++;
+
+                    bool bClosed = false;
+                    while (i < Line.Length && !bClosed && !bParseFailed)
+                    {
+                        const uchar StrChar = Line.Data[i];
+
+                        if (StrChar == '"')
+                        {
+                            bClosed = true;
+                        }
+                        else if (StrChar == '\\')
+                        {
+                            if (i + 1 < Line.Length && (Line.Data[i+1] == '\\' || Line.Data[i+1] == '/' || Line.Data[i+1] == '"'))
+                            {
+                                String_AppendChar(&Token, Line.Data[i+1]);
+                                i++;
+                            }
+                            else
+                            {
+                                // \uXXXX or an escape we do not handle - bail out conservatively
+                                bParseFailed = true;
+                            }
+                        }
+                        else
+                        {
+                            String_AppendChar(&Token, StrChar);
+                        }
+
+                        i++;
+                    }
+
+                    if (bClosed)
+                    {
+                        if (Token.Length > 0)
+                        {
+                            Iterator(Token, UserData);
+                        }
+                    }
+                    else
+                    {
+                        bParseFailed = true;
+                    }
+                }
+                else
+                {
+                    bParseFailed = true;
+                }
+            }
+        }
+
+        Filesystem_Close(&f);
+
+        *bOutParsedOk = bDone && !bParseFailed;
+    }
+
+    return bHaveDepFile;
+}

@@ -113,7 +113,7 @@ The guiding north star of RiftBuild, followed in design and implementation.
 - Runs on all major operating systems: Windows, macOS, Linux (five major distros), FreeBSD, OpenBSD and NetBSD. Supporting x86 and ARM architectures for 32/64-bit systems.
 
 ### Performance
-- RiftBuild is written in pure C, from scratch, with **zero** dynamic memory allocation, everything happens on the stack.
+- RiftBuild is written in pure C, from scratch, with minimal dynamic memory allocation, almost everything happens on the stack.
 - RiftBuild automatically utilizes all cores of the CPU for efficient compilation. This means less time building and more time programming.
 - RiftBuild should essentially only be a wrapper over the compiler and linker with a minimal amount of overhead, **always** in the order of milliseconds.
 

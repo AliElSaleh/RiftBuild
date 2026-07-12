@@ -51,6 +51,7 @@ STRUCT(SourceCountData)
     u32 NumAsmSources;
     u32 NumHeaders;
     u32 NumRcSources;
+    u64 NewestHeaderWriteTime;
     String* FirstSourceFileName;
     String WorkingDirectory;
     String SourceDirectory;
@@ -285,6 +286,8 @@ STRUCT(BuildParams)
 
     TArray(String) ForceRecompileFiles; // bare filenames to recompile even if unchanged (per-file overrides changed), or NULL
 
+    u64 NewestHeaderWriteTime;
+
     LinearAllocator* Arena;
 
     TArray(PlatformHandle)* Processes;
@@ -400,6 +403,12 @@ NO_DISCARD bool ParseBuildFile(
                     ParsingContext Context,
                     bool bIsIncludeFile);
 
+// Called for every dependency path recorded in a compiler-written dependency file.
+typedef void (*DependencyPathIterator)(const String Path, void* UserData);
+
+NO_DISCARD bool ParseDependencyFile_Makefile(const String DepFilePath, DependencyPathIterator Iterator, void* UserData, bool* bOutParsedOk);
+NO_DISCARD bool ParseDependencyFile_MSVCJson(const String DepFilePath, DependencyPathIterator Iterator, void* UserData, bool* bOutParsedOk);
+
 bool ExpandBuildVariable(LinearAllocator Scratch, FileVariableList* VariablesDB, TArray(CmdOption) CmdOptionsDB,
                          String* Dest, const String Key, const String Value, const String Root, const String WorkingDirectory,
                          bool* bFailed);
@@ -471,17 +480,7 @@ bool TryBuildOrCleanMacExeIcon(String IconFilePath, const BuildParams* Params);
 bool TryBuildMacBundle(LinearAllocator Scratch, const BuildParams* Params, TArray(FileVariable) VariablesDB);
 #endif
 
-// Write a produced path straight to the already-open <buildfile>.artifact_paths manifest handle.
-// Path must be ABSOLUTE (embedded ".." segments are fine and get normalized); relative paths are
-// rejected with a warning, because the manifest is consumed by clean whose working directory is
-// not guaranteed to match the module that wrote it. Writes immediately so the manifest survives
-// a mid-build crash and needs no in-memory buffer. No-op if the handle is invalid.
 void RecordArtifactPath(const FileHandle ManifestHandle, const String Path);
-
-// Re-record the linker/archiver output paths (exe/dll/lib and Windows pdb/ilk/exp/def siblings)
-// into the manifest for a build whose link step was skipped. The manifest is truncated at the
-// start of every build, so a no-op incremental build would otherwise lose these entries and a
-// later "clean" would leave the final artifacts behind.
 void RecordSkippedLinkArtifacts(const BuildParams* Params);
 
 #endif // _BACKEND_H_

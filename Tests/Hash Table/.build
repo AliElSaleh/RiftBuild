@@ -1,0 +1,3 @@
+.Run
+
+Depend ../../Source/Core | %_args
