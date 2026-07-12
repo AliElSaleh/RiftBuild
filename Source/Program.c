@@ -46,8 +46,6 @@ bool bVerboseLog = false;
 
 static bool bSingleThread = false;
 
-#define RIFT_LEGACY_CLEAN 0
-
 STRUCT(BuiltinOptionInfo)
 {
     String Short;
@@ -6050,10 +6048,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                     AddOrAppendVariable(Arena, VariablesDB, S("Linker.Flags.Export"),     FreshReceipt.LinkerFlags, String_Null(), GetMaxValueLengthForReservedKey(S("Linker.Flags.Export")));
                 }
 
-                // AddOrAppendVariable(Arena, VariablesDB, S("Linker.EntryPoint"),    FreshReceipt.LinkerEntryPoint, String_Null(),    GetMaxValueLengthForReservedKey(S("Linker.EntryPoint")));
-                // AddOrAppendVariable(Arena, VariablesDB, S("Linker.Stack"),         FreshReceipt.LinkerStack, String_Null(),         GetMaxValueLengthForReservedKey(S("Linker.Stack")));
-                // AddOrAppendVariable(Arena, VariablesDB, S("Linker.Subsystem"),     FreshReceipt.LinkerSubsystem, String_Null(),     GetMaxValueLengthForReservedKey(S("Linker.Subsystem")));
-
                 if (FreshReceipt.LinkerNoStdLib)      { AddOrAppendVariable(Arena, VariablesDB, S("Linker.NoStdLib"), String_Null(), String_Null(),      GetMaxValueLengthForReservedKey(S("Linker.NoStdLib"))); }
                 if (FreshReceipt.LinkerNoDefaultLibs) { AddOrAppendVariable(Arena, VariablesDB, S("Linker.NoDefaultLibs"), String_Null(), String_Null(), GetMaxValueLengthForReservedKey(S("Linker.NoDefaultLibs"))); }
 
@@ -6109,13 +6103,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             if (FreshReceipt.bWorkWasDone)
             {
                 bAnyDependenciesDidWork = true;
-                
-                bool bIsSpecial = String_IsEqual(Var.Params, S("Rebuild_If_Done_Work"), false);
-                if (!bIsRebuild && bIsSpecial)
-                {
-                    // LOG("\nDependency \"%S\" was modified. Forcing rebuild...", BuildFileNameWithExt);
-                    // bIsRebuild = true;
-                }
             }
             else if (FreshReceipt.ExitCode != 0)
             {
@@ -6165,7 +6152,9 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         }
     }
 
-    // TODO: you cannot assume a singluar source directory
+    // TODO: you cannot assume a singluar source directory, add support for multiple source directories.
+    //       remove all references to SourceDirectory from path builiding, and just use the path that the
+    //       actual source file itself lives in.
     String SourceDirectory       = GetVariableValue(VariablesDB, S("SourceDirectory"));
     String BuildDirectory        = GetVariableValue(VariablesDB, S("BuildDirectory"));
     String IntermediateDirectory = GetVariableValue(VariablesDB, S("IntermediateDirectory"));
@@ -6236,12 +6225,9 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     const bool bDidIntermediateDirectoryExist = Filesystem_DoesDirectoryExist(IntermediateBaseDirectory);
     const bool bDidBuildDirectoryExist        = Filesystem_DoesDirectoryExist(BuildBaseDirectory);
 
-    #if !RIFT_LEGACY_CLEAN
-    // only the legacy extension-wildcard clean consumes these; silence unused warnings otherwise
     xx bBuildDirSameAsSource;
     xx bIntermediateDirSameAsSource;
     xx bDidBuildDirectoryExist;
-    #endif
 
     // actual source path cannot be inside of the build or intermediate directory, this is an error
     {
@@ -6949,160 +6935,9 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         // paths this program recorded in <buildfile>.artifact_paths last build and deletes only those,
         // so renames don't orphan old outputs and unrelated files in these directories are left alone.
         // See TryCleanFromManifest for the untrusted-input handling (the old cmd-injection concern).
-        // Set RIFT_LEGACY_CLEAN to 1 to fall back to the old extension-wildcard behavior below.
         if (bIsClean || bIsRebuild)
         {
-            bool bCleanedSomething = false;
-
-            #if RIFT_LEGACY_CLEAN
-            const String Exts[42] =
-            {
-                String_Null(),
-                S(".o"),
-                S(".obj"),
-                S(".lib"),
-                S(".a"),
-                S(".so"),
-                S(".dylib"),
-                S(".dll"),
-                S(".exe"),
-                S(".app"),
-                S(".out"),
-                S(".bin"),
-                S(".elf"),
-                S(".pdb"),
-                S(".ilk"),
-                S(".res"),
-                S(".rc"),
-                S(".manifest"),
-                S(".exp"),
-                S(".def"),
-                S(".map"),
-                S(".suo"),
-                S(".sdf"),
-                S(".idb"),
-                S(".ipch"),
-                S(".pch"),
-                S(".h.pch"),
-                S(".h.gch"),
-                S(".hpp.pch"),
-                S(".hpp.gch"),
-                S(".h++.pch"),
-                S(".h++.gch"),
-                S(".hxx.pch"),
-                S(".hxx.gch"),
-                S(".hh.pch"),
-                S(".hh.gch"),
-                S(".log"),
-                S(".tmp"),
-                S(".build.generated"),
-                S(".build.directory_state"),
-                S(".build_version.rc"),
-                S(".build_version.res")
-            };
-
-            #if PLATFORM_WINDOWS
-            String Wildcard = S(".*");
-            const String WildcardS = S("S.*");
-            #else
-            String Wildcard = String_Null();
-            const String WildcardS = S("S");
-            #endif
-
-            // Delete all [Assembly]*.* files
-            if (AssemblyType != AssemblyType_CustomCompilerObject)
-            {
-                if (bDidBuildDirectoryExist)
-                {
-                    #ifndef HOOD
-                    LOG("Cleaning %S%S%S", BuildBaseDirectory, AssemblyName, Wildcard);
-                    #else
-                    LOG("cleaning dis fuckin' shit %S%S%S", BuildBaseDirectory, AssemblyName, Wildcard);
-                    #endif
-
-                    if (bBuildDirSameAsSource)
-                    {
-                        for each_static (String, e, Exts)
-                        {
-                            StringLocal(AssemblyWildcard, MAX_PATH_LENGTH);
-                            String_Append(&AssemblyWildcard, AssemblyName);
-                            String_Append(&AssemblyWildcard, e);
-                            xx Filesystem_DeleteFiles(BuildBaseDirectory, AssemblyWildcard, true);
-                        }
-                    }
-                    else
-                    {
-                        StringLocal(AssemblyWildcard, MAX_PATH_LENGTH);
-                        String_Append(&AssemblyWildcard, AssemblyName);
-                        String_Append(&AssemblyWildcard, Wildcard);
-                        xx Filesystem_DeleteFiles(BuildBaseDirectory, AssemblyWildcard, true);
-                        String_Empty(&AssemblyWildcard);
-                        String_Append(&AssemblyWildcard, AssemblyName);
-                        String_Append(&AssemblyWildcard, WildcardS);
-                        xx Filesystem_DeleteFiles(BuildBaseDirectory, AssemblyWildcard, true);
-                    }
-
-                    #if PLATFORM_APPLE
-                    if (bBundleApp && bIsAssemblyExe)
-                    {
-                        StringLocal(AppBundleName, 256);
-                        String_Append(&AppBundleName, TitleName);
-                        String_Append(&AppBundleName, S(".app"));
-                        StringLocal(AppBundlePath, MAX_PATH_LENGTH);
-                        String_BuildPath(&AppBundlePath, WorkingPath, BuildDirectory, AppBundleName);
-                        LOG("Cleaning %S", AppBundlePath);
-                        xx Filesystem_DeleteDirectory(AppBundlePath);
-
-                        String_Empty(&AppBundleName);
-                        String_Append(&AppBundleName, AssemblyName);
-                        String_Append(&AppBundleName, S(".app"));
-                        String_Empty(&AppBundlePath);
-                        String_BuildPath(&AppBundlePath, WorkingPath, BuildDirectory, AppBundleName);
-                        LOG("Cleaning %S", AppBundlePath);
-                        xx Filesystem_DeleteDirectory(AppBundlePath);
-                    }
-                    #endif
-
-                    bCleanedSomething = true;
-                }
-            }
-
-            // Delete intermediate directory based on given source directory
-            if (bDidIntermediateDirectoryExist)
-            {
-                Wildcard = S("*");
-
-                #ifndef HOOD
-                LOG("Cleaning %S%S", IntermediateBaseDirectory, Wildcard);
-                #else
-                LOG("cleaning dis stoopid shit %S%S", IntermediateBaseDirectory, Wildcard);
-                #endif
-
-                if (bIntermediateDirSameAsSource)
-                {
-                    for each_static (String, e, Exts)
-                    {
-                        if (e.Length > 0)
-                        {
-                            StringLocal(AssemblyWildcard, MAX_PATH_LENGTH);
-                            String_Append(&AssemblyWildcard, S("*"));
-                            String_Append(&AssemblyWildcard, e);
-                            xx Filesystem_DeleteFiles(IntermediateBaseDirectory, AssemblyWildcard, true);
-                            xx Filesystem_DeleteFiles(IntermediateBaseDirectory, e, true);
-                        }
-                    }
-                }
-                else
-                {
-                    // TODO: should we even do this???
-                    xx Filesystem_DeleteFiles(IntermediateBaseDirectory, Wildcard, true);
-                }
-
-                bCleanedSomething = true;
-            }
-            #else
-            bCleanedSomething = TryCleanFromManifest(IntermediateBaseDirectory, BuildBaseDirectory, ObjectBaseDirectory, BuildFileName);
-            #endif
+            bool bCleanedSomething = TryCleanFromManifest(IntermediateBaseDirectory, BuildBaseDirectory, ObjectBaseDirectory, BuildFileName);
 
             if (bCleanedSomething)
             {
@@ -7569,6 +7404,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     }
 
     // position independent code flags for unix binaries
+    // TODO: need to make these as user editable in the .build file, what if users dont want -fPIC or -fPIE?
     {
         #if !PLATFORM_WINDOWS
         String PICFlags = String_Null();
@@ -7981,7 +7817,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
     // TODO: should leave one core free? so as to not freeze/lag the entire computer?
     u8 MaxCompilersAtOnce = (u8)MaxLogicalCores; // bound by max logical processors on the user's machine
-    //LOG_INFO("Max logical cores: %u", MaxLogicalCores);
 
     // clamp to the min amount of source files vs cores
     u32 MinResult = Min(NumSources, (u32)MaxCompilersAtOnce);
@@ -9766,24 +9601,24 @@ static void InitInternalVars(LinearAllocator* Arena)
     AddInternalVariable(S("i686"), One);
     #endif
 
-    //#define AddInstruction(Instruction) AddInternalVariable(S("_" #Instruction), CPUInfo.Instruction ? One : Zero)
-
-    // TODO: Speed: change to this method
-    /*
-    const InternalVariable Pairs[] =
     {
-        { .Name = S("_MMX"), .Value = CPUInfo.MMX ? One : Zero },
-        { .Name = S("_MMX"), .Value = CPUInfo.MMX ? One : Zero },
-        { .Name = S("_MMX"), .Value = CPUInfo.MMX ? One : Zero },
-        { .Name = S("_MMX"), .Value = CPUInfo.MMX ? One : Zero },
-        { .Name = S("_MMX"), .Value = CPUInfo.MMX ? One : Zero },
-    };
+        StringLocal(NumCores, 16);
 
-    for (u16 i = 0; i < SArray_Capacity(Pairs); i++)
-    {
-        Array_Add(InternalVariablesDB, Pairs[i]);
+        u32 MaxLogicalCores = Platform_GetNumLogicalProcessors();
+        // TODO: implement "get physical cores" on all platforms
+        // u32 MaxPhysicalCores = Platform_GetNumPhysicalProcessors();
+    
+        // xx String_FromU32(&NumCores, MaxPhysicalCores);
+        // AddInternalVariable(S("_CPU.PhysicalCores"), String_Create(Arena, NumCores));
+        
+        // String_Empty(&NumCores);
+
+        xx String_FromU32(&NumCores, MaxLogicalCores);
+        AddInternalVariable(S("_CPU.LogicalCores"), String_Create(Arena, NumCores));
     }
-    */
+
+    // TODO: new syntax '&' to refer to internal vars? so that we can remove the _ from each interval var cos its ugle
+    //       '%' will only refer to cmd line options
 
     StringLocal(CPUExtensions, 4096);
 
