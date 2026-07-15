@@ -2038,7 +2038,163 @@ static void Internal_ParseAndLogLinkerOutput_MSVC(String StdOutData)
     }
 }
 
-static void Internal_ProcessLinkerOutput_MSVC(PlatformHandle Process, PlatformPipe StdOutHandle)
+// GNU ld reports undefined references as groups: a context line naming the object file and
+// function, then one line per missing symbol - and every message is prefixed with the linker's
+// own (very long) path:
+//
+//   <ld path>: Intermediate/Program.c.o: in function `main':
+//   C:/GoldenDecoder/Program.c:308: undefined reference to `InitWindow'
+//   <ld path>: C:/GoldenDecoder/Program.c:309: undefined reference to `SetTargetFPS'
+//   collect2.exe: error: ld returned 1 exit status
+//
+// Reshape that into the same look the MSVC parser produces: the object file once as a header,
+// one [ERROR] line per symbol with a short file:line, and the function context muted underneath.
+static void Internal_ParseAndLogLinkerOutput_GNU(String StdOutData)
+{
+    String LastObjFile = String_Null();
+    String CurrentFunction = String_Null();
+    u32 NumUndefined = 0;
+    u32 LastErrorIndent = 26;
+
+    u32 Offset = 0;
+    while (1)
+    {
+        if (Offset >= StdOutData.Length)
+        {
+            break;
+        }
+
+        String PipeDataSlice = StrShiftF(StdOutData, Offset);
+
+        u32 NewLineIndex = 0;
+        if (!String_IndexOfFirstNewline(PipeDataSlice, &NewLineIndex))
+        {
+            break;
+        }
+
+        Offset += NewLineIndex+1;
+        if (PipeDataSlice.Data[NewLineIndex] == '\r')
+        {
+            Offset++;
+        }
+
+        String Line = String_EatSpaces(StrSlice(PipeDataSlice.Data, NewLineIndex));
+
+        // every ld message starts with the linker's own path - drop it, it is pure noise
+        u32 PrefixIndex = 0;
+        if (String_IndexOfSubstring(Line, S("ld.exe: "), true, &PrefixIndex))
+        {
+            Line = String_EatSpaces(StrShiftF(Line, PrefixIndex + 8));
+        }
+        else if (String_IndexOfSubstring(Line, S("ld: "), true, &PrefixIndex))
+        {
+            Line = String_EatSpaces(StrShiftF(Line, PrefixIndex + 4));
+        }
+
+        if (Line.Length > 0)
+        {
+            u32 Index = 0;
+            if (String_IndexOfSubstring(Line, S(": in function `"), true, &Index))
+            {
+                // "<obj>: in function `<func>':" - remember both, print the object as a header
+                String ObjFile = StrSlice(Line.Data, Index);
+
+                CurrentFunction = StrShiftF(Line, Index + 15);
+                u32 QuoteIndex = 0;
+                if (String_IndexOfChar(CurrentFunction, '\'', &QuoteIndex))
+                {
+                    CurrentFunction = StrSlice(CurrentFunction.Data, QuoteIndex);
+                }
+
+                if (!(String_IsValid(LastObjFile) && String_IsEqual(LastObjFile, ObjFile, true)))
+                {
+                    LOG_INLINE_WARNING("\n%S\n", ObjFile);
+                }
+
+                LastObjFile = ObjFile;
+            }
+            else if (String_IndexOfSubstring(Line, S(": undefined reference to `"), true, &Index))
+            {
+                // "<file>:<line>: undefined reference to `<sym>'"
+                const String Location = Filesystem_ExtractFileName(StrSlice(Line.Data, Index), true);
+                const String Message  = StrShiftF(Line, Index+1);
+
+                LOG_INLINE("    ");
+                LOG_INLINE_ERROR("[ERROR] %S", Location);
+                LOG(" |%S", Message);
+
+                if (String_IsValid(CurrentFunction) && CurrentFunction.Length > 0)
+                {
+                    // line the context up under the message text: "    [ERROR] " + location + " | "
+                    StringLocal(ContextIndent, 64);
+                    ContextIndent.Length = (u32)Min(Location.Length + 15, ContextIndent.Capacity);
+                    String_Fill(&ContextIndent, ' ');
+
+                    LOG_MUTE("%Sreferenced in function %S", ContextIndent, CurrentFunction);
+                }
+
+                NumUndefined++;
+            }
+            else if (String_IndexOfSubstring(Line, S(": multiple definition of `"), true, &Index))
+            {
+                const String Location = Filesystem_ExtractFileName(StrSlice(Line.Data, Index), true);
+                const String Message  = StrShiftF(Line, Index+1);
+
+                LOG_INLINE("    ");
+                LOG_INLINE_ERROR("[ERROR] %S", Location);
+                LOG(" |%S", Message);
+
+                LastErrorIndent = (u32)Min(Location.Length + 15, 64);
+            }
+            else if (String_EndsWith(Line, S("first defined here"), true))
+            {
+                StringLocal(ContextIndent, 64);
+                ContextIndent.Length = LastErrorIndent;
+                String_Fill(&ContextIndent, ' ');
+
+                LOG_MUTE("%S%S", ContextIndent, Line);
+            }
+            else if (String_StartsWith(Line, S("warning: "), true))
+            {
+                LOG_INLINE_WARNING("[WARNING] ");
+                LOG("%S", StrShiftF(Line, 9));
+            }
+            else if (String_StartsWith(Line, S("collect2"), true))
+            {
+                // "collect2.exe: error: ld returned 1 exit status" - noise; the caller already
+                // reports the exit code and we print the reference count below
+            }
+            else
+            {
+                LOG("%S", Line);
+            }
+        }
+    }
+
+    // GNU ld has no closing summary like MSVC's "N unresolved externals" - provide one
+    if (NumUndefined == 1)
+    {
+        LOG("\n1 undefined reference");
+    }
+    else if (NumUndefined > 1)
+    {
+        LOG("\n%u undefined references", NumUndefined);
+    }
+}
+
+static void Internal_ParseAndLogLinkerOutput(ECompiler Vendor, String StdOutData)
+{
+    if (Vendor == Compiler_GCC || Vendor == Compiler_MINGW)
+    {
+        Internal_ParseAndLogLinkerOutput_GNU(StdOutData);
+    }
+    else
+    {
+        Internal_ParseAndLogLinkerOutput_MSVC(StdOutData);
+    }
+}
+
+static void Internal_ProcessLinkerOutput(ECompiler Vendor, PlatformHandle Process, PlatformPipe StdOutHandle)
 {
     Platform_ClosePipeEnd(&StdOutHandle[1]);
 
@@ -2054,7 +2210,7 @@ static void Internal_ProcessLinkerOutput_MSVC(PlatformHandle Process, PlatformPi
         // parse to make room - that can split a line, but only past 64KB of linker output.
         if (StdOutData.Length == StdOutData.Capacity)
         {
-            Internal_ParseAndLogLinkerOutput_MSVC(StdOutData);
+            Internal_ParseAndLogLinkerOutput(Vendor, StdOutData);
             String_Empty(&StdOutData);
         }
 
@@ -2086,7 +2242,7 @@ static void Internal_ProcessLinkerOutput_MSVC(PlatformHandle Process, PlatformPi
         }
     }
 
-    Internal_ParseAndLogLinkerOutput_MSVC(StdOutData);
+    Internal_ParseAndLogLinkerOutput(Vendor, StdOutData);
 
     Platform_ClosePipeEnd(&StdOutHandle[0]);
 }
@@ -2462,7 +2618,7 @@ bool C_Link(const BuildParams* Params)
                 #if PLATFORM_WINDOWS
                 // if (bIsMicrosoftLinker)
                 {
-                    Internal_ProcessLinkerOutput_MSVC(Handle, StdOutHandle);
+                    Internal_ProcessLinkerOutput(Params->CompilerVendor, Handle, StdOutHandle);
                 }
                 #endif
 
