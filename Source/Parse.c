@@ -4728,7 +4728,8 @@ static bool Analyze_Compiler(Node* Block, ParsingContext* Context)
         }
         else
         {
-            PlatformPipe StdOutPipe = {0};
+            PlatformPipe StdOutPipe;
+            Platform_PipeInit(StdOutPipe);
             StringLocal(CmdLine, 2048);
             String_Append(&CmdLine, FoundCompilerPaths.CompilerPath);
             String_AppendSpace(&CmdLine);
@@ -4740,7 +4741,7 @@ static bool Analyze_Compiler(Node* Block, ParsingContext* Context)
 
             PlatformHandle H = Platform_RunProcess_Ex(FoundCompilerPaths.CompilerPath, CmdLine, Context->WorkingDirectory, &StdOutPipe);
 
-            Platform_CloseHandle(StdOutPipe[1]); // not needed
+            Platform_ClosePipeEnd(&StdOutPipe[1]); // not needed
 
             if (Platform_IsValidHandle(H))
             {
@@ -4764,6 +4765,8 @@ static bool Analyze_Compiler(Node* Block, ParsingContext* Context)
                     }
                 }
             }
+
+            Platform_ClosePipe(StdOutPipe);
 
             // Remember this toolchain (paths + version) for the rest of the modules in the build.
             Internal_StoreToolchainCache(ToolchainKey, bSuccess, &FoundCompilerPaths, FoundVersion);
@@ -7271,7 +7274,8 @@ bool ExpandBuildVariable(LinearAllocator Scratch, FileVariableList* VariablesDB,
                 #endif
 
                 // TODO: time this
-                PlatformPipe StdOutHandle = {0};
+                PlatformPipe StdOutHandle;
+                Platform_PipeInit(StdOutHandle);
                 PlatformHandle ShellCmd = Platform_RunCommand_Ex(CmdLine, WorkingDirectory, &StdOutHandle);
                 if (Platform_IsValidHandle(ShellCmd))
                 {
@@ -7298,8 +7302,7 @@ bool ExpandBuildVariable(LinearAllocator Scratch, FileVariableList* VariablesDB,
                         if (bWantsToLower) { String_ToLower(&DestEnd); }
                         if (bWantsToUpper) { String_ToUpper(&DestEnd); }
 
-                        Platform_CloseHandle(StdOutHandle[0]);
-                        Platform_CloseHandle(StdOutHandle[1]);
+                        Platform_ClosePipe(StdOutHandle);
                     }
                 }
             }

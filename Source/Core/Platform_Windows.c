@@ -131,6 +131,22 @@ void Platform_PreInitialize(void)
         _Crash_;
     }
 
+    // Let ANSI escape sequences render on the console (Windows 10+). Captured compiler output is
+    // replayed with its color codes intact; our own logging keeps using SetConsoleTextAttribute,
+    // which coexists with this mode. Redirected handles fail GetConsoleMode and are left alone.
+    {
+        const DWORD StdHandleIds[2] = { STD_OUTPUT_HANDLE, STD_ERROR_HANDLE };
+        for (u32 i = 0; i < 2; i++)
+        {
+            HANDLE StdHandle = GetStdHandle(StdHandleIds[i]);
+            DWORD ConsoleMode = 0;
+            if (GetConsoleMode(StdHandle, &ConsoleMode))
+            {
+                xx SetConsoleMode(StdHandle, ConsoleMode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+            }
+        }
+    }
+
     i32 NumArgs = 0;
     wchar** ArgsW = CommandLineToArgvW(GetCommandLineW(), &NumArgs);
 
@@ -431,13 +447,7 @@ void Platform_ConsoleWrite_CustomLength(const char* Message, u32 Length, u8 Colo
     bool bDone = (Length == 0) || (OutputHandle == NULL) || (OutputHandle == INVALID_HANDLE_VALUE);
     if (!bDone)
     {
-        // WriteConsole and SetConsoleTextAttribute only work on a real console screen buffer: when our
-        // output is redirected to a pipe or file (a build server, `b.exe > out.txt`, a captured child
-        // process) those calls fail silently and nothing is written. A true console returns
-        // FILE_TYPE_CHAR and a valid console mode; a pipe/file returns neither. So we detect which we
-        // have and fall back to WriteFile -- which writes raw bytes to any handle -- when redirected.
-        DWORD ConsoleMode = 0;
-        bool bIsConsole = (GetFileType(OutputHandle) == FILE_TYPE_CHAR) && GetConsoleMode(OutputHandle, &ConsoleMode);
+        bool bIsConsole = Platform_IsConsoleOutput();
 
         static const u8 GConsoleColorLevels[7] = { CONSOLE_INFO_COLOR, CONSOLE_SUCCESS_COLOR, CONSOLE_WARNING_COLOR, CONSOLE_ERROR_COLOR, CONSOLE_FATAL_COLOR, CONSOLE_INFO_COLOR, CONSOLE_MUTE_COLOR };
         const u8 ConsoleColor = GConsoleColorLevels[Color];
@@ -457,20 +467,38 @@ void Platform_ConsoleWrite_CustomLength(const char* Message, u32 Length, u8 Colo
 
         #if _DEBUG
         {
-            StringLocal(Temp, 32768);
-            String_Copy(&Temp, StrSlice((uchar*)Message, Length));
-            OutputDebugString((char*)Temp.Data);
+            // OutputDebugString wants a null terminator, so a bounded slice must be staged into a
+            // local; chunk it so the staging buffer imposes no length limit
+            u32 DebugOffset = 0;
+            while (DebugOffset < Length)
+            {
+                StringLocal(Temp, 32768);
+                const u32 DebugChunkSize = Min(Length - DebugOffset, Temp.Capacity - 1);
+                String_Copy(&Temp, StrSlice((uchar*)Message + DebugOffset, DebugChunkSize));
+                OutputDebugString((char*)Temp.Data);
+                DebugOffset += DebugChunkSize;
+            }
         }
         #endif
 
-        if (bIsConsole)
+        // WriteConsole is documented to fail outright on very large single writes (~64KB in the
+        // legacy console), so emit in bounded chunks.
+        u32 Offset = 0;
+        while (Offset < Length)
         {
-            xx WriteConsole(OutputHandle, Message, (DWORD)Length, NULL, NULL);
-        }
-        else
-        {
-            DWORD Written = 0;
-            xx WriteFile(OutputHandle, Message, (DWORD)Length, &Written, NULL);
+            const DWORD ChunkSize = (DWORD)Min(Length - Offset, (u32)Kibibytes(32));
+
+            if (bIsConsole)
+            {
+                xx WriteConsole(OutputHandle, Message + Offset, ChunkSize, NULL, NULL);
+            }
+            else
+            {
+                DWORD Written = 0;
+                xx WriteFile(OutputHandle, Message + Offset, ChunkSize, &Written, NULL);
+            }
+
+            Offset += ChunkSize;
         }
 
         // Reset back to white
@@ -496,6 +524,14 @@ void Platform_ConsoleWrite_CustomLength(const char* Message, u32 Length, u8 Colo
             }
         }
     }
+}
+
+NO_DISCARD bool Platform_IsConsoleOutput(void)
+{
+    HANDLE OutputHandle = GetStdHandle(STD_OUTPUT_HANDLE);
+
+    DWORD ConsoleMode = 0;
+    return (GetFileType(OutputHandle) == FILE_TYPE_CHAR) && GetConsoleMode(OutputHandle, &ConsoleMode);
 }
 
 NO_DISCARD f64 Platform_GetAbsoluteTime(void)
@@ -1364,20 +1400,33 @@ NO_DISCARD FileTimeData Filesystem_GetFileTimeH(const FileHandle Handle)
 
 NO_DISCARD bool Filesystem_ReadPipe(PlatformPipe Handle, usize DataSize, void* OutData, usize* OutBytesRead)
 {
-    bool bSuccess = Handle[0] && Handle[1];
+    // Non-blocking: reads only what is already buffered in the pipe. A true return with zero bytes
+    // read means "no data right now"; a false return means the pipe is finished (every writer
+    // closed it and the buffer is drained) and will never produce data again.
+    usize TotalRead = 0;
 
-    DWORD BytesRead = 0;
-    if (bSuccess)
+    bool bAlive = Platform_IsValidHandle(Handle[0]);
+    if (bAlive)
     {
-        bSuccess = ReadFile(Handle[0], OutData, (DWORD)DataSize, &BytesRead, NULL);
+        DWORD BytesAvailable = 0;
+
+        // fails with ERROR_BROKEN_PIPE once drained and writer-less
+        bAlive = PeekNamedPipe(Handle[0], NULL, 0, NULL, &BytesAvailable, NULL);
+
+        if (bAlive && BytesAvailable > 0)
+        {
+            DWORD BytesRead = 0;
+            bAlive = ReadFile(Handle[0], OutData, (DWORD)Min(DataSize, (usize)BytesAvailable), &BytesRead, NULL);
+            TotalRead = BytesRead;
+        }
     }
-    
+
     if (OutBytesRead)
     {
-        *OutBytesRead = BytesRead;
+        *OutBytesRead = TotalRead;
     }
 
-    return bSuccess;
+    return bAlive;
 }
 
 NO_DISCARD bool Filesystem_Read(const FileHandle Handle, usize DataSize, void* OutData, usize* OutBytesRead)
@@ -2684,41 +2733,42 @@ NO_DISCARD bool Platform_GetFullCpuName(String* OutName)
     return bSuccess;
 }
 
-NO_DISCARD u32 Platform_GetExitCodeForProcess(PlatformHandle Handle)
+NO_DISCARD bool Platform_GetExitCodeForProcess(PlatformHandle Handle, u32* OutExitCode)
 {
-    u32 Code = 0;
+    // Non-blocking: reports whether the process has exited, and only then fills OutExitCode.
+    // The zero-timeout wait avoids the GetExitCodeProcess ambiguity where an exit code of 259
+    // (STILL_ACTIVE) is indistinguishable from a running process.
+    bool bExited = true;
+    u32 Code = UINT32_MAX;
 
     if (Platform_IsValidHandle(Handle))
     {
-        DWORD ExitCode = 0;
-        if (GetExitCodeProcess(Handle, &ExitCode))
+        bExited = WaitForSingleObject(Handle, 0) == WAIT_OBJECT_0; // WAIT_OBJECT_0 means the process has signaled its termination
+        if (bExited)
         {
-            Code = ExitCode;
-        }
-        else
-        {
-            Code = UINT32_MAX;
-        }
-
-        if (ExitCode == 259) // STILL_ACTIVE
-        {
-            Code = UINT32_MAX;
+            DWORD ExitCode = 0;
+            if (GetExitCodeProcess(Handle, &ExitCode))
+            {
+                Code = ExitCode;
+            }
         }
     }
 
-    return Code;
+    if (OutExitCode && bExited)
+    {
+        *OutExitCode = Code;
+    }
+
+    return bExited;
 }
 
 NO_DISCARD u32 Platform_WaitForProcessAndGetExitCode(PlatformHandle Handle)
 {
     u32 Code = 0;
 
-        //Platform_ConsoleWrite("waiting", 0, false);
-
-
     if (Platform_IsValidHandle(Handle))
     {
-        (void)WaitForSingleObject(Handle, INFINITE);
+        xx WaitForSingleObject(Handle, INFINITE);
 
         DWORD ExitCode = 0;
         if (GetExitCodeProcess(Handle, &ExitCode))

@@ -19,7 +19,7 @@ STRUCT(FileVariable)
     String Params;
     String Name;
     String Value;
-    String Content; // heredoc body for WriteFile/AppendFile commands; empty otherwise
+    String Content; // used for WriteFile/AppendFile commands, otherwise it's empty
 };
 
 global FileVariable FileVariable_Empty;
@@ -90,8 +90,6 @@ ENUM(EAssemblyType)
     AssemblyType_Null
 };
 
-// const so translation units that include this header without using the table (Backend.c, Parse.c)
-// do not trip gcc's -Wunused-variable, which exempts const definitions that come from headers.
 static const String AssemblyTypeStringTable[9] =
 {
     SC("None"),
@@ -172,14 +170,11 @@ ENUM(EBuildMode)
     BuildMode_Export
 };
 
-// How a change to a build key affects the output, used by the .build diff system to do the minimal
-// amount of work. Every reserved key carries one of these (see the ReservedKeys table in Parse.c).
-// Ordered by severity so a diff can keep the strongest impact with a simple max.
 ENUM(EBuildKeyImpact)
 {
-    BuildKeyImpact_None = 0,   // cosmetic - does not affect the produced assembly
-    BuildKeyImpact_Relink,     // affects only the final link/output, not per-file compilation
-    BuildKeyImpact_Recompile   // affects what every source file is compiled with
+    BuildKeyImpact_None = 0,
+    BuildKeyImpact_Relink,
+    BuildKeyImpact_Recompile
 };
 
 // Extra compiler settings that apply to specific source files, declared in the build file either as a
@@ -195,11 +190,24 @@ ENUM(EBuildKeyImpact)
 // here are already expanded/prefixed exactly like their global counterparts, ready for the command line.
 STRUCT(FileOverride)
 {
-    String FileName;      // the source file this applies to, matched by bare filename (e.g. "Parse.c")
-    String CompilerFlags; // extra compiler flags (prefix-normalized), appended after the shared flags
-    String IncludeFlags;  // extra include search paths, already expanded to -I"..." / /I"..."
-    String DefineFlags;   // extra preprocessor defines, already expanded to -D... / /D...
-    String UnDefineFlags; // extra preprocessor undefines, already expanded to -U... / /U...
+    String FileName;
+    String CompilerFlags;
+    String IncludeFlags;
+    String DefineFlags;
+    String UnDefineFlags;
+};
+
+STRUCT(CompileProcess)
+{
+    PlatformHandle Handle;
+    PlatformPipe   Pipe;
+    String         Output;
+};
+
+STRUCT(CompileProcessPool)
+{
+    TArray(CompileProcess) Jobs;
+    TArray(String)         FreeBuffers;
 };
 
 STRUCT(BuildParams)
@@ -290,7 +298,7 @@ STRUCT(BuildParams)
 
     LinearAllocator* Arena;
 
-    TArray(PlatformHandle)* Processes;
+    CompileProcessPool* Processes;
 
     FileHandle ArtifactManifestHandle;
 
@@ -336,6 +344,8 @@ bool C_Compile(const BuildParams* Params, u32* OutNumCompiled);
 bool C_Compile_Spawn(const BuildParams* Params, u32* OutNumCompiled);
 bool C_Compile_Wait(const BuildParams* Params, u32 NumCompiled);
 bool C_Link(const BuildParams* Params);
+
+void CompileProcessPool_InitOutputBuffers(LinearAllocator* Arena, CompileProcessPool* Pool);
 
 bool IsSource(const String Extension);
 bool IsAsmSource(const String Extension);

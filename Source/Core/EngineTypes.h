@@ -744,10 +744,14 @@ STATIC_ASSERT(sizeof(f64)   == 8, "Expected size of f64 to be 8 bytes.");
 typedef void* PlatformHandle;
 typedef void* PlatformCriticalSection;
 typedef void* PlatformPipe[2];
+#define PLATFORM_PIPE_INVALID NULL
+read_only global PlatformPipe g_PipeNil;
 #else
 typedef i32 PlatformHandle;
 typedef i32 PlatformPipe[2];
 typedef void* PlatformCriticalSection;
+#define PLATFORM_PIPE_INVALID (-1)
+read_only global PlatformPipe g_PipeNil;
 #endif
 
 #if PLATFORM_64_BIT

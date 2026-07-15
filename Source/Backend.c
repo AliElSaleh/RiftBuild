@@ -159,6 +159,126 @@ static void LogCompilingFile(u32 Index, u32 NumSources, String FullPath)
     if (bQuietBuild) { Logging_Disable(); }
 }
 
+static void Internal_FlushCompileOutput(CompileProcess* Job)
+{
+    Platform_ConsoleWrite_CustomLength((const char*)Job->Output.Data, Job->Output.Length, 0, false);
+
+    // keep blocks line-separated even when a compiler's last line has no newline
+    if (!String_IsLast(Job->Output, '\n'))
+    {
+        Platform_ConsoleWrite_CustomLength("\n", 1, 0, false);
+    }
+
+    Job->Output.Length = 0;
+}
+
+static bool Internal_DrainCompileOutput(CompileProcess* Job)
+{
+    bool bReadAny = false;
+
+    if (String_IsDataValid(Job->Output) && Platform_IsValidHandle(Job->Pipe[0]))
+    {
+        bool bPipeAlive = true;
+        usize BytesRead = 1;
+
+        while (bPipeAlive && BytesRead > 0)
+        {
+            if (Job->Output.Length == Job->Output.Capacity)
+            {
+                Internal_FlushCompileOutput(Job);
+            }
+
+            BytesRead = 0;
+            bPipeAlive = Filesystem_ReadPipe(Job->Pipe,
+                                            Job->Output.Capacity - Job->Output.Length,
+                                            Job->Output.Data + Job->Output.Length,
+                                            &BytesRead);
+            if (BytesRead > 0)
+            {
+                Job->Output.Length += (u32)BytesRead;
+                bReadAny = true;
+            }
+        }
+
+        if (!bPipeAlive)
+        {
+            // completely drained now, close the "read" pipe
+            Platform_ClosePipeEnd(&Job->Pipe[0]);
+        }
+    }
+
+    return bReadAny;
+}
+
+static u32 Internal_WaitForCompileProcess(CompileProcessPool* Pool, i32 WantIndex, u32* OutExitCode)
+{
+    u32 FinishedIndex = 0;
+    bool bFinished = false;
+
+    while (!bFinished)
+    {
+        bool bReadAny = false;
+        const u32 Num = (u32)Array_Num(Pool->Jobs);
+
+        if (NEVER(Num == 0))
+        {
+            *OutExitCode = 0;
+            bFinished = true;
+        }
+
+        for (u32 i = 0; i < Num; i++)
+        {
+            if (Internal_DrainCompileOutput(&Pool->Jobs[i]))
+            {
+                bReadAny = true;
+            }
+        }
+
+        const u32 First = WantIndex >= 0 ? (u32)WantIndex : 0;
+        const u32 Last  = WantIndex >= 0 ? (u32)WantIndex + 1 : Num;
+
+        for (u32 i = First; i < Last && !bFinished; i++)
+        {
+            u32 ExitCode = 0;
+            if (Platform_GetExitCodeForProcess(Pool->Jobs[i].Handle, &ExitCode))
+            {
+                FinishedIndex = i;
+                *OutExitCode = ExitCode;
+                bFinished = true;
+            }
+        }
+
+        // without the sleep this loop busy-spins a full core, a core stolen from the very
+        // compilers we are waiting on.
+        if (!bFinished && !bReadAny)
+        {
+            Platform_Sleep(1);
+        }
+    }
+
+    return FinishedIndex;
+}
+
+static void Internal_FinishCompileProcess(CompileProcessPool* Pool, u32 Index)
+{
+    CompileProcess* Job = &Pool->Jobs[Index];
+
+    xx Internal_DrainCompileOutput(Job);
+    if (Job->Output.Length)
+    {
+        Internal_FlushCompileOutput(Job);
+    }
+
+    Platform_ClosePipeEnd(&Job->Pipe[0]);
+
+    if (Job->Output.Data != NULL)
+    {
+        Array_Add(Pool->FreeBuffers, Job->Output);
+    }
+
+    Array_RemoveAt(Pool->Jobs, NULL, Index);
+}
+
 // Where a .rc's compiled .res lands, relative to the root: under the intermediate directory (or
 // Compiler.ObjectDirectory when set), mirroring the source's relative path the same way objects do,
 // so cleans, rebuilds and the .build diff can always delete it - never next to the source, which the
@@ -536,16 +656,16 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
     if (NEVER(Data->Params == NULL)) { return false; }
 
     const BuildParams* Params = Data->Params;
-    TArray(PlatformHandle) Processes = *Params->Processes;
+    CompileProcessPool* Pool = Params->Processes;
 
     if (Params->MaxCompilersAtOnce > 0 && !Params->bShouldWaitPerCompileProcess)
     {
-        u32 Num = (u32)Array_Num(Processes);
-        if (Num == Params->MaxCompilersAtOnce)
+        u32 Num = (u32)Array_Num(Pool->Jobs);
+        if (Num >= Params->MaxCompilersAtOnce)
         {
-            u32 Index = Platform_WaitForMultipleHandles(*Params->Processes, (u32)Array_Num(*Params->Processes), -1, false);
-
-            const u32 ExitCode = Platform_GetExitCodeForProcess(Processes[Index]);
+            u32 ExitCode = 0;
+            u32 Index = Internal_WaitForCompileProcess(Pool, -1, &ExitCode);
+            Internal_FinishCompileProcess(Pool, Index);
 
             if (ExitCode != 0)
             {
@@ -557,8 +677,6 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
 
                 return false;
             }
-
-            Array_RemoveAt(Processes, NULL, Index);
         }
     }
 
@@ -940,6 +1058,32 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
             }
         }
 
+        // Compiler output is captured through a pipe, which makes compilers
+        // silently drop colored diagnostics: they no longer see a terminal. When our own stdout is
+        // a real console, ask for color explicitly. MSVC and tcc have no colored output to ask
+        // for, and exported scripts must not hardcode a color choice for whatever runs them later.
+        // TODO: option to disable this?
+        String ColorFlags = String_Null();
+        if (Params->Type != AssemblyType_CustomCompilerObject &&
+            Params->Type != AssemblyType_NoCompilerObject)
+        {
+            if (!Export_IsCapturingCommands() && Platform_IsConsoleOutput())
+            {
+                if (Params->CompilerVendor == Compiler_GCC ||
+                    Params->CompilerVendor == Compiler_MINGW)
+                {
+                    ColorFlags = S("-fdiagnostics-color=always");
+                }
+                else if (Params->CompilerVendor == Compiler_Clang ||
+                         Params->CompilerVendor == Compiler_Clang_MSVC)
+                {
+                    // -fansi-escape-codes makes clang emit ANSI sequences instead of calling the Win32
+                    // console API, which it cannot do through a pipe
+                    ColorFlags = S("-fcolor-diagnostics -fansi-escape-codes");
+                }
+            }
+        }
+
         String CompilerFlags = Export_TryWriteFlagsAndReturnThisValue(S("CompilerFlags"), Params->CompilerFlags);
         String IncludeFlags  = Export_TryWriteFlagsAndReturnThisValue(S("IncludeFlags"),  Params->IncludeFlags);
         String Defines       = Export_TryWriteFlagsAndReturnThisValue(S("Defines"),       Params->DefineFlags);
@@ -948,7 +1092,7 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
         String CompilerFlagsLeft  = Params->bCompilerFlagsFirst ? CompilerFlags : String_Null();
         String CompilerFlagsRight = Params->bCompilerFlagsFirst ? String_Null() : CompilerFlags;
 
-        String_BuildSeparator(&CmdLine, ' ', CompilerFlagsLeft, CompileFlag, FullSourcePath, CompilerFlagsRight, IncludeFlags, Defines, UnDefines, AdditionalFlags, PCHFlags, DepFlags, OutputFlag);
+        String_BuildSeparator(&CmdLine, ' ', CompilerFlagsLeft, CompileFlag, FullSourcePath, CompilerFlagsRight, IncludeFlags, Defines, UnDefines, AdditionalFlags, PCHFlags, DepFlags, ColorFlags, OutputFlag);
         xx String_EatSpacesInlineFromEnd(&CmdLine);
 
         if (String_IsValid(ObjectPath))
@@ -968,6 +1112,7 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
         RecordArtifactPath(Params->ArtifactManifestHandle,PCHObjectPath);
     }
 
+    // TODO: maybe record this only if they exist after the compiler is successful?
     struct MiscArtifactTable
     {
         String Extension;
@@ -1088,15 +1233,52 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
             LOG("\n    %S\n", CmdLine);
         }
 
-        PlatformHandle Handle = Platform_RunProcess(ProgramPath, CmdLine, Params->RootDirectory, String_Null());
-        if (Platform_IsValidHandle(Handle))
+        // Capture the compiler's stdout+stderr into a per-job buffer so parallel compilers cannot
+        // interleave their diagnostics on the console; the block prints atomically when the job
+        // finishes. With no buffer left to take, the job degrades to writing the console directly.
+        CompileProcess Job = {0};
+        Platform_PipeInit(Job.Pipe);
+
+        const u32 NumFreeBuffers = (u32)Array_Num(Pool->FreeBuffers);
+        if (NumFreeBuffers > 0)
         {
-            Array_Add(Processes, Handle);
+            Job.Output = Pool->FreeBuffers[NumFreeBuffers - 1];
+            Array_RemoveAt(Pool->FreeBuffers, NULL, NumFreeBuffers - 1);
+
+            Job.Handle = Platform_RunProcess_Ex(ProgramPath, CmdLine, Params->RootDirectory, &Job.Pipe);
+
+            // Close our "write" handle, we only care about reading.
+            Platform_ClosePipeEnd(&Job.Pipe[1]);
+
+            // Clean up if we failed to spawn our compiler process
+            if (!Platform_IsValidHandle(Job.Handle))
+            {
+                Platform_ClosePipe(Job.Pipe);
+
+                Array_Add(Pool->FreeBuffers, Job.Output);
+            }
+        }
+        else
+        {
+            Job.Handle = Platform_RunProcess(ProgramPath, CmdLine, Params->RootDirectory, String_Null());
+        }
+
+        if (Platform_IsValidHandle(Job.Handle))
+        {
+            Array_Add(Pool->Jobs, Job);
             (*Data->NumCompiled) += 1;
 
-            if (Params->bShouldWaitPerCompileProcess)
+            if (UNLIKELY(Params->bShouldWaitPerCompileProcess))
             {
-                const u32 ExitCode = Platform_WaitForProcessAndGetExitCode(Handle);
+                // we cant do a plain "wait for exit" because of the way we are capturing output now.
+                // we're redirecting the output to a pipe and we have to keep reading until exit,
+                // so that it does not deadlock and hang forever.
+
+                u32 ExitCode = 0;
+                const u32 Index = (u32)Array_Num(Pool->Jobs) - 1;
+                xx Internal_WaitForCompileProcess(Pool, (i32)Index, &ExitCode);
+                Internal_FinishCompileProcess(Pool, Index);
+
                 if (ExitCode != 0)
                 {
                     xx Filesystem_DeleteFile(ObjectPath);
@@ -1117,12 +1299,6 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
 }
 
 // Spawn (and throttle) compile processes for this module's source files onto the shared
-// Params->Processes pool, WITHOUT waiting for them to finish. Pair with C_Compile_Wait.
-//
-// Splitting spawn from wait is what lets multiple modules enqueue their source files into one
-// shared process pool: the build executor calls C_Compile_Spawn for every module (throttled by a
-// single global MaxCompilersAtOnce), then a single C_Compile_Wait barrier drains them all. That is
-// how source files across independent modules end up compiling in one cross-module parallel batch.
 bool C_Compile_Spawn(const BuildParams* Params, u32* OutNumCompiled)
 {
     if (NEVER(Params == NULL))
@@ -1198,9 +1374,14 @@ bool C_Compile_Wait(const BuildParams* Params, u32 NumCompiled)
         }
     }
 
-    for each (PlatformHandle, Process, *Params->Processes)
+    CompileProcessPool* Pool = Params->Processes;
+
+    while (Pool && Array_Num(Pool->Jobs) > 0)
     {
-        const u32 ExitCode = Platform_WaitForProcessAndGetExitCode(Process);
+        u32 ExitCode = 0;
+        u32 Index = Internal_WaitForCompileProcess(Pool, -1, &ExitCode); // wait for any to finish
+        Internal_FinishCompileProcess(Pool, Index);
+
         if (ExitCode != 0)
         {
             // todo: better wording?
@@ -1217,26 +1398,60 @@ bool C_Compile_Wait(const BuildParams* Params, u32 NumCompiled)
     return bSuccess;
 }
 
+void CompileProcessPool_InitOutputBuffers(LinearAllocator* Arena, CompileProcessPool* Pool)
+{
+    if (NEVER(Arena == NULL)) { return; }
+    if (NEVER(Pool == NULL))  { return; }
+
+    usize NumBuffers = Array_Capacity(Pool->FreeBuffers);
+    usize PerJobSize = Kibibytes(8);
+
+    const usize Budget = (Arena->TotalSize - Arena->Allocated) / 4;
+
+    // if we are over budget, keep reducing until we're below budget
+    while (PerJobSize > Kibibytes(2) && NumBuffers * PerJobSize > Budget)
+    {
+        PerJobSize /= 2;
+    }
+
+    if (NumBuffers * PerJobSize > Budget)
+    {
+        NumBuffers = Budget / PerJobSize;
+    }
+
+    for (usize i = 0; i < NumBuffers; i++)
+    {
+        String Buffer = String_Reserve(Arena, (u32)PerJobSize);
+        Array_Add(Pool->FreeBuffers, Buffer);
+    }
+}
+
+static void Internal_ReapAbandoned(CompileProcessPool* Pool)
+{
+    if (NEVER(Pool == NULL)) { return; }
+
+    while (Array_Num(Pool->Jobs) > 0)
+    {
+        u32 ExitCode = 0;
+        u32 Index = Internal_WaitForCompileProcess(Pool, -1, &ExitCode);
+        Internal_FinishCompileProcess(Pool, Index);
+    }
+}
+
 bool C_Compile(const BuildParams* Params, u32* OutNumCompiled)
 {
-    if (NEVER(Params == NULL))
+    if (NEVER(Params == NULL))         { return false; }
+    if (NEVER(OutNumCompiled == NULL)) { return false; }
+
+    bool bSuccess = C_Compile_Spawn(Params, OutNumCompiled);
+    if (bSuccess)
     {
-        return false;
+        bSuccess = C_Compile_Wait(Params, *OutNumCompiled);
     }
 
-    if (NEVER(OutNumCompiled == NULL))
-    {
-        return false;
-    }
+    Internal_ReapAbandoned(Params->Processes);
 
-    // On spawn failure the original code broke out and returned without waiting on the already-spawned
-    // processes; preserve that by short-circuiting here.
-    if (!C_Compile_Spawn(Params, OutNumCompiled))
-    {
-        return false;
-    }
-
-    return C_Compile_Wait(Params, *OutNumCompiled);
+    return bSuccess;
 }
 
 static void Internal_AppendObjSourceFiles(const BuildParams* Params, String* CmdLine, String DefaultObjExt)
@@ -1823,42 +2038,57 @@ static void Internal_ParseAndLogLinkerOutput_MSVC(String StdOutData)
     }
 }
 
-static void Internal_ProcessLinkerOutput_MSVC(PlatformPipe StdOutHandle)
+static void Internal_ProcessLinkerOutput_MSVC(PlatformHandle Process, PlatformPipe StdOutHandle)
 {
-    Platform_CloseHandle(StdOutHandle[1]);
+    Platform_ClosePipeEnd(&StdOutHandle[1]);
 
     StringLocal(StdOutData, UINT16_MAX);
 
-    do
+    bool bLinkerExited = false;
+    bool bKeepReading = true;
+
+    while (bKeepReading)
     {
-        StringLocal(PipeData, UINT16_MAX);
-
-        usize BytesRead = 0;
-        if (!Filesystem_ReadPipe(StdOutHandle, PipeData.Capacity, PipeData.Data, &BytesRead))
-        {
-            break;
-        }
-        
-        if (BytesRead == 0)
-        {
-            break;
-        }
-
-        PipeData.Length = Min((u32)BytesRead, StdOutData.Capacity);
-
-        if (PipeData.Length + StdOutData.Length > StdOutData.Capacity)
+        // The output accumulates (reads land on arbitrary byte boundaries, and the parser needs
+        // whole lines) and is parsed in one go at the end. Only a full buffer forces an early
+        // parse to make room - that can split a line, but only past 64KB of linker output.
+        if (StdOutData.Length == StdOutData.Capacity)
         {
             Internal_ParseAndLogLinkerOutput_MSVC(StdOutData);
             String_Empty(&StdOutData);
         }
 
-        String_Append(&StdOutData, PipeData);
+        usize BytesRead = 0;
+        bKeepReading = Filesystem_ReadPipe(StdOutHandle,
+                                           StdOutData.Capacity - StdOutData.Length,
+                                           StdOutData.Data + StdOutData.Length,
+                                           &BytesRead);
+
+        if (BytesRead > 0)
+        {
+            StdOutData.Length += (u32)BytesRead;
+        }
+        else if (bKeepReading)
+        {
+            if (bLinkerExited)
+            {
+                bKeepReading = false; // exited and drained - done
+            }
+            else
+            {
+                u32 ExitCode = 0;
+                bLinkerExited = Platform_GetExitCodeForProcess(Process, &ExitCode);
+                if (!bLinkerExited)
+                {
+                    Platform_Sleep(1); // without this we busy-spin a full core the linker could be using
+                }
+            }
+        }
     }
-    while (1);
 
     Internal_ParseAndLogLinkerOutput_MSVC(StdOutData);
 
-    Platform_CloseHandle(StdOutHandle[0]);
+    Platform_ClosePipeEnd(&StdOutHandle[0]);
 }
 #endif // PLATFORM_WINDOWS
 
@@ -2206,7 +2436,8 @@ bool C_Link(const BuildParams* Params)
 
             PlatformHandle Handle = {0};
             #if PLATFORM_WINDOWS
-            PlatformPipe StdOutHandle = {0};
+            PlatformPipe StdOutHandle;
+            Platform_PipeInit(StdOutHandle);
             Handle = Platform_RunProcess_Ex(ProgramPath, CmdLine, Params->RootDirectory, &StdOutHandle);
             #else
             Handle = Platform_RunProcess(ProgramPath, CmdLine, Params->RootDirectory, String_Null());
@@ -2231,7 +2462,7 @@ bool C_Link(const BuildParams* Params)
                 #if PLATFORM_WINDOWS
                 // if (bIsMicrosoftLinker)
                 {
-                    Internal_ProcessLinkerOutput_MSVC(StdOutHandle);
+                    Internal_ProcessLinkerOutput_MSVC(Handle, StdOutHandle);
                 }
                 #endif
 

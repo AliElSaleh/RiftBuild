@@ -39,6 +39,7 @@
 #include <pwd.h>
 #include <termios.h>
 #include <limits.h>
+#include <poll.h>
 
 #include <sys/stat.h>
 #include <sys/time.h>
@@ -313,7 +314,31 @@ PRAGMA_DISABLE_WARNINGS
 
 void Platform_ConsoleWrite(const char* Message, u8 Color, bool bIsError)
 {
-    Platform_ConsoleWrite_CustomLength(Message, String_GetLength(Message), 0, false);
+    Platform_ConsoleWrite_CustomLength(Message, String_GetLength(Message), Color, bIsError);
+}
+
+static void Internal_WriteToFd(int Fd, const void* Data, usize Length)
+{
+    const u8* Bytes = (const u8*)Data;
+    usize Written = 0;
+    bool bFailed = false;
+
+    while (Written < Length && !bFailed)
+    {
+        isize Result = write(Fd, Bytes + Written, Length - Written);
+        if (Result > 0)
+        {
+            Written += (usize)Result;
+        }
+        else if (Result < 0 && errno == EINTR)
+        {
+            // interrupted before anything was written - just retry
+        }
+        else
+        {
+            bFailed = true; // closed or broken output; nowhere to report it, stop trying
+        }
+    }
 }
 
 void Platform_ConsoleWrite_CustomLength(const char* Message, u32 Length, u8 Color, bool bIsError)
@@ -332,27 +357,34 @@ void Platform_ConsoleWrite_CustomLength(const char* Message, u32 Length, u8 Colo
         // write() delivers bytes the same to a tty, pipe or file, so output is never lost when
         // redirected (unlike Windows' WriteConsole). ANSI color escapes, however, only belong on a
         // real terminal -- writing them into a pipe or file would pollute the captured text -- so we
-        // only wrap the message in color when the target fd is actually a tty.
+        // only wrap the message in color when the target fd is actually a tty. The escape prefix,
+        // payload and reset go out as separate writes on purpose: no staging buffer means no size
+        // limit, and we are the console's only writer, so nothing interleaves between the calls.
         bool bIsTTY = isatty(Fd) != 0;
 
-        StringLocal(Temp, 16384);
         if (bIsTTY)
         {
-            String_Append(&Temp, S("\033["));
-            String_Append(&Temp, LIKELY(Color < 6) ? colors[Color] : S("0;37"));
-            String_Append(&Temp, S("m"));
-            String_Append(&Temp, StrSlice((uchar*)Message, Length));
-            String_Append(&Temp, S("\033[0m"));
+            StringLocal(Prefix, 16);
+            String_Append(&Prefix, S("\033["));
+            String_Append(&Prefix, LIKELY(Color < 6) ? colors[Color] : S("0;37"));
+            String_Append(&Prefix, S("m"));
+
+            Internal_WriteToFd(Fd, Prefix.Data, Prefix.Length);
+            Internal_WriteToFd(Fd, Message, Length);
+            Internal_WriteToFd(Fd, "\033[0m", 4);
         }
         else
         {
-            String_Append(&Temp, StrSlice((uchar*)Message, Length));
+            Internal_WriteToFd(Fd, Message, Length);
         }
 
-        (void)write(Fd, Temp.Data, Temp.Length);
-
-        if (UNLIKELY(bIgnoreNewLine)) { (void)write(Fd, "\n", 1); }
+        if (UNLIKELY(bIgnoreNewLine)) { Internal_WriteToFd(Fd, "\n", 1); }
     }
+}
+
+bool Platform_IsConsoleOutput(void)
+{
+    return isatty(STDOUT_FILENO) != 0;
 }
 
 PRAGMA_ENABLE_WARNINGS
@@ -499,6 +531,10 @@ PlatformHandle Platform_RunProcess_Ex(const String ProcessExePath, const String 
         dup2(PipeData[1], STDOUT_FILENO); // capture stdout
         dup2(PipeData[1], STDERR_FILENO); // capture stderr as well
 
+        // the dup2'd copies live on; the originals would only keep the pipe from ever hitting EOF
+        close(PipeData[0]);
+        close(PipeData[1]);
+
         i32 Result = execve((char*)ProcessExePath.Data, Args, environ);
         exit(Result);
     }
@@ -616,13 +652,9 @@ PlatformHandle Platform_RunCommand_Ex(const String CmdLine, const String Working
         dup2(PipeData[1], STDOUT_FILENO); // capture stdout
         dup2(PipeData[1], STDERR_FILENO); // capture stderr as well
 
-        /*
+        // the dup2'd copies live on; the originals would only keep the pipe from ever hitting EOF
         close(PipeData[0]);
-        dup2(PipeData[1], STDOUT_FILENO);
-
-        (*StdOutPipe)[0] = PipeData[0]; // read pipe
-        (*StdOutPipe)[1] = PipeData[1]; // write pipe
-        */
+        close(PipeData[1]);
 
         execvp("/bin/sh", (char*[]){"sh", "-c", (char*)Command.Data, NULL});
         exit(0);
@@ -769,21 +801,38 @@ bool Platform_FindFile_Ex(String FileName, String ExtensionWithDot, String* OutF
     return bFound;
 }
 
-u32 Platform_GetExitCodeForProcess(PlatformHandle Handle)
+bool Platform_GetExitCodeForProcess(PlatformHandle Handle, u32* OutExitCode)
 {
-    if (Handle == 0)
-        return 0;
+    // Non-blocking: reports whether the process has exited, and only then fills OutExitCode.
+    // Note this reaps the child - a later wait on the same pid reports exit code 0.
+    bool bExited = true;
+    u32 Code = 0;
 
     i32 PidStatus = 0;
-    // if you call this twice on the same pid, linux wont return the
-    // same exit code like windows does... sadge :(
-    pid_t pid = waitpid(Handle, &PidStatus, 0);
-    if (pid == -1)
+    pid_t pid = waitpid(Handle, &PidStatus, WNOHANG);
+    if (pid == 0)
     {
-        return 0;
+        bExited = false;
+    }
+    else if (pid < 0)
+    {
+        Code = 0; // already reaped or not our child - the blocking waits report 0 here too
+    }
+    else if (WIFSIGNALED(PidStatus))
+    {
+        Code = 128 + (u32)WTERMSIG(PidStatus); // a crashed compiler must not read as success
+    }
+    else
+    {
+        Code = (u32)WEXITSTATUS(PidStatus);
     }
 
-    return (u32)WEXITSTATUS(PidStatus);
+    if (OutExitCode && bExited)
+    {
+        *OutExitCode = Code;
+    }
+
+    return bExited;
 }
 
 u32 Platform_WaitForProcessAndGetExitCode(PlatformHandle Handle)
@@ -832,7 +881,10 @@ u32 Platform_WaitForMultipleHandles(PlatformHandle* Handles, u32 NumHandles, i32
 
 void Platform_CloseHandle(PlatformHandle Handle)
 {
-    close(Handle);
+    if (Platform_IsValidHandle(Handle))
+    {
+        close(Handle);
+    }
 }
 
 bool Platform_IsValidHandle(const PlatformHandle Handle)
@@ -1539,21 +1591,42 @@ FileTimeData Filesystem_GetFileTimeH(const FileHandle Handle)
 
 bool Filesystem_ReadPipe(PlatformPipe Handle, usize DataSize, void* OutData, usize* OutBytesRead)
 {
-    if (NEVER(Handle[0] == -1)) return false;
+    // Non-blocking: reads only what is already buffered in the pipe. A true return with zero bytes
+    // read means "no data right now"; a false return means the pipe is finished (every writer
+    // closed it and the buffer is drained) and will never produce data again.
+    usize TotalRead = 0;
 
-    isize BytesRead = read(Handle[0], OutData, DataSize);
-    if (BytesRead < 0)
+    struct pollfd PipePoll = {0};
+    PipePoll.fd = Handle[0];
+    PipePoll.events = POLLIN;
+
+    bool bAlive = Platform_IsValidHandle(Handle[0]) && poll(&PipePoll, 1, 0) >= 0;
+    if (bAlive)
     {
-        StringLocal(Prefix, MAX_PATH_LENGTH);
-        String_Format(&Prefix, S("Failed to read pipe from handle -> Read: %i | Write: %i"), Handle[0], Handle[1]);
-        LogLastError(Prefix);
-        return false;
+        if (PipePoll.revents & POLLIN)
+        {
+            isize BytesRead = read(Handle[0], OutData, DataSize);
+            if (BytesRead > 0)
+            {
+                TotalRead = (usize)BytesRead;
+            }
+            else
+            {
+                bAlive = false; // 0 is EOF, negative is a dead pipe
+            }
+        }
+        else if (PipePoll.revents & (POLLHUP | POLLERR | POLLNVAL))
+        {
+            bAlive = false; // no data left and no writers to produce more
+        }
     }
 
     if (OutBytesRead)
-        *OutBytesRead = (usize)BytesRead;
+    {
+        *OutBytesRead = TotalRead;
+    }
 
-    return true;
+    return bAlive;
 }
 
 bool Filesystem_Read(const FileHandle Handle, usize DataSize, void* OutData, usize* OutBytesRead)

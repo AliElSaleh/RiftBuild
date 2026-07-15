@@ -13,7 +13,8 @@
 #include <features.h> // defines __GLIBC__ when building against glibc (absent on musl)
 #endif
 
-read_only FileHandle g_FileHandle = { .Data = &(u8[64]){0} };
+read_only FileHandle   g_FileHandle = { .Data = &(u8[64]){0} };
+read_only PlatformPipe g_PipeNil    = { PLATFORM_PIPE_INVALID, PLATFORM_PIPE_INVALID };
 
 #if CPU_X86 || CPU_X64
 
@@ -1317,4 +1318,26 @@ NO_DISCARD ECpuClipBehaviour Platform_GetCpuClippingBehaviour(void)
     }
 
     return Result;
+}
+
+// a zero-initialized pipe is NOT invalid on unix (but on windows it is)
+void Platform_PipeInit(PlatformPipe Pipe)
+{
+    Pipe[0] = g_PipeNil[0];
+    Pipe[1] = g_PipeNil[1];
+}
+
+void Platform_ClosePipeEnd(PlatformHandle* PipeEnd)
+{
+    if (Platform_IsValidHandle(*PipeEnd))
+    {
+        Platform_CloseHandle(*PipeEnd);
+        *PipeEnd = PLATFORM_PIPE_INVALID;
+    }
+}
+
+void Platform_ClosePipe(PlatformPipe Pipe)
+{
+    Platform_ClosePipeEnd(&Pipe[0]);
+    Platform_ClosePipeEnd(&Pipe[1]);
 }

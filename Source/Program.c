@@ -24,6 +24,8 @@ const usize GEngineScratchAmount = Kibibytes(8);
 //       behaves like "no compiler object" type but has extra checks (like no linking) and ui changes
 //       instead of saying "building", we change the language to "transforming", etc.
 
+// TODO: support compiler=blah when we dont have a build file.
+
 // Let the user in the build script customize how much memory we should pre-allocate.
 // Default is 1MiB
 #ifndef MAX_MEMORY_MB
@@ -4805,8 +4807,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     ArrayLocal_Arena(CmdOption,      CmdOptionsDB,   128, Arena); // 4608 bytes
     ArrayLocal_Arena(String,         Messages,       128, Arena); // 2048 bytes
 
-    ArrayLocal_Arena(PlatformHandle, Processes,      MaxLogicalCores, Arena);
-
     StringLocal(RiftCmdLine, 4096);
 
     // store custom command line options to be referenced inside a .build file
@@ -7763,6 +7763,15 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         MaxCompilersAtOnce = 1;
     }
 
+    ArrayLocal_Arena(CompileProcess, CompileJobs,       MaxCompilersAtOnce, Arena);
+    ArrayLocal_Arena(String,         CompileJobBuffers, MaxCompilersAtOnce, Arena);
+
+    CompileProcessPool Processes = {0};
+    Processes.Jobs        = CompileJobs;
+    Processes.FreeBuffers = CompileJobBuffers;
+    CompileProcessPool_InitOutputBuffers(Arena, &Processes);
+
+
     //LOG_INFO("Max compilers: %u", MaxCompilersAtOnce);
 
     if (AssemblyType != AssemblyType_NoCompilerObject)
@@ -8009,8 +8018,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     Clock_Start(&CompileClock);
 
     bSuccess = C_Compile(&p, &NumCompiled);
-
-    xx Platform_WaitForMultipleHandles(Processes, (u32)Array_Num(Processes), -1, true);
 
     Clock_Tick(&CompileClock);
 

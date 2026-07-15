@@ -271,6 +271,7 @@ RIFT_API NO_DISCARD bool Platform_SetWorkingDirectory(const String Path);
 
 RIFT_API            void Platform_ConsoleWrite(const char* Message, u8 Color, bool bIsError);
 RIFT_API            void Platform_ConsoleWrite_CustomLength(const char* Message, u32 Length, u8 Color, bool bIsError);
+RIFT_API NO_DISCARD bool Platform_IsConsoleOutput(void);
 RIFT_API            void Platform_BeginNonBlockingMode(void);
 RIFT_API            void Platform_EndNonBlockingMode(void);
 
@@ -285,11 +286,14 @@ RIFT_API NO_DISCARD const String* Platform_GetExecutableExtensions(u32* OutCount
 RIFT_API NO_DISCARD bool Platform_FindFile(String FileName, String ExtensionWithDot);
 RIFT_API NO_DISCARD bool Platform_FindFile_Ex(String FileName, String ExtensionWithDot, String* OutFilePath);
 
-RIFT_API NO_DISCARD u32 Platform_GetExitCodeForProcess(PlatformHandle Handle);
+RIFT_API NO_DISCARD bool Platform_GetExitCodeForProcess(PlatformHandle Handle, u32* OutExitCode);
 RIFT_API NO_DISCARD u32 Platform_WaitForProcessAndGetExitCode(PlatformHandle Handle);
 RIFT_API NO_DISCARD u32 Platform_WaitForMultipleHandles(PlatformHandle* Handles, u32 NumHandles, i32 Milliseconds, bool bWaitAll);
 RIFT_API NO_DISCARD bool Platform_IsValidHandle(const PlatformHandle Handle);
 RIFT_API            void Platform_CloseHandle(PlatformHandle Handle);
+RIFT_API            void Platform_PipeInit(PlatformPipe Pipe);
+RIFT_API            void Platform_ClosePipeEnd(PlatformHandle* PipeEnd);
+RIFT_API            void Platform_ClosePipe(PlatformPipe Pipe);
 RIFT_API            void Platform_WaitForHandle(PlatformHandle Handle, i32 Milliseconds);
 
 RIFT_API NO_DISCARD usize Platform_GetCriticalSectionMemoryRequirement(void);

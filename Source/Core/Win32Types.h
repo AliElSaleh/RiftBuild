@@ -913,6 +913,7 @@ typedef void (WINAPI *PIO_APC_ROUTINE)(PVOID ApcContext, PIO_STATUS_BLOCK IoStat
 #endif
 
 #define INFINITE            0xFFFFFFFF  // Infinite timeout
+#define WAIT_OBJECT_0       0x00000000
 
 #define HANDLE_FLAG_INHERIT             0x00000001
 #define HANDLE_FLAG_PROTECT_FROM_CLOSE  0x00000002
@@ -1231,6 +1232,8 @@ typedef void (WINAPI *PIO_APC_ROUTINE)(PVOID ApcContext, PIO_STATUS_BLOCK IoStat
 #define STD_INPUT_HANDLE    ((DWORD)-10)
 #define STD_OUTPUT_HANDLE   ((DWORD)-11)
 #define STD_ERROR_HANDLE    ((DWORD)-12)
+
+#define ENABLE_VIRTUAL_TERMINAL_PROCESSING 0x0004
 
 #define HEAP_NO_SERIALIZE               0x00000001      
 #define HEAP_GROWABLE                   0x00000002      
@@ -1777,6 +1780,8 @@ WINBASEAPI            void       WINAPI OutputDebugStringW(LPCWSTR lpOutputStrin
 WINBASEAPI NO_DISCARD BOOL       WINAPI WriteConsoleA(HANDLE hConsoleOutput, const void* lpBuffer, DWORD nNumberOfCharsToWrite, LPDWORD lpNumberOfCharsWritten, LPVOID lpReserved);
 WINBASEAPI NO_DISCARD BOOL       WINAPI WriteConsoleW(HANDLE hConsoleOutput, const void* lpBuffer, DWORD nNumberOfCharsToWrite, LPDWORD lpNumberOfCharsWritten, LPVOID lpReserved);
 WINBASEAPI NO_DISCARD BOOL       WINAPI GetConsoleMode(HANDLE hConsoleHandle, LPDWORD lpMode);
+WINBASEAPI NO_DISCARD BOOL       WINAPI SetConsoleMode(HANDLE hConsoleHandle, DWORD dwMode);
+WINBASEAPI NO_DISCARD BOOL       WINAPI PeekNamedPipe(HANDLE hNamedPipe, LPVOID lpBuffer, DWORD nBufferSize, LPDWORD lpBytesRead, LPDWORD lpTotalBytesAvail, LPDWORD lpBytesLeftThisMessage);
 WINBASEAPI NO_DISCARD DWORD      WINAPI GetFileType(HANDLE hFile);
 WINBASEAPI            void       WINAPI GetLocalTime(LPSYSTEMTIME lpSystemTime);
 WINBASEAPI NO_DISCARD HCURSOR    WINAPI SetCursor(HCURSOR hCursor);
