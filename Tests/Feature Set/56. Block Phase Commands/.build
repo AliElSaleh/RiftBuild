@@ -1,0 +1,71 @@
+# Block-form phase commands: inside the Pre*/Post* phase keys, any command verb
+# followed by a '{ }' block instead of an inline value runs one command per line,
+# and every line shares the verb's parameter list. Works nested inside a phase
+# block (Copy inside PostBuild), as a dotted key (PostBuild.Delete), and inside
+# if/else within a phase block. After a build:
+#   backup/data_one.txt  exists (Copy block, wildcard line)
+#   backup/data_two.txt  exists (Copy block, wildcard line)
+#   backup/keep_me.txt   exists (Copy block, $(Stem) expansion line)
+#   marker_a.txt         is gone (Delete block inside if/else)
+#   marker_b.txt         is gone (dotted PostBuild.Delete block)
+# The Copy block runs with (if_not_exist), so a rebuild skips destinations that
+# already exist instead of copying again.
+Assembly    BlockOps
+SourceFiles main
+
+Stem        keep
+
+PreBuild.NewDir staging
+
+PreBuild.WriteFile staging/data_one.txt
+{
+payload one
+}
+
+PreBuild.WriteFile staging/data_two.txt
+{
+payload two
+}
+
+PreBuild.WriteFile staging/keep_me.txt
+{
+keep me
+}
+
+PreBuild
+{
+    Cmd
+    {
+        echo marker a > marker_a.txt
+        echo marker b > marker_b.txt
+    }
+}
+
+PostBuild
+{
+    Copy(if_not_exist)
+    {
+        staging/data_*.txt backup
+        staging/$(Stem)_me.txt backup/
+    }
+
+    if windows
+    {
+        Delete
+        {
+            marker_a.txt
+        }
+    }
+    else
+    {
+        Delete
+        {
+            marker_a.txt
+        }
+    }
+}
+
+PostBuild.Delete
+{
+    marker_b.txt
+}

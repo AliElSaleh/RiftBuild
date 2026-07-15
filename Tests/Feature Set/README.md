@@ -72,6 +72,7 @@ folders - the sources only compile with the defines the .build file provides.
 | 53 | Install Packages | `InstallPackage` resolves the system package manager, queries, installs only what is missing |
 | 54 | Many Sources | 1000 translation units: header dependency tracking at scale, per-file incremental skips, ~24KB link line |
 | 55 | Wildcard File Operations | `*`/`?`/`**` wildcards in Copy/Move/Delete sources; if_not_exist per match; wildcard Delete never touches directories |
+| 56 | Block Phase Commands | Any command verb under a Pre*/Post* phase followed by a `{ }` block runs one command per line; lines share the verb's parameters |
 
 Tests 18, 19, 28, 43, 44, 45, 46, 52, 54 need extra invocations beyond a plain build to
 exercise their feature (documented in each .build header comment).

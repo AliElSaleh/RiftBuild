@@ -1145,8 +1145,8 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Special_Help(LinearAllocator* Aren
     return Root;
 }
 
-NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena, Parser *P, u32 Offset);
-NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Parser *P, u32 Offset, bool bInIf);
+NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena, Parser *P, u32 Offset, bool bInsidePhaseBlock);
+NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Parser *P, u32 Offset, bool bInIf, bool bInsidePhaseBlock);
 
 NO_DISCARD RETURN_NON_NULL static Node* Parse_Include(LinearAllocator* Arena, Parser *P)
 {
@@ -1189,7 +1189,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Include(LinearAllocator* Arena, Pa
 }
 
 
-NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena, Parser* P, u32 Offset)
+NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena, Parser* P, u32 Offset, bool bInsidePhaseBlock)
 {
     Node* Root = Node_Create(Arena, Node_If);
 
@@ -1241,7 +1241,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena, Parser*
         }
         else if (t.Type == Token_LCurly)
         {
-            Node* BlockNode = Parse_Block(Arena, P, 1, false);
+            Node* BlockNode = Parse_Block(Arena, P, 1, false, bInsidePhaseBlock);
             if (BlockNode == &Node_Null)
             {
                 return &Node_Null;
@@ -1291,7 +1291,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena, Parser*
                     return &Node_Null;
                 }
 
-                Node* BlockNode = Parse_Block(Arena, P, 0, true);
+                Node* BlockNode = Parse_Block(Arena, P, 0, true, bInsidePhaseBlock);
                 if (BlockNode == &Node_Null)
                 {
                     return &Node_Null;
@@ -1441,7 +1441,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena, Parser*
                 {
                     SLinkedList_Push(NextCondition, IfConditionList_Create(Arena, Condition));
 
-                    Node* IfNode = Parse_If(Arena, P, 1);
+                    Node* IfNode = Parse_If(Arena, P, 1, bInsidePhaseBlock);
                     if (IfNode == &Node_Null)
                     {
                         return &Node_Null;
@@ -1475,7 +1475,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_If(LinearAllocator* Arena, Parser*
                         Parser_Peek(P).Type == Token_Stop ||
                         Parser_Peek(P).Type == Token_Abort)
                     {
-                        Node* BlockNode = Parse_Block(Arena, P, 0, true);
+                        Node* BlockNode = Parse_Block(Arena, P, 0, true, bInsidePhaseBlock);
                         if (BlockNode == &Node_Null)
                         {
                             return &Node_Null;
@@ -1591,6 +1591,55 @@ static bool Internal_IsRawContentKey(const String Key)
     return bResult;
 }
 
+static const String PrePostPhaseKeys[9] =
+{
+    SC("PreDepend"),
+    SC("PreBuild"),
+    SC("PostBuild"),
+    SC("PreCompileFile"),
+    SC("PreCompileAllFiles"),
+    SC("PreCompile"),
+    SC("PostCompile"),
+    SC("PreLink"),
+    SC("PostLink"),
+};
+
+static bool Internal_IsPhaseBlockKey(const String Key)
+{
+    bool bResult = false;
+
+    for EachE(i, PrePostPhaseKeys)
+    {
+        if (String_IsEqual(Key, PrePostPhaseKeys[i], false))
+        {
+            bResult = true;
+            break;
+        }
+    }
+
+    return bResult;
+}
+
+static bool Internal_IsPhaseCommandKey(const String Key)
+{
+    bool bResult = false;
+
+    for EachE(i, PrePostPhaseKeys)
+    {
+        const String Phase = PrePostPhaseKeys[i];
+
+        if (Key.Length > Phase.Length + 1 &&
+            String_StartsWith(Key, Phase, false) &&
+            Key.Data[Phase.Length] == '.')
+        {
+            bResult = true;
+            break;
+        }
+    }
+
+    return bResult;
+}
+
 // If the next significant token (skipping whitespace/newlines) opens a '{' block,
 // capture its body as raw, newline-preserving content and return it. Otherwise the
 // parser position is left untouched and NULL is returned. Brace depth is tracked so
@@ -1653,7 +1702,7 @@ static StringList* Parse_HeredocContent(LinearAllocator* Arena, Parser* P)
     return ValueList;
 }
 
-NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Parser* P, u32 Offset, bool bInlineIf)
+NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Parser* P, u32 Offset, bool bInlineIf, bool bInsidePhaseBlock)
 {
     Node* Root = Node_Create(Arena, Node_Block);
     NodeList** NextNode = &Root->List;
@@ -1704,7 +1753,14 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Pars
             }
 
             NodeList* List = NodeList_CreateNull(Arena);
-            Node* BlockNode = Parse_Block(Arena, P, 1, false);
+
+            bool bChildInsidePhaseBlock = bInsidePhaseBlock;
+            if (Deferred.Key != &Token_Null && Internal_IsPhaseBlockKey(Deferred.Key->Lexeme))
+            {
+                bChildInsidePhaseBlock = true;
+            }
+
+            Node* BlockNode = Parse_Block(Arena, P, 1, false, bChildInsidePhaseBlock);
             if (BlockNode == &Node_Null)
             {
                 return &Node_Null;
@@ -2113,8 +2169,13 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Pars
 
             // WriteFile/AppendFile may follow their inline path with a heredoc '{ }'
             // body (possibly on the next line); capture it as raw content.
+            // Phase commands (any key inside a Pre*/Post* block, or a dotted
+            // "<Phase>.<Verb>" key) with no inline value may do the same; their
+            // block runs one command per line.
             StringList* RawContent = NULL;
-            if (Internal_IsRawContentKey(tPtr->Lexeme))
+            if (Internal_IsRawContentKey(tPtr->Lexeme) ||
+                (ValueList == NULL &&
+                 (bInsidePhaseBlock || Internal_IsPhaseCommandKey(tPtr->Lexeme))))
             {
                 RawContent = Parse_HeredocContent(Arena, P);
             }
@@ -2196,7 +2257,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Pars
             bSkipRootTokenUpdate = true;
 
             NodeList* List = NodeList_CreateNull(Arena);
-            Node* IfNode = Parse_If(Arena, P, 1);
+            Node* IfNode = Parse_If(Arena, P, 1, bInsidePhaseBlock);
             List->Node = IfNode;
             if (IfNode == &Node_Null)
             {
@@ -2861,7 +2922,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
             p.NumTokens = l.NumTokens;
             p.FilePath  = FilePath;
 
-            Result = Parse_Block(Arena, &p, 0, false);
+            Result = Parse_Block(Arena, &p, 0, false, false);
 
             //Clock_Tick(&c);
             //Clock_PrintElapsedTime(&c, true);
@@ -3458,7 +3519,42 @@ static void Analyze_KVNode(Node* Root, ParsingContext* Context)
             
         if (!bResettedExisting)
         {
-            if (Root->Content)
+            // Block-form phase commands run one command per line:
+            //     Copy(if_not_exist)
+            //     {
+            //         resources/golden*.wav  $(BuildDirectory)/resources
+            //         resources/$(Icon).*    $(BuildDirectory)/resources
+            //     }
+            // Every non-empty line becomes its own variable, exactly as if it was
+            // written inline after the verb; all lines share the verb's parameters.
+            if (Root->Content && !Internal_IsRawContentKey(Root->Key))
+            {
+                String Remaining = Content;
+                while (Remaining.Length > 0)
+                {
+                    String Line = Remaining;
+
+                    u32 LineEnd = 0;
+                    if (String_IndexOfChar(Remaining, '\n', &LineEnd))
+                    {
+                        Line      = StrSlice(Remaining.Data, LineEnd);
+                        Remaining = StrShiftF(Remaining, LineEnd+1);
+                    }
+                    else
+                    {
+                        Remaining = String_Null();
+                    }
+
+                    Line = String_EatSpaces(Line);
+                    Line = String_EatSpacesFromEnd(Line);
+
+                    if (Line.Length > 0)
+                    {
+                        AddVariableToList(Context->TempArena, Context, FinalKey, Line, Params);
+                    }
+                }
+            }
+            else if (Root->Content)
             {
                 AddVariableToListEx(Context->TempArena, Context, FinalKey, Val, Params, Content);
             }
@@ -6591,12 +6687,6 @@ NO_DISCARD bool ParseBuildFile(
     if (bSuccess)
     {
         // now do some analysis on the tree (two-pass analysis)
-
-        // we could just end here and pass the raw data to the main program and let it do things with it.
-        // this can almost become a general language that others may find useful, it has basic support for
-        // if's and namespacing keys. so all we would do is just parse the file and give you key:value array
-        // that the program can use and interpret how it wants.
-        // IDEA: think about making this a library?
 
         // High level flow:
         // 1. (first pass) store all keys possible (skip indeterminates)
