@@ -1582,6 +1582,149 @@ TEST(Filesystem_ArePathsCommon)
     return true;
 }
 
+TEST(Filesystem_IsRootPath_SeparatorsOnly)
+{
+    // A path that is nothing but separators is a filesystem root, regardless of
+    // slash style or how many separators appear
+    Expect_IsTrue(Filesystem_IsRootPath(S("/")));
+    Expect_IsTrue(Filesystem_IsRootPath(S("\\")));
+    Expect_IsTrue(Filesystem_IsRootPath(S("//")));
+    Expect_IsTrue(Filesystem_IsRootPath(S("\\\\")));
+
+    // Mixed separator styles still count as pure separators
+    Expect_IsTrue(Filesystem_IsRootPath(S("/\\")));
+
+    return true;
+}
+
+TEST(Filesystem_IsRootPath_DriveDesignator)
+{
+    // Bare drive designators are roots (either letter case)
+    Expect_IsTrue(Filesystem_IsRootPath(S("C:")));
+    Expect_IsTrue(Filesystem_IsRootPath(S("z:")));
+
+    // Trailing separators after the designator are ignored
+    Expect_IsTrue(Filesystem_IsRootPath(S("C:/")));
+    Expect_IsTrue(Filesystem_IsRootPath(S("C:\\")));
+    Expect_IsTrue(Filesystem_IsRootPath(S("Z:/")));
+
+    // A run of trailing separators still resolves to the drive root
+    Expect_IsTrue(Filesystem_IsRootPath(S("C://")));
+
+    return true;
+}
+
+TEST(Filesystem_IsRootPath_NotRoot)
+{
+    // Empty string is not a root
+    Expect_IsFalse(Filesystem_IsRootPath(S("")));
+
+    // A drive designator with a trailing path component is not a root
+    Expect_IsFalse(Filesystem_IsRootPath(S("C:/foo")));
+    Expect_IsFalse(Filesystem_IsRootPath(S("C:x")));
+
+    // Relative and non-path fragments are not roots
+    Expect_IsFalse(Filesystem_IsRootPath(S("foo")));
+    Expect_IsFalse(Filesystem_IsRootPath(S("./")));
+    Expect_IsFalse(Filesystem_IsRootPath(S("..")));
+
+    // A colon designator needs an ASCII letter before it
+    Expect_IsFalse(Filesystem_IsRootPath(S("1:")));
+    Expect_IsFalse(Filesystem_IsRootPath(S("::")));
+
+    // A lone drive letter with no colon is not a root
+    Expect_IsFalse(Filesystem_IsRootPath(S("C")));
+
+    return true;
+}
+
+TEST(Filesystem_IsPathInside_EqualPaths)
+{
+    // Identical paths: a directory contains itself
+    Expect_IsTrue(Filesystem_IsPathInside(S("C:/foo"), S("C:/foo")));
+
+    // Trailing separators are ignored on the parent side
+    Expect_IsTrue(Filesystem_IsPathInside(S("C:/foo/"), S("C:/foo")));
+
+    // Trailing separators are ignored on the child side
+    Expect_IsTrue(Filesystem_IsPathInside(S("C:/foo"), S("C:/foo/")));
+
+    // Trailing separators ignored on both sides simultaneously
+    Expect_IsTrue(Filesystem_IsPathInside(S("C:/foo/"), S("C:/foo/")));
+
+    return true;
+}
+
+TEST(Filesystem_IsPathInside_NestedChild)
+{
+    // A direct child is inside the parent
+    Expect_IsTrue(Filesystem_IsPathInside(S("C:/foo"), S("C:/foo/bar")));
+
+    // A deeply nested descendant is inside the parent
+    Expect_IsTrue(Filesystem_IsPathInside(S("C:/foo"), S("C:/foo/bar/baz")));
+
+    // Slash style is ignored when comparing components
+    Expect_IsTrue(Filesystem_IsPathInside(S("C:\\foo"), S("C:/foo/bar")));
+
+    // ASCII case is ignored when comparing components
+    Expect_IsTrue(Filesystem_IsPathInside(S("C:/FOO"), S("c:/foo/bar")));
+
+    // Mixed slash style and case together
+    Expect_IsTrue(Filesystem_IsPathInside(S("C:/foo/"), S("c:\\FOO\\bar")));
+
+    return true;
+}
+
+TEST(Filesystem_IsPathInside_ComponentAware)
+{
+    // A shared textual prefix that does not fall on a component boundary
+    // must not be treated as containment
+    Expect_IsFalse(Filesystem_IsPathInside(S("C:/foo"), S("C:/foobar")));
+
+    // The very next component boundary does count as containment
+    Expect_IsTrue(Filesystem_IsPathInside(S("C:/foo"), S("C:/foo/bar")));
+
+    return true;
+}
+
+TEST(Filesystem_IsPathInside_RootParent)
+{
+    // A parent that is nothing but separators contains any absolute child
+    Expect_IsTrue(Filesystem_IsPathInside(S("/"), S("/usr")));
+    Expect_IsTrue(Filesystem_IsPathInside(S("/"), S("/usr/local/bin")));
+
+    // A separator-only parent contains itself
+    Expect_IsTrue(Filesystem_IsPathInside(S("/"), S("/")));
+
+    // Backslash-only parent behaves the same way
+    Expect_IsTrue(Filesystem_IsPathInside(S("\\"), S("\\Windows")));
+
+    // But a child that does not begin with a separator is not inside the root
+    Expect_IsFalse(Filesystem_IsPathInside(S("/"), S("usr")));
+
+    return true;
+}
+
+TEST(Filesystem_IsPathInside_NotInside)
+{
+    // An empty parent contains nothing
+    Expect_IsFalse(Filesystem_IsPathInside(S(""), S("C:/foo")));
+
+    // A child shorter than the parent cannot be inside it
+    Expect_IsFalse(Filesystem_IsPathInside(S("C:/foo/bar"), S("C:/foo")));
+
+    // Unrelated paths (differing at the drive) are not inside one another
+    Expect_IsFalse(Filesystem_IsPathInside(S("C:/foo"), S("D:/foo")));
+
+    // Sibling directories are not inside one another
+    Expect_IsFalse(Filesystem_IsPathInside(S("C:/foo"), S("C:/bar")));
+
+    // A bare root child is not inside a concrete parent
+    Expect_IsFalse(Filesystem_IsPathInside(S("C:/foo"), S("/")));
+
+    return true;
+}
+
 TEST(Filesystem_AppendExeExtension)
 {
     #if PLATFORM_WINDOWS
@@ -4495,6 +4638,329 @@ TEST(StringUtils_EatSpacesFromEnd)
     // Whitespace in the middle is preserved
     Result = String_EatSpacesFromEnd(S("hello world   "));
     Expect_String_IsEqual(S("hello world"), Result, true);
+
+    return true;
+}
+
+TEST(StringUtils_MatchesWildcard_ExactMatch)
+{
+    // Pattern with no wildcards matches an identical string
+    bool bResult = String_MatchesWildcard(S("hello"), S("hello"), true);
+    Expect_IsTrue(bResult);
+
+    // Single character exact match
+    bResult = String_MatchesWildcard(S("a"), S("a"), true);
+    Expect_IsTrue(bResult);
+
+    // Exact match with symbols
+    bResult = String_MatchesWildcard(S("path/to.file"), S("path/to.file"), true);
+    Expect_IsTrue(bResult);
+
+    return true;
+}
+
+TEST(StringUtils_MatchesWildcard_NoWildcardMismatch)
+{
+    // Same length, different content
+    bool bResult = String_MatchesWildcard(S("hello"), S("world"), true);
+    Expect_IsFalse(bResult);
+
+    // Differs by a single character
+    bResult = String_MatchesWildcard(S("hello"), S("hallo"), true);
+    Expect_IsFalse(bResult);
+
+    // Str is a prefix of Pattern (no wildcards) - not equal
+    bResult = String_MatchesWildcard(S("hell"), S("hello"), true);
+    Expect_IsFalse(bResult);
+
+    // Pattern is a prefix of Str (no wildcards) - not equal
+    bResult = String_MatchesWildcard(S("hello"), S("hell"), true);
+    Expect_IsFalse(bResult);
+
+    return true;
+}
+
+TEST(StringUtils_MatchesWildcard_StarPrefix)
+{
+    // Leading star matches any prefix, then a literal suffix
+    bool bResult = String_MatchesWildcard(S("hello"), S("*llo"), true);
+    Expect_IsTrue(bResult);
+
+    // Leading star with an empty matched run (suffix is the whole string)
+    bResult = String_MatchesWildcard(S("hello"), S("*hello"), true);
+    Expect_IsTrue(bResult);
+
+    // Leading star but suffix does not match the end of the string
+    bResult = String_MatchesWildcard(S("hello"), S("*lla"), true);
+    Expect_IsFalse(bResult);
+
+    return true;
+}
+
+TEST(StringUtils_MatchesWildcard_StarSuffix)
+{
+    // Trailing star matches any suffix, including an empty run
+    bool bResult = String_MatchesWildcard(S("hello"), S("he*"), true);
+    Expect_IsTrue(bResult);
+
+    // Trailing star with empty run (prefix is the whole string)
+    bResult = String_MatchesWildcard(S("hello"), S("hello*"), true);
+    Expect_IsTrue(bResult);
+
+    // Trailing star but prefix does not match the start of the string
+    bResult = String_MatchesWildcard(S("hello"), S("xe*"), true);
+    Expect_IsFalse(bResult);
+
+    return true;
+}
+
+TEST(StringUtils_MatchesWildcard_StarMiddle)
+{
+    // Star in the middle bridges the gap between prefix and suffix
+    bool bResult = String_MatchesWildcard(S("hello"), S("he*o"), true);
+    Expect_IsTrue(bResult);
+
+    // Middle star spanning a short run
+    bResult = String_MatchesWildcard(S("hero"), S("he*o"), true);
+    Expect_IsTrue(bResult);
+
+    // Middle star matching an empty run between prefix and suffix
+    bResult = String_MatchesWildcard(S("heo"), S("he*o"), true);
+    Expect_IsTrue(bResult);
+
+    // Suffix after middle star does not match
+    bResult = String_MatchesWildcard(S("hella"), S("he*o"), true);
+    Expect_IsFalse(bResult);
+
+    return true;
+}
+
+TEST(StringUtils_MatchesWildcard_MultipleStars)
+{
+    // Two stars with interleaved literals
+    bool bResult = String_MatchesWildcard(S("xaxb"), S("*a*b"), true);
+    Expect_IsTrue(bResult);
+
+    // Both star runs empty
+    bResult = String_MatchesWildcard(S("ab"), S("*a*b"), true);
+    Expect_IsTrue(bResult);
+
+    // Adjacent stars collapse to a single wildcard
+    bResult = String_MatchesWildcard(S("hello"), S("h**o"), true);
+    Expect_IsTrue(bResult);
+
+    // Middle wildcard spanning arbitrary content
+    bResult = String_MatchesWildcard(S("a*b*c"), S("a*c"), true);
+    Expect_IsTrue(bResult);
+
+    // Missing required trailing literal
+    bResult = String_MatchesWildcard(S("xaxc"), S("*a*b"), true);
+    Expect_IsFalse(bResult);
+
+    return true;
+}
+
+TEST(StringUtils_MatchesWildcard_QuestionMark)
+{
+    // Single '?' matches exactly one character
+    bool bResult = String_MatchesWildcard(S("hello"), S("h?llo"), true);
+    Expect_IsTrue(bResult);
+
+    // '?' matches a differing character
+    bResult = String_MatchesWildcard(S("hallo"), S("h?llo"), true);
+    Expect_IsTrue(bResult);
+
+    // Every character replaced by '?'
+    bResult = String_MatchesWildcard(S("abc"), S("???"), true);
+    Expect_IsTrue(bResult);
+
+    // Too many '?' for the string length
+    bResult = String_MatchesWildcard(S("ab"), S("???"), true);
+    Expect_IsFalse(bResult);
+
+    // Too few '?' for the string length
+    bResult = String_MatchesWildcard(S("abcd"), S("???"), true);
+    Expect_IsFalse(bResult);
+
+    return true;
+}
+
+TEST(StringUtils_MatchesWildcard_QuestionMarkNotEmpty)
+{
+    // A trailing '?' requires a character to consume - empty run fails
+    bool bResult = String_MatchesWildcard(S("hello"), S("hello?"), true);
+    Expect_IsFalse(bResult);
+
+    // A lone '?' cannot match the empty string
+    bResult = String_MatchesWildcard(S(""), S("?"), true);
+    Expect_IsFalse(bResult);
+
+    return true;
+}
+
+TEST(StringUtils_MatchesWildcard_StarQuestionCombined)
+{
+    // '*?' requires at least one character
+    bool bResult = String_MatchesWildcard(S("a"), S("*?"), true);
+    Expect_IsTrue(bResult);
+
+    // '*?' against a longer string
+    bResult = String_MatchesWildcard(S("abc"), S("*?"), true);
+    Expect_IsTrue(bResult);
+
+    // '*?' cannot match the empty string (needs one char)
+    bResult = String_MatchesWildcard(S(""), S("*?"), true);
+    Expect_IsFalse(bResult);
+
+    // '*?*' matches any non-empty string
+    bResult = String_MatchesWildcard(S("abc"), S("*?*"), true);
+    Expect_IsTrue(bResult);
+
+    // '*?*' fails on the empty string
+    bResult = String_MatchesWildcard(S(""), S("*?*"), true);
+    Expect_IsFalse(bResult);
+
+    // Combined literal, '?', and '*'
+    bResult = String_MatchesWildcard(S("hello.txt"), S("h?llo*txt"), true);
+    Expect_IsTrue(bResult);
+
+    return true;
+}
+
+TEST(StringUtils_MatchesWildcard_EmptyCases)
+{
+    // Empty pattern matches only the empty string
+    bool bResult = String_MatchesWildcard(S(""), S(""), true);
+    Expect_IsTrue(bResult);
+
+    // Empty pattern does not match a non-empty string
+    bResult = String_MatchesWildcard(S("a"), S(""), true);
+    Expect_IsFalse(bResult);
+
+    // A lone '*' matches the empty string
+    bResult = String_MatchesWildcard(S(""), S("*"), true);
+    Expect_IsTrue(bResult);
+
+    // A lone '*' matches everything
+    bResult = String_MatchesWildcard(S("anything at all"), S("*"), true);
+    Expect_IsTrue(bResult);
+
+    // Multiple stars still match the empty string
+    bResult = String_MatchesWildcard(S(""), S("***"), true);
+    Expect_IsTrue(bResult);
+
+    // A literal pattern cannot match the empty string
+    bResult = String_MatchesWildcard(S(""), S("a"), true);
+    Expect_IsFalse(bResult);
+
+    return true;
+}
+
+TEST(StringUtils_MatchesWildcard_CaseSensitivity)
+{
+    // Case sensitive: differing case does not match
+    bool bResult = String_MatchesWildcard(S("Hello"), S("hello"), true);
+    Expect_IsFalse(bResult);
+
+    // Case insensitive: differing case matches
+    bResult = String_MatchesWildcard(S("Hello"), S("hello"), false);
+    Expect_IsTrue(bResult);
+
+    // Case insensitive with wildcard literals around the letters
+    bResult = String_MatchesWildcard(S("HELLO.TXT"), S("*hello*"), false);
+    Expect_IsTrue(bResult);
+
+    // Case insensitive still enforces non-letter literals
+    bResult = String_MatchesWildcard(S("Hello"), S("hallo"), false);
+    Expect_IsFalse(bResult);
+
+    // Case sensitive fully matching mixed case
+    bResult = String_MatchesWildcard(S("HeLLo"), S("HeLLo"), true);
+    Expect_IsTrue(bResult);
+
+    return true;
+}
+
+TEST(StringUtils_MatchesWildcard_Backtracking)
+{
+    // Star must backtrack past a false start ("aa" before the real "aab")
+    bool bResult = String_MatchesWildcard(S("aaaab"), S("*aab"), true);
+    Expect_IsTrue(bResult);
+
+    // Trailing literal appears more than once; star finds the final occurrence
+    bResult = String_MatchesWildcard(S("abcabc"), S("*abc"), true);
+    Expect_IsTrue(bResult);
+
+    // Classic adversarial pattern
+    bResult = String_MatchesWildcard(S("mississippi"), S("m*issip*"), true);
+    Expect_IsTrue(bResult);
+
+    // Backtracking that ultimately fails: "abc" is not a suffix
+    bResult = String_MatchesWildcard(S("abcabx"), S("*abc"), true);
+    Expect_IsFalse(bResult);
+
+    // Star-backtracking is case insensitive too
+    bResult = String_MatchesWildcard(S("AAAAB"), S("*aab"), false);
+    Expect_IsTrue(bResult);
+
+    return true;
+}
+
+TEST(StringUtils_MatchesWildcard_PatternLongerThanString)
+{
+    // Literal pattern longer than the string
+    bool bResult = String_MatchesWildcard(S("abc"), S("abcdef"), true);
+    Expect_IsFalse(bResult);
+
+    // Pattern is longer even with a leading star (required literals exceed string)
+    bResult = String_MatchesWildcard(S("hi"), S("hello"), true);
+    Expect_IsFalse(bResult);
+
+    // Star cannot conjure characters that are not present
+    bResult = String_MatchesWildcard(S("ab"), S("*abcd"), true);
+    Expect_IsFalse(bResult);
+
+    return true;
+}
+
+TEST(StringUtils_MatchesWildcard_TrailingStarDrain)
+{
+    // Multiple trailing stars drain to nothing after a full literal match
+    bool bResult = String_MatchesWildcard(S("abc"), S("abc***"), true);
+    Expect_IsTrue(bResult);
+
+    // Trailing stars after a partial-then-wildcard pattern
+    bResult = String_MatchesWildcard(S("abcdef"), S("abc***"), true);
+    Expect_IsTrue(bResult);
+
+    // Trailing stars do not rescue a mismatched prefix
+    bResult = String_MatchesWildcard(S("xbc"), S("abc***"), true);
+    Expect_IsFalse(bResult);
+
+    return true;
+}
+
+TEST(StringUtils_MatchesWildcard_LiteralStarInStr)
+{
+    // A '*' in Str is matched by a wildcard '*' in the pattern
+    bool bResult = String_MatchesWildcard(S("a*b"), S("*"), true);
+    Expect_IsTrue(bResult);
+
+    // Pattern '*' is a wildcard even when Str contains a literal '*'
+    bResult = String_MatchesWildcard(S("a*b"), S("a*b"), true);
+    Expect_IsTrue(bResult);
+
+    // '?' matches a literal '*' character in Str
+    bResult = String_MatchesWildcard(S("a*b"), S("a?b"), true);
+    Expect_IsTrue(bResult);
+
+    // A literal '*' in Str is just an ordinary character to a literal pattern position
+    bResult = String_MatchesWildcard(S("**"), S("a*"), true);
+    Expect_IsFalse(bResult);
+
+    // Wildcard star spans a run that itself contains literal '*' characters
+    bResult = String_MatchesWildcard(S("a**b"), S("a*b"), true);
+    Expect_IsTrue(bResult);
 
     return true;
 }

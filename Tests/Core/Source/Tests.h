@@ -75,6 +75,14 @@
     X("Filesystem",       Test_Filesystem_ExtractFileExtension_WithoutDot) \
     X("Filesystem",       Test_Filesystem_IsPathRelative) \
     X("Filesystem",       Test_Filesystem_ArePathsCommon) \
+    X("Filesystem",       Test_Filesystem_IsRootPath_SeparatorsOnly) \
+    X("Filesystem",       Test_Filesystem_IsRootPath_DriveDesignator) \
+    X("Filesystem",       Test_Filesystem_IsRootPath_NotRoot) \
+    X("Filesystem",       Test_Filesystem_IsPathInside_EqualPaths) \
+    X("Filesystem",       Test_Filesystem_IsPathInside_NestedChild) \
+    X("Filesystem",       Test_Filesystem_IsPathInside_ComponentAware) \
+    X("Filesystem",       Test_Filesystem_IsPathInside_RootParent) \
+    X("Filesystem",       Test_Filesystem_IsPathInside_NotInside) \
     X("Filesystem",       Test_Filesystem_AppendExeExtension) \
     X("Filesystem",       Test_Filesystem_NewFile_DeleteFile_DoesExist) \
     X("Filesystem",       Test_Filesystem_DoesDirectoryExist) \
@@ -149,3 +157,18 @@
     X("String",           Test_StringUtils_IndexOfSubstring) \
     X("String",           Test_StringUtils_StripWhitespace) \
     X("String",           Test_StringUtils_EatSpacesFromEnd) \
+    X("String",           Test_StringUtils_MatchesWildcard_ExactMatch) \
+    X("String",           Test_StringUtils_MatchesWildcard_NoWildcardMismatch) \
+    X("String",           Test_StringUtils_MatchesWildcard_StarPrefix) \
+    X("String",           Test_StringUtils_MatchesWildcard_StarSuffix) \
+    X("String",           Test_StringUtils_MatchesWildcard_StarMiddle) \
+    X("String",           Test_StringUtils_MatchesWildcard_MultipleStars) \
+    X("String",           Test_StringUtils_MatchesWildcard_QuestionMark) \
+    X("String",           Test_StringUtils_MatchesWildcard_QuestionMarkNotEmpty) \
+    X("String",           Test_StringUtils_MatchesWildcard_StarQuestionCombined) \
+    X("String",           Test_StringUtils_MatchesWildcard_EmptyCases) \
+    X("String",           Test_StringUtils_MatchesWildcard_CaseSensitivity) \
+    X("String",           Test_StringUtils_MatchesWildcard_Backtracking) \
+    X("String",           Test_StringUtils_MatchesWildcard_PatternLongerThanString) \
+    X("String",           Test_StringUtils_MatchesWildcard_TrailingStarDrain) \
+    X("String",           Test_StringUtils_MatchesWildcard_LiteralStarInStr) \

@@ -798,7 +798,7 @@ static bool IconFileDirectoryIterator(const String FullPath, const String Relati
     {
         struct Data
         {
-            TArray(FileVariable) VariablesDB;
+            String IconName;
             String* IconFilePath;
             bool bSuccess;
             u8 Padding[7];
@@ -806,7 +806,7 @@ static bool IconFileDirectoryIterator(const String FullPath, const String Relati
 
         struct Data* D = UserData;
 
-        const String IconName = GetVariableValue(D->VariablesDB, S("Icon"));
+        const String IconName = D->IconName;
 
         u32 LastSlash = 0;
         const bool bNameOnly = !String_IndexOfLastPathSlash(IconName, &LastSlash);
@@ -1673,6 +1673,240 @@ static void ListVariables(LinearAllocator Arena, const String Name, TArray(FileV
     }
 }
 
+// Collects the results of a Filesystem_ExpandWildcards call so the file operations can run after
+// the directory iteration has finished, never while it is still in progress.
+STRUCT(WildcardMatchCollection)
+{
+    LinearAllocator* Arena;
+    StringList*      Files;
+    StringList**     FilesNext;
+    StringList*      Directories;
+    StringList**     DirectoriesNext;
+    u32              FileCount;
+    u32              DirectoryCount;
+};
+
+static void WildcardMatchCollection_Init(WildcardMatchCollection* Data, LinearAllocator* Arena)
+{
+    Data->Arena           = Arena;
+    Data->Files           = NULL;
+    Data->FilesNext       = &Data->Files;
+    Data->Directories     = NULL;
+    Data->DirectoriesNext = &Data->Directories;
+    Data->FileCount       = 0;
+    Data->DirectoryCount  = 0;
+}
+
+static bool CollectWildcardMatches(const String FullPath, const String FileName, bool bIsDirectory, void* UserData)
+{
+    UNUSED_PARAM(FileName);
+
+    WildcardMatchCollection* Data = UserData;
+
+    if (bIsDirectory)
+    {
+        SLinkedList_Push(Data->DirectoriesNext, StringList_CreateWithCopy(Data->Arena, FullPath, NULL));
+        Data->DirectoryCount++;
+    }
+    else
+    {
+        SLinkedList_Push(Data->FilesNext, StringList_CreateWithCopy(Data->Arena, FullPath, NULL));
+        Data->FileCount++;
+    }
+
+    return true;
+}
+
+// Runs a Copy or Move whose source contains wildcards: every match is copied/moved into
+// DestinationDirectory under its own name. Matches spanning several directories are flattened.
+static bool Internal_ExecuteWildcardCopyOrMove(LinearAllocator* Scratch, const String WorkingDirectory, const String Cmd, const String SourcePattern, const String DestinationDirectory, bool bIsMove, bool bParam_NotExist, bool bIgnoreErrors, u32* ExitCode)
+{
+    bool bSuccess = true;
+
+    const String VerbName = bIsMove ? S("Move") : S("Copy");
+
+    StringLocal(FullSourcePattern, MAX_PATH_LENGTH);
+    if (Filesystem_IsPathRelative(SourcePattern))
+    {
+        String_BuildPath(&FullSourcePattern, WorkingDirectory, SourcePattern);
+    }
+    else
+    {
+        String_BuildPath(&FullSourcePattern, SourcePattern);
+    }
+
+    StringLocal(FullDestPath, MAX_PATH_LENGTH);
+    String_BuildPath(&FullDestPath, WorkingDirectory, DestinationDirectory);
+    xx Filesystem_ConvertRelativeToAbsolutePath(&FullDestPath);
+
+    WildcardMatchCollection Matches;
+    WildcardMatchCollection_Init(&Matches, Scratch);
+    xx Filesystem_ExpandWildcards(FullSourcePattern, &CollectWildcardMatches, &Matches);
+
+    const u32 MatchCount = Matches.FileCount + Matches.DirectoryCount;
+    if (MatchCount == 0)
+    {
+        if (bParam_NotExist || bIgnoreErrors)
+        {
+            LOG("[Skipping] %S: %S (no matches)", VerbName, Cmd);
+        }
+        else
+        {
+            LOG(" > %S: %S", VerbName, Cmd);
+            LOG(
+            "\n    The wildcard \"%S\" did not match any files.\n"
+            "    You can ignore this error by using .%S(ignore_error)\n"
+            "    or you can use .%S(if_not_exist) to gracefully skip the operation.\n",
+            SourcePattern, VerbName, VerbName);
+
+            if (ExitCode) { *ExitCode = 1; }
+            bSuccess = false;
+        }
+    }
+    else
+    {
+        LOG(" > %S: %S (%u %S)", VerbName, Cmd, MatchCount, MatchCount == 1 ? S("match") : S("matches"));
+
+        for (u32 Pass = 0; Pass < 2 && bSuccess; Pass++)
+        {
+            StringList* List      = Pass == 0 ? Matches.Files : Matches.Directories;
+            const u32 Count       = Pass == 0 ? Matches.FileCount : Matches.DirectoryCount;
+            const bool bDirectory = Pass == 1;
+
+            if (Count > 0)
+            {
+                for each_str_list (*List)
+                {
+                    const String MatchPath = It.String;
+                    const String MatchName = Filesystem_ExtractFileName(MatchPath, true);
+
+                    bool bSkip = false;
+
+                    // a matched directory that the destination lives inside would be copied into
+                    // its own output forever - skip it and keep going with the other matches
+                    if (bDirectory)
+                    {
+                        StringLocal(ResolvedMatch, MAX_PATH_LENGTH);
+                        String_Copy(&ResolvedMatch, MatchPath);
+                        xx Filesystem_ConvertRelativeToAbsolutePath(&ResolvedMatch);
+
+                        if (Filesystem_IsPathInside(ResolvedMatch, FullDestPath))
+                        {
+                            LOG("     [Skipping] %S (is or contains the destination)", MatchName);
+                            bSkip = true;
+                        }
+                    }
+
+                    if (!bSkip && bParam_NotExist)
+                    {
+                        StringLocal(DestEntryPath, MAX_PATH_LENGTH);
+                        String_BuildPath(&DestEntryPath, FullDestPath, MatchName);
+
+                        bool bDestExist = bDirectory ? Filesystem_DoesDirectoryExist(DestEntryPath) : Filesystem_DoesFileExist(DestEntryPath);
+                        if (bDestExist)
+                        {
+                            LOG("     [Skipping] %S (destination exists)", MatchName);
+                            bSkip = true;
+                        }
+                    }
+
+                    if (!bSkip)
+                    {
+                        LOG("     %S", MatchName);
+
+                        if (bIgnoreErrors) { Logging_Disable(); }
+                        bool bResult = bIsMove ? Filesystem_Move(MatchPath, FullDestPath, false) : Filesystem_Copy(MatchPath, FullDestPath);
+                        if (bIgnoreErrors) { Logging_Enable(); }
+
+                        if (!bResult && !bIgnoreErrors)
+                        {
+                            LOG(
+                            "\n    You can ignore this error by using .%S(ignore_error)\n"
+                            "    or you can use .%S(if_not_exist) to check whether the files exist\n"
+                            "    and gracefully skip the operation if they don't.\n",
+                            VerbName, VerbName);
+
+                            if (ExitCode) { *ExitCode = 1; }
+                            bSuccess = false;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return bSuccess;
+}
+
+// Runs a Delete whose value contains wildcards. Only files are ever deleted: a directory that
+// happens to match the pattern is reported and skipped, never removed.
+static bool Internal_ExecuteWildcardDelete(LinearAllocator* Scratch, const String WorkingDirectory, const String Cmd, bool bIgnoreErrors, u32* ExitCode)
+{
+    bool bSuccess = true;
+
+    if (!Filesystem_IsPathRelative(Cmd) || Filesystem_HasDotDotComponent(Cmd))
+    {
+        LOG(
+        "\n    A wildcard Delete must use a relative path without \"..\" so it\n"
+        "    can not reach outside the working directory.\n");
+
+        bSuccess = false;
+    }
+    else if (!String_WildcardHasLiteralCharacters(Cmd))
+    {
+        LOG(
+        "\n    A wildcard Delete pattern must contain at least one literal character\n"
+        "    (\"%S\" would match indiscriminately).\n",
+        Cmd);
+
+        bSuccess = false;
+    }
+
+    if (bSuccess)
+    {
+        StringLocal(FullPattern, MAX_PATH_LENGTH);
+        String_BuildPath(&FullPattern, WorkingDirectory, Cmd);
+
+        WildcardMatchCollection Matches;
+        WildcardMatchCollection_Init(&Matches, Scratch);
+        xx Filesystem_ExpandWildcards(FullPattern, &CollectWildcardMatches, &Matches);
+
+        if (Matches.DirectoryCount > 0)
+        {
+            LOG("     [Skipping] %u matched %S (a wildcard Delete only deletes files)",
+                Matches.DirectoryCount, Matches.DirectoryCount == 1 ? S("directory") : S("directories"));
+        }
+
+        if (Matches.FileCount > 0)
+        {
+            for each_str_list (*Matches.Files)
+            {
+                const String MatchPath = It.String;
+
+                LOG("     %S", Filesystem_ExtractFileName(MatchPath, true));
+
+                if (bIgnoreErrors) { Logging_Disable(); }
+                bool bResult = Filesystem_DeleteFile(MatchPath);
+                if (bIgnoreErrors) { Logging_Enable(); }
+
+                if (!bResult && !bIgnoreErrors)
+                {
+                    if (ExitCode) { *ExitCode = 1; }
+                    bSuccess = false;
+                    break;
+                }
+            }
+        }
+    }
+    else
+    {
+        if (ExitCode) { *ExitCode = 1; }
+    }
+
+    return bSuccess;
+}
+
 static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const FileVariable Var, u32* ExitCode)
 {
     bool bSuccess = true;
@@ -1761,78 +1995,119 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const FileVa
             String SourceFile           = StringList_GetStringFromIndex(ArgList, 0);
             String DestinationDirectory = StringList_GetStringFromIndex(ArgList, 1);
 
-            StringLocal(FullSourcePath, MAX_PATH_LENGTH);
-            if (Filesystem_IsPathRelative(SourceFile))
+            if (String_ContainsChars(DestinationDirectory, S("*?")))
             {
-                String_BuildPath(&FullSourcePath, WorkingDirectory, SourceFile);
+                LOG(" > Copy: %S", Cmd);
+                LOG("\n    Wildcards are only allowed in the source of a .Copy operation, not its destination.\n");
+
+                if (ExitCode) { *ExitCode = 1; }
+                bSuccess = false;
+            }
+            else if (String_ContainsChars(SourceFile, S("*?")))
+            {
+                bSuccess = Internal_ExecuteWildcardCopyOrMove(&Scratch, WorkingDirectory, Cmd, SourceFile, DestinationDirectory, false, bParam_NotExist, bIgnoreErrors, ExitCode);
             }
             else
             {
-                String_BuildPath(&FullSourcePath, SourceFile);
-            }
-
-            xx Filesystem_ConvertRelativeToAbsolutePath(&FullSourcePath);
-
-            StringLocal(FullDestPath, MAX_PATH_LENGTH);
-            String_BuildPath(&FullDestPath, WorkingDirectory, DestinationDirectory);
-
-            // TODO: remove, handle on linux/mac/bsd. already done on windows
-            if (String_IsLast(DestinationDirectory, '/') ||
-                String_IsLast(DestinationDirectory, '\\'))
-            {
-                u32 LastSlash = 0;
-                xx String_IndexOfLastPathSlash(SourceFile, &LastSlash);
-                String_BuildPath(&FullDestPath, StrShiftF(SourceFile, LastSlash == 0 ? 0 : LastSlash+1));
-            }
-
-            xx Filesystem_ConvertRelativeToAbsolutePath(&FullDestPath);
-
-            // only copy if dest does not exist
-            bool bDestExist = false;
-            if (bParam_NotExist)
-            {
-                u32 LastDot = 0;
-                xx String_IndexOfLastChar(FullDestPath, '.', &LastDot);
-
-                bool bHasExtension = false;
-                bool bHasPathSeparator = String_IndexOfFirstPathSlash(StrShiftF(FullDestPath, LastDot), NULL);
-                if (!bHasPathSeparator)
+                StringLocal(FullSourcePath, MAX_PATH_LENGTH);
+                if (Filesystem_IsPathRelative(SourceFile))
                 {
-                    bHasExtension = true;
-                }
-
-                if (bHasExtension)
-                {
-                    if (Filesystem_DoesFileExist(FullDestPath))
-                    {
-                        LOG("[Skipping] Copy: %S", Cmd);
-                        bDestExist = true;
-                    }
+                    String_BuildPath(&FullSourcePath, WorkingDirectory, SourceFile);
                 }
                 else
                 {
-                    if (Filesystem_DoesDirectoryExist(FullDestPath))
-                    {
-                        LOG("[Skipping] Copy: %S", Cmd);
-                        bDestExist = true;
-                    }
+                    String_BuildPath(&FullSourcePath, SourceFile);
                 }
-            }
 
-            bool bContinueWithCopy = !bDestExist;
-            if (bContinueWithCopy)
-            {
-                LOG(" > Copy: %S", Cmd);
+                xx Filesystem_ConvertRelativeToAbsolutePath(&FullSourcePath);
 
-                if (!Filesystem_Copy(FullSourcePath, FullDestPath) && !bIgnoreErrors)
+                StringLocal(FullDestPath, MAX_PATH_LENGTH);
+                String_BuildPath(&FullDestPath, WorkingDirectory, DestinationDirectory);
+
+                // TODO: remove, handle on linux/mac/bsd. already done on windows
+                if (String_IsLast(DestinationDirectory, '/') ||
+                    String_IsLast(DestinationDirectory, '\\'))
                 {
-                    LOG(
-                    "\n    You can ignore this error by using .Copy(ignore_error)\n"
-                    "    or you can use .Copy(if_not_exist) to check whether the file exists\n"
-                    "    and gracefully skip the copy operation if they don't.\n");
+                    u32 LastSlash = 0;
+                    xx String_IndexOfLastPathSlash(SourceFile, &LastSlash);
+                    String_BuildPath(&FullDestPath, StrShiftF(SourceFile, LastSlash == 0 ? 0 : LastSlash+1));
+                }
+
+                xx Filesystem_ConvertRelativeToAbsolutePath(&FullDestPath);
+
+                // never-valid operations that no parameter can opt back into: copying a whole
+                // filesystem root, or copying a directory into a destination inside itself
+                // (the copy would keep descending into its own output forever)
+                bool bGuardRefused = false;
+                if (Filesystem_IsRootPath(FullSourcePath))
+                {
+                    LOG(" > Copy: %S", Cmd);
+                    LOG("\n    Refusing to copy a filesystem root.\n");
 
                     if (ExitCode) { *ExitCode = 1; }
                     bSuccess = false;
+                    bGuardRefused = true;
+                }
+                else if (Filesystem_IsDirectory(FullSourcePath) && Filesystem_IsPathInside(FullSourcePath, FullDestPath))
+                {
+                    LOG(" > Copy: %S", Cmd);
+                    LOG(
+                    "\n    Refusing to copy \"%S\" into itself - the destination is inside the\n"
+                    "    source directory, so the copy would recurse forever.\n",
+                    SourceFile);
+
+                    if (ExitCode) { *ExitCode = 1; }
+                    bSuccess = false;
+                    bGuardRefused = true;
+                }
+
+                // only copy if dest does not exist
+                bool bDestExist = false;
+                if (!bGuardRefused && bParam_NotExist)
+                {
+                    u32 LastDot = 0;
+                    xx String_IndexOfLastChar(FullDestPath, '.', &LastDot);
+
+                    bool bHasExtension = false;
+                    bool bHasPathSeparator = String_IndexOfFirstPathSlash(StrShiftF(FullDestPath, LastDot), NULL);
+                    if (!bHasPathSeparator)
+                    {
+                        bHasExtension = true;
+                    }
+
+                    if (bHasExtension)
+                    {
+                        if (Filesystem_DoesFileExist(FullDestPath))
+                        {
+                            LOG("[Skipping] Copy: %S", Cmd);
+                            bDestExist = true;
+                        }
+                    }
+                    else
+                    {
+                        if (Filesystem_DoesDirectoryExist(FullDestPath))
+                        {
+                            LOG("[Skipping] Copy: %S", Cmd);
+                            bDestExist = true;
+                        }
+                    }
+                }
+
+                bool bContinueWithCopy = !bGuardRefused && !bDestExist;
+                if (bContinueWithCopy)
+                {
+                    LOG(" > Copy: %S", Cmd);
+
+                    if (!Filesystem_Copy(FullSourcePath, FullDestPath) && !bIgnoreErrors)
+                    {
+                        LOG(
+                        "\n    You can ignore this error by using .Copy(ignore_error)\n"
+                        "    or you can use .Copy(if_not_exist) to check whether the file exists\n"
+                        "    and gracefully skip the copy operation if they don't.\n");
+
+                        if (ExitCode) { *ExitCode = 1; }
+                        bSuccess = false;
+                    }
                 }
             }
         }
@@ -1858,118 +2133,171 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const FileVa
             String DestinationDirectory = StringList_GetStringFromIndex(ArgList, 1);
 
             bool bIsRename = String_EndsWith(Name, S("Rename"), false);
-            if (bIsRename)
-            {
-                LOG(" > Rename: %S", Cmd);
-            }
-            else
-            {
-                LOG(" > Move: %S", Cmd);
-            }
+            const String VerbName = bIsRename ? S("Rename") : S("Move");
 
-            // only move if dest does not exist
-            bool bDestExist = false;
-            if (bParam_NotExist)
-            {
-                u32 LastSlash = 0;
-                bool bHasSlash = String_IndexOfLastPathSlash(SourceFile, &LastSlash);
+            bool bSourceWildcard = String_ContainsChars(SourceFile, S("*?"));
+            bool bDestWildcard   = String_ContainsChars(DestinationDirectory, S("*?"));
 
-                bool bCanWe = true;
-                
-                StringLocal(FullPath, MAX_PATH_LENGTH);
-                if (Filesystem_IsPathRelative(SourceFile))
+            if (bDestWildcard || (bIsRename && bSourceWildcard))
+            {
+                LOG(" > %S: %S", VerbName, Cmd);
+
+                if (bIsRename && bSourceWildcard)
                 {
-                    String_BuildPath(&FullPath, WorkingDirectory, bHasSlash ? StrSlice(SourceFile.Data, LastSlash) : SourceFile);
+                    LOG(
+                    "\n    Rename does not support wildcards since every match would collide on\n"
+                    "    the same destination name. Use .Move to move files into a directory.\n");
                 }
                 else
                 {
-                    String_BuildPath(&FullPath, SourceFile);
+                    LOG("\n    Wildcards are only allowed in the source of a .%S operation, not its destination.\n", VerbName);
                 }
 
-                if (!Filesystem_DoesDirectoryExist(FullPath))
-                {
-                    bCanWe = false;
-                }
+                if (ExitCode) { *ExitCode = 1; }
+                bSuccess = false;
+            }
+            else if (bSourceWildcard)
+            {
+                bSuccess = Internal_ExecuteWildcardCopyOrMove(&Scratch, WorkingDirectory, Cmd, SourceFile, DestinationDirectory, true, bParam_NotExist, bIgnoreErrors, ExitCode);
+            }
+            else
+            {
+                LOG(" > %S: %S", VerbName, Cmd);
 
-                if (bCanWe)
+                // only move if dest does not exist
+                bool bDestExist = false;
+                if (bParam_NotExist)
                 {
-                    String_Empty(&FullPath);
+                    u32 LastSlash = 0;
+                    bool bHasSlash = String_IndexOfLastPathSlash(SourceFile, &LastSlash);
+
+                    bool bCanWe = true;
+
+                    StringLocal(FullPath, MAX_PATH_LENGTH);
                     if (Filesystem_IsPathRelative(SourceFile))
                     {
-                        String_BuildPath(&FullPath, WorkingDirectory, SourceFile);
+                        String_BuildPath(&FullPath, WorkingDirectory, bHasSlash ? StrSlice(SourceFile.Data, LastSlash) : SourceFile);
                     }
                     else
                     {
                         String_BuildPath(&FullPath, SourceFile);
                     }
 
-                    if (!Filesystem_DoesFileExist(FullPath))
+                    if (!Filesystem_DoesDirectoryExist(FullPath))
                     {
                         bCanWe = false;
                     }
-                }
-                    
-                if (bCanWe)
-                {
-                    String_Empty(&FullPath);
-                    String FileName = StrShiftF(SourceFile, LastSlash == 0 ? 0 : LastSlash+1);
-                    String_BuildPath(&FullPath, WorkingDirectory, DestinationDirectory, FileName);
 
-                    u32 LastDot = 0;
-                    bool bHasDot = String_IndexOfLastChar(SourceFile, '.', &LastDot);
-
-                    bool bHasExtension = false;
-                    bool bHasPathSeparator = String_IndexOfFirstPathSlash(StrShiftF(SourceFile, LastDot), NULL);
-                    if (bHasDot && !bHasPathSeparator)
+                    if (bCanWe)
                     {
-                        bHasExtension = true;
+                        String_Empty(&FullPath);
+                        if (Filesystem_IsPathRelative(SourceFile))
+                        {
+                            String_BuildPath(&FullPath, WorkingDirectory, SourceFile);
+                        }
+                        else
+                        {
+                            String_BuildPath(&FullPath, SourceFile);
+                        }
+
+                        if (!Filesystem_DoesFileExist(FullPath))
+                        {
+                            bCanWe = false;
+                        }
                     }
 
-                    if (bHasExtension)
+                    if (bCanWe)
                     {
-                        if (Filesystem_DoesFileExist(FullPath))
+                        String_Empty(&FullPath);
+                        String FileName = StrShiftF(SourceFile, LastSlash == 0 ? 0 : LastSlash+1);
+                        String_BuildPath(&FullPath, WorkingDirectory, DestinationDirectory, FileName);
+
+                        u32 LastDot = 0;
+                        bool bHasDot = String_IndexOfLastChar(SourceFile, '.', &LastDot);
+
+                        bool bHasExtension = false;
+                        bool bHasPathSeparator = String_IndexOfFirstPathSlash(StrShiftF(SourceFile, LastDot), NULL);
+                        if (bHasDot && !bHasPathSeparator)
                         {
-                            bDestExist = true;
+                            bHasExtension = true;
+                        }
+
+                        if (bHasExtension)
+                        {
+                            if (Filesystem_DoesFileExist(FullPath))
+                            {
+                                bDestExist = true;
+                            }
+                        }
+                        else
+                        {
+                            if (Filesystem_DoesDirectoryExist(FullPath))
+                            {
+                                bDestExist = true;
+                            }
                         }
                     }
                     else
                     {
-                        if (Filesystem_DoesDirectoryExist(FullPath))
-                        {
-                            bDestExist = true;
-                        }
+                        bDestExist = true; // skip the move/rename if the given source file does not exist
                     }
                 }
-                else
+
+                bool bContinueWithMove = !bDestExist;
+                if (bContinueWithMove)
                 {
-                    bDestExist = true; // skip the move/rename if the given source file does not exist
-                }
-            }
+                    StringLocal(FullSourcePath, MAX_PATH_LENGTH);
+                    String_BuildPath(&FullSourcePath, WorkingDirectory, SourceFile);
 
-            bool bContinueWithMove = !bDestExist;
-            if (bContinueWithMove)
-            {
-                StringLocal(FullSourcePath, MAX_PATH_LENGTH);
-                String_BuildPath(&FullSourcePath, WorkingDirectory, SourceFile);
+                    StringLocal(FullDestPath, MAX_PATH_LENGTH);
+                    String_BuildPath(&FullDestPath, WorkingDirectory, DestinationDirectory);
 
-                StringLocal(FullDestPath, MAX_PATH_LENGTH);
-                String_BuildPath(&FullDestPath, WorkingDirectory, DestinationDirectory);
+                    // resolved copies (".." folded away) for the safety checks only, so the
+                    // arguments handed to Filesystem_Move stay exactly as before
+                    StringLocal(ResolvedSource, MAX_PATH_LENGTH);
+                    String_Copy(&ResolvedSource, FullSourcePath);
+                    xx Filesystem_ConvertRelativeToAbsolutePath(&ResolvedSource);
 
-                if (bIgnoreErrors) { Logging_Disable(); }
-                bool bResult = Filesystem_Move(FullSourcePath, FullDestPath, bIsRename);
-                if (bIgnoreErrors) { Logging_Enable(); }
+                    StringLocal(ResolvedDest, MAX_PATH_LENGTH);
+                    String_Copy(&ResolvedDest, FullDestPath);
+                    xx Filesystem_ConvertRelativeToAbsolutePath(&ResolvedDest);
 
-                if (!bResult && !bIgnoreErrors)
-                {
-                    LOG(
-                    "\n    You can ignore this error by using %S instead\n"
-                    "    or you can use %S to check whether the source files exist\n"
-                    "    and gracefully skip the move operation if they don't.\n",
-                    bIsRename ? S(".Rename(ignore_error)") : S(".Move(ignore_error)"),
-                    bIsRename ? S(".Rename(if_not_exist)") : S(".Move(if_not_exist)"));
+                    if (Filesystem_IsRootPath(ResolvedSource))
+                    {
+                        LOG("\n    Refusing to %S a filesystem root.\n", bIsRename ? S("rename") : S("move"));
 
-                    if (ExitCode) { *ExitCode = 1; }
-                    bSuccess = false;
+                        if (ExitCode) { *ExitCode = 1; }
+                        bSuccess = false;
+                    }
+                    else if (Filesystem_IsDirectory(ResolvedSource) && Filesystem_IsPathInside(ResolvedSource, ResolvedDest))
+                    {
+                        LOG(
+                        "\n    Refusing to %S \"%S\" into itself - the destination is inside the\n"
+                        "    source directory.\n",
+                        bIsRename ? S("rename") : S("move"), SourceFile);
+
+                        if (ExitCode) { *ExitCode = 1; }
+                        bSuccess = false;
+                    }
+                    else
+                    {
+                        if (bIgnoreErrors) { Logging_Disable(); }
+                        bool bResult = Filesystem_Move(FullSourcePath, FullDestPath, bIsRename);
+                        if (bIgnoreErrors) { Logging_Enable(); }
+
+                        if (!bResult && !bIgnoreErrors)
+                        {
+                            LOG(
+                            "\n    You can ignore this error by using %S instead\n"
+                            "    or you can use %S to check whether the source files exist\n"
+                            "    and gracefully skip the move operation if they don't.\n",
+                            bIsRename ? S(".Rename(ignore_error)") : S(".Move(ignore_error)"),
+                            bIsRename ? S(".Rename(if_not_exist)") : S(".Move(if_not_exist)"));
+
+                            if (ExitCode) { *ExitCode = 1; }
+                            bSuccess = false;
+                        }
+                    }
                 }
             }
         }
@@ -1987,9 +2315,11 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const FileVa
                 bSuccess = false;
             }
 
-            // todo: handle wildcards?
-
-            if (bSuccess)
+            if (bSuccess && String_ContainsChars(Cmd, S("*?")))
+            {
+                bSuccess = Internal_ExecuteWildcardDelete(&Scratch, WorkingDirectory, Cmd, bIgnoreErrors, ExitCode);
+            }
+            else if (bSuccess)
             {
                 u32 LastDot = 0;
                 bool bHasDot = String_IndexOfLastChar(Cmd, '.', &LastDot);
@@ -6905,22 +7235,30 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         LOG_LINE_BREAK();
     }
 
-    // find the icon path (if specified)
+    // find the icon path. when not specified in the build file, fall back to
+    // searching for an icon file named after the assembly (e.g. MyGame.ico)
     StringArena(IconFilePath, MAX_PATH_LENGTH, Arena);
     StringArena(IconRcFilePath, MAX_PATH_LENGTH, Arena);
     StringArena(VersionRCFilePath, MAX_PATH_LENGTH, Arena);
 
-    if (Icon.Length > 0)
+    const bool bIconSpecified = Icon.Length > 0;
+    String IconSearchName = Icon;
+    if (!bIconSpecified && bIsAssemblyExe)
+    {
+        IconSearchName = Assembly;
+    }
+
+    if (IconSearchName.Length > 0)
     {
         {
             u32 LastSlashIndex = 0;
-            xx String_IndexOfLastPathSlash(Icon, &LastSlashIndex);
+            xx String_IndexOfLastPathSlash(IconSearchName, &LastSlashIndex);
 
             bool bHasExtension = false;
             u32 LastDot = 0;
-            if (String_IndexOfLastChar(Icon, '.', &LastDot))
+            if (String_IndexOfLastChar(IconSearchName, '.', &LastDot))
             {
-                bool bHasPathSeparator = String_IndexOfFirstPathSlash(StrShiftF(Icon, LastDot), NULL);
+                bool bHasPathSeparator = String_IndexOfFirstPathSlash(StrShiftF(IconSearchName, LastDot), NULL);
                 if (!bHasPathSeparator)
                 {
                     bHasExtension = true;
@@ -6929,34 +7267,38 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
             if (bHasExtension && LastSlashIndex) // is this an exact file path? if so, no need to search
             {
-                String_Copy(&IconFilePath, Icon);
+                String_Copy(&IconFilePath, IconSearchName);
             }
             else
             {
                 struct Data
                 {
-                    TArray(FileVariable) VariablesDB;
+                    String IconName;
                     String* IconFilePath;
                     bool bSuccess;
                     u8 Padding[7];
                 };
 
                 struct Data d = {0};
-                d.VariablesDB = VariablesDB;
+                d.IconName = IconSearchName;
                 d.IconFilePath = &IconFilePath;
                 d.bSuccess = false;
 
                 String SearchPath = WorkingPath;
-                if (LastSlashIndex && !Filesystem_IsPathRelative(Icon))
+                if (LastSlashIndex && !Filesystem_IsPathRelative(IconSearchName))
                 {
-                    SearchPath = StrSlice(Icon.Data, LastSlashIndex+1);
+                    SearchPath = StrSlice(IconSearchName.Data, LastSlashIndex+1);
                 }
 
                 Filesystem_IterateDirectory_Ex(SearchPath, &IconFileDirectoryIterator, true, &d);
 
                 if (!d.bSuccess)
                 {
-                    LOG_WARNING("Failed to find icon file \"%S\" in \"%S\". Skipping icon build...\n", Icon, SearchPath);
+                    if (bIconSpecified)
+                    {
+                        LOG_WARNING("Failed to find icon file \"%S\" in \"%S\". Skipping icon build...\n", IconSearchName, SearchPath);
+                    }
+
                     String_Empty(&IconFilePath);
                 }
             }
@@ -7099,7 +7441,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             }
 
             #if PLATFORM_WINDOWS
-            if (RCCompilerPath.Length > 0 && (Icon.Length > 0 || CountData.NumRcSources > 0))
+            if (RCCompilerPath.Length > 0 && (IconFilePath.Length > 0 || CountData.NumRcSources > 0))
             {
                 LOG("    Resource Compiler:    %S -> \"%S\"", RCProgram, RCCompilerPath);
             }

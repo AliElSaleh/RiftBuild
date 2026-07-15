@@ -912,6 +912,315 @@ void Filesystem_AppendExeExtension(String* FilePathNoExt)
     #endif
 }
 
+// True when any component of Path is exactly ".."
+NO_DISCARD bool Filesystem_HasDotDotComponent(const String Path)
+{
+    bool bFound = false;
+
+    u32 Start = 0;
+    for (u32 i = 0; i <= Path.Length && !bFound; i++)
+    {
+        bool bAtSeparator = i == Path.Length || Path.Data[i] == '/' || Path.Data[i] == '\\';
+        if (bAtSeparator)
+        {
+            if (i - Start == 2 && Path.Data[Start] == '.' && Path.Data[Start+1] == '.')
+            {
+                bFound = true;
+            }
+
+            Start = i+1;
+        }
+    }
+
+    return bFound;
+}
+
+// A path that names a filesystem root: "/" (or any run of separators) and
+// drive designators like "C:", "C:/", "C:\".
+NO_DISCARD bool Filesystem_IsRootPath(const String Path)
+{
+    String Trimmed = Path;
+    xx String_EatPathSeparatorsInlineFromEnd(&Trimmed);
+
+    bool bRoot = false;
+
+    if (Path.Length > 0 && Trimmed.Length == 0)
+    {
+        bRoot = true;
+    }
+    else if (Trimmed.Length == 2 && Trimmed.Data[1] == ':' && IsAlphabet(Trimmed.Data[0]))
+    {
+        bRoot = true;
+    }
+
+    return bRoot;
+}
+
+// True when Child names the same directory as Parent or anything nested below it.
+// The comparison is lexical: both paths should already be absolute with any ".."
+// resolved. Component-aware ("C:/foo" does not contain "C:/foobar"), and slash
+// style and letter case are ignored, consistent with file name handling elsewhere.
+NO_DISCARD bool Filesystem_IsPathInside(const String Parent, const String Child)
+{
+    String P = Parent;
+    String C = Child;
+    xx String_EatPathSeparatorsInlineFromEnd(&P);
+    xx String_EatPathSeparatorsInlineFromEnd(&C);
+
+    bool bInside = false;
+
+    if (Parent.Length > 0 && P.Length == 0)
+    {
+        // Parent is nothing but separators (a filesystem root): every absolute path is inside it
+        bInside = C.Length == 0 || C.Data[0] == '/' || C.Data[0] == '\\';
+    }
+    else if (P.Length > 0 && C.Length >= P.Length)
+    {
+        bInside = true;
+
+        for (u32 i = 0; i < P.Length && bInside; i++)
+        {
+            i32 A = (i32)P.Data[i];
+            i32 B = (i32)C.Data[i];
+
+            if (A == '\\') { A = '/'; }
+            if (B == '\\') { B = '/'; }
+
+            if (A >= 'A' && A <= 'Z') { A += 32; }
+            if (B >= 'A' && B <= 'Z') { B += 32; }
+
+            if (A != B)
+            {
+                bInside = false;
+            }
+        }
+
+        // a longer child must continue with a new path component, otherwise
+        // "C:/foo" would be treated as containing "C:/foobar"
+        if (bInside && C.Length > P.Length)
+        {
+            u8 Next = C.Data[P.Length];
+            if (Next != '/' && Next != '\\')
+            {
+                bInside = false;
+            }
+        }
+    }
+
+    return bInside;
+}
+
+// Wildcard path expansion. A pattern path is walked one component at a time: literal components
+// descend directly, components containing '*'/'?' are matched against every entry of the directory
+// reached so far, and a component that is exactly "**" matches zero or more directories in between.
+// Matching is case-insensitive, consistent with how file names are compared everywhere else.
+
+STRUCT(WildcardExpandState)
+{
+    WildcardIterator Callback;
+    void*            UserData;
+    u32              MatchCount;
+    bool             bStopped;
+};
+
+STRUCT(WildcardExpandLevel)
+{
+    WildcardExpandState* State;
+    String               Component;  // pattern component being matched at this directory level
+    String               Remaining;  // pattern after this component (empty when Component is the last one)
+};
+
+static void Internal_ExpandWildcards(const String Directory, const String Pattern, WildcardExpandState* State);
+static void Internal_ExpandWildcards_Recursive(const String Directory, const String Remaining, WildcardExpandState* State);
+
+static void Internal_ReportWildcardMatch(WildcardExpandState* State, const String FullPath, const String FileName, bool bIsDirectory)
+{
+    State->MatchCount++;
+
+    if (!State->Callback(FullPath, FileName, bIsDirectory, State->UserData))
+    {
+        State->bStopped = true;
+    }
+}
+
+static bool Internal_WildcardLevelIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
+{
+    UNUSED_PARAM(RelativePath);
+    UNUSED_PARAM(FileSize);
+
+    WildcardExpandLevel* Level = UserData;
+    WildcardExpandState* State = Level->State;
+
+    bool bContinue = true;
+
+    if (String_MatchesWildcard(FileName, Level->Component, false))
+    {
+        if (Level->Remaining.Length == 0)
+        {
+            Internal_ReportWildcardMatch(State, FullPath, FileName, bIsDirectory);
+        }
+        else if (bIsDirectory)
+        {
+            Internal_ExpandWildcards(FullPath, Level->Remaining, State);
+        }
+    }
+
+    if (State->bStopped)
+    {
+        bContinue = false;
+    }
+
+    return bContinue;
+}
+
+static bool Internal_WildcardDescendIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
+{
+    UNUSED_PARAM(RelativePath);
+    UNUSED_PARAM(FileName);
+    UNUSED_PARAM(FileSize);
+
+    WildcardExpandLevel* Level = UserData;
+    WildcardExpandState* State = Level->State;
+
+    bool bContinue = true;
+
+    if (bIsDirectory)
+    {
+        Internal_ExpandWildcards_Recursive(FullPath, Level->Remaining, State);
+    }
+
+    if (State->bStopped)
+    {
+        bContinue = false;
+    }
+
+    return bContinue;
+}
+
+// handles a "**" component: match the remaining pattern in this directory (the zero-directories
+// case) and keep doing so in every subdirectory below it
+static void Internal_ExpandWildcards_Recursive(const String Directory, const String Remaining, WildcardExpandState* State)
+{
+    Internal_ExpandWildcards(Directory, Remaining, State);
+
+    if (!State->bStopped)
+    {
+        WildcardExpandLevel Level = { State, String_Null(), Remaining };
+        Filesystem_IterateDirectory_Ex(Directory, &Internal_WildcardDescendIterator, false, &Level);
+    }
+}
+
+static void Internal_ExpandWildcards(const String Directory, const String Pattern, WildcardExpandState* State)
+{
+    // split the pattern into its first component and the rest, skipping over redundant separators
+    String Remaining = Pattern;
+    while (Remaining.Length > 0 && (Remaining.Data[0] == '/' || Remaining.Data[0] == '\\'))
+    {
+        Remaining = StrShiftF(Remaining, 1);
+    }
+
+    String Component = Remaining;
+    String Rest = String_Null();
+
+    u32 SlashIndex = 0;
+    if (String_IndexOfFirstPathSlash(Remaining, &SlashIndex))
+    {
+        Component = StrSlice(Remaining.Data, SlashIndex);
+        Rest = StrShiftF(Remaining, SlashIndex+1);
+    }
+
+    if (Component.Length > 0 && !State->bStopped)
+    {
+        bool bRecursiveComponent = String_IsEqual(Component, S("**"), false);
+
+        // a trailing "**" would report both a directory and everything inside it, making the
+        // caller operate on the same file twice - treat it as a plain "*" instead
+        if (bRecursiveComponent && Rest.Length == 0)
+        {
+            bRecursiveComponent = false;
+            Component = S("*");
+        }
+
+        if (bRecursiveComponent)
+        {
+            Internal_ExpandWildcards_Recursive(Directory, Rest, State);
+        }
+        else if (String_ContainsChars(Component, S("*?")))
+        {
+            WildcardExpandLevel Level = { State, Component, Rest };
+            Filesystem_IterateDirectory_Ex(Directory, &Internal_WildcardLevelIterator, false, &Level);
+        }
+        else
+        {
+            StringLocal(Path, MAX_PATH_LENGTH);
+            String_BuildPath(&Path, Directory, Component);
+
+            if (Rest.Length == 0)
+            {
+                if (Filesystem_DoesFileExist(Path))
+                {
+                    Internal_ReportWildcardMatch(State, Path, Component, false);
+                }
+                else if (Filesystem_DoesDirectoryExist(Path))
+                {
+                    Internal_ReportWildcardMatch(State, Path, Component, true);
+                }
+            }
+            else if (Filesystem_DoesDirectoryExist(Path))
+            {
+                Internal_ExpandWildcards(Path, Rest, State);
+            }
+        }
+    }
+}
+
+u32 Filesystem_ExpandWildcards(const String PathPattern, WildcardIterator Callback, void* UserData)
+{
+    WildcardExpandState State = { Callback, UserData, 0, false };
+
+    String Pattern = PathPattern;
+    xx String_EatPathSeparatorsInlineFromEnd(&Pattern);
+
+    // everything before the last separator preceding the first wildcard is a literal
+    // base directory we can start walking from
+    u32 FirstWildcard = 0;
+    for (u32 i = 0; i < Pattern.Length; i++)
+    {
+        if (Pattern.Data[i] == '*' || Pattern.Data[i] == '?')
+        {
+            break;
+        }
+
+        FirstWildcard++;
+    }
+
+    StringLocal(BaseDirectory, MAX_PATH_LENGTH);
+
+    u32 LastSlash = 0;
+    if (String_IndexOfLastPathSlash(StrSlice(Pattern.Data, FirstWildcard), &LastSlash))
+    {
+        String_Copy(&BaseDirectory, StrSlice(Pattern.Data, LastSlash));
+        Pattern = StrShiftF(Pattern, LastSlash+1);
+    }
+    else
+    {
+        String_Copy(&BaseDirectory, S("."));
+    }
+
+    // "C:" alone is a drive-relative path, not the drive's root - keep the separator
+    if (String_IsLast(BaseDirectory, ':') || BaseDirectory.Length == 0)
+    {
+        String_AppendChar(&BaseDirectory, '/');
+    }
+
+    if (Filesystem_DoesDirectoryExist(BaseDirectory))
+    {
+        Internal_ExpandWildcards(BaseDirectory, Pattern, &State);
+    }
+
+    return State.MatchCount;
+}
+
 // UUID Version 4 - Random based
 // https://datatracker.ietf.org/doc/html/rfc4122#section-4.4
 NO_DISCARD Uuid UUID_Generate(void)

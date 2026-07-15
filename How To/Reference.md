@@ -709,9 +709,9 @@ PostBuild
 | `NewFile file` | Create an empty file |
 | `WriteFile file { ... }` | Write the block's contents (overwrites) - see [Writing Files](#writing-files) |
 | `AppendFile file { ... }` | Same, but appends |
-| `Copy src dst-dir` | Copy `src` *into* the folder `dst-dir` |
-| `Rename old new` (or `Move`) | Rename / move a file |
-| `Delete file` | Delete a file (refuses `*`, `.`, `..`, `/`) |
+| `Copy src dst-dir` | Copy `src` *into* the folder `dst-dir` - `src` may contain wildcards |
+| `Rename old new` (or `Move`) | Rename / move a file - `Move`'s source may contain wildcards, `Rename` never does |
+| `Delete file` | Delete a file (refuses `*`, `.`, `..`, `/`) - wildcard patterns delete every matching *file*, never directories |
 | `Cmd command args...` (or `Exec`, `Command`, `Execute`) | Run an arbitrary command - the escape hatch when no verb fits |
 | `Log message` | Print a message |
 | `Wait ms` (or `Sleep`) | Pause |
@@ -722,6 +722,8 @@ PostBuild
 The big gotcha: **`Copy`'s second argument is a directory**, not a target filename. `Copy Build/Packer.exe dist` produces `dist/Packer.exe`; to change the name too, `Copy` then `Rename`.
 
 Verb parameters, in parentheses after the verb: `Copy(if_not_exist)`, `Rename(if_not_exist)`, `WriteFile(if_not_exist)` skip when the destination exists; `Cmd(no_wait)` doesn't wait for the command; `(ignore_errors)` on any verb keeps the build going on failure.
+
+**Wildcards** work in the *source* of `Copy`, `Move`, and `Delete`: `*` and `?` match within a single path component, `**` as a whole component descends recursively, and a wildcard may sit in any component (`resources/golden*.wav`, `res*/icon.png`, `assets/**/*.png`). Every match lands in the destination folder under its own name (matches from `**` are flattened). With `(if_not_exist)` each matched file is skipped individually when it already exists in the destination, and a pattern with zero matches skips instead of failing. The guard rails: destinations never take wildcards, `Rename` refuses them outright (every match would collide on one name - use `Move`), a zero-match `Copy`/`Move` without `(if_not_exist)`/`(ignore_errors)` is an error, and a wildcard `Delete` only deletes *files* (matched directories are reported and skipped), must be a relative path without `..`, and must contain at least one literal character - `Delete *.*` is refused. `Copy` and `Move` also refuse a filesystem root (`C:/`, `/`) as source and refuse a directory whose destination lies inside it (the copy would recurse into its own output forever); a wildcard *match* that is or contains the destination is skipped with a note instead, so `Copy * backup` copies everything except `backup` itself.
 
 Hooks run on every successful build, including no-op builds where nothing recompiled. They do not run on `clean`. All paths and commands resolve relative to the build file's folder.
 
@@ -928,6 +930,7 @@ The short list of things that bite, collected from the sections above:
 - **`%Var.suffix` parses greedily through the dot.** `%Mode.buildvars` reads a variable named `Mode.buildvars`. Use `%(Mode).buildvars`.
 - **Single-line ifs must stay on one line** - the `else` too. And there is no block-form `else if`; nest it: `else { if ... }`.
 - **`Copy`'s destination is a directory**, never a filename.
+- **`Copy`/`Move` refuse filesystem roots and self-copies** - a root (`C:/`, `/`) as source, or a destination inside the source directory, is a hard error no parameter overrides.
 - **`.Export` keys do not apply to the module that declares them** - declare the plain key too if the module needs it itself.
 - **`SourceFiles` entries outside the source directory are silently dropped**, and directory-prefixed wildcards (`gfx/*.c`) never match.
 - **Per-file overrides need the full filename** - `main.c.Compiler.Defines`, not `main.Compiler.Defines`.

@@ -1,0 +1,82 @@
+# Wildcard file operations: '*' and '?' match within a single path component,
+# '**' as a whole component descends recursively, and wildcards may appear in
+# ANY component of the source path (destinations must stay literal).
+# The PreBuild wildcard Copy feeds the compilation itself: main.c only finds
+# config_alpha.h if "par*/config_?lpha.h" matched and was copied.
+# After a build:
+#   generated/config_alpha.h                 exists (Copy, wildcard in the directory component and '?')
+#   backup/data_one.txt + data_two.txt       exist (Copy with '*', if_not_exist skips on re-runs)
+#   flat/blob_a.bin + blob_b.bin             exist (Copy with '**' flattens nested matches)
+#   moved/tmp_note.txt                       exists (Move with '*')
+#   staging/junk_x.tmp + junk_y.tmp          are gone (Delete with '*')
+#   staging/junk_dir.tmp/                    survives (a wildcard Delete never deletes directories)
+#   staging/mirror/                          holds a copy of everything else in staging - the
+#                                            mirror itself is matched by "staging/*" too, but a
+#                                            match that is (or contains) the destination is
+#                                            skipped instead of recursing into its own output
+Assembly    WildcardOps
+SourceFiles main
+
+Compiler.Includes generated
+
+PreBuild.NewDir parts
+PreBuild.NewDir staging/nested
+PreBuild.NewDir staging/junk_dir.tmp
+
+# reset the mirror so the "staging/**" pattern below sees the same tree on every run
+PreBuild.Delete staging/mirror
+
+PreBuild.WriteFile parts/config_alpha.h
+{
+\#pragma once
+\#define WILDCARD_COPIED 7
+}
+
+PreBuild.WriteFile staging/data_one.txt
+{
+one
+}
+
+PreBuild.WriteFile staging/data_two.txt
+{
+two
+}
+
+PreBuild.WriteFile staging/nested/blob_a.bin
+{
+a
+}
+
+PreBuild.WriteFile staging/blob_b.bin
+{
+b
+}
+
+PreBuild.WriteFile staging/tmp_note.txt
+{
+note
+}
+
+PreBuild.WriteFile staging/junk_x.tmp
+{
+x
+}
+
+PreBuild.WriteFile staging/junk_y.tmp
+{
+y
+}
+
+PreBuild.Copy par*/config_?lpha.h generated
+
+PostBuild
+{
+    Copy(if_not_exist) staging/data_*.txt backup
+    Copy staging/**/blob_*.bin flat
+    Move staging/tmp_*.txt moved
+    Delete staging/junk_*.tmp
+    Copy(if_not_exist) staging/absent_*.xyz backup
+
+    NewDir staging/mirror
+    Copy staging/* staging/mirror
+}

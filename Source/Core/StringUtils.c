@@ -573,6 +573,100 @@ NO_DISCARD bool String_EndsWith(const String Str, const String SubString, bool b
     return bSuccess;
 }
 
+// '*' matches any run of characters (including none), '?' matches exactly one character.
+// A '*' in the pattern is always a wildcard, even when Str contains a literal '*'.
+NO_DISCARD bool String_MatchesWildcard(const String Str, const String Pattern, bool bCaseSensitive)
+{
+    u32 s = 0;
+    u32 p = 0;
+    u32 StarPatternIndex = 0;
+    u32 StarStrIndex = 0;
+    bool bHasStar = false;
+    bool bMatch = true;
+
+    while (s < Str.Length)
+    {
+        bool bCharsEqual = false;
+        if (p < Pattern.Length)
+        {
+            i32 A = (i32)Str.Data[s];
+            i32 B = (i32)Pattern.Data[p];
+
+            if (!bCaseSensitive)
+            {
+                if (A >= 'A' && A <= 'Z')
+                {
+                    A += 32;
+                }
+
+                if (B >= 'A' && B <= 'Z')
+                {
+                    B += 32;
+                }
+            }
+
+            bCharsEqual = (B == '?') || (A == B);
+        }
+
+        if (p < Pattern.Length && Pattern.Data[p] == '*')
+        {
+            // remember where the star is so we can retry the rest of the pattern
+            // one character further into Str each time the tail fails to match
+            bHasStar = true;
+            StarPatternIndex = p;
+            StarStrIndex = s;
+            p++;
+        }
+        else if (bCharsEqual)
+        {
+            s++;
+            p++;
+        }
+        else if (bHasStar)
+        {
+            p = StarPatternIndex + 1;
+            StarStrIndex++;
+            s = StarStrIndex;
+        }
+        else
+        {
+            bMatch = false;
+            break;
+        }
+    }
+
+    if (bMatch)
+    {
+        while (p < Pattern.Length && Pattern.Data[p] == '*')
+        {
+            p++;
+        }
+
+        bMatch = (p == Pattern.Length);
+    }
+
+    return bMatch;
+}
+
+// A wildcard pattern that is nothing but wildcards, separators, and dots (like "*", "*.*", or
+// "*/**") matches indiscriminately; this reports whether Pattern names anything concrete at all.
+NO_DISCARD bool String_WildcardHasLiteralCharacters(const String Pattern)
+{
+    bool bFound = false;
+
+    for (u32 i = 0; i < Pattern.Length; i++)
+    {
+        u8 C = Pattern.Data[i];
+        if (C != '*' && C != '?' && C != '/' && C != '\\' && C != '.')
+        {
+            bFound = true;
+            break;
+        }
+    }
+
+    return bFound;
+}
+
 // based on: https://cplusplus.com/reference/cstdio/printf/
 static void Internal_Format(String* Dest, const String Format, va_list List)
 {

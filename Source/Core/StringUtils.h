@@ -80,6 +80,8 @@ RIFT_API NO_DISCARD bool String_ContainsSymbols(const String Str);
 RIFT_API NO_DISCARD bool String_ContainsSymbolsExceptUnderscore(const String Str);
 RIFT_API NO_DISCARD bool String_StartsWith(const String Str, const String SubString, bool bCaseSensitive);
 RIFT_API NO_DISCARD bool String_EndsWith(const String Str, const String SubString, bool bCaseSensitive);
+RIFT_API NO_DISCARD bool String_MatchesWildcard(const String Str, const String Pattern, bool bCaseSensitive);
+RIFT_API NO_DISCARD bool String_WildcardHasLiteralCharacters(const String Pattern);
 
 RIFT_API void String_Copy(String* Dest, const String Source);
 RIFT_API void String_CopyN(String* Dest, const String Source, const u32 Length);
