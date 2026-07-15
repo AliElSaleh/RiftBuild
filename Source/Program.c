@@ -6570,7 +6570,8 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             String_Append(&MTCompilerPath, S(".exe"));
             #endif
         }
-        else if (CompilerVendor == Compiler_GCC)
+        else if (CompilerVendor == Compiler_GCC ||
+                 CompilerVendor == Compiler_MINGW)
         {
             String_BuildPath(&DumpBinPath, CompilerBasePath, S("objdump"));
             String_BuildPath(&RCCompilerPath, CompilerBasePath, S("windres"));
