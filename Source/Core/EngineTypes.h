@@ -48,6 +48,7 @@ typedef struct LinearAllocator LinearAllocator;
 #define LANG_C_STD_99 __STDC_VERSION__ >= 199901L
 #define LANG_C_STD_11 __STDC_VERSION__ >= 201101L
 #define LANG_C_STD_17 __STDC_VERSION__ >= 201701L
+#define LANG_C_STD_23 __STDC_VERSION__ >= 202301L
 #endif
 
 #if LANG_C
@@ -157,6 +158,8 @@ STRUCT(String) // 16 bytes
     u32   Length;
     u32   Capacity;
 };
+
+// no StringView type cos you can just use const, like this: const String Blah
 
 STRUCT(String16) // 16 bytes
 {
@@ -704,7 +707,7 @@ STRUCT(StringList) // 24 bytes
     #define TODO()                  DEBUG_BREAK()
 #endif
 
-#define STATIC_PURE_FN(...) static __VA_ARGS__ PURE_FN; static __VA_ARGS__ 
+#define STATIC_PURE_FN(...)  static __VA_ARGS__ PURE_FN; static __VA_ARGS__ 
 #define STATIC_CONST_FN(...) static __VA_ARGS__ CONST_FN; static __VA_ARGS__ 
 
 #if defined(__TINYC__)

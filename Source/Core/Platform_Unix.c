@@ -40,6 +40,7 @@
 #include <termios.h>
 #include <limits.h>
 #include <poll.h>
+#include <fcntl.h>
 
 #include <sys/stat.h>
 #include <sys/time.h>
@@ -1165,9 +1166,40 @@ void Platform_GetHomeDirectory(String* OutDirectory)
 
 bool Platform_GetCurrentProcessName(String* OutName)
 {
-    // todo: from cmdline args
-    UNIMPLEMENTED;
-    return false;
+    bool bSuccess = false;
+
+    #if PLATFORM_LINUX
+    // /proc/self/exe is a symlink to the running executable's full path
+    char Path[MAX_PATH_LENGTH] = {0};
+    ssize_t Len = readlink("/proc/self/exe", Path, sizeof(Path) - 1);
+    if (Len > 0)
+    {
+        String FullPath = StrSlice((uchar*)Path, (u32)Len);
+
+        u32 LastSlash = 0;
+        if (String_IndexOfLastPathSlash(FullPath, &LastSlash))
+        {
+            String_Copy(OutName, StrShiftF(FullPath, LastSlash + 1));
+        }
+        else
+        {
+            String_Copy(OutName, FullPath);
+        }
+
+        bSuccess = true;
+    }
+    #else
+    // macOS and the BSDs (including OpenBSD, which has no executable-path API)
+    // provide the program name directly
+    const char* ProgName = getprogname();
+    if (ProgName != NULL)
+    {
+        String_Copy(OutName, CStrEx(ProgName, 4096));
+        bSuccess = true;
+    }
+    #endif
+
+    return bSuccess;
 }
 
 u64 Platform_GetCurrentProcessID(void)
@@ -1200,8 +1232,6 @@ bool Filesystem_Open(const String FilePath, EFileMode Mode, FileHandle* OutHandl
     }
     else
     {
-        // TODO
-        //LOG_WARNING("Invalid mode passed (%u) while trying to open file \"%S\"", Mode, FilePath);
         return false;
     }
 
@@ -1255,13 +1285,10 @@ bool Filesystem_NewFile(const String FilePath)
 
 bool Filesystem_DeleteFile(String FilePath)
 {
-    StringLocal(Cmd, MAX_PATH_LENGTH);
-    String_Append(&Cmd, S("rm -f \""));
-    String_Append(&Cmd, FilePath);
-    String_AppendChar(&Cmd, '"');
-    String_Append(&Cmd, S(" 2> /dev/null"));
-    i32 Result = system((const char*)Cmd.Data);
-    return Result == 0;
+    StringLocal(Copy, MAX_PATH_LENGTH);
+    String_Copy(&Copy, FilePath);
+
+    return unlink((const char*)Copy.Data) == 0;
 }
 
 bool Filesystem_Open_MemoryMapped(const String FilePath, EFileMode Mode, MemoryMappedFile* OutFile)
@@ -1650,7 +1677,6 @@ bool Filesystem_ReadEntireFile(const FileHandle Handle, void* OutData, usize* Ou
 {
     if (NEVER(!IsValidFileHandle(Handle))) return false;
 
-    // todo: remove this?
     (void)Filesystem_SeekToBeginning(Handle);
     
     usize Size = 0;
@@ -2022,69 +2048,349 @@ void Filesystem_IterateDirectory_Ex(const String BasePath, DirectoryIterator Cal
     Internal_IterateDirectory(BasePath, S(""), Callback, bRecursive, UserData);
 }
 
-// todo: remove system() calls
-// todo: error handling
 bool Filesystem_DeleteFiles(const String FilePath, const String Wildcard, bool bRecursive)
 {
-    // TODO: do not use the shell for this
-    if (FilePath.Length == 0 || (FilePath.Length == 1 && FilePath.Data[0] == '/' ))
-        return false;
+    // Deletes only files; matched directories are descended into (when recursive), never removed.
+    // Returns whether at least one file was actually deleted.
+    bool bAnyFilesDeleted = false;
 
-    StringLocal(Cmd, MAX_PATH_LENGTH);
-    String_Append(&Cmd, S("rm -f "));
-    if (bRecursive)
+    // refuse to sweep an empty path or the filesystem root
+    bool bValidPath = FilePath.Length > 0 && !(FilePath.Length == 1 && FilePath.Data[0] == '/');
+    if (bValidPath)
     {
-        String_Append(&Cmd, S("-r "));
+        StringLocal(PathCopy, MAX_PATH_LENGTH);
+        String_Copy(&PathCopy, FilePath);
+
+        DIR* dp = opendir((const char*)PathCopy.Data);
+        if (dp != NULL)
+        {
+            struct dirent* Entry = NULL;
+            while ((Entry = readdir(dp)))
+            {
+                if (Entry->d_name[0] == '.' &&
+                    (!Entry->d_name[1] || (Entry->d_name[1] == '.' && !Entry->d_name[2])))
+                {
+                    continue;
+                }
+
+                const String EntryName = CStr(Entry->d_name);
+                if (!String_MatchesWildcard(EntryName, Wildcard, true))
+                {
+                    continue;
+                }
+
+                StringLocal(FullPath, MAX_PATH_LENGTH);
+                String_BuildPath(&FullPath, FilePath, EntryName);
+
+                // lstat so symlinks are unlinked as files, never followed
+                struct stat EntryStat = {0};
+                bool bIsDirectory = lstat((const char*)FullPath.Data, &EntryStat) == 0 && S_ISDIR(EntryStat.st_mode);
+
+                if (bIsDirectory)
+                {
+                    if (bRecursive)
+                    {
+                        xx Filesystem_DeleteFiles(FullPath, Wildcard, true);
+                    }
+                }
+                else
+                {
+                    if (unlink((const char*)FullPath.Data) == 0)
+                    {
+                        bAnyFilesDeleted = true;
+                    }
+                }
+            }
+
+            closedir(dp);
+        }
     }
-    String_AppendChar(&Cmd, '"');
-    String_Append(&Cmd, FilePath);
-    String_AppendPathSeparator_Checked(&Cmd);
-    String_AppendChar(&Cmd, '"');
-    String_Append(&Cmd, Wildcard);
-    String_Append(&Cmd, S(" 2> /dev/null"));
-    i32 Result = system((const char*)Cmd.Data);
-    return Result == 0;
+
+    return bAnyFilesDeleted;
 }
 
 bool Filesystem_DeleteDirectory(const String DirectoryPath)
 {
-    StringLocal(Cmd, MAX_PATH_LENGTH);
-    String_Append(&Cmd, S("rm -r \""));
-    String_Append(&Cmd, DirectoryPath);
-    String_AppendPathSeparator_Checked(&Cmd);
-    String_Append(&Cmd, S("\" 2> /dev/null"));
-    i32 Result = system((const char*)Cmd.Data);
-    return Result == 0;
+    StringLocal(PathCopy, MAX_PATH_LENGTH);
+    String_Copy(&PathCopy, DirectoryPath);
+
+    DIR* dp = opendir((const char*)PathCopy.Data);
+    if (dp != NULL)
+    {
+        struct dirent* Entry = NULL;
+        while ((Entry = readdir(dp)))
+        {
+            if (Entry->d_name[0] == '.' &&
+                (!Entry->d_name[1] || (Entry->d_name[1] == '.' && !Entry->d_name[2])))
+            {
+                continue;
+            }
+
+            const String EntryName = CStr(Entry->d_name);
+
+            StringLocal(FullPath, MAX_PATH_LENGTH);
+            String_BuildPath(&FullPath, DirectoryPath, EntryName);
+
+            // lstat so symlinks are unlinked as files, never followed
+            struct stat EntryStat = {0};
+            bool bIsDirectory = lstat((const char*)FullPath.Data, &EntryStat) == 0 && S_ISDIR(EntryStat.st_mode);
+
+            if (bIsDirectory)
+            {
+                xx Filesystem_DeleteDirectory(FullPath);
+            }
+            else
+            {
+                xx unlink((const char*)FullPath.Data);
+            }
+        }
+
+        closedir(dp);
+    }
+
+    return rmdir((const char*)PathCopy.Data) == 0;
+}
+
+static bool Internal_CopyFileContents(const String Source, const String Destination)
+{
+    bool bSuccess = false;
+
+    int SourceFd = open((const char*)Source.Data, O_RDONLY);
+    if (SourceFd >= 0)
+    {
+        struct stat SourceStat = {0};
+        if (fstat(SourceFd, &SourceStat) == 0)
+        {
+            int DestFd = open((const char*)Destination.Data, O_WRONLY | O_CREAT | O_TRUNC, SourceStat.st_mode & 0777);
+            if (DestFd >= 0)
+            {
+                bSuccess = true;
+
+                u8 Buffer[Kibibytes(64)];
+                while (bSuccess)
+                {
+                    isize BytesRead = read(SourceFd, Buffer, sizeof(Buffer));
+                    if (BytesRead == 0)
+                    {
+                        break; // end of source
+                    }
+
+                    if (BytesRead < 0)
+                    {
+                        if (errno != EINTR)
+                        {
+                            bSuccess = false;
+                        }
+                        continue;
+                    }
+
+                    isize Written = 0;
+                    while (Written < BytesRead && bSuccess)
+                    {
+                        isize Result = write(DestFd, Buffer + Written, (usize)(BytesRead - Written));
+                        if (Result > 0)
+                        {
+                            Written += Result;
+                        }
+                        else if (Result < 0 && errno == EINTR)
+                        {
+                            // interrupted before anything was written - just retry
+                        }
+                        else
+                        {
+                            bSuccess = false;
+                        }
+                    }
+                }
+
+                // the destination may have pre-existed with different mode bits, and the umask filters
+                // the mode passed to open() - either way a copied executable must stay executable
+                xx fchmod(DestFd, SourceStat.st_mode & 0777);
+
+                close(DestFd);
+            }
+        }
+
+        close(SourceFd);
+    }
+
+    return bSuccess;
+}
+
+STRUCT(CopyDirectoryMetadata)
+{
+    String DestinationDirectory;
+    b64 bSuccess;
+};
+
+static bool Internal_CopyFilesToDirectory_Recursive(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
+{
+    bool bResult = true;
+
+    CopyDirectoryMetadata* Meta = UserData;
+
+    if (bIsDirectory)
+    {
+        StringLocal(Destination, MAX_PATH_LENGTH);
+        String_BuildPath(&Destination, Meta->DestinationDirectory, RelativePath);
+
+        xx Filesystem_OpenDirectory(Destination);
+    }
+    else
+    {
+        StringLocal(Source, MAX_PATH_LENGTH);
+        String_BuildPath(&Source, FullPath);
+
+        StringLocal(Destination, MAX_PATH_LENGTH);
+        String_BuildPath(&Destination, Meta->DestinationDirectory, RelativePath);
+
+        bResult = Internal_CopyFileContents(Source, Destination);
+        if (bResult == false)
+        {
+            StringLocal(Msg, 512);
+            String_Format(&Msg, S("Failed to copy \"%S\" to \"%S\""), Source, Destination);
+            LogLastError(Msg);
+        }
+
+        Meta->bSuccess = bResult;
+    }
+
+    return bResult;
 }
 
 bool Filesystem_Copy(const String Source, const String Destination)
 {
-    StringLocal(Cmd, MAX_PATH_LENGTH);
-    String_Append(&Cmd, S("cp -r \""));
-    String_Append(&Cmd, Source);
-    String_AppendChar(&Cmd, '"');
-    String_AppendSpace(&Cmd);
-    String_AppendChar(&Cmd, '"');
-    String_Append(&Cmd, Destination);
-    String_AppendChar(&Cmd, '"');
-    String_Append(&Cmd, S(" 2> /dev/null"));
-    i32 Result = system((const char*)Cmd.Data);
-    return Result == 0;
+    StringLocal(SourceCopy, MAX_PATH_LENGTH);
+    StringLocal(DestinationCopy, MAX_PATH_LENGTH);
+    String_Copy(&SourceCopy, Source);
+    String_Copy(&DestinationCopy, Destination);
+
+    bool bResult = false;
+
+    // the source must exist
+    if (!(Filesystem_IsFile(SourceCopy) || Filesystem_IsDirectory(SourceCopy)))
+    {
+        StringLocal(Msg, 512);
+        String_Format(&Msg, S("\n    Source path \"%S\" does not exist.\n"), SourceCopy);
+        Platform_ConsoleWrite_CustomLength((const char*)Msg.Data, Msg.Length, 3, true);
+    }
+    else
+    {
+        // handles a case where we dont specify the file/directory on the Destination string,
+        // so we handle that for them here.
+        {
+            u32 LastSlash = 0;
+            xx String_IndexOfLastPathSlash(SourceCopy, &LastSlash);
+
+            String LastPart = StrShiftF(SourceCopy, LastSlash == 0 ? 0 : LastSlash+1);
+
+            if (!String_EndsWith(DestinationCopy, LastPart, false))
+            {
+                String_BuildPath(&DestinationCopy, LastPart);
+            }
+        }
+
+        // now that the destination string is fully built, open the directories
+        {
+            u32 LastSlash = 0;
+            if (String_IndexOfLastPathSlash(DestinationCopy, &LastSlash))
+            {
+                xx Filesystem_OpenDirectory(StrSlice(DestinationCopy.Data, LastSlash));
+            }
+        }
+
+        // recursively copy all files within the source directory to the destination directory
+        if (Filesystem_IsDirectory(SourceCopy))
+        {
+            // it is an error to try to copy a directory into a file
+            if (Filesystem_IsFile(DestinationCopy))
+            {
+                StringLocal(Msg, 1024);
+                String_Format(&Msg, S("Source \"%S\" can not be copied into destination \"%S\" because the destination is a file. You likely have the two mixed up."), SourceCopy, DestinationCopy);
+                Platform_ConsoleWrite_CustomLength((const char*)Msg.Data, Msg.Length, 3, true);
+            }
+            else
+            {
+                xx Filesystem_OpenDirectory(DestinationCopy);
+
+                CopyDirectoryMetadata Meta = {DestinationCopy, true};
+                Filesystem_IterateDirectory_Ex(SourceCopy, Internal_CopyFilesToDirectory_Recursive, true, &Meta);
+
+                bResult = (bool)Meta.bSuccess;
+            }
+        }
+        // copy single file to the destination directory
+        else
+        {
+            bResult = Internal_CopyFileContents(SourceCopy, DestinationCopy);
+            if (bResult == false)
+            {
+                StringLocal(Msg, 512);
+                String_Format(&Msg, S("Failed to copy \"%S\" to \"%S\""), Source, Destination);
+                LogLastError(Msg);
+            }
+        }
+    }
+
+    return bResult;
 }
 
 bool Filesystem_Move(const String Source, const String Destination, bool bRename)
 {
-    StringLocal(Cmd, MAX_PATH_LENGTH);
-    String_Append(&Cmd, S("mv \""));
-    String_Append(&Cmd, Source);
-    String_AppendChar(&Cmd, '"');
-    String_AppendSpace(&Cmd);
-    String_AppendChar(&Cmd, '"');
-    String_Append(&Cmd, Destination);
-    String_AppendChar(&Cmd, '"');
-    String_Append(&Cmd, S(" 2> /dev/null"));
-    i32 Result = system((const char*)Cmd.Data);
-    return Result == 0;
+    StringLocal(SourceCopy, MAX_PATH_LENGTH);
+    StringLocal(DestinationCopy, MAX_PATH_LENGTH);
+    String_Copy(&SourceCopy, Source);
+    String_Copy(&DestinationCopy, Destination);
+
+    if (!bRename)
+    {
+        u32 LastSlash = 0;
+        xx String_IndexOfLastPathSlash(SourceCopy, &LastSlash);
+
+        const String FileName = StrShiftF(SourceCopy, LastSlash);
+        if (!String_EndsWith(DestinationCopy, FileName, false))
+        {
+            String_BuildPath(&DestinationCopy, FileName);
+        }
+
+        // try to create the directory if it doesn't exist
+        LastSlash = 0;
+        bool bHasSlash = String_IndexOfLastPathSlash(DestinationCopy, &LastSlash);
+        xx Filesystem_OpenDirectory(bHasSlash ? StrSlice(DestinationCopy.Data, LastSlash) : DestinationCopy);
+    }
+
+    bool bResult = rename((const char*)SourceCopy.Data, (const char*)DestinationCopy.Data) == 0;
+
+    // rename() cannot cross filesystems; fall back to copy + delete like mv does
+    if (!bResult && errno == EXDEV)
+    {
+        if (Filesystem_IsDirectory(SourceCopy))
+        {
+            xx Filesystem_OpenDirectory(DestinationCopy);
+
+            CopyDirectoryMetadata Meta = {DestinationCopy, true};
+            Filesystem_IterateDirectory_Ex(SourceCopy, Internal_CopyFilesToDirectory_Recursive, true, &Meta);
+
+            bResult = (bool)Meta.bSuccess && Filesystem_DeleteDirectory(SourceCopy);
+        }
+        else
+        {
+            bResult = Internal_CopyFileContents(SourceCopy, DestinationCopy);
+            if (bResult)
+            {
+                bResult = unlink((const char*)SourceCopy.Data) == 0;
+            }
+        }
+    }
+
+    if (!bResult)
+    {
+        StringLocal(Msg, 512);
+        String_Format(&Msg, S("Failed to %S \"%S\" to \"%S\""), bRename ? S("rename") : S("move"), Source, Destination);
+        LogLastError(Msg);
+    }
+
+    return bResult;
 }
 
 bool Filesystem_ArePathsCommon(String PathA, String PathB)
