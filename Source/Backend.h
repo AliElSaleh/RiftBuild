@@ -418,9 +418,9 @@ typedef void (*DependencyPathIterator)(const String Path, void* UserData);
 NO_DISCARD bool ParseDependencyFile_Makefile(const String DepFilePath, DependencyPathIterator Iterator, void* UserData, bool* bOutParsedOk);
 NO_DISCARD bool ParseDependencyFile_MSVCJson(const String DepFilePath, DependencyPathIterator Iterator, void* UserData, bool* bOutParsedOk);
 
-bool ExpandBuildVariable(LinearAllocator Scratch, FileVariableList* VariablesDB, TArray(CmdOption) CmdOptionsDB,
-                         String* Dest, const String Key, const String Value, const String Root, const String WorkingDirectory,
-                         bool* bFailed);
+bool ExpandVariable(LinearAllocator Scratch, FileVariableList* VariablesDB, TArray(CmdOption) CmdOptionsDB,
+                    String* Dest, const String Key, const String Value, const String Root, const String WorkingDirectory,
+                    bool* bFailed);
 
 u32 GetMaxValueLengthForReservedKey(const String Key);
 EBuildKeyImpact GetBuildKeyImpact(const String Key);

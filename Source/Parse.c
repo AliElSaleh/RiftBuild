@@ -17,8 +17,6 @@
 #include "MicrosoftCraziness.h"
 #endif
 
-// TODO: rename AddCmdOption() to CmdOption_Add()
-
 void AddVariable(LinearAllocator* Arena,
                 TArray(FileVariable) VariablesDB,
                 const String Name,
@@ -572,12 +570,6 @@ STRUCT(ReservedKeyTable)
     u8              _Padding[3];
 };
 
-// The .Impact column drives the .build diff system (GetBuildKeyImpact / ClassifyBuildKeyImpact):
-//   Recompile - the resolved value is fed to the compiler for each source file (flags, defines,
-//               includes, compiler/assembler selection, source layout, ...) -> full recompile.
-//   Relink    - the value only affects the final link/archive/output (libraries, linker flags, output
-//               name & metadata, the SourceFiles list, bundle contents, ...) -> relink, keep objects.
-//   None      - the value doesn't change the produced assembly (License, phase commands, MaxCores, etc.).
 static ReservedKeyTable ReservedKeys[84] =
 {
     { .Key = SC("Assembly"),                  .MaxValueLength = 256,   .Impact = BuildKeyImpact_Relink    },
@@ -768,7 +760,7 @@ read_only static DeferredKVData DeferredKVData_Null =
     .LastIfNode = &Node_Null
 };
 
-static String ETokenType_ToString(ETokenType Type)
+UNUSED static String ETokenType_ToString(ETokenType Type)
 {
     String Result = String_Null();
 
@@ -2303,6 +2295,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Pars
     return Root;
 }
 
+#ifdef _DEBUG
 static void Print_BlockNode(NodeList* Root, u32 Level);
 static void Print_IfNode(Node* Root, u32 Level);
 
@@ -2630,6 +2623,7 @@ static void Print_IfNode(Node* Root, u32 Level)
 
     LOG("%SEND IF\n", Spaces);
 }
+#endif // _DEBUG
 
 NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Arena, const FileHandle H, const String FilePath)
 {
@@ -2643,7 +2637,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
 
     if (FileSize > Kibibytes(48))
     {
-        // todo: error
+        TODO("ruh roh");
     }
 
     String Text = String_Reserve(Arena, (u32)FileSize);
@@ -2926,7 +2920,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Aren
             //Clock_Tick(&c);
             //Clock_PrintElapsedTime(&c, true);
 
-            //Print_BlockNode(Result->List, 0);
+            // Print_BlockNode(Result->List, 0);
         }
     }
 
@@ -2976,7 +2970,7 @@ NO_DISCARD static NodeList* Analyze_IncludeNode(Node* Root, ParsingContext* Cont
         }
 
         bool bFailed = false;
-        bSuccess = ExpandBuildVariable(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, Root->Key, Val, Root->Key, Context->WorkingDirectory, &bFailed);
+        bSuccess = ExpandVariable(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, Root->Key, Val, Root->Key, Context->WorkingDirectory, &bFailed);
         if (bFailed || !bSuccess)
         {
             bSuccess = false;
@@ -3730,7 +3724,7 @@ NO_DISCARD static NodeList* Analyze_IfNode(Node* Root, ParsingContext* Context, 
                 StringLocal(Expanded, MAX_PATH_LENGTH);
                 if (bFoundVar)
                 {
-                    xx ExpandBuildVariable(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, String_Null(), VarValue, String_Null(), Context->WorkingDirectory, NULL);
+                    xx ExpandVariable(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, String_Null(), VarValue, String_Null(), Context->WorkingDirectory, NULL);
                 }
                 else
                 {
@@ -3742,7 +3736,7 @@ NO_DISCARD static NodeList* Analyze_IfNode(Node* Root, ParsingContext* Context, 
                         if (Symbol) { String_AppendChar(&ConditionPrefixed, Symbol); }
                         String_Append(&ConditionPrefixed, Condition);
 
-                        xx ExpandBuildVariable(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, String_Null(), ConditionPrefixed, String_Null(), Context->WorkingDirectory, NULL);
+                        xx ExpandVariable(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, String_Null(), ConditionPrefixed, String_Null(), Context->WorkingDirectory, NULL);
                     }
                     else
                     {
@@ -4543,7 +4537,7 @@ static void StoreKVNodeAsCmdOption(LinearAllocator* Arena, const String Key, Nod
         String Val = GetVarValueInList(Context->VarListHead, Key);
 
         StringLocal(Expanded, MAX_PATH_LENGTH);
-        xx ExpandBuildVariable(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, Key, Val, Key, Context->WorkingDirectory, NULL);
+        xx ExpandVariable(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, Key, Val, Key, Context->WorkingDirectory, NULL);
 
         if (Expanded.Length > 0)
         {
@@ -5065,7 +5059,7 @@ static bool Internal_LogCustomErrorMessage(ParsingContext* Context, const String
                    (ContextKey.Length == 0 || String_StartsWith(Var.Name, ContextKey, false))))
                 {
                     StringLocal(Expanded, 1024);
-                    xx ExpandBuildVariable(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, Var.Name, Var.Value, Var.Name, Context->WorkingDirectory, NULL);
+                    xx ExpandVariable(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, Var.Name, Var.Value, Var.Name, Context->WorkingDirectory, NULL);
 
                     LOG("%S", Expanded);
                     if (bLineBreak) { LOG_LINE_BREAK(); }
@@ -6177,7 +6171,7 @@ static bool Internal_AssertProgram(ParsingContext* Context, const String BuildFi
 
     // expand them here
     StringLocal(Expanded, 512);
-    xx ExpandBuildVariable(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, Var.Name, Var.Value, Var.Name, Context->WorkingDirectory, NULL);
+    xx ExpandVariable(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, Var.Name, Var.Value, Var.Name, Context->WorkingDirectory, NULL);
 
     StringArray ProgramsArray = String_ParseIntoArray(&Scratch, Expanded, ' ', 0, 128);
 
@@ -6816,75 +6810,6 @@ NO_DISCARD bool ParseBuildFile(
                 }
             }
 
-            // TODO: delete before release
-            // ".Public" was renamed to ".Export": clearer about what the keys do (they only
-            // export to consumers, they never apply to the declaring module itself)
-            // Accept the old suffix as a deprecated alias so existing build files keep working, but nag about it.
-            StringLocal(ExportAliasName, 256);
-            if (String_EndsWith(Var.Name, S(".Public"), false))
-            {
-                String_Append(&ExportAliasName, String_Left(Var.Name, Var.Name.Length - 7));
-                String_Append(&ExportAliasName, S(".Export"));
-
-                LOG_WARNING("The \".Public\" key suffix is deprecated. Rename \"%S\" to \"%S\".", Var.Name, ExportAliasName);
-                Var.Name = ExportAliasName;
-            }
-
-            // TODO: delete before release
-            // The bare "Includes", "Defines" and "UnDefines" keys (and their ".Export" forms) moved
-            // under the "Compiler." namespace, matching Assembler.Includes / Linker.Defines. Accept the
-            // bare spellings (global and per-file) as deprecated aliases so existing build files keep
-            // working, but nag about it.
-            StringLocal(CompilerAliasName, 512);
-            {
-                local_persist const String BareCompilerKeys[7] =
-                {
-                    SC("Includes.Public"),
-                    SC("Defines.Public"),
-                    SC("Includes.Export"),
-                    SC("Defines.Export"),
-                    SC("Includes"),
-                    SC("Defines"),
-                    SC("UnDefines"),
-                };
-
-                for EachE(i, BareCompilerKeys)
-                {
-                    const String BareName = BareCompilerKeys[i];
-
-                    if (String_IsEqual(Var.Name, BareName, false))
-                    {
-                        String_Append(&CompilerAliasName, S("Compiler."));
-                        String_Append(&CompilerAliasName, BareName);
-
-                        LOG_WARNING("The \"%S\" key is deprecated. Rename it to \"%S\".", Var.Name, CompilerAliasName);
-                        Var.Name = CompilerAliasName;
-                        break;
-                    }
-
-                    // per-file form: "main.c.Defines" -> "main.c.Compiler.Defines"
-                    if (Var.Name.Length > BareName.Length + 1 &&
-                        String_EndsWith(Var.Name, BareName, false) &&
-                        Var.Name.Data[Var.Name.Length - BareName.Length - 1] == '.')
-                    {
-                        const String FileName = StrSlice(Var.Name.Data, Var.Name.Length - BareName.Length - 1);
-
-                        // "main.c.Compiler.Defines" ends with ".Defines" too - already the new spelling
-                        if (Filesystem_DoesPathHaveFileExtension(FileName) &&
-                            !String_EndsWith(FileName, S(".Compiler"), false))
-                        {
-                            String_Append(&CompilerAliasName, FileName);
-                            String_Append(&CompilerAliasName, S(".Compiler."));
-                            String_Append(&CompilerAliasName, BareName);
-
-                            LOG_WARNING("The \"%S\" key is deprecated. Rename it to \"%S\".", Var.Name, CompilerAliasName);
-                            Var.Name = CompilerAliasName;
-                            break;
-                        }
-                    }
-                }
-            }
-
             // per-file overrides ("<filename>.<Setting>") aren't reserved keys, so store them explicitly and
             // give them the same headroom as their global counterparts (they can hold e.g. $SharedCompilerFlags).
             if (IsPerFileOverrideKey(Var.Name, NULL, NULL))
@@ -6909,7 +6834,7 @@ NO_DISCARD bool ParseBuildFile(
             {
                 LinearAllocator Scratch = *Context.TempArena;
                 String Expanded = String_Reserve(&Scratch, MaxValueLength);
-                xx ExpandBuildVariable(Scratch, Context.VarListHead, Context.CmdOptionsDB, &Expanded, Var.Name, Var.Value, Var.Name, Context.WorkingDirectory, NULL);
+                xx ExpandVariable(Scratch, Context.VarListHead, Context.CmdOptionsDB, &Expanded, Var.Name, Var.Value, Var.Name, Context.WorkingDirectory, NULL);
 
                 if (bExcludeFromConcat)
                 {
@@ -6918,7 +6843,7 @@ NO_DISCARD bool ParseBuildFile(
                     {
                         u32 ContentCapacity = Var.Content.Length + MaxValueLength;
                         ExpandedContent = String_Reserve(&Scratch, ContentCapacity);
-                        xx ExpandBuildVariable(Scratch, Context.VarListHead, Context.CmdOptionsDB, &ExpandedContent, Var.Name, Var.Content, Var.Name, Context.WorkingDirectory, NULL);
+                        xx ExpandVariable(Scratch, Context.VarListHead, Context.CmdOptionsDB, &ExpandedContent, Var.Name, Var.Content, Var.Name, Context.WorkingDirectory, NULL);
                     }
 
                     AddVariable(Context.PermanentArena, Context.VariablesDB, Var.Name, Expanded, Var.Params, ExpandedContent, MaxValueLength);
@@ -6933,7 +6858,7 @@ NO_DISCARD bool ParseBuildFile(
         for each (String, m, Context.Messages)
         {
             StringLocal(Expanded, 1024);
-            xx ExpandBuildVariable(*Context.TempArena, Context.VarListHead, Context.CmdOptionsDB, &Expanded, String_Null(), m, String_Null(), Context.WorkingDirectory, NULL);
+            xx ExpandVariable(*Context.TempArena, Context.VarListHead, Context.CmdOptionsDB, &Expanded, String_Null(), m, String_Null(), Context.WorkingDirectory, NULL);
 
             // reassign to new memory, the old memory is in a temporary buffer so we dont need to worry about leaks here.
             *m_ = String_Create(Context.PermanentArena, Expanded);
@@ -6945,8 +6870,7 @@ NO_DISCARD bool ParseBuildFile(
     return bSuccess;
 }
 
-// TODO: rename to ExpandVariable
-bool ExpandBuildVariable(LinearAllocator Scratch, FileVariableList* VariablesDB, TArray(CmdOption) CmdOptionsDB,
+bool ExpandVariable(LinearAllocator Scratch, FileVariableList* VariablesDB, TArray(CmdOption) CmdOptionsDB,
                             String* Dest, const String Key, const String Value, const String Root, const String WorkingDirectory,
                             bool* bFailed)
 {
@@ -7278,7 +7202,7 @@ bool ExpandBuildVariable(LinearAllocator Scratch, FileVariableList* VariablesDB,
 
                     LinearAllocator Scratch2 = Scratch;
                     String TempDest = String_Reserve(&Scratch2, Dest->Capacity);
-                    if (!ExpandBuildVariable(Scratch2, VariablesDB, CmdOptionsDB, &TempDest, Slice, Var.Value, Root, WorkingDirectory, bFailed))
+                    if (!ExpandVariable(Scratch2, VariablesDB, CmdOptionsDB, &TempDest, Slice, Var.Value, Root, WorkingDirectory, bFailed))
                     {
                         return false;
                     }

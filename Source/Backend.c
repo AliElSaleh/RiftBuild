@@ -1112,7 +1112,7 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
         RecordArtifactPath(Params->ArtifactManifestHandle,PCHObjectPath);
     }
 
-    // TODO: maybe record this only if they exist after the compiler is successful?
+    // TODO: maybe record this only if they exist after the compilation is successful?
     struct MiscArtifactTable
     {
         String Extension;
@@ -1384,11 +1384,10 @@ bool C_Compile_Wait(const BuildParams* Params, u32 NumCompiled)
 
         if (ExitCode != 0)
         {
-            // todo: better wording?
             #ifndef HOOD
-            LOG_ERROR("Compiler errors detected. See above errors to fix. Exit code for process: %u. Aborting build...", ExitCode);
+            // LOG_ERROR("Compiler errors detected. See above errors to fix. Exit code for process: %u. Aborting build...", ExitCode);
             #else
-            LOG_ERROR("seen some compiler errors homie, gon' stop right here");
+            LOG_ERROR("seen some compiler errors homie, gon' stop right here ma nigga");
             #endif
 
             bSuccess = false;
@@ -1803,7 +1802,6 @@ LinearAllocator GMSVCFindAllocator = {0};
 #if PLATFORM_WINDOWS
 
 /// TODO: compiling with cl makes this run serially? (happens on release mode only)
-/// TODO: if multithreaded and more than on soruce file. use /MP and call cl.exe only once
 
 static void Internal_ParseAndLogLinkerOutput_MSVC(String StdOutData)
 {

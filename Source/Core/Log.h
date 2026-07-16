@@ -10,7 +10,6 @@
     #define ENSURE_MSG(Expression, Text, ...)
     #define ENSURE_NO_REENTRY()
 #else
-    // TODO: simplify
     #ifdef NO_LOG
         #define ASSERT_MSG(Expression, Text, ...) ASSERT(Expression)
         #define ENSURE_MSG(Expression, Text, ...) ENSURE(Expression)
@@ -57,6 +56,7 @@
 #define LOG_STRING(String)
 
 #define UNIMPLEMENTED 
+#define TODO()
 #else
 #define MAX_LOG_MSG_LENGTH 32768
 
@@ -103,6 +103,8 @@
 #define LOG_STRING(Str)                                LOG(STRINGIFY(Str)    ": %S", Str)
 
 #define UNIMPLEMENTED                                  Platform_ConsoleWrite(FUNCTION_NAME, 4, true); Platform_ConsoleWrite(" not implemented!\n", 4, true); _Crash_
+
+#define TODO(Text, ...)                                LOG_DEBUG_T(LOG_TYPE_NONE, Text, ##__VA_ARGS__); DEBUG_BREAK()
 
 RIFT_API NO_DISCARD bool Logging_Initialize(void* Memory, bool bOpenFile);
 RIFT_API void Logging_Shutdown(void);

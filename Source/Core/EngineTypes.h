@@ -699,12 +699,10 @@ STRUCT(StringList) // 24 bytes
     #define ASSERT(Expression)
     #define ENSURE(Expression)
     #define UNREACHABLE()
-    #define TODO()
 #else
     #define ASSERT(Expression, ...) do { if (Expression) {} else { ##__VA_ARGS__; DEBUG_BREAK(); _Crash_; } } while (0)
     #define ENSURE(Expression, ...) do { if (Expression) {} else { ##__VA_ARGS__; DEBUG_BREAK(); } } while (0)
     #define UNREACHABLE()           do { DEBUG_BREAK(); _Crash_; } while (0)
-    #define TODO()                  DEBUG_BREAK()
 #endif
 
 #define STATIC_PURE_FN(...)  static __VA_ARGS__ PURE_FN; static __VA_ARGS__ 

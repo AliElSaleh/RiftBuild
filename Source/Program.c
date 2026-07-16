@@ -5614,6 +5614,8 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
         if (!bAnyVarsOverriden) { bAnyVarsOverriden = bAnyOverriden; }
 
+        u32 MaxLengthForCompilerDefines = GetMaxValueLengthForReservedKey(S("Compiler.Defines"));
+
         if (bDoesVersionVarExist)
         {
             FileVariable VersionVar = GetVariable(VariablesDB, VersionKey);
@@ -5636,7 +5638,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                     StringLocal(VersionDefineString, 256);
                     String_Format(&VersionDefineString, S("%S_VERSION_STRING=\"%S\""), AssemblyNameUpper, ExpandedVar);
 
-                    AddOrAppendVariable(Arena, VariablesDB, S("Compiler.Defines"), VersionDefineString, String_Null(), 8192); // TODO: read from reservedkeys table
+                    AddOrAppendVariable(Arena, VariablesDB, S("Compiler.Defines"), VersionDefineString, String_Null(), MaxLengthForCompilerDefines);
                 }
 
                 xx String_ReplaceNonAlphaNumericCharInline(&ExpandedVar, '.');
@@ -5677,7 +5679,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                                 }
                             }
 
-                            AddOrAppendVariable(Arena, VariablesDB, S("Compiler.Defines"), VersionDefine, String_Null(), 8192); // TODO
+                            AddOrAppendVariable(Arena, VariablesDB, S("Compiler.Defines"), VersionDefine, String_Null(), MaxLengthForCompilerDefines);
 
                             i++;
                         }
@@ -5698,7 +5700,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                         String_Format(&VersionDefine, S("%S_VERSION=%S"), AssemblyNameUpper, ExpandedVar);
                     }
 
-                    AddOrAppendVariable(Arena, VariablesDB, S("Compiler.Defines"), VersionDefine, String_Null(), 8192); // TODO
+                    AddOrAppendVariable(Arena, VariablesDB, S("Compiler.Defines"), VersionDefine, String_Null(), MaxLengthForCompilerDefines);
                 }
             }
         }
@@ -5713,7 +5715,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                 StringLocal(CopyrightDefine, 256);
                 String_Format(&CopyrightDefine, S("%S_COPYRIGHT_STRING=\"%S\""), AssemblyNameUpper, CopyrightVar.Value);
 
-                AddOrAppendVariable(Arena, VariablesDB, S("Compiler.Defines"), CopyrightDefine, String_Null(), 8192); // TODO
+                AddOrAppendVariable(Arena, VariablesDB, S("Compiler.Defines"), CopyrightDefine, String_Null(), MaxLengthForCompilerDefines);
             }
         }
     }
