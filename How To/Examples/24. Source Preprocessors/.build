@@ -1,0 +1,24 @@
+Assembly    Interpolated
+SourceFiles main stats
+
+# sip (short for string interpolation) is a metaprogram that i use in my own projects.
+# it rewrites string-interpolated printf("{x}") calls into the
+# plain printf("%d", x) form before the compiler ever sees the file.
+# The whole tool lives in this folder and is built first as a dependency,
+# the hook then runs the freshly built exe over this module's sources,
+# right before compilation. RiftBuild appends every source
+# file's full path to the command.
+
+Depend sip/
+
+PreCompileAllFiles.Exec "sip/Build/sip.exe"
+
+# The per-file flavor launches the tool once per source file instead,
+# with that file's path appended last - same idea, one file at a time:
+#
+#   PreCompileFile.Exec "sip/Build/sip.exe"
+
+# SourceFiles above matters here: without the whitelist, recursive source
+# discovery would try to compile the tool's own sources into this module.
+
+Assert.Platform windows

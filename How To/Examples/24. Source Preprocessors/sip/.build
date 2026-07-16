@@ -1,0 +1,24 @@
+# The metaprogram itself - a plain executable module. The example's root
+# .build Depends on this folder, so the tool is built (this repository's
+# Core library first, then this exe) before the root's PreCompile hooks
+# run it.
+
+Depends       ../../../../Source/Core/
+import        ../../../../Source/Common.buildvars
+
+Assembly      %_DirectoryName
+
+SourceFiles   Program.c
+
+Compiler.Flags $SharedCompilerFlags
+
+if windows
+{
+    Linker.EntryPoint EntryPoint
+    Linker.Subsystem  Console
+    Linker.Stack      8000000 # 8MB
+}
+
+Libraries %_NativeLibs
+
+assert.platform windows

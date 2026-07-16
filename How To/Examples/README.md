@@ -29,6 +29,8 @@ each one also stands alone.
 | 20 | [Syntax Toolbox](20.%20Syntax%20Toolbox/) | `##` comments, value blocks, namespace blocks, the backtick reset |
 | 21 | [Shared Build Variables](21.%20Shared%20Build%20Variables/) | `include x.buildvars` - one version number for many modules |
 | 22 | [Download External Repos](22.%20Download%20External%20Repos/) | `PreDepend.Cmd git clone`, building a real third-party library (GLFW) |
+| 23 | [Video Game](23.%20Video%20Game/) | Everything combined into a playable Breakout game: exe + static library + GLFW |
+| 24 | [Source Preprocessors](24.%20Source%20Preprocessors/) | `PreCompileFile`/`PreCompileAllFiles`: build a metaprogram, then run it over sources before compiling |
 
 Two housekeeping notes:
 

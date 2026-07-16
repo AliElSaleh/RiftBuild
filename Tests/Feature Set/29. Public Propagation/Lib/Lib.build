@@ -2,21 +2,16 @@ Assembly PropLib
 Type     static_lib
 
 # Export keys are EXPORT-ONLY: they reach whoever depends on this library but
-# are NOT applied to the library's own compilation...
+# are NOT applied to the library's own compilation.
 Compiler.Includes.Export .
 
-# Deliberately stays on the deprecated bare-key ".Public" alias (must behave
-# exactly like Compiler.Defines.Export and emit a deprecation warning) so both
-# the alias and the bare-key deprecation path stay covered.
-Defines.Public  LIB_PUBLIC_DEFINE=1
-
-# ...and a static library's Libraries.Export must reach the consumer's LINK:
+# a static library's Libraries.Export must reach the consumer's LINK:
 # the app calls timeGetTime() from winmm, which is not linked by default, so
 # dropping this line breaks the app's link (regression guard for the receipt
 # export union of Libraries + Libraries.Export).
 Libraries.Export:windows winmm
 
-# ...while plain (private) defines apply here and stay inside this module.
-Compiler.Defines LIB_PRIVATE_DEFINE=1
+Compiler.Defines         LIB_PRIVATE_DEFINE=1
+Compiler.Defines.Export  LIB_PUBLIC_DEFINE=1
 
 SourceFiles lib

@@ -55,3 +55,5 @@ Score is top-left, lives are top-right. Clear all the bricks to win.
 - Grow `Engine` into a real module: circles for the ball, `Render_Line`, a
   second source file for input mapping - the `.build` never changes, new
   files are discovered automatically.
+
+Next: [24. Source Preprocessors](../24.%20Source%20Preprocessors/) - rewriting source files with a metaprogram before they compile.

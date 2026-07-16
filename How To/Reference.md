@@ -648,7 +648,6 @@ The full export set: `Compiler.Includes.Export`, `Compiler.Defines.Export`, `Lib
 Details and edge cases:
 - Exports travel transitively up the dependency chain - unless a link in the chain used `Depend(private)` (see [Dependencies](#dependencies)).
 - For a **static library**, the plain `Libraries`/`Library.Paths` also travel to the consumer (a static lib cannot link anything itself - its link-time needs are the consumer's problem). If the `.Export` variant is declared, it takes **precedence** and only the export list travels.
-- `.Public` is the deprecated old name for `.Export`; it still works but warns.
 
 ---
 
@@ -682,12 +681,14 @@ Depend external/glfw
 ---
 
 ### Build Phase Hooks
-Seven hook points, always in this order:
+Nine hook points, always in this order:
 
 ```
-PreDepend  (before dependencies are parsed)
+PreDepend           (before dependencies are parsed)
 PreBuild
 PreCompile
+PreCompileAllFiles  (runs once, every source file appended - see below)
+PreCompileFile      (runs once per source file - see below)
     ... compilation ...
 PostCompile
 PreLink
@@ -731,6 +732,22 @@ Verb parameters, in parentheses after the verb: `Copy(if_not_exist)`, `Rename(if
 **Wildcards** work in the *source* of `Copy`, `Move`, and `Delete`: `*` and `?` match within a single path component, `**` as a whole component descends recursively, and a wildcard may sit in any component (`resources/golden*.wav`, `res*/icon.png`, `assets/**/*.png`). Every match lands in the destination folder under its own name (matches from `**` are flattened). With `(if_not_exist)` each matched file is skipped individually when it already exists in the destination, and a pattern with zero matches skips instead of failing. The guard rails: destinations never take wildcards, `Rename` refuses them outright (every match would collide on one name - use `Move`), a zero-match `Copy`/`Move` without `(if_not_exist)`/`(ignore_errors)` is an error, and a wildcard `Delete` only deletes *files* (matched directories are reported and skipped), must be a relative path without `..`, and must contain at least one literal character - `Delete *.*` is refused. `Copy` and `Move` also refuse a filesystem root (`C:/`, `/`) as source and refuse a directory whose destination lies inside it (the copy would recurse into its own output forever); a wildcard *match* that is or contains the destination is skipped with a note instead, so `Copy * backup` copies everything except `backup` itself.
 
 Hooks run on every successful build, including no-op builds where nothing recompiled. They do not run on `clean`. All paths and commands resolve relative to the build file's folder.
+
+##### PreCompileFile And PreCompileAllFiles
+These two hooks feed the module's source files to a command right before compilation - the hook point for source preprocessors, metaprograms, and lint tools that need to see (or rewrite) the code before the compiler does. The build file names only the program and its own arguments; RiftBuild appends the source path(s):
+
+```make
+PreCompileFile.Exec     my_codegen --flag   # runs once per source file, that file's full path appended last
+PreCompileAllFiles.Exec my_codegen --flag   # runs once in total, every source file's full path appended
+```
+
+The rules:
+- The appended paths are absolute, and quoted when they contain spaces. The list is the module's final source set - generated sources sitting in the intermediate directory included.
+- `PreCompileAllFiles` runs before `PreCompileFile`. Prefer it when the tool accepts many files at once: one process launch instead of one per file.
+- A failing command stops the build (`PreCompileFile` stops at the first failing file); `(ignore_errors)` keeps going.
+- Like every hook they run on each build, so the tool sees unchanged sources too. A tool that rewrites files should leave unchanged files untouched - one that blindly rewrites everything dirties the timestamps and re-triggers a full recompile every build.
+
+See the [Source Preprocessors example](Examples/24.%20Source%20Preprocessors/) for a working setup that rewrites string-interpolated `printf("{x}")` calls into plain C before every compile.
 
 ##### .Run
 `.Run` runs the freshly built executable after the build - the tight loop you want for tools, demos, and test runners:
@@ -904,26 +921,6 @@ Compiler.MaxCores 4  # cap parallel compile processes (clamped to your core coun
 And from the command line: `riftbuild rebuild` forces a full rebuild, `riftbuild clean` deletes everything the build produced, and the `_all` variants (`rebuild_all`, `clean_all`) propagate through every dependency. `riftbuild export:cc` writes a `compile_commands.json` for your editor/LSP.
 
 One caveat for codegen modules: incremental detection is output-vs-source timestamps plus the saved command line, so `@include`-style *implicit* dependencies inside generated sources are invisible - document `rebuild` for those cases.
-
----
-
-### Appendix: Old Key Names
-Keys from older RiftBuild versions that were **removed without a deprecation warning** - they parse as inert user variables and silently do nothing:
-
-| Old (dead) | Current |
-|------------|---------|
-| `CompilerFlags` | `Compiler.Flags` |
-| `IncludeFlags` | `Compiler.Includes` |
-| `LinkerFlags` | `Linker.Flags` (move `/subsystem:x` to `Linker.Subsystem x`, `/DELAYLOAD:x.dll` to `Linker.DelayLoadDll x.dll`) |
-| `LibraryDirectories` | `Library.Paths` |
-| `IncludedSourceDirectories` | `SourceDirectories` |
-| `ExcludedSourceDirectories` | `SourceDirectories.Exclude` |
-| `ExcludedSourceFiles` | `SourceFiles.Exclude` |
-| `Multithread false` | `Compiler.MaxCores 1` |
-
-These still work but **warn** (update them when you see the warning):
-- Bare `Includes` / `Defines` / `UnDefines` -> the namespaced `Compiler.Includes` / `Compiler.Defines` / `Compiler.UnDefines`
-- The `.Public` suffix -> `.Export`
 
 ---
 

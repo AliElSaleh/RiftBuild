@@ -6480,63 +6480,70 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                     }
                 }
 
-                AddOrAppendVariable(Arena, VariablesDB, S("Compiler.Defines"),    FreshReceipt.Defines, String_Null(),     GetMaxValueLengthForReservedKey(S("Compiler.Defines")));
-                AddOrAppendVariable(Arena, VariablesDB, S("Libraries"),           FreshReceipt.Libraries, String_Null(),   GetMaxValueLengthForReservedKey(S("Libraries")));
-                AddOrAppendVariable(Arena, VariablesDB, S("Apple.Frameworks"),    FreshReceipt.Frameworks, String_Null(),  GetMaxValueLengthForReservedKey(S("Apple.Frameworks")));
-                AddOrAppendVariable(Arena, VariablesDB, S("Linker.Flags"),        FreshReceipt.LinkerFlags, String_Null(), GetMaxValueLengthForReservedKey(S("Linker.Flags.Export")));
-
-                if (!bIsPrivateDependency)
+                // An executable dependency is a tool dependency - it is built so the dependent's
+                // hooks can run it, but nothing is ever linked against it, so none of its
+                // compile/link usage requirements (defines, libraries, linker flags, includes)
+                // apply to the consumer.
+                if (FreshReceipt.AssemblyType != AssemblyType_Executable)
                 {
-                    AddOrAppendVariable(Arena, VariablesDB, S("Compiler.Defines.Export"), FreshReceipt.Defines, String_Null(), GetMaxValueLengthForReservedKey(S("Compiler.Defines")));
-                    AddOrAppendVariable(Arena, VariablesDB, S("Libraries.Export"),        FreshReceipt.Libraries, String_Null(),   GetMaxValueLengthForReservedKey(S("Libraries")));
-                    AddOrAppendVariable(Arena, VariablesDB, S("Apple.Frameworks.Export"), FreshReceipt.Frameworks, String_Null(),  GetMaxValueLengthForReservedKey(S("Apple.Frameworks")));
-                    AddOrAppendVariable(Arena, VariablesDB, S("Linker.Flags.Export"),     FreshReceipt.LinkerFlags, String_Null(), GetMaxValueLengthForReservedKey(S("Linker.Flags.Export")));
-                }
+                    AddOrAppendVariable(Arena, VariablesDB, S("Compiler.Defines"),    FreshReceipt.Defines, String_Null(),     GetMaxValueLengthForReservedKey(S("Compiler.Defines")));
+                    AddOrAppendVariable(Arena, VariablesDB, S("Libraries"),           FreshReceipt.Libraries, String_Null(),   GetMaxValueLengthForReservedKey(S("Libraries")));
+                    AddOrAppendVariable(Arena, VariablesDB, S("Apple.Frameworks"),    FreshReceipt.Frameworks, String_Null(),  GetMaxValueLengthForReservedKey(S("Apple.Frameworks")));
+                    AddOrAppendVariable(Arena, VariablesDB, S("Linker.Flags"),        FreshReceipt.LinkerFlags, String_Null(), GetMaxValueLengthForReservedKey(S("Linker.Flags.Export")));
 
-                if (FreshReceipt.LinkerNoStdLib)      { AddOrAppendVariable(Arena, VariablesDB, S("Linker.NoStdLib"), String_Null(), String_Null(),      GetMaxValueLengthForReservedKey(S("Linker.NoStdLib"))); }
-                if (FreshReceipt.LinkerNoDefaultLibs) { AddOrAppendVariable(Arena, VariablesDB, S("Linker.NoDefaultLibs"), String_Null(), String_Null(), GetMaxValueLengthForReservedKey(S("Linker.NoDefaultLibs"))); }
-
-                {
-                    StringList Paths = String_SplitIntoList(Arena, FreshReceipt.LibraryPaths, ' ', true);
-                    for each_string_in_list (Paths)
+                    if (!bIsPrivateDependency)
                     {
-                        StringLocal(Temp, MAX_PATH_LENGTH);
-                        if (Filesystem_IsPathRelative(It.String))
+                        AddOrAppendVariable(Arena, VariablesDB, S("Compiler.Defines.Export"), FreshReceipt.Defines, String_Null(), GetMaxValueLengthForReservedKey(S("Compiler.Defines")));
+                        AddOrAppendVariable(Arena, VariablesDB, S("Libraries.Export"),        FreshReceipt.Libraries, String_Null(),   GetMaxValueLengthForReservedKey(S("Libraries")));
+                        AddOrAppendVariable(Arena, VariablesDB, S("Apple.Frameworks.Export"), FreshReceipt.Frameworks, String_Null(),  GetMaxValueLengthForReservedKey(S("Apple.Frameworks")));
+                        AddOrAppendVariable(Arena, VariablesDB, S("Linker.Flags.Export"),     FreshReceipt.LinkerFlags, String_Null(), GetMaxValueLengthForReservedKey(S("Linker.Flags.Export")));
+                    }
+
+                    if (FreshReceipt.LinkerNoStdLib)      { AddOrAppendVariable(Arena, VariablesDB, S("Linker.NoStdLib"), String_Null(), String_Null(),      GetMaxValueLengthForReservedKey(S("Linker.NoStdLib"))); }
+                    if (FreshReceipt.LinkerNoDefaultLibs) { AddOrAppendVariable(Arena, VariablesDB, S("Linker.NoDefaultLibs"), String_Null(), String_Null(), GetMaxValueLengthForReservedKey(S("Linker.NoDefaultLibs"))); }
+
+                    {
+                        StringList Paths = String_SplitIntoList(Arena, FreshReceipt.LibraryPaths, ' ', true);
+                        for each_string_in_list (Paths)
                         {
-                            String_BuildPath(&Temp, S("\""), RelativeWorkingPathFromMe, It.String, S("\""),);
-                        }
-                        else
-                        {
-                            String_Copy(&Temp, It.String);
-                        }
-                        
-                        AddOrAppendVariable(Arena, VariablesDB, S("Library.Paths"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Library.Paths")));
-                        if (!bIsPrivateDependency)
-                        {
-                            AddOrAppendVariable(Arena, VariablesDB, S("Library.Paths.Export"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Library.Paths")));
+                            StringLocal(Temp, MAX_PATH_LENGTH);
+                            if (Filesystem_IsPathRelative(It.String))
+                            {
+                                String_BuildPath(&Temp, S("\""), RelativeWorkingPathFromMe, It.String, S("\""),);
+                            }
+                            else
+                            {
+                                String_Copy(&Temp, It.String);
+                            }
+
+                            AddOrAppendVariable(Arena, VariablesDB, S("Library.Paths"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Library.Paths")));
+                            if (!bIsPrivateDependency)
+                            {
+                                AddOrAppendVariable(Arena, VariablesDB, S("Library.Paths.Export"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Library.Paths")));
+                            }
                         }
                     }
-                }
 
-                {
-                    StringList Paths = String_SplitIntoList(Arena, FreshReceipt.Includes, ' ', true);
-                    for each_string_in_list (Paths)
                     {
-                        StringLocal(Temp, MAX_PATH_LENGTH);
+                        StringList Paths = String_SplitIntoList(Arena, FreshReceipt.Includes, ' ', true);
+                        for each_string_in_list (Paths)
+                        {
+                            StringLocal(Temp, MAX_PATH_LENGTH);
 
-                        if (Filesystem_IsPathRelative(It.String))
-                        {
-                            String_BuildPath(&Temp, S("\""), RelativeWorkingPathFromMe, It.String, S("\""),);
-                        }
-                        else
-                        {
-                            String_Copy(&Temp, It.String);
-                        }
+                            if (Filesystem_IsPathRelative(It.String))
+                            {
+                                String_BuildPath(&Temp, S("\""), RelativeWorkingPathFromMe, It.String, S("\""),);
+                            }
+                            else
+                            {
+                                String_Copy(&Temp, It.String);
+                            }
 
-                        AddOrAppendVariable(Arena, VariablesDB, S("Compiler.Includes"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Compiler.Includes")));
-                        if (!bIsPrivateDependency)
-                        {
-                            AddOrAppendVariable(Arena, VariablesDB, S("Compiler.Includes.Export"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Compiler.Includes")));
+                            AddOrAppendVariable(Arena, VariablesDB, S("Compiler.Includes"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Compiler.Includes")));
+                            if (!bIsPrivateDependency)
+                            {
+                                AddOrAppendVariable(Arena, VariablesDB, S("Compiler.Includes.Export"), Temp, String_Null(), GetMaxValueLengthForReservedKey(S("Compiler.Includes")));
+                            }
                         }
                     }
                 }
