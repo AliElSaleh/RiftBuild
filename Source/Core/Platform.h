@@ -333,6 +333,7 @@ RIFT_API NO_DISCARD bool Platform_RemoveEnvironmentVariable(String Name);
 RIFT_API NO_DISCARD bool Platform_DoesEnvironmentVariableExist(String Name);
 
 RIFT_API NO_DISCARD u32 Platform_GetNumLogicalProcessors(void);
+RIFT_API NO_DISCARD u32 Platform_GetNumPhysicalProcessors(void);
 
 RIFT_API            void Platform_GetComputerName(String* OutName);
 RIFT_API            void Platform_GetFriendlyComputerName(String* OutName);

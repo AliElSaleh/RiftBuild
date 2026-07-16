@@ -784,7 +784,10 @@ NO_DISCARD bool Platform_GetEnvironmentVariableValue(String Name, String* OutVar
 
     return Len != 0;
 #else
-    StringLocal(NameCopy, 128); // we copy the name because the passed in Name could have had its length altered but not the data, so create a copy with a null terminator at the length so windows gets the correct string
+    // we copy the name because the passed in Name could have had its length
+    // altered but not the data, so create a copy with a null terminator at
+    // the length so windows gets the correct string
+    StringLocal(NameCopy, 128);
     String_Copy(&NameCopy, Name);
 
     DWORD Len = GetEnvironmentVariable((char*)NameCopy.Data, (char*)OutVariable->Data, OutVariable->Capacity);
@@ -796,7 +799,10 @@ NO_DISCARD bool Platform_GetEnvironmentVariableValue(String Name, String* OutVar
 
 NO_DISCARD bool Platform_SetEnvironmentVariableValue(String Name, String Value)
 {
-    StringLocal(NameCopy, 128); // we copy the name because the passed in Name could have had its length altered but not the data, so create a copy with a null terminator at the length so windows gets the correct string
+    // we copy the name because the passed in Name could have had its length
+    // altered but not the data, so create a copy with a null terminator at
+    // the length so windows gets the correct string
+    StringLocal(NameCopy, 128);
     String_Copy(&NameCopy, Name);
 
     StringLocal(ValueCopy, INT16_MAX);
@@ -808,7 +814,10 @@ NO_DISCARD bool Platform_SetEnvironmentVariableValue(String Name, String Value)
 
 NO_DISCARD bool Platform_RemoveEnvironmentVariable(String Name)
 {
-    StringLocal(NameCopy, 128); // we copy the name because the passed in Name could have had its length altered but not the data, so create a copy with a null terminator at the length so windows gets the correct string
+    // we copy the name because the passed in Name could have had its length
+    // altered but not the data, so create a copy with a null terminator at
+    // the length so windows gets the correct string
+    StringLocal(NameCopy, 128);
     String_Copy(&NameCopy, Name);
 
     // a NULL value deletes the variable; an empty string would leave it set-but-empty,
@@ -819,7 +828,10 @@ NO_DISCARD bool Platform_RemoveEnvironmentVariable(String Name)
 
 NO_DISCARD bool Platform_DoesEnvironmentVariableExist(String Name)
 {
-    StringLocal(NameCopy, 128); // we copy the name because the passed in Name could have had its length altered but not the data, so create a copy with a null terminator at the length so windows gets the correct string
+    // we copy the name because the passed in Name could have had its length
+    // altered but not the data, so create a copy with a null terminator at
+    // the length so windows gets the correct string
+    StringLocal(NameCopy, 128);
     String_Copy(&NameCopy, Name);
 
     DWORD Len = GetEnvironmentVariable((char*)NameCopy.Data, NULL, 0);
@@ -828,9 +840,51 @@ NO_DISCARD bool Platform_DoesEnvironmentVariableExist(String Name)
 
 NO_DISCARD u32 Platform_GetNumLogicalProcessors(void)
 {
-    SYSTEM_INFO info = {0};
-    GetSystemInfo(&info);
-    return info.dwNumberOfProcessors;
+    // GetSystemInfo only counts the calling thread's processor group (max 64 logical
+    // processors), so ask for every group; machines with more span multiple groups
+    u32 NumProcessors = GetActiveProcessorCount(ALL_PROCESSOR_GROUPS);
+
+    if (NumProcessors == 0)
+    {
+        SYSTEM_INFO info = {0};
+        GetSystemInfo(&info);
+        NumProcessors = info.dwNumberOfProcessors;
+    }
+
+    return NumProcessors;
+}
+
+NO_DISCARD u32 Platform_GetNumPhysicalProcessors(void)
+{
+    u32 NumCores = 0;
+
+    // one variable-sized entry per physical core, each smaller than the full struct; Windows
+    // caps at 2048 logical processors so 2048 entries
+    SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX Buffer[2048] = {0};
+    DWORD Length = sizeof(Buffer);
+    if (GetLogicalProcessorInformationEx(RelationProcessorCore, Buffer, &Length))
+    {
+        const u8* Bytes = (const u8*)Buffer;
+
+        DWORD Offset = 0;
+        while (Offset < Length)
+        {
+            const SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX* Info = (const SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX*)(Bytes + Offset);
+            if (Info->Relationship == RelationProcessorCore)
+            {
+                NumCores++;
+            }
+
+            Offset += Info->Size;
+        }
+    }
+
+    if (NumCores == 0)
+    {
+        NumCores = Platform_GetNumLogicalProcessors();
+    }
+
+    return NumCores;
 }
 
 NO_DISCARD bool Filesystem_Open(const String FilePath, EFileMode Mode, FileHandle* OutHandle)
@@ -1753,272 +1807,6 @@ NO_DISCARD bool Filesystem_ConvertRelativeToAbsolutePath(String* OutFullPath)
     OutFullPath->Length = String_GetLength_N((char*)OutFullPath->Data, MAX_PATH);
     return bResult;
 }
-
-/*
-
-// Using the low level Nt version of FindFirstFile. tested on debug and release mode.
-// there is literally no noticable difference.
-
-UNUSED NO_DISCARD static bool _Internal_IterateDirectory(const String RootPath, const String DirectoryPath, DirectoryIterator Callback, bool bRecursive, void* UserData)
-{
-    bool bSuccess = true;
-
-    StringLocal(Test, MAX_PATH);
-    String_Copy(&Test, DirectoryPath.Length == 0 ? S(".") : DirectoryPath);
-
-    // Open the directory with backup semantics
-    HANDLE hDir = CreateFile(
-        (char*)Test.Data,
-        FILE_LIST_DIRECTORY | SYNCHRONIZE,
-        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-        NULL,
-        OPEN_EXISTING,
-        FILE_FLAG_BACKUP_SEMANTICS, // Required to open directories
-        NULL
-    );
-
-    BYTE buffer[64 * 1024]; // 64KB buffer for many entries
-    IO_STATUS_BLOCK iosb = {0};
-
-    NTSTATUS status = {0};
-    BOOL restart = TRUE;
-
-    do
-    {
-        status = NtQueryDirectoryFile(
-            hDir,
-            NULL,
-            NULL,
-            NULL,
-            &iosb,
-            buffer,
-            sizeof(buffer),
-            FileDirectoryInformation,
-            FALSE,
-            NULL,
-            restart
-        );
-
-        if (status == STATUS_NO_MORE_FILES)
-        {
-            break;
-        }
-
-        if (status != 0)
-        {
-            break;
-        }
-
-        restart = FALSE;
-
-        bool bShouldBreak = false;
-
-        // Walk all entries in this buffer
-        BYTE* ptr = buffer;
-        do
-        {
-            FILE_DIRECTORY_INFORMATION* info = (FILE_DIRECTORY_INFORMATION*)ptr;
-
-            String16 FileNameWide = {0};
-            FileNameWide.Data = info->FileName;
-            FileNameWide.Length = ClampMax(info->FileNameLength / sizeof(WCHAR), MAX_PATH - 1);
-
-            StringLocal(FileName, MAX_PATH);
-            String_ToNarrow(FileNameWide, &FileName);
-
-            if (String_IsEqual(FileName, S("."), false) ||
-                String_IsEqual(FileName, S(".."), false))
-            {
-            }
-            else
-            {
-                StringLocal(FilePath, MAX_PATH);
-                String_BuildPath(&FilePath, Test, FileName);
-
-                String FullPath = FilePath;
-                xx String_EatPathSeparatorsInline(&FullPath);
-
-                String RelativePath = StrShiftF(FilePath, RootPath.Length);
-                xx String_EatPathSeparatorsInline(&RelativePath);
-
-                if (info->FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-                {
-                    bool bResult = Callback(FullPath, RelativePath, FileName, 0, true, UserData);
-                    if (bResult)
-                    {
-                        if (bRecursive)
-                        {
-                            if (!_Internal_IterateDirectory(RootPath, FullPath, Callback, true, UserData))
-                            {
-                                bSuccess = false;
-                                bShouldBreak = true;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        bSuccess = false;
-                        bShouldBreak = true;
-                    }
-                }
-                else
-                {
-                    u64 FileSize = (u64)info->EndOfFile.QuadPart;
-                    bool bResult = Callback(FullPath, RelativePath, FileName, FileSize, false, UserData);
-
-                    if (!bResult) // the user wants to end the iteration
-                    {
-                        bSuccess = false;
-                        bShouldBreak = true;
-                    }
-                }
-
-            }
-
-            if (bShouldBreak)
-            {
-                break;
-            }
-
-            if (info->NextEntryOffset == 0)
-            {
-                break;
-            }
-
-            ptr += info->NextEntryOffset;
-
-        }
-        while (1);
-
-        if (bShouldBreak)
-        {
-            break;
-        }
-    }
-    while (1);
-
-    return bSuccess;
-}
-*/
-
-/*
-
-// Iterative approach instead of recursive. tested on debug and release mode. there is literally no noticable difference
-
-NO_DISCARD static bool Internal_IterateDirectory(const String RootPath, const String DirectoryPath, DirectoryIterator Callback, bool bRecursive, void* UserData)
-{
-    bool bSuccess = true;
-
-    STRUCT(DirectoryStackFrameData)
-    {
-        WIN32_FIND_DATA ffd;
-        HANDLE FindHandle;
-        uchar PathBuffer[MAX_PATH+4]; // +4 for alignment stuff
-        String Path;
-    };
-
-    StackLocal(DirectoryStackFrameData, Stack, 32); // 32 = max directory depth we will support
-
-    // push the initial frame
-    {
-        Stack_PushZero(Stack);
-
-        DirectoryStackFrameData* Frame = &Stack[0];
-        Frame->Path.Data = Frame->PathBuffer;
-        Frame->Path.Capacity = MAX_PATH;
-
-        String_Copy(&Frame->Path, DirectoryPath.Length == 0 ? S(".") : DirectoryPath);
-        String_Append(&Frame->Path, S("\\*"));
-
-        Frame->FindHandle = FindFirstFile((char*)Frame->Path.Data, &Frame->ffd);
-        Frame->Path.Length -= 2; // ignore \*
-    }
-
-    bool bShouldBreak = false;
-
-    while (Stack_Count)
-    {
-        DirectoryStackFrameData Current = {0};
-        Stack_Pop(Stack, Current);
-
-        if (Current.FindHandle != INVALID_HANDLE_VALUE)
-        {
-            do
-            {
-                String FileName = CStrEx(Current.ffd.cFileName, 259);
-
-                if (String_IsEqual(FileName, S("."), false) ||
-                    String_IsEqual(FileName, S(".."), false))
-                {
-                    continue;
-                }
-
-                StringLocal(FilePath, MAX_PATH);
-                String_BuildPath(&FilePath, Current.Path, FileName);
-
-                String FullPath = FilePath;
-                xx String_EatPathSeparatorsInline(&FullPath);
-
-                String RelativePath = StrShiftF(FilePath, RootPath.Length);
-                xx String_EatPathSeparatorsInline(&RelativePath);
-
-                if (Current.ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-                {
-                    bool bResult = Callback(FullPath, RelativePath, FileName, 0, true, UserData);
-                    if (bResult)
-                    {
-                        if (bRecursive)
-                        {
-                            Stack_PushZero(Stack);
-
-                            DirectoryStackFrameData* Frame = &Stack[Stack_Count-1];
-                            Frame->Path.Data = Frame->PathBuffer;
-                            Frame->Path.Capacity = MAX_PATH;
-
-                            String_Copy(&Frame->Path, FullPath);
-                            String_Append(&Frame->Path, S("\\*"));
-
-                            Frame->FindHandle = FindFirstFile((char*)Frame->Path.Data, &Frame->ffd);
-                            Frame->Path.Length -= 2; // ignore \*
-                        }
-                    }
-                    else
-                    {
-                        bSuccess = false;
-                        bShouldBreak = true;
-                    }
-                }
-                else
-                {
-                    DWORD FileSize = (Current.ffd.nFileSizeHigh * (MAXDWORD+1)) + Current.ffd.nFileSizeLow;
-                    bool bResult = Callback(FullPath, RelativePath, FileName, FileSize, false, UserData);
-                    if (!bResult) // the user wants to end the iteration
-                    {
-                        bSuccess = false;
-                        bShouldBreak = true;
-                    }
-                }
-
-                if (bShouldBreak)
-                {
-                    break;
-                }
-            }
-            while (FindNextFile(Current.FindHandle, &Current.ffd) != 0);
-
-            FindClose(Current.FindHandle);
-
-            if (bShouldBreak)
-            {
-                break;
-            }
-        }
-    }
-
-    return bSuccess;
-}
-*/
-
 
 NO_DISCARD static bool Internal_IterateDirectory(const String RootPath, const String DirectoryPath, DirectoryIterator Callback, bool bRecursive, void* UserData)
 {

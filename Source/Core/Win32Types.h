@@ -388,6 +388,94 @@ typedef struct _SYSTEM_INFO {
     WORD wProcessorRevision;
 } SYSTEM_INFO, *LPSYSTEM_INFO;
 
+#define ANYSIZE_ARRAY 1
+#define ALL_PROCESSOR_GROUPS 0xffff
+
+typedef ULONG_PTR KAFFINITY;
+
+typedef enum _LOGICAL_PROCESSOR_RELATIONSHIP {
+    RelationProcessorCore,
+    RelationNumaNode,
+    RelationCache,
+    RelationProcessorPackage,
+    RelationGroup,
+    RelationProcessorDie,
+    RelationNumaNodeEx,
+    RelationProcessorModule,
+    RelationAll = 0xffff
+} LOGICAL_PROCESSOR_RELATIONSHIP;
+
+typedef struct _GROUP_AFFINITY {
+    KAFFINITY Mask;
+    WORD Group;
+    WORD Reserved[3];
+} GROUP_AFFINITY, *PGROUP_AFFINITY;
+
+typedef struct _PROCESSOR_RELATIONSHIP {
+    BYTE Flags;
+    BYTE EfficiencyClass;
+    BYTE Reserved[20];
+    WORD GroupCount;
+    GROUP_AFFINITY GroupMask[ANYSIZE_ARRAY];
+} PROCESSOR_RELATIONSHIP, *PPROCESSOR_RELATIONSHIP;
+
+typedef struct _NUMA_NODE_RELATIONSHIP {
+    DWORD NodeNumber;
+    BYTE Reserved[18];
+    WORD GroupCount;
+    union {
+        GROUP_AFFINITY GroupMask;
+        GROUP_AFFINITY GroupMasks[ANYSIZE_ARRAY];
+    } DUMMYUNIONNAME;
+} NUMA_NODE_RELATIONSHIP, *PNUMA_NODE_RELATIONSHIP;
+
+typedef enum _PROCESSOR_CACHE_TYPE {
+    CacheUnified,
+    CacheInstruction,
+    CacheData,
+    CacheTrace,
+    CacheUnknown
+} PROCESSOR_CACHE_TYPE;
+
+typedef struct _CACHE_RELATIONSHIP {
+    BYTE Level;
+    BYTE Associativity;
+    WORD LineSize;
+    DWORD CacheSize;
+    PROCESSOR_CACHE_TYPE Type;
+    BYTE Reserved[18];
+    WORD GroupCount;
+    union {
+        GROUP_AFFINITY GroupMask;
+        GROUP_AFFINITY GroupMasks[ANYSIZE_ARRAY];
+    } DUMMYUNIONNAME;
+} CACHE_RELATIONSHIP, *PCACHE_RELATIONSHIP;
+
+typedef struct _PROCESSOR_GROUP_INFO {
+    BYTE MaximumProcessorCount;
+    BYTE ActiveProcessorCount;
+    BYTE Reserved[38];
+    KAFFINITY ActiveProcessorMask;
+} PROCESSOR_GROUP_INFO, *PPROCESSOR_GROUP_INFO;
+
+typedef struct _GROUP_RELATIONSHIP {
+    WORD MaximumGroupCount;
+    WORD ActiveGroupCount;
+    BYTE Reserved[20];
+    PROCESSOR_GROUP_INFO GroupInfo[ANYSIZE_ARRAY];
+} GROUP_RELATIONSHIP, *PGROUP_RELATIONSHIP;
+
+typedef struct _SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX {
+    LOGICAL_PROCESSOR_RELATIONSHIP Relationship;
+    DWORD Size;
+    union {
+        PROCESSOR_RELATIONSHIP Processor;
+        NUMA_NODE_RELATIONSHIP NumaNode;
+        CACHE_RELATIONSHIP Cache;
+        GROUP_RELATIONSHIP Group;
+    } DUMMYUNIONNAME;
+} SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX, *PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX;
+
 typedef struct _TIME_ZONE_INFORMATION {
   LONG       Bias;
   WCHAR      StandardName[32];
@@ -1813,6 +1901,8 @@ WINBASEAPI NO_DISCARD BOOL       WINAPI SymInitialize(HANDLE hProcess, PCSTR  Us
 WINBASEAPI NO_DISCARD USHORT     WINAPI RtlCaptureStackBackTrace(ULONG FramesToSkip, ULONG FramesToCapture, PVOID *BackTrace, PULONG BackTraceHash);
 WINBASEAPI NO_DISCARD BOOL       WINAPI SymFromAddr(HANDLE hProcess, DWORD64 Address, PDWORD64 Displacement, PSYMBOL_INFO Symbol);
 WINBASEAPI            void       WINAPI GetSystemInfo(LPSYSTEM_INFO lpSystemInfo);
+WINBASEAPI NO_DISCARD BOOL       WINAPI GetLogicalProcessorInformationEx(LOGICAL_PROCESSOR_RELATIONSHIP RelationshipType, PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX Buffer, PDWORD ReturnedLength);
+WINBASEAPI NO_DISCARD DWORD      WINAPI GetActiveProcessorCount(WORD GroupNumber);
 WINBASEAPI NO_DISCARD HRESULT    WINAPI GetThreadDescription(HANDLE hThread, PWSTR* ppszThreadDescription);
 // WINBASEAPI NO_DISCARD RPC_STATUS WINAPI UuidCreate(UUID *Uuid);
 // WINBASEAPI NO_DISCARD RPC_STATUS WINAPI UuidToStringA(const UUID *Uuid, RPC_CSTR* StringUuid);

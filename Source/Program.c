@@ -9916,13 +9916,12 @@ static void InitInternalVars(LinearAllocator* Arena)
         StringLocal(NumCores, 16);
 
         u32 MaxLogicalCores = Platform_GetNumLogicalProcessors();
-        // TODO: implement "get physical cores" on all platforms
-        // u32 MaxPhysicalCores = Platform_GetNumPhysicalProcessors();
-    
-        // xx String_FromU32(&NumCores, MaxPhysicalCores);
-        // AddInternalVariable(S("_CPU.PhysicalCores"), String_Create(Arena, NumCores));
-        
-        // String_Empty(&NumCores);
+        u32 MaxPhysicalCores = Platform_GetNumPhysicalProcessors();
+
+        xx String_FromU32(&NumCores, MaxPhysicalCores);
+        AddInternalVariable(S("_CPU.PhysicalCores"), String_Create(Arena, NumCores));
+
+        String_Empty(&NumCores);
 
         xx String_FromU32(&NumCores, MaxLogicalCores);
         AddInternalVariable(S("_CPU.LogicalCores"), String_Create(Arena, NumCores));

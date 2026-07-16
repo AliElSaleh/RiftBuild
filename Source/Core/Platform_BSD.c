@@ -359,6 +359,30 @@ u32 Platform_GetCpuCacheLineSize(void)
     return Result;
 }
 
+u32 Platform_GetNumPhysicalProcessors(void)
+{
+    u32 NumCores = 0;
+
+#if PLATFORM_FREE_BSD
+    i32 Cores = 0;
+    size_t Size = sizeof(Cores);
+    if (sysctlbyname("kern.smp.cores", &Cores, &Size, NULL, 0) == 0 && Cores > 0)
+    {
+        NumCores = (u32)Cores;
+    }
+#endif
+
+    // OpenBSD and NetBSD expose no physical-core count (and OpenBSD has no sysctlbyname);
+    // OpenBSD disables SMT by default, so its online logical count already equals the
+    // physical core count there.
+    if (NumCores == 0)
+    {
+        NumCores = Platform_GetNumLogicalProcessors();
+    }
+
+    return NumCores;
+}
+
 f64 Platform_GetAbsoluteTime(void)
 {
     struct timespec t = {0};

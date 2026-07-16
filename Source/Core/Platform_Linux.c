@@ -298,6 +298,65 @@ bool Platform_GetFullCpuName(String* OutName)
     return bFound;
 }
 
+u32 Platform_GetNumPhysicalProcessors(void)
+{
+    u32 NumCores = 0;
+
+    // /proc/cpuinfo repeats "physical id" (socket index) and "cpu cores" (cores per socket)
+    // for every logical processor; sockets * cores-per-socket is the physical core count.
+    // ARM kernels omit both fields - fall back to the logical count there.
+    u32 MaxPhysicalId = 0;
+    u32 CoresPerSocket = 0;
+    bool bFoundPhysicalId = false;
+
+    FileHandle f = FileHandle_Null();
+
+    if (Filesystem_Open(S("/proc/cpuinfo"), FileMode_Read, &f))
+    {
+        StringLocal(Line, 256);
+        while (Filesystem_ReadLine(f, &Line))
+        {
+            u32 Colon = 0;
+
+            if (String_StartsWith(Line, S("physical id"), false) && String_IndexOfChar(Line, ':', &Colon))
+            {
+                u32 PhysicalId = 0;
+                if (String_ToU32(StrShiftF(Line, Colon+2), &PhysicalId)) // +2 because there is a space after :
+                {
+                    bFoundPhysicalId = true;
+
+                    if (PhysicalId > MaxPhysicalId)
+                    {
+                        MaxPhysicalId = PhysicalId;
+                    }
+                }
+            }
+            else if (String_StartsWith(Line, S("cpu cores"), false) && String_IndexOfChar(Line, ':', &Colon))
+            {
+                u32 Cores = 0;
+                if (String_ToU32(StrShiftF(Line, Colon+2), &Cores)) // +2 because there is a space after :
+                {
+                    CoresPerSocket = Cores;
+                }
+            }
+        }
+
+        Filesystem_Close(&f);
+    }
+
+    if (bFoundPhysicalId && CoresPerSocket > 0)
+    {
+        NumCores = (MaxPhysicalId + 1) * CoresPerSocket;
+    }
+
+    if (NumCores == 0)
+    {
+        NumCores = Platform_GetNumLogicalProcessors();
+    }
+
+    return NumCores;
+}
+
 PlatformVersion Platform_GetVersion(void)
 {
     PlatformVersion Result = {0};

@@ -247,6 +247,25 @@ u32 Platform_GetCpuCacheLineSize(void)
     return (u32)LineSize;
 }
 
+u32 Platform_GetNumPhysicalProcessors(void)
+{
+    u32 NumCores = 0;
+
+    i32 PhysicalCores = 0;
+    size_t Size = sizeof(PhysicalCores);
+    if (sysctlbyname("hw.physicalcpu", &PhysicalCores, &Size, NULL, 0) == 0 && PhysicalCores > 0)
+    {
+        NumCores = (u32)PhysicalCores;
+    }
+
+    if (NumCores == 0)
+    {
+        NumCores = Platform_GetNumLogicalProcessors();
+    }
+
+    return NumCores;
+}
+
 PlatformVersion Platform_GetVersion(void)
 {
     PlatformVersion Result = {0};
