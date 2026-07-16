@@ -584,9 +584,11 @@ Resource.UnDefines SOME_SYMBOL   # strips a macro
 ```make
 Linker.Flags        -Wl,--gc-sections   # passed through verbatim
 Linker.Subsystem    Console             # portable: emits /subsystem:console (msvc),
-                                        # -Wl,-subsystem:console (clang), etc.
-Linker.Stack        4194304             # reserve size; add a second number for commit
-Linker.EntryPoint   my_main
+                                        # -Wl,-subsystem:console (clang), etc.; a windows
+                                        # concept, quietly ignored on unix
+Linker.Stack        4194304             # reserve size in decimal bytes; add a second number
+                                        # for commit (windows only - unix commits on demand)
+Linker.EntryPoint   my_main             # the C-level function name on every platform
 Linker.NoStdLib                         # flag key, presence = on
 Linker.NoDefaultLibs
 Linker.DelayLoadDLL big.dll rare.dll    # windows: /DELAYLOAD per dll
@@ -597,6 +599,8 @@ Linker.RPathOrigin  @loader_path        # override $ORIGIN / @executable_path
 Linker.Defines      SOME_LINK_SYMBOL
 ```
 Prefer `Linker.Subsystem` over hand-rolled per-compiler subsystem flags - it emits the right spelling for whichever toolchain is active. One classic case where you need it: if `main` lives inside a static library, MSVC-style linkers cannot infer the subsystem and fail with LNK1561; `Linker.Subsystem Console` in the executable's .build fixes it.
+
+`Linker.Stack` and `Linker.EntryPoint` are portable the same way: `/STACK:` + `/ENTRY:` (msvc), `--stack=`/`-entry:` and friends (gcc/clang/tcc on windows), `-Wl,-z,stack-size=` + `-Wl,--entry=` (linux/bsd) and `-Wl,-stack_size` + `-Wl,-e` (macos, where the underscore Mach-O prepends to C symbols is added for you and the stack size is rounded up to page alignment). One unix caveat: ELF has no hard link-time stack guarantee - FreeBSD's kernel honors the recorded size for the main thread, but Linux sizes the main stack from `ulimit -s` and only uses the recorded value for new threads (musl); tcc on unix supports neither key and both are skipped with a warning.
 
 Flag keys (`Linker.NoStdLib`, `Linker.NoDefaultLibs`, `Linker.Manifest.NoEmbed`) are on by presence - they take no value, and anything written after them is ignored.
 

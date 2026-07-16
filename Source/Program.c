@@ -6837,45 +6837,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         return Receipt;
     }
 
-    // automatically switch to a c++ compiler if we have c++ source code files
-    // TODO
-    /*
-    if (bNoCompilerProgramExplicityGiven)
-    {
-        const String CppCompilers[3] =
-        {
-            S("clang++"),
-            S("g++"),
-            S("cl")
-        };
-
-        String CompilerToUse = CompilerProgram;
-        StringLocal(NewCompilerPath, MAX_PATH_LENGTH);
-        bool bFoundAny = false;
-        for (u8 i = 0; i < SArray_Capacity(CppCompilers); i++)
-        {
-            const bool bFound = Platform_FindProgram_Ex(CppCompilers[i], &NewCompilerPath);
-            if (bFound)
-            {
-                bFoundAny = true;
-                CompilerToUse = CppCompilers[i];
-                break;
-            }
-        }
-
-        if (bFoundAny)
-        {
-            bool bHasCppFiles = CountData.bHasCppFiles;
-
-            if (bHasCppFiles)
-            {
-                CompilerProgram = CompilerToUse;
-                String_Copy(&CompilerPath, NewCompilerPath);
-            }
-        }
-    }
-    */
-
     #if PLATFORM_WINDOWS
     String RCProgramFlags = String_Null();
     #endif
@@ -7786,9 +7747,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             bool bCustomStack     = String_IsValid(LinkerStack);
             bool bAnyValid        = bCustomEntry || bCustomSubsystem || bCustomStack;
 
-            // TODO: linux, macos and bsd
-            // --entry=entry
-            // -Wl,-stack_size,0x800000
             #if PLATFORM_WINDOWS
             if (bIsMicrosoftLinker)
             {
@@ -7916,7 +7874,79 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                 String_BuildSeparator(&AdditionalLinkerFlags, ' ', NoStd, NoDefaultLibs, WlFlags, XlinkerFlags);
             }
             #else
-            xx bAnyValid;
+            StringLocal(EntryFlag, 512);
+            StringLocal(StackFlag, 64);
+
+            if (bAnyValid)
+            {
+                // subsystems are a PE concept with no ELF/Mach-O equivalent, so like the other
+                // Windows-only linker keys (Manifest, DelayLoad) the key is quietly ignored here
+
+                // tcc only implements the entry/stack linker options for PE targets and hard-errors
+                // on linker options it does not know, so these keys cannot be honored with it
+                if (CompilerVendor == Compiler_TCC)
+                {
+                    if (bCustomEntry || bCustomStack)
+                    {
+                        LOG_WARNING("\"Linker.EntryPoint\" and \"Linker.Stack\" are not supported with tcc on this platform. Skipping...");
+                    }
+                }
+                else
+                {
+                    if (bCustomEntry)
+                    {
+                        #if PLATFORM_APPLE
+                        // ld64 has no --entry, only -e, and Mach-O decorates C symbols with a
+                        // leading underscore, so the C-level name from the build file becomes
+                        // _Name here. The entry is recorded in LC_MAIN; dyld still runs
+                        // initializers before jumping to it.
+                        String_AppendF(&EntryFlag, S("-Wl,-e,_%S"), LinkerEntryPoint);
+                        #else
+                        // --entry points the ELF header's e_entry at the given symbol instead
+                        // of crt's _start, which then never runs - normally paired with
+                        // Linker.NoStd or Linker.NoDefaultLibs
+                        String_AppendF(&EntryFlag, S("-Wl,--entry=%S"), LinkerEntryPoint);
+                        #endif
+                    }
+
+                    if (bCustomStack)
+                    {
+                        // only the reserve size applies here: unix commits stack pages on first
+                        // touch, so the optional second (commit) value has no equivalent
+                        u32 Space = 0;
+                        xx String_IndexOfFirstWhitespace(LinkerStack, &Space);
+
+                        String Reserve = LinkerStack;
+                        if (Space)
+                        {
+                            Reserve = StrSlice(LinkerStack.Data, Space);
+                        }
+
+                        u64 ReserveBytes = 0;
+                        if (String_ToU64(Reserve, &ReserveBytes) && ReserveBytes > 0)
+                        {
+                            #if PLATFORM_APPLE
+                            // -stack_size is recorded in LC_MAIN and honored by the kernel for
+                            // the main thread. ld64 parses the value as hex regardless of prefix
+                            // and wants it page-aligned, so the byte count is rounded up to 16KB
+                            // (the arm64 page size, also a multiple of x86_64's 4KB)
+                            u64 AlignedSize = (ReserveBytes + 0x3FFF) & ~(u64)0x3FFF;
+                            String_AppendF(&StackFlag, S("-Wl,-stack_size,%#llx"), AlignedSize);
+                            #else
+                            // -z stack-size stores the byte count in PT_GNU_STACK's p_memsz, the
+                            // only link-time stack knob ELF has. FreeBSD's kernel sizes the main
+                            // stack from it; Linux ignores it for the main thread (RLIMIT_STACK
+                            // governs that) but musl uses it as the default for new threads.
+                            String_AppendF(&StackFlag, S("-Wl,-z,stack-size=%llu"), ReserveBytes);
+                            #endif
+                        }
+                        else
+                        {
+                            LOG_WARNING("\"Linker.Stack\" value \"%S\" is not a valid decimal byte count. Skipping...", Reserve);
+                        }
+                    }
+                }
+            }
 
             #if PLATFORM_MAC
             String ChosenRPath = S("@executable_path");
@@ -7943,9 +7973,9 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             }
 
             #if PLATFORM_APPLE
-            String_BuildSeparator(&AdditionalLinkerFlags, ' ', NoStd, NoDefaultLibs, ExpandedFrameworks, RPathFormatted);
+            String_BuildSeparator(&AdditionalLinkerFlags, ' ', NoStd, NoDefaultLibs, ExpandedFrameworks, RPathFormatted, EntryFlag, StackFlag);
             #else
-            String_BuildSeparator(&AdditionalLinkerFlags, ' ', NoStd, NoDefaultLibs, RPathFormatted);
+            String_BuildSeparator(&AdditionalLinkerFlags, ' ', NoStd, NoDefaultLibs, RPathFormatted, EntryFlag, StackFlag);
             #endif
             #endif
         }
@@ -8087,24 +8117,28 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     Clock IconClock = {0};
     Clock BundleCompileClock = {0};
 
-    // TODO: should leave one core free? so as to not freeze/lag the entire computer?
-    u8 MaxCompilersAtOnce = (u8)MaxLogicalCores; // bound by max logical processors on the user's machine
-
+    // bound by max logical processors on the user's machine
     // clamp to the min amount of source files vs cores
-    u32 MinResult = Min(NumSources, (u32)MaxCompilersAtOnce);
-    MaxCompilersAtOnce = (u8)Min(MinResult, (u32)UINT8_MAX);
+    u32 MaxCompilersAtOnce = Min(NumSources, MaxLogicalCores);
 
     if (String_IsValid(MaxConcurrentCompilations))
     {
-        u8 Num = 0;
-        xx String_ToU8(MaxConcurrentCompilations, &Num);
-        MaxCompilersAtOnce = Min(Num, (u8)MaxLogicalCores);
+        u32 Num = 0;
+        if (String_ToU32(MaxConcurrentCompilations, &Num))
+        {
+            if (Num > 0)
+            {
+                MaxCompilersAtOnce = Min(Num, MaxLogicalCores);
+            }
+        }
     }
 
     if (bSingleThread)
     {
         MaxCompilersAtOnce = 1;
     }
+
+    //LOG_INFO("Max compilers: %u", MaxCompilersAtOnce);
 
     ArrayLocal_Arena(CompileProcess, CompileJobs,       MaxCompilersAtOnce, Arena);
     ArrayLocal_Arena(String,         CompileJobBuffers, MaxCompilersAtOnce, Arena);
@@ -8113,9 +8147,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     Processes.Jobs        = CompileJobs;
     Processes.FreeBuffers = CompileJobBuffers;
     CompileProcessPool_InitOutputBuffers(Arena, &Processes);
-
-
-    //LOG_INFO("Max compilers: %u", MaxCompilersAtOnce);
 
     if (AssemblyType != AssemblyType_NoCompilerObject)
     {
@@ -9527,8 +9558,8 @@ static void InitInternalVars(LinearAllocator* Arena)
     // detect default char signed-ness
     {
         char c = -1;
-        AddInternalVariable(S("char.signed"), c < 0 ? S("1") : S("0"));
-        AddInternalVariable(S("char.unsigned"), c > 0 ? S("1") : S("0"));
+        AddInternalVariable(S("char.signed"), c < 0 ? String_1() : String_0());
+        AddInternalVariable(S("char.unsigned"), c > 0 ? String_1() : String_0());
     }
 
     ECpuClipBehaviour CpuClipMode = Platform_GetCpuClippingBehaviour();
@@ -9759,8 +9790,8 @@ static void InitInternalVars(LinearAllocator* Arena)
     AddInternalVariable(S("32_bit"), String_Null());
     #endif
 
-    const String One  = S("1");
-    const String Zero = S("0");
+    const String One  = String_1();
+    const String Zero = String_0();
 
     Uuid ID = UUID_Generate();
     StringLocal(UuidString, 64);

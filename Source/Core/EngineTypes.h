@@ -801,5 +801,7 @@ read_only global StringArray g_StringArrayNil;
 read_only global StringList  g_StringListNil;
 read_only global String      g_StringTrue;
 read_only global String      g_StringFalse;
+read_only global String      g_String0;
+read_only global String      g_String1;
 
 #endif // ENGINE_TYPES_H

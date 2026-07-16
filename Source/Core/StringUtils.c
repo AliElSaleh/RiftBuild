@@ -20,6 +20,9 @@ read_only StringList  g_StringListNil  = { .String = SC(""), .Next = &g_StringLi
 read_only String      g_StringTrue  = SC("True");
 read_only String      g_StringFalse = SC("False");
 
+read_only String      g_String0 = SC("0");
+read_only String      g_String1 = SC("1");
+
 NO_DISCARD bool String_IsValid(const String Str)
 {
     bool bValid = true;

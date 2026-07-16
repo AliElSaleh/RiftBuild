@@ -378,7 +378,6 @@ STRUCT(Lexer)
     u32 Start;
     u16 Line;
     u16 NumTokens;
-    ETokenType Type;
 };
 
 ENUM_T(ENodeType, u32)

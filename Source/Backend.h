@@ -304,12 +304,11 @@ STRUCT(BuildParams)
 
     u32 NumSources;
     u32 NumFileOverrides;
+    u32 MaxCompilersAtOnce;
 
     EAssemblyType Type;
     ECompiler CompilerVendor;
     EAssembler AssemblerVendor;
-
-    u8 MaxCompilersAtOnce;
 
     bool bShouldWaitPerCompileProcess;
     bool bIsAssemblyExe;
