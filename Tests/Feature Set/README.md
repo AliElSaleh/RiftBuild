@@ -7,8 +7,9 @@ prints its `OK ...` line and exits 0.
 
 To build the whole suite with one command, run `riftbuild` from *this* folder:
 the [.build](.build) here is a phony aggregator that `Depend`s on every test.
-Test 1 is excluded (it has no .build file - that is its feature), and the tests
-that need extra invocations (18, 19, 28, 43-46, 54) only get their plain build.
+Tests 1 and 57 are excluded (they have no .build file - that is their feature),
+and the tests that need extra invocations (18, 19, 28, 43-46, 54) only get their
+plain build.
 
 Wherever possible the tests are self-verifying at *compile time*: the sources
 contain `#error` traps that fire when the feature under test misbehaves, so a
@@ -73,6 +74,7 @@ folders - the sources only compile with the defines the .build file provides.
 | 54 | Many Sources | 1000 translation units: header dependency tracking at scale, per-file incremental skips, ~24KB link line |
 | 55 | Wildcard File Operations | `*`/`?`/`**` wildcards in Copy/Move/Delete sources; if_not_exist per match; wildcard Delete never touches directories |
 | 56 | Block Phase Commands | Any command verb under a Pre*/Post* phase followed by a `{ }` block runs one command per line; lines share the verb's parameters |
+| 57 | Cpp Files | A lone .cpp with no .build file builds as C++ and links the C++ runtime automatically |
 
 Tests 18, 19, 28, 43, 44, 45, 46, 52, 54 need extra invocations beyond a plain build to
 exercise their feature (documented in each .build header comment).

@@ -4259,8 +4259,6 @@ bool FindFirstCompilerAvailable(const String CompilerToFind, const String Assemb
 
             if (!bCompilerProgramFound && bNoCompilerProgramExplicityGiven)
             {
-                // TODO: find cpp compiler first if we have cpp files (source and header)
-
                 const String CompilerPrograms[8] =
                 {
                     S("clang"),

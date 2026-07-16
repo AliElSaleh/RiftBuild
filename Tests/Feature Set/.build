@@ -2,8 +2,9 @@
 # A phony assembly produces no output of its own - it only exists to pull in the
 # numbered tests as dependencies.
 #
-# Test 1 (No Build File) is absent by design: it has no .build file, which is the
-# feature it tests - run it directly from its folder.
+# Tests 1 (No Build File) and 57 (Cpp Files) are absent by design: they have no
+# .build file, which is part of the feature they test - run them directly from
+# their folders.
 # Tests 18, 19, 28, 43, 44, 45, 46 build here, but need extra invocations from
 # their own folders to exercise their feature (see each .build header comment).
 

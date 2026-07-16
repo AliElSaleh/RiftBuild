@@ -2271,6 +2271,10 @@ static String Internal_DeriveCppDriverPath(LinearAllocator* Arena, const String 
         {
             CppName = S("g++");
         }
+        else if (String_IsEqual(Name, S("egcc"), false)) // OpenBSD ports gcc
+        {
+            CppName = S("eg++");
+        }
         else if (String_IsEqual(Name, S("cc"), false))
         {
             CppName = S("c++");
@@ -2437,17 +2441,23 @@ bool C_Link(const BuildParams* Params)
     String ProgramPath = Params->LinkerPath;
     String VerboseFlag = S("-v");
 
-    // A target with C++ translation units must link through the C++ compiler driver (clang++/g++) so
-    // the correct C++ runtime is pulled in. If we can resolve one next to the C driver, use it; if not
-    // (e.g. an explicit non-driver linker), fall back to adding the standard-library flag ourselves.
     bool bUsingCppDriver = false;
     if (Params->bHasCppFiles && !bIsMicrosoftLinker)
     {
-        const String CppDriver = Internal_DeriveCppDriverPath(Params->Arena, Params->LinkerPath, Params->CompilerVendor);
-        if (String_IsValid(CppDriver))
+        const String LinkerName = Filesystem_ExtractFileName(Params->LinkerPath, false);
+        if (String_EndsWith(LinkerName, S("++"), false))
         {
-            ProgramPath = CppDriver;
+            // the configured linker already is the C++ driver, nothing to derive
             bUsingCppDriver = true;
+        }
+        else
+        {
+            const String CppDriver = Internal_DeriveCppDriverPath(Params->Arena, Params->LinkerPath, Params->CompilerVendor);
+            if (String_IsValid(CppDriver))
+            {
+                ProgramPath = CppDriver;
+                bUsingCppDriver = true;
+            }
         }
     }
 
@@ -2527,9 +2537,6 @@ bool C_Link(const BuildParams* Params)
                                              Libraries,
                                              LibraryPaths);
 
-        // Fallback for a C++ target when we could not switch to the C++ driver above (see
-        // bUsingCppDriver): add the C++ standard library to the C driver's link ourselves, after the
-        // objects (link order matters). MSVC/clang-cl link their C++ runtime automatically.
         if (Params->bHasCppFiles && !bIsMicrosoftLinker && !bUsingCppDriver)
         {
             if (Params->CompilerVendor == Compiler_GCC || Params->CompilerVendor == Compiler_MINGW)
