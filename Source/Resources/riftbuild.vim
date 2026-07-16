@@ -68,7 +68,7 @@ syntax match riftbuildInclude "\<\(include\|import\)\>"
 highlight link riftbuildInclude riftbuildKeywordColor
 
 " build phase hooks and their file-operation verbs
-syntax match riftbuildBuildCmd "^\s*\(Pre\|Post\)\(Depend\|Build\|Compile\(AllFiles\|File\)\?\|Link\)\(\.\(Cmd\|Copy\|NewDir\|NewFile\|WriteFile\|AppendFile\|Rename\|Delete\|InstallPackages\?\)\)\?\>"
+syntax match riftbuildBuildCmd "^\s*\(Pre\|Post\)\(Depend\|Build\|Compile\(AllFiles\|File\)\?\|Link\)\(\.\(Cmd\|Exec\(ute\)\?\|Command\|Copy\|Move\|NewDir\(ectory\)\?\|NewFile\|WriteFile\|AppendFile\|Rename\|Delete\|Log\|Wait\|Sleep\|Download\|Unzip\|Extract\|Zip\|Archive\|InstallPackages\?\)\)\?\>"
 highlight link riftbuildBuildCmd riftbuildKeywordColor
 
 " options and presets
@@ -119,7 +119,7 @@ syntax region riftbuildHeredocBlock start="^\s*\(Pre\|Post\)\(Depend\|Build\|Com
 " highlight them like their dotted forms
 " -------------------------------
 " bare file-operation verbs inside a Pre*/Post* { } block
-syntax match riftbuildHookVerb "^\s*\(Cmd\|Copy\|NewDir\|NewFile\|WriteFile\|AppendFile\|Rename\|Delete\|InstallPackages\?\)\>" contained
+syntax match riftbuildHookVerb "^\s*\(Cmd\|Exec\(ute\)\?\|Command\|Copy\|Move\|NewDir\(ectory\)\?\|NewFile\|WriteFile\|AppendFile\|Rename\|Delete\|Log\|Wait\|Sleep\|Download\|Unzip\|Extract\|Zip\|Archive\|InstallPackages\?\)\>" contained
 highlight link riftbuildHookVerb riftbuildKeywordColor
 
 " bare WriteFile/AppendFile heredocs inside a Pre*/Post* { } block

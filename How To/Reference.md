@@ -720,7 +720,8 @@ PostBuild
 | `Log message` | Print a message |
 | `Wait ms` (or `Sleep`) | Pause |
 | `Download url dest` | Fetch a file from the web (dest may be a directory; skips if the file exists) |
-| `Zip` / `Unzip` | Archive / extract |
+| `Zip src dest` (or `Archive`) | Compress a file, or a directory's contents, into a `.zip` (appends `.zip` to `dest` if missing) |
+| `Unzip file dest-dir` (or `Extract`) | Extract an archive into a folder - `.zip`, plus `.tar`/`.tar.gz`/`.tgz`/`.tar.bz2`/`.tar.xz`/`.txz` via `tar` |
 | `InstallPackage pkgs...` (or `InstallPackages`) | Install system packages with the native package manager - see [Installing System Packages](#installing-system-packages) |
 
 The big gotcha: **`Copy`'s second argument is a directory**, not a target filename. `Copy Build/Packer.exe dist` produces `dist/Packer.exe`; to change the name too, `Copy` then `Rename`.

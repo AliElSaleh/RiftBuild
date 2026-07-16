@@ -4,7 +4,7 @@
 ;; Licensed under the BSD 3-Clause License. See the LICENSE file for details.
 
 ;; Author: Ali El Saleh
-;; Version: 0.6.3-beta
+;; Version: 0.6.6-beta
 ;; Keywords: languages
 ;; URL: https://github.com/AliElSaleh/RiftBuild
 
@@ -38,8 +38,9 @@
   (concat
    "^\\s-*\\(?:Pre\\|Post\\)"
    "\\(?:Depend\\|Build\\|Compile\\(?:AllFiles\\|File\\)?\\|Link\\)"
-   "\\(?:\\.\\(?:Cmd\\|Copy\\|NewDir\\|NewFile\\|WriteFile\\|AppendFile"
-   "\\|Rename\\|Delete\\|InstallPackages?\\)\\)?\\_>")
+   "\\(?:\\.\\(?:Cmd\\|Exec\\(?:ute\\)?\\|Command\\|Copy\\|Move\\|NewDir\\(?:ectory\\)?"
+   "\\|NewFile\\|WriteFile\\|AppendFile\\|Rename\\|Delete\\|Log\\|Wait\\|Sleep"
+   "\\|Download\\|Unzip\\|Extract\\|Zip\\|Archive\\|InstallPackages?\\)\\)?\\_>")
   "Build phase hooks and their file-operation verbs.")
 
 ;; Keys written inside a Key { } block nest under that namespace
@@ -55,8 +56,9 @@
 
 (defconst riftbuild--hook-verbs-re
   (concat
-   "^\\s-*\\(?:Cmd\\|Copy\\|NewDir\\|NewFile\\|WriteFile\\|AppendFile"
-   "\\|Rename\\|Delete\\|InstallPackages?\\)\\_>")
+   "^\\s-*\\(?:Cmd\\|Exec\\(?:ute\\)?\\|Command\\|Copy\\|Move\\|NewDir\\(?:ectory\\)?"
+   "\\|NewFile\\|WriteFile\\|AppendFile\\|Rename\\|Delete\\|Log\\|Wait\\|Sleep"
+   "\\|Download\\|Unzip\\|Extract\\|Zip\\|Archive\\|InstallPackages?\\)\\_>")
   "A bare file-operation verb on its own line inside a hook block.")
 
 (defconst riftbuild--reserved-block-header-re

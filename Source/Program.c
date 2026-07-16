@@ -24,7 +24,7 @@ const usize GEngineScratchAmount = Kibibytes(8);
 //       behaves like "no compiler object" type but has extra checks (like no linking) and ui changes
 //       instead of saying "building", we change the language to "transforming", etc.
 
-// TODO: support compiler=blah when we dont have a build file.
+// TODO: support compiler=blah on the command line when we dont have a build file.
 
 // Let the user in the build script customize how much memory we should pre-allocate.
 // Default is 1MiB
@@ -2024,7 +2024,6 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const FileVa
                 StringLocal(FullDestPath, MAX_PATH_LENGTH);
                 String_BuildPath(&FullDestPath, WorkingDirectory, DestinationDirectory);
 
-                // TODO: remove, handle on linux/mac/bsd. already done on windows
                 if (String_IsLast(DestinationDirectory, '/') ||
                     String_IsLast(DestinationDirectory, '\\'))
                 {
@@ -2124,8 +2123,6 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const FileVa
         else if (String_EndsWith(Name, S("Move"), false) ||
                 String_EndsWith(Name, S("Rename"), false))
         {
-            // TODO: only deal with relative paths?
-
             const String Cmd = Value;
 
             StringList ArgList          = String_SplitIntoList(&Scratch, Value, ' ', true);
@@ -2539,35 +2536,80 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const FileVa
                 else
                 {
                     StringLocal(CmdLine, 8192);
-                    
+                    StringLocal(ProgramPath, MAX_PATH_LENGTH);
+
                     #if PLATFORM_WINDOWS
-                    String_Concat(&CmdLine, S("powershell -Command \"(New-Object Net.WebClient).DownloadFile('"), URL, S("', '"), FinalDestinationPath, S("')\""));
+                    if (Platform_FindProgram_Ex(S("powershell"), &ProgramPath))
+                    {
+                        String_Concat(&CmdLine, S("powershell -Command \"(New-Object Net.WebClient).DownloadFile('"), URL, S("', '"), FinalDestinationPath, S("')\""));
+                    }
+                    else
+                    {
+                        LOG_ERROR("powershell was not found on this system");
+                        bSuccess = false;
+                    }
                     #else
-                    UNIMPLEMENTED;
+                    if (Platform_FindProgram_Ex(S("curl"), &ProgramPath))
+                    {
+                        String_Concat(&CmdLine, S("curl -fsSL -o \""), FinalDestinationPath, S("\" \""), URL, S("\""));
+                    }
+                    else if (Platform_FindProgram_Ex(S("wget"), &ProgramPath))
+                    {
+                        String_Concat(&CmdLine, S("wget -q -O \""), FinalDestinationPath, S("\" \""), URL, S("\""));
+                    }
+                    #if PLATFORM_BSD
+                    // the BSD base systems ship neither curl nor wget: FreeBSD has fetch, and the
+                    // OpenBSD/NetBSD ftp speaks HTTP(S) - unlike the Linux ftp, which only does FTP
+                    else if (Platform_FindProgram_Ex(S("fetch"), &ProgramPath))
+                    {
+                        String_Concat(&CmdLine, S("fetch -q -o \""), FinalDestinationPath, S("\" \""), URL, S("\""));
+                    }
+                    else if (Platform_FindProgram_Ex(S("ftp"), &ProgramPath))
+                    {
+                        String_Concat(&CmdLine, S("ftp -V -o \""), FinalDestinationPath, S("\" \""), URL, S("\""));
+                    }
+                    #endif
+                    else
+                    {
+                        LOG_ERROR("No download tool was found on this system. Please install curl or wget");
+                        bSuccess = false;
+                    }
                     #endif
 
-                    if (bVerboseLog) { LOG("    %S", CmdLine); }
-
-                    PlatformHandle H = Platform_RunCommand(CmdLine, WorkingDirectory, String_Null());
-                    bSuccess = Platform_IsValidHandle(H);
                     if (bSuccess)
                     {
-                        u32 ProcessCode = Platform_WaitForProcessAndGetExitCode(H);
-                        if (ExitCode) { *ExitCode = ProcessCode; }
+                        if (bVerboseLog) { LOG("    %S", CmdLine); }
 
-                        if (ProcessCode != 0 && !bIgnoreErrors)
+                        PlatformHandle H = Platform_RunProcess(ProgramPath, CmdLine, WorkingDirectory, String_Null());
+                        bSuccess = Platform_IsValidHandle(H);
+                        if (bSuccess)
                         {
-                            bSuccess = false;
-                        }
-                        else
-                        {
-                            LOG_LINE_BREAK();
+                            u32 ProcessCode = Platform_WaitForProcessAndGetExitCode(H);
+                            if (ExitCode) { *ExitCode = ProcessCode; }
+
+                            // wget and curl can leave an empty or partial file behind when the download
+                            // fails, which the exists-check above would then mistake for a completed
+                            // download on the next run
+                            if (ProcessCode != 0 && Filesystem_DoesFileExist(FinalDestinationPath))
+                            {
+                                xx Filesystem_DeleteFile(FinalDestinationPath);
+                            }
+
+                            if (ProcessCode != 0 && !bIgnoreErrors)
+                            {
+                                bSuccess = false;
+                            }
+                            else
+                            {
+                                LOG_LINE_BREAK();
+                            }
                         }
                     }
                 }
             }
         }
-        else if (String_EndsWith(Name, S(".Unzip"), false))
+        else if (String_EndsWith(Name, S(".Unzip"), false) ||
+                String_EndsWith(Name, S(".Extract"), false))
         {
             StringList ArgList = String_SplitIntoList(&Scratch, Value, ' ', true);
             String ZipFilePath = StringList_GetStringFromIndex(ArgList, 0);
@@ -2590,36 +2632,89 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const FileVa
             if (bSuccess)
             {
                 StringLocal(CmdLine, 8192);
-                
-                #if PLATFORM_WINDOWS
-                String_Concat(&CmdLine, S("powershell -Command \"Expand-Archive -Force -Path \"\"\""), ZipFilePath, S("\"\"\" -DestinationPath \"\""), FinalDestinationPath, S("\"\"\""));
-                #else
-                UNIMPLEMENTED;
-                #endif
+                StringLocal(ProgramPath, MAX_PATH_LENGTH);
 
                 LOG(" > Unzip: %S\n -> Destination: %S", ZipFilePath, FinalDestinationPath);
 
-                if (bVerboseLog) { LOG("    %S", CmdLine); }
+                // tar archives cannot go through Expand-Archive or unzip: route them to tar,
+                // which takes the same command line on every supported platform - Windows 10+
+                // ships bsdtar as tar.exe, every unix has one in the base system - and every
+                // one of them detects the compression (.gz, .bz2, .xz) on its own when reading
+                const bool bIsTarArchive = String_EndsWith(ZipFilePath, S(".tar"), false)     ||
+                                           String_EndsWith(ZipFilePath, S(".tar.gz"), false)  ||
+                                           String_EndsWith(ZipFilePath, S(".tgz"), false)     ||
+                                           String_EndsWith(ZipFilePath, S(".tar.bz2"), false) ||
+                                           String_EndsWith(ZipFilePath, S(".tar.xz"), false)  ||
+                                           String_EndsWith(ZipFilePath, S(".txz"), false);
 
-                PlatformHandle H = Platform_RunCommand(CmdLine, WorkingDirectory, String_Null());
-                bSuccess = Platform_IsValidHandle(H);
-                if (bSuccess)
+                if (bIsTarArchive)
                 {
-                    u32 ProcessCode = Platform_WaitForProcessAndGetExitCode(H);
-                    if (ExitCode) { *ExitCode = ProcessCode; }
-
-                    if (ProcessCode != 0 && !bIgnoreErrors)
+                    if (Platform_FindProgram_Ex(S("tar"), &ProgramPath))
                     {
-                        bSuccess = false;
+                        String_Concat(&CmdLine, S("tar -xf \""), ZipFilePath, S("\" -C \""), FinalDestinationPath, S("\""));
                     }
                     else
                     {
-                        LOG_LINE_BREAK();
+                        LOG_ERROR("No tar tool was found on this system. Please install tar");
+                        bSuccess = false;
+                    }
+                }
+                else
+                {
+                    #if PLATFORM_WINDOWS
+                    if (Platform_FindProgram_Ex(S("powershell"), &ProgramPath))
+                    {
+                        String_Concat(&CmdLine, S("powershell -Command \"Expand-Archive -Force -Path \"\"\""), ZipFilePath, S("\"\"\" -DestinationPath \"\""), FinalDestinationPath, S("\"\"\""));
+                    }
+                    else
+                    {
+                        LOG_ERROR("powershell was not found on this system");
+                        bSuccess = false;
+                    }
+                    #else
+                    if (Platform_FindProgram_Ex(S("unzip"), &ProgramPath))
+                    {
+                        String_Concat(&CmdLine, S("unzip -oq \""), ZipFilePath, S("\" -d \""), FinalDestinationPath, S("\""));
+                    }
+                    // bsdtar extracts zip archives natively - it is the base system tar on FreeBSD
+                    // and macOS, and the libarchive-tools package on Linux
+                    else if (Platform_FindProgram_Ex(S("bsdtar"), &ProgramPath))
+                    {
+                        String_Concat(&CmdLine, S("bsdtar -xf \""), ZipFilePath, S("\" -C \""), FinalDestinationPath, S("\""));
+                    }
+                    else
+                    {
+                        LOG_ERROR("No unzip tool was found on this system. Please install unzip");
+                        bSuccess = false;
+                    }
+                    #endif
+                }
+
+                if (bSuccess)
+                {
+                    if (bVerboseLog) { LOG("    %S", CmdLine); }
+
+                    PlatformHandle H = Platform_RunProcess(ProgramPath, CmdLine, WorkingDirectory, String_Null());
+                    bSuccess = Platform_IsValidHandle(H);
+                    if (bSuccess)
+                    {
+                        u32 ProcessCode = Platform_WaitForProcessAndGetExitCode(H);
+                        if (ExitCode) { *ExitCode = ProcessCode; }
+
+                        if (ProcessCode != 0 && !bIgnoreErrors)
+                        {
+                            bSuccess = false;
+                        }
+                        else
+                        {
+                            LOG_LINE_BREAK();
+                        }
                     }
                 }
             }
         }
-        else if (String_EndsWith(Name, S(".Zip"), false))
+        else if (String_EndsWith(Name, S(".Zip"), false) ||
+                String_EndsWith(Name, S(".Archive"), false))
         {
             StringList ArgList = String_SplitIntoList(&Scratch, Value, ' ', true);
             String FilePath    = StringList_GetStringFromIndex(ArgList, 0);
@@ -2665,32 +2760,100 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const FileVa
             if (bSuccess)
             {
                 StringLocal(CmdLine, 8192);
-                
-                #if PLATFORM_WINDOWS
-                const bool bFilePathHasExtension = Filesystem_DoesPathHaveFileExtension(FilePath);
-                String_Concat(&CmdLine, S("powershell -Command \"Compress-Archive -Force -Path \"\"\""), FilePath, bFilePathHasExtension ? String_Null() : S("\\*"),  S("\"\"\" -DestinationPath \"\""), FinalDestinationPath, S("\"\"\""));
-                #else
-                UNIMPLEMENTED;
-                #endif
+                StringLocal(ProgramPath, MAX_PATH_LENGTH);
+
+                // zipping a directory runs the tool from inside it so its contents sit at
+                // the archive root, matching the \* the Windows command line appends
+                StringLocal(ProcessWorkingDir, MAX_PATH_LENGTH);
+                String_Copy(&ProcessWorkingDir, WorkingDirectory);
 
                 LOG(" > Zip: %S\n -> Destination: %S", FilePath, FinalDestinationPath);
 
-                if (bVerboseLog) { LOG("    %S", CmdLine); }
-
-                PlatformHandle H = Platform_RunCommand(CmdLine, WorkingDirectory, String_Null());
-                bSuccess = Platform_IsValidHandle(H);
-                if (bSuccess)
+                #if PLATFORM_WINDOWS
+                const bool bFilePathHasExtension = Filesystem_DoesPathHaveFileExtension(FilePath);
+                if (Platform_FindProgram_Ex(S("powershell"), &ProgramPath))
                 {
-                    u32 ProcessCode = Platform_WaitForProcessAndGetExitCode(H);
-                    if (ExitCode) { *ExitCode = ProcessCode; }
+                    String_Concat(&CmdLine, S("powershell -Command \"Compress-Archive -Force -Path \"\"\""), FilePath, bFilePathHasExtension ? String_Null() : S("\\*"),  S("\"\"\" -DestinationPath \"\""), FinalDestinationPath, S("\"\"\""));
+                }
+                else
+                {
+                    LOG_ERROR("powershell was not found on this system");
+                    bSuccess = false;
+                }
+                #else
+                const bool bFilePathHasExtension = Filesystem_DoesPathHaveFileExtension(FilePath);
 
-                    if (ProcessCode != 0 && !bIgnoreErrors)
+                if (Platform_FindProgram_Ex(S("zip"), &ProgramPath))
+                {
+                    if (bFilePathHasExtension)
                     {
-                        bSuccess = false;
+                        // -j stores just the file name, like Compress-Archive does with a file path
+                        String_Concat(&CmdLine, S("zip -jq \""), FinalDestinationPath, S("\" \""), FilePath, S("\""));
                     }
                     else
                     {
-                        LOG_LINE_BREAK();
+                        String_BuildPath(&ProcessWorkingDir, FilePath);
+                        String_Concat(&CmdLine, S("zip -rq \""), FinalDestinationPath, S("\" ."));
+                    }
+                }
+                // bsdtar writes zip archives natively - it is the base system tar on FreeBSD
+                // and macOS, and the libarchive-tools package on Linux
+                else if (Platform_FindProgram_Ex(S("bsdtar"), &ProgramPath))
+                {
+                    if (bFilePathHasExtension)
+                    {
+                        String FileName  = FilePath;
+                        String ParentDir = S(".");
+
+                        u32 LastSlash = 0;
+                        if (String_IndexOfLastPathSlash(FilePath, &LastSlash))
+                        {
+                            FileName  = StrShiftF(FilePath, LastSlash+1);
+                            ParentDir = StrSlice(FilePath.Data, LastSlash);
+                        }
+
+                        String_Concat(&CmdLine, S("bsdtar --format zip -cf \""), FinalDestinationPath, S("\" -C \""), ParentDir, S("\" \""), FileName, S("\""));
+                    }
+                    else
+                    {
+                        String_Concat(&CmdLine, S("bsdtar --format zip -cf \""), FinalDestinationPath, S("\" -C \""), FilePath, S("\" ."));
+                    }
+                }
+                else
+                {
+                    LOG_ERROR("No zip tool was found on this system. Please install zip");
+                    bSuccess = false;
+                }
+                #endif
+
+                if (bSuccess)
+                {
+                    #if PLATFORM_UNIX
+                    // zip updates an existing archive in place instead of replacing it the way
+                    // Compress-Archive -Force does, so an existing destination has to go first
+                    if (Filesystem_DoesFileExist(FinalDestinationPath))
+                    {
+                        xx Filesystem_DeleteFile(FinalDestinationPath);
+                    }
+                    #endif
+
+                    if (bVerboseLog) { LOG("    %S", CmdLine); }
+
+                    PlatformHandle H = Platform_RunProcess(ProgramPath, CmdLine, ProcessWorkingDir, String_Null());
+                    bSuccess = Platform_IsValidHandle(H);
+                    if (bSuccess)
+                    {
+                        u32 ProcessCode = Platform_WaitForProcessAndGetExitCode(H);
+                        if (ExitCode) { *ExitCode = ProcessCode; }
+
+                        if (ProcessCode != 0 && !bIgnoreErrors)
+                        {
+                            bSuccess = false;
+                        }
+                        else
+                        {
+                            LOG_LINE_BREAK();
+                        }
                     }
                 }
             }

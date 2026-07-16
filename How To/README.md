@@ -18,14 +18,14 @@ Install the extension from the `.vsix` file shipped in
 1. Open the Extensions view (`Ctrl+Shift+X`).
 2. Click the `...` menu at the top-right of the Extensions panel and choose
    **Install from VSIX...**
-3. Pick `Source/Resources/riftbuild-0.6.5-beta.vsix` from this repository.
+3. Pick `Source/Resources/riftbuild-0.6.6-beta.vsix` from this repository.
 
 Or install it from the command line instead:
 
 (run from the repository root), then reload any open VS Code windows.
 
 ```
-code --install-extension "Source/Resources/riftbuild-0.6.5-beta.vsix"
+code --install-extension "Source/Resources/riftbuild-0.6.6-beta.vsix"
 ```
 
 ### Vim setup
