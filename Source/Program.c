@@ -8717,11 +8717,17 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     {
         StringLocal(TimingBuffer, 512);
 
+        Clock CommandClock = {0};
+        CommandClock.StartTime = 1;
+        CommandClock.ElapsedTime = ConsumeCommandExpansionTime();
+        BuildFileParseClock.ElapsedTime = Max(0.0, BuildFileParseClock.ElapsedTime - CommandClock.ElapsedTime);
+
         // calculate the overhead time
         f64 TotalElapsedTime =  CompileClock.ElapsedTime +
                                 LinkClock.ElapsedTime +
                                 BundleCompileClock.ElapsedTime +
                                 BuildFileParseClock.ElapsedTime +
+                                CommandClock.ElapsedTime +
                                 PreDependClock.ElapsedTime +
                                 DependencyBuildClock.ElapsedTime +
                                 PreBuildClock.ElapsedTime +
@@ -8736,6 +8742,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         PrintClockTimeToBuffer(&TimingBuffer, &IconClock,            &BuildRuntime, S(  "Icon        Time: "), false);
         PrintClockTimeToBuffer(&TimingBuffer, &BundleCompileClock,   &BuildRuntime, S(  "Bundle      Time: "), false);
         PrintClockTimeToBuffer(&TimingBuffer, &BuildFileParseClock,  &BuildRuntime, S(  "Build Parse Time: "), false);
+        PrintClockTimeToBuffer(&TimingBuffer, &CommandClock,         &BuildRuntime, S(  "Shell Cmd   Time: "), true);
         PrintClockTimeToBuffer(&TimingBuffer, &PreDependClock,       &BuildRuntime, S(  "PreDepend   Time: "), true);
         PrintClockTimeToBuffer(&TimingBuffer, &DependencyBuildClock, &BuildRuntime, S(  "Dependency  Time: "), true);
         PrintClockTimeToBuffer(&TimingBuffer, &PreBuildClock,        &BuildRuntime, S(  "PreBuild    Time: "), true);

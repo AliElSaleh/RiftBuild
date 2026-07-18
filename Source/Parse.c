@@ -6870,6 +6870,14 @@ NO_DISCARD bool ParseBuildFile(
     return bSuccess;
 }
 
+static f64 g_CommandExpansionTime = 0.0;
+f64 ConsumeCommandExpansionTime(void)
+{
+    f64 Result = g_CommandExpansionTime;
+    g_CommandExpansionTime = 0.0;
+    return Result;
+}
+
 bool ExpandVariable(LinearAllocator Scratch, FileVariableList* VariablesDB, TArray(CmdOption) CmdOptionsDB,
                             String* Dest, const String Key, const String Value, const String Root, const String WorkingDirectory,
                             bool* bFailed)
@@ -7284,7 +7292,9 @@ bool ExpandVariable(LinearAllocator Scratch, FileVariableList* VariablesDB, TArr
                 String_Append(&CmdLine, Slice);
                 #endif
 
-                // TODO: time this
+                Clock CommandClock = {0};
+                Clock_Start(&CommandClock);
+
                 PlatformPipe StdOutHandle;
                 Platform_PipeInit(StdOutHandle);
                 PlatformHandle ShellCmd = Platform_RunCommand_Ex(CmdLine, WorkingDirectory, &StdOutHandle);
@@ -7316,6 +7326,9 @@ bool ExpandVariable(LinearAllocator Scratch, FileVariableList* VariablesDB, TArr
                         Platform_ClosePipe(StdOutHandle);
                     }
                 }
+
+                Clock_Tick(&CommandClock);
+                g_CommandExpansionTime += CommandClock.ElapsedTime;
             }
         }
         else

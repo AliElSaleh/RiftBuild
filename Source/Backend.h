@@ -422,6 +422,8 @@ bool ExpandVariable(LinearAllocator Scratch, FileVariableList* VariablesDB, TArr
                     String* Dest, const String Key, const String Value, const String Root, const String WorkingDirectory,
                     bool* bFailed);
 
+f64 ConsumeCommandExpansionTime(void);
+
 u32 GetMaxValueLengthForReservedKey(const String Key);
 EBuildKeyImpact GetBuildKeyImpact(const String Key);
 

@@ -52,8 +52,8 @@ RIFT_API NO_DISCARD bool String_IsDataValid(const String Str);
 RIFT_API NO_DISCARD bool StringArray_IsValid(const StringArray Str);
 RIFT_API NO_DISCARD bool StringList_IsValid(const StringList Str);
 
-RIFT_API NO_DISCARD String String_Create(LinearAllocator* Arena, const String Source); // todo: deprecate
-RIFT_API NO_DISCARD String String_CreateMax(LinearAllocator* Arena, const String Source, u32 MaxCapacity); // todo: deprecate
+RIFT_API NO_DISCARD String String_Create(LinearAllocator* Arena, const String Source);
+RIFT_API NO_DISCARD String String_CreateMax(LinearAllocator* Arena, const String Source, u32 MaxCapacity);
 RIFT_API NO_DISCARD String String_CreateFromList(LinearAllocator* Arena, const StringList Source);
 RIFT_API NO_DISCARD String String_Duplicate(LinearAllocator* Arena, const String Source);
 RIFT_API NO_DISCARD String String_Reserve(LinearAllocator* Arena, u32 Capacity);
@@ -238,7 +238,6 @@ RIFT_API NO_DISCARD bool String_FromI16(String* Str, i16 Int);
 RIFT_API NO_DISCARD bool String_FromI32(String* Str, i32 Int);
 RIFT_API NO_DISCARD bool String_FromI64(String* Str, i64 Int);
 
-// TODO: rename to IntType_ToString()
 RIFT_API NO_DISCARD bool String_FromU8(String* Str, u8 Int);
 RIFT_API NO_DISCARD bool String_FromU16(String* Str, u16 Int);
 RIFT_API NO_DISCARD bool String_FromU32(String* Str, u32 Int);
@@ -270,22 +269,8 @@ RIFT_API NO_DISCARD uchar DigitToHexCharUpper(u32 Val)  CONST_FN;
 RIFT_API NO_DISCARD u8 Integer_CountDigits(u64 Value) CONST_FN;
 RIFT_API NO_DISCARD u8 Integer_CountDigits_Signed(i64 Value) CONST_FN;
 
-// TODO: possibly delete all these functions below
-/*
-RIFT_API void EatSpaces(u8** Str);
-RIFT_API void EatSpaces_Backwards(u8** Str);
-RIFT_API void EatBraces(u8** Str);
-RIFT_API void EatBraces_Backwards(u8** Str);
-RIFT_API void EatParenthesis(u8** Str);
-RIFT_API void EatParenthesis_Backwards(u8** Str);
-RIFT_API void EatSymbols(u8** Str);
-RIFT_API void EatSymbols_Backwards(u8** Str);
-*/
-
-
 // inline implementations
 
-// todo; remove these and replace with read only global versions
 FORCEINLINE NO_DISCARD static String String_Null(void)
 {
     return g_StringNil;
