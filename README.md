@@ -56,6 +56,7 @@ They work on Windows, macOS and Linux (where appropriate).
 
 | Project                                                         |                                    |
 |-----------------------------------------------------------------|------------------------------------|
+| [Golden Decoder](https://github.com/AliElSaleh/GoldenDecoder)   | Golden Record Image Decoder        |
 | [Jolt Physics](https://github.com/AliElSaleh/JoltPhysics)       | Physics Engine                     |
 | [Craft](https://github.com/AliElSaleh/Craft)                    | Minecraft Clone                    |
 | [RAD Debugger](https://github.com/AliElSaleh/raddebugger)       | Graphical Native Debugger          |
