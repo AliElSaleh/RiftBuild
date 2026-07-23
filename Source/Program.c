@@ -1835,11 +1835,7 @@ static bool Internal_ExecuteWildcardCopyOrMove(LinearAllocator* Scratch, const S
 
                         if (!bResult && !bIgnoreErrors)
                         {
-                            LOG(
-                            "\n    You can ignore this error by using .%S(ignore_error)\n"
-                            "    or you can use .%S(if_not_exist) to check whether the files exist\n"
-                            "    and gracefully skip the operation if they don't.\n",
-                            VerbName, VerbName);
+                            LOG("\n    You can ignore this error by using .%S(ignore_error)\n", VerbName);
 
                             if (ExitCode) { *ExitCode = 1; }
                             bSuccess = false;
@@ -2114,10 +2110,7 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const FileVa
 
                     if (!Filesystem_Copy(FullSourcePath, FullDestPath) && !bIgnoreErrors)
                     {
-                        LOG(
-                        "\n    You can ignore this error by using .Copy(ignore_error)\n"
-                        "    or you can use .Copy(if_not_exist) to check whether the file exists\n"
-                        "    and gracefully skip the copy operation if they don't.\n");
+                        LOG("\n    You can ignore this error by using .Copy(ignore_error)\n");
 
                         if (ExitCode) { *ExitCode = 1; }
                         bSuccess = false;
@@ -2299,12 +2292,8 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const FileVa
 
                         if (!bResult && !bIgnoreErrors)
                         {
-                            LOG(
-                            "\n    You can ignore this error by using %S instead\n"
-                            "    or you can use %S to check whether the source files exist\n"
-                            "    and gracefully skip the move operation if they don't.\n",
-                            bIsRename ? S(".Rename(ignore_error)") : S(".Move(ignore_error)"),
-                            bIsRename ? S(".Rename(if_not_exist)") : S(".Move(if_not_exist)"));
+                            LOG("\n    You can ignore this error by using %S instead\n",
+                            bIsRename ? S(".Rename(ignore_error)") : S(".Move(ignore_error)"));
 
                             if (ExitCode) { *ExitCode = 1; }
                             bSuccess = false;
