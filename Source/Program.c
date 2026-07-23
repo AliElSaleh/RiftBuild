@@ -341,6 +341,11 @@ static void PrefixVariables(String* Dest, String VariableValue, const String Pre
 
     bool bLastStringStartedWithQuote = false;
 
+    // a prefix ending with a space means the separate form (e.g. "/I " for the resource compiler):
+    // the prefix must sit outside the wrapping quotes (/I "path" instead of "/Ipath"), because
+    // llvm-rc <= 12 doesn't understand joined options and miscounts them as extra input files
+    const bool bPrefixOutsideQuotes = bWrapWithQuotes && String_IsLast(Prefix, ' ');
+
     u32 StartOffset = 0;
 
     if (VariableValue.Length > 0)
@@ -353,12 +358,17 @@ static void PrefixVariables(String* Dest, String VariableValue, const String Pre
             bInsideQuote = true;
         }
 
+        if (bPrefixOutsideQuotes && !String_StartsWith(VariableValue, Prefix, false))
+        {
+            String_Append(Dest, Prefix);
+        }
+
         if (bWrapWithQuotes)
         {
             String_AppendChar(Dest, '"');
         }
 
-        if (!String_StartsWith(VariableValue, Prefix, false))
+        if (!bPrefixOutsideQuotes && !String_StartsWith(VariableValue, Prefix, false))
         {
             String_Append(Dest, Prefix);
 
@@ -396,12 +406,17 @@ static void PrefixVariables(String* Dest, String VariableValue, const String Pre
                 {
                     bLastStringStartedWithQuote = C == '"';
 
+                    if (bPrefixOutsideQuotes && !String_StartsWith(StrShiftF(VariableValue, i), Prefix, false))
+                    {
+                        String_Append(Dest, Prefix);
+                    }
+
                     if (bWrapWithQuotes)
                     {
                         String_AppendChar(Dest, '"');
                     }
 
-                    if (!String_StartsWith(StrShiftF(VariableValue, i), Prefix, false))
+                    if (!bPrefixOutsideQuotes && !String_StartsWith(StrShiftF(VariableValue, i), Prefix, false))
                     {
                         String_Append(Dest, Prefix);
 
@@ -3805,10 +3820,16 @@ static void ExpandDefineFlags(String* Dest, const String Flags, const String Fla
         ScratchLocal(Scratch, Kibibytes(8));
         StringList List = String_SplitIntoList(&Scratch, Flags, ' ', true);
 
+        // a prefix ending with a space means the separate form (e.g. "/D " for the resource compiler):
+        // the prefix must sit outside the wrapping quotes (/D "NAME=VALUE" instead of "/DNAME=VALUE"),
+        // because llvm-rc <= 12 doesn't understand joined options and miscounts them as extra input files
+        const bool bPrefixOutsideQuotes = String_IsLast(FlagPrefix, ' ');
+
         for each_string_in_list (List)
         {
-            if (!bExportingSomething) { String_AppendChar(Dest, '"'); }
-            String_Append(Dest, FlagPrefix);
+            if (bPrefixOutsideQuotes)  { String_Append(Dest, FlagPrefix); }
+            if (!bExportingSomething)  { String_AppendChar(Dest, '"'); }
+            if (!bPrefixOutsideQuotes) { String_Append(Dest, FlagPrefix); }
 
             u32 Equals = 0;
             if (String_IndexOfChar(It.String, '=', &Equals))
@@ -7770,15 +7791,21 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
         String_ConvertSlashToPlatformSlash(&ResourceIncludes);
 
-        FlagPrefix.Data[0] = RCPrefixSymbol;
-        FlagPrefix.Data[1] = 'I';
-        ExpandPathFlags(*Arena, &ExpandedResourceIncludeFlags, ResourceIncludes, FlagPrefix, bWrapWithQuotes);
+        // NOTE: the trailing space makes these expand in the separate form (/I "path", /D "NAME"),
+        // NOT the joined form ("/Ipath", "/DNAME"). llvm-rc only learned joined options in LLVM 13;
+        // older versions (e.g. LLVM 12) miscount each joined flag as an extra input file and die with
+        // "Exactly one input file should be provided." rc.exe and windres accept both forms.
+        StringLocal(RCFlagPrefix, 4);
+        String_AppendChar(&RCFlagPrefix, RCPrefixSymbol);
+        String_AppendChar(&RCFlagPrefix, 'I');
+        String_AppendChar(&RCFlagPrefix, ' ');
+        ExpandPathFlags(*Arena, &ExpandedResourceIncludeFlags, ResourceIncludes, RCFlagPrefix, bWrapWithQuotes);
 
-        FlagPrefix.Data[1] = 'D';
-        ExpandDefineFlags(&ExpandedResourceDefineFlags, ResourceDefines, FlagPrefix, bExportingSomething);
+        RCFlagPrefix.Data[1] = 'D';
+        ExpandDefineFlags(&ExpandedResourceDefineFlags, ResourceDefines, RCFlagPrefix, bExportingSomething);
 
-        FlagPrefix.Data[1] = 'U';
-        ExpandDefineFlags(&ExpandedResourceUnDefineFlags, ResourceUnDefines, FlagPrefix, bExportingSomething);
+        RCFlagPrefix.Data[1] = 'U';
+        ExpandDefineFlags(&ExpandedResourceUnDefineFlags, ResourceUnDefines, RCFlagPrefix, bExportingSomething);
     }
     #endif
 
@@ -10440,7 +10467,7 @@ u32 RunApplication(const StringArray Arguments)
         while (true)
         {
             Platform_Wait(10 milliseconds);
-            if (Platform_IsWindowFocused() && Platform_AnyKeyPressed())
+            if (Platform_AnyKeyPressed())
             {
                 break;
             }

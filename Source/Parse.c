@@ -376,6 +376,7 @@ STRUCT(Lexer)
     u32 Start;
     u16 Line;
     u16 NumTokens;
+    u8 Padding[4];
 };
 
 ENUM_T(ENodeType, u32)
@@ -7462,7 +7463,7 @@ NO_DISCARD bool ParseDependencyFile_Makefile(const String DepFilePath, Dependenc
         bool bSeenTarget = false;
 
         StringLocal(Line, 8190);
-        StringLocal(Token, MAX_PATH_LENGTH);
+        StringLocal(TokenTarget, MAX_PATH_LENGTH);
 
         while (Filesystem_ReadLine(f, &Line))
         {
@@ -7493,7 +7494,7 @@ NO_DISCARD bool ParseDependencyFile_Makefile(const String DepFilePath, Dependenc
 
             // whitespace-separated prerequisites; "\" at end of line is a continuation, "\ " is an
             // escaped space inside a path, any other backslash is literal (a Windows path separator)
-            String_Empty(&Token);
+            String_Empty(&TokenTarget);
             for (; i <= Line.Length; i++)
             {
                 const bool bAtEnd = (i == Line.Length);
@@ -7501,17 +7502,17 @@ NO_DISCARD bool ParseDependencyFile_Makefile(const String DepFilePath, Dependenc
 
                 if (c == ' ' || c == '\t' || c == '\r')
                 {
-                    if (Token.Length > 0)
+                    if (TokenTarget.Length > 0)
                     {
                         // a token ending in ':' is the target of a phony rule (-MP in user flags) -
                         // its path was already recorded as a prerequisite of the main rule
-                        if (Token.Data[Token.Length-1] != ':')
+                        if (TokenTarget.Data[TokenTarget.Length-1] != ':')
                         {
-                            Iterator(Token, UserData);
+                            Iterator(TokenTarget, UserData);
                             NumPrerequisites++;
                         }
 
-                        String_Empty(&Token);
+                        String_Empty(&TokenTarget);
                     }
                 }
                 else if (c == '\\')
@@ -7523,17 +7524,17 @@ NO_DISCARD bool ParseDependencyFile_Makefile(const String DepFilePath, Dependenc
                     }
                     else if (Line.Data[i+1] == ' ')
                     {
-                        String_AppendChar(&Token, ' ');
+                        String_AppendChar(&TokenTarget, ' ');
                         i++;
                     }
                     else
                     {
-                        String_AppendChar(&Token, c);
+                        String_AppendChar(&TokenTarget, c);
                     }
                 }
                 else
                 {
-                    String_AppendChar(&Token, c);
+                    String_AppendChar(&TokenTarget, c);
                 }
             }
         }
@@ -7564,7 +7565,7 @@ NO_DISCARD bool ParseDependencyFile_MSVCJson(const String DepFilePath, Dependenc
         const String IncludesKey = S("\"Includes\"");
 
         StringLocal(Line, 8190);
-        StringLocal(Token, MAX_PATH_LENGTH);
+        StringLocal(TokenTarget, MAX_PATH_LENGTH);
 
         while (!bDone && !bParseFailed && Filesystem_ReadLine(f, &Line))
         {
@@ -7607,7 +7608,7 @@ NO_DISCARD bool ParseDependencyFile_MSVCJson(const String DepFilePath, Dependenc
                 else if (c == '"')
                 {
                     // JSON string; cl escapes path backslashes as "\\" and never wraps across lines
-                    String_Empty(&Token);
+                    String_Empty(&TokenTarget);
                     i++;
 
                     bool bClosed = false;
@@ -7623,7 +7624,7 @@ NO_DISCARD bool ParseDependencyFile_MSVCJson(const String DepFilePath, Dependenc
                         {
                             if (i + 1 < Line.Length && (Line.Data[i+1] == '\\' || Line.Data[i+1] == '/' || Line.Data[i+1] == '"'))
                             {
-                                String_AppendChar(&Token, Line.Data[i+1]);
+                                String_AppendChar(&TokenTarget, Line.Data[i+1]);
                                 i++;
                             }
                             else
@@ -7634,7 +7635,7 @@ NO_DISCARD bool ParseDependencyFile_MSVCJson(const String DepFilePath, Dependenc
                         }
                         else
                         {
-                            String_AppendChar(&Token, StrChar);
+                            String_AppendChar(&TokenTarget, StrChar);
                         }
 
                         i++;
@@ -7642,9 +7643,9 @@ NO_DISCARD bool ParseDependencyFile_MSVCJson(const String DepFilePath, Dependenc
 
                     if (bClosed)
                     {
-                        if (Token.Length > 0)
+                        if (TokenTarget.Length > 0)
                         {
-                            Iterator(Token, UserData);
+                            Iterator(TokenTarget, UserData);
                         }
                     }
                     else

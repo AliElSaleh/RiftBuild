@@ -29,7 +29,8 @@ STRUCT(DepTimeCacheEntry)
 STRUCT(DepTimeCache)
 {
     DepTimeCacheEntry* Entries;
-    u64 NumEntries; // power of two (index mask)
+    u32 NumEntries; // power of two (index mask)
+    u32 Padding;
 };
 
 STRUCT(CompileData)
@@ -37,6 +38,7 @@ STRUCT(CompileData)
     const BuildParams* Params;
     u32* NumCompiled;
     u32 Index;
+    u32 Padding;
     DepTimeCache DepCache;
 };
 
@@ -349,38 +351,43 @@ static void RC_Compile(const BuildParams* Params, const String FullRCPath, const
         if (String_EndsWith(Params->RCProgramPath, S("rc.exe"), false))
         {
             // TODO: this is duplicated code, collapse this in one place
+            
+            // NOTE: these must stay in the separate form (/I "path"), NOT the joined form (/I"path").
+            // llvm-rc only learned joined options (/Ipath) in LLVM 13; older versions (e.g. LLVM 12)
+            // don't match them and count each one as an extra input file, dying with
+            // "Exactly one input file should be provided." rc.exe accepts both forms.
             StringLocal(WinSDKInclude, MAX_PATH_LENGTH*7); // 7 paths
             {
                 if (Params->WindowsSDKIncludePath.Length)
                 {
-                    String_Append(&WinSDKInclude, S("/I\""));
+                    String_Append(&WinSDKInclude, S("/I \""));
                     String_Append(&WinSDKInclude, Params->WindowsSDKIncludePath);
                     String_Append(&WinSDKInclude, S("\" "));
 
-                    String_Append(&WinSDKInclude, S("/I\""));
+                    String_Append(&WinSDKInclude, S("/I \""));
                     String_Append(&WinSDKInclude, Params->WindowsSDKIncludePath);
                     String_Append(&WinSDKInclude, S("\\shared\" "));
 
-                    String_Append(&WinSDKInclude, S("/I\""));
+                    String_Append(&WinSDKInclude, S("/I \""));
                     String_Append(&WinSDKInclude, Params->WindowsSDKIncludePath);
                     String_Append(&WinSDKInclude, S("\\ucrt\" "));
 
-                    String_Append(&WinSDKInclude, S("/I\""));
+                    String_Append(&WinSDKInclude, S("/I \""));
                     String_Append(&WinSDKInclude, Params->WindowsSDKIncludePath);
                     String_Append(&WinSDKInclude, S("\\um\" "));
 
-                    String_Append(&WinSDKInclude, S("/I\""));
+                    String_Append(&WinSDKInclude, S("/I \""));
                     String_Append(&WinSDKInclude, Params->WindowsSDKIncludePath);
                     String_Append(&WinSDKInclude, S("\\winrt\" "));
 
-                    String_Append(&WinSDKInclude, S("/I\""));
+                    String_Append(&WinSDKInclude, S("/I \""));
                     String_Append(&WinSDKInclude, Params->WindowsSDKIncludePath);
                     String_Append(&WinSDKInclude, S("\\cppwinrt\" "));
                 }
 
                 if (Params->VisualStudioIncludePath.Length)
                 {
-                    String_Append(&WinSDKInclude, S("/I\""));
+                    String_Append(&WinSDKInclude, S("/I \""));
                     String_Append(&WinSDKInclude, Params->VisualStudioIncludePath);
                     String_Append(&WinSDKInclude, S("\" "));
                 }

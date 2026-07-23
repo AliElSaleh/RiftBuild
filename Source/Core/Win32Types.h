@@ -753,6 +753,54 @@ typedef struct _CONSOLE_SCREEN_BUFFER_INFO {
     COORD dwMaximumWindowSize;
 } CONSOLE_SCREEN_BUFFER_INFO, *PCONSOLE_SCREEN_BUFFER_INFO;
 
+#define KEY_EVENT                 0x0001 // Event contains key event record
+#define MOUSE_EVENT               0x0002 // Event contains mouse event record
+#define WINDOW_BUFFER_SIZE_EVENT  0x0004 // Event contains window change event record
+#define MENU_EVENT                0x0008 // Event contains menu event record
+#define FOCUS_EVENT               0x0010 // Event contains focus change record
+
+typedef struct _KEY_EVENT_RECORD {
+    BOOL bKeyDown;
+    WORD wRepeatCount;
+    WORD wVirtualKeyCode;
+    WORD wVirtualScanCode;
+    union {
+        WCHAR UnicodeChar;
+        CHAR  AsciiChar;
+    } uChar;
+    DWORD dwControlKeyState;
+} KEY_EVENT_RECORD, *PKEY_EVENT_RECORD;
+
+typedef struct _MOUSE_EVENT_RECORD {
+    COORD dwMousePosition;
+    DWORD dwButtonState;
+    DWORD dwControlKeyState;
+    DWORD dwEventFlags;
+} MOUSE_EVENT_RECORD, *PMOUSE_EVENT_RECORD;
+
+typedef struct _WINDOW_BUFFER_SIZE_RECORD {
+    COORD dwSize;
+} WINDOW_BUFFER_SIZE_RECORD, *PWINDOW_BUFFER_SIZE_RECORD;
+
+typedef struct _MENU_EVENT_RECORD {
+    UINT dwCommandId;
+} MENU_EVENT_RECORD, *PMENU_EVENT_RECORD;
+
+typedef struct _FOCUS_EVENT_RECORD {
+    BOOL bSetFocus;
+} FOCUS_EVENT_RECORD, *PFOCUS_EVENT_RECORD;
+
+typedef struct _INPUT_RECORD {
+    WORD EventType;
+    union {
+        KEY_EVENT_RECORD KeyEvent;
+        MOUSE_EVENT_RECORD MouseEvent;
+        WINDOW_BUFFER_SIZE_RECORD WindowBufferSizeEvent;
+        MENU_EVENT_RECORD MenuEvent;
+        FOCUS_EVENT_RECORD FocusEvent;
+    } Event;
+} INPUT_RECORD, *PINPUT_RECORD;
+
 
 // end_ntosifs
 typedef struct _OSVERSIONINFOA {
@@ -1869,6 +1917,10 @@ WINBASEAPI NO_DISCARD BOOL       WINAPI WriteConsoleA(HANDLE hConsoleOutput, con
 WINBASEAPI NO_DISCARD BOOL       WINAPI WriteConsoleW(HANDLE hConsoleOutput, const void* lpBuffer, DWORD nNumberOfCharsToWrite, LPDWORD lpNumberOfCharsWritten, LPVOID lpReserved);
 WINBASEAPI NO_DISCARD BOOL       WINAPI GetConsoleMode(HANDLE hConsoleHandle, LPDWORD lpMode);
 WINBASEAPI NO_DISCARD BOOL       WINAPI SetConsoleMode(HANDLE hConsoleHandle, DWORD dwMode);
+WINBASEAPI NO_DISCARD BOOL       WINAPI GetNumberOfConsoleInputEvents(HANDLE hConsoleInput, LPDWORD lpcNumberOfEvents);
+WINBASEAPI NO_DISCARD BOOL       WINAPI ReadConsoleInputA(HANDLE hConsoleInput, PINPUT_RECORD lpBuffer, DWORD nLength, LPDWORD lpNumberOfEventsRead);
+WINBASEAPI NO_DISCARD BOOL       WINAPI ReadConsoleInputW(HANDLE hConsoleInput, PINPUT_RECORD lpBuffer, DWORD nLength, LPDWORD lpNumberOfEventsRead);
+WINBASEAPI NO_DISCARD BOOL       WINAPI FlushConsoleInputBuffer(HANDLE hConsoleInput);
 WINBASEAPI NO_DISCARD BOOL       WINAPI PeekNamedPipe(HANDLE hNamedPipe, LPVOID lpBuffer, DWORD nBufferSize, LPDWORD lpBytesRead, LPDWORD lpTotalBytesAvail, LPDWORD lpBytesLeftThisMessage);
 WINBASEAPI NO_DISCARD DWORD      WINAPI GetFileType(HANDLE hFile);
 WINBASEAPI            void       WINAPI GetLocalTime(LPSYSTEMTIME lpSystemTime);

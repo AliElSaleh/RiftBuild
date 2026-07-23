@@ -321,7 +321,7 @@ STRUCT(BuildParams)
     bool bLinkerFlagsFirst;
     bool bCanLink; // false for codegen modules (custom objects, no_object), they have no link stage
 
-    bool bPadding[10];
+    bool bPadding[7];
 };
 
 STRUCT(CompilerPaths)

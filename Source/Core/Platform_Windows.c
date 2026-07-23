@@ -2468,16 +2468,38 @@ NO_DISCARD bool Platform_AnyKeyPressed(void)
 {
     bool bHit = false;
 
-    // Run through all key scancodes from 7 to 255
-    // start from 0x07. the first 6 are mouse keys
-    for (i32 i = 7; i < 255; i++)
+    HANDLE Input = GetStdHandle(STD_INPUT_HANDLE);
+    DWORD ConsoleMode = 0;
+    if (GetConsoleMode(Input, &ConsoleMode))
     {
-        i32 State = GetAsyncKeyState(i);
-        if (State & 0x01)
+        DWORD NumPending = 0;
+        while (!bHit && GetNumberOfConsoleInputEvents(Input, &NumPending) && NumPending > 0)
         {
-            // a key has been pressed
-            bHit = true;
-            break;
+            INPUT_RECORD Record = {0};
+            DWORD NumRead = 0;
+            if (!ReadConsoleInputW(Input, &Record, 1, &NumRead) || NumRead == 0)
+            {
+                break;
+            }
+
+            bHit = Record.EventType == KEY_EVENT && Record.Event.KeyEvent.bKeyDown;
+        }
+    }
+    else if (Platform_IsWindowFocused())
+    {
+        // stdin is redirected (not a console) - fall back to polling global key state,
+        // gated on focus because GetAsyncKeyState sees keystrokes meant for other windows.
+        // Run through all key scancodes from 7 to 255
+        // start from 0x07. the first 6 are mouse keys
+        for (i32 i = 7; i < 255; i++)
+        {
+            i32 State = GetAsyncKeyState(i);
+            if (State & 0x01)
+            {
+                // a key has been pressed
+                bHit = true;
+                break;
+            }
         }
     }
 
@@ -2486,6 +2508,14 @@ NO_DISCARD bool Platform_AnyKeyPressed(void)
 
 void Platform_BeginNonBlockingMode(void)
 {
+    // Discard input buffered while the build was running so a stray key press typed
+    // mid-build doesn't dismiss the "press any key to exit" wait instantly
+    HANDLE Input = GetStdHandle(STD_INPUT_HANDLE);
+    DWORD ConsoleMode = 0;
+    if (GetConsoleMode(Input, &ConsoleMode))
+    {
+        xx FlushConsoleInputBuffer(Input);
+    }
 }
 
 void Platform_EndNonBlockingMode(void)

@@ -1020,7 +1020,7 @@ STRUCT(WildcardExpandState)
     WildcardIterator Callback;
     void*            UserData;
     u32              MatchCount;
-    bool             bStopped;
+    b32              bStopped;
 };
 
 STRUCT(WildcardExpandLevel)
