@@ -1,0 +1,12 @@
+Assembly Second
+Type     static_lib
+
+SourceFiles second
+
+BuildDirectory        Build/Second
+IntermediateDirectory Intermediate/Second
+
+Compiler.Defines.Export SECOND_PICKED=1
+
+# the consumer forwards the bare 'tok' argument through the pipe
+Compiler.Defines.Export:tok SECOND_TOK=1

@@ -1,0 +1,11 @@
+# Regression guard: the two-token Depend form (<name>.build <dir>) combined
+# with forwarded options after '|'. The pipe parsing used to swallow both
+# tokens as one filename ("Failed to find First.build ..build"), because only
+# the no-pipe branch split name from directory.
+Depend First.build ../Libs | depth=3
+
+# The path form with options must keep working too.
+Depend ../Libs/Second.build | tok
+
+Assembly    TwoTokenApp
+SourceFiles main

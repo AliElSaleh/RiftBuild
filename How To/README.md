@@ -18,14 +18,14 @@ Install the extension from the `.vsix` file shipped in
 1. Open the Extensions view (`Ctrl+Shift+X`).
 2. Click the `...` menu at the top-right of the Extensions panel and choose
    **Install from VSIX...**
-3. Pick `Source/Resources/riftbuild-0.6.6-beta.vsix` from this repository.
+3. Pick `Source/Resources/riftbuild-0.6.7-beta.vsix` from this repository.
 
 Or install it from the command line instead:
 
 (run from the repository root), then reload any open VS Code windows.
 
 ```
-code --install-extension "Source/Resources/riftbuild-0.6.6-beta.vsix"
+code --install-extension "Source/Resources/riftbuild-0.6.7-beta.vsix"
 ```
 
 ### Vim setup
@@ -64,3 +64,63 @@ Emacs is configured through an *init file* that it reads on startup.
    `.buildvars` file you open now uses `riftbuild-mode` with full
    highlighting - the mode line at the bottom of the window says
    `RiftBuild`.
+
+## Double-clicking .build files (Windows)
+
+Associating the `.build` extension with `riftbuild.exe` lets you build a
+project straight from Explorer: double-click a `.build` file and riftbuild
+runs in that file's folder, shows the build output, then waits for a key
+press before the window closes.
+
+### The quick way
+
+1. Right-click any `.build` file and choose **Open with** >
+   **Choose another app**.
+2. Pick **Look for another app on this PC** (hidden under *More apps* on
+   some Windows versions) and browse to your `riftbuild.exe`.
+3. Make sure **Always use this app to open .build files** is checked when
+   you confirm.
+
+### The full setup - file icon and right-click context Rebuild/Clean
+
+Registering the file type by hand additionally gives `.build` files the
+RiftBuild icon and adds **Rebuild** and **Clean** entries to their
+right-click context menu. Paste these into a Command Prompt (`cmd.exe`) - the keys
+are per-user, so no administrator rights are needed. Change the first line to
+wherever your `riftbuild.exe` lives. (If you save them as a `.bat` file
+instead of pasting them, write every `"%1"` as `"%%1"` - batch files eat
+single percent signs.)
+
+```bat
+set "RIFT=C:\Tools\riftbuild.exe"
+reg add "HKCU\Software\Classes\.build" /ve /d "RiftBuild.Script" /f
+reg add "HKCU\Software\Classes\RiftBuild.Script" /ve /d "RiftBuild Script" /f
+reg add "HKCU\Software\Classes\RiftBuild.Script\DefaultIcon" /ve /d "\"%RIFT%\",0" /f
+reg add "HKCU\Software\Classes\RiftBuild.Script\shell\open" /ve /d "Build" /f
+reg add "HKCU\Software\Classes\RiftBuild.Script\shell\open\command" /ve /d "\"%RIFT%\" \"%1\"" /f
+reg add "HKCU\Software\Classes\RiftBuild.Script\shell\rebuild" /ve /d "Rebuild" /f
+reg add "HKCU\Software\Classes\RiftBuild.Script\shell\rebuild\command" /ve /d "\"%RIFT%\" \"%1\" rebuild" /f
+reg add "HKCU\Software\Classes\RiftBuild.Script\shell\clean" /ve /d "Clean" /f
+reg add "HKCU\Software\Classes\RiftBuild.Script\shell\clean\command" /ve /d "\"%RIFT%\" \"%1\" clean" /f
+```
+
+Notes:
+
+- The same setup works for `.buildbatch` files: repeat the first `reg add`
+  line with `.buildbatch` in place of `.build`.
+- If `.build` files were previously associated with another program, Windows
+  remembers that choice and it wins over the keys above. Either do the
+  quick-way steps once and pick RiftBuild, or clear the remembered choice:
+
+  ```bat
+  reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.build" /f
+  ```
+- If the new icon doesn't show up right away, restart Explorer or sign out
+  and back in.
+
+To undo everything:
+
+```bat
+reg delete "HKCU\Software\Classes\.build" /f
+reg delete "HKCU\Software\Classes\RiftBuild.Script" /f
+```

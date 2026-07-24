@@ -71,6 +71,11 @@ highlight link riftbuildInclude riftbuildKeywordColor
 syntax match riftbuildBuildCmd "^\s*\(Pre\|Post\)\(Depend\|Build\|Compile\(AllFiles\|File\)\?\|Link\)\(\.\(Cmd\|Exec\(ute\)\?\|Command\|Copy\|Move\|NewDir\(ectory\)\?\|NewFile\|WriteFile\|AppendFile\|Rename\|Delete\|Log\|Wait\|Sleep\|Download\|Unzip\|Extract\|Zip\|Archive\|InstallPackages\?\)\)\?\>"
 highlight link riftbuildBuildCmd riftbuildKeywordColor
 
+" parenthesized key/verb parameters: Version(define), Depend(private),
+" Compiler.Defines(export), Copy(if_not_exist), Cmd(no_wait), ...
+syntax match riftbuildKeyParam "(\zs\(export\|define\|enforce\|generate\|private\|if_not_exist\|no_wait\|ignore_errors\|ignore_error\|ignore_exit_code\|only_done_work\|external\|first\|preserve_case\)\>"
+highlight link riftbuildKeyParam riftbuildKeywordColor
+
 " options and presets
 syntax match riftbuildOptionKey "^\s*option\.[A-Za-z0-9_.]*"
 highlight link riftbuildOptionKey riftbuildKeywordColor
@@ -125,13 +130,13 @@ highlight link riftbuildHookVerb riftbuildKeywordColor
 " bare WriteFile/AppendFile heredocs inside a Pre*/Post* { } block
 syntax region riftbuildHookHeredoc start="^\s*\(WriteFile\|AppendFile\)\>[^{#]*{\?\s*$" end="^\s*}" keepend contained contains=riftbuildHookVerb,riftbuildBuiltinVar,riftbuildVarReferenceSymbols
 
-syntax region riftbuildHookBlock start="^\s*\(Pre\|Post\)\(Depend\|Build\|Compile\(AllFiles\|File\)\?\|Link\)\(:[^ \t{#]\+\)*\s*{\?\s*$" matchgroup=riftbuildBraceColor end="^\s*}" contains=riftbuildBuildCmd,riftbuildHookVerb,riftbuildHookHeredoc,riftbuildKey,riftbuildBraces,riftbuildConditionals,riftbuildVarReferenceSymbols,riftbuildBuiltinVar,riftbuildString
+syntax region riftbuildHookBlock start="^\s*\(Pre\|Post\)\(Depend\|Build\|Compile\(AllFiles\|File\)\?\|Link\)\(:[^ \t{#]\+\)*\s*{\?\s*$" matchgroup=riftbuildBraceColor end="^\s*}" contains=riftbuildBuildCmd,riftbuildHookVerb,riftbuildHookHeredoc,riftbuildKey,riftbuildKeyParam,riftbuildBraces,riftbuildConditionals,riftbuildVarReferenceSymbols,riftbuildBuiltinVar,riftbuildString
 
 " bare sub-keys inside a reserved namespace { } block
 syntax match riftbuildSubKey "^\s*[A-Za-z_][A-Za-z0-9_.]*" contained
 highlight link riftbuildSubKey riftbuildReservedKeyColor
 
-syntax region riftbuildReservedBlock start="^\s*\(Assembly\|Compiler\|Linker\|Assembler\|Resource\|Archiver\|Library\|Apple\|PCH\|Bundle\|License\)\(:[^ \t{#]\+\)*\s*{\?\s*$" matchgroup=riftbuildBraceColor end="^\s*}" contains=riftbuildReservedKey,riftbuildSubKey,riftbuildBraces,riftbuildConditionals,riftbuildVarReferenceSymbols,riftbuildBuiltinVar,riftbuildString
+syntax region riftbuildReservedBlock start="^\s*\(Assembly\|Compiler\|Linker\|Assembler\|Resource\|Archiver\|Library\|Apple\|PCH\|Bundle\|License\)\(:[^ \t{#]\+\)*\s*{\?\s*$" matchgroup=riftbuildBraceColor end="^\s*}" contains=riftbuildReservedKey,riftbuildSubKey,riftbuildKeyParam,riftbuildBraces,riftbuildConditionals,riftbuildVarReferenceSymbols,riftbuildBuiltinVar,riftbuildString
 
 " -------------------------------
 " Value blocks - [ ... ]

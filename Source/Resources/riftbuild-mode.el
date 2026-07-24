@@ -4,7 +4,7 @@
 ;; Licensed under the BSD 3-Clause License. See the LICENSE file for details.
 
 ;; Author: Ali El Saleh
-;; Version: 0.6.6-beta
+;; Version: 0.6.7-beta
 ;; Keywords: languages
 ;; URL: https://github.com/AliElSaleh/RiftBuild
 
@@ -101,6 +101,10 @@ Used as the anchored-highlighter limit for block header matches."
     ("^\\s-*Depends?\\_>" . font-lock-preprocessor-face)
     ;; reserved keys
     (,riftbuild--reserved-keys-re . font-lock-type-face)
+    ;; parenthesized key/verb parameters: Version(define), Depend(private),
+    ;; Compiler.Defines(export), Copy(if_not_exist), Cmd(no_wait), ...
+    ("(\\(export\\|define\\|enforce\\|generate\\|private\\|if_not_exist\\|no_wait\\|ignore_errors\\|ignore_error\\|ignore_exit_code\\|only_done_work\\|external\\|first\\|preserve_case\\)\\_>"
+     (1 font-lock-preprocessor-face))
     ;; control / condition keywords
     ("\\_<\\(?:if\\|else\\|import\\|include\\|or\\|contains\\|starts_with\\|ends_with\\)\\_>"
      . font-lock-keyword-face)

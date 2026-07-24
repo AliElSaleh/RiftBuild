@@ -1,0 +1,7 @@
+# Depending on Lib must import everything it declared with (export) - the
+# defines in all three spellings and the include path - but NOT its plain
+# Compiler.Defines.
+Depend ../Lib
+
+Assembly    ExportParamApp
+SourceFiles main

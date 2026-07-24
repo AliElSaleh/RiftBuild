@@ -1,0 +1,16 @@
+Assembly First
+Type     static_lib
+
+# Two .build files share this folder, so consumers must name this one with the
+# two-token form: Depend First.build <dir>. Each library whitelists its own
+# source and keeps its own output folders.
+SourceFiles first
+
+BuildDirectory        Build/First
+IntermediateDirectory Intermediate/First
+
+Compiler.Defines.Export FIRST_PICKED=1
+
+# the consumer forwards depth=3 through the pipe - value options must survive
+# the two-token form
+Compiler.Defines.Export DEPTH=%depth

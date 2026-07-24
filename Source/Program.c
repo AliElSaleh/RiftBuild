@@ -24,7 +24,12 @@ const usize GEngineScratchAmount = Kibibytes(8);
 //       behaves like "no compiler object" type but has extra checks (like no linking) and ui changes
 //       instead of saying "building", we change the language to "transforming", etc.
 
-// TODO: support compiler=blah on the command line when we dont have a build file.
+// TODO: support compiler=blah on the command line to override what we're using (or if we dont have a build file, we can quickly change compilers)
+// TODO: new rebuild/clean syntax:
+//          "rebulid" to just rebuild this module/.build (exception being phony/null builds will forward this)
+//          "rebulid:some_dep.build" to rebuild a specific module/.build (the .build ext is optional)
+//          "rebulid:*" to rebuild a every single module recursively that we depend on
+//          "rebulid:some_*" to rebuild a every single module who's .build file matches the wildcard
 
 // Let the user in the build script customize how much memory we should pre-allocate.
 // Default is 1MiB
@@ -6135,9 +6140,17 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     {
         SArray(FileVariable*, Depends, 256) = {0};
 
+        // A phony module owns no outputs of its own, so a plain "rebuild"/"clean" aimed at it
+        // can only mean its dependency tree - promote them to the _all variants when forwarding.
+        // The once-per-run rebuild stamp (see below, near the intermediate directory setup)
+        // keeps shared dependencies from force-rebuilding once per visit.
+        const bool bForwardRebuildAll = bRebuildAll || (bIsRebuild && AssemblyType == AssemblyType_Null);
+        const bool bForwardCleanAll   = bCleanAll   || (bIsClean   && AssemblyType == AssemblyType_Null);
+
         // A single-target "clean" only removes this target's artifacts, so don't descend into
-        // (and thereby build) dependencies. "clean_all" still recurses to clean every dependency.
-        const bool bSkipDependencies = bIsClean && !bCleanAll;
+        // (and thereby build) dependencies. "clean_all" still recurses to clean every dependency,
+        // and a phony module's clean has nothing local to act on, so it always descends.
+        const bool bSkipDependencies = bIsClean && !bForwardCleanAll;
 
         bool bRanAnyDependencies = false;
         for each (FileVariable, Var, VariablesDB)
@@ -6220,7 +6233,15 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             }
             else if (PipeIndex)
             {
-                BuildFile = StrSlice(Value.Data, PipeIndex);
+                String PrePipe = String_EatSpacesFromEnd(StrSlice(Value.Data, PipeIndex));
+                if (String_IndexOfFirstWhitespace(PrePipe, &SpaceIndex))
+                {
+                    BuildFile = StrSlice(PrePipe.Data, SpaceIndex);
+                }
+                else
+                {
+                    BuildFile = PrePipe;
+                }
             }
             else
             {
@@ -6345,11 +6366,11 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
             // propagate the "_all" variants so this dependency (and its own dependencies, transitively)
             // also cleans/rebuilds every target it owns
-            if (bRebuildAll)
+            if (bForwardRebuildAll)
             {
                 Num += 1;
             }
-            if (bCleanAll)
+            if (bForwardCleanAll)
             {
                 Num += 1;
             }
@@ -6368,13 +6389,13 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                     j++;
                 }
 
-                if (bRebuildAll)
+                if (bForwardRebuildAll)
                 {
                     NewParams.List[j] = S("rebuild_all");
                     j++;
                 }
 
-                if (bCleanAll)
+                if (bForwardCleanAll)
                 {
                     NewParams.List[j] = S("clean_all");
                     j++;
@@ -6690,6 +6711,69 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     xx bBuildDirSameAsSource;
     xx bIntermediateDirSameAsSource;
     xx bDidBuildDirectoryExist;
+
+    // A forced rebuild only needs to happen once per module per riftbuild run: without
+    // dependency dedup, a diamond (or a rebuild_all fan-out) visits shared modules once per
+    // dependent, and force-rebuilding the same objects again in the same run is pure waste.
+    // The stamp records this run's UUID in the intermediate directory - one per option
+    // flavor, since flavors keep their own object directories - and a later visit in the
+    // same run falls back to the normal incremental build, which still detects any genuine
+    // difference between the visits (changed forwarded options included). The stamp is
+    // deliberately NOT recorded in the artifact manifest, so the rebuild's own clean pass
+    // leaves it alone; a plain "clean" removes the intermediate state as usual, stamp included.
+    if (bIsRebuild && !bIsClean)
+    {
+        String RunId = String_Null();
+        for each (InternalVariable, v, InternalVariablesDB)
+        {
+            if (String_IsEqual(v.Name, S("_UUID"), false))
+            {
+                RunId = v.Value;
+                break;
+            }
+        }
+
+        if (ALWAYS(RunId.Length > 0))
+        {
+            StringLocal(StampPath, MAX_PATH_LENGTH);
+            String_BuildPath(&StampPath, IntermediateBaseDirectory, S(".rebuild_stamp"));
+
+            bool bAlreadyRebuiltThisRun = false;
+
+            FileHandle StampHandle = FileHandle_Null();
+            if (Filesystem_Open(StampPath, FileMode_Read, &StampHandle))
+            {
+                StringLocal(StampLine, 128);
+                if (Filesystem_ReadLine(StampHandle, &StampLine))
+                {
+                    bAlreadyRebuiltThisRun = String_IsEqual(String_EatSpacesFromEnd(StampLine), RunId, false);
+                }
+
+                Filesystem_Close(&StampHandle);
+            }
+
+            if (bAlreadyRebuiltThisRun)
+            {
+                LOG("%S was already rebuilt during this run. Continuing incrementally...\n", BuildFileName);
+
+                bIsRebuild = false;
+            }
+            else
+            {
+                if (!bDidIntermediateDirectoryExist)
+                {
+                    xx Filesystem_OpenDirectory(IntermediateBaseDirectory);
+                }
+
+                if (Filesystem_Open(StampPath, FileMode_Write, &StampHandle))
+                {
+                    usize Written = 0;
+                    xx Filesystem_WriteLine(StampHandle, RunId, &Written);
+                    Filesystem_Close(&StampHandle);
+                }
+            }
+        }
+    }
 
     // actual source path cannot be inside of the build or intermediate directory, this is an error
     {
@@ -7341,6 +7425,15 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         if (bIsClean || bIsRebuild)
         {
             bool bCleanedSomething = TryCleanFromManifest(IntermediateBaseDirectory, BuildBaseDirectory, ObjectBaseDirectory, BuildFileName);
+
+            // the once-per-run rebuild stamp is deliberately not in the manifest (the rebuild's
+            // own clean pass must leave it alone), so a real clean removes it explicitly
+            if (bIsClean)
+            {
+                StringLocal(StampPath, MAX_PATH_LENGTH);
+                String_BuildPath(&StampPath, IntermediateBaseDirectory, S(".rebuild_stamp"));
+                xx Filesystem_DeleteFile(StampPath);
+            }
 
             if (bCleanedSomething)
             {

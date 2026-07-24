@@ -93,6 +93,7 @@ is exactly `Linker.Subsystem Console` + `Linker.Stack 4194304`. The same works f
 | `License(generate) MIT` | Also write the LICENSE file |
 | `Depend(private) path` | Depend, but don't re-export its usage requirements |
 | `Copy(if_not_exist) src dst` | Copy only when the destination doesn't already exist |
+| `Compiler.Defines(export) X` | Apply to this module AND export to consumers (see [Exports](#exports)) |
 
 **Value length limits.** Every built-in key has a maximum value length (generous - `SourceFiles` allows 32767 characters, most others 1-8k). A value that exceeds the limit is **silently truncated**, so if the tail of a very long flag list goes missing, this is why. Split things into variables or use conditions instead of building megabyte-long lines.
 
@@ -645,6 +646,16 @@ A consumer just writes `Depend ../Engine` and receives all of it - no duplicated
 
 The full export set: `Compiler.Includes.Export`, `Compiler.Defines.Export`, `Libraries.Export`, `Library.Paths.Export`, `Linker.Flags.Export`, `Apple.Frameworks.Export`.
 
+**The `(export)` parameter** is the shorthand for "myself AND my consumers": a plain key carrying `(export)` applies the value to this module and exports it, exactly as if the matching `.Export` key was written again with the same value. The three visibilities side by side:
+
+```make
+Compiler.Defines         IMPL_DETAIL=1   # this module only
+Compiler.Defines(export) API_LEVEL=3     # this module + consumers
+Compiler.Defines.Export  USE_AS_DLL=1    # consumers only
+```
+
+`(export)` works on every key of the export set above (spelled without `.Export`: `Compiler.Includes(export)`, `Libraries(export)`, ...), and composes with conditions and list blocks: `Libraries(export):windows winmm`. On a key with no `.Export` counterpart the parameter warns and is ignored. When self and consumers genuinely need *different* values - the classic dllexport/dllimport define pair - keep using the plain key and the `.Export` key separately.
+
 Details and edge cases:
 - Exports travel transitively up the dependency chain - unless a link in the chain used `Depend(private)` (see [Dependencies](#dependencies)).
 - For a **static library**, the plain `Libraries`/`Library.Paths` also travel to the consumer (a static lib cannot link anything itself - its link-time needs are the consumer's problem). If the `.Export` variant is declared, it takes **precedence** and only the export list travels.
@@ -920,6 +931,11 @@ Compiler.MaxCores 4  # cap parallel compile processes (clamped to your core coun
 ```
 And from the command line: `riftbuild rebuild` forces a full rebuild, `riftbuild clean` deletes everything the build produced, and the `_all` variants (`rebuild_all`, `clean_all`) propagate through every dependency. `riftbuild export:cc` writes a `compile_commands.json` for your editor/LSP.
 
+Two details that make the `_all` variants pleasant in big dependency trees:
+
+- **A forced rebuild happens at most once per module per run.** Dependencies shared by several dependents (diamonds, a `rebuild_all` fan-out from an aggregator) are visited once per dependent, but only the first visit force-rebuilds - later visits in the same run continue incrementally, which still catches any genuine difference between the visits (an option flavor with its own object directory rebuilds once per flavor, exactly as it should).
+- **Phony modules promote `rebuild` and `clean` to the `_all` variants.** A `Type phony` module owns no outputs, so aiming `rebuild`/`clean` at one can only mean its dependency tree: `riftbuild all.build rebuild` rebuilds every module reachable from the aggregator, each exactly once.
+
 One caveat for codegen modules: incremental detection is output-vs-source timestamps plus the saved command line, so `@include`-style *implicit* dependencies inside generated sources are invisible - document `rebuild` for those cases.
 
 ---
@@ -933,7 +949,7 @@ The short list of things that bite, collected from the sections above:
 - **Single-line ifs must stay on one line** - the `else` too. And there is no block-form `else if`; nest it: `else { if ... }`.
 - **`Copy`'s destination is a directory**, never a filename.
 - **`Copy`/`Move` refuse filesystem roots and self-copies** - a root (`C:/`, `/`) as source, or a destination inside the source directory, is a hard error no parameter overrides.
-- **`.Export` keys do not apply to the module that declares them** - declare the plain key too if the module needs it itself.
+- **`.Export` keys do not apply to the module that declares them** - declare the plain key too if the module needs it itself, or use the `(export)` parameter which does both at once.
 - **`SourceFiles` entries outside the source directory are silently dropped**, and directory-prefixed wildcards (`gfx/*.c`) never match.
 - **Per-file overrides need the full filename** - `main.c.Compiler.Defines`, not `main.Compiler.Defines`.
 - **`Compiler.Path` does not choose the compiler** - the `Compiler` key does.

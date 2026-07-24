@@ -3400,6 +3400,96 @@ static bool CallCondition_ProgramExists(LinearAllocator* Scratch, String Argumen
     return bResult;
 }
 
+static void CommitKVNodeValue(Node* Root, ParsingContext* Context, const String Key, const String Val, const String Content, const String Params)
+{
+    bool bResettedExisting = false;
+    if (Root->bResetValue)
+    {
+        FileVariable* Var = GetVarInList(Context->VarListHead, Key, false);
+        if (Var)
+        {
+            // we are leaking here, but it doesnt matter that much, we are in temporary memory anyway.
+            Var->Value = String_Create(Context->TempArena, Val);
+
+            bResettedExisting = true;
+        }
+    }
+
+    if (!bResettedExisting)
+    {
+        // Block-form phase commands run one command per line:
+        //     Copy(if_not_exist)
+        //     {
+        //         resources/golden*.wav  $(BuildDirectory)/resources
+        //         resources/$(Icon).*    $(BuildDirectory)/resources
+        //     }
+        // Every non-empty line becomes its own variable, exactly as if it was
+        // written inline after the verb; all lines share the verb's parameters.
+        if (Root->Content && !Internal_IsRawContentKey(Root->Key))
+        {
+            String Remaining = Content;
+            while (Remaining.Length > 0)
+            {
+                String Line = Remaining;
+
+                u32 LineEnd = 0;
+                if (String_IndexOfChar(Remaining, '\n', &LineEnd))
+                {
+                    Line      = StrSlice(Remaining.Data, LineEnd);
+                    Remaining = StrShiftF(Remaining, LineEnd+1);
+                }
+                else
+                {
+                    Remaining = String_Null();
+                }
+
+                Line = String_EatSpaces(Line);
+                Line = String_EatSpacesFromEnd(Line);
+
+                if (Line.Length > 0)
+                {
+                    AddVariableToList(Context->TempArena, Context, Key, Line, Params);
+                }
+            }
+        }
+        else if (Root->Content)
+        {
+            AddVariableToListEx(Context->TempArena, Context, Key, Val, Params, Content);
+        }
+        else
+        {
+            AddVariableToList(Context->TempArena, Context, Key, Val, Params);
+        }
+    }
+}
+
+// Keys that accept the (export) parameter. each one has an .Export counterpart.
+read_only static String ExportParamKeys[6] =
+{
+    SC("Compiler.Includes"),
+    SC("Compiler.Defines"),
+    SC("Linker.Flags"),
+    SC("Libraries"),
+    SC("Library.Paths"),
+    SC("Apple.Frameworks"),
+};
+
+NO_DISCARD static bool KeySupportsExportParam(const String Key)
+{
+    bool bSupported = false;
+
+    for EachE(i, ExportParamKeys)
+    {
+        if (String_IsEqual(Key, ExportParamKeys[i], false))
+        {
+            bSupported = true;
+            break;
+        }
+    }
+
+    return bSupported;
+}
+
 static void Analyze_KVNode(Node* Root, ParsingContext* Context)
 {
     StringLocal(FinalKey, MAX_KEY_LENGTH);
@@ -3498,63 +3588,27 @@ static void Analyze_KVNode(Node* Root, ParsingContext* Context)
 
     if (bCanAddToList)
     {
-        bool bResettedExisting = false;
-        if (Root->bResetValue)
+        CommitKVNodeValue(Root, Context, FinalKey, Val, Content, Params);
+
+        if (String_Contains(Params, S("export"), false))
         {
-            FileVariable* Var = GetVarInList(Context->VarListHead, FinalKey, false);
-            if (Var)
+            if (KeySupportsExportParam(FinalKey))
             {
-                // we are leaking here, but it doesnt matter that much, we are in temporary memory anyway.
-                Var->Value = String_Create(Context->TempArena, Val);
+                StringLocal(ExportKey, MAX_KEY_LENGTH);
+                String_Append(&ExportKey, FinalKey);
+                String_Append(&ExportKey, S(".Export"));
 
-                bResettedExisting = true;
-            }
-        }
-            
-        if (!bResettedExisting)
-        {
-            // Block-form phase commands run one command per line:
-            //     Copy(if_not_exist)
-            //     {
-            //         resources/golden*.wav  $(BuildDirectory)/resources
-            //         resources/$(Icon).*    $(BuildDirectory)/resources
-            //     }
-            // Every non-empty line becomes its own variable, exactly as if it was
-            // written inline after the verb; all lines share the verb's parameters.
-            if (Root->Content && !Internal_IsRawContentKey(Root->Key))
-            {
-                String Remaining = Content;
-                while (Remaining.Length > 0)
-                {
-                    String Line = Remaining;
-
-                    u32 LineEnd = 0;
-                    if (String_IndexOfChar(Remaining, '\n', &LineEnd))
-                    {
-                        Line      = StrSlice(Remaining.Data, LineEnd);
-                        Remaining = StrShiftF(Remaining, LineEnd+1);
-                    }
-                    else
-                    {
-                        Remaining = String_Null();
-                    }
-
-                    Line = String_EatSpaces(Line);
-                    Line = String_EatSpacesFromEnd(Line);
-
-                    if (Line.Length > 0)
-                    {
-                        AddVariableToList(Context->TempArena, Context, FinalKey, Line, Params);
-                    }
-                }
-            }
-            else if (Root->Content)
-            {
-                AddVariableToListEx(Context->TempArena, Context, FinalKey, Val, Params, Content);
+                CommitKVNodeValue(Root, Context, ExportKey, Val, Content, Params);
             }
             else
             {
-                AddVariableToList(Context->TempArena, Context, FinalKey, Val, Params);
+                #ifndef HOOD
+                LOG_WARNING("Key '%S' does not support the (export) parameter, so it was ignored.\n"
+                            "        It works on the keys with an .Export counterpart: Compiler.Includes, Compiler.Defines,\n"
+                            "        Linker.Flags, Libraries, Library.Paths and Apple.Frameworks.", FinalKey);
+                #else
+                LOG_WARNING("yo homie, '%S' dont do dat (export) thing, ignoring dat shit.", FinalKey);
+                #endif
             }
         }
     }

@@ -1,0 +1,25 @@
+Assembly ExportParamLib
+Type     static_lib
+
+# The (export) parameter: the value applies to this module AND its consumers -
+# shorthand for repeating the matching .Export key with the same value.
+# lib.c #error-checks that the library's own compilation sees every form:
+# plain, condition-suffixed, and list-block.
+Compiler.Defines(export) BOTH_DEFINE=1
+
+Compiler.Defines(export):windows BOTH_COND=1
+Compiler.Defines(export):!windows BOTH_COND=1
+
+Compiler.Defines(export)
+[
+    BOTH_LIST_A=1
+    BOTH_LIST_B=1
+]
+
+# consumers may include <exportparamlib.h>, and so may the library itself
+Compiler.Includes(export) .
+
+# plain keys stay private: the app #error-checks this does NOT reach it
+Compiler.Defines LIB_PRIVATE_DEFINE=1
+
+SourceFiles lib
