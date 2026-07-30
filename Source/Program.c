@@ -129,11 +129,10 @@ STRUCT(BuildFileDirectoryIteratorData)
     StringArray Arguments;
     bool        bFoundBuildFile;
     bool        bNoBuildFileSpecifiedInCmd;
-    bool        bSearchOnlyBuildBatch;
     i8          BuildFileIndex;
     i8          RootPathIndex;
     u8          NumBuildFilesFound;
-    u8          Padding1[2];
+    u8          Padding1[3];
 };
 
 STRUCT(CopyrightEnforceInfo)
@@ -173,11 +172,6 @@ static bool IsOptionBuiltin(String Param)
 static bool IsBuildFile(const String FilePath)
 {
     return String_EndsWith(FilePath, S(".build"), false);
-}
-
-static bool IsBuildBatchFile(const String FilePath)
-{
-    return String_EndsWith(FilePath, S(".buildbatch"), false);
 }
 
 CmdOption* FindCmdOption(TArray(CmdOption) CmdOptionsDB, const String Name)
@@ -990,7 +984,7 @@ static bool BuildFileDirectoryIterator_Args(const String FullPath, const String 
     {
         BuildFileDirectoryIteratorData* Data = UserData;
 
-        if ((IsBuildFile(FileName) && !Data->bSearchOnlyBuildBatch) || (Data->bSearchOnlyBuildBatch && IsBuildBatchFile(FileName)))
+        if (IsBuildFile(FileName))
         {
             bool bFoundFromNameSearch = false;
             for (u32 i = 0; i < Data->Arguments.Num; i++)
@@ -1002,7 +996,7 @@ static bool BuildFileDirectoryIterator_Args(const String FullPath, const String 
 
                 StringLocal(Temp, MAX_PATH_LENGTH);
                 String_Copy(&Temp, Data->Arguments.List[i]);
-                String_Append(&Temp, Data->bSearchOnlyBuildBatch ? S(".buildbatch") : S(".build"));
+                String_Append(&Temp, S(".build"));
                 if (String_IsEqual(FileName, Temp, false))
                 {
                     bFoundFromNameSearch = true;
@@ -1102,7 +1096,7 @@ static bool BuildFileDirectoryIterator(const String FullPath, const String Relat
     {
         BuildFileDirectoryIteratorData* Data = UserData;
 
-        if ((IsBuildFile(FileName) && !Data->bSearchOnlyBuildBatch) || (Data->bSearchOnlyBuildBatch && IsBuildBatchFile(FileName)))
+        if (IsBuildFile(FileName))
         {
             if (NEVER(Data->Name == NULL       || Data->Path == NULL)) { return false; }
             if (NEVER(Data->Name->Data == NULL || Data->Path->Data == NULL)) { return false; }
@@ -1308,89 +1302,72 @@ static void LogOptionData_WordWrapped(LinearAllocator Scratch, const String Name
 
 bool LogStringList_WordWrapped(LinearAllocator Scratch, const String Name, const StringList List)
 {
-    StringList History = {0};
     u32 ParentCount = 0;
 
     u32 Rows = 0, Cols = 0;
     xx Platform_GetTerminalDimensions(&Rows, &Cols);
     Cols = ClampU32(Cols, 30, 1000);
 
+    const u32 WrapColumn = (u32)((f32)Cols/1.5f);
+
     StringLocal(LogBuffer, UINT16_MAX);
     String_Append(&LogBuffer, Name);
 
+    const usize ScratchStart = Scratch.Allocated;
+
     for each_str_list (List)
     {
-        StringList ValueList = String_SplitIntoList(&Scratch, It.String, ' ', true);
+        // String_SplitIntoList allocates a list node plus a copy of every word, each rounded up to
+        // the allocator's 8 byte alignment.
+        const usize AlignmentWaste = 8;
+        const usize BytesPerWord   = sizeof(StringList) + 1 + (2 * AlignmentWaste);
+        const usize MaxWords       = (usize)String_CountChar(It.String, ' ') + 1;
+        const usize NeededBytes    = It.String.Length + (MaxWords * BytesPerWord);
 
-        u32 Count = 0;
-        u32 Spaces = 0;
-        u32 Index = 0;
-
-        u32 Num = StringList_Count(ValueList);
-
-        for each_str_list_it (v, ValueList)
+        if (NeededBytes > Scratch.TotalSize - Scratch.Allocated)
         {
-            if (v.String.Length + ParentCount + Spaces > (u32)((f32)Cols/1.5f))
-            {
-                StringList** Next = &History.Next;
-                while (*Next)
-                {
-                    const String Slice = String_EatSpacesFromEnd((*Next)->String);
-                    String_Append(&LogBuffer, Slice);
-                    String_AppendSpace(&LogBuffer);
+            String_Append(&LogBuffer, It.String);
+            String_AppendSpace(&LogBuffer);
+        }
+        else
+        {
+            StringList ValueList = String_SplitIntoList(&Scratch, It.String, ' ', true);
 
-                    Next = &(*Next)->Next;
+            u32 Spaces = 0;
+            u32 Index = 0;
+
+            const u32 Num = StringList_Count(ValueList);
+
+            for each_str_list_it (v, ValueList)
+            {
+                if (v.String.Length + ParentCount + Spaces > WrapColumn)
+                {
+                    String_AppendNewline(&LogBuffer);
+
+                    // continuation lines start where the value does, under Name
+                    for (u32 i = 0; i < Name.Length; i++)
+                    {
+                        String_AppendChar(&LogBuffer, ' ');
+                    }
+
+                    ParentCount = 0;
+                    Spaces = 0;
                 }
 
-                History = (StringList){0};
+                ParentCount += v.String.Length;
+                if (Index != Num-1)
+                {
+                    Spaces++; // for the spaces in between
+                }
+                Index++;
 
-                String_AppendNewline(&LogBuffer);
-
-                String NameCopy = String_Reserve(&Scratch, Name.Length);
-                NameCopy.Length = Name.Length;
-                String_Fill(&NameCopy, ' ');
-
-                String_Append(&LogBuffer, NameCopy);
-
-                Count = 0;
-                ParentCount = 0;
-                Spaces = 0;
-            }
-
-            Count += v.String.Length;
-            ParentCount += v.String.Length;
-            if (Index != Num-1)
-            {
-                Spaces++; // for the spaces in between
-            }
-            Index++;
-
-            StringList* Entry = LinearAllocator_Allocate(&Scratch, sizeof(StringList));
-            Entry->String = v.String;
-            Entry->Next = NULL;
-
-            StringList** Next = &History.Next;
-            while (*Next)
-            {
-                Next = &(*Next)->Next;
-            }
-
-            *Next = Entry;
-        }
-
-        if (Count > 0)
-        {
-            StringList** Next = &History.Next;
-            while (*Next)
-            {
-                const String Slice = String_EatSpacesFromEnd((*Next)->String);
+                const String Slice = String_EatSpacesFromEnd(v.String);
                 String_Append(&LogBuffer, Slice);
                 String_AppendSpace(&LogBuffer);
-
-                Next = &(*Next)->Next;
             }
 
-            History = (StringList){0};
+            // every word is in LogBuffer now, so the next value can reuse the split memory
+            LinearAllocator_Reset(&Scratch, ScratchStart);
         }
     }
 
@@ -3624,7 +3601,7 @@ static bool BuildFilesIterator(const String FullPath, const String RelativePath,
 
     if (FileSize > 0)
     {
-        if (IsBuildFile(RelativePath) || IsBuildBatchFile(RelativePath))
+        if (IsBuildFile(RelativePath))
         {
             if (String_CountSpaces(RelativePath))
             {
@@ -3768,7 +3745,7 @@ static void PrintBuiltinOptions(const String WorkingDirectory)
             StringLocal(Format, 255);
             String_Format(&Format, S("   %S %S: "), InfoString, Spaces);
 
-            ScratchLocal(Temp, Kibibytes(2));
+            ScratchLocal(Temp, Kibibytes(8));
             LogString_WordWrapped(Temp, Format, Info.Description, false);
         }
     }
@@ -6372,7 +6349,8 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             }
 
             StringList List = String_SplitIntoList(&NewArena, SpecifiedParams, ' ', true);
-            u8 Num = 0;
+
+            u32 Num = 0;
             for each_str_list (List)
             {
                 Num += 1;
@@ -6396,7 +6374,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                 NewParams.List = LinearAllocator_Allocate(&NewArena, sizeof(String) * Num);
                 NewParams.Num = Num;
 
-                u8 j = 0;
+                u32 j = 0;
                 for each_str_list (List)
                 {
                     NewParams.List[j] = It.String;
@@ -6414,6 +6392,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                     NewParams.List[j] = S("clean_all");
                     j++;
                 }
+
             }
             
             LOG("Depend -> %S\n", bDirectoryOnly ? Directory : BuildFileNameWithExt);
@@ -9045,28 +9024,6 @@ End:
     return Receipt;
 }
 
-static void LogDividerLine(void)
-{
-    if (bQuietBuild) { Logging_Enable(); }
-
-    LOG_LINE_BREAK();
-
-    u32 Rows = 0, Cols = 0;
-    if (Platform_GetTerminalDimensions(&Rows, &Cols))
-    {
-        u8 Separator[256] = {0};
-        for (i32 i = 0; i < Min((i32)(Cols-1), 255); i++)
-        {
-            Separator[i] = '=';
-        }
-
-        u32 Len = (i32)(Cols - 1) <= 0 ? 0 : Cols-1;
-        LOG("%S\n", StrSlice(Separator, Len));
-    }
-
-    if (bQuietBuild) { Logging_Disable(); }
-}
-
 // An argument prefixed with '/' is "commented out": it is removed from the
 // command line so the rest of the program behaves as if it were never passed.
 // A leading '/' followed by another path separator is a real filesystem path
@@ -9157,8 +9114,7 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray RawArguments, con
     {
         for (u8 i = 0; i < Arguments.Num; i++)
         {
-            if (IsBuildFile(Arguments.List[i]) ||
-                IsBuildBatchFile(Arguments.List[i]))
+            if (IsBuildFile(Arguments.List[i]))
             {
                 BuildFileIndex = (i8)i;
                 break;
@@ -9173,8 +9129,7 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray RawArguments, con
                 continue;
             }
 
-            if (IsBuildFile(Arguments.List[i]) ||
-                IsBuildBatchFile(Arguments.List[i]))
+            if (IsBuildFile(Arguments.List[i]))
             {
                 continue;
             }
@@ -9232,7 +9187,7 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray RawArguments, con
                     String_Copy(&BuildFilePath, Arguments.List[BuildFileIndex]);
                 }
                 
-                if (!IsBuildFile(Name) && !IsBuildBatchFile(Name))
+                if (!IsBuildFile(Name))
                 {
                     if (!String_EndsWith(BuildFilePath, S(".build"), false))
                     {
@@ -9398,166 +9353,6 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray RawArguments, con
     Data.Name                           = &BuildFileName;
     Data.Path                           = &BuildFilePath;
     Data.Arguments                      = Arguments;
-    Data.bSearchOnlyBuildBatch          = true;
-
-    // first, find .buildbatch files
-    {
-        if (IsBuildBatchFile(BuildFileName) && bBuildPathGivenInCmdLine)
-        {
-            Data.bFoundBuildFile = true;
-
-            if (!Filesystem_DoesFileExist(BuildFilePath))
-            {
-                LOG_ERROR("Failed to find %S in %S", BuildFileName, WorkingDirectory);
-                return 1;
-            }
-        }
-
-        if (!Data.bFoundBuildFile)
-        {
-            // TODO: simplify this, this is shit
-            for (u8 i = 0; i < Arguments.Num; i++)
-            {
-                if (IsBuildBatchFile(Arguments.List[i]))
-                {
-                    String_Copy(&BuildFileName, Arguments.List[i]);
-                    Filesystem_IterateDirectory_Ex(WorkingDirectory, &BuildFileDirectoryIterator, false, &Data);
-                    break;
-                }
-            }
-
-            if ((!Data.bFoundBuildFile || Data.NumBuildFilesFound > 1) && Arguments.Num > 0)
-            {
-                Filesystem_IterateDirectory_Ex(WorkingDirectory, &BuildFileDirectoryIterator_Args, false, &Data);
-            }
-
-            if (!Data.bFoundBuildFile) // final search for .buildbatch
-            {
-                Filesystem_IterateDirectory_Ex(WorkingDirectory, &BuildFileDirectoryIterator, false, &Data);
-            }
-        }
-
-        if (Data.bFoundBuildFile)
-        {
-            usize Allocated = Arena->Allocated;
-
-            FileHandle f = FileHandle_Null();
-            if (Filesystem_Open(BuildFilePath, FileMode_Read, &f))
-            {
-                StringLocal(Line, 512);
-                bool bInMultiLineComment = false;
-
-                bool bWantsRebuild    = StringArray_Contains(Arguments, S("rebuild"), false);
-                bool bWantsRebuildAll = StringArray_Contains(Arguments, S("rebuild_all"), false);
-                bool bWantsClean      = StringArray_Contains(Arguments, S("clean"), false);
-                bool bWantsCleanAll   = StringArray_Contains(Arguments, S("clean_all"), false);
-
-                LOG("Batch build begin");
-                LogDividerLine();
-
-                while (Filesystem_ReadLine(f, &Line))
-                {
-                    String Trimmed = String_EatSpaces(Line);
-
-                    if (Trimmed.Length == 0)
-                    {
-                        continue;
-                    }
-
-                    // multiline comment
-                    if (Trimmed.Data[0] == '#' && Trimmed.Data[1] == '#')
-                    {
-                        bInMultiLineComment = !bInMultiLineComment;
-                        continue;
-                    }
-
-                    if (bInMultiLineComment)
-                    {
-                        continue;
-                    }
-
-                    // single line comment
-                    if (Trimmed.Data[0] == '#')
-                    {
-                        continue;
-                    }
-
-                    StringList List = String_SplitIntoList(Arena, Trimmed, ' ', true);
-                    u16 Num = (u16)StringList_Count(List);
-
-                    // TODO: rework this, so baaaaaddd...
-                    if (bWantsRebuild)    { Num += 1; }
-                    if (bWantsRebuildAll) { Num += 1; }
-                    if (bWantsClean)      { Num += 1; }
-                    if (bWantsCleanAll)   { Num += 1; }
-                    if (bVerboseLog)      { Num += 1; }
-
-                    StringArray NewArguments = {0};
-                    if (Num > 0)
-                    {
-                        NewArguments.List = LinearAllocator_Allocate(Arena, sizeof(String) * Num);
-                        NewArguments.Num = Num;
-
-                        u16 i = 0;
-                        for each_str_list (List)
-                        {
-                            NewArguments.List[i] = String_Create(Arena, It.String);
-                            i++;
-                        }
-
-                        // TODO: other args too, get rid of this code, make it more dynamic
-                        if (bWantsRebuild)
-                        {
-                            NewArguments.List[i] = S("rebuild");
-                            i++;
-                        }
-
-                        if (bWantsRebuildAll)
-                        {
-                            NewArguments.List[i] = S("rebuild_all");
-                            i++;
-                        }
-
-                        if (bWantsClean)
-                        {
-                            NewArguments.List[i] = S("clean");
-                            i++;
-                        }
-
-                        if (bWantsCleanAll)
-                        {
-                            NewArguments.List[i] = S("clean_all");
-                            i++;
-                        }
-
-                        if (bVerboseLog)
-                        {
-                            NewArguments.List[i] = S("-v");
-                        }
-                    }
-
-                    u32 ReturnValue = RiftBuild(Arena, NewArguments, WorkingDirectory);
-                    if (ReturnValue != 0)
-                    {
-                        return ReturnValue;
-                    }
-
-                    LogDividerLine();
-
-                    // "free" the memory back to the original spot
-                    Arena->Allocated = Allocated;
-                }
-
-                Filesystem_Close(&f);
-                LOG("Batch build complete");
-                return 0;
-            }
-
-            return 1;
-        }
-    }
-
-    Data.bSearchOnlyBuildBatch = false;
 
     if (BuildFilePath.Length == 0) // only search if we did not get an explicit build file path from the user
     {
@@ -10594,7 +10389,7 @@ u32 RunApplication(const StringArray Arguments)
         #endif
 
         Platform_BeginNonBlockingMode();
-        while (true)
+        for (;;)
         {
             Platform_Wait(10 milliseconds);
             if (Platform_AnyKeyPressed())

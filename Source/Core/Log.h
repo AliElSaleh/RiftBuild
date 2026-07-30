@@ -60,13 +60,17 @@
 #else
 #define MAX_LOG_MSG_LENGTH 32768
 
-#define LOG_TYPE_INFO 0
-#define LOG_TYPE_SUCCESS 1
-#define LOG_TYPE_WARNING 2
-#define LOG_TYPE_ERROR 3
-#define LOG_TYPE_FATAL 4
-#define LOG_TYPE_NONE 5
-#define LOG_TYPE_MUTE 6
+typedef u8 ELogType;
+enum
+{
+    LOG_TYPE_INFO    = 0,
+    LOG_TYPE_SUCCESS = 1,
+    LOG_TYPE_WARNING = 2,
+    LOG_TYPE_ERROR   = 3,
+    LOG_TYPE_FATAL   = 4,
+    LOG_TYPE_NONE    = 5,
+    LOG_TYPE_MUTE    = 6,
+};
 
 #define LOG_CAT(LogCategory, Text, ...)                LogMessage(LOG_TYPE_NONE,    S(LogCategory), S(Text), ##__VA_ARGS__)
 #define LOG_CAT_MUTE(LogCategory, Text, ...)           LogMessage(LOG_TYPE_MUTE,    S(LogCategory), S(Text), ##__VA_ARGS__)
@@ -122,8 +126,8 @@ RIFT_API void Logging_ToggleEnableOnError(bool bEnable);
 RIFT_API void Logging_SetCrashOnFatal(bool bShouldCrash);
 RIFT_API bool Logging_ShouldCrashOnFatal(void);
 
-RIFT_API void LogMessage(u8 LogType, const struct String LogCat, const struct String Text, ...);
-RIFT_API void LogDirectMessage(u8 LogType, const struct String Text, ...);
+RIFT_API void LogMessage(ELogType LogType, const struct String LogCat, const struct String Text, ...);
+RIFT_API void LogDirectMessage(ELogType LogType, const struct String Text, ...);
 RIFT_API void LogLineBreak(void);
 #endif // NO_LOG
 

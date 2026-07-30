@@ -174,7 +174,7 @@ bool Logging_ShouldCrashOnFatal(void)
     return GLoggingSystemState->bCrashOnFatal;
 }
 
-void LogMessage(u8 LogType, const String LogCat, const String Text, ...)
+void LogMessage(ELogType LogType, const String LogCat, const String Text, ...)
 {
     bool bIsErrorMessage = (LogType == LOG_TYPE_ERROR || LogType == LOG_TYPE_FATAL);
     bool bDisabled = UNLIKELY(GLoggingSystemState->bDisabled) && !(GLoggingSystemState->bEnableOnError && bIsErrorMessage);
@@ -195,11 +195,6 @@ void LogMessage(u8 LogType, const String LogCat, const String Text, ...)
 
         StringLocal(LogPrefix, 128);
         {
-            //if (GLoggingSystemState->bComfyMode)
-            //{
-                //String_Append(&LogPrefix, S(" "));
-            //}
-
             if (GLoggingSystemState->bLogTimestamp)
             {
                 SystemTime TimeNow = Platform_GetSystemLocalTime();
@@ -210,7 +205,7 @@ void LogMessage(u8 LogType, const String LogCat, const String Text, ...)
 
             if (GLoggingSystemState->bLogCategory)
             {
-                String_Append(&LogPrefix, S("["));
+                String_AppendChar(&LogPrefix, '[');
                 String_Append(&LogPrefix, LogCat);
                 String_Append(&LogPrefix, S("] "));
             }
@@ -218,6 +213,7 @@ void LogMessage(u8 LogType, const String LogCat, const String Text, ...)
             if (GLoggingSystemState->bLogType)
             {
                 static const String LogTypeString[7] = {SC("[INFO] "), SC("[SUCCESS] "), SC("[WARNING] "), SC("[ERROR] "), SC("[FATAL] "), SC(""), SC("")};
+                ASSERT(LogType <= 6);
                 String_Append(&LogPrefix, LogTypeString[LogType]);
             }
         }

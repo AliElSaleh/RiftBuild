@@ -106,8 +106,6 @@ reg add "HKCU\Software\Classes\RiftBuild.Script\shell\clean\command" /ve /d "\"%
 
 Notes:
 
-- The same setup works for `.buildbatch` files: repeat the first `reg add`
-  line with `.buildbatch` in place of `.build`.
 - If `.build` files were previously associated with another program, Windows
   remembers that choice and it wins over the keys above. Either do the
   quick-way steps once and pick RiftBuild, or clear the remembered choice:
