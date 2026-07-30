@@ -221,6 +221,7 @@ ENUM_T(ETokenType, u32)
 #define Token_Char_At     '@'
 #define Token_Char_Mod    '%'
 #define Token_Char_Dollar '$'
+#define Token_Char_Amp    '&'
 
 static bool IsComparisonToken(ETokenType T)
 {
@@ -5723,13 +5724,10 @@ static bool Internal_AssertCPUVendor(ParsingContext* Context, const String Build
     if (VendorsArray.Num > 0)
     {
         String CPUVendor = String_Null();
-        for each (InternalVariable, v, InternalVariablesDB)
+        InternalVariable* Found = FindInternalVariable(S("CPUVendor"));
+        if (Found)
         {
-            if (String_IsEqual(v.Name, S("_CPUVendor"), false))
-            {
-                CPUVendor = v.Value;
-                break;
-            }
+            CPUVendor = Found->Value;
         }
 
         bool bAnyVendorMatch = false;
@@ -5787,13 +5785,10 @@ static bool Internal_AssertCPUExtensions(ParsingContext* Context, const String B
     if (RequiredArray.Num > 0)
     {
         String CPUExtensions = String_Null();
-        for each (InternalVariable, v, InternalVariablesDB)
+        InternalVariable* Found = FindInternalVariable(S("CPUExtensions"));
+        if (Found)
         {
-            if (String_IsEqual(v.Name, S("_CPUExtensions"), false))
-            {
-                CPUExtensions = v.Value;
-                break;
-            }
+            CPUExtensions = Found->Value;
         }
 
         StringArray AvailableArray = String_ParseIntoArray(&Scratch, CPUExtensions, ' ', 0, 512);
@@ -6033,7 +6028,7 @@ static bool Internal_AssertArg(ParsingContext* Context, const String BuildFilePa
 
     if (CmdVarsArray.Num == 0)
     {
-        String Value = GetCmdOptionValue(Context->CmdOptionsDB, S("_args"));
+        String Value = GetCmdOptionValue(Context->CmdOptionsDB, S("args"));
         if (!String_IsValid(Value))
         {
             LOG_INLINE_ERROR("\n[ASSERTION FAILURE] You must provide at least one argument on the command line.\n");
@@ -6933,6 +6928,21 @@ f64 ConsumeCommandExpansionTime(void)
     return Result;
 }
 
+static bool IsInternalVarSigilAt(const String Value, u32 Index)
+{
+    bool bResult = false;
+
+    if (Value.Data[Index] == Token_Char_Amp && (Index + 1) < Value.Length)
+    {
+        const u8 Next = Value.Data[Index + 1];
+
+        bResult = IsAlphabet(Next) || Next == '_' || Next == '(' || Next == '{' ||
+                  Next == '-'      || Next == '^' || Next == '!';
+    }
+
+    return bResult;
+}
+
 bool ExpandVariable(LinearAllocator Scratch, FileVariableList* VariablesDB, TArray(CmdOption) CmdOptionsDB,
                             String* Dest, const String Key, const String Value, const String Root, const String WorkingDirectory,
                             bool* bFailed)
@@ -6980,7 +6990,13 @@ bool ExpandVariable(LinearAllocator Scratch, FileVariableList* VariablesDB, TArr
             continue;
         }
 
-        if (C == Token_Char_Mod || C == Token_Char_Dollar || C == Token_Char_At || C == Token_Char_Not)
+        const bool bIsInternalSigil = IsInternalVarSigilAt(Value, i);
+
+        if (C == Token_Char_Mod ||
+            C == Token_Char_Dollar ||
+            C == Token_Char_At ||
+            C == Token_Char_Not ||
+            bIsInternalSigil)
         {
             u32 Index = 0;
 
@@ -7064,11 +7080,11 @@ bool ExpandVariable(LinearAllocator Scratch, FileVariableList* VariablesDB, TArr
             }
         }
 
-        if (C == Token_Char_Mod)
+        if (C == Token_Char_Mod || bIsInternalSigil)
         {
             // %_uuid.gen expands to a freshly generated UUID for every mention,
             // unlike the other internal vars which resolve to a single precomputed value.
-            if (String_IsEqual(Slice, S("_uuid.gen"), false))
+            if (String_IsEqual(Slice, S("uuid.gen"), false))
             {
                 Uuid NewID = UUID_Generate();
                 StringLocal(UuidStr, UUID_STRING_LENGTH);
@@ -7096,7 +7112,8 @@ bool ExpandVariable(LinearAllocator Scratch, FileVariableList* VariablesDB, TArr
 
             bool bFoundCmd = false;
             bool bEqualsToSomething = false;
-            CmdOption* FoundOption = FindCmdOption(CmdOptionsDB, Trimmed);
+
+            CmdOption* FoundOption = FindCmdOptionOfKind(CmdOptionsDB, Trimmed, bIsInternalSigil);
             if (FoundOption)
             {
                 bFoundCmd = true;
@@ -7104,24 +7121,53 @@ bool ExpandVariable(LinearAllocator Scratch, FileVariableList* VariablesDB, TArr
                 bEqualsToSomething = FoundOption->Value.Length > 0;
             }
 
-            if (!bFoundCmd)
+            if (!bFoundCmd && bIsInternalSigil)
             {
-                for each (InternalVariable, v, InternalVariablesDB)
+                const InternalVariable* Found = FindInternalVariable(Slice);
+                if (Found)
                 {
-                    if (String_IsEqual(v.Name, Slice, false))
-                    {
-                        bFoundCmd = true;
-                        VarValue = v.Value;
-                        bEqualsToSomething = v.Value.Length > 0;
-                        break;
-                    }
+                    bFoundCmd = true;
+                    VarValue = Found->Value;
+                    bEqualsToSomething = Found->Value.Length > 0;
                 }
             }
-            
+
+            // The right name with the wrong sigil would otherwise expand to nothing and read as a
+            // working build, so name the mistake and the spelling that works.
             if (!bFoundCmd)
             {
+                const bool bIsReallyBuiltin = !bIsInternalSigil &&
+                                              (FindCmdOptionOfKind(CmdOptionsDB, Trimmed, true) != NULL ||
+                                               FindInternalVariable(Slice) != NULL);
+
+                const bool bIsReallyOption = bIsInternalSigil &&
+                                             FindCmdOptionOfKind(CmdOptionsDB, Trimmed, false) != NULL;
+
+                if (bIsReallyBuiltin || bIsReallyOption)
+                {
+                    StringLocal(WrongForm, MAX_KEY_LENGTH + 2);
+                    StringLocal(RightForm, MAX_KEY_LENGTH + 2);
+
+                    String_Concat(&WrongForm, bIsInternalSigil ? S("&") : S("%"), Slice);
+                    String_Concat(&RightForm, bIsInternalSigil ? S("%") : S("&"), Slice);
+
+                    if (bFailed) { *bFailed = true; }
+
+                    if (bIsReallyBuiltin)
+                    {
+                        LOG_ERROR("\"%S\" is one of RiftBuild's built-in variables, not a command line option. "
+                                  "Write \"%S\" instead.", WrongForm, RightForm);
+                    }
+                    else
+                    {
+                        LOG_ERROR("\"%S\" is a command line option, not one of RiftBuild's built-in variables. "
+                                  "Write \"%S\" instead.", WrongForm, RightForm);
+                    }
+
+                    return false;
+                }
+
                 if (bFailed) { *bFailed = true; }
-                //return false;
             }
 
             if (String_IsValid(VarValue))
@@ -7141,19 +7187,19 @@ bool ExpandVariable(LinearAllocator Scratch, FileVariableList* VariablesDB, TArr
                 }
                 else
                 {
-                    // if the first letter is capitalized, then also make the first letter of the value capitalized. revert back when done
-                    bool bIsVarUpper = IsAlphabetUpper(Slice.Data[0]);
-                    if (bIsVarUpper)
-                    {
-                        VarValue.Data[0] = ToUpper(VarValue.Data[0]);
-                    }
-
                     String DestEnd = StrShiftF(*Dest, Dest->Length);
                     u32 DestLengthBefore = Dest->Length;
 
                     String_Append(Dest, VarValue);
 
                     DestEnd.Length = Dest->Length - DestLengthBefore;
+
+                    const bool bIsVarUpper = Slice.Length > 0 && IsAlphabetUpper(Slice.Data[0]);
+                    if (bIsVarUpper && DestEnd.Length > 0)
+                    {
+                        DestEnd.Data[0] = ToUpper(DestEnd.Data[0]);
+                    }
+
                     if (bWantsToLower) { String_ToLower(&DestEnd); }
                     if (bWantsToUpper) { String_ToUpper(&DestEnd); }
                 }
@@ -7200,7 +7246,9 @@ bool ExpandVariable(LinearAllocator Scratch, FileVariableList* VariablesDB, TArr
                         }
                         else
                         {
-                            bool bIsNative = Slice.Data[0] == '_';
+                            // A built-in that resolved to an empty value expands to nothing, unlike
+                            // a command line option which reports 1/0 for present/absent.
+                            bool bIsNative = bIsInternalSigil;
                             if (!bIsNative)
                             {
                                 String_AppendChar(Dest, bFoundCmd ? '1' : '0');

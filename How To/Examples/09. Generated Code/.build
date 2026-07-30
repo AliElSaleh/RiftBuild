@@ -16,5 +16,5 @@ PreBuild.WriteFile config.h
 \#pragma once
 \#define BUILD_MESSAGE "this header was written by a PreBuild hook"
 \#define BUILD_NUMBER  7
-\#define BUILD_TIMESTAMP "%_Date.DayName %_Date.Day %_Date.MonthName %_Date.Year"
+\#define BUILD_TIMESTAMP "&Date.DayName &Date.Day &Date.MonthName &Date.Year"
 }

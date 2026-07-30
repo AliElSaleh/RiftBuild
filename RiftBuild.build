@@ -4,8 +4,8 @@
 {
    Below is a non-exhaustive list of possible ways to build this program:
     > riftbuild
-    > riftbuild cl
-    > riftbuild asan debug gcc
+    > riftbuild compiler=msvc
+    > riftbuild asan debug compiler=gcc
     > riftbuild hood
    
    -- Cool thing for Unix users ---------------
@@ -18,12 +18,14 @@
 import Source/Common.buildvars
 
 Compiler                  %compiler
+Test                      &SSE4.1
+
 Assembly                  RiftBuild
 Icon                      riftbuild
 
 TitleName                 Rift Build %^%debug
 Description               A simpler build tool for C/C++, because fuck cmake
-Version(define)           0.3.0-beta-%_date.nosep
+Version(define)           0.3.0-beta-&date.nosep
 CompanyName               Artisan Softworks
 Copyright(enforce)        Copyright (c) $CompanyName
 License(generate)         BSD 3-Clause
@@ -33,7 +35,7 @@ BuildDirectory:debug      Build/Debug%%32/%%Hood
 BuildDirectory:!debug     Build/Dist%%32/%%Hood
 IntermediateDirectory     Intermediate/$SourceDirectory
 
-RiftCoreFiles             Core/Memory Core/StringUtils Core/Log Core/Platform_Core Core/Platform_%(_platform)
+RiftCoreFiles             Core/Memory Core/StringUtils Core/Log Core/Platform_Core Core/Platform_&(Platform)
 RiftCoreFiles:unix        Core/Platform_Unix
 RiftCoreFiles:bsd         Core/Platform_BSD
 SourceFiles               $RiftCoreFiles Program Backend Exporter Parse

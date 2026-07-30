@@ -1,0 +1,29 @@
+# '&' names one of RiftBuild's built-in variables; '%' names a command line option.
+# The two are separate: naming one with the other's sigil is a hard error, not an
+# empty expansion. The traps in main.c fail the build if any of this resolves wrongly.
+#
+# Extra invocations that exercise the error paths (run from this folder):
+#
+#   riftbuild wrong_percent   ->  "%Platform" is one of RiftBuild's built-in variables ... exit 1
+#   riftbuild wrong_amp       ->  "&myopt" is a command line option ... exit 1
+Assembly     SigilApp
+SourceFiles  main
+
+# built-ins from the internal-variable store and from the option store
+Compiler.Defines  AMP_PLATFORM=\"&Platform\"
+Compiler.Defines  AMP_FOLDER=\"&FolderName\"
+Compiler.Defines  AMP_DATE=\"&Date\"
+
+# case modifiers apply to the pasted copy, not the stored value
+Compiler.Defines  AMP_UPPER=\"&^Platform\"
+Compiler.Defines  AMP_LOWER=\"&-Platform\"
+
+# a command line option still belongs to '%'
+Compiler.Defines:myopt  PCT_OPT=\"%myopt\"
+
+# a literal ampersand is not a sigil unless a name follows it
+Compiler.Defines  AMP_LITERAL=\"a && b\"
+
+# the wrong sigil must abort - these are only reachable via the options above
+if wrong_percent  Compiler.Defines  BAD=\"%Platform\"
+if wrong_amp      Compiler.Defines  BAD=\"&myopt\"

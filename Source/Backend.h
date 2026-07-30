@@ -75,6 +75,8 @@ STRUCT(CmdOption)
 {
     String Name;
     String Value;
+    bool   bIsBuiltin;
+    u8     Padding[7];
 };
 
 #define ASSEMBLY_TYPE_LIST(X)                      \
@@ -361,6 +363,7 @@ bool IsCppHeader(const String Extension);
 bool DoesBuildVarExist(TArray(FileVariable) VariablesDB, const String Name);
 bool DoesBuildVarExist_StartingWith(TArray(FileVariable) VariablesDB, const String Name);
 CmdOption* FindCmdOption(TArray(CmdOption) CmdOptionsDB, const String Name);
+CmdOption* FindCmdOptionOfKind(TArray(CmdOption) CmdOptionsDB, const String Name, bool bIsBuiltin);
 bool DoesCmdOptionExist(TArray(CmdOption) CmdOptionsDB, const String Name);
 
 String GetCmdOptionValue(TArray(CmdOption) CmdOptionsDB, const String Name);
@@ -446,7 +449,9 @@ void AddOrAppendVariable(LinearAllocator* Arena,
                         u32 MaxValueLength);
 
 void AddCmdOption(TArray(CmdOption) CmdOptionsDB, const String Name, const String Value);
+void AddBuiltinOption(TArray(CmdOption) CmdOptionsDB, const String Name, const String Value);
 void AddInternalVariable(const String Name, const String Value);
+InternalVariable* FindInternalVariable(const String Name);
 
 String AssemblyTypeStringToExtension(String Type);
 bool AssemblyTypeStringIsExecutable(String Type);

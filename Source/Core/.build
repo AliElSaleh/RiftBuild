@@ -29,7 +29,7 @@ if !shared
 }
 
 SourceFiles          Log Memory StringUtils Platform_Core
-SourceFiles          Platform_%(_platform)
+SourceFiles          Platform_&(Platform)
 SourceFiles:Unix|BSD Platform_Unix
 SourceFiles:BSD      Platform_BSD
 

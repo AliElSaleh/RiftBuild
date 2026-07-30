@@ -31,8 +31,8 @@ recompile, straight to the window.
   dependency: its `glfw.build` describes how it compiles, and its exported
   include path is why `src/MyProject.cpp` can `#include <GLFW/glfw3.h>`
   without this project declaring anything.
-- `Assembly %_DirectoryName` (in `libs/MyLib/.build`) - built-in variables
-  starting with `%_` describe the build context; this one names the library
+- `Assembly &DirectoryName` (in `libs/MyLib/.build`) - built-in variables, written
+  with a leading `&`, describe the build context; this one names the library
   after its own folder.
 
 ## Things to try

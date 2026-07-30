@@ -147,10 +147,24 @@ If the value is a path containing spaces, RiftBuild wraps it in quotes for you (
 ---
 
 ### Internal Variables/Command Line Arguments
-To reference a command line argument passed into `riftbuild` or an internal variable, place a `%` before the variable. (Case Insensitive)
+Put `&` before a built-in variable, and `%` before a command line argument. (Both case insensitive)
 ```make
-Assembly %_FileName # an internal variable that will expand to whatever the .build is called (without the extension)
+Assembly &FileName    # a built-in: expands to whatever the .build file is called (no extension)
+Compiler.Flags %flags # a command line argument: riftbuild flags=-O0
 ```
+
+Run `riftbuild --internals` to list them all.
+
+The two are separate namespaces: `&` only ever finds a built-in, `%` only ever finds a command line option. Naming one with the other's sigil is reported rather than silently expanding to nothing:
+
+```
+[ERROR] "%Platform" is one of RiftBuild's built-in variables, not a command line option. Write "&Platform" instead.
+[ERROR] "&myopt" is a command line option, not one of RiftBuild's built-in variables. Write "%myopt" instead.
+```
+
+Because the two never collide, an option of your own named `date` and the built-in `Date` can coexist.
+
+A bare `&` is ordinary text - it is only a sigil when a name follows it, so shell hooks like `PreBuild.Cmd a && b` and `x & y` pass through untouched. Where an ampersand *is* directly followed by a word and you mean it literally (a URL query like `?a=1&b=2`), escape it: `\&`.
 
 Sometimes you need to access a value inside the build file from what was given on the command line. Command line arguments can be a singular phrase or a `Key=Value` option.
 ```make
@@ -182,27 +196,27 @@ Notice how `%` was not present in the `asan` and `mode` if statement. This is be
 
 | Variable | Expands to |
 |----------|-----------|
-| `%_FileName` / `%_FileNameExt` | The .build file's name, without / with extension |
-| `%_DirectoryName` (or `%_FolderName`) | The name of the folder containing the .build file |
-| `%_FileDirectory` / `%_FileDirectoryFull` | The .build file's directory, relative / absolute |
-| `%_WorkingDirectory` | The directory riftbuild was run from |
-| `%_Platform` (+ `.Version`, `.Major` ...) | Host OS name and version |
-| `%_Arch`, `%_Bit` | CPU architecture, 64 or 32 |
-| `%_CPU`, `%_CPUBrand`, `%_CPUVendor` | Processor identification |
-| `%_Ram` (+ `.KB` `.MB` `.GB`) | Installed memory |
-| `%_Date` (+ `.Year` `.Month` `.Day` `.MonthName` `.DayName` `.DayOfYear` `.NoSep` ...) | Build date |
-| `%_Time` (+ `.Hour` `.Minute` `.Second` `.Millisecond` `.NoSep`) | Build time |
-| `%_Timestamp` (+ `.Zone`, `.NoSep`) | Date and time combined |
-| `%_Version` (+ `.Major` `.Minor` `.Patch`) | RiftBuild's own version |
-| `%_ExeExtension`, `%_ExeType`, `%_LibC` | `.exe`/empty, pe/macho/elf, the libc |
-| `%_Distro`, `%_DesktopEnvironment` | Linux distro / desktop environment |
-| `%_PackageManager` | The system's package manager: `winget`, `apt`, `dnf`, `yum`, `zypper`, `pacman`, `brew`, `pkg`, `pkg_add` or `pkgin` |
-| `%_NativeLibs` (also `%_Win32Libs`, `%_LinuxLibs`, ...) | The platform's standard system libraries |
-| `%_UUID` | A UUID, fixed for this run |
-| `%_uuid.gen` | A fresh UUID at *every* mention |
-| `%_Args` | The full command line |
+| `&FileName` / `&FileNameExt` | The .build file's name, without / with extension |
+| `&DirectoryName` (or `&FolderName`) | The name of the folder containing the .build file |
+| `&FileDirectory` / `&FileDirectoryFull` | The .build file's directory, relative / absolute |
+| `&WorkingDirectory` | The directory riftbuild was run from |
+| `&Platform` (+ `.Version`, `.Major` ...) | Host OS name and version |
+| `&Arch`, `&Bit` | CPU architecture, 64 or 32 |
+| `&CPU`, `&CPUBrand`, `&CPUVendor` | Processor identification |
+| `&Ram` (+ `.KB` `.MB` `.GB`) | Installed memory |
+| `&Date` (+ `.Year` `.Month` `.Day` `.MonthName` `.DayName` `.DayOfYear` `.NoSep` ...) | Build date |
+| `&Time` (+ `.Hour` `.Minute` `.Second` `.Millisecond` `.NoSep`) | Build time |
+| `&Timestamp` (+ `.Zone`, `.NoSep`) | Date and time combined |
+| `&Version` (+ `.Major` `.Minor` `.Patch`) | RiftBuild's own version |
+| `&ExeExtension`, `&ExeType`, `&LibC` | `.exe`/empty, pe/macho/elf, the libc |
+| `&Distro`, `&DesktopEnvironment` | Linux distro / desktop environment |
+| `&PackageManager` | The system's package manager: `winget`, `apt`, `dnf`, `yum`, `zypper`, `pacman`, `brew`, `pkg`, `pkg_add` or `pkgin` |
+| `&NativeLibs` (also `&Win32Libs`, `&LinuxLibs`, ...) | The platform's standard system libraries |
+| `&UUID` | A UUID, fixed for this run |
+| `&uuid.gen` | A fresh UUID at *every* mention |
+| `&Args` | The full command line |
 
-The greedy-name rule applies here too, but in your favor: `.` is part of the name, so `%_Date.Year` just works.
+The greedy-name rule applies here too, but in your favor: `.` is part of the name, so `&Date.Year` just works.
 
 ---
 
@@ -268,7 +282,7 @@ if !external/glfw/ PreDepend.Cmd git clone https://github.com/glfw/glfw external
 ```make
 if mode == debug        Compiler.Flags -O0
 if level >  5           Compiler.Defines HIGH_LEVEL
-if %_Platform.Version v>= 10.0   Compiler.Defines MODERN_OS
+if &Platform.Version v>= 10.0   Compiler.Defines MODERN_OS
 if $CommonFlags contains -Wall   Compiler.Defines STRICT
 ```
 
@@ -649,7 +663,7 @@ Platform-conditional linking is the usual pattern:
 Libraries:windows winmm
 Libraries:linux   m pthread
 ```
-`%_NativeLibs` expands to the platform's standard system library set if you want "just give me the usual ones".
+`&NativeLibs` expands to the platform's standard system library set if you want "just give me the usual ones".
 
 ---
 
@@ -802,7 +816,7 @@ The part after `|` is the **working directory** for the run. It matters for prog
 PreBuild.WriteFile config.h
 {
     \#pragma once
-    \#define BUILD_DATE "%_Date"
+    \#define BUILD_DATE "&Date"
     \#define BUILD_LEVEL %level
 }
 ```
@@ -826,7 +840,7 @@ PreBuild:linux
 ```
 
 The rules:
-- On Linux the manager is found by probing for the binary, in order: `apt-get`, `dnf`, `yum`, `zypper`, `pacman` - covering the Debian, Red Hat, Fedora, SUSE and Arch families, derivatives included. On the BSDs the OS decides: FreeBSD uses `pkg`, OpenBSD `pkg_add`, NetBSD `pkgin` (install pkgin first - base pkg_add is not used there). On Windows it is `winget`, and on macOS `brew` (Homebrew - install it first, macOS has no native manager). `%_PackageManager` holds the result.
+- On Linux the manager is found by probing for the binary, in order: `apt-get`, `dnf`, `yum`, `zypper`, `pacman` - covering the Debian, Red Hat, Fedora, SUSE and Arch families, derivatives included. On the BSDs the OS decides: FreeBSD uses `pkg`, OpenBSD `pkg_add`, NetBSD `pkgin` (install pkgin first - base pkg_add is not used there). On Windows it is `winget`, and on macOS `brew` (Homebrew - install it first, macOS has no native manager). `&PackageManager` holds the result.
 - Already-installed packages are detected with one quick query and the install is skipped entirely - rebuilds never pay for an install transaction. (One caveat: winget itself takes a second or two per query - that cost is winget's, not RiftBuild's.)
 - Installs run as root: outside root shells (docker, CI) the command is prefixed with `sudo` (or `doas`, which the BSDs prefer), which may prompt for a password on the terminal. Two exceptions: on Windows winget elevates itself (UAC) when a package needs it, and brew is never run through sudo (Homebrew refuses root).
 - On Windows, package names are winget ids or monikers (`Git.Git`, `7zip.7zip`, ...), matched exactly and pinned to the `winget` community source - a broken or unreachable msstore source can't interfere, and msstore-only apps are out of scope. Only the packages that are actually missing get installed (winget errors when told to install something already present).

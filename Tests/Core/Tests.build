@@ -1,4 +1,4 @@
-Depend ../../Source/Core | %_args
+Depend ../../Source/Core | &args
 include ../../Source/Common.buildvars
 
 Assembly CoreTests

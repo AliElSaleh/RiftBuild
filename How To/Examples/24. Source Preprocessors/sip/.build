@@ -6,7 +6,7 @@
 Depends       ../../../../Source/Core/
 import        ../../../../Source/Common.buildvars
 
-Assembly      %_DirectoryName
+Assembly      &DirectoryName
 
 SourceFiles   Program.c
 
@@ -19,6 +19,6 @@ if windows
     Linker.Stack      8000000 # 8MB
 }
 
-Libraries %_NativeLibs
+Libraries &NativeLibs
 
 assert.platform windows

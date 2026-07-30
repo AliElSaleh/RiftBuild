@@ -32,12 +32,14 @@ highlight riftbuildConditionals guifg=#ce5ae8 ctermfg=Magenta
 syntax match riftbuildVersionOps "\<v\(==\|>=\|<=\|>\|<\)"
 highlight link riftbuildVersionOps riftbuildConditionals
 
-" variable references: %Name $Name @Name, %{Name} %(Name), %-(Name)
+" variable references: %Name $Name @Name &Name, %{Name} %(Name), %-(Name)
 syntax match riftbuildVarReferenceSymbols "[%$@]-\?\({[A-Za-z0-9_.-]\+}\|([A-Za-z0-9_.-]\+)\|[A-Za-z0-9_.]\+\)\?"
 highlight link riftbuildVarReferenceSymbols riftbuildRefSymbolColor
 
-" built-in variables: %_DirectoryName, %_Date.Year, %_Platform, ...
+" built-in variables: &Date, &CPU.LogicalCores, %_DirectoryName, %_Date.Year, ...
+" '&' is only a sigil when a name follows, so a bare "a && b" stays plain text
 syntax match riftbuildBuiltinVar "[%$@]_[A-Za-z0-9_.]*"
+syntax match riftbuildBuiltinVar "&[-^]\?\({[A-Za-z0-9_.-]\+}\|([A-Za-z0-9_.-]\+)\|_\?[A-Za-z][A-Za-z0-9_.]*\)"
 highlight riftbuildBuiltinVar guifg=#DA70D6 ctermfg=170
 
 " -------------------------------

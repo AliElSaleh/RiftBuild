@@ -1,6 +1,6 @@
 # The game's rendering library. It talks to raw OpenGL only - no GLFW - so
 # it stays a self-contained module with no dependencies of its own.
-Assembly %_DirectoryName
+Assembly &DirectoryName
 Type     static_lib
 
 Compiler.Includes.Export .

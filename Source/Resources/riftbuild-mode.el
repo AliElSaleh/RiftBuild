@@ -112,6 +112,10 @@ Used as the anchored-highlighter limit for block header matches."
     ("\\_<v\\(?:==\\|>=\\|<=\\|>\\|<\\)" . font-lock-builtin-face)
     ;; built-in variables: %_DirectoryName, %_Date.Year, %_Platform, ...
     ("[%$@]_[A-Za-z0-9_.]*" . font-lock-builtin-face)
+    ;; built-ins via the '&' sigil: &Date, &CPU.LogicalCores, &_Platform, &^Platform.
+    ;; '&' is only a sigil when a name follows it, so a bare "a && b" stays plain text
+    ("&[-^]?\\(?:{[A-Za-z0-9_.-]+}\\|([A-Za-z0-9_.-]+)\\|_?[A-Za-z][A-Za-z0-9_.]*\\)"
+     . font-lock-builtin-face)
     ;; variable references: %Name $Name @Name, %{Name} %(Name) %-(Name)
     ("[%$@]-?\\(?:{[A-Za-z0-9_.-]+}\\|([A-Za-z0-9_.-]+)\\|[A-Za-z0-9_.]+\\)"
      . font-lock-constant-face)

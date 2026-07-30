@@ -32,9 +32,9 @@ if msvc
         SharedCompilerFlags:!debug   /MD /O2
         SharedLinkerFlags            /DEBUG
 
-        Library.Paths                "%Compiler.LibraryPath"
-        PostBuild.copy               "%Compiler.InstallPath/clang_rt.asan_dynamic-x86_64.dll"     $BuildDirectory
-        PostBuild.copy               "%Compiler.InstallPath/clang_rt.asan_dbg_dynamic-x86_64.dll" $BuildDirectory
+        Library.Paths                "&Compiler.LibraryPath"
+        PostBuild.Copy               "&Compiler.InstallPath/clang_rt.asan_dynamic-x86_64.dll"     $BuildDirectory
+        PostBuild.Copy               "&Compiler.InstallPath/clang_rt.asan_dbg_dynamic-x86_64.dll" $BuildDirectory
     }
     else
     {
@@ -136,7 +136,7 @@ if clang|gcc
 
         if windows
         {
-            PostBuild.copy "%Compiler.LibraryPath/clang/20/lib/windows/clang_rt.asan_dynamic-x86_64.dll" $BuildDirectory
+            PostBuild.Copy "&Compiler.LibraryPath/clang/20/lib/windows/clang_rt.asan_dynamic-x86_64.dll" $BuildDirectory
         }
     }
     else

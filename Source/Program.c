@@ -32,6 +32,8 @@ const usize GEngineScratchAmount = Kibibytes(8);
     #endif
 #endif
 
+// TODO: combine InternalVariable struct with cmdoption struct. fold them into one.
+
 TArray(InternalVariable) InternalVariablesDB = NULL;
 FileVariable FileVariable_Empty = {0};
 bool bQuietBuild = false;
@@ -175,6 +177,22 @@ CmdOption* FindCmdOption(TArray(CmdOption) CmdOptionsDB, const String Name)
     for each (CmdOption, o, CmdOptionsDB)
     {
         if (String_IsEqual(o.Name, Name, false))
+        {
+            Result = o_;
+            break;
+        }
+    }
+
+    return Result;
+}
+
+CmdOption* FindCmdOptionOfKind(TArray(CmdOption) CmdOptionsDB, const String Name, bool bIsBuiltin)
+{
+    CmdOption* Result = NULL;
+
+    for each (CmdOption, o, CmdOptionsDB)
+    {
+        if (o.bIsBuiltin == bIsBuiltin && String_IsEqual(o.Name, Name, false))
         {
             Result = o_;
             break;
@@ -3404,11 +3422,12 @@ static void Internal_SetDefaultBuildVariables(LinearAllocator* Arena, const Stri
     }
 }
 
-void AddCmdOption(TArray(CmdOption) CmdOptionsDB, const String Name, const String Value)
+static void Internal_AddCmdOption(TArray(CmdOption) CmdOptionsDB, const String Name, const String Value, bool bIsBuiltin)
 {
-    CmdOption c;
+    CmdOption c = {0};
     c.Name = Name;
     c.Value = Value;
+    c.bIsBuiltin = bIsBuiltin;
 
     #if RIFT_DEBUG
     ENSURE(Name.Length > 0);
@@ -3420,16 +3439,48 @@ void AddCmdOption(TArray(CmdOption) CmdOptionsDB, const String Name, const Strin
     }
 }
 
+void AddCmdOption(TArray(CmdOption) CmdOptionsDB, const String Name, const String Value)
+{
+    const bool bIsBuiltin = false;
+    Internal_AddCmdOption(CmdOptionsDB, Name, Value, bIsBuiltin);
+}
+
+void AddBuiltinOption(TArray(CmdOption) CmdOptionsDB, const String Name, const String Value)
+{
+    const bool bIsBuiltin = true;
+    Internal_AddCmdOption(CmdOptionsDB, Name, Value, bIsBuiltin);
+}
+
 void AddInternalVariable(const String Name, const String Value)
 {
+    InternalVariable c;
+    c.Name = Name;
+    c.Value = Value;
+
+    #if RIFT_DEBUG
+    ENSURE(Name.Length > 0);
+    #endif
+
     if (Name.Length > 0)
     {
-        InternalVariable c;
-        c.Name = Name;
-        c.Value = Value;
-
         Array_Add(InternalVariablesDB, c);
     }
+}
+
+InternalVariable* FindInternalVariable(const String Name)
+{
+    InternalVariable* Result = NULL;
+
+    for each (InternalVariable, v, InternalVariablesDB)
+    {
+        if (String_IsEqual(v.Name, Name, false))
+        {
+            Result = v_;
+            break;
+        }
+    }
+
+    return Result;
 }
 
 static bool CheckForBuildVariableOverrides(TArray(FileVariable) VariablesDB, TArray(CmdOption) CmdOptionsDB)
@@ -5280,7 +5331,8 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     {
         const String Param = Parameters.List[i];
 
-        if (String_IsEqual(Param, S("_args"), false))
+        // the built-in of the same name is registered below, from the whole command line
+        if (String_IsEqual(Param, S("args"), false))
         {
             continue;
         }
@@ -5323,7 +5375,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     xx String_EatSpacesInlineFromEnd(&RiftCmdLine);
 
     AddCmdOption(CmdOptionsDB, S("%"), RiftCmdLine);
-    AddCmdOption(CmdOptionsDB, S("_Args"), RiftCmdLine);
+    AddBuiltinOption(CmdOptionsDB, S("Args"), RiftCmdLine);
 
     String BuildFileName;
     StringLocal(BuildFileRelPath, MAX_PATH_LENGTH);
@@ -5338,26 +5390,26 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         u32 LastDot = 0;
         bool bHasDot = String_IndexOfLastChar(NameCopy, '.', &LastDot);
 
-        AddCmdOption(CmdOptionsDB, S("_FileName"), bHasDot ? StrSlice(NameCopy.Data, LastDot) : NameCopy);
-        AddCmdOption(CmdOptionsDB, S("_FileNameExt"), NameCopy);
+        AddBuiltinOption(CmdOptionsDB, S("FileName"), bHasDot ? StrSlice(NameCopy.Data, LastDot) : NameCopy);
+        AddBuiltinOption(CmdOptionsDB, S("FileNameExt"), NameCopy);
 
         const String PathNoExt = bHasSlash ? StrSlice(BuildFilePathFull.Data, LastSlash) : BuildFilePathFull;
         const String PathFull = String_Create(Arena, PathNoExt);
-        AddCmdOption(CmdOptionsDB, S("_FileDirectoryFull"), PathFull);
+        AddBuiltinOption(CmdOptionsDB, S("FileDirectoryFull"), PathFull);
 
         const String PathRelative = StrShiftF(PathNoExt, WorkingPath.Length+1);
 
         String_BuildPath(&BuildFileRelPath, PathRelative, BuildFileName);
 
-        AddCmdOption(CmdOptionsDB, S("_FileDirectory"), String_Create(Arena, PathRelative));
+        AddBuiltinOption(CmdOptionsDB, S("FileDirectory"), String_Create(Arena, PathRelative));
         
         u32 SecondLastSlash = 0;
         bHasSlash = String_IndexOfLastPathSlash(PathNoExt, &SecondLastSlash);
 
-        AddCmdOption(CmdOptionsDB, S("_FolderName"), String_Create(Arena, bHasSlash ? StrShiftF(PathNoExt, SecondLastSlash+1) : PathNoExt));
-        AddCmdOption(CmdOptionsDB, S("_DirectoryName"), String_Create(Arena, bHasSlash ? StrShiftF(PathNoExt, SecondLastSlash+1) : PathNoExt));
+        AddBuiltinOption(CmdOptionsDB, S("FolderName"), String_Create(Arena, bHasSlash ? StrShiftF(PathNoExt, SecondLastSlash+1) : PathNoExt));
+        AddBuiltinOption(CmdOptionsDB, S("DirectoryName"), String_Create(Arena, bHasSlash ? StrShiftF(PathNoExt, SecondLastSlash+1) : PathNoExt));
 
-        AddCmdOption(CmdOptionsDB, S("_WorkingDirectory"), WorkingPath);
+        AddBuiltinOption(CmdOptionsDB, S("WorkingDirectory"), WorkingPath);
     }
 
     SystemTime TimeNow = Platform_GetSystemLocalTime();
@@ -5375,75 +5427,75 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         StringLocal(Temp, 64);
         String_Format(&Temp, S("%hu-%.2hu-%.2hu %.2hu:%.2hu:%.2hu"), TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
         String a = String_Create(Arena, Temp);
-        AddCmdOption(CmdOptionsDB, S("_Timestamp"), a);
+        AddBuiltinOption(CmdOptionsDB, S("Timestamp"), a);
 
         // add another for time zone information
         String_Format(&Temp, S("%hu-%.2hu-%.2hu %.2hu:%.2hu:%.2hu [%S]"), TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second, TimeZone);
         a = String_Create(Arena, Temp);
-        AddCmdOption(CmdOptionsDB, S("_Timestamp.Zone"), a);
+        AddBuiltinOption(CmdOptionsDB, S("Timestamp.Zone"), a);
 
         String_Format(&Temp, S("%hu%.2hu%.2hu%.2hu%.2hu%.2hu"), TimeNow.Year, TimeNow.Month, TimeNow.Day, TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
         a = String_Create(Arena, Temp);
-        AddCmdOption(CmdOptionsDB, S("_Timestamp.NoSep"), a);
+        AddBuiltinOption(CmdOptionsDB, S("Timestamp.NoSep"), a);
 
         String_Format(&Temp, S("%hu-%.2hu-%.2hu"), TimeNow.Year, TimeNow.Month, TimeNow.Day);
         a = String_Create(Arena, Temp);
-        AddCmdOption(CmdOptionsDB, S("_Date"), a);
+        AddBuiltinOption(CmdOptionsDB, S("Date"), a);
 
         String_Format(&Temp, S("%hu"), TimeNow.Year);
         a = String_Create(Arena, Temp);
-        AddCmdOption(CmdOptionsDB, S("_Date.Year"), a);
+        AddBuiltinOption(CmdOptionsDB, S("Date.Year"), a);
         String_Format(&Temp, S("%.2hu"), TimeNow.Month);
         a = String_Create(Arena, Temp);
-        AddCmdOption(CmdOptionsDB, S("_Date.Month"), a);
+        AddBuiltinOption(CmdOptionsDB, S("Date.Month"), a);
         String_Format(&Temp, S("%hu"), TimeNow.Week);
         a = String_Create(Arena, Temp);
-        AddCmdOption(CmdOptionsDB, S("_Date.Week"), a);
+        AddBuiltinOption(CmdOptionsDB, S("Date.Week"), a);
         String_Format(&Temp, S("%.2hu"), TimeNow.Day);
         a = String_Create(Arena, Temp);
-        AddCmdOption(CmdOptionsDB, S("_Date.Day"), a);
+        AddBuiltinOption(CmdOptionsDB, S("Date.Day"), a);
 
         String_Format(&Temp, S("%S"), Platform_GetMonthName(TimeNow.Month));
         a = String_Create(Arena, Temp);
-        AddCmdOption(CmdOptionsDB, S("_Date.MonthName"), a);
+        AddBuiltinOption(CmdOptionsDB, S("Date.MonthName"), a);
 
         String_Format(&Temp, S("%S"), Platform_GetDayName(TimeNow.DayOfWeek));
         a = String_Create(Arena, Temp);
-        AddCmdOption(CmdOptionsDB, S("_Date.DayName"), a);
+        AddBuiltinOption(CmdOptionsDB, S("Date.DayName"), a);
 
         String_Format(&Temp, S("%hu"), TimeNow.DayOfWeek);
         a = String_Create(Arena, Temp);
-        AddCmdOption(CmdOptionsDB, S("_Date.DayOfWeek"), a);
+        AddBuiltinOption(CmdOptionsDB, S("Date.DayOfWeek"), a);
 
         u16 DayOfYear = Platform_GetDayOfYear(TimeNow.Day, TimeNow.Month, TimeNow.Year);
         String_Format(&Temp, S("%hu"), DayOfYear);
         a = String_Create(Arena, Temp);
-        AddCmdOption(CmdOptionsDB, S("_Date.DayOfYear"), a);
+        AddBuiltinOption(CmdOptionsDB, S("Date.DayOfYear"), a);
 
         String_Format(&Temp, S("%hu%.2hu%.2hu"), TimeNow.Year, TimeNow.Month, TimeNow.Day);
         a = String_Create(Arena, Temp);
-        AddCmdOption(CmdOptionsDB, S("_Date.NoSep"), a);
+        AddBuiltinOption(CmdOptionsDB, S("Date.NoSep"), a);
 
         String_Format(&Temp, S("%.2hu:%.2hu:%.2hu"), TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
         a = String_Create(Arena, Temp);
-        AddCmdOption(CmdOptionsDB, S("_Time"), a);
+        AddBuiltinOption(CmdOptionsDB, S("Time"), a);
 
         String_Format(&Temp, S("%.2hu"), TimeNow.Hour);
         a = String_Create(Arena, Temp);
-        AddCmdOption(CmdOptionsDB, S("_Time.Hour"), a);
+        AddBuiltinOption(CmdOptionsDB, S("Time.Hour"), a);
         String_Format(&Temp, S("%.2hu"), TimeNow.Minute);
         a = String_Create(Arena, Temp);
-        AddCmdOption(CmdOptionsDB, S("_Time.Minute"), a);
+        AddBuiltinOption(CmdOptionsDB, S("Time.Minute"), a);
         String_Format(&Temp, S("%.2hu"), TimeNow.Second);
         a = String_Create(Arena, Temp);
-        AddCmdOption(CmdOptionsDB, S("_Time.Second"), a);
+        AddBuiltinOption(CmdOptionsDB, S("Time.Second"), a);
         String_Format(&Temp, S("%.3hu"), TimeNow.Millisecond);
         a = String_Create(Arena, Temp);
-        AddCmdOption(CmdOptionsDB, S("_Time.Millisecond"), a);
+        AddBuiltinOption(CmdOptionsDB, S("Time.Millisecond"), a);
 
         String_Format(&Temp, S("%.2hu%.2hu%.2hu"), TimeNow.Hour, TimeNow.Minute, TimeNow.Second);
         a = String_Create(Arena, Temp);
-        AddCmdOption(CmdOptionsDB, S("_Time.NoSep"), a);
+        AddBuiltinOption(CmdOptionsDB, S("Time.NoSep"), a);
     }
 
     if (bFoundBuildFile)
@@ -6726,7 +6778,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         String RunId = String_Null();
         for each (InternalVariable, v, InternalVariablesDB)
         {
-            if (String_IsEqual(v.Name, S("_UUID"), false))
+            if (String_IsEqual(v.Name, S("UUID"), false))
             {
                 RunId = v.Value;
                 break;
@@ -9597,10 +9649,10 @@ static void InitInternalVars(LinearAllocator* Arena)
     AddInternalVariable(S(PLATFORM_STRING), String_Null());
 
     // store riftbuild version
-    AddInternalVariable(S("_Version"),       S(RIFTBUILD_VERSION_STRING));
-    AddInternalVariable(S("_Version.Major"), S(STRINGIFY(RIFTBUILD_MAJOR_VERSION)));
-    AddInternalVariable(S("_Version.Minor"), S(STRINGIFY(RIFTBUILD_MINOR_VERSION)));
-    AddInternalVariable(S("_Version.Patch"), S(STRINGIFY(RIFTBUILD_PATCH_VERSION)));
+    AddInternalVariable(S("Version"),       S(RIFTBUILD_VERSION_STRING));
+    AddInternalVariable(S("Version.Major"), S(STRINGIFY(RIFTBUILD_MAJOR_VERSION)));
+    AddInternalVariable(S("Version.Minor"), S(STRINGIFY(RIFTBUILD_MINOR_VERSION)));
+    AddInternalVariable(S("Version.Patch"), S(STRINGIFY(RIFTBUILD_PATCH_VERSION)));
 
     const PlatformVersion OSVersion = Platform_GetVersion();
     String OSVersionString = String_Reserve(Arena, 24);
@@ -9609,13 +9661,13 @@ static void InitInternalVars(LinearAllocator* Arena)
     String OSVersionStringPatch = String_Reserve(Arena, 8);
 
     String_Format(&OSVersionString, S("%u.%u.%u"),    OSVersion.Major, OSVersion.Minor, OSVersion.Patch);
-    AddInternalVariable(S("_Platform.Version"),       OSVersionString);
+    AddInternalVariable(S("Platform.Version"),       OSVersionString);
     String_Format(&OSVersionStringMajor, S("%u"),     OSVersion.Major);
-    AddInternalVariable(S("_Platform.Version.Major"), OSVersionStringMajor);
+    AddInternalVariable(S("Platform.Version.Major"), OSVersionStringMajor);
     String_Format(&OSVersionStringMinor, S("%u"),     OSVersion.Minor);
-    AddInternalVariable(S("_Platform.Version.Minor"), OSVersionStringMinor);
+    AddInternalVariable(S("Platform.Version.Minor"), OSVersionStringMinor);
     String_Format(&OSVersionStringPatch, S("%u"),     OSVersion.Patch);
-    AddInternalVariable(S("_Platform.Version.Patch"), OSVersionStringPatch);
+    AddInternalVariable(S("Platform.Version.Patch"), OSVersionStringPatch);
 
     u32 PosixVersion = Platform_GetPosixVersion();
     if (PosixVersion > 0)
@@ -9627,23 +9679,23 @@ static void InitInternalVars(LinearAllocator* Arena)
     }
 
     // C library detection
-    AddInternalVariable(S("_LibC"), Platform_GetCLibraryName());
+    AddInternalVariable(S("LibC"), Platform_GetCLibraryName());
     AddInternalVariable(Platform_GetCLibraryName(), String_Null());
 
     // Executable binary format
     #if PLATFORM_WINDOWS
-    AddInternalVariable(S("_ExeType"), S("pe"));
+    AddInternalVariable(S("ExeType"), S("pe"));
     #elif PLATFORM_MAC
-    AddInternalVariable(S("_ExeType"), S("macho"));
+    AddInternalVariable(S("ExeType"), S("macho"));
     #else
-    AddInternalVariable(S("_ExeType"), S("elf"));
+    AddInternalVariable(S("ExeType"), S("elf"));
     #endif
 
     // Executable file extension (Unix executables have none)
     #if PLATFORM_WINDOWS
-    AddInternalVariable(S("_ExeExtension"), S(".exe"));
+    AddInternalVariable(S("ExeExtension"), S(".exe"));
     #else
-    AddInternalVariable(S("_ExeExtension"), S(""));
+    AddInternalVariable(S("ExeExtension"), S(""));
     #endif
 
     AddInternalVariable(Platform_IsBigEndian() ? S("big_endian") : S("little_endian"), String_Null());
@@ -9695,19 +9747,19 @@ static void InitInternalVars(LinearAllocator* Arena)
 
         StringLocal(Temp, 24);
         String_Format(&Temp, S("%llu"), TotalRam);
-        AddInternalVariable(S("_Ram"), String_Create(Arena, Temp));
+        AddInternalVariable(S("Ram"), String_Create(Arena, Temp));
 
         StringLocal(TempKB, 24);
         String_Format(&TempKB, S("%llu"), TotalRam / Kibibytes(1));
-        AddInternalVariable(S("_Ram.KB"), String_Create(Arena, TempKB));
+        AddInternalVariable(S("Ram.KB"), String_Create(Arena, TempKB));
 
         StringLocal(TempMB, 24);
         String_Format(&TempMB, S("%llu"), TotalRam / Mebibytes(1));
-        AddInternalVariable(S("_Ram.MB"), String_Create(Arena, TempMB));
+        AddInternalVariable(S("Ram.MB"), String_Create(Arena, TempMB));
 
         StringLocal(TempGB, 24);
         String_Format(&TempGB, S("%llu"), TotalRam / Gibibytes(1));
-        AddInternalVariable(S("_Ram.GB"), String_Create(Arena, TempGB));
+        AddInternalVariable(S("Ram.GB"), String_Create(Arena, TempGB));
     }
 
     // build version: major.minor.build's "build" plus the OS update revision when present (e.g. 22621.2134)
@@ -9722,7 +9774,7 @@ static void InitInternalVars(LinearAllocator* Arena)
         {
             String_Format(&BuildVer, S("%u"), OSVersion.Patch);
         }
-        AddInternalVariable(S("_Platform.BuildVersion"), String_Create(Arena, BuildVer));
+        AddInternalVariable(S("Platform.BuildVersion"), String_Create(Arena, BuildVer));
     }
 
     {
@@ -9730,7 +9782,7 @@ static void InitInternalVars(LinearAllocator* Arena)
         Platform_GetDisplayVersion(&DisplayVersion);
         if (DisplayVersion.Length > 0)
         {
-            AddInternalVariable(S("_Platform.DisplayVersion"), String_Create(Arena, DisplayVersion));
+            AddInternalVariable(S("Platform.DisplayVersion"), String_Create(Arena, DisplayVersion));
         }
     }
 
@@ -9739,7 +9791,7 @@ static void InitInternalVars(LinearAllocator* Arena)
         Platform_GetMachineId(&MachineId);
         if (MachineId.Length > 0)
         {
-            AddInternalVariable(S("_Platform.MachineId"), String_Create(Arena, MachineId));
+            AddInternalVariable(S("Platform.MachineId"), String_Create(Arena, MachineId));
         }
     }
 
@@ -9748,19 +9800,19 @@ static void InitInternalVars(LinearAllocator* Arena)
         Platform_GetDeviceId(&DeviceId);
         if (DeviceId.Length > 0)
         {
-            AddInternalVariable(S("_Platform.DeviceId"), String_Create(Arena, DeviceId));
+            AddInternalVariable(S("Platform.DeviceId"), String_Create(Arena, DeviceId));
         }
     }
 
 
     #if PLATFORM_WINDOWS
-    AddInternalVariable(S("_Platform"), S("Windows"));
+    AddInternalVariable(S("Platform"), S("Windows"));
     AddInternalVariable(S("Win32"),     String_Null());
     #if PLATFORM_64_BIT
     AddInternalVariable(S("Win64"),     String_Null());
     #endif
     #elif PLATFORM_MAC
-    AddInternalVariable(S("_Platform"), S("macOS"));
+    AddInternalVariable(S("Platform"), S("macOS"));
     AddInternalVariable(S("Apple"),     String_Null());
     AddInternalVariable(S("Macintosh"), String_Null());
     AddInternalVariable(S("Mac"),       String_Null());
@@ -9768,7 +9820,7 @@ static void InitInternalVars(LinearAllocator* Arena)
     AddInternalVariable(S("OSX"),       String_Null());
     AddInternalVariable(S("Unix"),      String_Null());
     #elif PLATFORM_LINUX
-    AddInternalVariable(S("_Platform"), S("Linux"));
+    AddInternalVariable(S("Platform"), S("Linux"));
     AddInternalVariable(S("Linux"),     String_Null());
     AddInternalVariable(S("Unix"),      String_Null());
 
@@ -9782,21 +9834,21 @@ static void InitInternalVars(LinearAllocator* Arena)
 
         String Name = String_Create(Arena, DistroNameNoSpaces);
         AddInternalVariable(Name, String_Null());
-        AddInternalVariable(S("_Distro"), Name);
+        AddInternalVariable(S("Distro"), Name);
 
         Name = String_Create(Arena, DistroPrettyName);
-        AddInternalVariable(S("_DistroPrettyName"), Name);
+        AddInternalVariable(S("DistroPrettyName"), Name);
 
         Name = String_Create(Arena, DistroID);
         AddInternalVariable(Name, String_Null());
-        AddInternalVariable(S("_DistroID"), Name);
+        AddInternalVariable(S("DistroID"), Name);
     }
     #elif PLATFORM_BSD
-    AddInternalVariable(S("_Platform"), S("BSD " PLATFORM_STRING));
+    AddInternalVariable(S("Platform"), S("BSD " PLATFORM_STRING));
     AddInternalVariable(S("BSD"),       String_Null());
     AddInternalVariable(S("Unix"),      String_Null());
     #else
-    AddInternalVariable(S("_Platform"), S("Unix"));
+    AddInternalVariable(S("Platform"), S("Unix"));
     AddInternalVariable(S("Unix"),      String_Null());
     #endif
 
@@ -9804,7 +9856,7 @@ static void InitInternalVars(LinearAllocator* Arena)
         const String PackageManager = Platform_DetectPackageManager();
         if (PackageManager.Length > 0)
         {
-            AddInternalVariable(S("_PackageManager"), PackageManager);
+            AddInternalVariable(S("PackageManager"), PackageManager);
             AddInternalVariable(PackageManager,       String_Null()); // enables "if apt" / ":pacman" conditionals
         }
     }
@@ -9816,9 +9868,8 @@ static void InitInternalVars(LinearAllocator* Arena)
 
         String Env = String_Create(Arena, DesktopEnv);
         AddInternalVariable(Env,                      String_Null());
-        AddInternalVariable(S("_DesktopEnvironment"), Env);
-        AddInternalVariable(S("_DesktopEnv"),         Env);
-        AddInternalVariable(S("_DE"),                 Env);
+        AddInternalVariable(S("DesktopEnvironment"), Env);
+        AddInternalVariable(S("DesktopEnv"),         Env);
     }
     #elif PLATFORM_LINUX || PLATFORM_BSD
     StringLocal(DesktopEnv, 128);
@@ -9828,19 +9879,19 @@ static void InitInternalVars(LinearAllocator* Arena)
     {
         String Env = String_Create(Arena, DesktopEnv);
         AddInternalVariable(Env,                      String_Null());
-        AddInternalVariable(S("_DesktopEnvironment"), Env);
-        AddInternalVariable(S("_DesktopEnv"),         Env);
-        AddInternalVariable(S("_DE"),                 Env);
+        AddInternalVariable(S("DesktopEnvironment"), Env);
+        AddInternalVariable(S("DesktopEnv"),         Env);
+        AddInternalVariable(S("DE"),                 Env);
 
         Env = String_Create(Arena, DesktopSession);
         AddInternalVariable(Env,                      String_Null());
-        AddInternalVariable(S("_DesktopSession"),     Env);
-        AddInternalVariable(S("_DS"),                 Env);
+        AddInternalVariable(S("DesktopSession"),     Env);
+        AddInternalVariable(S("DS"),                 Env);
 
         Env = String_Create(Arena, DesktopSessionType);
         AddInternalVariable(Env,                      String_Null());
-        AddInternalVariable(S("_DesktopSessionType"), Env);
-        AddInternalVariable(S("_DST"),                Env);
+        AddInternalVariable(S("DesktopSessionType"), Env);
+        AddInternalVariable(S("DST"),                Env);
     }
     #endif
 
@@ -9873,28 +9924,28 @@ static void InitInternalVars(LinearAllocator* Arena)
     // macOS resolves all of these through libSystem/SDK stubs; librt does not exist there.
     const String MacLibs = S("m pthread dl util resolv z iconv ncurses edit sqlite3 objc");
 
-    AddInternalVariable(S("_Win32Libs"), Win32Libs);
-    AddInternalVariable(S("_LinuxLibs"), LinuxLibs);
-    AddInternalVariable(S("_BSDLibs"),   BsdLibs);
-    AddInternalVariable(S("_MacLibs"),   MacLibs);
+    AddInternalVariable(S("Win32Libs"), Win32Libs);
+    AddInternalVariable(S("LinuxLibs"), LinuxLibs);
+    AddInternalVariable(S("BSDLibs"),   BsdLibs);
+    AddInternalVariable(S("MacLibs"),   MacLibs);
 
     #if PLATFORM_WINDOWS
-    AddInternalVariable(S("_NativeLibs"), Win32Libs);
+    AddInternalVariable(S("NativeLibs"), Win32Libs);
     #elif PLATFORM_BSD
-    AddInternalVariable(S("_NativeLibs"), BsdLibs);
+    AddInternalVariable(S("NativeLibs"), BsdLibs);
     #elif PLATFORM_MAC
-    AddInternalVariable(S("_NativeLibs"), MacLibs);
+    AddInternalVariable(S("NativeLibs"), MacLibs);
     #elif PLATFORM_LINUX || PLATFORM_UNIX
-    AddInternalVariable(S("_NativeLibs"), LinuxLibs);
+    AddInternalVariable(S("NativeLibs"), LinuxLibs);
     #endif
 
-    AddInternalVariable(S("_Arch"), S(CPU_ARCHITECTURE_STRING));
+    AddInternalVariable(S("Arch"), S(CPU_ARCHITECTURE_STRING));
     
     #if PLATFORM_64_BIT
-    AddInternalVariable(S("_Bit"), S("64"));
+    AddInternalVariable(S("Bit"), S("64"));
     AddInternalVariable(S("64_bit"), String_Null());
     #else
-    AddInternalVariable(S("_Bit"), S("32"));
+    AddInternalVariable(S("Bit"), S("32"));
     AddInternalVariable(S("32_bit"), String_Null());
     #endif
 
@@ -9904,7 +9955,7 @@ static void InitInternalVars(LinearAllocator* Arena)
     Uuid ID = UUID_Generate();
     StringLocal(UuidString, 64);
     UUID_ToStringFast(ID, &UuidString);
-    AddInternalVariable(S("_UUID"), String_Create(Arena, UuidString));
+    AddInternalVariable(S("UUID"), String_Create(Arena, UuidString));
 
     const CpuInfo CPUInfo = Platform_QueryCPUInfo();
 
@@ -9913,7 +9964,7 @@ static void InitInternalVars(LinearAllocator* Arena)
     if (Platform_GetCpuBrandName(&CPU))
     {
         CpuBrandName = String_Create(Arena, CPU);
-        AddInternalVariable(S("_CPUBrand"), CpuBrandName);
+        AddInternalVariable(S("CPUBrand"), CpuBrandName);
 
         xx String_ReplaceCharInline(&CPU, ' ', '_');
         CpuBrandName = String_Create(Arena, CPU);
@@ -9921,7 +9972,7 @@ static void InitInternalVars(LinearAllocator* Arena)
     }
     else
     {
-        AddInternalVariable(S("_CPUBrand"), CpuBrandName);
+        AddInternalVariable(S("CPUBrand"), CpuBrandName);
     }
 
     String CpuFullName = S("Unknown");
@@ -9934,24 +9985,24 @@ static void InitInternalVars(LinearAllocator* Arena)
 
     if (CPUInfo.Intel)
     {
-        AddInternalVariable(S("_CPUVendor"), S("Intel"));
-        AddInternalVariable(S("_CPU"), CpuFullName);
+        AddInternalVariable(S("CPUVendor"), S("Intel"));
+        AddInternalVariable(S("CPU"), CpuFullName);
 
         AddInternalVariable(S("Intel"), One);
     }
 
     if (CPUInfo.AMD)
     {
-        AddInternalVariable(S("_CPUVendor"), S("AMD"));
-        AddInternalVariable(S("_CPU"), CpuFullName);
+        AddInternalVariable(S("CPUVendor"), S("AMD"));
+        AddInternalVariable(S("CPU"), CpuFullName);
 
         AddInternalVariable(S("AMD"), One);
     }
 
     if (CPUInfo.Apple)
     {
-        AddInternalVariable(S("_CPUVendor"), S("Apple"));
-        AddInternalVariable(S("_CPU"), CpuFullName);
+        AddInternalVariable(S("CPUVendor"), S("Apple"));
+        AddInternalVariable(S("CPU"), CpuFullName);
     }
 
     #if CPU_X64
@@ -10027,12 +10078,12 @@ static void InitInternalVars(LinearAllocator* Arena)
         u32 MaxPhysicalCores = Platform_GetNumPhysicalProcessors();
 
         xx String_FromU32(&NumCores, MaxPhysicalCores);
-        AddInternalVariable(S("_CPU.PhysicalCores"), String_Create(Arena, NumCores));
+        AddInternalVariable(S("CPU.PhysicalCores"), String_Create(Arena, NumCores));
 
         String_Empty(&NumCores);
 
         xx String_FromU32(&NumCores, MaxLogicalCores);
-        AddInternalVariable(S("_CPU.LogicalCores"), String_Create(Arena, NumCores));
+        AddInternalVariable(S("CPU.LogicalCores"), String_Create(Arena, NumCores));
     }
 
     // TODO: new syntax '&' to refer to internal vars? so that we can finally remove the _ from each interval var cos its ugly
@@ -10042,7 +10093,7 @@ static void InitInternalVars(LinearAllocator* Arena)
     StringLocal(CPUExtensions, 4096);
 
     #define AddCPUExt(Field, Name) \
-        AddInternalVariable(S("_" Name), CPUInfo.Field ? One : Zero); \
+        AddInternalVariable(S(Name), CPUInfo.Field ? One : Zero); \
         if (CPUInfo.Field) { String_Append(&CPUExtensions, S(Name)); String_AppendSpace(&CPUExtensions); }
 
     // x86
@@ -10235,58 +10286,58 @@ static void InitInternalVars(LinearAllocator* Arena)
 
     #undef AddCPUExt
 
-    AddInternalVariable(S("_CPUExtensions"), String_Create(Arena, CPUExtensions));
+    AddInternalVariable(S("CPUExtensions"), String_Create(Arena, CPUExtensions));
 
     StringLocal(CacheLineSize, 8);
     String_Format(&CacheLineSize, S("%u"), Platform_GetCpuCacheLineSize());
-    AddInternalVariable(S("_CacheLineSize"), String_Create(Arena, CacheLineSize));
+    AddInternalVariable(S("CacheLineSize"), String_Create(Arena, CacheLineSize));
 
     StringLocal(AccountName, 256);
     String Allocated;
     if (Platform_GetAccountName(&AccountName))
     {
         Allocated = String_Create(Arena, AccountName);
-        AddInternalVariable(S("_Account"), Allocated);
-        AddInternalVariable(S("_AccountName"), Allocated);
+        AddInternalVariable(S("Account"), Allocated);
+        AddInternalVariable(S("AccountName"), Allocated);
     }
 
     StringLocal(UserName, 256);
     if (Platform_GetUserName(&UserName))
     {
         Allocated = String_Create(Arena, UserName);
-        AddInternalVariable(S("_User"), Allocated);
-        AddInternalVariable(S("_UserName"), Allocated);
+        AddInternalVariable(S("User"), Allocated);
+        AddInternalVariable(S("UserName"), Allocated);
     }
 
     StringLocal(HomeDirectory, MAX_PATH_LENGTH);
     Platform_GetHomeDirectory(&HomeDirectory);
     xx String_EatPathSeparatorsInlineFromEnd(&HomeDirectory);
     String AllocatedHome = String_Create(Arena, HomeDirectory);
-    AddInternalVariable(S("_HomeDirectory"), AllocatedHome);
-    AddInternalVariable(S("_Home"),          AllocatedHome);
+    AddInternalVariable(S("HomeDirectory"), AllocatedHome);
+    AddInternalVariable(S("Home"),          AllocatedHome);
 
     StringLocal(UserDirectory, MAX_PATH_LENGTH);
     if (Platform_GetUserDirectory(&UserDirectory))
     {
         xx String_EatPathSeparatorsInlineFromEnd(&UserDirectory);
         Allocated = String_Create(Arena, UserDirectory);
-        AddInternalVariable(S("_UserDirectory"), Allocated);
+        AddInternalVariable(S("UserDirectory"), Allocated);
     }
     else
     {
-        AddInternalVariable(S("_UserDirectory"), AllocatedHome);
+        AddInternalVariable(S("UserDirectory"), AllocatedHome);
     }
 
     StringLocal(HostName, 256);
     Platform_GetComputerName(&HostName);
     Allocated = String_Create(Arena, HostName);
-    AddInternalVariable(S("_Host"), Allocated);
-    AddInternalVariable(S("_HostName"), Allocated);
+    AddInternalVariable(S("Host"), Allocated);
+    AddInternalVariable(S("HostName"), Allocated);
     
     StringLocal(ComputerName, 256);
     Platform_GetFriendlyComputerName(&ComputerName);
     Allocated = String_Create(Arena, ComputerName);
-    AddInternalVariable(S("_ComputerName"), Allocated);
+    AddInternalVariable(S("ComputerName"), Allocated);
 
     FileVariable_Empty.Name = String_Null();
     FileVariable_Empty.Value = String_Null();
