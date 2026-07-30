@@ -460,7 +460,6 @@ Extension        .plugin      # override the output extension
 | Executable (the default) | `executable`, `exe`, `app`, `application`, `bin`, `binary` |
 | Static library | `static_lib`, `static`, `static_library` |
 | Shared library (DLL / .so / .dylib) | `shared_lib`, `shared`, `shared_library`, `dynamic`, `dynamic_lib`, `dynamic_library` |
-| Both static + shared | `lib`, `library` |
 | Precompiled header | `pch`, `gch`, `pre_compiled_header` |
 | Custom tool output (codegen) | `object`, `compiler_object` |
 | Custom tool, no output files (per-source tool run) | `no_object`, `no_compiler_object` |
@@ -468,6 +467,23 @@ Extension        .plugin      # override the output extension
 | No output (grouping/phony) | `null`, `none`, `phony` |
 
 If `Type` is absent but `Extension` is set, the type is inferred from the extension. On non-Windows platforms, libraries automatically get the conventional `lib` prefix.
+
+**A module builds one library, not both.** `Type lib`/`Type library` (a shared library and a static archive from one declaration) is not supported: the two need different *compile* flags, not just a different link step - position independent code, symbol visibility, and the export-vs-import define your headers hand to consumers all differ. To ship both, build the module twice under an option and give each flavor its own directories:
+
+```make
+Type:shared                     shared_lib
+Type:!shared                    static_lib
+
+BuildDirectory:shared           Build/Shared
+BuildDirectory:!shared          Build/Static
+IntermediateDirectory:shared    Intermediate/Shared
+IntermediateDirectory:!shared   Intermediate/Static
+
+Compiler.Defines:shared         MYLIB_BUILD_SHARED
+Compiler.Defines.Export:shared  MYLIB_SHARED
+```
+
+`riftbuild` builds the static flavor, `riftbuild shared` the shared one, and both artifacts sit side by side. The per-flavor directories are what make that work: flipping the option changes recompile-impact keys, so flavors sharing one `BuildDirectory`/`IntermediateDirectory` would recompile every switch and each build would clean away the other's artifact.
 
 `Type object` turns the module into a custom code-generation step: the "compiler" is whatever tool you name with the `Compiler` key, and outputs are named `Assembly.Prefix` + the extensionless source name + `Extension`. See [Choosing Tools](#choosing-tools).
 

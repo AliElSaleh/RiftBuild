@@ -20,12 +20,6 @@
 const usize GEngineMemoryAmount  = Kibibytes(128);
 const usize GEngineScratchAmount = Kibibytes(8);
 
-// TODO: new rebuild/clean syntax:
-//          "rebulid" to just rebuild this module/.build (exception being phony/null builds will forward this)
-//          "rebulid:some_dep.build" to rebuild a specific module/.build (the .build ext is optional)
-//          "rebulid:*" to rebuild a every single module recursively that we depend on
-//          "rebulid:some_*" to rebuild a every single module who's .build file matches the wildcard
-
 // Let the user in the build script customize how much memory we should pre-allocate.
 // Default is 1MiB
 #ifndef MAX_MEMORY_MB
@@ -1411,8 +1405,6 @@ void LogString_WordWrapped(LinearAllocator Scratch, const String Name, const Str
 
 static void LogOptions(LinearAllocator Scratch, TArray(FileVariable) VariablesDB, TArray(CmdOption) CmdOptionsDB)
 {
-    // TODO: fix long descriptions breaking layout
-
     LOG_INLINE_WARNING("\nOptions\n\n");
 
     SArray(FileVariable, OptionVars, 64) = {0};
@@ -3485,12 +3477,6 @@ static bool CheckForBuildVariableOverrides(TArray(FileVariable) VariablesDB, TAr
     return bAnyOverriden;
 }
 
-// TODO: expand tutorial to general stuff like how to setup a simple project
-// -t -> will display all the options and its breif description
-// -t:env
-// -t:pch
-// -t:general
-// -t:help
 void LogPathEnvVarTutorialSteps(void)
 {
     #ifdef HOOD
@@ -5933,6 +5919,30 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     }
     else
     {
+        if (String_IsEqual(Type, S("lib"), false) ||
+            String_IsEqual(Type, S("library"), false))
+        {
+            LOG_ERROR("\"Type %S\" is no longer supported, because a shared library and a static "
+                      "archive cannot be built from the same compiler flags. Aborting build...", Type);
+
+            LOG_INLINE_WARNING("\nPick the one you want\n");
+            LOG("     Type shared_lib      a .dll/.so/.dylib");
+            LOG("     Type static_lib      a .lib/.a");
+            LOG("\n    To ship both, build the module twice under an option, giving each flavor its");
+            LOG("    own directories so they do not clean away each other's output:\n");
+            LOG("     Type:shared                     shared_lib");
+            LOG("     Type:!shared                    static_lib");
+            LOG("     BuildDirectory:shared           Build/Shared");
+            LOG("     BuildDirectory:!shared          Build/Static");
+            LOG("     IntermediateDirectory:shared    Intermediate/Shared");
+            LOG("     IntermediateDirectory:!shared   Intermediate/Static");
+            LOG("     Compiler.Defines:shared         MYLIB_BUILD_SHARED");
+            LOG("     Compiler.Defines.Export:shared  MYLIB_SHARED");
+
+            Receipt.ExitCode = 1;
+            return Receipt;
+        }
+
         AssemblyType = StringToAssemblyTypeEnum(Type);
 
         if (AssemblyType == AssemblyType_None)
@@ -5960,11 +5970,9 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                 }
             }
 
-            if (bHasDynamicLib && bHasStaticLib)
-            {
-                AssemblyType = AssemblyType_Library;
-            }
-            else if (bHasDynamicLib)
+            // A shared library alongside an archive extension is just the shared build plus its
+            // import library, which the link step produces on its own.
+            if (bHasDynamicLib)
             {
                 AssemblyType = AssemblyType_DynamicLibrary;
             }
@@ -6471,8 +6479,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             {
                 // if we are depending on a libarary, automatically append the build directory
                 // of the thing we just built
-                if (FreshReceipt.AssemblyType == AssemblyType_Library ||
-                    FreshReceipt.AssemblyType == AssemblyType_DynamicLibrary ||
+                if (FreshReceipt.AssemblyType == AssemblyType_DynamicLibrary ||
                     FreshReceipt.AssemblyType == AssemblyType_StaticLibrary)
                 {
                     StringLocal(LibBuildPath, MAX_PATH_LENGTH);
@@ -7676,8 +7683,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                 LOG("    Linker:               %S -> \"%S\"", LinkerProgram, LinkerPath);
             }
 
-            if (AssemblyType == AssemblyType_Library ||
-                AssemblyType == AssemblyType_StaticLibrary)
+            if (AssemblyType == AssemblyType_StaticLibrary)
             {
                 LOG("    Archiver:             %S -> \"%S\"", ArchiverProgram, ArchiverPath);
             }
@@ -7911,7 +7917,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     const FileOverride* FileOverrides = NULL;
     const u32 NumFileOverrides = Internal_BuildFileOverrides(Arena, VariablesDB, CompilerFlagPrefixSymbol, bWrapWithQuotes, bExportingSomething, &FileOverrides);
 
-    // TODO: move the rest down here
     const String CompilerFlags              = GetVariableValue(VariablesDB, S("Compiler.Flags"));
 
     String_Copy(&ExpandedCompilerFlags, CompilerFlags);
@@ -7933,13 +7938,11 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     {
         #if !PLATFORM_WINDOWS
         String PICFlags = String_Null();
-        if (AssemblyType == AssemblyType_Library ||
-            AssemblyType == AssemblyType_DynamicLibrary)
+        if (AssemblyType == AssemblyType_DynamicLibrary)
         {
             PICFlags = S("-fPIC -fvisibility=default");
         }
-        else if (AssemblyType == AssemblyType_Library ||
-                 AssemblyType == AssemblyType_StaticLibrary)
+        else if (AssemblyType == AssemblyType_StaticLibrary)
         {
             PICFlags = S("-fPIC");
         }
@@ -7994,8 +7997,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
     // Flags for shared libraries
     {
-        if (AssemblyType == AssemblyType_DynamicLibrary ||
-            AssemblyType == AssemblyType_Library)
+        if (AssemblyType == AssemblyType_DynamicLibrary)
         {
             String SharedFlag = S("-shared");
 
@@ -8279,9 +8281,8 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         // given. Other toolchains (gcc/clang/ld) have no equivalent linker input for this.
         if (String_IsValid(LinkerManifest))
         {
-            bool bLinkedOutput = AssemblyType == AssemblyType_Executable    ||
-                                 AssemblyType == AssemblyType_DynamicLibrary ||
-                                 AssemblyType == AssemblyType_Library;
+            bool bLinkedOutput = AssemblyType == AssemblyType_Executable ||
+                                 AssemblyType == AssemblyType_DynamicLibrary;
 
             if (bLinkedOutput)
             {
@@ -8297,9 +8298,9 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                         LinearAllocator Scratch = *Arena;
                         StringList ManifestList = String_SplitIntoList(&Scratch, LinkerManifest, ' ', true);
 
-                        bool bIsDllOutput = AssemblyType == AssemblyType_DynamicLibrary ||
-                        AssemblyType == AssemblyType_Library;
-                        
+                        bool bIsDllOutput = AssemblyType == AssemblyType_DynamicLibrary;
+
+
                         // executables embed at the default resource id (1); isolation-aware DLLs
                         // conventionally use id 2
                         String EmbedFlag = bIsDllOutput ? S(" /MANIFEST:EMBED,ID=2") : S(" /MANIFEST:EMBED");
@@ -8906,35 +8907,11 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     }
     else
     {
-        // TODO: rewrite this. the backend should give us all the outputs.
-        u32 WhitespaceIndex = 0;
-        bool bHasSpace = String_IndexOfFirstWhitespace(Extension_Og, &WhitespaceIndex);
-
-        if (bIsAssemblyExe || !bHasSpace)
-        {
-            #ifndef HOOD
-            LOG_SUCCESS("Build complete: %S", OutputPath);
-            #else
-            LOG_SUCCESS("lessss fuckinggg goooo: %S", OutputPath);
-            #endif
-        }
-        else
-        {
-            String NextExt = StrShiftF(Extension_Og, WhitespaceIndex+1);
-
-            StringLocal(OutputPath2, MAX_PATH_LENGTH);
-            String_AppendChar(&OutputPath2, '"');
-            String_Append    (&OutputPath2, BuildBaseDirectory);
-            String_Append    (&OutputPath2, AssemblyName);
-            String_Append    (&OutputPath2, NextExt);
-            String_AppendChar(&OutputPath2, '"');
-
-            #ifndef HOOD
-            LOG_SUCCESS("Build complete: %S\n                          %S", OutputPath, OutputPath2);
-            #else
-            LOG_SUCCESS("lessss fuckinggg goooo: %S\n                         %S", OutputPath, OutputPath2);
-            #endif
-        }
+        #ifndef HOOD
+        LOG_SUCCESS("Build complete: %S", OutputPath);
+        #else
+        LOG_SUCCESS("lessss fuckinggg goooo: %S", OutputPath);
+        #endif
     }
 
     // run post build commands (if specified)
@@ -10058,8 +10035,9 @@ static void InitInternalVars(LinearAllocator* Arena)
         AddInternalVariable(S("_CPU.LogicalCores"), String_Create(Arena, NumCores));
     }
 
-    // TODO: new syntax '&' to refer to internal vars? so that we can remove the _ from each interval var cos its ugle
+    // TODO: new syntax '&' to refer to internal vars? so that we can finally remove the _ from each interval var cos its ugly
     //       '%' will only refer to cmd line options
+    //       for backwards compat. we can just eat the '_' so existing .build files dont break
 
     StringLocal(CPUExtensions, 4096);
 

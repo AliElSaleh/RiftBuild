@@ -69,6 +69,17 @@ void RecordArtifactPath(const FileHandle ManifestHandle, const String Path)
     }
 }
 
+static void Internal_MakeArchiveFileName(const BuildParams* Params, String* OutFileName)
+{
+    String_Append(OutFileName, Params->Assembly);
+
+    #if PLATFORM_WINDOWS
+    String_Append(OutFileName, S(".lib"));
+    #else
+    String_Append(OutFileName, S(".a"));
+    #endif
+}
+
 static void Internal_RecordLinkArtifacts(const BuildParams* Params, const String BaseDir, const String OutputName)
 {
     StringLocal(OutputPath, MAX_PATH_LENGTH);
@@ -111,8 +122,8 @@ void RecordSkippedLinkArtifacts(const BuildParams* Params)
 
         const bool bIsCustomObject = Params->Type == AssemblyType_CustomCompilerObject;
         const bool bIsExe          = Params->Type == AssemblyType_Executable;
-        const bool bIsDLL          = Params->Type == AssemblyType_Library || Params->Type == AssemblyType_DynamicLibrary;
-        const bool bIsLib          = Params->Type == AssemblyType_Library || Params->Type == AssemblyType_StaticLibrary;
+        const bool bIsDLL          = Params->Type == AssemblyType_DynamicLibrary;
+        const bool bIsLib          = Params->Type == AssemblyType_StaticLibrary;
 
         if (bIsCustomObject || bIsExe || bIsDLL)
         {
@@ -122,18 +133,7 @@ void RecordSkippedLinkArtifacts(const BuildParams* Params)
         if (bIsLib)
         {
             StringLocal(LibFile, MAX_PATH_LENGTH);
-            String_Append(&LibFile, Params->Assembly);
-
-            if (Params->Type == AssemblyType_Library)
-            {
-                String_AppendChar(&LibFile, 'S');
-            }
-
-            #if PLATFORM_WINDOWS
-            String_Append(&LibFile, S(".lib"));
-            #else
-            String_Append(&LibFile, S(".a"));
-            #endif
+            Internal_MakeArchiveFileName(Params, &LibFile);
 
             StringLocal(LibOutputPath, MAX_PATH_LENGTH);
             String_Append(&LibOutputPath, BuildPath);
@@ -1650,18 +1650,7 @@ String AssemblyTypeStringToExtension(String Type)
 {
     String Extension = String_Null();
     
-    if (String_IsEqual(Type, S("lib"), false) ||
-        String_IsEqual(Type, S("library"), false))
-    {
-        #if PLATFORM_WINDOWS
-            Extension = S(".dll .lib");
-        #elif PLATFORM_APPLE
-            Extension = S(".dylib .a");
-        #else
-            Extension = S(".so .a");
-        #endif
-    }
-    else if (String_IsEqual(Type, S("static"), false) ||
+    if (String_IsEqual(Type, S("static"), false) ||
              String_IsEqual(Type, S("static_lib"), false) ||
              String_IsEqual(Type, S("static_library"), false))
     {
@@ -1719,14 +1708,9 @@ EAssemblyType StringToAssemblyTypeEnum(String Type)
 {
     EAssemblyType AssemblyType = AssemblyType_None;
 
-    if (String_IsEqual(Type, S("lib"), false) ||
-        String_IsEqual(Type, S("library"), false))
-    {
-        AssemblyType = AssemblyType_Library;
-    }
-    else if (String_IsEqual(Type, S("static"), false) || 
-             String_IsEqual(Type, S("static_lib"), false) || 
-             String_IsEqual(Type, S("static_library"), false))
+    if (String_IsEqual(Type, S("static"), false) ||
+        String_IsEqual(Type, S("static_lib"), false) || 
+        String_IsEqual(Type, S("static_library"), false))
     {
         AssemblyType = AssemblyType_StaticLibrary;
     }
@@ -2459,8 +2443,8 @@ bool C_Link(const BuildParams* Params)
     bool bIsUnixArchiver      = String_EndsWith(Params->ArchiverPath, S("ar"), false);
 
     bool bIsExe = Params->Type == AssemblyType_Executable;
-    bool bIsDLL = Params->Type == AssemblyType_Library || Params->Type == AssemblyType_DynamicLibrary;
-    bool bIsLib = Params->Type == AssemblyType_Library || Params->Type == AssemblyType_StaticLibrary;
+    bool bIsDLL = Params->Type == AssemblyType_DynamicLibrary;
+    bool bIsLib = Params->Type == AssemblyType_StaticLibrary;
 
     String ProgramPath = Params->LinkerPath;
     String VerboseFlag = S("-v");
@@ -2690,25 +2674,10 @@ bool C_Link(const BuildParams* Params)
         if (bIsMicrosoftArchiver)
         {
             String_Append(&CmdLine, S("/nologo "));
-
-            // TODO: archiver.flags /machine:x64
         }
 
         StringLocal(LibFile, MAX_PATH_LENGTH);
-        {
-            String_Append(&LibFile, Params->Assembly);
-
-            if (Params->Type == AssemblyType_Library)
-            {
-                String_AppendChar(&LibFile, 'S'); // todo: rename to _static ?
-            }
-
-            #if PLATFORM_WINDOWS
-            String_Append(&LibFile, S(".lib"));
-            #else
-            String_Append(&LibFile, S(".a"));
-            #endif
-        }
+        Internal_MakeArchiveFileName(Params, &LibFile);
 
         String_Concat(&CmdLine, OutputFlag, S("\""), BuildPath, LibFile, S("\" "));
 

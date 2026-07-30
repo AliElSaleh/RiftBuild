@@ -80,7 +80,6 @@ STRUCT(CmdOption)
 #define ASSEMBLY_TYPE_LIST(X)                      \
     X(None,                 "None")                \
     X(Executable,           "Executable")          \
-    X(Library,              "Library")             \
     X(StaticLibrary,        "Static Library")      \
     X(DynamicLibrary,       "Shared Library")      \
     X(PCH,                  "Pre Compiled Header") \
