@@ -25,7 +25,7 @@ Icon                      riftbuild
 
 TitleName                 Rift Build %^%debug
 Description               A simpler build tool for C/C++, because fuck cmake
-Version(define)           0.3.0-beta-&date.nosep
+Version(define)           0.4.0-beta-&date.nosep
 CompanyName               Artisan Softworks
 Copyright(enforce)        Copyright (c) $CompanyName
 License(generate)         BSD 3-Clause
