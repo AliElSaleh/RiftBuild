@@ -24,7 +24,6 @@ const usize GEngineScratchAmount = Kibibytes(8);
 //       behaves like "no compiler object" type but has extra checks (like no linking) and ui changes
 //       instead of saying "building", we change the language to "transforming", etc.
 
-// TODO: support compiler=blah on the command line to override what we're using (or if we dont have a build file, we can quickly change compilers)
 // TODO: new rebuild/clean syntax:
 //          "rebulid" to just rebuild this module/.build (exception being phony/null builds will forward this)
 //          "rebulid:some_dep.build" to rebuild a specific module/.build (the .build ext is optional)
@@ -5763,16 +5762,35 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         FoundCompilerPaths.IncludePath   = CompilerIncludePath;
         FoundCompilerPaths.LibraryPath   = CompilerLibraryPath;
 
-        if (!FindFirstCompilerAvailable(String_Null(), String_Null(), String_Null(), String_Null(), String_Null(), DoesCmdOptionExist(CmdOptionsDB, S("32")), &FoundCompilerPaths))
+        // With no build file there are no tool keys, but the command line can still name the
+        // tools (compiler=gcc, linker=lld, ...). Honor those before falling back to auto-detection.
+        const String CompilerProgram  = GetCmdOptionValue(CmdOptionsDB, S("Compiler"));
+        const String AssemblerProgram = GetCmdOptionValue(CmdOptionsDB, S("Assembler"));
+        const String LinkerProgram    = GetCmdOptionValue(CmdOptionsDB, S("Linker"));
+        const String ArchiverProgram  = GetCmdOptionValue(CmdOptionsDB, S("Archiver"));
+
+        if (String_IsValid(LinkerProgram))
+        {
+            AddCmdOption(CmdOptionsDB, S("Linker.Explicit"), String_Null());
+        }
+
+        const bool bTarget32Bit = DoesCmdOptionExist(CmdOptionsDB, S("32"));
+
+        if (!FindFirstCompilerAvailable(CompilerProgram, AssemblerProgram, LinkerProgram, ArchiverProgram, WorkingPath, bTarget32Bit, &FoundCompilerPaths))
         {
             Receipt.ExitCode = 1;
             return Receipt;
         }
 
-        AddCmdOption(CmdOptionsDB, S("Compiler.Path"), String_Create(Arena, FoundCompilerPaths.CompilerPath));
-        AddCmdOption(CmdOptionsDB, S("Assembler.Path"), String_Create(Arena, FoundCompilerPaths.AssemblerPath));
-        AddCmdOption(CmdOptionsDB, S("Linker.Path"), String_Create(Arena, FoundCompilerPaths.LinkerPath));
-        AddCmdOption(CmdOptionsDB, S("Archiver.Path"), String_Create(Arena, FoundCompilerPaths.ArchiverPath));
+        AddCmdOption(CmdOptionsDB, S("Compiler.Path"),        String_Create(Arena, FoundCompilerPaths.CompilerPath));
+        AddCmdOption(CmdOptionsDB, S("Compiler.InstallPath"), String_Create(Arena, FoundCompilerPaths.InstallPath));
+        AddCmdOption(CmdOptionsDB, S("Compiler.BasePath"),    String_Create(Arena, FoundCompilerPaths.InstallPath));
+        AddCmdOption(CmdOptionsDB, S("Compiler.ToolPath"),    String_Create(Arena, FoundCompilerPaths.ToolPath));
+        AddCmdOption(CmdOptionsDB, S("Compiler.LibraryPath"), String_Create(Arena, FoundCompilerPaths.LibraryPath));
+        AddCmdOption(CmdOptionsDB, S("Compiler.IncludePath"), String_Create(Arena, FoundCompilerPaths.IncludePath));
+        AddCmdOption(CmdOptionsDB, S("Assembler.Path"),       String_Create(Arena, FoundCompilerPaths.AssemblerPath));
+        AddCmdOption(CmdOptionsDB, S("Linker.Path"),          String_Create(Arena, FoundCompilerPaths.LinkerPath));
+        AddCmdOption(CmdOptionsDB, S("Archiver.Path"),        String_Create(Arena, FoundCompilerPaths.ArchiverPath));
 
         // set defaults for a few key build variables
         bool bAnyOverriden = CheckForBuildVariableOverrides(VariablesDB, CmdOptionsDB);

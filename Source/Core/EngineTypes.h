@@ -62,8 +62,8 @@ typedef struct LinearAllocator LinearAllocator;
         #endif
     #endif
 
-    #define true  1
-    #define false 0
+    // not using #define cos someone can troll and #undef and re-#define true to be 0 lol
+    enum { false = 0, true = 1 };
 #endif
 
 #ifndef NULL
