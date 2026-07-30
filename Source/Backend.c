@@ -102,7 +102,8 @@ void RecordSkippedLinkArtifacts(const BuildParams* Params)
     if (Params != NULL &&
         Params->Type != AssemblyType_PCH &&
         Params->Type != AssemblyType_Null &&
-        Params->Type != AssemblyType_NoCompilerObject)
+        Params->Type != AssemblyType_NoCompilerObject &&
+        Params->Type != AssemblyType_NoAssembly)
     {
         StringLocal(BuildPath, MAX_PATH_LENGTH);
         String_BuildPath(&BuildPath, Params->RootDirectory, Params->BuildDirectory);
@@ -142,7 +143,7 @@ void RecordSkippedLinkArtifacts(const BuildParams* Params)
     }
 }
 
-static void LogCompilingFile(u32 Index, u32 NumSources, String FullPath)
+static void LogCompilingFile(u32 Index, u32 NumSources, String FullPath, bool bIsTransform)
 {
     if (bQuietBuild) { Logging_Enable(); }
     #ifndef HOOD
@@ -154,9 +155,9 @@ static void LogCompilingFile(u32 Index, u32 NumSources, String FullPath)
     Spaces.Length = Min(Diff, 16);
     String_Fill(&Spaces, ' ');
 
-    LOG("[%i/%i]%SCompiling %S", Index, NumSources, Spaces, FullPath);
+    LOG("[%i/%i]%S%S %S", Index, NumSources, Spaces, bIsTransform ? S("Transforming") : S("Compiling"), FullPath);
     #else
-    LOG("compil'n %i o' %i %S", Index, NumSources, FullPath);
+    LOG("%S %i o' %i %S", bIsTransform ? S("transform'n") : S("compil'n"), Index, NumSources, FullPath);
     #endif
     if (bQuietBuild) { Logging_Disable(); }
 }
@@ -908,7 +909,8 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
         String_Append    (&CmdLine, Params->CompilerPath);
         String_AppendChar(&CmdLine, '"');
 
-        if (Params->Type == AssemblyType_NoCompilerObject)
+        if (Params->Type == AssemblyType_NoCompilerObject ||
+            Params->Type == AssemblyType_NoAssembly)
         {
             OutputFlag = String_Null();
             String_Empty(&ObjectPath);
@@ -1022,7 +1024,9 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
         // can skip the object unless one of them changed (see "Header dependency tracking" above).
         // Custom compiler/no-object modules run arbitrary tools that would choke on these flags.
         StringLocal(DepFlags, MAX_PATH_LENGTH + 32);
-        if (Params->Type != AssemblyType_CustomCompilerObject && Params->Type != AssemblyType_NoCompilerObject)
+        if (Params->Type != AssemblyType_CustomCompilerObject &&
+            Params->Type != AssemblyType_NoCompilerObject &&
+            Params->Type != AssemblyType_NoAssembly)
         {
             if (bIsMicrosoftCompiler)
             {
@@ -1072,7 +1076,8 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
         // TODO: option to disable this?
         String ColorFlags = String_Null();
         if (Params->Type != AssemblyType_CustomCompilerObject &&
-            Params->Type != AssemblyType_NoCompilerObject)
+            Params->Type != AssemblyType_NoCompilerObject &&
+            Params->Type != AssemblyType_NoAssembly)
         {
             if (!Export_IsCapturingCommands() && Platform_IsConsoleOutput())
             {
@@ -1201,7 +1206,7 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
         }
 
         StringLocal(EchoText, MAX_PATH_LENGTH + 16);
-        String_Format(&EchoText, S("Compiling %S"), FullPath);
+        String_Format(&EchoText, S("%S %S"), Params->Type == AssemblyType_NoAssembly ? S("Transforming") : S("Compiling"), FullPath);
 
         bSuccess = Export_EmitScriptCommand(EchoText, ToolVarName, ProgramPath, CmdLine);
     }
@@ -1224,7 +1229,8 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
 
         if (!bHideLog || Params->bShouldWaitPerCompileProcess)
         {
-            LogCompilingFile(Data->Index, Params->NumSources, FullPath);
+            const bool bIsTransform = Params->Type == AssemblyType_NoAssembly;
+            LogCompilingFile(Data->Index, Params->NumSources, FullPath, bIsTransform);
         }
 
         if (bQuietBuild) { Logging_Disable(); }
@@ -1374,7 +1380,14 @@ bool C_Compile_Wait(const BuildParams* Params, u32 NumCompiled)
         {
             //TODO: say how long ago the last build was like -> (5.3 secs ago)
             #ifndef HOOD
-            LOG("\nNothing to compile - source files unchanged since last build");
+            if (Params->Type == AssemblyType_NoAssembly)
+            {
+                LOG("\nNothing to transform - source files unchanged since last build");
+            }
+            else
+            {
+                LOG("\nNothing to compile - source files unchanged since last build");
+            }
             #else
             LOG("\nno work to do homie");
             #endif
@@ -1745,6 +1758,12 @@ EAssemblyType StringToAssemblyTypeEnum(String Type)
              String_IsEqual(Type, S("no_compiler_object"), false))
     {
         AssemblyType = AssemblyType_NoCompilerObject;
+    }
+    else if (String_IsEqual(Type, S("no_assembly"), false) ||
+             String_IsEqual(Type, S("source_transform"), false) ||
+             String_IsEqual(Type, S("transform"), false))
+    {
+        AssemblyType = AssemblyType_NoAssembly;
     }
     else if (String_IsEqual(Type, S("null"), false) ||
              String_IsEqual(Type, S("none"), false) ||

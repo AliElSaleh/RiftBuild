@@ -463,11 +463,15 @@ Extension        .plugin      # override the output extension
 | Both static + shared | `lib`, `library` |
 | Precompiled header | `pch`, `gch`, `pre_compiled_header` |
 | Custom tool output (codegen) | `object`, `compiler_object` |
+| Custom tool, no output files (per-source tool run) | `no_object`, `no_compiler_object` |
+| Source transform (like `no_object`, "Transforming" UI, never links) | `no_assembly`, `source_transform`, `transform` |
 | No output (grouping/phony) | `null`, `none`, `phony` |
 
 If `Type` is absent but `Extension` is set, the type is inferred from the extension. On non-Windows platforms, libraries automatically get the conventional `lib` prefix.
 
 `Type object` turns the module into a custom code-generation step: the "compiler" is whatever tool you name with the `Compiler` key, and outputs are named `Assembly.Prefix` + the extensionless source name + `Extension`. See [Choosing Tools](#choosing-tools).
+
+`Type no_assembly` turns the module into a source transform: the tool named with the `Compiler` key runs once per source, no output files are produced, and nothing is ever linked (a declared `Linker` key warns and is ignored). The build UI says "Transforming" instead of "Building". Use it for linters, formatters, validators, or any per-source tool whose value is its side effect or exit code.
 
 ---
 

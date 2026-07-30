@@ -77,30 +77,30 @@ STRUCT(CmdOption)
     String Value;
 };
 
+#define ASSEMBLY_TYPE_LIST(X)                      \
+    X(None,                 "None")                \
+    X(Executable,           "Executable")          \
+    X(Library,              "Library")             \
+    X(StaticLibrary,        "Static Library")      \
+    X(DynamicLibrary,       "Shared Library")      \
+    X(PCH,                  "Pre Compiled Header") \
+    X(CustomCompilerObject, "Compiler Object")     \
+    X(NoCompilerObject,     "No Compiler Object")  \
+    X(NoAssembly,           "Source Transform")    \
+    X(Null,                 "Null")
+
 ENUM(EAssemblyType)
 {
-    AssemblyType_None,
-    AssemblyType_Executable,
-    AssemblyType_Library,
-    AssemblyType_StaticLibrary,
-    AssemblyType_DynamicLibrary,
-    AssemblyType_PCH,
-    AssemblyType_CustomCompilerObject,
-    AssemblyType_NoCompilerObject,
-    AssemblyType_Null
+    #define X(Name, DisplayName) AssemblyType_##Name,
+    ASSEMBLY_TYPE_LIST(X)
+    #undef X
 };
 
-static const String AssemblyTypeStringTable[9] =
+static const String AssemblyTypeStringTable[] =
 {
-    SC("None"),
-    SC("Executable"),
-    SC("Library"),
-    SC("Static Library"),
-    SC("Shared Library"),
-    SC("Pre Compiled Header"),
-    SC("Compiler Object"),
-    SC("No Compiler Object"),
-    SC("Null"),
+    #define X(Name, DisplayName) SC(DisplayName),
+    ASSEMBLY_TYPE_LIST(X)
+    #undef X
 };
 
 ENUM(ECompiler)
@@ -319,7 +319,7 @@ STRUCT(BuildParams)
     bool bLinkerNoDefaultLibs;
     bool bCompilerFlagsFirst;
     bool bLinkerFlagsFirst;
-    bool bCanLink; // false for codegen modules (custom objects, no_object), they have no link stage
+    bool bCanLink; // false for codegen modules (custom objects, no_object, no_assembly), they have no link stage
 
     bool bPadding[7];
 };

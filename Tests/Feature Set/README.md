@@ -75,6 +75,8 @@ folders - the sources only compile with the defines the .build file provides.
 | 55 | Wildcard File Operations | `*`/`?`/`**` wildcards in Copy/Move/Delete sources; if_not_exist per match; wildcard Delete never touches directories |
 | 56 | Block Phase Commands | Any command verb under a Pre*/Post* phase followed by a `{ }` block runs one command per line; lines share the verb's parameters |
 | 57 | Cpp Files | A lone .cpp with no .build file builds as C++ and links the C++ runtime automatically |
+| 58 | Depend Two Token Options | Two-token `Depend <name>.build <dir>` combined with `\| options` forwarding |
+| 59 | No Assembly Type | `Type no_assembly` runs a tool per source, produces nothing, never links; "Transforming" UI |
 
 Tests 18, 19, 28, 43, 44, 45, 46, 52, 54 need extra invocations beyond a plain build to
 exercise their feature (documented in each .build header comment).

@@ -1,0 +1,10 @@
+# Type no_assembly turns the module into a per-source transform: the tool named by
+# the Compiler key runs once for every source, produces no objects, and never links.
+# The UI says "Transforming"/"Transform complete" instead of "Building"/"Build complete".
+# `sort` exists on Windows and POSIX and exits 0, printing each source's lines sorted.
+Assembly    TransformStep
+Type        no_assembly
+
+Compiler    sort
+
+SourceFiles notes

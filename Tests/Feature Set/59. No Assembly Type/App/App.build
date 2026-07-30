@@ -1,0 +1,6 @@
+# The dependent half: a no_assembly dependency must build (transform) cleanly and
+# contribute nothing to the consumer's link - no libraries, no library paths.
+Depend ../Transform
+
+Assembly    NoAssemblyApp
+SourceFiles main

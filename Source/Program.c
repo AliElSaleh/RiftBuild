@@ -20,10 +20,6 @@
 const usize GEngineMemoryAmount  = Kibibytes(128);
 const usize GEngineScratchAmount = Kibibytes(8);
 
-// TODO: new assembly type. AssemblyType_NoAssembly or AssemblyType_SourceTransform.
-//       behaves like "no compiler object" type but has extra checks (like no linking) and ui changes
-//       instead of saying "building", we change the language to "transforming", etc.
-
 // TODO: new rebuild/clean syntax:
 //          "rebulid" to just rebuild this module/.build (exception being phony/null builds will forward this)
 //          "rebulid:some_dep.build" to rebuild a specific module/.build (the .build ext is optional)
@@ -7066,6 +7062,17 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         bCanLink = false;
     }
 
+    if (AssemblyType == AssemblyType_NoAssembly)
+    {
+        bCanLink = false;
+
+        // Unlike "object" modules, an explicit Linker key cannot opt a transform back into linking.
+        if (bExplicitLinker)
+        {
+            LOG_WARNING("This module is a source transform (Type no_assembly), so the Linker key is ignored - nothing is ever linked");
+        }
+    }
+
     {
         const u32 NumSources = CountData.NumSources + CountData.NumAsmSources + CountData.NumRcSources;
 
@@ -7074,7 +7081,14 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             if (bQuietBuild) { Logging_Enable(); }
 
             #ifndef HOOD
-            LOG("Nothing to compile");
+            if (AssemblyType == AssemblyType_NoAssembly)
+            {
+                LOG("Nothing to transform");
+            }
+            else
+            {
+                LOG("Nothing to compile");
+            }
             #else
             LOG("no work to do homie");
             #endif
@@ -8447,7 +8461,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     Processes.FreeBuffers = CompileJobBuffers;
     CompileProcessPool_InitOutputBuffers(Arena, &Processes);
 
-    if (AssemblyType != AssemblyType_NoCompilerObject)
+    if (AssemblyType != AssemblyType_NoCompilerObject && AssemblyType != AssemblyType_NoAssembly)
     {
         if (!String_IsEqual(BuildDirectory, S("."), false))
         {
@@ -8620,7 +8634,15 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     {
         if (NumSources > 0)
         {
-            if (AssemblyType == AssemblyType_CustomCompilerObject && !bCanLink)
+            if (AssemblyType == AssemblyType_NoAssembly)
+            {
+                #ifndef HOOD
+                LOG("Transforming %u %S [%S] (with %u %S max)\n", NumSources, NumSources == 1 ? S("source file") : S("source files"), TargetArchString, MaxCompilersAtOnce, MaxCompilersAtOnce == 1 ? S("core") : S("cores"));
+                #else
+                LOG("transform'n dem %u files\n", NumSources);
+                #endif
+            }
+            else if (AssemblyType == AssemblyType_CustomCompilerObject && !bCanLink)
             {
                 String ExtToUse = CompilerObjectExt;
                 if (String_IsValid(Extension))
@@ -8886,8 +8908,16 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     String_Append(&OutputPath, AssemblyNameWithExt);
     String_AppendChar(&OutputPath, '"');
 
-    if (AssemblyType == AssemblyType_CustomCompilerObject ||
-        AssemblyType == AssemblyType_NoCompilerObject)
+    if (AssemblyType == AssemblyType_NoAssembly)
+    {
+        #ifndef HOOD
+        LOG_SUCCESS("Transform complete");
+        #else
+        LOG_SUCCESS("transformed n' shiiit");
+        #endif
+    }
+    else if (AssemblyType == AssemblyType_CustomCompilerObject ||
+             AssemblyType == AssemblyType_NoCompilerObject)
     {
         #ifndef HOOD
         LOG_SUCCESS("Build complete", OutputPath);
