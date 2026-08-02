@@ -18,7 +18,6 @@
 import Source/Common.buildvars
 
 Compiler                  %compiler
-Test                      &SSE4.1
 
 Assembly                  RiftBuild
 Icon                      riftbuild

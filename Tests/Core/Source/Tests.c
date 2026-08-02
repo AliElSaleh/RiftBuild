@@ -191,6 +191,369 @@ TEST(StringUtils_Format)
     return true;
 }
 
+TEST(StringUtils_Format_GroupedUnsigned)
+{
+    StringLocal(TestString, 256);
+
+    // below the first grouping boundary nothing is inserted
+    String_Format(&TestString, S("%U"), 0u);
+    Expect_String_IsEqual(S("0"), TestString, true);
+
+    String_Format(&TestString, S("%U"), 7u);
+    Expect_String_IsEqual(S("7"), TestString, true);
+
+    String_Format(&TestString, S("%U"), 999u);
+    Expect_String_IsEqual(S("999"), TestString, true);
+
+    // exactly on the boundary the first separator appears
+    String_Format(&TestString, S("%U"), 1000u);
+    Expect_String_IsEqual(S("1,000"), TestString, true);
+
+    // a leading group that is already full must not gain a leading separator
+    String_Format(&TestString, S("%U"), 123456u);
+    Expect_String_IsEqual(S("123,456"), TestString, true);
+
+    // several groups, leading group shorter than three digits
+    String_Format(&TestString, S("%U"), 1358395u);
+    Expect_String_IsEqual(S("1,358,395"), TestString, true);
+
+    // zeros inside the groups are preserved
+    String_Format(&TestString, S("%U"), 1000000u);
+    Expect_String_IsEqual(S("1,000,000"), TestString, true);
+
+    // lowercase %u keeps printing plain digits
+    String_Format(&TestString, S("%u"), 1358395u);
+    Expect_String_IsEqual(S("1358395"), TestString, true);
+
+    // grouped values embedded in surrounding text
+    String_Format(&TestString, S("wrote %U bytes in %U ms"), 1358395u, 1200u);
+    Expect_String_IsEqual(S("wrote 1,358,395 bytes in 1,200 ms"), TestString, true);
+
+    return true;
+}
+
+TEST(StringUtils_Format_GroupedUnsignedLengthModifiers)
+{
+    StringLocal(TestString, 256);
+
+    // hh reads the argument as u8, so the value is truncated before it is grouped
+    String_Format(&TestString, S("%hhU"), 255u);
+    Expect_String_IsEqual(S("255"), TestString, true);
+
+    // (u8)1234 == 210
+    String_Format(&TestString, S("%hhU"), 1234u);
+    Expect_String_IsEqual(S("210"), TestString, true);
+
+    // h reads the argument as u16
+    String_Format(&TestString, S("%hU"), 65535u);
+    Expect_String_IsEqual(S("65,535"), TestString, true);
+
+    // (u16)70000 == 4464
+    String_Format(&TestString, S("%hU"), 70000u);
+    Expect_String_IsEqual(S("4,464"), TestString, true);
+
+    // no modifier and l are both u32
+    String_Format(&TestString, S("%U"), 4294967295u);
+    Expect_String_IsEqual(S("4,294,967,295"), TestString, true);
+
+    String_Format(&TestString, S("%lU"), 4294967295u);
+    Expect_String_IsEqual(S("4,294,967,295"), TestString, true);
+
+    // ll reads the argument as u64; at the maximum the grouped form is exactly 26 characters,
+    // which is the capacity of the internal grouping buffer
+    String_Format(&TestString, S("%llU"), 18446744073709551615ull);
+    Expect_String_IsEqual(S("18,446,744,073,709,551,615"), TestString, true);
+    Expect_IsEqual(26, TestString.Length);
+
+    // the plain lowercase form of the same value
+    String_Format(&TestString, S("%llu"), 18446744073709551615ull);
+    Expect_String_IsEqual(S("18446744073709551615"), TestString, true);
+
+    return true;
+}
+
+TEST(StringUtils_Format_GroupedUnsignedLiteral)
+{
+    StringLocal(TestString, 256);
+
+    // %%U has to survive as the literal text %U -- Exporter.c writes it into the Exec line of
+    // Linux desktop entries, where %U is a freedesktop field code and not one of ours
+    String_Format(&TestString, S("%%U"));
+    Expect_String_IsEqual(S("%U"), TestString, true);
+
+    String_Format(&TestString, S("Exec=/usr/bin/app %%U"));
+    Expect_String_IsEqual(S("Exec=/usr/bin/app %U"), TestString, true);
+
+    // a literal and a real specifier in the same format string
+    String_Format(&TestString, S("%%U=%U"), 1000u);
+    Expect_String_IsEqual(S("%U=1,000"), TestString, true);
+
+    // the lowercase escape is unchanged too
+    String_Format(&TestString, S("%%u"));
+    Expect_String_IsEqual(S("%u"), TestString, true);
+
+    return true;
+}
+
+TEST(StringUtils_Format_GroupedSigned)
+{
+    StringLocal(TestString, 256);
+
+    // below the first grouping boundary nothing is inserted
+    String_Format(&TestString, S("%D"), 0);
+    Expect_String_IsEqual(S("0"), TestString, true);
+
+    String_Format(&TestString, S("%D"), 7);
+    Expect_String_IsEqual(S("7"), TestString, true);
+
+    String_Format(&TestString, S("%D"), 999);
+    Expect_String_IsEqual(S("999"), TestString, true);
+
+    // exactly on the boundary the first separator appears
+    String_Format(&TestString, S("%D"), 1000);
+    Expect_String_IsEqual(S("1,000"), TestString, true);
+
+    // a leading group that is already full must not gain a leading separator
+    String_Format(&TestString, S("%D"), 123456);
+    Expect_String_IsEqual(S("123,456"), TestString, true);
+
+    // several groups, leading group shorter than three digits
+    String_Format(&TestString, S("%D"), 1358395);
+    Expect_String_IsEqual(S("1,358,395"), TestString, true);
+
+    String_Format(&TestString, S("%D"), 12345678);
+    Expect_String_IsEqual(S("12,345,678"), TestString, true);
+
+    // zeros inside the groups are preserved
+    String_Format(&TestString, S("%D"), 1000000);
+    Expect_String_IsEqual(S("1,000,000"), TestString, true);
+
+    // the leading '-' stays put and does not count towards a group
+    String_Format(&TestString, S("%D"), -1);
+    Expect_String_IsEqual(S("-1"), TestString, true);
+
+    String_Format(&TestString, S("%D"), -999);
+    Expect_String_IsEqual(S("-999"), TestString, true);
+
+    String_Format(&TestString, S("%D"), -1000);
+    Expect_String_IsEqual(S("-1,000"), TestString, true);
+
+    String_Format(&TestString, S("%D"), -1358395);
+    Expect_String_IsEqual(S("-1,358,395"), TestString, true);
+
+    // a negative whose leading group is already full
+    String_Format(&TestString, S("%D"), -123456);
+    Expect_String_IsEqual(S("-123,456"), TestString, true);
+
+    // %I is the same specifier as %D
+    String_Format(&TestString, S("%I"), 1358395);
+    Expect_String_IsEqual(S("1,358,395"), TestString, true);
+
+    String_Format(&TestString, S("%I"), -1358395);
+    Expect_String_IsEqual(S("-1,358,395"), TestString, true);
+
+    // the lowercase forms keep printing plain digits
+    String_Format(&TestString, S("%d"), 1358395);
+    Expect_String_IsEqual(S("1358395"), TestString, true);
+
+    String_Format(&TestString, S("%d"), -1358395);
+    Expect_String_IsEqual(S("-1358395"), TestString, true);
+
+    String_Format(&TestString, S("%i"), -1358395);
+    Expect_String_IsEqual(S("-1358395"), TestString, true);
+
+    // grouped values embedded in surrounding text
+    String_Format(&TestString, S("delta %D over %D files"), -1358395, 1200);
+    Expect_String_IsEqual(S("delta -1,358,395 over 1,200 files"), TestString, true);
+
+    return true;
+}
+
+TEST(StringUtils_Format_GroupedSignedLengthModifiers)
+{
+    StringLocal(TestString, 256);
+
+    // hh reads the argument as i8, which can never reach a grouping boundary
+    String_Format(&TestString, S("%hhD"), 127);
+    Expect_String_IsEqual(S("127"), TestString, true);
+
+    String_Format(&TestString, S("%hhD"), -128);
+    Expect_String_IsEqual(S("-128"), TestString, true);
+
+    // h reads the argument as i16
+    String_Format(&TestString, S("%hD"), 32767);
+    Expect_String_IsEqual(S("32,767"), TestString, true);
+
+    String_Format(&TestString, S("%hD"), -32768);
+    Expect_String_IsEqual(S("-32,768"), TestString, true);
+
+    // no modifier and l are both i32
+    String_Format(&TestString, S("%D"), 2147483647);
+    Expect_String_IsEqual(S("2,147,483,647"), TestString, true);
+
+    String_Format(&TestString, S("%lD"), 2147483647);
+    Expect_String_IsEqual(S("2,147,483,647"), TestString, true);
+
+    String_Format(&TestString, S("%lI"), -1358395);
+    Expect_String_IsEqual(S("-1,358,395"), TestString, true);
+
+    // ll reads the argument as i64
+    String_Format(&TestString, S("%llD"), 1358395LL);
+    Expect_String_IsEqual(S("1,358,395"), TestString, true);
+
+    // at the i64 maximum the grouped form is 25 characters
+    String_Format(&TestString, S("%llD"), 9223372036854775807LL);
+    Expect_String_IsEqual(S("9,223,372,036,854,775,807"), TestString, true);
+    Expect_IsEqual(25, TestString.Length);
+
+    // the plain lowercase form of the same value
+    String_Format(&TestString, S("%lld"), 9223372036854775807LL);
+    Expect_String_IsEqual(S("9223372036854775807"), TestString, true);
+
+    return true;
+}
+
+TEST(StringUtils_Format_GroupedFloat)
+{
+    StringLocal(TestString, 256);
+
+    // only the integer part is grouped, the fractional part is left alone
+    String_Format(&TestString, S("%F"), 1358395.5);
+    Expect_String_IsEqual(S("1,358,395.500000"), TestString, true);
+
+    String_Format(&TestString, S("%F"), 1234567890.5);
+    Expect_String_IsEqual(S("1,234,567,890.500000"), TestString, true);
+
+    // below the first boundary nothing is inserted
+    String_Format(&TestString, S("%F"), 999.5);
+    Expect_String_IsEqual(S("999.500000"), TestString, true);
+
+    // exactly on the boundary the first separator appears
+    String_Format(&TestString, S("%F"), 1000.5);
+    Expect_String_IsEqual(S("1,000.500000"), TestString, true);
+
+    // a zero integer part is still printed as a single 0
+    String_Format(&TestString, S("%F"), 0.5);
+    Expect_String_IsEqual(S("0.500000"), TestString, true);
+
+    String_Format(&TestString, S("%F"), 0.0);
+    Expect_String_IsEqual(S("0.000000"), TestString, true);
+
+    // negatives: the sign is emitted before the grouped integer part
+    String_Format(&TestString, S("%F"), -1358395.5);
+    Expect_String_IsEqual(S("-1,358,395.500000"), TestString, true);
+
+    String_Format(&TestString, S("%F"), -1000.5);
+    Expect_String_IsEqual(S("-1,000.500000"), TestString, true);
+
+    String_Format(&TestString, S("%F"), -999.5);
+    Expect_String_IsEqual(S("-999.500000"), TestString, true);
+
+    // a negative with a zero integer part
+    String_Format(&TestString, S("%F"), -0.5);
+    Expect_String_IsEqual(S("-0.500000"), TestString, true);
+
+    // .precision still applies on top of the grouping
+    String_Format(&TestString, S("%.2F"), 1000.25);
+    Expect_String_IsEqual(S("1,000.25"), TestString, true);
+
+    String_Format(&TestString, S("%.3F"), -1000.125);
+    Expect_String_IsEqual(S("-1,000.125"), TestString, true);
+
+    // lowercase %f keeps printing plain digits
+    String_Format(&TestString, S("%f"), 1358395.5);
+    Expect_String_IsEqual(S("1358395.500000"), TestString, true);
+
+    String_Format(&TestString, S("%f"), -1000.5);
+    Expect_String_IsEqual(S("-1000.500000"), TestString, true);
+
+    String_Format(&TestString, S("%.2f"), 1000.25);
+    Expect_String_IsEqual(S("1000.25"), TestString, true);
+
+    // grouped floats embedded in surrounding text
+    String_Format(&TestString, S("built in %.2F seconds"), 1234.75);
+    Expect_String_IsEqual(S("built in 1,234.75 seconds"), TestString, true);
+
+    return true;
+}
+
+TEST(StringUtils_Format_GroupedSignedAndFloatLiteral)
+{
+    StringLocal(TestString, 256);
+
+    // the capital specifiers must still be escapable, exactly like %%U
+    String_Format(&TestString, S("%%D"));
+    Expect_String_IsEqual(S("%D"), TestString, true);
+
+    String_Format(&TestString, S("%%I"));
+    Expect_String_IsEqual(S("%I"), TestString, true);
+
+    String_Format(&TestString, S("%%F"));
+    Expect_String_IsEqual(S("%F"), TestString, true);
+
+    // a literal and a real specifier in the same format string
+    String_Format(&TestString, S("%%D=%D"), -1000);
+    Expect_String_IsEqual(S("%D=-1,000"), TestString, true);
+
+    String_Format(&TestString, S("%%F=%.2F"), 1000.25);
+    Expect_String_IsEqual(S("%F=1,000.25"), TestString, true);
+
+    // the lowercase escapes are unchanged too
+    String_Format(&TestString, S("%%d %%i %%f"));
+    Expect_String_IsEqual(S("%d %i %f"), TestString, true);
+
+    return true;
+}
+
+TEST(StringUtils_Format_IntegerMinimums)
+{
+    StringLocal(TestString, 256);
+
+    // negating the i64 minimum overflows, so the digits have to come off the unsigned
+    // magnitude -- this used to print garbage because % 10 went negative
+    const i64 I64Min = (i64)-9223372036854775807LL - 1;
+
+    String_Format(&TestString, S("%lld"), I64Min);
+    Expect_String_IsEqual(S("-9223372036854775808"), TestString, true);
+    Expect_IsEqual(20, TestString.Length);
+
+    // the grouped form is exactly 26 characters, which is the whole capacity of the
+    // formatter's internal grouping buffer
+    String_Format(&TestString, S("%llD"), I64Min);
+    Expect_String_IsEqual(S("-9,223,372,036,854,775,808"), TestString, true);
+    Expect_IsEqual(26, TestString.Length);
+
+    String_Format(&TestString, S("%llI"), I64Min);
+    Expect_String_IsEqual(S("-9,223,372,036,854,775,808"), TestString, true);
+
+    // the i64 maximum, one past the value that used to overflow
+    String_Format(&TestString, S("%lld"), 9223372036854775807LL);
+    Expect_String_IsEqual(S("9223372036854775807"), TestString, true);
+
+    // the narrower minimums go through the same magnitude path
+    String_Format(&TestString, S("%d"), (i32)-2147483647 - 1);
+    Expect_String_IsEqual(S("-2147483648"), TestString, true);
+
+    String_Format(&TestString, S("%D"), (i32)-2147483647 - 1);
+    Expect_String_IsEqual(S("-2,147,483,648"), TestString, true);
+
+    String_Format(&TestString, S("%hhd"), -128);
+    Expect_String_IsEqual(S("-128"), TestString, true);
+
+    String_Format(&TestString, S("%hd"), -32768);
+    Expect_String_IsEqual(S("-32768"), TestString, true);
+
+    String_Format(&TestString, S("%hD"), -32768);
+    Expect_String_IsEqual(S("-32,768"), TestString, true);
+
+    // the unsigned maximum needs all 20 digits of the formatter's scratch buffer
+    String_Format(&TestString, S("%llu"), 18446744073709551615ull);
+    Expect_String_IsEqual(S("18446744073709551615"), TestString, true);
+    Expect_IsEqual(20, TestString.Length);
+
+    return true;
+}
+
 TEST(StringUtils_BuildPath)
 {
     StringLocal(TestString, 256);
@@ -998,7 +1361,7 @@ TEST(StringUtils_ToI8)
     Expect_IsTrue(bSuccess);
     Expect_IsEqual(123, Result);
 
-    a = S("-127");
+    a = S("-128");
     Result = 0;
     bSuccess = String_ToI8(a, &Result);
     Expect_IsTrue(bSuccess);
@@ -1047,7 +1410,7 @@ TEST(StringUtils_ToI16)
     Expect_IsTrue(bSuccess);
     Expect_IsEqual(123, Result);
 
-    a = S("-32767");
+    a = S("-32768");
     Result = 0;
     bSuccess = String_ToI16(a, &Result);
     Expect_IsTrue(bSuccess);
@@ -1096,7 +1459,7 @@ TEST(StringUtils_ToI32)
     Expect_IsTrue(bSuccess);
     Expect_IsEqual(123, Result);
 
-    a = S("-2147483647");
+    a = S("-2147483648");
     Result = 0;
     bSuccess = String_ToI32(a, &Result);
     Expect_IsTrue(bSuccess);
@@ -1145,7 +1508,7 @@ TEST(StringUtils_ToI64)
     Expect_IsTrue(bSuccess);
     Expect_IsEqual(123, Result);
 
-    a = S("-9223372036854775807");
+    a = S("-9223372036854775808");
     Result = 0;
     bSuccess = String_ToI64(a, &Result);
     Expect_IsTrue(bSuccess);
@@ -1163,7 +1526,7 @@ TEST(StringUtils_ToI64)
     Expect_IsTrue(bSuccess);
     Expect_IsEqual(0, Result);
 
-    a = S("-9223372036854775808");
+    a = S("-9223372036854775809");
     Result = 0;
     bSuccess = String_ToI64(a, &Result);
     Expect_IsFalse(bSuccess);
@@ -4271,10 +4634,51 @@ TEST(StringUtils_FromI64)
     Expect_IsTrue(bSuccess);
     Expect_String_IsEqual(S("-3000000000"), Buffer, true);
 
+    // INT64_MIN -- negating it overflows, so the digits come off the unsigned magnitude.
+    // this used to print garbage ("-'..--).0-*(+,))+(0(") because % 10 went negative.
+    Buffer.Length = 0;
+    bSuccess = String_FromI64(&Buffer, (i64)-9223372036854775807LL - 1);
+    Expect_IsTrue(bSuccess);
+    Expect_String_IsEqual(S("-9223372036854775808"), Buffer, true);
+    Expect_IsEqual(20, Buffer.Length);
+
     // Buffer too small should fail
     StringLocal(TinyBuffer, 4);
     bSuccess = String_FromI64(&TinyBuffer, 123456789);
     Expect_IsFalse(bSuccess);
+
+    // A buffer larger than 10 but still too small for an i64 must be rejected. this used
+    // to be accepted because the MaxDigits switch had no case for i64 and fell through to
+    // the 10-digit default, and the write loop then ran off the end of the buffer
+    StringLocal(SmallBuffer, 12);
+    bSuccess = String_FromI64(&SmallBuffer, 9223372036854775807LL);
+    Expect_IsFalse(bSuccess);
+    Expect_IsEqual(0, SmallBuffer.Length);
+
+    // the guard is driven by the type, not by the value, so even a one digit i64 is
+    // rejected by a buffer that could not hold the widest one
+    bSuccess = String_FromI64(&SmallBuffer, 1);
+    Expect_IsFalse(bSuccess);
+    Expect_IsEqual(0, SmallBuffer.Length);
+
+    // 19 slots is exactly enough for a positive i64
+    StringLocal(ExactBuffer, 19);
+    bSuccess = String_FromI64(&ExactBuffer, 9223372036854775807LL);
+    Expect_IsTrue(bSuccess);
+    Expect_String_IsEqual(S("9223372036854775807"), ExactBuffer, true);
+    Expect_IsEqual(19, ExactBuffer.Length);
+
+    // ... but a negative needs one more slot for the sign
+    ExactBuffer.Length = 0;
+    bSuccess = String_FromI64(&ExactBuffer, (i64)-9223372036854775807LL - 1);
+    Expect_IsFalse(bSuccess);
+    Expect_IsEqual(0, ExactBuffer.Length);
+
+    StringLocal(SignBuffer, 20);
+    bSuccess = String_FromI64(&SignBuffer, (i64)-9223372036854775807LL - 1);
+    Expect_IsTrue(bSuccess);
+    Expect_String_IsEqual(S("-9223372036854775808"), SignBuffer, true);
+    Expect_IsEqual(20, SignBuffer.Length);
 
     return true;
 }
@@ -4328,6 +4732,33 @@ TEST(StringUtils_FromU64)
     StringLocal(TinyBuffer, 4);
     bSuccess = String_FromU64(&TinyBuffer, 18446744073709551615ULL);
     Expect_IsFalse(bSuccess);
+
+    // A buffer larger than 10 but still too small for a u64 must be rejected. this used to
+    // be accepted because the MaxDigits switch had no case for u64 and fell through to the
+    // 10-digit default, and the write loop then ran off the end of the buffer
+    StringLocal(SmallBuffer, 12);
+    bSuccess = String_FromU64(&SmallBuffer, 18446744073709551615ULL);
+    Expect_IsFalse(bSuccess);
+    Expect_IsEqual(0, SmallBuffer.Length);
+
+    // the guard is driven by the type, not by the value, so even a one digit u64 is
+    // rejected by a buffer that could not hold the widest one
+    bSuccess = String_FromU64(&SmallBuffer, 1);
+    Expect_IsFalse(bSuccess);
+    Expect_IsEqual(0, SmallBuffer.Length);
+
+    // 19 slots is one short of what a u64 needs
+    StringLocal(ShortBuffer, 19);
+    bSuccess = String_FromU64(&ShortBuffer, 18446744073709551615ULL);
+    Expect_IsFalse(bSuccess);
+    Expect_IsEqual(0, ShortBuffer.Length);
+
+    // 20 slots is exactly enough
+    StringLocal(ExactBuffer, 20);
+    bSuccess = String_FromU64(&ExactBuffer, 18446744073709551615ULL);
+    Expect_IsTrue(bSuccess);
+    Expect_String_IsEqual(S("18446744073709551615"), ExactBuffer, true);
+    Expect_IsEqual(20, ExactBuffer.Length);
 
     return true;
 }

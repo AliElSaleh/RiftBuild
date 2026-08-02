@@ -212,7 +212,7 @@ RIFT_API NO_DISCARD StringArray String_SplitIntoArray(LinearAllocator* Arena, co
 RIFT_API NO_DISCARD StringArray String_ParseIntoArray(LinearAllocator* Arena, const String Str, u8 Delimiter, u32 StartingIndex, u32 MaxCount);
 //RIFT_API NO_DISCARD StringArray String_ParseIntoArray_IntoExistingBuffer(String* ArrayBuffer, const String Str, u8 Delimiter, u32 StartingIndex, u32 MaxCount);
 
-RIFT_API NO_DISCARD bool StringArray_Find(StringArray Array, const String Source, u32* FoundIndex);
+RIFT_API NO_DISCARD bool StringArray_Find(StringArray Array, const String Source, bool bCaseSensitive, u32* FoundIndex);
 RIFT_API NO_DISCARD String StringArray_GetStringFromIndex(StringArray Array, u32 Index);
 
 RIFT_API NO_DISCARD String StringList_Find(StringList List, const String Source, bool bCaseSensitive, EStringCompare ComparisonType, u32* FoundIndex);
@@ -265,9 +265,6 @@ RIFT_API NO_DISCARD u8   ToForwardSlash(u8 Char)        CONST_FN;
 RIFT_API NO_DISCARD u8   ToBackSlash(u8 Char)           CONST_FN;
 RIFT_API NO_DISCARD uchar DigitToHexChar(u32 Val)       CONST_FN;
 RIFT_API NO_DISCARD uchar DigitToHexCharUpper(u32 Val)  CONST_FN;
-
-RIFT_API NO_DISCARD u8 Integer_CountDigits(u64 Value) CONST_FN;
-RIFT_API NO_DISCARD u8 Integer_CountDigits_Signed(i64 Value) CONST_FN;
 
 // inline implementations
 

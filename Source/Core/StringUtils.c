@@ -670,6 +670,22 @@ NO_DISCARD bool String_WildcardHasLiteralCharacters(const String Pattern)
     return bFound;
 }
 
+static void Internal_AppendGroupedDigits(String* Dest, const String Digits)
+{
+    const u32 SignLength = String_IsFirst(Digits, '-') ? 1 : 0;
+
+    for (u32 i = 0; i < Digits.Length; i++)
+    {
+        const u32 Remaining = Digits.Length - i;
+        if (i > SignLength && Remaining % 3 == 0)
+        {
+            String_AppendChar(Dest, ',');
+        }
+
+        String_AppendChar(Dest, Digits.Data[i]);
+    }
+}
+
 // based on: https://cplusplus.com/reference/cstdio/printf/
 static void Internal_Format(String* Dest, const String Format, va_list List)
 {
@@ -686,9 +702,6 @@ static void Internal_Format(String* Dest, const String Format, va_list List)
             // flags
             bool bHash = false;
             {
-                // TODO: + - 
-
-
                 if (Char == '#')
                 {
                     bHash = true;
@@ -781,18 +794,31 @@ static void Internal_Format(String* Dest, const String Format, va_list List)
             switch (Char)
             {
                 // signed integer
+                // 'i'/'d' print plain digits, 'I'/'D' group them in threes like -1,358,395
                 case 'i': FALL_THROUGH;
-                case 'd':
+                case 'd': FALL_THROUGH;
+                case 'I': FALL_THROUGH;
+                case 'D':
                 {
-                    StringLocal(Temp, 20);
+                    StringLocal(Digits, 20);
                     switch (LengthMod)
                     {
-                        case 0:  { xx String_FromI8 (&Temp, (i8) va_arg(List, i32)); } break;
-                        case 1:  { xx String_FromI16(&Temp, (i16)va_arg(List, i32)); } break;
-                        case 2:  { xx String_FromI32(&Temp,      va_arg(List, i32)); } break;
-                        case 3:  { xx String_FromI64(&Temp,      va_arg(List, i64)); } break;
-                        default: { xx String_FromI32(&Temp,      va_arg(List, i32)); } break;
+                        case 0:  { xx String_FromI8 (&Digits, (i8) va_arg(List, i32)); } break;
+                        case 1:  { xx String_FromI16(&Digits, (i16)va_arg(List, i32)); } break;
+                        case 2:  { xx String_FromI32(&Digits,      va_arg(List, i32)); } break;
+                        case 3:  { xx String_FromI64(&Digits,      va_arg(List, i64)); } break;
+                        default: { xx String_FromI32(&Digits,      va_arg(List, i32)); } break;
                     }
+
+                    const bool bGroup = Char == 'I' || Char == 'D';
+
+                    StringLocal(Grouped, 26); // 19 digits, the 6 separators they need and the sign
+                    if (bGroup)
+                    {
+                        Internal_AppendGroupedDigits(&Grouped, Digits);
+                    }
+
+                    const String Temp = bGroup ? Grouped : Digits;
 
                     // pad with leading zeros if Int is shorter than what the user has specified
                     i32 Diff = Precision - (i32)Temp.Length;
@@ -813,19 +839,28 @@ static void Internal_Format(String* Dest, const String Format, va_list List)
                 }
                 break;
 
-                // TODO: perhaps captial 'U' does automatic grouping like 1,358,395?
                 // unsigned integer
-                case 'u':
+                // 'u' prints plain digits, 'U' groups them in threes like 1,358,395
+                case 'u': FALL_THROUGH;
+                case 'U':
                 {
-                    StringLocal(Temp, 20);
+                    StringLocal(Digits, 20);
                     switch (LengthMod)
                     {
-                        case 0:  { xx String_FromU8 (&Temp, (u8) va_arg(List, u32)); } break;
-                        case 1:  { xx String_FromU16(&Temp, (u16)va_arg(List, u32)); } break;
-                        case 2:  { xx String_FromU32(&Temp,      va_arg(List, u32)); } break;
-                        case 3:  { xx String_FromU64(&Temp,      va_arg(List, u64)); } break;
-                        default: { xx String_FromU32(&Temp,      va_arg(List, u32)); } break;
+                        case 0:  { xx String_FromU8 (&Digits, (u8) va_arg(List, u32)); } break;
+                        case 1:  { xx String_FromU16(&Digits, (u16)va_arg(List, u32)); } break;
+                        case 2:  { xx String_FromU32(&Digits,      va_arg(List, u32)); } break;
+                        case 3:  { xx String_FromU64(&Digits,      va_arg(List, u64)); } break;
+                        default: { xx String_FromU32(&Digits,      va_arg(List, u32)); } break;
                     }
+
+                    StringLocal(Grouped, 26); // 20 digits plus the 6 separators they need
+                    if (Char == 'U')
+                    {
+                        Internal_AppendGroupedDigits(&Grouped, Digits);
+                    }
+
+                    const String Temp = Char == 'U' ? Grouped : Digits;
 
                     // pad with leading zeros if Int is shorter than what the user has specified
                     i32 Diff = Precision - (i32)Temp.Length;
@@ -847,7 +882,9 @@ static void Internal_Format(String* Dest, const String Format, va_list List)
                 break;
 
                 // float
-                case 'f':
+                // 'f' prints plain digits, 'F' groups the integer part like 1,358,395.500000
+                case 'f': FALL_THROUGH;
+                case 'F':
                 {
                     f64 Value = va_arg(List, f64);
 
@@ -868,7 +905,14 @@ static void Internal_Format(String* Dest, const String Format, va_list List)
                     StringLocal(IntStr, 32);
                     if (String_FromI64(&IntStr, IntPart))
                     {
-                        String_Append(&Temp, IntStr);
+                        if (Char == 'F')
+                        {
+                            Internal_AppendGroupedDigits(&Temp, IntStr);
+                        }
+                        else
+                        {
+                            String_Append(&Temp, IntStr);
+                        }
                     }
 
                     // decimal point + fractional part
@@ -931,9 +975,9 @@ static void Internal_Format(String* Dest, const String Format, va_list List)
                     {
                         case 0:  { Int = (u8) va_arg(List, u32); } break;
                         case 1:  { Int = (u16)va_arg(List, u32); } break;
-                        case 2:  { Int = va_arg(List, u32); } break;
-                        case 3:  { Int = va_arg(List, u64); } break;
-                        default: { Int = va_arg(List, u32); } break;
+                        case 2:  { Int =      va_arg(List, u32); } break;
+                        case 3:  { Int =      va_arg(List, u64); } break;
+                        default: { Int =      va_arg(List, u32); } break;
                     }
 
                     bool bLower = Char == 'x';
@@ -1925,224 +1969,6 @@ NO_DISCARD String String_ScanUntil(const String* Str, u8 Char)
     return Result;
 }
 
-/*
-void CString_ToLower(char* Str)
-{
-    for (char* p = Str; *p; ++p)
-    {
-        *p = (char)ToLower((uchar)*p);
-    }
-}
-
-void CString_ToUpper(char* Str)
-{
-    for (char* p = Str; *p; ++p)
-    {
-        *p = (char)ToUpper((uchar)*p);
-    }
-}
-
-void CString_ToWide(const char* FromString, wchar* ToString)
-{
-    u64 Len = String_GetLength((char*)FromString);
-    for (u64 i = 0; i < Len; i++)
-    {
-        ToString[i] = (wchar)FromString[i];
-    }
-}
-
-void CString_ToNarrow(const wchar* FromString, char* ToString)
-{
-    u64 Len = String16_GetLength(FromString);
-    for (u64 i = 0; i < Len; i++)
-    {
-        ToString[i] = (char)FromString[i];
-    }
-}
-
-u32 CString_Copy(char* Dest, const char* Source)
-{
-    u32 Len = String_GetLength((char*)Source)+1;
-    MemCopy(Dest, Source, Len);
-    return Len;
-}
-
-u32 CString_CopyN(char* Dest, const char* Source, u32 Length)
-{
-    u32 SourceLen = String_GetLength(Source)+1;
-    MemCopy(Dest, Source, SourceLen < Length ? SourceLen : Length);
-    return SourceLen;
-}
-
-u32 CString_ScanUntil(const char* Str, char Char)
-{
-    u32 NewLength = 0;
-    while (Str[NewLength] != 0)
-    {
-        if (Str[NewLength] == Char)
-        {
-            NewLength--;
-            return NewLength;
-        }
-
-        NewLength++;
-    }
-
-    return NewLength;
-}
-
-
-void CString_SubString(char* Dest, const char* Source, u32 Start, u32 Length)
-{
-    u32 SourceLength = String_GetLength(Source);
-    if (Start >= SourceLength)
-    {
-        Dest[0] = 0;
-        return;
-    }
-    
-    if (Length > 0)
-    {
-        u32 i = Start;
-        for (u32 j = 0; j < Length && Source[i]; ++i, ++j)
-        {
-            Dest[j] = Source[i];
-        }
-        
-        Dest[Start + Length] = 0;
-    }
-    else
-    {
-        u32 j = 0;
-        for (u32 i = Start; Source[i]; ++i, ++j)
-        {
-            Dest[j] = Source[i];
-        }
-        
-        Dest[Start + j] = 0;
-    }
-}
-
-char* CString_Empty(char* Str)
-{
-    MemZero(Str, String_GetLength(Str));
-    return Str;
-}
-
-void CString_Zero(char* Str, u32 Length)
-{
-    if (Length > 0)
-    {
-        MemZero(Str, Length);
-    }
-}
-
-void CString_Fill(char* Str, u32 Length, char N)
-{
-    if (Length > 0)
-    {
-        MemSet(Str, N, Length);
-    }
-}
-
-i32 CString_Format(char* Dest, const char* Format, u32 MaxLength, ...)
-{
-    va_list Args;
-    va_start(Args, MaxLength);
-    i32 Written = stbsp_vsnprintf(Dest, (i32)MaxLength, Format, Args);
-    va_end(Args);
-
-    return Written;
-}
-
-i32 CString_FormatV(char* Dest, const char* Format, u32 MaxLength, void* VAList)
-{
-    return stbsp_vsnprintf(Dest, (i32)MaxLength, Format, VAList);
-}
-
-void CString_ToBytes(const char* Data, u32 Length, char* OutBytes)
-{
-    MemCopy(OutBytes, Data, Length);
-}
-
-void CString_FromBytes(const char* Data, u32 Length, char* OutCharacters)
-{
-    MemCopy(OutCharacters, Data, Length);
-}
-
-bool CString_IsEqual(const char* StringA, const char* StringB, bool bCaseSensitive)
-{
-    u64 Length = String_GetLength(StringA);
-    u64 LengthB = String_GetLength(StringB);
-
-    if (UNLIKELY(Length == 0 && LengthB == 0))
-    {
-        return true;
-    }
-
-    if (Length != LengthB)
-        return false;
-
-    if (bCaseSensitive)
-    {
-        for (u64 i = 0; i < Length; i++)
-        {
-            if (StringA[i] != StringB[i])
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    for (u64 i = 0; i < Length; i++)
-    {
-        i32 A = (i32)StringA[i];
-        i32 B = (i32)StringB[i];
-
-        if ((A >= 'A' && A <= 'Z'))
-        {
-            A += 32;
-        }
-
-        if ((B >= 'A' && B <= 'Z'))
-        {
-            B += 32;
-        }
-
-        if (A != B)
-        {
-            return false;
-        }
-    }
-
-    return true;
-}
-
-bool CString_IndexOfChar(const char* Str, char C, u32* OutIndex)
-{
-    u32 i = 0;
-    while (Str[i] != 0)
-    {
-        if (Str[i] == C)
-        {
-            *OutIndex = i;
-            return true;
-        }
-
-        i++;
-    }
-
-    return false;
-}
-
-bool CString_ToBool(const char* Str)
-{
-    return String_IsEqual(CStrView(Str), S("1"), false) || String_IsEqual(CStrView(Str), S("true"), false);
-}
-*/
-
 NO_DISCARD bool String_IndexOfChar(const String Str, u8 C, u32* OutIndex)
 {
     bool bFound = false;
@@ -2721,7 +2547,6 @@ void String_StripAlphabet(const String Str, String* OutStr)
     }
 }
 
-// TODO: de-duplicate ToFloat code into one func
 NO_DISCARD bool String_ToF32(const String Str, f32* OutFloat)
 {
     bool bSuccess = false;
@@ -3023,8 +2848,8 @@ static bool Internal_ToSignedInt(const String Str, i64* OutInt, u8 IntType)
     bool bSuccess = false;
 
     u8 Index = 0;
-    i8 Sign = 1;
-    i64 Num = 0;
+    bool bNegative = false;
+    u64 Num = 0;
 
     i64 MaxIntValue = INT64_MAX;
     switch (IntType)
@@ -3042,12 +2867,15 @@ static bool Internal_ToSignedInt(const String Str, i64* OutInt, u8 IntType)
     else if (Str.Data[0] == '-')
     {
         Index++;
-        Sign = -1;
+        bNegative = true;
     }
     else
     {
         // no action required
     }
+
+    // a negative value reaches one further down than the positive maximum reaches up
+    const u64 MaxMagnitude = (u64)MaxIntValue + (bNegative ? 1u : 0u);
 
     while (Index < Str.Length)
     {
@@ -3056,9 +2884,9 @@ static bool Internal_ToSignedInt(const String Str, i64* OutInt, u8 IntType)
         u8 c = Str.Data[Index];
         if (IsDigit(c))
         {
-            i32 Digit = c - '0';
+            u64 Digit = (u64)(c - '0');
 
-            bool bOutOfRange = (MaxIntValue - Digit) / 10 < Num;
+            bool bOutOfRange = (MaxMagnitude - Digit) / 10 < Num;
             if (bOutOfRange)
             {
                 Num = 0;
@@ -3092,7 +2920,16 @@ static bool Internal_ToSignedInt(const String Str, i64* OutInt, u8 IntType)
 
     if (OutInt)
     {
-        *OutInt = Num * Sign;
+        // the magnitude of the most negative value does not fit in an i64, so it is stepped
+        // down by one before the sign goes on
+        if (bNegative && Num > 0)
+        {
+            *OutInt = -(i64)(Num - 1) - 1;
+        }
+        else
+        {
+            *OutInt = (i64)Num;
+        }
     }
 
     return bSuccess;
@@ -3248,13 +3085,14 @@ NO_DISCARD static bool Internal_FromUnsignedInt(String* Str, u64 Int, u8 IntType
 {
     bool bSuccess = false;
 
-    u64 MaxDigits = 20; // 20 digits in u64 -> 18446744073709551615
+    u64 MaxDigits = 20;
     switch (IntType)
     {
-        case 0:  MaxDigits = 3; break;  // u8  -> 255
-        case 1:  MaxDigits = 5; break;  // u16 -> 65535
-        case 2:  MaxDigits = 10; break; // u32 -> 4294967295
-        default: MaxDigits = 10; break; // u32 -> 4294967295
+        case 0:  { MaxDigits = 3;  break; } // u8  -> 255
+        case 1:  { MaxDigits = 5;  break; } // u16 -> 65535
+        case 2:  { MaxDigits = 10; break; } // u32 -> 4294967295
+        case 3:  { MaxDigits = 20; break; } // u64 -> 18446744073709551615
+        default: { MaxDigits = 20; break; } // u64 -> 18446744073709551615
     }
 
     if (Str->Capacity >= MaxDigits) // make sure we have enough room
@@ -3286,13 +3124,14 @@ NO_DISCARD static bool Internal_FromSignedInt(String* Str, i64 Int, u8 IntType)
 {
     bool bSuccess = false;
 
-    i64 MaxDigits = 19; // 19 digits in i64 -> 9223372036854775807
+    i64 MaxDigits = 19;
     switch (IntType)
     {
-        case 0:  MaxDigits = 3; break;  // i8  -> 127
-        case 1:  MaxDigits = 5; break;  // i16 -> 32767
-        case 2:  MaxDigits = 10; break; // i32 -> 2147483647
-        default: MaxDigits = 10; break; // i32 -> 2147483647
+        case 0:  { MaxDigits = 3;  break; } // i8  -> 127
+        case 1:  { MaxDigits = 5;  break; } // i16 -> 32767
+        case 2:  { MaxDigits = 10; break; } // i32 -> 2147483647
+        case 3:  { MaxDigits = 19; break; } // i64 -> 9223372036854775807
+        default: { MaxDigits = 19; break; } // i64 -> 9223372036854775807
     }
 
     bool bIsNegative = Int < 0;
@@ -3310,11 +3149,12 @@ NO_DISCARD static bool Internal_FromSignedInt(String* Str, i64 Int, u8 IntType)
             Str->Data[0] = '-';
         }
         
-        i64 IntCopy = bIsNegative ? Int * -1 : Int;
+        // negating the i64 minimum overflows, so the digits come off the unsigned magnitude
+        u64 Magnitude = bIsNegative ? (u64)0 - (u64)Int : (u64)Int;
         for (u8 i = 0; i < Count; i++)
         {
-            u8 Digit = (u8)(IntCopy % 10);
-            IntCopy /= 10;
+            u8 Digit = (u8)(Magnitude % 10);
+            Magnitude /= 10;
 
             Str->Data[(Count + (u8)bIsNegative) - i - 1] = '0' + Digit;
         }
@@ -3643,15 +3483,14 @@ NO_DISCARD StringArray String_ParseIntoArray(LinearAllocator* Arena, const Strin
     return StrArray;
 }
 
-NO_DISCARD bool StringArray_Find(StringArray Array, const String Source, u32* FoundIndex)
+NO_DISCARD bool StringArray_Find(StringArray Array, const String Source, bool bCaseSensitive, u32* FoundIndex)
 {
     u32 Index = 0;
     bool bFound = false;
 
     for each_str_i (Index, s, Array)
     {
-        // TODO: case insensitive option?
-        if (String_IsEqual(*s, Source, true))
+        if (String_IsEqual(*s, Source, bCaseSensitive))
         {
             if (FoundIndex)
             {
@@ -3981,156 +3820,3 @@ NO_DISCARD uchar DigitToHexCharUpper(u32 Val)
     uchar Char = Val < 10 ? (uchar)('0' + Val) : (uchar)('A' + (Val - 10));
     return Char;
 }
-
-// TODO: remove from this file
-NO_DISCARD u8 Integer_CountDigits(u64 Value)
-{
-    u8 Count = 0;
-    while (Value > 0)
-    {
-        Value /= 10;
-        Count++;
-    }
-
-    // if Value was just 0. then the above wouldn't have caught this
-    if (Count == 0)
-    {
-        Count = 1;
-    }
-
-    return Count;
-}
-
-NO_DISCARD u8 Integer_CountDigits_Signed(i64 Value)
-{
-    u8 Count = 0;
-    while (Value != 0)
-    {
-        Value /= 10;
-        Count++;
-    }
-
-    // if Value was just 0. then the above wouldn't have caught this
-    if (Count == 0)
-    {
-        Count = 1;
-    }
-
-    return Count;
-}
-
-/*
-void EatSpaces(u8** Str)
-{
-    if (!(Str == NULL || *Str == NULL || *(*Str) == 0))
-    {
-        while (*(*Str) > 0 && IsWhitespace(*(*Str)))
-        {
-            (*Str)++;
-        }
-    }
-}
-
-void EatSpaces_Backwards(u8** Str)
-{
-    if (!(Str == NULL || *Str == NULL || *(*Str) == 0))
-    {
-        while (*(*Str) > 0 && IsWhitespace(*(*Str)))
-        {
-            (*Str)--;
-        }
-    }
-}
-
-void EatBraces(u8** Str)
-{
-    if (!(Str == NULL || *Str == NULL || *(*Str) == 0))
-    {
-        u8* S = *Str;
-        u8 c = *S;
-        while (c > 0 && (c == '{' || c == '}'))
-        {
-            S++;
-            c = *S;
-        }
-    }
-}
-
-void EatBraces_Backwards(u8** Str)
-{
-    if (!(Str == NULL || *Str == NULL || *(*Str) == 0))
-    {
-        u8* S = *Str;
-        u8 c = *S;
-        while (c > 0 && (c == '{' || c == '}'))
-        {
-            S--;
-            c = *S;
-        }
-    }
-}
-
-void EatParenthesis(u8** Str)
-{
-    if (!(Str == NULL || *Str == NULL || *(*Str) == 0))
-    {
-        u8* S = *Str;
-        u8 c = *S;
-        while (c > 0 && (c == '(' || c == ')'))
-        {
-            S++;
-            c = *S;
-        }
-    }
-}
-
-void EatParenthesis_Backwards(u8** Str)
-{
-    if (!(Str == NULL || *Str == NULL || *(*Str) == 0))
-    {
-        u8* S = *Str;
-        u8 c = *S;
-        while (c > 0 && (c == '(' || c == ')'))
-        {
-            S--;
-            c = *S;
-        }
-    }
-}
-
-void EatSymbols(u8** Str)
-{
-    if (!(Str == NULL || *Str == NULL || *(*Str) == 0))
-    {
-        u8* S = *Str;
-        u8 c = *S;
-        while (c > 0 &&
-            (c == '(' || c == ')' || c == '{' || c == '}' ||
-            c == '!' || c == '@' || c == '#' || c == '$' ||
-            c == '%' || c == '^' || c == '&' || c == '*' ||
-            c == '+' || c == '='))
-        {
-            S++;
-            c = *S;
-        }
-    }
-}
-
-void EatSymbols_Backwards(u8** Str)
-{
-    if (!(Str == NULL || *Str == NULL || *(*Str) == 0))
-    {
-        u8* S = *Str;
-        u8 c = *S;
-        while (c > 0 &&
-            (c == '(' || c == ')' || c == '{' || c == '}' ||
-            c == '!' || c == '@' || c == '#' || c == '$' ||
-            c == '%' || c == '^' || c == '&' || c == '*' ||
-            c == '+' || c == '='))
-        {
-            S--;
-            c = *S;
-        }
-    }
-}
-*/

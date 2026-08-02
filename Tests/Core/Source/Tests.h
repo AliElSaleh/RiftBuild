@@ -16,6 +16,14 @@
     X("String",           Test_StringUtils_Reserve) \
     X("String",           Test_StringUtils_Append) \
     X("String",           Test_StringUtils_Format) \
+    X("String",           Test_StringUtils_Format_GroupedUnsigned) \
+    X("String",           Test_StringUtils_Format_GroupedUnsignedLengthModifiers) \
+    X("String",           Test_StringUtils_Format_GroupedUnsignedLiteral) \
+    X("String",           Test_StringUtils_Format_GroupedSigned) \
+    X("String",           Test_StringUtils_Format_GroupedSignedLengthModifiers) \
+    X("String",           Test_StringUtils_Format_GroupedFloat) \
+    X("String",           Test_StringUtils_Format_GroupedSignedAndFloatLiteral) \
+    X("String",           Test_StringUtils_Format_IntegerMinimums) \
     X("String",           Test_StringUtils_BuildPath) \
     X("String",           Test_StringUtils_BuildSeparator) \
     X("String",           Test_StringUtils_Empty) \

@@ -33,6 +33,42 @@ FORCEINLINE NO_DISCARD static i64 Absi64(i64 Value)
 	return Value;
 }
 
+FORCEINLINE NO_DISCARD static u8 Integer_CountDigits(u64 Value)
+{
+    u8 Count = 0;
+    while (Value > 0)
+    {
+        Value /= 10;
+        Count++;
+    }
+
+    // if Value was just 0. then the above wouldn't have caught this
+    if (Count == 0)
+    {
+        Count = 1;
+    }
+
+    return Count;
+}
+
+FORCEINLINE NO_DISCARD static u8 Integer_CountDigits_Signed(i64 Value)
+{
+    u8 Count = 0;
+    while (Value != 0)
+    {
+        Value /= 10;
+        Count++;
+    }
+
+    // if Value was just 0. then the above wouldn't have caught this
+    if (Count == 0)
+    {
+        Count = 1;
+    }
+
+    return Count;
+}
+
 #define DECLARE_MinMax(Type, Suffix) \
 	FORCEINLINE NO_DISCARD static Type CONCAT(Min, Suffix)(Type A, Type B) { return A < B ? A : B; } \
 	FORCEINLINE NO_DISCARD static Type CONCAT(Max, Suffix)(Type A, Type B) { return A > B ? A : B; }
