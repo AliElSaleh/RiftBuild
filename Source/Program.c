@@ -1972,7 +1972,12 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const FileVa
             u32 ProcessCode = 1;
             if (Platform_IsValidHandle(Handle))
             {
-                if (!bNoWait)
+                if (bNoWait)
+                {
+                    // nothing to wait on: a successful launch is the whole result
+                    ProcessCode = 0;
+                }
+                else
                 {
                     ProcessCode = Platform_WaitForProcessAndGetExitCode(Handle);
                 }
