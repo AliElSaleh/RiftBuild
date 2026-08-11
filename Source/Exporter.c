@@ -431,7 +431,7 @@ bool Export_IconRC(const String Path, const String IconFilePath)
         String_Copy(&PathCopy, IconFilePath);
         String_BackSlashToForwardSlash(&PathCopy);
 
-        xx Filesystem_WriteLineFormatted(f, S("id ICON \"%S\""), NULL, PathCopy);
+        xx Filesystem_WriteLineFormatted(f, S("1 ICON \"%S\""), NULL, PathCopy);
         Filesystem_Close(&f);
         bSuccess = true;
     }
@@ -1041,9 +1041,9 @@ void Export_PrintAvailableTypes(void)
         { .Name = SC("compile_commands_one_line"), .Description = SC("Compact single-line format (aliases: cc_one_line, compile_commands1, cc1)") },
         { .Name = SC("bat"),                       .Description = SC("Windows batch build script") },
         { .Name = SC("sh"),                        .Description = SC("Unix shell build script") },
-        { .Name = SC("plist"),                     .Description = SC("Info.plist + Version.plist (Apple)") },
+        { .Name = SC("plist"),                     .Description = SC("Info.plist + version.plist (Apple)") },
         { .Name = SC("info.plist"),                .Description = SC("Info.plist only (Apple)") },
-        { .Name = SC("version.plist"),             .Description = SC("Version.plist only (Apple)") },
+        { .Name = SC("version.plist"),             .Description = SC("version.plist only (Apple)") },
         { .Name = SC("pkginfo"),                   .Description = SC("PkgInfo file (Apple)") },
         { .Name = SC("versionrc"),                 .Description = SC("Windows version resource file (alias: version.rc)") },
         { .Name = SC("iconrc"),                    .Description = SC("Windows icon resource file (alias: icon.rc)") },
@@ -1257,10 +1257,10 @@ bool Export_FromArg(LinearAllocator Scratch, const BuildParams* Params, const St
 
             if (bGenPlist || bGenVersionPlist)
             {
-                LOG("\nGenerating Version.plist ...");
+                LOG("\nGenerating version.plist ...");
 
                 StringLocal(PlistPath, MAX_PATH_LENGTH);
-                String_BuildPath(&PlistPath, ExportPath, S("Version.plist"));
+                String_BuildPath(&PlistPath, ExportPath, S("version.plist"));
 
                 if (!Export_VersionPlist(Scratch, Params, PlistPath, ExpandedVariablesDB, DoesBuildVarExist(ExpandedVariablesDB, S("Version.plist"))))
                 {
@@ -1880,14 +1880,23 @@ bool TryBuildOrCleanMacExeIcon(String IconFilePath, const BuildParams* Params)
         u32 LastSlashIndex = 0;
         xx String_IndexOfLastPathSlash(IconFilePath, &LastSlashIndex);
 
+        const String IconFileName = StrShiftF(IconFilePath, LastSlashIndex == 0 ? 0 : LastSlashIndex+1);
+
         // Step 1 ------------------
-        StringLocal(RsrcFilePath, MAX_PATH_LENGTH);
-        StringLocal(RsrcFileName, 256);
-        String_Append(&RsrcFileName, StrShiftF(IconFilePath, LastSlashIndex == 0 ? 0 : LastSlashIndex+1));
-        String_Append(&RsrcFileName, S("-icns.rsrc"));
-        String_BuildPath(&RsrcFilePath, WorkingPath, IntermediateDirectory, RsrcFileName);
+        // DeRez reads the icns out of a resource fork, and an image file on disk has none, so
+        // sips builds one first. it works on a copy in the intermediate directory so the icon
+        // sitting in the source tree is left untouched.
+        StringLocal(IconCopyPath, MAX_PATH_LENGTH);
+        String_BuildPath(&IconCopyPath, WorkingPath, IntermediateDirectory, IconFileName);
         {
-            String_BuildSeparator(&CmdLine, ' ', S("derez -only icns"), IconFilePath, S(">"), RsrcFilePath);
+            if (!Filesystem_Copy(IconFilePath, IconCopyPath))
+            {
+                LOG_ERROR("Failed to copy icon \"%S\" into %S. Aborting build...", IconFilePath, IntermediateDirectory);
+
+                return false;
+            }
+
+            String_Format(&CmdLine, S("sips -i \"%S\" > /dev/null"), IconCopyPath);
 
             if (bVerboseLog) { LOG("    %S", CmdLine); }
 
@@ -1904,8 +1913,14 @@ bool TryBuildOrCleanMacExeIcon(String IconFilePath, const BuildParams* Params)
         }
 
         // Step 2 ------------------
-        String_BuildSeparator(&CmdLine, ' ', S("rez -append"), RsrcFilePath, S("-o"), AssemblyPath);
+        StringLocal(RsrcFilePath, MAX_PATH_LENGTH);
+        StringLocal(RsrcFileName, 256);
+        String_Append(&RsrcFileName, IconFileName);
+        String_Append(&RsrcFileName, S("-icns.rsrc"));
+        String_BuildPath(&RsrcFilePath, WorkingPath, IntermediateDirectory, RsrcFileName);
         {
+            String_Format(&CmdLine, S("derez -only icns \"%S\" > \"%S\""), IconCopyPath, RsrcFilePath);
+
             if (bVerboseLog) { LOG("    %S", CmdLine); }
 
             PlatformHandle h = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
@@ -1921,7 +1936,24 @@ bool TryBuildOrCleanMacExeIcon(String IconFilePath, const BuildParams* Params)
         }
 
         // Step 3 ------------------
-        String_BuildSeparator(&CmdLine, ' ', S("SetFile -a C"), AssemblyPath);
+        String_Format(&CmdLine, S("rez -append \"%S\" -o \"%S\""), RsrcFilePath, AssemblyPath);
+        {
+            if (bVerboseLog) { LOG("    %S", CmdLine); }
+
+            PlatformHandle h = Platform_RunCommand(CmdLine, WorkingPath, String_Null());
+            u32 ExitCode = Platform_WaitForProcessAndGetExitCode(h);
+            if (ExitCode != 0)
+            {
+                LOG_ERROR("Failed to build icon \"%S\" for %S. Aborting build...", IconFilePath, AssemblyNameWithExt);
+
+                return false;
+            }
+
+            String_Empty(&CmdLine);
+        }
+
+        // Step 4 ------------------
+        String_Format(&CmdLine, S("SetFile -a C \"%S\""), AssemblyPath);
         {
             if (bVerboseLog) { LOG("    %S", CmdLine); }
 
@@ -2139,7 +2171,7 @@ bool TryBuildMacBundle(LinearAllocator Scratch, const BuildParams* Params, TArra
     }
     else
     {
-        String_BuildPath(&ResourcePath, WorkingPath, IntermediateDirectory, S("Version.plist"));
+        String_BuildPath(&ResourcePath, WorkingPath, IntermediateDirectory, S("version.plist"));
 
         // generate version.plist
 
@@ -2151,7 +2183,10 @@ bool TryBuildMacBundle(LinearAllocator Scratch, const BuildParams* Params, TArra
         }
     }
 
-    String_BuildPath(&TempPath, AppBundlePath, S("Contents/Version.plist"));
+    // the name is lower case by Apple's convention, and codesign enforces it: a
+    // capitalised Contents/Version.plist is read as an unsigned subcomponent and
+    // the whole bundle then fails to verify
+    String_BuildPath(&TempPath, AppBundlePath, S("Contents/version.plist"));
     bSuccess = Filesystem_Copy(ResourcePath, TempPath);
     if (!bSuccess) { goto CopyError; }
     String_Empty(&TempPath);
