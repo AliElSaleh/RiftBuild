@@ -94,7 +94,7 @@ if clang|gcc
 
     Compiler.ObjectExtension:asm     .S
 
-    Frameworks:macOS                 Foundation SystemConfiguration
+    Apple.Frameworks                 Foundation SystemConfiguration
 
     if gcc
     {
