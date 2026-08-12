@@ -66,3 +66,6 @@ before the compiler ran. Type a new interpolation (any local variable, e.g.
 - Open `sip/Program.c` - the metaprogram is a single heavily commented C
   file, and its header comment documents the full supported syntax and type
   table.
+
+Next: [25. macOS App Bundle](../25.%20macOS%20App%20Bundle/) - packaging an
+executable, its icon and its data files into a `.app`.

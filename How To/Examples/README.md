@@ -31,6 +31,7 @@ each one also stands alone.
 | 22 | [Download External Repos](22.%20Download%20External%20Repos/) | `PreDepend.Cmd git clone`, building a real third-party library (GLFW) |
 | 23 | [Video Game](23.%20Video%20Game/) | Everything combined into a playable Breakout game: exe + static library + GLFW |
 | 24 | [Source Preprocessors](24.%20Source%20Preprocessors/) | `PreCompileFile`/`PreCompileAllFiles`: build a metaprogram, then run it over sources before compiling |
+| 25 | [macOS App Bundle](25.%20macOS%20App%20Bundle/) | `Bundle`: a `.app` with an icon, generated plists, and staged `Contents/Resources` |
 
 Two housekeeping notes:
 

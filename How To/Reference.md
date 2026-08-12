@@ -946,8 +946,14 @@ Bundle.VersionPlist my/version.plist
 Bundle.PkgInfo      my/PkgInfo
 Info.plist          <inline content>   # ...or provide the content inline
 Version.plist       <inline content>
+Info.plist.LSMinimumSystemVersion 11.0 # ...or add single keys to the generated one
+Version.plist.BuildVersion        7
 ```
 With just `Bundle`, RiftBuild generates the plists from your [metadata keys](#version-and-metadata).
+
+`Info.plist.<key>` and `Version.plist.<key>` add to (or override) that generated dictionary one key at a time. Values are written as `<string>`, as `<integer>` when the value is a whole number, or as an `<array>` when written `(one two three)`. The plain `Info.plist`/`Version.plist` keys are the all-or-nothing version: their inline content *replaces* the generated dictionary body, so you write every key yourself.
+
+The bundle is built after `PostLink` and before `PostBuild`, so a `PostBuild` hook is where extra resources go: `PostBuild.Copy assets/* Build/MyApp.app/Contents/Resources`. Note that `TitleName` (falling back to `Assembly`) names the `.app` folder - a name with spaces in it will not survive the file-operation verbs, which split their arguments on whitespace. See the [macOS App Bundle example](Examples/25.%20macOS%20App%20Bundle/).
 
 ---
 
