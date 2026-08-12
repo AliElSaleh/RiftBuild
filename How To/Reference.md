@@ -939,17 +939,17 @@ PCH.h pch/precompiled.h
 
 ### macOS Bundles
 ```make
-Bundle                       # flag: produce a .app bundle instead of a bare executable
-Bundle.IsTerminal            # flag: a terminal app bundle
-Bundle.InfoPlist    my/Info.plist      # use your own plists...
-Bundle.VersionPlist my/version.plist
-Bundle.PkgInfo      my/PkgInfo
+Apple.Bundle                 # flag: produce a .app bundle instead of a bare executable
+Apple.Bundle.IsTerminal      # flag: a terminal app bundle
+Apple.Bundle.InfoPlist    my/Info.plist   # use your own plists...
+Apple.Bundle.VersionPlist my/version.plist
+Apple.Bundle.PkgInfo      my/PkgInfo
 Info.plist          <inline content>   # ...or provide the content inline
 Version.plist       <inline content>
 Info.plist.LSMinimumSystemVersion 11.0 # ...or add single keys to the generated one
 Version.plist.BuildVersion        7
 ```
-With just `Bundle`, RiftBuild generates the plists from your [metadata keys](#version-and-metadata).
+With just `Apple.Bundle`, RiftBuild generates the plists from your [metadata keys](#version-and-metadata).
 
 `Info.plist.<key>` and `Version.plist.<key>` add to (or override) that generated dictionary one key at a time. Values are written as `<string>`, as `<integer>` when the value is a whole number, or as an `<array>` when written `(one two three)`. The plain `Info.plist`/`Version.plist` keys are the all-or-nothing version: their inline content *replaces* the generated dictionary body, so you write every key yourself.
 

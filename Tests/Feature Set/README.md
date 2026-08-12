@@ -78,9 +78,14 @@ folders - the sources only compile with the defines the .build file provides.
 | 58 | Depend Two Token Options | Two-token `Depend <name>.build <dir>` combined with `\| options` forwarding |
 | 59 | No Assembly Type | `Type no_assembly` runs a tool per source, produces nothing, never links; "Transforming" UI |
 | 60 | Internal Var Sigil | `&Name` reaches a built-in from either store; agrees with `%Name`; case modifiers; a bare `&&` stays literal |
+| 61 | Plist Keys | `Info.plist.<key>` / `Version.plist.<key>` single entries: string, integer, array, `$Var`, overriding a generated key (macOS only) |
 
 Tests 18, 19, 28, 43, 44, 45, 46, 52, 54 need extra invocations beyond a plain build to
 exercise their feature (documented in each .build header comment).
+
+Test 61 only verifies anything on macOS - the plists live inside a `.app`, which
+only the macOS bundler produces. On other platforms it builds as a plain
+executable and the checks are skipped.
 
 ## Semantics verified while writing this suite
 

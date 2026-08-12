@@ -429,9 +429,8 @@ f64 ConsumeCommandExpansionTime(void);
 u32 GetMaxValueLengthForReservedKey(const String Key);
 EBuildKeyImpact GetBuildKeyImpact(const String Key);
 
-// True if Key is a per-file override of the form "<filename>.<Setting>" (e.g. "main.c.Compiler.Flags").
-// On success OutFileName and OutSetting (either may be NULL) receive the two halves.
 bool IsPerFileOverrideKey(const String Key, String* OutFileName, String* OutSetting);
+bool IsPlistEntryKey(const String Key);
 
 void AddVariable(LinearAllocator* Arena,
                 TArray(FileVariable) VariablesDB,

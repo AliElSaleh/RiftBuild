@@ -1,0 +1,50 @@
+# Info.plist.<key> and Version.plist.<key> each add one entry to the plists the
+# macOS bundler generates: a <string>, an <integer> when the value is a whole
+# number, an <array> when it is written "(a b c)", and $Var expansion like any
+# other value. Naming a key the generator already writes (CFBundleName here)
+# overrides it instead of writing it twice.
+#
+# The plists only exist inside a .app, so the checks below are macOS-only and
+# read the finished bundle with plutil - everywhere else this is a plain
+# executable build and the plist keys sit unused in the build file.
+Assembly    PlistKeys
+SourceFiles main
+
+# The plists are only written while bundling, and bundling only happens after a
+# link - without this, a second run would skip both and check the plists the
+# first run left behind.
+AlwaysRebuild
+
+Version(define) 2.5.0
+
+TitleName   PlistKeys
+Description Verifies single-key plist entries
+CompanyName RiftBuild Tests
+Copyright   Copyright (c) RiftBuild Tests
+
+Apple.Bundle
+
+Info.plist.LSMinimumSystemVersion    11.0
+Info.plist.NSHumanReadableCopyright  $Copyright
+Info.plist.CFBundleSupportedPlatforms (MacOSX)
+Info.plist.CFBundleName              PlistKeysRenamed
+
+Version.plist.BuildVersion 7
+
+PostBuild
+{
+    if macos
+    {
+        Cmd
+        {
+            plutil -lint -s Build/PlistKeys.app/Contents/Info.plist
+            plutil -lint -s Build/PlistKeys.app/Contents/version.plist
+            plutil -extract LSMinimumSystemVersion raw -o - Build/PlistKeys.app/Contents/Info.plist | grep -qx "11.0"
+            plutil -extract NSHumanReadableCopyright raw -o - Build/PlistKeys.app/Contents/Info.plist | grep -qx "Copyright (c) RiftBuild Tests"
+            plutil -extract CFBundleSupportedPlatforms xml1 -o - Build/PlistKeys.app/Contents/Info.plist | grep -q "<array>"
+            plutil -extract CFBundleSupportedPlatforms.0 raw -o - Build/PlistKeys.app/Contents/Info.plist | grep -qx "MacOSX"
+            plutil -extract CFBundleName raw -o - Build/PlistKeys.app/Contents/Info.plist | grep -qx "PlistKeysRenamed"
+            plutil -extract BuildVersion xml1 -o - Build/PlistKeys.app/Contents/version.plist | grep -q "<integer>7</integer>"
+        }
+    }
+}

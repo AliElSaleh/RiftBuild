@@ -724,6 +724,26 @@ bool IsPerFileOverrideKey(const String Key, String* OutFileName, String* OutSett
     return false;
 }
 
+bool IsPlistEntryKey(const String Key)
+{
+    local_persist const String Prefixes[2] =
+    {
+        SC("Info.plist."),
+        SC("Version.plist."),
+    };
+
+    for EachE(i, Prefixes)
+    {
+        // longer than the prefix, otherwise the entry has no name ("Info.plist." on its own)
+        if (Key.Length > Prefixes[i].Length && String_StartsWith(Key, Prefixes[i], false))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 EBuildKeyImpact GetBuildKeyImpact(const String Key)
 {
     // A per-file override ("<filename>.<Setting>") feeds the compiler for that file, so any change to one
@@ -731,6 +751,11 @@ EBuildKeyImpact GetBuildKeyImpact(const String Key)
     if (IsPerFileOverrideKey(Key, NULL, NULL))
     {
         return BuildKeyImpact_Recompile;
+    }
+
+    if (IsPlistEntryKey(Key))
+    {
+        return BuildKeyImpact_Relink;
     }
 
     for (u8 i = 0; i < SArray_Capacity(ReservedKeys); i++)
@@ -6865,6 +6890,13 @@ NO_DISCARD bool ParseBuildFile(
             if (IsPerFileOverrideKey(Var.Name, NULL, NULL))
             {
                 MaxValueLength = 8192;
+                bStoreInDB = true;
+            }
+
+            // ...and neither are plist entries ("Info.plist.<key>", "Version.plist.<key>"), whose second half
+            // is an Apple key name rather than anything RiftBuild knows about.
+            if (IsPlistEntryKey(Var.Name))
+            {
                 bStoreInDB = true;
             }
 
