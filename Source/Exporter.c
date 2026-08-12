@@ -1987,11 +1987,11 @@ bool TryBuildMacBundle(LinearAllocator Scratch, const BuildParams* Params, TArra
     String Extension             = Params->Extension;
     String BuildFileName         = Params->BuildFileName;
 
-    String CustomInfoPlist       = GetVariableValue(VariablesDB, S("Bundle.InfoPlist"));
-    String CustomVersionPlist    = GetVariableValue(VariablesDB, S("Bundle.VersionPlist"));
-    String CustomPkgInfo         = GetVariableValue(VariablesDB, S("Bundle.PkgInfo"));
+    String CustomInfoPlist       = GetVariableValue(VariablesDB, S("Apple.Bundle.InfoPlist"));
+    String CustomVersionPlist    = GetVariableValue(VariablesDB, S("Apple.Bundle.VersionPlist"));
+    String CustomPkgInfo         = GetVariableValue(VariablesDB, S("Apple.Bundle.PkgInfo"));
 
-    bool bBundleAppIsTerminal    = DoesBuildVarExist(VariablesDB, S("Bundle.IsTerminal"));
+    bool bBundleAppIsTerminal    = DoesBuildVarExist(VariablesDB, S("Apple.Bundle.IsTerminal"));
 
     StringLocal(AssemblyPath, MAX_PATH_LENGTH);
     String_BuildPath(&AssemblyPath, WorkingPath, BuildDirectory, AssemblyNameWithExt);
