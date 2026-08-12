@@ -1,0 +1,38 @@
+# A real macOS .app: a Cocoa window, an icon, generated plists, and the
+# resource files the program reads at run time. Everything except the Bundle
+# key is an ordinary build file. Bundling is a packaging step on top of a
+# normal executable, not a different kind of project.
+
+Assert.Platform macos
+
+Assembly        Sundial
+SourceDirectory src
+
+Version(define) 1.2.0
+TitleName       Sundial
+Description     Tells the time the old way
+CompanyName     Artisan Softworks
+Copyright       Copyright (C) 2026 Artisan Softworks
+
+Icon Sundial
+
+Apple.Frameworks Cocoa
+
+# This is the flag that actually triggers the macOS app bundle build just after linking the executable
+Apple.Bundle
+
+# Anything the generated Info.plist does not already say goes in as
+# Info.plist.<key>. Values are written as <string> unless they are whole
+# numbers (<integer>) or written as "(a b c)", which becomes an <array>.
+# NSHumanReadableCopyright is the one Finder's Get Info panel shows, and the
+# generated plist has no such key.
+Info.plist.NSHumanReadableCopyright  $Copyright
+Info.plist.NSPrincipalClass          NSApplication
+Info.plist.LSMinimumSystemVersion    11.0
+Info.plist.LSApplicationCategoryType public.app-category.utilities
+Info.plist.NSHighResolutionCapable   true
+
+PostBuild
+{
+    Copy assets/* Build/Sundial.app/Contents/Resources
+}

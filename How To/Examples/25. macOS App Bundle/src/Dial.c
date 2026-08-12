@@ -1,21 +1,29 @@
 #include "Dial.h"
 
-#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define DIAL_MAX_WIDTH  (4 * DIAL_MAX_RADIUS + 2)
-#define DIAL_MAX_HEIGHT (2 * DIAL_MAX_RADIUS + 1)
+static DialColor MakeColor(int Red, int Green, int Blue)
+{
+    DialColor Color;
+    Color.Red   = Red   / 255.0;
+    Color.Green = Green / 255.0;
+    Color.Blue  = Blue  / 255.0;
+
+    return Color;
+}
 
 void Dial_DefaultTheme(DialTheme* Theme)
 {
     strcpy(Theme->Title, "Sundial");
-    Theme->Radius = 8;
-    Theme->Face   = '.';
-    Theme->Mark   = 'o';
-    Theme->Shadow = '#';
-    Theme->Gnomon = '+';
+    Theme->Radius     = 0.38;
+    Theme->Background = MakeColor(0x1B, 0x1A, 0x17);
+    Theme->Face       = MakeColor(0xEC, 0xDF, 0xC2);
+    Theme->Rim        = MakeColor(0x8A, 0x6F, 0x3C);
+    Theme->Mark       = MakeColor(0x4A, 0x3C, 0x24);
+    Theme->Shadow     = MakeColor(0x2B, 0x21, 0x18);
+    Theme->Gnomon     = MakeColor(0xC2, 0x70, 0x3D);
 }
 
 /* Trims spaces and tabs off both ends of a slice, in place. */
@@ -36,6 +44,87 @@ static char* TrimSlice(char* Text, size_t Length)
     Text[End] = '\0';
 
     return Text + Start;
+}
+
+static int HexDigit(char Character)
+{
+    int Value = -1;
+
+    if (Character >= '0' && Character <= '9')
+    {
+        Value = Character - '0';
+    }
+    else if (Character >= 'a' && Character <= 'f')
+    {
+        Value = Character - 'a' + 10;
+    }
+    else if (Character >= 'A' && Character <= 'F')
+    {
+        Value = Character - 'A' + 10;
+    }
+
+    return Value;
+}
+
+/* "#RRGGBB" or "RRGGBB" -> Out. Returns 0 and leaves Out alone if the text is
+   not six hex digits. */
+static int ParseColor(const char* Text, DialColor* Out)
+{
+    int bSuccess = 0;
+
+    if (*Text == '#')
+    {
+        Text++;
+    }
+
+    if (strlen(Text) == 6)
+    {
+        int Channels[3];
+        bSuccess = 1;
+
+        for (int i = 0; i < 3 && bSuccess; i++)
+        {
+            int High = HexDigit(Text[2 * i]);
+            int Low  = HexDigit(Text[2 * i + 1]);
+
+            if (High < 0 || Low < 0)
+            {
+                bSuccess = 0;
+            }
+            else
+            {
+                Channels[i] = High * 16 + Low;
+            }
+        }
+
+        if (bSuccess)
+        {
+            *Out = MakeColor(Channels[0], Channels[1], Channels[2]);
+        }
+    }
+
+    return bSuccess;
+}
+
+/* One "key = <colour>" line. Returns 0 when the key is not this one, so the
+   caller can keep looking. */
+static int ApplyColorKey(const char* Key, const char* Value, const char* Name, DialColor* Target, int* Applied)
+{
+    int bMatched = strcmp(Key, Name) == 0;
+
+    if (bMatched)
+    {
+        if (ParseColor(Value, Target))
+        {
+            (*Applied)++;
+        }
+        else
+        {
+            fprintf(stderr, "theme.conf: %s = \"%s\" is not a #RRGGBB colour, keeping the default\n", Name, Value);
+        }
+    }
+
+    return bMatched;
 }
 
 int Dial_ApplyTheme(const char* Text, DialTheme* Theme)
@@ -83,23 +172,23 @@ int Dial_ApplyTheme(const char* Text, DialTheme* Theme)
             }
             else if (strcmp(Key, "radius") == 0)
             {
-                int Radius = atoi(Value);
-                if (Radius >= 4 && Radius <= DIAL_MAX_RADIUS)
+                double Radius = atof(Value);
+                if (Radius >= 0.2 && Radius <= 0.5)
                 {
                     Theme->Radius = Radius;
                     Applied++;
                 }
                 else
                 {
-                    fprintf(stderr, "theme.conf: radius %s is outside 4..%d, keeping %d\n",
-                            Value, DIAL_MAX_RADIUS, Theme->Radius);
+                    fprintf(stderr, "theme.conf: radius %s is outside 0.2..0.5, keeping %.2f\n", Value, Theme->Radius);
                 }
             }
-            else if (strcmp(Key, "face") == 0)   { Theme->Face   = Value[0]; Applied++; }
-            else if (strcmp(Key, "mark") == 0)   { Theme->Mark   = Value[0]; Applied++; }
-            else if (strcmp(Key, "shadow") == 0) { Theme->Shadow = Value[0]; Applied++; }
-            else if (strcmp(Key, "gnomon") == 0) { Theme->Gnomon = Value[0]; Applied++; }
-            else
+            else if (!ApplyColorKey(Key, Value, "background", &Theme->Background, &Applied) &&
+                     !ApplyColorKey(Key, Value, "face",       &Theme->Face,       &Applied) &&
+                     !ApplyColorKey(Key, Value, "rim",        &Theme->Rim,        &Applied) &&
+                     !ApplyColorKey(Key, Value, "mark",       &Theme->Mark,       &Applied) &&
+                     !ApplyColorKey(Key, Value, "shadow",     &Theme->Shadow,     &Applied) &&
+                     !ApplyColorKey(Key, Value, "gnomon",     &Theme->Gnomon,     &Applied))
             {
                 fprintf(stderr, "theme.conf: unknown key \"%s\", ignoring it\n", Key);
             }
@@ -111,103 +200,13 @@ int Dial_ApplyTheme(const char* Text, DialTheme* Theme)
     return Applied;
 }
 
-static void Plot(char Canvas[DIAL_MAX_HEIGHT][DIAL_MAX_WIDTH], int Width, int Height, double X, double Y, char Glyph)
+const char* Dial_LineAt(const char* Text, int Index, int* OutLength)
 {
-    int Column = (int)floor(X + 0.5);
-    int Row = (int)floor(Y + 0.5);
-
-    if (Column >= 0 && Column < Width && Row >= 0 && Row < Height)
-    {
-        Canvas[Row][Column] = Glyph;
-    }
-}
-
-void Dial_Print(const DialTheme* Theme, const char* Version, int Hour, int Minute)
-{
-    int Radius = Theme->Radius;
-    if (Radius < 4)
-    {
-        Radius = 4;
-    }
-    if (Radius > DIAL_MAX_RADIUS)
-    {
-        Radius = DIAL_MAX_RADIUS;
-    }
-
-    /* Character cells are about twice as tall as they are wide, so every X
-       coordinate is doubled to keep the dial round. */
-    int Width = 4 * Radius + 1;
-    int Height = 2 * Radius + 1;
-    double CenterX = 2.0 * Radius;
-    double CenterY = Radius;
-
-    char Canvas[DIAL_MAX_HEIGHT][DIAL_MAX_WIDTH];
-    for (int Row = 0; Row < Height; Row++)
-    {
-        memset(Canvas[Row], ' ', (size_t)Width);
-        Canvas[Row][Width] = '\0';
-    }
-
-    /* The rim. */
-    for (int Row = 0; Row < Height; Row++)
-    {
-        for (int Column = 0; Column < Width; Column++)
-        {
-            double X = (Column - CenterX) / 2.0;
-            double Y = Row - CenterY;
-            double Distance = sqrt(X * X + Y * Y);
-
-            if (Distance > Radius - 0.5 && Distance < Radius + 0.5)
-            {
-                Canvas[Row][Column] = Theme->Face;
-            }
-        }
-    }
-
-    /* The twelve hour marks, 12 o'clock at the top and going clockwise. */
-    for (int Mark = 0; Mark < 12; Mark++)
-    {
-        double Angle = Mark * (2.0 * 3.14159265358979323846 / 12.0);
-        Plot(Canvas, Width, Height,
-             CenterX + 2.0 * Radius * sin(Angle),
-             CenterY - Radius * cos(Angle),
-             Theme->Mark);
-    }
-
-    /* The shadow, walked outwards from the centre towards the current time. */
-    double TimeAngle = ((Hour % 12) + Minute / 60.0) * (2.0 * 3.14159265358979323846 / 12.0);
-    for (double Length = 1.0; Length <= Radius - 1.2; Length += 0.2)
-    {
-        Plot(Canvas, Width, Height,
-             CenterX + 2.0 * Length * sin(TimeAngle),
-             CenterY - Length * cos(TimeAngle),
-             Theme->Shadow);
-    }
-
-    Plot(Canvas, Width, Height, CenterX, CenterY, Theme->Gnomon);
-
-    printf("  %s %s - %02d:%02d\n\n", Theme->Title, Version, Hour, Minute);
-
-    for (int Row = 0; Row < Height; Row++)
-    {
-        int End = Width;
-        while (End > 0 && Canvas[Row][End - 1] == ' ')
-        {
-            End--;
-        }
-
-        Canvas[Row][End] = '\0';
-        printf("  %s\n", Canvas[Row]);
-    }
-}
-
-const char* Dial_MottoForHour(const char* Text, int Hour, int* OutLength)
-{
-    const char* Motto = NULL;
+    const char* Found = NULL;
     const char* Line = Text;
-    int Index = 0;
+    int Current = 0;
 
-    while (Line != NULL && *Line != '\0' && Motto == NULL)
+    while (Line != NULL && *Line != '\0' && Found == NULL)
     {
         const char* LineEnd = strchr(Line, '\n');
         size_t LineLength = LineEnd != NULL ? (size_t)(LineEnd - Line) : strlen(Line);
@@ -217,15 +216,15 @@ const char* Dial_MottoForHour(const char* Text, int Hour, int* OutLength)
             LineLength--;
         }
 
-        if (Index == Hour)
+        if (Current == Index)
         {
-            Motto = Line;
+            Found = Line;
             *OutLength = (int)LineLength;
         }
 
         Line = LineEnd != NULL ? LineEnd + 1 : NULL;
-        Index++;
+        Current++;
     }
 
-    return Motto;
+    return Found;
 }
