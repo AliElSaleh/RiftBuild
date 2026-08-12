@@ -34,12 +34,18 @@ Copy [`Source/Resources/riftbuild.vim`](../Source/Resources/riftbuild.vim)
   file type in your vimrc like so.
 
    ```vim
+  syntax on
+  filetype plugin indent on
+
   " Associate .build files with riftbuild syntax
   augroup riftbuildFileType
       autocmd!
       autocmd BufNewFile,BufRead *.build,*.buildvars set filetype=riftbuild
   augroup END
    ```
+
+  `syntax on` is required - without it Vim never loads the syntax file, so
+  `.build` files stay unhighlighted even though the association is correct.
 
 ### Emacs setup
 
