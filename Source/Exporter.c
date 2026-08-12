@@ -280,11 +280,13 @@ bool Export_InfoPlist(LinearAllocator Arena, const BuildParams* Params, const St
                 { .Key = S("CFBundleVersion"),               .Value = VersionLong,         .bGiven = false }
             };
 
+            const String KeyPrefix = S("Info.plist.");
+
             for each (FileVariable, v, ExpandedVariablesDB)
             {
-                if (String_StartsWith(v.Name, S("Info.plist."), false))
+                if (String_StartsWith(v.Name, KeyPrefix, false))
                 {
-                    const String Key = StrShiftF(v.Name, 12);
+                    const String Key = StrShiftF(v.Name, KeyPrefix.Length);
 
                     // mark the key as "given" in the table
                     for (u8 i = 0; i < SArray_Capacity(BundleTable); i++)
@@ -365,11 +367,13 @@ bool Export_VersionPlist(LinearAllocator Arena, const BuildParams* Params, const
                 [3] = { .Key = S("ProjectName"),                   .Value = DisplayName, .bGiven = false }
             };
 
+            const String KeyPrefix = S("Version.plist.");
+
             for each (FileVariable, v, ExpandedVariablesDB)
             {
-                if (String_StartsWith(v.Name, S("Version.plist."), false))
+                if (String_StartsWith(v.Name, KeyPrefix, false))
                 {
-                    const String Key = StrShiftF(v.Name, 15);
+                    const String Key = StrShiftF(v.Name, KeyPrefix.Length);
 
                     // mark the key as "given" in the table
                     for (u8 i = 0; i < SArray_Capacity(BundleTable); i++)

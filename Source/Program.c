@@ -5892,7 +5892,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     const String PCHHeaderPath              = GetVariableValue(VariablesDB, S("PCH.h"));
 
     #if PLATFORM_APPLE
-    const bool bBundleApp                   = DoesBuildVarExist(VariablesDB, S("Bundle"));
+    const bool bBundleApp                   = DoesBuildVarExist(VariablesDB, S("Apple.Bundle"));
     #endif
 
     const String TitleName                  = GetVariableValue(VariablesDB, S("TitleName"));
@@ -10090,10 +10090,6 @@ static void InitInternalVars(LinearAllocator* Arena)
         xx String_FromU32(&NumCores, MaxLogicalCores);
         AddInternalVariable(S("CPU.LogicalCores"), String_Create(Arena, NumCores));
     }
-
-    // TODO: new syntax '&' to refer to internal vars? so that we can finally remove the _ from each interval var cos its ugly
-    //       '%' will only refer to cmd line options
-    //       for backwards compat. we can just eat the '_' so existing .build files dont break
 
     StringLocal(CPUExtensions, 4096);
 
