@@ -9908,13 +9908,8 @@ static void InitInternalVars(LinearAllocator* Arena)
                                "wldap32 crypt32 rpcrt4 shlwapi dbghelp bcrypt version imm32 cfgmgr32 setupapi oleaut32 shcore "
                                "uuid odbc32 odbccp32 delayimp userenv pathcch");
 
-    // Only libraries shipped by libc itself (glibc/musl both provide these, as stubs on modern
-    // glibc where they merged into libc). libcrypt is deliberately absent: glibc moved it to the
-    // separately-packaged libxcrypt, so it is not guaranteed on a stock system.
     const String LinuxLibs = S("m pthread dl rt util resolv");
 
-    // BSD base-system libraries (present without any package manager), plus per-flavor extras.
-    // OpenBSD has no librt or libexecinfo; FreeBSD has no libcurses/libevent in base.
     #if PLATFORM_FREE_BSD
     #define BSD_EXTRA_LIBS " execinfo elf fetch jail ncursesw"
     #elif PLATFORM_NET_BSD
@@ -9944,13 +9939,13 @@ static void InitInternalVars(LinearAllocator* Arena)
     AddInternalVariable(S("NativeLibs"), LinuxLibs);
     #endif
 
-    AddInternalVariable(S("Arch"), S(CPU_ARCHITECTURE_STRING));
+    AddInternalVariable(S("CPU.Arch"), S(CPU_ARCHITECTURE_STRING));
     
     #if PLATFORM_64_BIT
-    AddInternalVariable(S("Bit"), S("64"));
+    AddInternalVariable(S("CPU.Bit"), S("64"));
     AddInternalVariable(S("64_bit"), String_Null());
     #else
-    AddInternalVariable(S("Bit"), S("32"));
+    AddInternalVariable(S("CPU.Bit"), S("32"));
     AddInternalVariable(S("32_bit"), String_Null());
     #endif
 
@@ -9969,7 +9964,7 @@ static void InitInternalVars(LinearAllocator* Arena)
     if (Platform_GetCpuBrandName(&CPU))
     {
         CpuBrandName = String_Create(Arena, CPU);
-        AddInternalVariable(S("CPUBrand"), CpuBrandName);
+        AddInternalVariable(S("CPU.Brand"), CpuBrandName);
 
         xx String_ReplaceCharInline(&CPU, ' ', '_');
         CpuBrandName = String_Create(Arena, CPU);
@@ -9977,7 +9972,7 @@ static void InitInternalVars(LinearAllocator* Arena)
     }
     else
     {
-        AddInternalVariable(S("CPUBrand"), CpuBrandName);
+        AddInternalVariable(S("CPU.Brand"), CpuBrandName);
     }
 
     String CpuFullName = S("Unknown");
@@ -9990,23 +9985,23 @@ static void InitInternalVars(LinearAllocator* Arena)
 
     if (CPUInfo.Intel)
     {
-        AddInternalVariable(S("CPUVendor"), S("Intel"));
+        AddInternalVariable(S("CPU.Vendor"), S("Intel"));
         AddInternalVariable(S("CPU"), CpuFullName);
 
-        AddInternalVariable(S("Intel"), One);
+        AddInternalVariable(S("CPU.Intel"), One);
     }
 
     if (CPUInfo.AMD)
     {
-        AddInternalVariable(S("CPUVendor"), S("AMD"));
+        AddInternalVariable(S("CPU.Vendor"), S("AMD"));
         AddInternalVariable(S("CPU"), CpuFullName);
 
-        AddInternalVariable(S("AMD"), One);
+        AddInternalVariable(S("CPU.AMD"), One);
     }
 
     if (CPUInfo.Apple)
     {
-        AddInternalVariable(S("CPUVendor"), S("Apple"));
+        AddInternalVariable(S("CPU.Vendor"), S("Apple"));
         AddInternalVariable(S("CPU"), CpuFullName);
     }
 
@@ -10094,7 +10089,7 @@ static void InitInternalVars(LinearAllocator* Arena)
     StringLocal(CPUExtensions, 4096);
 
     #define AddCPUExt(Field, Name) \
-        AddInternalVariable(S(Name), CPUInfo.Field ? One : Zero); \
+        AddInternalVariable(S("CPU." Name), CPUInfo.Field ? One : Zero); \
         if (CPUInfo.Field) { String_Append(&CPUExtensions, S(Name)); String_AppendSpace(&CPUExtensions); }
 
     // x86
@@ -10287,11 +10282,11 @@ static void InitInternalVars(LinearAllocator* Arena)
 
     #undef AddCPUExt
 
-    AddInternalVariable(S("CPUExtensions"), String_Create(Arena, CPUExtensions));
+    AddInternalVariable(S("CPU.Extensions"), String_Create(Arena, CPUExtensions));
 
     StringLocal(CacheLineSize, 8);
     String_Format(&CacheLineSize, S("%u"), Platform_GetCpuCacheLineSize());
-    AddInternalVariable(S("CacheLineSize"), String_Create(Arena, CacheLineSize));
+    AddInternalVariable(S("CPU.CacheLineSize"), String_Create(Arena, CacheLineSize));
 
     StringLocal(AccountName, 256);
     String Allocated;
