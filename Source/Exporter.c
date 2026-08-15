@@ -424,20 +424,39 @@ bool Export_PkgInfo(const String AssemblyName, const String Path)
     return bSuccess;
 }
 
-bool Export_IconRC(const String Path, const String IconFilePath)
+bool Export_IconRC(const String Path, const String IconFilePath, TArray(IconResource) NamedIcons)
 {
+    StringLocal(FileData, MAX_ICON_RC_LENGTH);
+    StringLocal(PathCopy, MAX_PATH_LENGTH);
+
+    if (IconFilePath.Length > 0)
+    {
+        String_Copy(&PathCopy, IconFilePath);
+        String_BackSlashToForwardSlash(&PathCopy);
+
+        // Numeric ids sort before named ones, so the shell picks this as the exe icon.
+        String_AppendF(&FileData, S("1 ICON \"%S\"\n"), PathCopy);
+    }
+
+    if (NamedIcons)
+    {
+        for each (IconResource, Icon, NamedIcons)
+        {
+            String_Empty(&PathCopy);
+            String_Copy(&PathCopy, Icon.FilePath);
+            String_BackSlashToForwardSlash(&PathCopy);
+
+            String_AppendF(&FileData, S("%S ICON \"%S\"\n"), Icon.Name, PathCopy);
+        }
+    }
+
     bool bSuccess = false;
 
     FileHandle f = FileHandle_Null();
     if (Filesystem_Open(Path, FileMode_Write, &f))
     {
-        StringLocal(PathCopy, MAX_PATH_LENGTH);
-        String_Copy(&PathCopy, IconFilePath);
-        String_BackSlashToForwardSlash(&PathCopy);
-
-        xx Filesystem_WriteLineFormatted(f, S("1 ICON \"%S\""), NULL, PathCopy);
+        bSuccess = Filesystem_Write(f, FileData.Length, FileData.Data, NULL);
         Filesystem_Close(&f);
-        bSuccess = true;
     }
 
     return bSuccess;
@@ -1350,7 +1369,7 @@ bool Export_FromArg(LinearAllocator Scratch, const BuildParams* Params, const St
             String_BuildPath(&RCPath, ExportPath, bGenVersionRc ? S("version.rc") : S("icon.rc"));
 
             if ((bGenVersionRc && !Export_VersionRC(Params, RCPath)) ||
-                (bGenIconRc && !Export_IconRC(RCPath, Params->IconFilePath)))
+                (bGenIconRc && !Export_IconRC(RCPath, Params->IconFilePath, Params->NamedIcons)))
             {
                 LOG_ERROR("Failed to export \"%S\". Aborting build...", RCPath);
 

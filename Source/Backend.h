@@ -8,6 +8,9 @@
 
 #define MAX_KEY_LENGTH 128
 
+#define MAX_ICON_RESOURCES 16
+#define MAX_ICON_RC_LENGTH ((MAX_ICON_RESOURCES + 1) * (MAX_KEY_LENGTH + MAX_PATH_LENGTH + 16))
+
 global bool bQuietBuild;
 global bool bNoWordWrapLogging;
 global bool bHelp;
@@ -42,6 +45,12 @@ STRUCT(SourceFileData)
 {
     String FullPath;
     String RelativePath;
+};
+
+STRUCT(IconResource)
+{
+    String Name;
+    String FilePath;
 };
 
 STRUCT(SourceCountData)
@@ -293,7 +302,8 @@ STRUCT(BuildParams)
 
     const FileOverride* FileOverrides; // per-file compiler setting overrides (see FileOverride), or NULL
 
-    TArray(String) ForceRecompileFiles; // bare filenames to recompile even if unchanged (per-file overrides changed), or NULL
+    TArray(String) ForceRecompileFiles;
+    TArray(IconResource) NamedIcons;
 
     u64 NewestHeaderWriteTime;
 
@@ -350,6 +360,7 @@ void CompileProcessPool_InitOutputBuffers(LinearAllocator* Arena, CompileProcess
 bool IsSource(const String Extension);
 bool IsAsmSource(const String Extension);
 bool IsAsmCSource(const String Extension);
+bool IsResourceSource(const String Extension);
 bool IsCSource(const String Extension);
 bool IsObjCSource(const String Extension);
 bool IsCppSource(const String Extension);
@@ -431,6 +442,7 @@ EBuildKeyImpact GetBuildKeyImpact(const String Key);
 
 bool IsPerFileOverrideKey(const String Key, String* OutFileName, String* OutSetting);
 bool IsPlistEntryKey(const String Key);
+bool IsIconResourceKey(const String Key);
 
 void AddVariable(LinearAllocator* Arena,
                 TArray(FileVariable) VariablesDB,
@@ -473,7 +485,7 @@ bool Export_InfoPlist(LinearAllocator Arena, const BuildParams* Params, const St
 bool Export_VersionPlist(LinearAllocator Arena, const BuildParams* Params, const String Path, TArray(FileVariable) ExpandedVariablesDB, bool bRawMode);
 bool Export_PkgInfo(const String AssemblyName, const String Path);
 bool Export_VersionRC(const BuildParams* Params, const String Path);
-bool Export_IconRC(const String Path, const String IconFilePath);
+bool Export_IconRC(const String Path, const String IconFilePath, TArray(IconResource) NamedIcons);
 bool Export_WindowsBatchScript(const BuildParams* Params);
 bool Export_UnixShellScript(const BuildParams* Params);
 bool Export_VisualStudioSolution(const BuildParams* Params, const String Path);

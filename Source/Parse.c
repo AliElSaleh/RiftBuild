@@ -744,6 +744,14 @@ bool IsPlistEntryKey(const String Key)
     return false;
 }
 
+bool IsIconResourceKey(const String Key)
+{
+    const String Prefix = S("Icon.");
+
+    // longer than the prefix, otherwise the icon has no resource name ("Icon." on its own)
+    return Key.Length > Prefix.Length && String_StartsWith(Key, Prefix, false);
+}
+
 EBuildKeyImpact GetBuildKeyImpact(const String Key)
 {
     // A per-file override ("<filename>.<Setting>") feeds the compiler for that file, so any change to one
@@ -754,6 +762,12 @@ EBuildKeyImpact GetBuildKeyImpact(const String Key)
     }
 
     if (IsPlistEntryKey(Key))
+    {
+        return BuildKeyImpact_Relink;
+    }
+
+    // Icon.<NAME> declares an extra icon resource, so it carries the same impact as Icon itself.
+    if (IsIconResourceKey(Key))
     {
         return BuildKeyImpact_Relink;
     }
@@ -6897,6 +6911,14 @@ NO_DISCARD bool ParseBuildFile(
             // is an Apple key name rather than anything RiftBuild knows about.
             if (IsPlistEntryKey(Var.Name))
             {
+                bStoreInDB = true;
+            }
+
+            // ...and neither are the extra icons ("Icon.<NAME>"), whose second half is the resource
+            // name the user picked. Give them the same headroom as Icon itself, they hold a path too.
+            if (IsIconResourceKey(Var.Name))
+            {
+                MaxValueLength = 256;
                 bStoreInDB = true;
             }
 

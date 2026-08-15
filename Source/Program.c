@@ -32,8 +32,6 @@ const usize GEngineScratchAmount = Kibibytes(8);
     #endif
 #endif
 
-// TODO: combine InternalVariable struct with cmdoption struct. fold them into one.
-
 TArray(InternalVariable) InternalVariablesDB = NULL;
 FileVariable FileVariable_Empty = {0};
 bool bQuietBuild = false;
@@ -885,6 +883,92 @@ static bool IconFileDirectoryIterator(const String FullPath, const String Relati
     }
 
     return true;
+}
+
+static bool ResolveIconFilePath(const String IconSearchName, const String WorkingPath, bool bWarnIfMissing, String* OutFilePath)
+{
+    u32 LastSlashIndex = 0;
+    xx String_IndexOfLastPathSlash(IconSearchName, &LastSlashIndex);
+
+    bool bHasExtension = false;
+    u32 LastDot = 0;
+    if (String_IndexOfLastChar(IconSearchName, '.', &LastDot))
+    {
+        bool bHasPathSeparator = String_IndexOfFirstPathSlash(StrShiftF(IconSearchName, LastDot), NULL);
+        if (!bHasPathSeparator)
+        {
+            bHasExtension = true;
+        }
+    }
+
+    bool bResult = false;
+
+    if (bHasExtension && LastSlashIndex) // is this an exact file path? if so, no need to search
+    {
+        String_Copy(OutFilePath, IconSearchName);
+        bResult = true;
+    }
+    else
+    {
+        struct Data
+        {
+            String IconName;
+            String* IconFilePath;
+            bool bSuccess;
+            u8 Padding[7];
+        };
+
+        struct Data d = {0};
+        d.IconName = IconSearchName;
+        d.IconFilePath = OutFilePath;
+        d.bSuccess = false;
+
+        String SearchPath = WorkingPath;
+        if (LastSlashIndex && !Filesystem_IsPathRelative(IconSearchName))
+        {
+            SearchPath = StrSlice(IconSearchName.Data, LastSlashIndex+1);
+        }
+
+        Filesystem_IterateDirectory_Ex(SearchPath, &IconFileDirectoryIterator, true, &d);
+
+        bResult = d.bSuccess;
+
+        if (!bResult)
+        {
+            if (bWarnIfMissing)
+            {
+                LOG_WARNING("Failed to find icon file \"%S\" in \"%S\". Skipping icon build...\n", IconSearchName, SearchPath);
+            }
+
+            String_Empty(OutFilePath);
+        }
+    }
+
+    return bResult;
+}
+
+static bool IsIconRcStale(const String IconRcPath, const String BuildFilePath, const String IconFilePath, TArray(IconResource) NamedIcons)
+{
+    bool bResult = true;
+
+    if (Filesystem_DoesFileExist(IconRcPath))
+    {
+        bResult = Filesystem_IsNewer(IconFilePath, IconRcPath);
+
+        if (!bResult && NamedIcons)
+        {
+            for each (IconResource, Icon, NamedIcons)
+            {
+                if (Filesystem_IsNewer(Icon.FilePath, IconRcPath))
+                {
+                    bResult = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    return bResult;
 }
 
 static bool SourceFileCounterDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
@@ -7561,93 +7645,77 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
     if (IconSearchName.Length > 0)
     {
-        {
-            u32 LastSlashIndex = 0;
-            xx String_IndexOfLastPathSlash(IconSearchName, &LastSlashIndex);
-
-            bool bHasExtension = false;
-            u32 LastDot = 0;
-            if (String_IndexOfLastChar(IconSearchName, '.', &LastDot))
-            {
-                bool bHasPathSeparator = String_IndexOfFirstPathSlash(StrShiftF(IconSearchName, LastDot), NULL);
-                if (!bHasPathSeparator)
-                {
-                    bHasExtension = true;
-                }
-            }
-
-            if (bHasExtension && LastSlashIndex) // is this an exact file path? if so, no need to search
-            {
-                String_Copy(&IconFilePath, IconSearchName);
-            }
-            else
-            {
-                struct Data
-                {
-                    String IconName;
-                    String* IconFilePath;
-                    bool bSuccess;
-                    u8 Padding[7];
-                };
-
-                struct Data d = {0};
-                d.IconName = IconSearchName;
-                d.IconFilePath = &IconFilePath;
-                d.bSuccess = false;
-
-                String SearchPath = WorkingPath;
-                if (LastSlashIndex && !Filesystem_IsPathRelative(IconSearchName))
-                {
-                    SearchPath = StrSlice(IconSearchName.Data, LastSlashIndex+1);
-                }
-
-                Filesystem_IterateDirectory_Ex(SearchPath, &IconFileDirectoryIterator, true, &d);
-
-                if (!d.bSuccess)
-                {
-                    if (bIconSpecified)
-                    {
-                        LOG_WARNING("Failed to find icon file \"%S\" in \"%S\". Skipping icon build...\n", IconSearchName, SearchPath);
-                    }
-
-                    String_Empty(&IconFilePath);
-                }
-            }
-        }
+        xx ResolveIconFilePath(IconSearchName, WorkingPath, bIconSpecified, &IconFilePath);
 
         #if PLATFORM_WINDOWS
-        if (IconFilePath.Length > 0)
+        if (IconFilePath.Length > 0 && !String_EndsWith(IconFilePath, S(".ico"), false))
         {
-            #if PLATFORM_WINDOWS
-            const String IconExt = S(".ico");
-            #else
-            const String IconExt = S(".png");
-            #endif
-
-            if (!String_EndsWith(IconFilePath, IconExt, false))
-            {
-                LOG_WARNING("Icon file \"%S\" is not a %S file. Skipping icon build...\n", IconFilePath, IconExt);
-                String_Empty(&IconFilePath);
-            }
-            else
-            {
-                String_BuildPath(&IconRcFilePath, IntermediateDirectory, BuildFileName);
-                String_Append(&IconRcFilePath, S("_icon.rc"));
-                if (!Filesystem_DoesFileExist(IconRcFilePath))
-                {
-                    xx Export_IconRC(IconRcFilePath, IconFilePath);
-                }
-            }
+            LOG_WARNING("Icon file \"%S\" is not a .ico file. Skipping icon build...\n", IconFilePath);
+            String_Empty(&IconFilePath);
         }
         #endif
     }
 
+    // Extra icons declared as Icon.<NAME>, where <NAME> becomes the resource name in the script.
+    ArrayLocal_Arena(IconResource, NamedIcons, MAX_ICON_RESOURCES, Arena);
+
+    #if PLATFORM_WINDOWS
+    for each (FileVariable, v, VariablesDB)
+    {
+        if (!IsIconResourceKey(v.Name) || v.Value.Length == 0)
+        {
+            continue;
+        }
+
+        const String ResourceName = StrShiftF(v.Name, 5); // past "Icon."
+
+        if (Array_Num(NamedIcons) >= MAX_ICON_RESOURCES)
+        {
+            LOG_WARNING("Too many named icons (max %u); ignoring \"%S\".\n", (u32)MAX_ICON_RESOURCES, v.Name);
+            continue;
+        }
+
+        StringLocal(NamedIconSearchName, MAX_PATH_LENGTH);
+        String_Copy(&NamedIconSearchName, v.Value);
+        String_ConvertSlashToPlatformSlash(&NamedIconSearchName);
+
+        StringLocal(NamedIconFilePath, MAX_PATH_LENGTH);
+        if (ResolveIconFilePath(NamedIconSearchName, WorkingPath, true, &NamedIconFilePath))
+        {
+            if (!String_EndsWith(NamedIconFilePath, S(".ico"), false))
+            {
+                LOG_WARNING("Icon file \"%S\" is not a .ico file. Skipping \"%S\"...\n", NamedIconFilePath, v.Name);
+                continue;
+            }
+            
+            IconResource Resource = {0};
+            Resource.Name = ResourceName;
+            Resource.FilePath = String_Create(Arena, NamedIconFilePath);
+
+            Array_Add(NamedIcons, Resource);
+        }
+    }
+    #endif
+
+    #if PLATFORM_WINDOWS
+    if (IconFilePath.Length > 0 || Array_Num(NamedIcons) > 0)
+    {
+        String_BuildPath(&IconRcFilePath, IntermediateDirectory, BuildFileName);
+        String_Append(&IconRcFilePath, S("_icon.rc"));
+
+        if (IsIconRcStale(IconRcFilePath, BuildFilePath, IconFilePath, NamedIcons))
+        {
+            xx Export_IconRC(IconRcFilePath, IconFilePath, NamedIcons);
+        }
+    }
+    #endif
+
     #if PLATFORM_WINDOWS
     // only build the version resource if we have TitleName, CompanyName, Description, Version, Copyright, or CompanyName
-    // and no custom resource file was specified
-    if (CountData.NumRcSources == 0 &&
-        ((TitleName.Length > 0 || CompanyName.Length > 0 || Description.Length > 0 ||
-        (!bFallbackVersion && Version.Length > 0) || Copyright.Length > 0)))
+    const bool bHasVersionMetaData = TitleName.Length > 0 || CompanyName.Length > 0 || Description.Length > 0 ||
+                                     (!bFallbackVersion && Version.Length > 0) || Copyright.Length > 0;
+
+    if (bHasVersionMetaData)
     {
         // TODO: when building both a static/shared lib, we do not generate the correct FILETYPE. fix it boy
         // TODO: allow custom version rc file?
@@ -7655,7 +7723,8 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         String_BuildPath(&VersionRCFilePath, IntermediateDirectory, BuildFileName);
         String_Append(&VersionRCFilePath, S("_version.rc"));
 
-        if (!Filesystem_DoesFileExist(VersionRCFilePath))
+        // The build file holds every value in this script, so a newer build file makes it stale.
+        if (!Filesystem_DoesFileExist(VersionRCFilePath) || Filesystem_IsNewer(BuildFilePath, VersionRCFilePath))
         {
             // generate version rc file
             BuildParams TempParams  = {0};
@@ -7751,7 +7820,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             }
 
             #if PLATFORM_WINDOWS
-            if (RCCompilerPath.Length > 0 && (IconFilePath.Length > 0 || CountData.NumRcSources > 0))
+            if (RCCompilerPath.Length > 0 && (IconFilePath.Length > 0 || Array_Num(NamedIcons) > 0 || CountData.NumRcSources > 0))
             {
                 LOG("    Resource Compiler:    %S -> \"%S\"", RCProgram, RCCompilerPath);
             }
@@ -8604,6 +8673,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     p.bDumpObjFilesInOneDirectory   = bDumpObjFilesInOneDirectory;
     p.CameFromBuildFile             = CameFromBuildFile;
     p.IconFilePath                  = IconFilePath;
+    p.NamedIcons                    = NamedIcons;
     p.bLinkerNoStd                  = bLinkerNoStd;
     p.bLinkerNoDefaultLibs          = bLinkerNoDefaultLibs;
     p.RPathOrigin                   = RPathOrigin;
@@ -8840,10 +8910,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             return Receipt;
         }
     }
-
-    // TODO
-    // PostBundle step?
-    // Bundle.Resources key to copy files in macos bundles
 
     #if PLATFORM_APPLE
     // compile the .app bundle (if desired)

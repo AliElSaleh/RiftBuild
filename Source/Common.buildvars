@@ -88,6 +88,7 @@ if clang|gcc
     SharedLinkerFlags 
     SharedLinkerFlags:!gcc:32        --target=i386-pc-windows-msvc
     SharedLinkerFlags:linux          -Wl,-z,nodlopen -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now
+    SharedLinkerFlags:mac            -mmacosx-version-min=10.12
     
     SharedDefines:debug              _GLIBCXX_ASSERTIONS _GLIBCXX_DEBUG _GLIBCXX_DEBUG_PEDANTIC
     SharedDefines:!debug:!asan       _FORTIFY_SOURCE=3

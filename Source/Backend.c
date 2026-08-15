@@ -1224,7 +1224,7 @@ static bool Internal_DoCompile(CompileData* Data, const String RelativePath)
 
         if (bQuietBuild) { Logging_Enable(); }
 
-        bool bHideLog = (bIsMicrosoftCompiler && !IsAsmSource(Ext)) ||
+        bool bHideLog = (bIsMicrosoftCompiler && !IsAsmSource(Ext) && !IsResourceSource(Ext)) ||
                         (bIsMicrosoftAssembler && IsAsmSource(Ext));
 
         if (!bHideLog || Params->bShouldWaitPerCompileProcess)
@@ -1583,6 +1583,11 @@ bool IsAsmSource(const String Extension)
 {
     return  String_IsEqual(Extension, S(".asm"), false) ||
             String_IsEqual(Extension, S(".s"), true);
+}
+
+bool IsResourceSource(const String Extension)
+{
+    return  String_IsEqual(Extension, S(".rc"), false);
 }
 
 bool IsAsmCSource(const String Extension)

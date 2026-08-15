@@ -882,6 +882,8 @@ STAMP_PATCH_VERSION    // 1
 ```
 Extra dotted components become `<NAME>_EXTRA_VERSION_<n>`. The integer macros only appear when the version contains at least one `.` - a non-dotted version produces just the string macro.
 
+A `.rc` file of your own does not switch the metadata off. RiftBuild only stands aside when your script declares its own `VERSIONINFO` block, because two of them collide at link time. A script that carries other resources, an icon for example, still gets the generated metadata alongside it.
+
 ---
 
 ### Copyright
@@ -925,6 +927,24 @@ On Linux and BSD, the following Desktop Environments are supported:
 - Cinnamon
 
 The path is relative to the build file (and must stay relative - absolute Windows paths lose their backslashes to escaping, see [Comments](#comments)).
+
+#### Extra named icons (windows only)
+
+`Icon` gives the executable the icon the shell shows. A program that also wants to look an icon up at runtime needs that icon under a *name*, which is what `Icon.<NAME>` is for:
+
+```make
+Icon           MyGame            # the exe icon, written as resource id 1
+Icon.GLFW_ICON MyGame            # GLFW asks windows for a resource named "GLFW_ICON"
+Icon.TRAY_ICON tray              # any name you like, up to 16 of them
+```
+
+`<NAME>` lands in the generated resource script verbatim, so it is the name the program passes to `LoadImage`, `LoadIcon` or `FindResource`. The value is an icon file, resolved exactly like `Icon`'s - with or without an extension, with or without a directory.
+
+Two icons can name the same file, as they do above. The shell keeps using the `Icon` one, because a numeric resource id sorts before a named one.
+
+Do not put icons in a `.rc` file of your own while `Icon` or `Icon.<NAME>` is set. The resource compiler numbers the images of every script from 1, so a second script that holds an icon collides with the generated one and the linker stops with `CVT1100: duplicate resource`. Declare all of them here, or none of them.
+
+`Icon.<NAME>` is a windows concept and warns and does nothing elsewhere. `Icon` itself stays cross-platform.
 
 ---
 

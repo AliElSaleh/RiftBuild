@@ -1,0 +1,13 @@
+# A .rc file of your own must not switch off the generated version resource. RiftBuild only
+# stands aside when the script declares its own VERSIONINFO, which is the case that collides at
+# link time. custom.rc here carries an icon and nothing else, so the exe has to end up with both
+# that icon and the metadata below. main.c looks for each of them at runtime.
+Assembly            CustomRcMetadataTest
+SourceFiles         main
+SourceFiles:windows custom
+
+TitleName           Custom Rc Metadata
+CompanyName         Artisan Softworks
+Description         Metadata has to survive a custom .rc
+Version             3.2.1
+Copyright           Copyright (c) $CompanyName

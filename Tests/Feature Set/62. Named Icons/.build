@@ -1,0 +1,11 @@
+# Icon.<NAME> declares extra icons under a resource name the program can look up at
+# runtime, next to the Icon one the shell shows. All of them have to land in the one
+# generated .rc: the resource compiler numbers each script's images from 1, so a
+# second script holding an icon fails the link with CVT1100 duplicate resource.
+# main.c looks all three up at runtime.
+Assembly       NamedIconsTest
+SourceFiles    main
+
+Icon           app
+Icon.GLFW_ICON app
+Icon.TRAY_ICON app
