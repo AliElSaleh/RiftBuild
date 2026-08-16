@@ -1,4 +1,4 @@
-<h1 align="center">Rift Build (CLOSED BETA)</h1>
+<h1 align="center">Rift Build (OPEN BETA)</h1>
 <p align="center">A simpler build tool for C/C++, because fuck CMake.</p>
 
 <p align="center">
@@ -53,6 +53,8 @@ You are wise to be skeptical of new tools that claim to be "better" than existin
 Below are forks of a few open-source projects that I've translated from CMake (and other build systems) to Rift Build. They can be built with just a single `riftbuild` call on the terminal at the project root directory.
 
 They work on Windows, macOS and Linux (where appropriate).
+
+Note: I still need to sync some of these forks to the latest and update the .build files accordingly. So some may be broken in the meantime while in this beta phase.
 
 | Project                                                         |                                    |
 |-----------------------------------------------------------------|------------------------------------|
