@@ -5763,7 +5763,7 @@ static bool Internal_AssertCPUVendor(ParsingContext* Context, const String Build
     if (VendorsArray.Num > 0)
     {
         String CPUVendor = String_Null();
-        InternalVariable* Found = FindInternalVariable(S("CPUVendor"));
+        InternalVariable* Found = FindInternalVariable(S("CPU.Vendor"));
         if (Found)
         {
             CPUVendor = Found->Value;
@@ -5824,7 +5824,7 @@ static bool Internal_AssertCPUExtensions(ParsingContext* Context, const String B
     if (RequiredArray.Num > 0)
     {
         String CPUExtensions = String_Null();
-        InternalVariable* Found = FindInternalVariable(S("CPUExtensions"));
+        InternalVariable* Found = FindInternalVariable(S("CPU.Extensions"));
         if (Found)
         {
             CPUExtensions = Found->Value;
@@ -6624,11 +6624,11 @@ static bool Internal_RunAsserts(ParsingContext* Context, const String BuildFileP
             {
                 bAssertionFailed = Internal_AssertCompilerVersion(Context, BuildFilePath, Var) == false;
             }
-            else if (String_IsEqual(Var.Name, S("Assert.CPUVendor"), false))
+            else if (String_IsEqual(Var.Name, S("Assert.CPU.Vendor"), false))
             {
                 bAssertionFailed = Internal_AssertCPUVendor(Context, BuildFilePath, Var) == false;
             }
-            else if (String_IsEqual(Var.Name, S("Assert.CPUExtensions"), false))
+            else if (String_IsEqual(Var.Name, S("Assert.CPU.Extensions"), false))
             {
                 bAssertionFailed = Internal_AssertCPUExtensions(Context, BuildFilePath, Var) == false;
             }

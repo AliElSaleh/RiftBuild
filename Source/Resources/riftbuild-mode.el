@@ -4,7 +4,7 @@
 ;; Licensed under the BSD 3-Clause License. See the LICENSE file for details.
 
 ;; Author: Ali El Saleh
-;; Version: 0.6.7-beta
+;; Version: 0.7.0-beta
 ;; Keywords: languages
 ;; URL: https://github.com/AliElSaleh/RiftBuild
 
@@ -110,13 +110,13 @@ Used as the anchored-highlighter limit for block header matches."
      . font-lock-keyword-face)
     ;; version comparison operators: v== v> v< v>= v<=
     ("\\_<v\\(?:==\\|>=\\|<=\\|>\\|<\\)" . font-lock-builtin-face)
-    ;; built-in variables: %_DirectoryName, %_Date.Year, %_Platform, ...
-    ("[%$@]_[A-Za-z0-9_.]*" . font-lock-builtin-face)
-    ;; built-ins via the '&' sigil: &Date, &CPU.LogicalCores, &_Platform, &^Platform.
-    ;; '&' is only a sigil when a name follows it, so a bare "a && b" stays plain text
-    ("&[-^]?\\(?:{[A-Za-z0-9_.-]+}\\|([A-Za-z0-9_.-]+)\\|_?[A-Za-z][A-Za-z0-9_.]*\\)"
-     . font-lock-builtin-face)
-    ;; variable references: %Name $Name @Name, %{Name} %(Name) %-(Name)
+    ;; built-in variables: &Date.Year, &Platform.Version, &{Date}, &^Arch, &!Windows.
+    ;; '&' is only a sigil when a name follows it, so a bare "a && b" stays plain
+    ;; text. The modifiers come in the order the parser eats them: ! then - then ^.
+    ;; Group 1 skips the ampersand of an escaped \&, which is literal text.
+    ("\\(?:^\\|[^\\\\]\\)\\(&!?-?\\^?\\(?:{[A-Za-z0-9_.-]+}\\|([A-Za-z0-9_.-]+)\\|_?[A-Za-z][A-Za-z0-9_.]*\\)\\)"
+     (1 font-lock-builtin-face))
+    ;; variable references: %Option $Key @EnvVar, %{Name} %(Name) %-(Name)
     ("[%$@]-?\\(?:{[A-Za-z0-9_.-]+}\\|([A-Za-z0-9_.-]+)\\|[A-Za-z0-9_.]+\\)"
      . font-lock-constant-face)
     ;; comparison / condition symbols and the backtick value reset

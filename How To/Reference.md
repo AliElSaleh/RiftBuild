@@ -192,7 +192,7 @@ Compiler.Flags -std=c99 -Wall $AsanFlags
 ```
 Notice how `%` was not present in the `asan` and `mode` if statement. This is because we search all variables whether it be a user made build file variable or a command line argument, therefore to save on typing and to simplify the syntax, the `%` or `$` is optional.
 
-**Built-in internal variables** all start with `_`. Run `riftbuild --internals` to see the full list with live values on your machine. The highlights:
+**Built-in internal variables**: `&` is what marks them, and the name itself is case insensitive. Run `riftbuild --internals` to see the full list with live values on your machine. The highlights:
 
 | Variable | Expands to |
 |----------|-----------|

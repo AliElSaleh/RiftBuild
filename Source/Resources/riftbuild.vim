@@ -32,14 +32,16 @@ highlight riftbuildConditionals guifg=#ce5ae8 ctermfg=Magenta
 syntax match riftbuildVersionOps "\<v\(==\|>=\|<=\|>\|<\)"
 highlight link riftbuildVersionOps riftbuildConditionals
 
-" variable references: %Name $Name @Name &Name, %{Name} %(Name), %-(Name)
+" variable references: %Option $Key @EnvVar, %{Name} %(Name), %-(Name)
 syntax match riftbuildVarReferenceSymbols "[%$@]-\?\({[A-Za-z0-9_.-]\+}\|([A-Za-z0-9_.-]\+)\|[A-Za-z0-9_.]\+\)\?"
 highlight link riftbuildVarReferenceSymbols riftbuildRefSymbolColor
 
-" built-in variables: &Date, &CPU.LogicalCores, %_DirectoryName, %_Date.Year, ...
-" '&' is only a sigil when a name follows, so a bare "a && b" stays plain text
-syntax match riftbuildBuiltinVar "[%$@]_[A-Za-z0-9_.]*"
-syntax match riftbuildBuiltinVar "&[-^]\?\({[A-Za-z0-9_.-]\+}\|([A-Za-z0-9_.-]\+)\|_\?[A-Za-z][A-Za-z0-9_.]*\)"
+" built-in variables: &Date.Year, &Platform.Version, &{Date}, &^Arch, &!Windows
+" '&' is only a sigil when a name follows, so a bare "a && b" stays plain text.
+" The modifiers come in the order the parser eats them: ! then - then ^.
+" \& is an escaped ampersand - riftbuildEscape starts one character earlier
+" and wins, so the name after it stays plain text.
+syntax match riftbuildBuiltinVar "&!\?-\?\^\?\({[A-Za-z0-9_.-]\+}\|([A-Za-z0-9_.-]\+)\|_\?[A-Za-z][A-Za-z0-9_.]*\)"
 highlight riftbuildBuiltinVar guifg=#DA70D6 ctermfg=170
 
 " -------------------------------
@@ -104,8 +106,9 @@ highlight link riftbuildCondKeyword riftbuildIfElseColor
 " -------------------------------
 " Quoted strings
 " -------------------------------
-" \" and \# are escaped characters - they do not start strings or comments
-syntax match riftbuildEscape "\\[\"#]"
+" \" \# and \& are escaped characters - they do not start a string, a comment
+" or a built-in variable
+syntax match riftbuildEscape "\\[\"#&]"
 highlight link riftbuildEscape riftbuildRefSymbolColor
 
 " a string starts at a quote NOT preceded by a backslash and may contain
@@ -116,9 +119,9 @@ highlight riftbuildString guifg=#CE9178 ctermfg=214
 " -------------------------------
 " .Help / .ErrorMessage / WriteFile heredoc blocks - contents are plain text
 " -------------------------------
-syntax region riftbuildHelpBlock start="^\s*\.help\s*{\?\s*$" end="^\s*}" keepend contains=riftbuildSpecial,riftbuildBuiltinVar,riftbuildVarReferenceSymbols
-syntax region riftbuildErrorBlock start="^\s*[A-Za-z0-9_.]*\.ErrorMessage\s*{\?\s*$" end="^\s*}" keepend contains=riftbuildErrorMessageKey,riftbuildBuiltinVar,riftbuildVarReferenceSymbols
-syntax region riftbuildHeredocBlock start="^\s*\(Pre\|Post\)\(Depend\|Build\|Compile\|Link\)\.\(WriteFile\|AppendFile\)\>[^{#]*{\?\s*$" end="^\s*}" keepend contains=riftbuildBuildCmd,riftbuildBuiltinVar,riftbuildVarReferenceSymbols
+syntax region riftbuildHelpBlock start="^\s*\.help\s*{\?\s*$" end="^\s*}" keepend contains=riftbuildSpecial,riftbuildEscape,riftbuildBuiltinVar,riftbuildVarReferenceSymbols
+syntax region riftbuildErrorBlock start="^\s*[A-Za-z0-9_.]*\.ErrorMessage\s*{\?\s*$" end="^\s*}" keepend contains=riftbuildErrorMessageKey,riftbuildEscape,riftbuildBuiltinVar,riftbuildVarReferenceSymbols
+syntax region riftbuildHeredocBlock start="^\s*\(Pre\|Post\)\(Depend\|Build\|Compile\|Link\)\.\(WriteFile\|AppendFile\)\>[^{#]*{\?\s*$" end="^\s*}" keepend contains=riftbuildBuildCmd,riftbuildEscape,riftbuildBuiltinVar,riftbuildVarReferenceSymbols
 
 " -------------------------------
 " Namespace blocks - keys written inside Key { } blocks nest under that
@@ -130,20 +133,20 @@ syntax match riftbuildHookVerb "^\s*\(Cmd\|Exec\(ute\)\?\|Command\|Copy\|Move\|N
 highlight link riftbuildHookVerb riftbuildKeywordColor
 
 " bare WriteFile/AppendFile heredocs inside a Pre*/Post* { } block
-syntax region riftbuildHookHeredoc start="^\s*\(WriteFile\|AppendFile\)\>[^{#]*{\?\s*$" end="^\s*}" keepend contained contains=riftbuildHookVerb,riftbuildBuiltinVar,riftbuildVarReferenceSymbols
+syntax region riftbuildHookHeredoc start="^\s*\(WriteFile\|AppendFile\)\>[^{#]*{\?\s*$" end="^\s*}" keepend contained contains=riftbuildHookVerb,riftbuildEscape,riftbuildBuiltinVar,riftbuildVarReferenceSymbols
 
-syntax region riftbuildHookBlock start="^\s*\(Pre\|Post\)\(Depend\|Build\|Compile\(AllFiles\|File\)\?\|Link\)\(:[^ \t{#]\+\)*\s*{\?\s*$" matchgroup=riftbuildBraceColor end="^\s*}" contains=riftbuildBuildCmd,riftbuildHookVerb,riftbuildHookHeredoc,riftbuildKey,riftbuildKeyParam,riftbuildBraces,riftbuildConditionals,riftbuildVarReferenceSymbols,riftbuildBuiltinVar,riftbuildString
+syntax region riftbuildHookBlock start="^\s*\(Pre\|Post\)\(Depend\|Build\|Compile\(AllFiles\|File\)\?\|Link\)\(:[^ \t{#]\+\)*\s*{\?\s*$" matchgroup=riftbuildBraceColor end="^\s*}" contains=riftbuildBuildCmd,riftbuildHookVerb,riftbuildHookHeredoc,riftbuildKey,riftbuildKeyParam,riftbuildBraces,riftbuildConditionals,riftbuildEscape,riftbuildVarReferenceSymbols,riftbuildBuiltinVar,riftbuildString
 
 " bare sub-keys inside a reserved namespace { } block
 syntax match riftbuildSubKey "^\s*[A-Za-z_][A-Za-z0-9_.]*" contained
 highlight link riftbuildSubKey riftbuildReservedKeyColor
 
-syntax region riftbuildReservedBlock start="^\s*\(Assembly\|Compiler\|Linker\|Assembler\|Resource\|Archiver\|Library\|Apple\|PCH\|Bundle\|License\)\(:[^ \t{#]\+\)*\s*{\?\s*$" matchgroup=riftbuildBraceColor end="^\s*}" contains=riftbuildReservedKey,riftbuildSubKey,riftbuildKeyParam,riftbuildBraces,riftbuildConditionals,riftbuildVarReferenceSymbols,riftbuildBuiltinVar,riftbuildString
+syntax region riftbuildReservedBlock start="^\s*\(Assembly\|Compiler\|Linker\|Assembler\|Resource\|Archiver\|Library\|Apple\|PCH\|Bundle\|License\)\(:[^ \t{#]\+\)*\s*{\?\s*$" matchgroup=riftbuildBraceColor end="^\s*}" contains=riftbuildReservedKey,riftbuildSubKey,riftbuildKeyParam,riftbuildBraces,riftbuildConditionals,riftbuildEscape,riftbuildVarReferenceSymbols,riftbuildBuiltinVar,riftbuildString
 
 " -------------------------------
 " Value blocks - [ ... ]
 " -------------------------------
-syntax region riftbuildMultiLineValue start="^\s*\[\s*$" end="\]\s*$" keepend contains=riftbuildBuiltinVar,riftbuildVarReferenceSymbols,riftbuildComment,riftbuildMultiLineComment
+syntax region riftbuildMultiLineValue start="^\s*\[\s*$" end="\]\s*$" keepend contains=riftbuildEscape,riftbuildBuiltinVar,riftbuildVarReferenceSymbols,riftbuildComment,riftbuildMultiLineComment
 
 " -------------------------------
 " Comments - # to end of line, ## ... ## block, \# is escaped
