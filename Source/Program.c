@@ -947,6 +947,7 @@ static bool ResolveIconFilePath(const String IconSearchName, const String Workin
     return bResult;
 }
 
+#if PLATFORM_WINDOWS
 static bool IsIconRcStale(const String IconRcPath, const String BuildFilePath, const String IconFilePath, TArray(IconResource) NamedIcons)
 {
     bool bResult = true;
@@ -970,6 +971,7 @@ static bool IsIconRcStale(const String IconRcPath, const String BuildFilePath, c
 
     return bResult;
 }
+#endif
 
 static bool SourceFileCounterDirectoryIterator(const String FullPath, const String RelativePath, const String FileName, u64 FileSize, bool bIsDirectory, void* UserData)
 {
