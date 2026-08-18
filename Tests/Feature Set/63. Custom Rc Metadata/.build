@@ -1,13 +1,14 @@
-# A .rc file of your own must not switch off the generated version resource. RiftBuild only
-# stands aside when the script declares its own VERSIONINFO, which is the case that collides at
-# link time. custom.rc here carries an icon and nothing else, so the exe has to end up with both
-# that icon and the metadata below. main.c looks for each of them at runtime.
+# A .rc file of your own owns the module's resources. RiftBuild generates no version script
+# next to it, because two VERSIONINFO blocks reach the linker as one duplicate resource and
+# fail with CVT1100. The metadata keys below stay legal and keep working everywhere else -
+# they just produce no resource here. main.c checks that custom.rc reached the exe and that
+# nothing was generated alongside it.
 Assembly            CustomRcMetadataTest
 SourceFiles         main
 SourceFiles:windows custom
 
 TitleName           Custom Rc Metadata
 CompanyName         Artisan Softworks
-Description         Metadata has to survive a custom .rc
+Description         Metadata must not become a resource here
 Version             3.2.1
 Copyright           Copyright (c) $CompanyName

@@ -3802,7 +3802,7 @@ static void PrintInternals(void)
     }
 
     LOG_INLINE_WARNING("\nYou can reference the above internal variables\ninside your .build file with this syntax:\n");
-    LOG("    %%_UserDirectory\n    %%_AVX2\n    if _CacheLineSize == 64\n    if _FMA3");
+    LOG("    &UserDirectory\n    &_AVX2\n    if _CacheLineSize == 64\n    if FMA3");
 }
 
 static void PrintBuildFiles(const String WorkingDirectory)
@@ -5307,6 +5307,29 @@ static bool TryCleanFromManifest(const String IntermediateBaseDirectory, const S
 
     return bCleanedSomething;
 }
+
+#if PLATFORM_WINDOWS
+// The first .rc the module brought itself, for the message that says the metadata keys stood aside.
+// The list holds arena-backed copies, so the returned String outlives this call.
+static String FindFirstResourceScript(const StringList* SourceFiles)
+{
+    String Result = String_Null();
+
+    if (SourceFiles != NULL)
+    {
+        for each_string_in_list (*SourceFiles)
+        {
+            if (String_EndsWith(It.String, S(".rc"), false))
+            {
+                Result = It.String;
+                break;
+            }
+        }
+    }
+
+    return Result;
+}
+#endif
 
 static BuildReceipt BuildTarget(LinearAllocator* Arena,
                         const FileHandle BuildFileHandle, String BuildFilePath, PlatformMutex* BuildMutex,
@@ -7717,11 +7740,19 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     const bool bHasVersionMetaData = TitleName.Length > 0 || CompanyName.Length > 0 || Description.Length > 0 ||
                                      (!bFallbackVersion && Version.Length > 0) || Copyright.Length > 0;
 
-    if (bHasVersionMetaData)
-    {
-        // TODO: when building both a static/shared lib, we do not generate the correct FILETYPE. fix it boy
-        // TODO: allow custom version rc file?
+    // A module that brought its own .rc owns its resources. Generating a second script on top of it is
+    // what produces a duplicate VERSIONINFO, which the linker rejects.
+    const bool bHasOwnResourceScript = CountData.NumRcSources > 0;
 
+    if (bHasVersionMetaData && bHasOwnResourceScript && !bExportingSomething)
+    {
+        LOG("Using the resource script \"%S\" - the version metadata keys do not generate one.",
+            FindFirstResourceScript(CountData.FilteredFiles));
+        LOG_LINE_BREAK();
+    }
+
+    if (bHasVersionMetaData && !bHasOwnResourceScript)
+    {
         String_BuildPath(&VersionRCFilePath, IntermediateDirectory, BuildFileName);
         String_Append(&VersionRCFilePath, S("_version.rc"));
 

@@ -882,7 +882,7 @@ STAMP_PATCH_VERSION    // 1
 ```
 Extra dotted components become `<NAME>_EXTRA_VERSION_<n>`. The integer macros only appear when the version contains at least one `.` - a non-dotted version produces just the string macro.
 
-A `.rc` file of your own does not switch the metadata off. RiftBuild only stands aside when your script declares its own `VERSIONINFO` block, because two of them collide at link time. A script that carries other resources, an icon for example, still gets the generated metadata alongside it.
+A `.rc` file of your own switches the generated one off. Source discovery picks the script up like any other source, and a module that brought its own resource script owns its resources - RiftBuild writes nothing beside it, because two `VERSIONINFO` blocks reach the linker as one duplicate resource and fail the build. Put your version block in that script. The metadata keys stay legal and still feed `License(generate)` and `Copyright(enforce)`; they just produce no resource. The build says which script it stood aside for.
 
 ---
 

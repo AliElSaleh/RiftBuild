@@ -80,7 +80,7 @@ folders - the sources only compile with the defines the .build file provides.
 | 60 | Internal Var Sigil | `&Name` reaches a built-in from either store; agrees with `%Name`; case modifiers; a bare `&&` stays literal |
 | 61 | Plist Keys | `Info.plist.<key>` / `Version.plist.<key>` single entries: string, integer, array, `$Var`, overriding a generated key (macOS only) |
 | 62 | Named Icons | `Icon.<NAME>` extra icon resources alongside `Icon`; all in one generated .rc, exe icon at id 1 (Windows only) |
-| 63 | Custom Rc Metadata | A custom `.rc` without its own `VERSIONINFO` keeps the generated version resource; both land in the exe (Windows only) |
+| 63 | Custom Rc Metadata | A custom `.rc` owns the module's resources: it reaches the exe and no version resource is generated beside it (Windows only) |
 
 Tests 18, 19, 28, 43, 44, 45, 46, 52, 54 need extra invocations beyond a plain build to
 exercise their feature (documented in each .build header comment).
