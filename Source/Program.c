@@ -9786,6 +9786,10 @@ static void InitInternalVars(LinearAllocator* Arena)
         String_Empty(&Temp);
         xx String_FromI32(&Temp, sizeof(uptr));
         AddInternalVariable(S("sizeof.pointer"), String_Create(Arena, Temp));
+
+        String_Empty(&Temp);
+        xx String_FromI32(&Temp, sizeof(usize));
+        AddInternalVariable(S("sizeof.size_t"), String_Create(Arena, Temp));
     }
 
     // detect default char signed-ness
