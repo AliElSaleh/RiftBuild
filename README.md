@@ -70,11 +70,8 @@ Note: I still need to sync some of these forks to the latest and update the .bui
 | [GLFW](https://github.com/AliElSaleh/glfw)                      | Graphics Framework Library         |
 | [FreeType](https://github.com/AliElSaleh/freetype)              | Font Renderer                      |
 | [libjpeg-turbo](https://github.com/AliElSaleh/libjpeg-turbo)    | JPEG Library                       |
-| [libpng](https://github.com/AliElSaleh/libpng)                  | PNG Library                        |
-| [zlib](https://github.com/AliElSaleh/zlib)                      | Data Compression Library           |
 | [dav1d](https://github.com/AliElSaleh/dav1d)                    | AV1 Decoder                        |
 | [PCSX2](https://github.com/AliElSaleh/pcsx2)                    | PS2 Emulator                       |
-| [RPCS3 TODO](https://google.com)                                | PS3 Emulator                       |
 | [Raylib TODO](https://google.com)                               | Game Framework Library             |
 | [Kinema](https://github.com/AliElSaleh/kinema)                  | Voxel Tech Demo                    |
 | [PhysFS](https://github.com/AliElSaleh/physfs)                  | Multi-platform Virtual File System |
