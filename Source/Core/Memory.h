@@ -8,32 +8,11 @@
 ENUM(EMemoryTag)
 {
     MemoryTag_Unknown = 0,
-    MemoryTag_Array,
-    MemoryTag_Table,
-    MemoryTag_Map,
     MemoryTag_LinearAllocator,
     MemoryTag_DynamicArray,
-    MemoryTag_Dictionary,
-    MemoryTag_RingQueue,
     MemoryTag_Engine,
-    MemoryTag_Profiling,
-    MemoryTag_BST,
     MemoryTag_String,
-    MemoryTag_Application,
-    MemoryTag_MetaReflection,
-    MemoryTag_Console,
-    MemoryTag_Job,
     MemoryTag_Test,
-    MemoryTag_Texture,
-    MemoryTag_MaterialInstance,
-    MemoryTag_Renderer,
-    MemoryTag_RendererBackend,
-    MemoryTag_Game,
-    MemoryTag_Config,
-    MemoryTag_Transform,
-    MemoryTag_Entity,
-    MemoryTag_EntityNode,
-    MemoryTag_Scene,
     
     MemoryTag_Count
 };
