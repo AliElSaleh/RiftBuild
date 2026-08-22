@@ -63,8 +63,9 @@ finding depends on must be re-verified with plain `grep` via Bash**, not the Gre
 **Asserts do not exist in release.** `NO_ASSERT` is defined for every non-debug build.
 Reasoning about runtime behaviour must assume `ASSERT`/`ENSURE` are absent.
 
-**There is no C runtime on Windows.** The build uses `-nostdlib -ffreestanding` (clang/gcc)
-and `/NODEFAULTLIB` (MSVC). `memcpy` is hand-implemented in `Platform_Windows.c`.
+**Windows links the static CRT.** clang and gcc take the driver default, and MSVC uses `/MT`.
+`memcpy` and friends come from the CRT. Tool code still calls the `Mem*` wrappers, and it
+never calls `malloc`, `free`, or `printf`.
 
 ---
 

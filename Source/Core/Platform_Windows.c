@@ -17,38 +17,6 @@
 
 #include "Win32Types.h"
 
-//#include <gs_support.c>
-
-//#include <Windows.h>
-//#include <strsafe.h>
-//#include <Shlwapi.h>
-//#include <DbgHelp.h>
-//#include <shellapi.h>
-//#include <psapi.h>
-//#include <Shlobj.h>
-
-/*
-PRAGMA_DISABLE_MISSING_PROTOTYPES_WARNING
-
-#if defined(_M_IX86)
-    #define GSAPI __fastcall
-#else
-    #define GSAPI __cdecl
-#endif
-
-uptr __security_cookie = 0;
-uptr __security_cookie_complement = 0;
-void GSAPI __security_check_cookie(_In_ uintptr_t _StackCookie)
-{
-    if (_StackCookie != __security_cookie)
-    {
-        DEBUG_BREAK();
-    }
-}
-
-PRAGMA_ENABLE_WARNINGS
-*/
-
 ENUM(WinConsoleForegroundColors)
 {
     FG_BLACK = 0,
@@ -84,9 +52,6 @@ ENUM(WinConsoleForegroundColors)
     BG_WHITE = 240
 };
 
-C_LINKAGE_BEGIN
-int _fltused = 0;
-C_LINKAGE_END
 
 #define CONSOLE_MUTE_COLOR (FOREGROUND_INTENSITY)
 #define CONSOLE_INFO_COLOR (FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE)
@@ -120,8 +85,6 @@ static void LogLastError(const String Prefix)
 
 void Platform_PreInitialize(void)
 {
-    //__security_init_cookie();
-
     ULONG Stack = Mebibytes(4);
     bool bStackGuarantee = SetThreadStackGuarantee(&Stack);
     if (!bStackGuarantee)
@@ -263,110 +226,6 @@ NO_DISCARD f64 Platform_GetClockFrequency(void)
     const f64 ClockFrequency = bSuccess ? 1.0/(f64)Frequency.QuadPart : 0.0;
     return ClockFrequency;
 }
-
-PRAGMA_DISABLE_WARNINGS
-
-#if COMPILER_CLANG
-#pragma clang diagnostic ignored "-Wincompatible-library-redeclaration"
-#pragma clang diagnostic ignored "-Wsign-conversion"
-#pragma clang diagnostic ignored "-Wunused-function"
-#pragma clang diagnostic ignored "-Wmissing-prototypes"
-#elif COMPILER_GCC
-#pragma GCC diagnostic ignored "-Wbuiltin-declaration-mismatch"
-#pragma GCC diagnostic ignored "-Wsign-conversion"
-#pragma GCC diagnostic ignored "-Wunused-function"
-#pragma GCC diagnostic ignored "-Wmissing-prototypes"
-#endif
-
-#if COMPILER_MSVC
-#pragma intrinsic(memset, memcpy, memmove, memcmp)
-#pragma function(memset, memcpy, memmove, memcmp)
-// /analyze models these CRT functions with SAL annotations and complains that our
-// freestanding definitions carry none (C28251); the annotations are irrelevant here
-#pragma warning(disable: 28251)
-#endif
-
-ASAN_NO_SANITIZE_ADDRESS void* memset(void *dst, int c, SIZE_T len)
-{
-    register volatile u8* dp = dst;
-    register SIZE_T length = len;
-
-    while (length--)
-    {
-        *dp++ = (u8)c;
-    }
-
-    return dst;
-}
-
-ASAN_NO_SANITIZE_ADDRESS void* memcpy(void* restrict dst, const void* restrict src, SIZE_T len)
-{
-    register volatile u8* dp = dst;
-    register const u8* sp = src;
-    register SIZE_T length = len;
-
-    while (length--)
-    {
-        *dp++ = *sp++;
-    }
-
-    return dst;
-}
-
-ASAN_NO_SANITIZE_ADDRESS void* memmove(void* dst, const void* src, SIZE_T len)
-{
-    register volatile u8* dp = dst;
-    register const u8* sp = src;
-
-    if (sp < dp)
-    {
-        for (dp += len, sp += len; len--;)
-        {
-            *--dp = *--sp;
-        }
-    }
-    else
-    {
-        while (len--)
-        {
-            *dp++ = *sp++;
-        }
-    }
-
-    return dst;
-}
-
-ASAN_NO_SANITIZE_ADDRESS i32 memcmp(const void* s1, const void* s2, SIZE_T len)
-{
-    register const u8* p1 = (const u8*)s1;
-    register const u8* p2 = (const u8*)s2;
-
-    i32 Result = 0;
-    for (register usize i = 0; i < len; i++)
-    {
-        if (p1[i] < p2[i])
-        {
-            Result = -1;
-        }
-        else if (p1[i] > p2[i]) 
-        {
-            Result = 1;
-        }
-        else
-        {
-            // no action required
-        }
-
-        if (Result != 0)
-        {
-            break;
-        }
-    }
-
-    return Result;
-}
-
-PRAGMA_ENABLE_WARNINGS
 
 NO_DISCARD void* Platform_MemAlloc(usize Size)
 {
@@ -2845,33 +2704,7 @@ NO_DISCARD i32 Rand(void)
     return Buffer;
 }
 
-/*
-PRAGMA_DISABLE_MISSING_PROTOTYPES_WARNING
 
-FORCENOINLINE BOOL __cdecl _DllMainCRTStartup(HANDLE hDllHandle, DWORD dwReason, LPVOID lpreserved)
-{
-    return true;
-}
-
-void* __stack_chk_guard = (void*)((usize)0xdeadbeef);
-
-void __stack_chk_fail(void)
-{
-    ExitProcess(1);
-}
-
-void __chkstk(void)
-{
-    return;
-}
-
-void ___chkstk_ms(void)
-{
-    return;
-}
-
-PRAGMA_ENABLE_WARNINGS
-*/
 
 // The system's native package manager, probed once and cached. On Windows that is winget;
 // empty when it is not installed.

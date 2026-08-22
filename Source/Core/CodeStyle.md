@@ -705,11 +705,11 @@ BuildParams Params = {0};
 
 ### MM-06: Use the `Mem*` / `Platform_Mem*` wrappers, never libc memory functions
 `MemAlloc`/`MemFree`/`MemZero`/`MemCopy`/`MemMove`/`MemEqual` in engine code.
-There is no CRT on Windows (`-nostdlib` / `/NODEFAULTLIB`), so `malloc` and friends will
-not link at all. `memset`/`memcpy`/`memmove` are the exception - `Platform_Windows.c`
-defines them itself, because the compiler emits calls to them for struct copies and
-zeroing whether you write them or not. That they happen to link is not permission to
-call them directly. See PL-02.
+Windows links the static CRT, so `malloc` and friends do link. That is not permission to
+call them. The tool owns one arena, and a CRT allocation does not belong to it.
+`memset`/`memcpy`/`memmove`/`memcmp` come from the CRT, because the compiler emits calls
+to them for struct copies and zeroing whether you write them or not. Call the `Mem*`
+wrappers instead. See PL-02.
 
 ### MM-07: Every `MemAlloc` names a real `EMemoryTag`
 `MemoryTag_Unknown` is for genuinely uncategorized allocations only; if a fitting tag

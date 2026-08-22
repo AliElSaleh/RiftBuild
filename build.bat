@@ -6,9 +6,9 @@ where /q clang || (
 )
 
 set ScriptPath=%~dp0
-set CompilerFlags=-std=c99 -fno-builtin-memcpy -fno-omit-frame-pointer -fno-exceptions -fno-math-errno -funroll-loops -fno-rtti -fno-strict-overflow -fno-strict-aliasing -Wall -Wextra -Wshadow -Wconversion -Wmissing-prototypes -Wunused -Wuninitialized -Werror -Wpedantic -Wno-typedef-redefinition -Wno-unused-parameter -Wno-gnu-zero-variadic-macro-arguments -Wno-unused-command-line-argument -nostdlib -fno-builtin -ffreestanding -msse2 -mstack-probe-size=999999999 -Os -finline-functions -finline-hint-functions
+set CompilerFlags=-std=c99 -fno-omit-frame-pointer -fno-exceptions -fno-math-errno -funroll-loops -fno-rtti -fno-strict-overflow -fno-strict-aliasing -Wall -Wextra -Wshadow -Wconversion -Wmissing-prototypes -Wunused -Wuninitialized -Werror -Wpedantic -Wno-typedef-redefinition -Wno-unused-parameter -Wno-gnu-zero-variadic-macro-arguments -Wno-unused-command-line-argument -msse2 -Os -finline-functions -finline-hint-functions
 set IncludeFlags=-ISource
-set LinkerFlags=-nostdlib -Wl,-entry:EntryPoint,-subsystem:console -Xlinker /stack:0x800000,0x800000
+set LinkerFlags=-Wl,-subsystem:console -Xlinker /stack:0x800000,0x800000
 set Defines=-DRIFT_STATIC -DNO_ASSERT -D_NO_CRT_STDIO_INLINE -DRIFTBUILD_VERSION_STRING=\"0.4.0-beta\" -DRIFTBUILD_MAJOR_VERSION=0 -DRIFTBUILD_MINOR_VERSION=4 -DRIFTBUILD_PATCH_VERSION=0
 set Libraries=-lkernel32 -luser32 -lshell32 -lole32 -ladvapi32 -lntdll -lshlwapi -lbcrypt -loleaut32
 set LibraryPaths=

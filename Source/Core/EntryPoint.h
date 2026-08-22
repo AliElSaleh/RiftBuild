@@ -9,38 +9,23 @@
 
 PRAGMA_DISABLE_MISSING_PROTOTYPES_WARNING
 
-#ifndef RIFT_STATIC
-C_LINKAGE_BEGIN
-int _fltused = 0;
-C_LINKAGE_END
-#endif
-
 extern u32 RunApplication(const StringArray Arguments);
 
 #if !PLATFORM_WINDOWS
-#define USE_MAIN 1
 extern void pre_main(int argc, char* argv[], char* env[]);
-#else
-#define USE_MAIN 0
 #endif
 
-#if RIFT_ASAN
-#undef USE_MAIN
-#define USE_MAIN 1
-#endif
-
-// Main entry point of the application
-#if USE_MAIN
 int main(i32 ArgC, char* ArgV[], char* ArgEnv[])
-#else
-void EntryPoint(void)
-#endif
 {
     global const usize GEngineMemoryAmount;
     global const usize GEngineScratchAmount;
 
-    #if !PLATFORM_WINDOWS && USE_MAIN
+    #if !PLATFORM_WINDOWS
     pre_main(ArgC, ArgV, ArgEnv);
+    #else
+    xx ArgC;
+    xx ArgV;
+    xx ArgEnv;
     #endif
 
     // Note: one giant dynamic allocation. then let the engine dish the memory out
@@ -51,11 +36,7 @@ void EntryPoint(void)
     {
         Platform_ConsoleWrite("Max memory amount given was 0. Aborting...\n", 4, true);
         Platform_Abort(1);
-        #if USE_MAIN
         return 1;
-        #else
-        return;
-        #endif
     }
 
     // initialize platform specific stuff just before the program starts
@@ -68,11 +49,7 @@ void EntryPoint(void)
     {
         Platform_ConsoleWrite("Failed to acquire memory from the OS. Aborting...\n", 4, true);
         Platform_Abort(1);
-        #if USE_MAIN
         return 1;
-        #else
-        return;
-        #endif
     }
     
     void* EngineScratch = ((u8*)EngineMemory) + MemoryAmount;
@@ -127,9 +104,7 @@ Shutdown_Lvl0:
 
     Platform_Abort(ReturnVal);
 
-    #if USE_MAIN
     return (i32)ReturnVal;
-    #endif
 }
 
 PRAGMA_ENABLE_WARNINGS

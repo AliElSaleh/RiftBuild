@@ -37,8 +37,6 @@ bool Memory_Initialize(void* Memory, usize MemSize, void* DebugMemory, usize Deb
 bool Memory_Initialize(void* Memory, usize MemSize, void* ScratchMemory, usize ScratchSize)
 #endif
 {
-    ENSURE_NO_REENTRY();
-
     #ifdef RIFT_DEBUG_MEMORY
     GEngineMemory_Debug = DebugMemory;
     #endif
@@ -68,8 +66,6 @@ bool Memory_Initialize(void* Memory, usize MemSize, void* ScratchMemory, usize S
 
 void Memory_Shutdown(void)
 {
-    ENSURE_NO_REENTRY();
-
 #ifdef RIFT_DEBUG_MEMORY
     Platform_ExitCriticalSection(GCriticalSection_Debug);
     FreeListAllocator_Destroy(&GEngineAllocator_Debug);
