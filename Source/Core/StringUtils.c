@@ -686,6 +686,32 @@ static void Internal_AppendGroupedDigits(String* Dest, const String Digits)
     }
 }
 
+// Writes Value into Dest, padded out to MinChars characters. The padding goes in front of
+// the value, or behind it when the specifier carried the '-' flag. A value that is already
+// MinChars wide or wider gets no padding at all.
+static void Internal_AppendPadded(String* Dest, const String Value, i32 MinChars, uchar FillChar, bool bLeftJustify)
+{
+    const i32 Blanks = MinChars - (i32)Value.Length;
+
+    if (!bLeftJustify)
+    {
+        for (i32 i = 0; i < Blanks; i++)
+        {
+            String_AppendChar(Dest, FillChar ? FillChar : ' ');
+        }
+    }
+
+    String_Append(Dest, Value);
+
+    if (bLeftJustify)
+    {
+        for (i32 i = 0; i < Blanks; i++)
+        {
+            String_AppendChar(Dest, FillChar ? FillChar : ' ');
+        }
+    }
+}
+
 // based on: https://cplusplus.com/reference/cstdio/printf/
 static void Internal_Format(String* Dest, const String Format, va_list List)
 {
@@ -699,13 +725,24 @@ static void Internal_Format(String* Dest, const String Format, va_list List)
             Char = String_GetCharFromIndexOrLast(Format, FormatIndex++);
 
             // parse the optional sub-specifiers first, like flags, width, .precision and length modifiers (in this specific order)
-            // flags
+            // flags. There can be more than one, in any order, so read until the char is not a flag.
             bool bHash = false;
+            bool bLeftJustify = false;
             {
-                if (Char == '#')
+                bool bIsFlag = true;
+                while (bIsFlag)
                 {
-                    bHash = true;
-                    Char = String_GetCharFromIndexOrLast(Format, FormatIndex++);
+                    switch (Char)
+                    {
+                        case '#': { bHash = true; } break;
+                        case '-': { bLeftJustify = true; } break;
+                        default:  { bIsFlag = false; } break;
+                    }
+
+                    if (bIsFlag)
+                    {
+                        Char = String_GetCharFromIndexOrLast(Format, FormatIndex++);
+                    }
                 }
             }
 
@@ -820,22 +857,15 @@ static void Internal_Format(String* Dest, const String Format, va_list List)
 
                     const String Temp = bGroup ? Grouped : Digits;
 
-                    // pad with leading zeros if Int is shorter than what the user has specified
-                    i32 Diff = Precision - (i32)Temp.Length;
-                    while (Diff > 0)
+                    StringLocal(Value, 48);
+                    for (i32 Diff = Precision - (i32)Temp.Length; Diff > 0; Diff--)
                     {
-                        Diff--;
-                        String_AppendChar(Dest, '0');
+                        String_AppendChar(&Value, '0');
                     }
 
-                    i32 Blanks = MinChars;// - (i32)Temp.Length;
-                    while (Blanks > 0)
-                    {
-                        Blanks--;
-                        String_AppendChar(Dest, FillChar ? FillChar : ' ');
-                    }
+                    String_Append(&Value, Temp);
 
-                    String_Append(Dest, Temp);
+                    Internal_AppendPadded(Dest, Value, MinChars, FillChar, bLeftJustify);
                 }
                 break;
 
@@ -862,22 +892,15 @@ static void Internal_Format(String* Dest, const String Format, va_list List)
 
                     const String Temp = Char == 'U' ? Grouped : Digits;
 
-                    // pad with leading zeros if Int is shorter than what the user has specified
-                    i32 Diff = Precision - (i32)Temp.Length;
-                    while (Diff > 0)
+                    StringLocal(Value, 48);
+                    for (i32 Diff = Precision - (i32)Temp.Length; Diff > 0; Diff--)
                     {
-                        Diff--;
-                        String_AppendChar(Dest, '0');
+                        String_AppendChar(&Value, '0');
                     }
 
-                    i32 Blanks = MinChars;// - (i32)Temp.Length;
-                    while (Blanks > 0)
-                    {
-                        Blanks--;
-                        String_AppendChar(Dest, FillChar ? FillChar : ' ');
-                    }
+                    String_Append(&Value, Temp);
 
-                    String_Append(Dest, Temp);
+                    Internal_AppendPadded(Dest, Value, MinChars, FillChar, bLeftJustify);
                 }
                 break;
 
@@ -934,14 +957,7 @@ static void Internal_Format(String* Dest, const String Format, va_list List)
                         }
                     }
 
-                    i32 Blanks = MinChars;// - (i32)Temp.Length;
-                    while (Blanks > 0)
-                    {
-                        Blanks--;
-                        String_AppendChar(Dest, FillChar ? FillChar : ' ');
-                    }
-
-                    String_Append(Dest, Temp);
+                    Internal_AppendPadded(Dest, Temp, MinChars, FillChar, bLeftJustify);
                 }
                 break;
 
@@ -952,14 +968,7 @@ static void Internal_Format(String* Dest, const String Format, va_list List)
                     StringLocal(Temp, 20);
                     if (String_FromU64(&Temp, (u64)Address))
                     {
-                        i32 Blanks = MinChars;// - (i32)Temp.Length;
-                        while (Blanks > 0)
-                        {
-                            Blanks--;
-                            String_AppendChar(Dest, FillChar ? FillChar : ' ');
-                        }
-
-                        String_Append(Dest, Temp);
+                        Internal_AppendPadded(Dest, Temp, MinChars, FillChar, bLeftJustify);
                     }
                 }
                 break;
@@ -999,7 +1008,8 @@ static void Internal_Format(String* Dest, const String Format, va_list List)
                         Value >>= 4;
                     }
 
-                    // pad with leading zeros
+                    // Hex fills the width with zeros rather than blanks, so that %02X gives "05".
+                    // This is on purpose and differs from printf, which needs the '0' flag for it.
                     i32 Diff = MinChars - (i32)HexBuffer.Length;
                     while (Diff > 0)
                     {
@@ -1013,15 +1023,7 @@ static void Internal_Format(String* Dest, const String Format, va_list List)
                         String_AppendChar(&Temp, HexBuffer.Data[i]);
                     }
 
-                    // pad with leading blanks
-                    i32 Blanks = MinChars;// - (i32)Temp.Length;
-                    while (Blanks > 0)
-                    {
-                        Blanks--;
-                        String_AppendChar(Dest, FillChar ? FillChar : ' ');
-                    }
-
-                    String_Append(Dest, Temp);
+                    Internal_AppendPadded(Dest, Temp, MinChars, FillChar, bLeftJustify);
                 }
                 break;
 
@@ -1029,15 +1031,11 @@ static void Internal_Format(String* Dest, const String Format, va_list List)
                 case 'c':
                 {
                     uchar c = (uchar)va_arg(List, int);
-                    
-                    i32 Blanks = MinChars - 1;
-                    while (Blanks > 0)
-                    {
-                        Blanks--;
-                        String_AppendChar(Dest, FillChar ? FillChar : ' ');
-                    }
 
-                    String_AppendChar(Dest, c);
+                    StringLocal(Temp, 2);
+                    String_AppendChar(&Temp, c);
+
+                    Internal_AppendPadded(Dest, Temp, MinChars, FillChar, bLeftJustify);
                 }
                 break;
 
@@ -1052,14 +1050,7 @@ static void Internal_Format(String* Dest, const String Format, va_list List)
                         Str2.Length   = Precision > 0 ? (u32)Precision : String_GetLength_Fast(Str);
                         Str2.Capacity = 0;
 
-                        i32 Blanks = MinChars;// - (i32)Str2.Length;
-                        while (Blanks > 0)
-                        {
-                            Blanks--;
-                            String_AppendChar(Dest, FillChar ? FillChar : ' ');
-                        }
-
-                        String_Append(Dest, Str2);
+                        Internal_AppendPadded(Dest, Str2, MinChars, FillChar, bLeftJustify);
                     }
                     else
                     {
@@ -1077,14 +1068,7 @@ static void Internal_Format(String* Dest, const String Format, va_list List)
                         Str.Length = (u32)Precision;
                     }
 
-                    i32 Blanks = MinChars;// - (i32)Str.Length;
-                    while (Blanks > 0)
-                    {
-                        Blanks--;
-                        String_AppendChar(Dest, FillChar ? FillChar : ' ');
-                    }
-
-                    String_Append(Dest, Str);
+                    Internal_AppendPadded(Dest, Str, MinChars, FillChar, bLeftJustify);
                 }
                 break;
                 
