@@ -81,6 +81,7 @@ folders - the sources only compile with the defines the .build file provides.
 | 61 | Plist Keys | `Info.plist.<key>` / `Version.plist.<key>` single entries: string, integer, array, `$Var`, overriding a generated key (macOS only) |
 | 62 | Named Icons | `Icon.<NAME>` extra icon resources alongside `Icon`; all in one generated .rc, exe icon at id 1 (Windows only) |
 | 63 | Custom Rc Metadata | A custom `.rc` owns the module's resources: it reaches the exe and no version resource is generated beside it (Windows only) |
+| 64 | Deep Dependency Chain | A 12-level `Depend` chain builds and links; guards the stack cost of one recursion level in BuildTarget |
 
 Tests 18, 19, 28, 43, 44, 45, 46, 52, 54 need extra invocations beyond a plain build to
 exercise their feature (documented in each .build header comment).

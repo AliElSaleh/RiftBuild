@@ -1,0 +1,10 @@
+# Level 9 of the chain. See ../App/App.build.
+Depend ../L10
+
+Assembly ChainL09
+Type     static_lib
+
+BuildDirectory        Build
+IntermediateDirectory Intermediate
+
+SourceFiles           level

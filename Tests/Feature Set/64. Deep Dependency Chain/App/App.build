@@ -1,0 +1,13 @@
+# A 12-level dependency chain. BuildTarget calls itself once per dependency, so
+# every level costs one stack frame. Six levels used to exhaust the stack and
+# kill the process with no message at all.
+#
+# Dependency graph: App -> L01 -> L02 -> ... -> L12
+Depend ../L01
+
+Assembly DeepChainApp
+
+BuildDirectory        Build
+IntermediateDirectory Intermediate
+
+SourceFiles           main

@@ -1,0 +1,10 @@
+# Level 2 of the chain. See ../App/App.build.
+Depend ../L03
+
+Assembly ChainL02
+Type     static_lib
+
+BuildDirectory        Build
+IntermediateDirectory Intermediate
+
+SourceFiles           level

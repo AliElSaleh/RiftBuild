@@ -1,0 +1,10 @@
+# Level 7 of the chain. See ../App/App.build.
+Depend ../L08
+
+Assembly ChainL07
+Type     static_lib
+
+BuildDirectory        Build
+IntermediateDirectory Intermediate
+
+SourceFiles           level

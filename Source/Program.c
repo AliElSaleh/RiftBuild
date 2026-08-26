@@ -32,6 +32,9 @@ const usize GEngineScratchAmount = Kibibytes(8);
     #endif
 #endif
 
+#define BUILD_PARSE_SCRATCH_SIZE Kibibytes(512)
+#define MAX_DEPENDENCY_DEPTH 32
+
 TArray(InternalVariable) InternalVariablesDB = NULL;
 FileVariable FileVariable_Empty = {0};
 bool bQuietBuild = false;
@@ -5334,7 +5337,7 @@ static String FindFirstResourceScript(const StringList* SourceFiles)
 static BuildReceipt BuildTarget(LinearAllocator* Arena,
                         const FileHandle BuildFileHandle, String BuildFilePath, PlatformMutex* BuildMutex,
                         String WorkingPath, const StringArray Parameters, String CameFromBuildFile,
-                        i8 BuildFileIndex, i8 RootPathIndex)
+                        i8 BuildFileIndex, i8 RootPathIndex, u32 DependencyDepth)
 {
     BuildReceipt Receipt = {0};
 
@@ -5656,9 +5659,20 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
         Clock_Start(&BuildFileParseClock);
         {
+            // This buffer is heap memory because BuildTarget calls itself once per
+            // dependency, so a stack buffer here is paid again at every level of the
+            // dependency tree and a deep tree runs the thread stack out.
+            void* ScratchMemory = Platform_MemAllocZero(BUILD_PARSE_SCRATCH_SIZE);
+            if (!ScratchMemory)
+            {
+                LOG_FATAL("Failed to allocate memory from the operating system!");
+
+                Receipt.ExitCode = 1;
+                return Receipt;
+            }
+
             LinearAllocator Scratch = {0};
-            i8 ScratchMemory[Kibibytes(512)] = {0};
-            LinearAllocator_Create(Kibibytes(512), ScratchMemory, &Scratch);
+            LinearAllocator_Create(BUILD_PARSE_SCRATCH_SIZE, ScratchMemory, &Scratch);
 
             ParsingContext Context        = {0};
             Context.PermanentArena        = Arena;
@@ -5669,7 +5683,12 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             Context.IncludeFiles          = IncludeFiles;
             Context.WorkingDirectory      = WorkingPath;
 
-            if (!ParseBuildFile(BuildFileHandle, BuildFilePath, Context, false))
+            const bool bParsed = ParseBuildFile(BuildFileHandle, BuildFilePath, Context, false);
+
+            LinearAllocator_Destroy(&Scratch);
+            Platform_MemFree(ScratchMemory);
+
+            if (!bParsed)
             {
                 Receipt.ExitCode = 1;
                 return Receipt;
@@ -6433,6 +6452,17 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
                 bDirectoryOnly = true;
             }
 
+            if (DependencyDepth + 1 > MAX_DEPENDENCY_DEPTH)
+            {
+                LOG_ERROR("Dependency tree is too deep. \"%S\" sits %u build files below the one you started, and the limit is %u.", BuildFile, DependencyDepth + 1, (u32)MAX_DEPENDENCY_DEPTH);
+
+                LinearAllocator_Destroy(&NewArena);
+                Platform_MemFree(ArenaMemory);
+
+                Receipt.ExitCode = 1;
+                return Receipt;
+            }
+
             // circular dependency. abort, this is bad...
             if (String_IsValid(CameFromBuildFile))
             {
@@ -6631,7 +6661,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             String RelativeWorkingPathFromMe = bUsingRelativePath ? CustomRelativePath : CustomWorkingPath_Full;
 
             PlatformMutex NewMutex = {0};
-            BuildReceipt FreshReceipt = BuildTarget(&NewArena, f, NewBuildFilePath, &NewMutex, CustomWorkingPath_Full, NewParams, BuildFileName, -1, -1);
+            BuildReceipt FreshReceipt = BuildTarget(&NewArena, f, NewBuildFilePath, &NewMutex, CustomWorkingPath_Full, NewParams, BuildFileName, -1, -1, DependencyDepth + 1);
             Filesystem_Close(&FreshReceipt.ArtifactManifestHandle);
             if (NewMutex.Handle) { xx Platform_ReleaseMutex(&NewMutex); }
 
@@ -8908,6 +8938,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     // prelink step
     Clock LinkClock = {0};
 
+    bool bDidLink = false;
     if (bCanLink)
     {
         if (!TryRunBuildCommands(S("PreLink"), WorkingPath, VariablesDB, &ExternalClock, bIsClean))
@@ -8916,6 +8947,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
             return Receipt;
         }
 
+        /*
         #if PLATFORM_WINDOWS
         // try to delete any .pdb files before we try to link
         StringLocal(AssemblyWildcard, MAX_PATH_LENGTH);
@@ -8923,10 +8955,12 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
         String_Append(&AssemblyWildcard, S("*.pdb"));
         xx Filesystem_DeleteFiles(BuildBaseDirectory, AssemblyWildcard, true);
         #endif
+        */
 
         Clock_Start(&LinkClock);
 
         bSuccess = C_Link(&p);
+        bDidLink = bSuccess;
 
         Clock_Tick(&LinkClock);
 
@@ -9152,7 +9186,8 @@ End:
 
     if (bQuietBuild) { Logging_Disable(); }
 
-    Receipt.bWorkWasDone = NumCompiled > 0 || (bForceRelink && bCanLink);
+    // Receipt.bWorkWasDone = NumCompiled > 0 || (bForceRelink && bCanLink);
+    Receipt.bWorkWasDone = NumCompiled > 0 || (bDidLink);
 
     return Receipt;
 }
@@ -9731,7 +9766,7 @@ static u32 RiftBuild(LinearAllocator* Arena, const StringArray RawArguments, con
     }
 
     PlatformMutex BuildMutex = {0};
-    BuildReceipt Receipt = BuildTarget(Arena, BuildFileHandle, BuildFilePathFull, &BuildMutex, WorkingDirectory, BuildArguments, String_Null(), BuildFileIndex, RootPathIndex);
+    BuildReceipt Receipt = BuildTarget(Arena, BuildFileHandle, BuildFilePathFull, &BuildMutex, WorkingDirectory, BuildArguments, String_Null(), BuildFileIndex, RootPathIndex, 0);
     Filesystem_Close(&Receipt.ArtifactManifestHandle);
 
     if (BuildMutex.Handle) { xx Platform_ReleaseMutex(&BuildMutex); }

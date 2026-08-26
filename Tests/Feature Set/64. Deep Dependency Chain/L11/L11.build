@@ -1,0 +1,10 @@
+# Level 11 of the chain. See ../App/App.build.
+Depend ../L12
+
+Assembly ChainL11
+Type     static_lib
+
+BuildDirectory        Build
+IntermediateDirectory Intermediate
+
+SourceFiles           level
