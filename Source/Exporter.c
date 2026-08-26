@@ -30,11 +30,11 @@ pkg_mod.generate(libraries: libdav1d,
 STRUCT(ExportData)
 {
     FileHandle File;
+    bool*      bHasWrittenEntry;
 
-    bool bIsLastBuild;
     bool bKeepOneLine;
 
-    u8 Padding[6];
+    u8 Padding[7];
 };
 
 static void WriteFlags(LinearAllocator Scratch, const FileHandle File, const String Flags, bool bConvertSlashes, bool bOneLine, bool bFlagsArePaths)
@@ -71,7 +71,7 @@ static void WriteFlags(LinearAllocator Scratch, const FileHandle File, const Str
     }
 }
 
-static void Internal_GenCommandObject(const BuildParams* Params, ExportData* Export, u32 Index, const String RelativePath)
+static void Internal_GenCommandObject(const BuildParams* Params, ExportData* Export, const String RelativePath)
 {
     String AdditionalPlatformFlags = String_Null();
 
@@ -104,6 +104,8 @@ static void Internal_GenCommandObject(const BuildParams* Params, ExportData* Exp
     String_Copy(&CompilerPathCopy, Params->CompilerPath);
     String_BackSlashToForwardSlash(&CompilerPathCopy);
 
+    if (*Export->bHasWrittenEntry) { Filesystem_WriteLine(Export->File, S(",\n"), NULL); }
+
     Filesystem_WriteLine         (Export->File, S("    {\n"), NULL);
     Filesystem_WriteLineFormatted(Export->File, S("        \"directory\": \"%S\",\n"), NULL, RootDirectory);
     Filesystem_WriteLineFormatted(Export->File, S("        \"file\": \"%S\",\n"), NULL, RelativePathCopy);
@@ -117,9 +119,9 @@ static void Internal_GenCommandObject(const BuildParams* Params, ExportData* Exp
     WriteFlags(*Params->Arena, Export->File, Params->UnDefineFlags,   false, Export->bKeepOneLine, false);
     
     Filesystem_WriteLineFormatted(Export->File, S("%S]\n"), NULL, Export->bKeepOneLine ? S(" ") : S("\n        "));
-    Filesystem_WriteLineFormatted(Export->File, S("    }%S"), NULL, Index != Params->NumSources-1 || !Export->bIsLastBuild ? S(",\n") : S("\n"));
+    Filesystem_WriteLine(Export->File, S("    }"), NULL);
 
-    Index++;
+    *Export->bHasWrittenEntry = true;
 }
 
 bool Export_CompileCommands(const BuildParams* Params, const bool bIsLastBuild, const bool bKeepOneLine)
@@ -128,7 +130,8 @@ bool Export_CompileCommands(const BuildParams* Params, const bool bIsLastBuild, 
 
     if (Params != NULL)
     {
-        static bool bHasWrittenJSON = false;
+        local_persist bool bHasWrittenJSON  = false;
+        local_persist bool bHasWrittenEntry = false;
 
         FileHandle f = FileHandle_Null();
         EFileMode FileMode = !bHasWrittenJSON ? FileMode_Write : FileMode_Read|FileMode_Write;
@@ -138,10 +141,9 @@ bool Export_CompileCommands(const BuildParams* Params, const bool bIsLastBuild, 
 
             ExportData Data = {0};
             Data.File = f;
-            Data.bIsLastBuild = bIsLastBuild;
+            Data.bHasWrittenEntry = &bHasWrittenEntry;
             Data.bKeepOneLine = bKeepOneLine;
 
-            u32 i = 0;
             for each_string_in_list (Params->SourceFiles)
             {
                 const String Ext = Filesystem_ExtractFileExtension(It.String, true);
@@ -150,13 +152,11 @@ bool Export_CompileCommands(const BuildParams* Params, const bool bIsLastBuild, 
                     IsObjCSource(Ext) ||
                     IsAsmSource(Ext))
                 {
-                    Internal_GenCommandObject(Params, &Data, i, It.String);
+                    Internal_GenCommandObject(Params, &Data, It.String);
                 }
-
-                i++;
             }
 
-            if (bIsLastBuild) { Filesystem_WriteLine(f, S("]\n"), NULL); }
+            if (bIsLastBuild) { Filesystem_WriteLineFormatted(f, S("%S]\n"), NULL, bHasWrittenEntry ? S("\n") : S("")); }
 
             bHasWrittenJSON = true;
             bSuccess = true;
