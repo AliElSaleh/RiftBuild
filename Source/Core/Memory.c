@@ -17,11 +17,38 @@ static PlatformCriticalSection GCriticalSection = NULL;
 #ifdef RIFT_ASAN
 extern void __asan_poison_memory_region(void const volatile* addr, usize size);
 extern void __asan_unpoison_memory_region(void const volatile* addr, usize size);
-extern const char* __asan_default_options(void);
-const char* __asan_default_options(void)
+
+// One shadow byte covers 8 bytes of memory. A poison range rounds inward and an
+// unpoison range rounds outward, so a partial 8 bytes stays addressable.
+#define ASAN_SHADOW_GRANULARITY 8
+
+static void Internal_ASan_Poison(const void* Start, const void* End)
 {
-    return "verbosity=4:allow_user_poisoning=1:abort_on_error=0:detect_stack_use_after_return=1";
+    const usize First = GetAligned((usize)Start, ASAN_SHADOW_GRANULARITY);
+    const usize Last = (usize)End & ~(usize)(ASAN_SHADOW_GRANULARITY - 1);
+
+    if (Last > First)
+    {
+        __asan_poison_memory_region((const void*)First, Last - First);
+    }
 }
+
+static void Internal_ASan_Unpoison(const void* Start, const void* End)
+{
+    const usize First = (usize)Start & ~(usize)(ASAN_SHADOW_GRANULARITY - 1);
+    const usize Last = GetAligned((usize)End, ASAN_SHADOW_GRANULARITY);
+
+    if (Last > First)
+    {
+        __asan_unpoison_memory_region((const void*)First, Last - First);
+    }
+}
+
+#define ASAN_POISON(Start, End)   Internal_ASan_Poison((Start), (End))
+#define ASAN_UNPOISON(Start, End) Internal_ASan_Unpoison((Start), (End))
+#else
+#define ASAN_POISON(Start, End)   xx (Start); xx (End)
+#define ASAN_UNPOISON(Start, End) xx (Start); xx (End)
 #endif
 
 #ifdef RIFT_DEBUG_MEMORY
@@ -195,22 +222,6 @@ NO_DISCARD void* MemAlloc(usize Size, EMemoryTag Tag)
     usize BytesAllocated;
     void* Memory = FreeListAllocator_Allocate(&GEngineAllocator, Size, &BytesAllocated);
 
-    /*
-    StringLocal(Blah, 128);
-    String_Format(&Blah, S("%lluB / %lluB\n"), GEngineAllocator.Allocated, GEngineAllocator.TotalSize);
-    Platform_ConsoleWrite_CustomLength(Blah.Data, Blah.Length, 0, false);
-    */
-
-    // TODO: option to not expand like this.. or move into the freelist allocator actually
-    /*
-    if (Memory == GMemoryDump)
-    {
-        void* NextMemoryBlock = Platform_MemAllocZero(sizeof(FreeListAllocator) + GEngineAllocator.TotalSize);
-        GEngineAllocator.Next = NextMemoryBlock;
-        FreeListAllocator_Create(GEngineAllocator.Next, GEngineAllocator.TotalSize, (u8*)NextMemoryBlock + sizeof(FreeListAllocator));
-    }
-    */
-
     Platform_ExitCriticalSection(GCriticalSection);
     
     return Memory;
@@ -219,7 +230,6 @@ NO_DISCARD void* MemAlloc(usize Size, EMemoryTag Tag)
 void MemFree(void* Block, EMemoryTag Tag)
 {
     ASSERT(Block != NULL);
-    //ASSERT(Block != MemoryDump());
 
     Platform_EnterCriticalSection(GCriticalSection);
 
@@ -451,38 +461,6 @@ void LinearAllocator_Reset(LinearAllocator* Allocator, usize Position)
     #endif
 }
 
-/*
-LinearAllocator_Scratch LinearAllocator_GetScratch(LinearAllocator* Allocator)
-{
-    return (LinearAllocator_Scratch)
-    {
-        .Allocator = Allocator,
-        .StartPosition = Allocator->Allocated
-    };
-}
-
-void LinearAllocator_GetScratchInline(LinearAllocator* Allocator, LinearAllocator_Scratch* OutScratch)
-{
-    *OutScratch = LinearAllocator_GetScratch(Allocator);
-}
-
-void LinearAllocator_ReleaseScratch(LinearAllocator_Scratch* Scratch)
-{
-    usize NumBytesUsed = Scratch->Allocator->Allocated - Scratch->StartPosition;
-    if (NumBytesUsed > 0 && NumBytesUsed <= Scratch->Allocator->TotalSize)
-    {
-        Scratch->Allocator->Allocated = Scratch->StartPosition;
-
-        void* Head = LinearAllocator_MemoryHead(Scratch->Allocator);
-        MemZero(Head, NumBytesUsed);
-
-        #if RIFT_ASAN
-        __asan_poison_memory_region(Head, NumBytesUsed);
-        #endif
-    }
-}
-*/
-
 
 // ===================================================
 
@@ -543,6 +521,7 @@ static void Internal_FreeListAllocator_NodeRemove(FreeListAllocator_Node** HeadP
 
 static void Internal_FreeListAllocator_Coalesce(FreeListAllocator* Allocator, FreeListAllocator_Node* PrevNode, FreeListAllocator_Node* FreeNode)
 {
+    // Merge with the block that follows this one.
     if (FreeNode->Next)
     {
         if ((void*)((u8*)FreeNode + FreeNode->BlockSize) == FreeNode->Next)
@@ -551,16 +530,14 @@ static void Internal_FreeListAllocator_Coalesce(FreeListAllocator* Allocator, Fr
             Internal_FreeListAllocator_NodeRemove(&Allocator->Head, FreeNode, FreeNode->Next);
         }
     }
-    
-    if (PrevNode && FreeNode->Next)
+
+    // Merge with the block that comes before this one.
+    if (PrevNode)
     {
-        if (PrevNode->Next != NULL)
+        if ((void*)((u8*)PrevNode + PrevNode->BlockSize) == FreeNode)
         {
-            if ((void*)((u8*)PrevNode + PrevNode->BlockSize) == FreeNode)
-            {
-                PrevNode->BlockSize += FreeNode->Next->BlockSize;
-                Internal_FreeListAllocator_NodeRemove(&Allocator->Head, PrevNode, FreeNode);
-            }
+            PrevNode->BlockSize += FreeNode->BlockSize;
+            Internal_FreeListAllocator_NodeRemove(&Allocator->Head, PrevNode, FreeNode);
         }
     }
 }
@@ -570,18 +547,13 @@ void FreeListAllocator_Create(FreeListAllocator* OutAllocator, usize TotalSize, 
     OutAllocator->Memory = Memory;
     OutAllocator->TotalSize = TotalSize;
 
+    // FreeAll poisons the memory, so this function does not repeat the work.
     FreeListAllocator_FreeAll(OutAllocator);
-
-    #if RIFT_ASAN
-    __asan_poison_memory_region(OutAllocator->Memory, TotalSize);
-    #endif
 }
 
 void FreeListAllocator_Destroy(FreeListAllocator* Allocator)
 {
-    #if RIFT_ASAN
-    __asan_unpoison_memory_region(Allocator->Memory, Allocator->TotalSize);
-    #endif
+    ASAN_UNPOISON(Allocator->Memory, (u8*)Allocator->Memory + Allocator->TotalSize);
 
     MemZero(Allocator->Memory, Allocator->TotalSize);
     
@@ -594,12 +566,21 @@ void FreeListAllocator_Destroy(FreeListAllocator* Allocator)
 void FreeListAllocator_FreeAll(FreeListAllocator* Allocator)
 {
     Allocator->Allocated = 0;
-    
+
+    u8* Start = (u8*)Allocator->Memory;
+    u8* End = Start + Allocator->TotalSize;
+
+    // The link fields of a free block stay addressable, because the allocator
+    // walks them. The rest of a free block is poisoned.
+    ASAN_UNPOISON(Start, Start + sizeof(FreeListAllocator_Node));
+
     FreeListAllocator_Node* FirstNode = (FreeListAllocator_Node*)Allocator->Memory;
-    
+
     FirstNode->BlockSize = Allocator->TotalSize;
     FirstNode->Next = NULL;
-    
+
+    ASAN_POISON(Start + sizeof(FreeListAllocator_Node), End);
+
     Allocator->Head = FirstNode;
 }
 
@@ -635,10 +616,6 @@ NO_DISCARD void* FreeListAllocator_Allocate(FreeListAllocator* Allocator, usize 
         Size = sizeof(FreeListAllocator_Node);
     }
 
-    #if RIFT_ASAN
-    __asan_unpoison_memory_region(Allocator->Memory, Size);
-    #endif
-    
     usize Padding = 0;
     FreeListAllocator_Node* PrevNode = NULL;
     FreeListAllocator_Node* Node = Internal_FindFirstFit(Allocator, Size, &Padding, &PrevNode);
@@ -658,29 +635,29 @@ NO_DISCARD void* FreeListAllocator_Allocate(FreeListAllocator* Allocator, usize 
         usize RequiredSpace = Size + Padding;
         usize Remaining = Node->BlockSize - RequiredSpace;
 
-        #if RIFT_ASAN
-        __asan_unpoison_memory_region(Node, AlignmentPadding + sizeof(FreeListAllocator_Node) + RequiredSpace);
-        #endif
+        // A remainder smaller than a node has no room for the link fields, so
+        // the block keeps it and the free size stays correct at the next free.
+        const bool bSplitsTheBlock = Remaining >= sizeof(FreeListAllocator_Node);
 
-        if (Remaining > 0)
+        if (!bSplitsTheBlock)
+        {
+            RequiredSpace = Node->BlockSize;
+        }
+
+        // The caller gets the whole block, so all of it becomes addressable.
+        ASAN_UNPOISON(Node, (u8*)Node + RequiredSpace);
+
+        if (bSplitsTheBlock)
         {
             FreeListAllocator_Node* NewFreeNode = (FreeListAllocator_Node*)((u8*)Node + RequiredSpace);
+
+            ASAN_UNPOISON(NewFreeNode, (u8*)NewFreeNode + sizeof(FreeListAllocator_Node));
+
             NewFreeNode->BlockSize = Remaining;
+            NewFreeNode->Next = Node->Next;
+            Node->Next = NewFreeNode;
 
-            if (!Node->Next)
-            {
-                Node->Next = NewFreeNode;
-                NewFreeNode->Next = NULL;
-            }
-            else
-            {
-                NewFreeNode->Next = Node->Next;
-                Node->Next = NewFreeNode;
-            }
-
-            #if RIFT_ASAN
-            __asan_poison_memory_region(NewFreeNode, NewFreeNode->BlockSize);
-            #endif
+            ASAN_POISON((u8*)NewFreeNode + sizeof(FreeListAllocator_Node), (u8*)NewFreeNode + Remaining);
         }
 
         if (!PrevNode)	
@@ -726,101 +703,93 @@ void FreeListAllocator_Free(FreeListAllocator* Allocator, void* Memory, usize* O
         ASSERT((u8*)Header >= (u8*)Allocator->Memory);
         ASSERT((u8*)Header < (((u8*)Allocator->Memory) + Allocator->TotalSize));
 
-        // zero the memory
-        usize Padding = MemoryUtils_CalculatePaddingWithHeader((usize)Header, DEFAULT_FREE_LIST_ALLOCATOR_ALIGNMENT, sizeof(FreeListAllocator_Header));
-        usize BlockSizeNoPadding = Header->BlockSize - Padding - Header->AlignmentPadding;
-
-        #if RIFT_ASAN
-        __asan_unpoison_memory_region(Memory, BlockSizeNoPadding);
-        #endif
-
-        MemZero(Memory, BlockSizeNoPadding);
-
-        // Detect if the memory passed in was already freed
-        #ifndef RIFT_ASAN
+        // Detect if the memory passed in was already freed. This runs before the
+        // block is zeroed, because a free block must not be written to. The test
+        // asks whether the header sits inside a free block. A test against the
+        // block start alone fails here, because a second free reads the padding
+        // out of memory that the free list has already written its node into.
         bool bAlreadyFreed = false;
         {
-            FreeListAllocator_Node* Node = Allocator->Head;
+            const u8* HeaderBytes = (const u8*)Header;
 
-            const FreeListAllocator_Node* FoundNode = NULL;
-            while (Node != NULL)
+            for (const FreeListAllocator_Node* Node = Allocator->Head; Node != NULL; Node = Node->Next)
             {
-                if (Node == (FreeListAllocator_Node*)Header)
+                if (HeaderBytes >= (const u8*)Node && HeaderBytes < ((const u8*)Node + Node->BlockSize))
                 {
-                    FoundNode = Node;
+                    bAlreadyFreed = true;
                     break;
                 }
-                
-                Node = Node->Next;
-            }
-
-            //ASSERT_MSG(!FoundNode, "Double free");
-            if (FoundNode)
-            {
-                bAlreadyFreed = true;
             }
         }
-        
-        if (!bAlreadyFreed)
-        #endif
+
+        if (bAlreadyFreed)
         {
+            LOG_WARNING("MemFree called on a block that is already free. The call was ignored");
+        }
+
+        if (!bAlreadyFreed)
+        {
+            // A block that runs past the end of the pool means the header is
+            // damaged. Zeroing it would write over memory the pool does not own.
+            ASSERT_MSG((u8*)Header - Header->AlignmentPadding >= (u8*)Allocator->Memory, "Free list header is damaged");
+            ASSERT_MSG(((u8*)Header - Header->AlignmentPadding) + Header->BlockSize <= ((u8*)Allocator->Memory) + Allocator->TotalSize, "Free list header is damaged");
+
+            // zero the memory
+            usize Padding = MemoryUtils_CalculatePaddingWithHeader((usize)Header, DEFAULT_FREE_LIST_ALLOCATOR_ALIGNMENT, sizeof(FreeListAllocator_Header));
+
+            // A block smaller than its own padding means the header is damaged.
+            // The subtraction below would wrap and zero the whole address space.
+            ASSERT_MSG(Header->BlockSize > Padding + Header->AlignmentPadding, "Free list header is damaged");
+
+            usize BlockSizeNoPadding = Header->BlockSize - Padding - Header->AlignmentPadding;
+
+            MemZero(Memory, BlockSizeNoPadding);
+
+            // Read the header before the node overwrites it. The two overlap.
             usize BlockSize = Header->BlockSize;
-            
+            usize AlignmentPadding = Header->AlignmentPadding;
+
             if (OutBytesFreed)
             {
                 *OutBytesFreed = BlockSize;
             }
-            
-            FreeListAllocator_Node* FreeNode = (FreeListAllocator_Node*)Header;
-            FreeNode->BlockSize = Header->BlockSize + Header->AlignmentPadding;
+
+            // Allocate put the header AlignmentPadding bytes after the start of
+            // the block, so the block starts that many bytes before the header.
+            FreeListAllocator_Node* FreeNode = (FreeListAllocator_Node*)((u8*)Header - AlignmentPadding);
+            FreeNode->BlockSize = BlockSize;
             FreeNode->Next = NULL;
-            
+
+            // Put the node back into the list in address order, so that a block
+            // and its neighbours can merge.
             FreeListAllocator_Node* Node = Allocator->Head;
             FreeListAllocator_Node* PrevNode = NULL;
-            
-            while (Node != NULL)
+
+            while (Node != NULL && Node < FreeNode)
             {
-                if (FreeNode < Node)
-                {
-                    if (!PrevNode)
-                    {
-                        if (Allocator->Head)
-                        {
-                            FreeNode->Next = Allocator->Head;
-                        }
-                        else
-                        {
-                            Allocator->Head = FreeNode;
-                        }
-                    }
-                    else
-                    {
-                        if (!PrevNode->Next)
-                        {
-                            PrevNode->Next = FreeNode;
-                            FreeNode->Next = NULL;
-                        }
-                        else
-                        {
-                            FreeNode->Next = PrevNode->Next;
-                            PrevNode->Next = FreeNode;
-                        }
-                    }
-                    
-                    break;
-                }
-                
                 PrevNode = Node;
                 Node = Node->Next;
             }
-            
+
+            FreeNode->Next = Node;
+
+            if (PrevNode)
+            {
+                PrevNode->Next = FreeNode;
+            }
+            else
+            {
+                Allocator->Head = FreeNode;
+            }
+
             Allocator->Allocated -= BlockSize;
 
             Internal_FreeListAllocator_Coalesce(Allocator, PrevNode, FreeNode);
 
-            #if RIFT_ASAN
-            __asan_poison_memory_region(FreeNode, BlockSize);
-            #endif
+            // The link fields, the padding and the header stay addressable, so
+            // that the allocator can still read its own book-keeping. A read of
+            // the part that belonged to the caller now reports an error.
+            ASAN_POISON(Memory, (u8*)FreeNode + BlockSize);
         }
     }
 }
