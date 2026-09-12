@@ -1994,1197 +1994,1424 @@ static bool Internal_ExecuteWildcardDelete(LinearAllocator* Scratch, const Strin
     return bSuccess;
 }
 
+STRUCT(BuildCmdContext)
+{
+    LinearAllocator* Scratch;
+    u32*             ExitCode;
+    String           WorkingDirectory;
+    String           Value;
+    String           Content;
+    bool             bIgnoreErrors;
+    bool             bParam_NotExist;
+    bool             bNoWait;
+    bool             bPadding[5];
+};
+
+static void Internal_ParseCmdParams(LinearAllocator* Scratch, const String Params, BuildCmdContext* OutCtx)
+{
+    StringList ParamList = String_SplitIntoList(Scratch, Params, ' ', true);
+
+    for each_string_in_list (ParamList)
+    {
+        if (String_IsEqual(It.String, S("ignore_exit_code"), false) ||
+            String_IsEqual(It.String, S("ignore_error"), false) ||
+            String_IsEqual(It.String, S("ignore_errors"), false))
+        {
+            OutCtx->bIgnoreErrors = true;
+        }
+        else if (String_IsEqual(It.String, S("if_not_exist"), false))
+        {
+            OutCtx->bParam_NotExist = true;
+        }
+        else if (String_IsEqual(It.String, S("no_wait"), false))
+        {
+            OutCtx->bNoWait = true;
+        }
+    }
+}
+
+// Runs a program, waits for it, and turns its exit code into a pass/fail result. A process
+// that never started fails and leaves the caller's exit code alone.
+static bool Internal_RunToolAndReportExit(const String ProgramPath, const String CmdLine, const String ProcessWorkingDir, const BuildCmdContext* Ctx)
+{
+    bool bSuccess = false;
+
+    if (bVerboseLog) { LOG("    %S", CmdLine); }
+
+    PlatformHandle Handle = Platform_RunProcess(ProgramPath, CmdLine, ProcessWorkingDir, String_Null());
+    if (Platform_IsValidHandle(Handle))
+    {
+        const u32 ProcessCode = Platform_WaitForProcessAndGetExitCode(Handle);
+        if (Ctx->ExitCode) { *Ctx->ExitCode = ProcessCode; }
+
+        bSuccess = (ProcessCode == 0) || Ctx->bIgnoreErrors;
+        if (bSuccess)
+        {
+            LOG_LINE_BREAK();
+        }
+    }
+
+    return bSuccess;
+}
+
+// The same tail as Internal_RunToolAndReportExit, for a command line that goes through the
+// system command interpreter instead of a program path.
+static bool Internal_RunShellCmdAndReportExit(const String CmdLine, const BuildCmdContext* Ctx)
+{
+    bool bSuccess = false;
+
+    if (bVerboseLog) { LOG("    %S", CmdLine); }
+
+    PlatformHandle Handle = Platform_RunCommand(CmdLine, Ctx->WorkingDirectory, String_Null());
+    if (Platform_IsValidHandle(Handle))
+    {
+        const u32 ProcessCode = Platform_WaitForProcessAndGetExitCode(Handle);
+        if (Ctx->ExitCode) { *Ctx->ExitCode = ProcessCode; }
+
+        bSuccess = (ProcessCode == 0) || Ctx->bIgnoreErrors;
+        if (bSuccess)
+        {
+            LOG_LINE_BREAK();
+        }
+    }
+
+    return bSuccess;
+}
+
+// True when the path names a file rather than a directory: it carries a dot, and nothing
+// after that dot looks like a path separator.
+static bool Internal_PathLooksLikeFile(const String Path)
+{
+    bool bHasExtension = false;
+
+    u32 LastDot = 0;
+    bool bHasDot = String_IndexOfLastChar(Path, '.', &LastDot);
+
+    bool bHasPathSeparator = String_IndexOfFirstPathSlash(StrShiftF(Path, LastDot), NULL);
+    if (bHasDot && !bHasPathSeparator)
+    {
+        bHasExtension = true;
+    }
+
+    return bHasExtension;
+}
+
+static bool Internal_ExecuteCmd_Run(const BuildCmdContext* Ctx)
+{
+    bool bSuccess = true;
+
+    const String Cmd = Ctx->Value;
+
+    StringLocal(CmdLine, 8192);
+
+    #if PLATFORM_WINDOWS
+    String_Append(&CmdLine, S("cmd.exe /c \""));
+    String_Append(&CmdLine, Cmd);
+    String_AppendChar(&CmdLine, '"');
+    #else
+    String_Append(&CmdLine, Cmd);
+    #endif
+
+    #ifndef HOOD
+    LOG(" > %S", Cmd);
+    #else
+    LOG("da cmd: %S", Cmd);
+    #endif
+
+    PlatformHandle Handle = Platform_RunCommand(CmdLine, Ctx->WorkingDirectory, String_Null());
+    u32 ProcessCode = 1;
+    if (Platform_IsValidHandle(Handle))
+    {
+        if (Ctx->bNoWait)
+        {
+            // nothing to wait on: a successful launch is the whole result
+            ProcessCode = 0;
+        }
+        else
+        {
+            ProcessCode = Platform_WaitForProcessAndGetExitCode(Handle);
+        }
+    }
+
+    if (Ctx->ExitCode) { *Ctx->ExitCode = ProcessCode; }
+
+    if (ProcessCode != 0 && !Ctx->bIgnoreErrors)
+    {
+        bSuccess = false;
+    }
+
+    return bSuccess;
+}
+
+// The copies that no parameter can opt back into: a whole filesystem root, or a directory
+// copied into a destination inside itself, where the copy would descend into its own output.
+static bool Internal_IsCopyRefused(const BuildCmdContext* Ctx, const String SourceFile, const String FullSourcePath, const String FullDestPath)
+{
+    bool bRefused = false;
+
+    if (Filesystem_IsRootPath(FullSourcePath))
+    {
+        LOG(" > Copy: %S", Ctx->Value);
+        LOG("\n    Refusing to copy a filesystem root.\n");
+
+        if (Ctx->ExitCode) { *Ctx->ExitCode = 1; }
+        bRefused = true;
+    }
+    else if (Filesystem_IsDirectory(FullSourcePath) && Filesystem_IsPathInside(FullSourcePath, FullDestPath))
+    {
+        LOG(" > Copy: %S", Ctx->Value);
+        LOG(
+        "\n    Refusing to copy \"%S\" into itself - the destination is inside the\n"
+        "    source directory, so the copy would recurse forever.\n",
+        SourceFile);
+
+        if (Ctx->ExitCode) { *Ctx->ExitCode = 1; }
+        bRefused = true;
+    }
+
+    return bRefused;
+}
+
+// A Copy(if_not_exist) whose destination is already there. The destination path is absolute,
+// so an extension is what separates a file destination from a directory destination.
+static bool Internal_DoesCopyDestinationExist(const String Cmd, const String FullDestPath)
+{
+    bool bDestExist = false;
+
+    u32 LastDot = 0;
+    xx String_IndexOfLastChar(FullDestPath, '.', &LastDot);
+
+    bool bHasExtension = false;
+    bool bHasPathSeparator = String_IndexOfFirstPathSlash(StrShiftF(FullDestPath, LastDot), NULL);
+    if (!bHasPathSeparator)
+    {
+        bHasExtension = true;
+    }
+
+    if (bHasExtension)
+    {
+        if (Filesystem_DoesFileExist(FullDestPath))
+        {
+            LOG("[Skipping] Copy: %S", Cmd);
+            bDestExist = true;
+        }
+    }
+    else
+    {
+        if (Filesystem_DoesDirectoryExist(FullDestPath))
+        {
+            LOG("[Skipping] Copy: %S", Cmd);
+            bDestExist = true;
+        }
+    }
+
+    return bDestExist;
+}
+
+static bool Internal_ExecuteCmd_Copy(const BuildCmdContext* Ctx)
+{
+    bool bSuccess = true;
+
+    const String Cmd = Ctx->Value;
+
+    StringList ArgList          = String_SplitIntoList(Ctx->Scratch, Ctx->Value, ' ', true);
+    String SourceFile           = StringList_GetStringFromIndex(ArgList, 0);
+    String DestinationDirectory = StringList_GetStringFromIndex(ArgList, 1);
+
+    if (String_ContainsChars(DestinationDirectory, S("*?")))
+    {
+        LOG(" > Copy: %S", Cmd);
+        LOG("\n    Wildcards are only allowed in the source of a .Copy operation, not its destination.\n");
+
+        if (Ctx->ExitCode) { *Ctx->ExitCode = 1; }
+        bSuccess = false;
+    }
+    else if (String_ContainsChars(SourceFile, S("*?")))
+    {
+        bSuccess = Internal_ExecuteWildcardCopyOrMove(Ctx->Scratch, Ctx->WorkingDirectory, Cmd, SourceFile, DestinationDirectory, false, Ctx->bParam_NotExist, Ctx->bIgnoreErrors, Ctx->ExitCode);
+    }
+    else
+    {
+        StringLocal(FullSourcePath, MAX_PATH_LENGTH);
+        if (Filesystem_IsPathRelative(SourceFile))
+        {
+            String_BuildPath(&FullSourcePath, Ctx->WorkingDirectory, SourceFile);
+        }
+        else
+        {
+            String_BuildPath(&FullSourcePath, SourceFile);
+        }
+
+        xx Filesystem_ConvertRelativeToAbsolutePath(&FullSourcePath);
+
+        StringLocal(FullDestPath, MAX_PATH_LENGTH);
+        String_BuildPath(&FullDestPath, Ctx->WorkingDirectory, DestinationDirectory);
+
+        if (String_IsLast(DestinationDirectory, '/') ||
+            String_IsLast(DestinationDirectory, '\\'))
+        {
+            u32 LastSlash = 0;
+            xx String_IndexOfLastPathSlash(SourceFile, &LastSlash);
+            String_BuildPath(&FullDestPath, StrShiftF(SourceFile, LastSlash == 0 ? 0 : LastSlash+1));
+        }
+
+        xx Filesystem_ConvertRelativeToAbsolutePath(&FullDestPath);
+
+        const bool bGuardRefused = Internal_IsCopyRefused(Ctx, SourceFile, FullSourcePath, FullDestPath);
+        if (bGuardRefused)
+        {
+            bSuccess = false;
+        }
+
+        bool bDestExist = false;
+        if (!bGuardRefused && Ctx->bParam_NotExist)
+        {
+            bDestExist = Internal_DoesCopyDestinationExist(Cmd, FullDestPath);
+        }
+
+        if (!bGuardRefused && !bDestExist)
+        {
+            LOG(" > Copy: %S", Cmd);
+
+            if (!Filesystem_Copy(FullSourcePath, FullDestPath) && !Ctx->bIgnoreErrors)
+            {
+                LOG("\n    You can ignore this error by using .Copy(ignore_error)\n");
+
+                if (Ctx->ExitCode) { *Ctx->ExitCode = 1; }
+                bSuccess = false;
+            }
+        }
+    }
+
+    return bSuccess;
+}
+
+static void Internal_ExecuteCmd_Wait(const String Value)
+{
+    u32 Milliseconds = 0;
+    xx String_ToU32(Value, &Milliseconds);
+
+    LOG(" > Sleeping for %ums ...", Milliseconds);
+
+    Platform_Sleep(Milliseconds);
+}
+
+// A Move(if_not_exist)/Rename(if_not_exist) that must be skipped: the source directory or
+// file is missing, or the destination entry is already there.
+static bool Internal_ShouldSkipMove(const BuildCmdContext* Ctx, const String SourceFile, const String DestinationDirectory)
+{
+    bool bDestExist = false;
+
+    u32 LastSlash = 0;
+    bool bHasSlash = String_IndexOfLastPathSlash(SourceFile, &LastSlash);
+
+    bool bCanWe = true;
+
+    StringLocal(FullPath, MAX_PATH_LENGTH);
+    if (Filesystem_IsPathRelative(SourceFile))
+    {
+        String_BuildPath(&FullPath, Ctx->WorkingDirectory, bHasSlash ? StrSlice(SourceFile.Data, LastSlash) : SourceFile);
+    }
+    else
+    {
+        String_BuildPath(&FullPath, SourceFile);
+    }
+
+    if (!Filesystem_DoesDirectoryExist(FullPath))
+    {
+        bCanWe = false;
+    }
+
+    if (bCanWe)
+    {
+        String_Empty(&FullPath);
+        if (Filesystem_IsPathRelative(SourceFile))
+        {
+            String_BuildPath(&FullPath, Ctx->WorkingDirectory, SourceFile);
+        }
+        else
+        {
+            String_BuildPath(&FullPath, SourceFile);
+        }
+
+        if (!Filesystem_DoesFileExist(FullPath))
+        {
+            bCanWe = false;
+        }
+    }
+
+    if (bCanWe)
+    {
+        String_Empty(&FullPath);
+        String FileName = StrShiftF(SourceFile, LastSlash == 0 ? 0 : LastSlash+1);
+        String_BuildPath(&FullPath, Ctx->WorkingDirectory, DestinationDirectory, FileName);
+
+        if (Internal_PathLooksLikeFile(SourceFile))
+        {
+            if (Filesystem_DoesFileExist(FullPath))
+            {
+                bDestExist = true;
+            }
+        }
+        else
+        {
+            if (Filesystem_DoesDirectoryExist(FullPath))
+            {
+                bDestExist = true;
+            }
+        }
+    }
+    else
+    {
+        bDestExist = true; // skip the move/rename if the given source file does not exist
+    }
+
+    return bDestExist;
+}
+
+static bool Internal_ExecuteSingleMove(const BuildCmdContext* Ctx, const String SourceFile, const String DestinationDirectory, bool bIsRename)
+{
+    bool bSuccess = true;
+
+    StringLocal(FullSourcePath, MAX_PATH_LENGTH);
+    String_BuildPath(&FullSourcePath, Ctx->WorkingDirectory, SourceFile);
+
+    StringLocal(FullDestPath, MAX_PATH_LENGTH);
+    String_BuildPath(&FullDestPath, Ctx->WorkingDirectory, DestinationDirectory);
+
+    // resolved copies (".." folded away) for the safety checks only, so the
+    // arguments handed to Filesystem_Move stay exactly as before
+    StringLocal(ResolvedSource, MAX_PATH_LENGTH);
+    String_Copy(&ResolvedSource, FullSourcePath);
+    xx Filesystem_ConvertRelativeToAbsolutePath(&ResolvedSource);
+
+    StringLocal(ResolvedDest, MAX_PATH_LENGTH);
+    String_Copy(&ResolvedDest, FullDestPath);
+    xx Filesystem_ConvertRelativeToAbsolutePath(&ResolvedDest);
+
+    if (Filesystem_IsRootPath(ResolvedSource))
+    {
+        LOG("\n    Refusing to %S a filesystem root.\n", bIsRename ? S("rename") : S("move"));
+
+        if (Ctx->ExitCode) { *Ctx->ExitCode = 1; }
+        bSuccess = false;
+    }
+    else if (Filesystem_IsDirectory(ResolvedSource) && Filesystem_IsPathInside(ResolvedSource, ResolvedDest))
+    {
+        LOG(
+        "\n    Refusing to %S \"%S\" into itself - the destination is inside the\n"
+        "    source directory.\n",
+        bIsRename ? S("rename") : S("move"), SourceFile);
+
+        if (Ctx->ExitCode) { *Ctx->ExitCode = 1; }
+        bSuccess = false;
+    }
+    else
+    {
+        if (Ctx->bIgnoreErrors) { Logging_Disable(); }
+        bool bResult = Filesystem_Move(FullSourcePath, FullDestPath, bIsRename);
+        if (Ctx->bIgnoreErrors) { Logging_Enable(); }
+
+        if (!bResult && !Ctx->bIgnoreErrors)
+        {
+            LOG("\n    You can ignore this error by using %S instead\n",
+            bIsRename ? S(".Rename(ignore_error)") : S(".Move(ignore_error)"));
+
+            if (Ctx->ExitCode) { *Ctx->ExitCode = 1; }
+            bSuccess = false;
+        }
+    }
+
+    return bSuccess;
+}
+
+static bool Internal_ExecuteCmd_Move(const BuildCmdContext* Ctx, bool bIsRename)
+{
+    bool bSuccess = true;
+
+    const String Cmd = Ctx->Value;
+
+    StringList ArgList          = String_SplitIntoList(Ctx->Scratch, Ctx->Value, ' ', true);
+    String SourceFile           = StringList_GetStringFromIndex(ArgList, 0);
+    String DestinationDirectory = StringList_GetStringFromIndex(ArgList, 1);
+
+    const String VerbName = bIsRename ? S("Rename") : S("Move");
+
+    bool bSourceWildcard = String_ContainsChars(SourceFile, S("*?"));
+    bool bDestWildcard   = String_ContainsChars(DestinationDirectory, S("*?"));
+
+    if (bDestWildcard || (bIsRename && bSourceWildcard))
+    {
+        LOG(" > %S: %S", VerbName, Cmd);
+
+        if (bIsRename && bSourceWildcard)
+        {
+            LOG(
+            "\n    Rename does not support wildcards since every match would collide on\n"
+            "    the same destination name. Use .Move to move files into a directory.\n");
+        }
+        else
+        {
+            LOG("\n    Wildcards are only allowed in the source of a .%S operation, not its destination.\n", VerbName);
+        }
+
+        if (Ctx->ExitCode) { *Ctx->ExitCode = 1; }
+        bSuccess = false;
+    }
+    else if (bSourceWildcard)
+    {
+        bSuccess = Internal_ExecuteWildcardCopyOrMove(Ctx->Scratch, Ctx->WorkingDirectory, Cmd, SourceFile, DestinationDirectory, true, Ctx->bParam_NotExist, Ctx->bIgnoreErrors, Ctx->ExitCode);
+    }
+    else
+    {
+        LOG(" > %S: %S", VerbName, Cmd);
+
+        bool bDestExist = false;
+        if (Ctx->bParam_NotExist)
+        {
+            bDestExist = Internal_ShouldSkipMove(Ctx, SourceFile, DestinationDirectory);
+        }
+
+        if (!bDestExist)
+        {
+            bSuccess = Internal_ExecuteSingleMove(Ctx, SourceFile, DestinationDirectory, bIsRename);
+        }
+    }
+
+    return bSuccess;
+}
+
+// Deletes one named file or directory. A target that is already gone counts as a success.
+static bool Internal_DeleteSinglePath(const BuildCmdContext* Ctx, const String Cmd)
+{
+    bool bSuccess = true;
+
+    StringLocal(FullFilePath, MAX_PATH_LENGTH);
+    String_BuildPath(&FullFilePath, Ctx->WorkingDirectory, Cmd);
+
+    if (Ctx->bIgnoreErrors) { Logging_Disable(); }
+    bool bResult = false;
+    if (Internal_PathLooksLikeFile(Cmd))
+    {
+        if (Filesystem_DoesFileExist(FullFilePath))
+        {
+            bResult = Filesystem_DeleteFile(FullFilePath);
+        }
+        else
+        {
+            bResult = true;
+        }
+    }
+    else
+    {
+        if (Filesystem_DoesDirectoryExist(FullFilePath))
+        {
+            bResult = Filesystem_DeleteDirectory(FullFilePath);
+        }
+        else
+        {
+            bResult = true;
+        }
+    }
+    if (Ctx->bIgnoreErrors) { Logging_Enable(); }
+
+    if (!bResult && !Ctx->bIgnoreErrors)
+    {
+        if (Ctx->ExitCode) { *Ctx->ExitCode = 1; }
+        bSuccess = false;
+    }
+
+    return bSuccess;
+}
+
+static bool Internal_ExecuteCmd_Delete(const BuildCmdContext* Ctx)
+{
+    bool bSuccess = true;
+
+    const String Cmd = Ctx->Value;
+
+    LOG(" > Delete: %S", Cmd);
+
+    if (String_IsEqual(Cmd, S("*"), false) ||
+        String_IsEqual(Cmd, S("."), false) ||
+        String_IsEqual(Cmd, S(".."), false) ||
+        String_IsEqual(Cmd, S("/"), false))
+    {
+        bSuccess = false;
+    }
+
+    if (bSuccess && String_ContainsChars(Cmd, S("*?")))
+    {
+        bSuccess = Internal_ExecuteWildcardDelete(Ctx->Scratch, Ctx->WorkingDirectory, Cmd, Ctx->bIgnoreErrors, Ctx->ExitCode);
+    }
+    else if (bSuccess)
+    {
+        bSuccess = Internal_DeleteSinglePath(Ctx, Cmd);
+    }
+
+    return bSuccess;
+}
+
+static bool Internal_ExecuteCmd_NewFile(const BuildCmdContext* Ctx)
+{
+    bool bSuccess = true;
+
+    const String Cmd = Ctx->Value;
+
+    LOG(" > New File: %S", Cmd);
+
+    StringLocal(FullFilePath, MAX_PATH_LENGTH);
+    String_BuildPath(&FullFilePath, Ctx->WorkingDirectory, Cmd);
+
+    if (Ctx->bIgnoreErrors) { Logging_Disable(); }
+    bool bResult = Filesystem_NewFile(FullFilePath);
+    if (Ctx->bIgnoreErrors) { Logging_Enable(); }
+
+    if (!bResult && !Ctx->bIgnoreErrors)
+    {
+        if (Ctx->ExitCode) { *Ctx->ExitCode = 1; }
+        bSuccess = false;
+    }
+
+    return bSuccess;
+}
+
+static bool Internal_ExecuteCmd_NewDirectory(const BuildCmdContext* Ctx)
+{
+    bool bSuccess = true;
+
+    const String Cmd = Ctx->Value;
+
+    LOG(" > New Directory: %S", Cmd);
+
+    StringLocal(FullDirPath, MAX_PATH_LENGTH);
+    String_BuildPath(&FullDirPath, Ctx->WorkingDirectory, Cmd);
+
+    if (Ctx->bIgnoreErrors) { Logging_Disable(); }
+    bool bResult = Filesystem_OpenDirectory(FullDirPath);
+    if (Ctx->bIgnoreErrors) { Logging_Enable(); }
+
+    if (!bResult && !Ctx->bIgnoreErrors)
+    {
+        if (Ctx->ExitCode) { *Ctx->ExitCode = 1; }
+        bSuccess = false;
+    }
+
+    return bSuccess;
+}
+
+static void Internal_ExecuteCmd_Log(const String Value)
+{
+    if (Value.Length == 0)
+    {
+        LOG_LINE_BREAK();
+    }
+    else
+    {
+        LOG(" %S\n", Value);
+    }
+}
+
+// A WriteFile/AppendFile value is either a path on its own with the body in a heredoc
+// Content block, or "<path> <body>" on one line with optional quotes around the body.
+static void Internal_SplitWriteFileValue(const String Value, const String Content, String* OutPath, String* OutBody)
+{
+    *OutPath = Value;
+    *OutBody = String_Null();
+
+    if (Content.Length > 0)
+    {
+        *OutBody = Content;
+    }
+    else
+    {
+        u32 SpaceIndex = 0;
+        if (String_IndexOfChar(Value, ' ', &SpaceIndex))
+        {
+            *OutPath = StrSlice(Value.Data, SpaceIndex);
+            *OutBody = StrShiftF(Value, SpaceIndex + 1);
+
+            // strip a single pair of surrounding double-quotes from the body
+            if (OutBody->Length >= 2 && OutBody->Data[0] == '"' && OutBody->Data[OutBody->Length - 1] == '"')
+            {
+                *OutBody = StrSlice(OutBody->Data + 1, OutBody->Length - 2);
+            }
+        }
+    }
+}
+
+static bool Internal_WriteFileBody(const BuildCmdContext* Ctx, const String FullFilePath, const String Body, bool bAppend)
+{
+    u32 LastSlash = 0;
+    if (String_IndexOfLastPathSlash(FullFilePath, &LastSlash))
+    {
+        xx Filesystem_OpenDirectory(StrSlice(FullFilePath.Data, LastSlash));
+    }
+
+    if (Ctx->bIgnoreErrors) { Logging_Disable(); }
+
+    FileHandle Handle = {0};
+    bool bResult = false;
+    EFileMode FileMode = bAppend ? FileMode_Read | FileMode_Write : FileMode_Write;
+    bResult = Filesystem_Open(FullFilePath, FileMode, &Handle);
+
+    if (bResult)
+    {
+        if (bAppend)
+        {
+            Filesystem_WriteLine(Handle, S("\n"), NULL);
+            bResult = Filesystem_WriteLine(Handle, Body, NULL);
+        }
+        else
+        {
+            bResult = Filesystem_Write(Handle, Body.Length, Body.Data, NULL);
+        }
+
+        Filesystem_Close(&Handle);
+    }
+
+    if (Ctx->bIgnoreErrors) { Logging_Enable(); }
+
+    return bResult;
+}
+
+static bool Internal_ExecuteCmd_WriteFile(const BuildCmdContext* Ctx, bool bAppend)
+{
+    bool bSuccess = true;
+
+    String Path = String_Null();
+    String Body = String_Null();
+    Internal_SplitWriteFileValue(Ctx->Value, Ctx->Content, &Path, &Body);
+
+    const String VerbName = bAppend ? S("AppendFile") : S("WriteFile");
+
+    StringLocal(FullFilePath, MAX_PATH_LENGTH);
+    String_BuildPath(&FullFilePath, Ctx->WorkingDirectory, Path);
+
+    bool bSkip = false;
+    if (Ctx->bParam_NotExist && Filesystem_DoesFileExist(FullFilePath))
+    {
+        LOG("[Skipping] %S: %S", VerbName, Path);
+        bSkip = true;
+    }
+
+    if (!bSkip)
+    {
+        LOG(" > %S: %S", VerbName, Path);
+
+        if (!Internal_WriteFileBody(Ctx, FullFilePath, Body, bAppend) && !Ctx->bIgnoreErrors)
+        {
+            LOG(
+            "\n    You can ignore this error by using %S\n",
+            bAppend ? S(".AppendFile(ignore_error)") : S(".WriteFile(ignore_error)"));
+
+            if (Ctx->ExitCode) { *Ctx->ExitCode = 1; }
+            bSuccess = false;
+        }
+    }
+
+    return bSuccess;
+}
+
+// Picks the download tool this system has and writes its command line.
+static bool Internal_BuildDownloadCmdLine(const String URL, const String FinalDestinationPath, String* OutProgramPath, String* OutCmdLine)
+{
+    bool bSuccess = true;
+
+    #if PLATFORM_WINDOWS
+    if (Platform_FindProgram_Ex(S("powershell"), OutProgramPath))
+    {
+        String_Concat(OutCmdLine, S("powershell -Command \"(New-Object Net.WebClient).DownloadFile('"), URL, S("', '"), FinalDestinationPath, S("')\""));
+    }
+    else
+    {
+        LOG_ERROR("powershell was not found on this system");
+        bSuccess = false;
+    }
+    #else
+    if (Platform_FindProgram_Ex(S("curl"), OutProgramPath))
+    {
+        String_Concat(OutCmdLine, S("curl -fsSL -o \""), FinalDestinationPath, S("\" \""), URL, S("\""));
+    }
+    else if (Platform_FindProgram_Ex(S("wget"), OutProgramPath))
+    {
+        String_Concat(OutCmdLine, S("wget -q -O \""), FinalDestinationPath, S("\" \""), URL, S("\""));
+    }
+    #if PLATFORM_BSD
+    // the BSD base systems ship neither curl nor wget: FreeBSD has fetch, and the
+    // OpenBSD/NetBSD ftp speaks HTTP(S) - unlike the Linux ftp, which only does FTP
+    else if (Platform_FindProgram_Ex(S("fetch"), OutProgramPath))
+    {
+        String_Concat(OutCmdLine, S("fetch -q -o \""), FinalDestinationPath, S("\" \""), URL, S("\""));
+    }
+    else if (Platform_FindProgram_Ex(S("ftp"), OutProgramPath))
+    {
+        String_Concat(OutCmdLine, S("ftp -V -o \""), FinalDestinationPath, S("\" \""), URL, S("\""));
+    }
+    #endif
+    else
+    {
+        LOG_ERROR("No download tool was found on this system. Please install curl or wget");
+        bSuccess = false;
+    }
+    #endif
+
+    return bSuccess;
+}
+
+// The download tail. It differs from Internal_RunToolAndReportExit by one step: wget and curl
+// can leave an empty or partial file behind, which the next run would mistake for a complete
+// download.
+static bool Internal_RunDownloadAndReportExit(const String ProgramPath, const String CmdLine, const String FinalDestinationPath, const BuildCmdContext* Ctx)
+{
+    bool bSuccess = false;
+
+    if (bVerboseLog) { LOG("    %S", CmdLine); }
+
+    PlatformHandle Handle = Platform_RunProcess(ProgramPath, CmdLine, Ctx->WorkingDirectory, String_Null());
+    if (Platform_IsValidHandle(Handle))
+    {
+        const u32 ProcessCode = Platform_WaitForProcessAndGetExitCode(Handle);
+        if (Ctx->ExitCode) { *Ctx->ExitCode = ProcessCode; }
+
+        if (ProcessCode != 0 && Filesystem_DoesFileExist(FinalDestinationPath))
+        {
+            xx Filesystem_DeleteFile(FinalDestinationPath);
+        }
+
+        bSuccess = (ProcessCode == 0) || Ctx->bIgnoreErrors;
+        if (bSuccess)
+        {
+            LOG_LINE_BREAK();
+        }
+    }
+
+    return bSuccess;
+}
+
+static bool Internal_ExecuteCmd_Download(const BuildCmdContext* Ctx)
+{
+    bool bSuccess = true;
+
+    StringList ArgList = String_SplitIntoList(Ctx->Scratch, Ctx->Value, ' ', true);
+    String URL         = StringList_GetStringFromIndex(ArgList, 0);
+    String Destination = StringList_GetStringFromIndex(ArgList, 1);
+
+    // TODO:     PreBuild.Download https://github.com/glfw/glfw/releases/download/3.4/glfw-3.4.zip glfw.zip
+    // make it so that we dont have to specify .zip. if we want directory, a slash will be necessary.
+    // like this: ./deps or whatever/deps
+
+    StringLocal(FinalDestinationPath, MAX_PATH_LENGTH);
+    String_BuildPath(&FinalDestinationPath, Ctx->WorkingDirectory, Destination);
+
+    if (!Filesystem_DoesPathHaveFileExtension(Destination))
+    {
+        if (Filesystem_OpenDirectory(FinalDestinationPath))
+        {
+            const String FileName = Filesystem_ExtractFileName(URL, true);
+            String_BuildPath(&FinalDestinationPath, FileName);
+        }
+        else
+        {
+            bSuccess = false;
+        }
+    }
+
+    if (bSuccess)
+    {
+        LOG(" > Download: %S\n -> Destination: %S", URL, FinalDestinationPath);
+
+        if (Filesystem_DoesFileExist(FinalDestinationPath))
+        {
+            LOG("    File already exists. Skipping download...\n");
+        }
+        else
+        {
+            StringLocal(CmdLine, 8192);
+            StringLocal(ProgramPath, MAX_PATH_LENGTH);
+
+            bSuccess = Internal_BuildDownloadCmdLine(URL, FinalDestinationPath, &ProgramPath, &CmdLine);
+            if (bSuccess)
+            {
+                bSuccess = Internal_RunDownloadAndReportExit(ProgramPath, CmdLine, FinalDestinationPath, Ctx);
+            }
+        }
+    }
+
+    return bSuccess;
+}
+
+// Picks the extraction tool this system has and writes its command line.
+static bool Internal_BuildUnzipCmdLine(const String ZipFilePath, const String FinalDestinationPath, String* OutProgramPath, String* OutCmdLine)
+{
+    bool bSuccess = true;
+
+    // tar archives cannot go through Expand-Archive or unzip: route them to tar,
+    // which takes the same command line on every supported platform - Windows 10+
+    // ships bsdtar as tar.exe, every unix has one in the base system - and every
+    // one of them detects the compression (.gz, .bz2, .xz) on its own when reading
+    const bool bIsTarArchive = String_EndsWith(ZipFilePath, S(".tar"), false)     ||
+                               String_EndsWith(ZipFilePath, S(".tar.gz"), false)  ||
+                               String_EndsWith(ZipFilePath, S(".tgz"), false)     ||
+                               String_EndsWith(ZipFilePath, S(".tar.bz2"), false) ||
+                               String_EndsWith(ZipFilePath, S(".tar.xz"), false)  ||
+                               String_EndsWith(ZipFilePath, S(".txz"), false);
+
+    if (bIsTarArchive)
+    {
+        if (Platform_FindProgram_Ex(S("tar"), OutProgramPath))
+        {
+            String_Concat(OutCmdLine, S("tar -xf \""), ZipFilePath, S("\" -C \""), FinalDestinationPath, S("\""));
+        }
+        else
+        {
+            LOG_ERROR("No tar tool was found on this system. Please install tar");
+            bSuccess = false;
+        }
+    }
+    else
+    {
+        #if PLATFORM_WINDOWS
+        if (Platform_FindProgram_Ex(S("powershell"), OutProgramPath))
+        {
+            String_Concat(OutCmdLine, S("powershell -Command \"Expand-Archive -Force -Path \"\"\""), ZipFilePath, S("\"\"\" -DestinationPath \"\""), FinalDestinationPath, S("\"\"\""));
+        }
+        else
+        {
+            LOG_ERROR("powershell was not found on this system");
+            bSuccess = false;
+        }
+        #else
+        if (Platform_FindProgram_Ex(S("unzip"), OutProgramPath))
+        {
+            String_Concat(OutCmdLine, S("unzip -oq \""), ZipFilePath, S("\" -d \""), FinalDestinationPath, S("\""));
+        }
+        // bsdtar extracts zip archives natively - it is the base system tar on FreeBSD
+        // and macOS, and the libarchive-tools package on Linux
+        else if (Platform_FindProgram_Ex(S("bsdtar"), OutProgramPath))
+        {
+            String_Concat(OutCmdLine, S("bsdtar -xf \""), ZipFilePath, S("\" -C \""), FinalDestinationPath, S("\""));
+        }
+        else
+        {
+            LOG_ERROR("No unzip tool was found on this system. Please install unzip");
+            bSuccess = false;
+        }
+        #endif
+    }
+
+    return bSuccess;
+}
+
+static bool Internal_ExecuteCmd_Unzip(const BuildCmdContext* Ctx)
+{
+    bool bSuccess = true;
+
+    StringList ArgList = String_SplitIntoList(Ctx->Scratch, Ctx->Value, ' ', true);
+    String ZipFilePath = StringList_GetStringFromIndex(ArgList, 0);
+    String Destination = StringList_GetStringFromIndex(ArgList, 1);
+
+    if (!Filesystem_DoesFileExist(ZipFilePath))
+    {
+        LOG_ERROR("Zip file \"%S\" does not exist", ZipFilePath);
+        bSuccess = false;
+    }
+
+    StringLocal(FinalDestinationPath, MAX_PATH_LENGTH);
+    String_BuildPath(&FinalDestinationPath, Ctx->WorkingDirectory, Destination);
+
+    if (!Filesystem_OpenDirectory(FinalDestinationPath))
+    {
+        bSuccess = false;
+    }
+
+    if (bSuccess)
+    {
+        StringLocal(CmdLine, 8192);
+        StringLocal(ProgramPath, MAX_PATH_LENGTH);
+
+        LOG(" > Unzip: %S\n -> Destination: %S", ZipFilePath, FinalDestinationPath);
+
+        bSuccess = Internal_BuildUnzipCmdLine(ZipFilePath, FinalDestinationPath, &ProgramPath, &CmdLine);
+        if (bSuccess)
+        {
+            bSuccess = Internal_RunToolAndReportExit(ProgramPath, CmdLine, Ctx->WorkingDirectory, Ctx);
+        }
+    }
+
+    return bSuccess;
+}
+
+// Turns the Zip destination argument into a full .zip path, and makes sure the directory that
+// holds it exists.
+static bool Internal_ResolveZipDestination(const String FilePath, const String Destination, String* OutDestinationPath)
+{
+    bool bSuccess = true;
+
+    if (!String_EndsWith(Destination, S(".zip"), false))
+    {
+        String FileName = FilePath;
+        u32 LastSlash = 0;
+        if (String_IndexOfLastPathSlash(FilePath, &LastSlash))
+        {
+            FileName = StrShiftF(FilePath, LastSlash+1);
+        }
+
+        String_BuildPath(OutDestinationPath, FileName);
+        String_Append(OutDestinationPath, S(".zip"));
+    }
+
+    u32 LastSlash = 0;
+    if (String_IndexOfLastPathSlash(*OutDestinationPath, &LastSlash))
+    {
+        if (!Filesystem_OpenDirectory(StrSlice(OutDestinationPath->Data, LastSlash)))
+        {
+            bSuccess = false;
+        }
+    }
+
+    return bSuccess;
+}
+
+static bool Internal_BuildZipCmdLine(const String FilePath, const String FinalDestinationPath, String* OutProgramPath, String* OutCmdLine, String* OutProcessWorkingDir)
+{
+    bool bSuccess = true;
+
+    const bool bFilePathHasExtension = Filesystem_DoesPathHaveFileExtension(FilePath);
+
+    #if PLATFORM_WINDOWS
+    UNUSED_PARAM(OutProcessWorkingDir);
+
+    if (Platform_FindProgram_Ex(S("powershell"), OutProgramPath))
+    {
+        String_Concat(OutCmdLine, S("powershell -Command \"Compress-Archive -Force -Path \"\"\""), FilePath, bFilePathHasExtension ? String_Null() : S("\\*"),  S("\"\"\" -DestinationPath \"\""), FinalDestinationPath, S("\"\"\""));
+    }
+    else
+    {
+        LOG_ERROR("powershell was not found on this system");
+        bSuccess = false;
+    }
+    #else
+    if (Platform_FindProgram_Ex(S("zip"), OutProgramPath))
+    {
+        if (bFilePathHasExtension)
+        {
+            // -j stores just the file name, like Compress-Archive does with a file path
+            String_Concat(OutCmdLine, S("zip -jq \""), FinalDestinationPath, S("\" \""), FilePath, S("\""));
+        }
+        else
+        {
+            String_BuildPath(OutProcessWorkingDir, FilePath);
+            String_Concat(OutCmdLine, S("zip -rq \""), FinalDestinationPath, S("\" ."));
+        }
+    }
+    // bsdtar writes zip archives natively - it is the base system tar on FreeBSD
+    // and macOS, and the libarchive-tools package on Linux
+    else if (Platform_FindProgram_Ex(S("bsdtar"), OutProgramPath))
+    {
+        if (bFilePathHasExtension)
+        {
+            String FileName  = FilePath;
+            String ParentDir = S(".");
+
+            u32 LastSlash = 0;
+            if (String_IndexOfLastPathSlash(FilePath, &LastSlash))
+            {
+                FileName  = StrShiftF(FilePath, LastSlash+1);
+                ParentDir = StrSlice(FilePath.Data, LastSlash);
+            }
+
+            String_Concat(OutCmdLine, S("bsdtar --format zip -cf \""), FinalDestinationPath, S("\" -C \""), ParentDir, S("\" \""), FileName, S("\""));
+        }
+        else
+        {
+            String_Concat(OutCmdLine, S("bsdtar --format zip -cf \""), FinalDestinationPath, S("\" -C \""), FilePath, S("\" ."));
+        }
+    }
+    else
+    {
+        LOG_ERROR("No zip tool was found on this system. Please install zip");
+        bSuccess = false;
+    }
+    #endif
+
+    return bSuccess;
+}
+
+static bool Internal_ExecuteCmd_Zip(const BuildCmdContext* Ctx)
+{
+    bool bSuccess = true;
+
+    StringList ArgList = String_SplitIntoList(Ctx->Scratch, Ctx->Value, ' ', true);
+    String FilePath    = StringList_GetStringFromIndex(ArgList, 0);
+    String Destination = StringList_GetStringFromIndex(ArgList, 1);
+
+    xx String_EatPathSeparatorsInlineFromEnd(&FilePath);
+
+    if (!Filesystem_DoesFileExist(FilePath) &&
+        !Filesystem_DoesDirectoryExist(FilePath))
+    {
+        LOG_ERROR("File path \"%S\" does not exist", FilePath);
+        bSuccess = false;
+    }
+
+    StringLocal(FinalDestinationPath, MAX_PATH_LENGTH);
+    String_BuildPath(&FinalDestinationPath, Ctx->WorkingDirectory, Destination);
+
+    if (bSuccess)
+    {
+        bSuccess = Internal_ResolveZipDestination(FilePath, Destination, &FinalDestinationPath);
+    }
+
+    if (bSuccess)
+    {
+        StringLocal(CmdLine, 8192);
+        StringLocal(ProgramPath, MAX_PATH_LENGTH);
+
+        StringLocal(ProcessWorkingDir, MAX_PATH_LENGTH);
+        String_Copy(&ProcessWorkingDir, Ctx->WorkingDirectory);
+
+        LOG(" > Zip: %S\n -> Destination: %S", FilePath, FinalDestinationPath);
+
+        bSuccess = Internal_BuildZipCmdLine(FilePath, FinalDestinationPath, &ProgramPath, &CmdLine, &ProcessWorkingDir);
+        if (bSuccess)
+        {
+            #if PLATFORM_UNIX
+            // zip updates an existing archive in place instead of replacing it the way
+            // Compress-Archive -Force does, so an existing destination has to go first
+            if (Filesystem_DoesFileExist(FinalDestinationPath))
+            {
+                xx Filesystem_DeleteFile(FinalDestinationPath);
+            }
+            #endif
+
+            bSuccess = Internal_RunToolAndReportExit(ProgramPath, CmdLine, ProcessWorkingDir, Ctx);
+        }
+    }
+
+    return bSuccess;
+}
+
+static bool Internal_AreAllPackagesInstalled(const BuildCmdContext* Ctx, const String Manager, const String Packages, String* OutMissingPackages)
+{
+    bool bAllInstalled = false;
+
+    StringLocal(QueryCmd, 8192);
+
+    if (String_IsEqual(Manager, S("winget"), false))
+    {
+        // winget refuses to reinstall an already-present package (it tries to
+        // upgrade it instead and errors), so query each package individually
+        // and collect only the missing ones for the install
+        StringList PackageList = String_SplitIntoList(Ctx->Scratch, Packages, ' ', true);
+        for each_string_in_list (PackageList)
+        {
+            StringLocal(OneQuery, 1024);
+            String_Concat(&OneQuery, S("cmd.exe /c \"winget list -e "), It.String, S(" >NUL 2>&1\""));
+
+            if (bVerboseLog) { LOG("    %S", OneQuery); }
+
+            bool bInstalled = false;
+            PlatformHandle H = Platform_RunCommand(OneQuery, Ctx->WorkingDirectory, String_Null());
+            if (Platform_IsValidHandle(H))
+            {
+                bInstalled = Platform_WaitForProcessAndGetExitCode(H) == 0;
+            }
+
+            if (!bInstalled)
+            {
+                if (OutMissingPackages->Length > 0)
+                {
+                    String_AppendChar(OutMissingPackages, ' ');
+                }
+
+                String_Append(OutMissingPackages, It.String);
+            }
+        }
+
+        bAllInstalled = OutMissingPackages->Length == 0;
+    }
+    else if (String_IsEqual(Manager, S("apt"), false))
+    {
+        String_Concat(&QueryCmd, S("dpkg -s "), Packages, S(" >/dev/null 2>&1"));
+    }
+    else if (String_IsEqual(Manager, S("pacman"), false))
+    {
+        String_Concat(&QueryCmd, S("pacman -Q "), Packages, S(" >/dev/null 2>&1"));
+    }
+    else if (String_IsEqual(Manager, S("pkg"), false) ||
+            String_IsEqual(Manager, S("pkgin"), false) ||
+            String_IsEqual(Manager, S("pkg_add"), false))
+    {
+        // the BSD query flags check one package at a time - chain one query per
+        // package. OpenBSD's pkg_info takes a pkgspec, so the name gets a
+        // version glob appended
+        const bool bFreeBSDQuery = String_IsEqual(Manager, S("pkg"), false);
+        const bool bOpenBSDQuery = String_IsEqual(Manager, S("pkg_add"), false);
+
+        StringList PackageList = String_SplitIntoList(Ctx->Scratch, Packages, ' ', true);
+        for each_string_in_list (PackageList)
+        {
+            if (QueryCmd.Length > 0)
+            {
+                String_Append(&QueryCmd, S(" && "));
+            }
+
+            String_Append(&QueryCmd, bFreeBSDQuery ? S("pkg info -e \"") : S("pkg_info -e \""));
+            String_Append(&QueryCmd, It.String);
+            String_Append(&QueryCmd, bOpenBSDQuery ? S("-*\" >/dev/null 2>&1") : S("\" >/dev/null 2>&1"));
+        }
+    }
+    else if (String_IsEqual(Manager, S("brew"), false))
+    {
+        // brew list checks one formula at a time - chain one query per package
+        StringList PackageList = String_SplitIntoList(Ctx->Scratch, Packages, ' ', true);
+        for each_string_in_list (PackageList)
+        {
+            if (QueryCmd.Length > 0)
+            {
+                String_Append(&QueryCmd, S(" && "));
+            }
+
+            String_Append(&QueryCmd, S("brew list --versions \""));
+            String_Append(&QueryCmd, It.String);
+            String_Append(&QueryCmd, S("\" >/dev/null 2>&1"));
+        }
+    }
+    else // dnf, yum and zypper all query through rpm
+    {
+        String_Concat(&QueryCmd, S("rpm -q "), Packages, S(" >/dev/null 2>&1"));
+    }
+
+    // winget ran its queries above and left QueryCmd empty
+    if (QueryCmd.Length > 0)
+    {
+        if (bVerboseLog) { LOG("    %S", QueryCmd); }
+
+        PlatformHandle H = Platform_RunCommand(QueryCmd, Ctx->WorkingDirectory, String_Null());
+        if (Platform_IsValidHandle(H))
+        {
+            bAllInstalled = Platform_WaitForProcessAndGetExitCode(H) == 0;
+        }
+    }
+
+    return bAllInstalled;
+}
+
+static void Internal_BuildPackageInstallCmdLine(const BuildCmdContext* Ctx, const String Manager, const String Packages, const String MissingPackages, String* OutCmdLine)
+{
+    // installs need root; outside root shells (docker, CI) that means sudo or
+    // doas, which may prompt for a password on the terminal. Two exceptions:
+    // winget elevates itself (UAC) when a package needs it, and brew refuses
+    // to run as root at all
+    if (!String_IsEqual(Manager, S("winget"), false) &&
+        !String_IsEqual(Manager, S("brew"), false))
+    {
+        const String RootPrefix = Platform_GetRootCmdPrefix();
+        if (RootPrefix.Length > 0)
+        {
+            String_Append(OutCmdLine, RootPrefix);
+        }
+    }
+
+    if (String_IsEqual(Manager, S("winget"), false))
+    {
+        // winget installs one package per invocation - chain them through
+        // cmd.exe, and only the missing ones (see the query pass above)
+        StringList PackageList = String_SplitIntoList(Ctx->Scratch, MissingPackages, ' ', true);
+
+        String_Append(OutCmdLine, S("cmd.exe /c \""));
+
+        bool bFirstPackage = true;
+        for each_string_in_list (PackageList)
+        {
+            if (!bFirstPackage)
+            {
+                String_Append(OutCmdLine, S(" && "));
+            }
+
+            // pinned to the winget community source: deterministic, and a broken
+            // or unreachable msstore source can't turn the install ambiguous
+            String_Append(OutCmdLine, S("winget install -e "));
+            String_Append(OutCmdLine, It.String);
+            String_Append(OutCmdLine, S(" -s winget --accept-source-agreements --accept-package-agreements --silent"));
+
+            bFirstPackage = false;
+        }
+
+        String_AppendChar(OutCmdLine, '"');
+    }
+    else
+    {
+        if (String_IsEqual(Manager, S("apt"), false))
+        {
+            String_Append(OutCmdLine, S("apt-get install -y "));
+        }
+        else if (String_IsEqual(Manager, S("dnf"), false))
+        {
+            String_Append(OutCmdLine, S("dnf install -y "));
+        }
+        else if (String_IsEqual(Manager, S("yum"), false))
+        {
+            String_Append(OutCmdLine, S("yum install -y "));
+        }
+        else if (String_IsEqual(Manager, S("zypper"), false))
+        {
+            String_Append(OutCmdLine, S("zypper --non-interactive install "));
+        }
+        else if (String_IsEqual(Manager, S("pacman"), false))
+        {
+            // --needed skips reinstalling up-to-date packages
+            String_Append(OutCmdLine, S("pacman -S --needed --noconfirm "));
+        }
+        else if (String_IsEqual(Manager, S("pkg"), false))
+        {
+            String_Append(OutCmdLine, S("pkg install -y "));
+        }
+        else if (String_IsEqual(Manager, S("pkgin"), false))
+        {
+            String_Append(OutCmdLine, S("pkgin -y install "));
+        }
+        else if (String_IsEqual(Manager, S("brew"), false))
+        {
+            // installing already-present formulae is a warning, not an error, so
+            // the batch is safe; skipping brew's auto-update keeps it predictable
+            String_Append(OutCmdLine, S("HOMEBREW_NO_AUTO_UPDATE=1 brew install "));
+        }
+        else // pkg_add (OpenBSD): -I forces non-interactive mode
+        {
+            String_Append(OutCmdLine, S("pkg_add -I "));
+        }
+
+        String_Append(OutCmdLine, Packages);
+    }
+}
+
+static bool Internal_ExecuteCmd_InstallPackage(const BuildCmdContext* Ctx)
+{
+    bool bSuccess = true;
+
+    const String Packages = Ctx->Value;
+    const String Manager  = Platform_DetectPackageManager();
+
+    if (Manager.Length == 0)
+    {
+        LOG_ERROR("InstallPackage is not supported on this system: no package manager was found (looked for winget on Windows; apt-get, dnf, yum, zypper and pacman on Linux; brew on macOS; pkg, pkg_add or pkgin on the BSDs)");
+
+        if (Ctx->ExitCode) { *Ctx->ExitCode = 1; }
+
+        if (!Ctx->bIgnoreErrors)
+        {
+            bSuccess = false;
+        }
+    }
+    else
+    {
+        LOG(" > InstallPackage (%S): %S", Manager, Packages);
+
+        StringLocal(MissingPackages, 2048);
+        if (Internal_AreAllPackagesInstalled(Ctx, Manager, Packages, &MissingPackages))
+        {
+            LOG("    All packages already installed. Skipping...\n");
+
+            if (Ctx->ExitCode) { *Ctx->ExitCode = 0; }
+        }
+        else
+        {
+            StringLocal(CmdLine, 8192);
+            Internal_BuildPackageInstallCmdLine(Ctx, Manager, Packages, MissingPackages, &CmdLine);
+
+            bSuccess = Internal_RunShellCmdAndReportExit(CmdLine, Ctx);
+        }
+    }
+
+    return bSuccess;
+}
+
+// Dispatches one "<Phase>.<Verb>" build command to the function that runs that verb. The
+// suffix tests are ordered, so a longer verb name must be tested before a shorter one that
+// it ends with.
 static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const FileVariable Var, u32* ExitCode)
 {
     bool bSuccess = true;
 
-    const String Params  = Var.Params;
-    const String Name    = Var.Name;
-    const String Value   = Var.Value;
-    const String Content = Var.Content;
+    const String Name = Var.Name;
 
-    if (ALWAYS(String_IsValid(Name)) && ALWAYS(String_IsValid(Value)))
+    if (ALWAYS(String_IsValid(Name)) && ALWAYS(String_IsValid(Var.Value)))
     {
         LinearAllocator Scratch = Memory_GetScratch();
-        StringList ParamList    = String_SplitIntoList(&Scratch, Params, ' ', true);
 
-        bool bIgnoreErrors  = false;
-        bool bParam_NotExist = false;
-        for each_string_in_list (ParamList)
-        {
-            if (String_IsEqual(It.String, S("ignore_exit_code"), false) ||
-                String_IsEqual(It.String, S("ignore_error"), false) ||
-                String_IsEqual(It.String, S("ignore_errors"), false))
-            {
-                bIgnoreErrors = true;
-            }
-            else if (String_IsEqual(It.String, S("if_not_exist"), false))
-            {
-                bParam_NotExist = true;
-            }
-        }
+        BuildCmdContext Ctx  = {0};
+        Ctx.Scratch          = &Scratch;
+        Ctx.ExitCode         = ExitCode;
+        Ctx.WorkingDirectory = WorkingDirectory;
+        Ctx.Value            = Var.Value;
+        Ctx.Content          = Var.Content;
+        Internal_ParseCmdParams(&Scratch, Var.Params, &Ctx);
 
         if (String_EndsWith(Name, S("Cmd"), false) ||
             String_EndsWith(Name, S("Exec"), false) ||
             String_EndsWith(Name, S("Command"), false) ||
             String_EndsWith(Name, S("Execute"), false))
         {
-            const String Cmd = Value;
-
-            StringLocal(CmdLine, 8192);
-
-            #if PLATFORM_WINDOWS
-            String_Append(&CmdLine, S("cmd.exe /c \""));
-            String_Append(&CmdLine, Cmd);
-            String_AppendChar(&CmdLine, '"');
-            #else
-            String_Append(&CmdLine, Cmd);
-            #endif
-
-            #ifndef HOOD
-            LOG(" > %S", Cmd);
-            #else
-            LOG("da cmd: %S", Cmd);
-            #endif
-
-            bool bNoWait = false;
-            for each_string_in_list (ParamList)
-            {
-                if (String_IsEqual(It.String, S("no_wait"), false))
-                {
-                    bNoWait = true;
-                    break;
-                }
-            }
-
-            PlatformHandle Handle = Platform_RunCommand(CmdLine, WorkingDirectory, String_Null());
-            u32 ProcessCode = 1;
-            if (Platform_IsValidHandle(Handle))
-            {
-                if (bNoWait)
-                {
-                    // nothing to wait on: a successful launch is the whole result
-                    ProcessCode = 0;
-                }
-                else
-                {
-                    ProcessCode = Platform_WaitForProcessAndGetExitCode(Handle);
-                }
-            }
-
-            if (ExitCode) { *ExitCode = ProcessCode; }
-
-            if (ProcessCode != 0 && !bIgnoreErrors)
-            {
-                bSuccess = false;
-            }
+            bSuccess = Internal_ExecuteCmd_Run(&Ctx);
         }
         else if (String_EndsWith(Name, S("Copy"), false))
         {
-            const String Cmd = Value;
-
-            StringList ArgList          = String_SplitIntoList(&Scratch, Value, ' ', true);
-            String SourceFile           = StringList_GetStringFromIndex(ArgList, 0);
-            String DestinationDirectory = StringList_GetStringFromIndex(ArgList, 1);
-
-            if (String_ContainsChars(DestinationDirectory, S("*?")))
-            {
-                LOG(" > Copy: %S", Cmd);
-                LOG("\n    Wildcards are only allowed in the source of a .Copy operation, not its destination.\n");
-
-                if (ExitCode) { *ExitCode = 1; }
-                bSuccess = false;
-            }
-            else if (String_ContainsChars(SourceFile, S("*?")))
-            {
-                bSuccess = Internal_ExecuteWildcardCopyOrMove(&Scratch, WorkingDirectory, Cmd, SourceFile, DestinationDirectory, false, bParam_NotExist, bIgnoreErrors, ExitCode);
-            }
-            else
-            {
-                StringLocal(FullSourcePath, MAX_PATH_LENGTH);
-                if (Filesystem_IsPathRelative(SourceFile))
-                {
-                    String_BuildPath(&FullSourcePath, WorkingDirectory, SourceFile);
-                }
-                else
-                {
-                    String_BuildPath(&FullSourcePath, SourceFile);
-                }
-
-                xx Filesystem_ConvertRelativeToAbsolutePath(&FullSourcePath);
-
-                StringLocal(FullDestPath, MAX_PATH_LENGTH);
-                String_BuildPath(&FullDestPath, WorkingDirectory, DestinationDirectory);
-
-                if (String_IsLast(DestinationDirectory, '/') ||
-                    String_IsLast(DestinationDirectory, '\\'))
-                {
-                    u32 LastSlash = 0;
-                    xx String_IndexOfLastPathSlash(SourceFile, &LastSlash);
-                    String_BuildPath(&FullDestPath, StrShiftF(SourceFile, LastSlash == 0 ? 0 : LastSlash+1));
-                }
-
-                xx Filesystem_ConvertRelativeToAbsolutePath(&FullDestPath);
-
-                // never-valid operations that no parameter can opt back into: copying a whole
-                // filesystem root, or copying a directory into a destination inside itself
-                // (the copy would keep descending into its own output forever)
-                bool bGuardRefused = false;
-                if (Filesystem_IsRootPath(FullSourcePath))
-                {
-                    LOG(" > Copy: %S", Cmd);
-                    LOG("\n    Refusing to copy a filesystem root.\n");
-
-                    if (ExitCode) { *ExitCode = 1; }
-                    bSuccess = false;
-                    bGuardRefused = true;
-                }
-                else if (Filesystem_IsDirectory(FullSourcePath) && Filesystem_IsPathInside(FullSourcePath, FullDestPath))
-                {
-                    LOG(" > Copy: %S", Cmd);
-                    LOG(
-                    "\n    Refusing to copy \"%S\" into itself - the destination is inside the\n"
-                    "    source directory, so the copy would recurse forever.\n",
-                    SourceFile);
-
-                    if (ExitCode) { *ExitCode = 1; }
-                    bSuccess = false;
-                    bGuardRefused = true;
-                }
-
-                // only copy if dest does not exist
-                bool bDestExist = false;
-                if (!bGuardRefused && bParam_NotExist)
-                {
-                    u32 LastDot = 0;
-                    xx String_IndexOfLastChar(FullDestPath, '.', &LastDot);
-
-                    bool bHasExtension = false;
-                    bool bHasPathSeparator = String_IndexOfFirstPathSlash(StrShiftF(FullDestPath, LastDot), NULL);
-                    if (!bHasPathSeparator)
-                    {
-                        bHasExtension = true;
-                    }
-
-                    if (bHasExtension)
-                    {
-                        if (Filesystem_DoesFileExist(FullDestPath))
-                        {
-                            LOG("[Skipping] Copy: %S", Cmd);
-                            bDestExist = true;
-                        }
-                    }
-                    else
-                    {
-                        if (Filesystem_DoesDirectoryExist(FullDestPath))
-                        {
-                            LOG("[Skipping] Copy: %S", Cmd);
-                            bDestExist = true;
-                        }
-                    }
-                }
-
-                bool bContinueWithCopy = !bGuardRefused && !bDestExist;
-                if (bContinueWithCopy)
-                {
-                    LOG(" > Copy: %S", Cmd);
-
-                    if (!Filesystem_Copy(FullSourcePath, FullDestPath) && !bIgnoreErrors)
-                    {
-                        LOG("\n    You can ignore this error by using .Copy(ignore_error)\n");
-
-                        if (ExitCode) { *ExitCode = 1; }
-                        bSuccess = false;
-                    }
-                }
-            }
+            bSuccess = Internal_ExecuteCmd_Copy(&Ctx);
         }
         else if (String_EndsWith(Name, S("Wait"), false) ||
                 String_EndsWith(Name, S("Sleep"), false))
         {
-            u32 Milliseconds = 0;
-            xx String_ToU32(Value, &Milliseconds);
-
-            LOG(" > Sleeping for %ums ...", Milliseconds);
-
-            Platform_Sleep(Milliseconds);
+            Internal_ExecuteCmd_Wait(Ctx.Value);
         }
         else if (String_EndsWith(Name, S("Move"), false) ||
                 String_EndsWith(Name, S("Rename"), false))
         {
-            const String Cmd = Value;
-
-            StringList ArgList          = String_SplitIntoList(&Scratch, Value, ' ', true);
-            String SourceFile           = StringList_GetStringFromIndex(ArgList, 0);
-            String DestinationDirectory = StringList_GetStringFromIndex(ArgList, 1);
-
-            bool bIsRename = String_EndsWith(Name, S("Rename"), false);
-            const String VerbName = bIsRename ? S("Rename") : S("Move");
-
-            bool bSourceWildcard = String_ContainsChars(SourceFile, S("*?"));
-            bool bDestWildcard   = String_ContainsChars(DestinationDirectory, S("*?"));
-
-            if (bDestWildcard || (bIsRename && bSourceWildcard))
-            {
-                LOG(" > %S: %S", VerbName, Cmd);
-
-                if (bIsRename && bSourceWildcard)
-                {
-                    LOG(
-                    "\n    Rename does not support wildcards since every match would collide on\n"
-                    "    the same destination name. Use .Move to move files into a directory.\n");
-                }
-                else
-                {
-                    LOG("\n    Wildcards are only allowed in the source of a .%S operation, not its destination.\n", VerbName);
-                }
-
-                if (ExitCode) { *ExitCode = 1; }
-                bSuccess = false;
-            }
-            else if (bSourceWildcard)
-            {
-                bSuccess = Internal_ExecuteWildcardCopyOrMove(&Scratch, WorkingDirectory, Cmd, SourceFile, DestinationDirectory, true, bParam_NotExist, bIgnoreErrors, ExitCode);
-            }
-            else
-            {
-                LOG(" > %S: %S", VerbName, Cmd);
-
-                // only move if dest does not exist
-                bool bDestExist = false;
-                if (bParam_NotExist)
-                {
-                    u32 LastSlash = 0;
-                    bool bHasSlash = String_IndexOfLastPathSlash(SourceFile, &LastSlash);
-
-                    bool bCanWe = true;
-
-                    StringLocal(FullPath, MAX_PATH_LENGTH);
-                    if (Filesystem_IsPathRelative(SourceFile))
-                    {
-                        String_BuildPath(&FullPath, WorkingDirectory, bHasSlash ? StrSlice(SourceFile.Data, LastSlash) : SourceFile);
-                    }
-                    else
-                    {
-                        String_BuildPath(&FullPath, SourceFile);
-                    }
-
-                    if (!Filesystem_DoesDirectoryExist(FullPath))
-                    {
-                        bCanWe = false;
-                    }
-
-                    if (bCanWe)
-                    {
-                        String_Empty(&FullPath);
-                        if (Filesystem_IsPathRelative(SourceFile))
-                        {
-                            String_BuildPath(&FullPath, WorkingDirectory, SourceFile);
-                        }
-                        else
-                        {
-                            String_BuildPath(&FullPath, SourceFile);
-                        }
-
-                        if (!Filesystem_DoesFileExist(FullPath))
-                        {
-                            bCanWe = false;
-                        }
-                    }
-
-                    if (bCanWe)
-                    {
-                        String_Empty(&FullPath);
-                        String FileName = StrShiftF(SourceFile, LastSlash == 0 ? 0 : LastSlash+1);
-                        String_BuildPath(&FullPath, WorkingDirectory, DestinationDirectory, FileName);
-
-                        u32 LastDot = 0;
-                        bool bHasDot = String_IndexOfLastChar(SourceFile, '.', &LastDot);
-
-                        bool bHasExtension = false;
-                        bool bHasPathSeparator = String_IndexOfFirstPathSlash(StrShiftF(SourceFile, LastDot), NULL);
-                        if (bHasDot && !bHasPathSeparator)
-                        {
-                            bHasExtension = true;
-                        }
-
-                        if (bHasExtension)
-                        {
-                            if (Filesystem_DoesFileExist(FullPath))
-                            {
-                                bDestExist = true;
-                            }
-                        }
-                        else
-                        {
-                            if (Filesystem_DoesDirectoryExist(FullPath))
-                            {
-                                bDestExist = true;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        bDestExist = true; // skip the move/rename if the given source file does not exist
-                    }
-                }
-
-                bool bContinueWithMove = !bDestExist;
-                if (bContinueWithMove)
-                {
-                    StringLocal(FullSourcePath, MAX_PATH_LENGTH);
-                    String_BuildPath(&FullSourcePath, WorkingDirectory, SourceFile);
-
-                    StringLocal(FullDestPath, MAX_PATH_LENGTH);
-                    String_BuildPath(&FullDestPath, WorkingDirectory, DestinationDirectory);
-
-                    // resolved copies (".." folded away) for the safety checks only, so the
-                    // arguments handed to Filesystem_Move stay exactly as before
-                    StringLocal(ResolvedSource, MAX_PATH_LENGTH);
-                    String_Copy(&ResolvedSource, FullSourcePath);
-                    xx Filesystem_ConvertRelativeToAbsolutePath(&ResolvedSource);
-
-                    StringLocal(ResolvedDest, MAX_PATH_LENGTH);
-                    String_Copy(&ResolvedDest, FullDestPath);
-                    xx Filesystem_ConvertRelativeToAbsolutePath(&ResolvedDest);
-
-                    if (Filesystem_IsRootPath(ResolvedSource))
-                    {
-                        LOG("\n    Refusing to %S a filesystem root.\n", bIsRename ? S("rename") : S("move"));
-
-                        if (ExitCode) { *ExitCode = 1; }
-                        bSuccess = false;
-                    }
-                    else if (Filesystem_IsDirectory(ResolvedSource) && Filesystem_IsPathInside(ResolvedSource, ResolvedDest))
-                    {
-                        LOG(
-                        "\n    Refusing to %S \"%S\" into itself - the destination is inside the\n"
-                        "    source directory.\n",
-                        bIsRename ? S("rename") : S("move"), SourceFile);
-
-                        if (ExitCode) { *ExitCode = 1; }
-                        bSuccess = false;
-                    }
-                    else
-                    {
-                        if (bIgnoreErrors) { Logging_Disable(); }
-                        bool bResult = Filesystem_Move(FullSourcePath, FullDestPath, bIsRename);
-                        if (bIgnoreErrors) { Logging_Enable(); }
-
-                        if (!bResult && !bIgnoreErrors)
-                        {
-                            LOG("\n    You can ignore this error by using %S instead\n",
-                            bIsRename ? S(".Rename(ignore_error)") : S(".Move(ignore_error)"));
-
-                            if (ExitCode) { *ExitCode = 1; }
-                            bSuccess = false;
-                        }
-                    }
-                }
-            }
+            const bool bIsRename = String_EndsWith(Name, S("Rename"), false);
+            bSuccess = Internal_ExecuteCmd_Move(&Ctx, bIsRename);
         }
         else if (String_EndsWith(Name, S("Delete"), false))
         {
-            const String Cmd = Value;
-
-            LOG(" > Delete: %S", Cmd);
-
-            if (String_IsEqual(Cmd, S("*"), false) ||
-                String_IsEqual(Cmd, S("."), false) ||
-                String_IsEqual(Cmd, S(".."), false) ||
-                String_IsEqual(Cmd, S("/"), false))
-            {
-                bSuccess = false;
-            }
-
-            if (bSuccess && String_ContainsChars(Cmd, S("*?")))
-            {
-                bSuccess = Internal_ExecuteWildcardDelete(&Scratch, WorkingDirectory, Cmd, bIgnoreErrors, ExitCode);
-            }
-            else if (bSuccess)
-            {
-                u32 LastDot = 0;
-                bool bHasDot = String_IndexOfLastChar(Cmd, '.', &LastDot);
-
-                bool bHasExtension = false;
-                bool bHasPathSeparator = String_IndexOfFirstPathSlash(StrShiftF(Cmd, LastDot), NULL);
-                if (bHasDot && !bHasPathSeparator)
-                {
-                    bHasExtension = true;
-                }
-
-                StringLocal(FullFilePath, MAX_PATH_LENGTH);
-                String_BuildPath(&FullFilePath, WorkingDirectory, Cmd);
-
-                if (bIgnoreErrors) { Logging_Disable(); }
-                bool bResult = false;
-                if (bHasExtension)
-                {
-                    if (Filesystem_DoesFileExist(FullFilePath))
-                    {
-                        bResult = Filesystem_DeleteFile(FullFilePath);
-                    }
-                    else
-                    {
-                        bResult = true;
-                    }
-                }
-                else
-                {
-                    if (Filesystem_DoesDirectoryExist(FullFilePath))
-                    {
-                        bResult = Filesystem_DeleteDirectory(FullFilePath);
-                    }
-                    else
-                    {
-                        bResult = true;
-                    }
-                }
-                if (bIgnoreErrors) { Logging_Enable(); }
-
-                if (!bResult && !bIgnoreErrors)
-                {
-                    if (ExitCode) { *ExitCode = 1; }
-                    bSuccess = false;
-                }
-            }
+            bSuccess = Internal_ExecuteCmd_Delete(&Ctx);
         }
         else if (String_EndsWith(Name, S("NewFile"), false))
         {
-            const String Cmd = Value;
-
-            LOG(" > New File: %S", Cmd);
-
-            StringLocal(FullFilePath, MAX_PATH_LENGTH);
-            String_BuildPath(&FullFilePath, WorkingDirectory, Cmd);
-
-            if (bIgnoreErrors) { Logging_Disable(); }
-            bool bResult = Filesystem_NewFile(FullFilePath);
-            if (bIgnoreErrors) { Logging_Enable(); }
-
-            if (!bResult && !bIgnoreErrors)
-            {
-                if (ExitCode) { *ExitCode = 1; }
-                bSuccess = false;
-            }
+            bSuccess = Internal_ExecuteCmd_NewFile(&Ctx);
         }
         else if (String_EndsWith(Name, S("NewDirectory"), false) ||
                 String_EndsWith(Name, S("NewDir"), false))
         {
-            const String Cmd = Value;
-
-            LOG(" > New Directory: %S", Cmd);
-
-            StringLocal(FullDirPath, MAX_PATH_LENGTH);
-            String_BuildPath(&FullDirPath, WorkingDirectory, Cmd);
-
-            if (bIgnoreErrors) { Logging_Disable(); }
-            bool bResult = Filesystem_OpenDirectory(FullDirPath);
-            if (bIgnoreErrors) { Logging_Enable(); }
-
-            if (!bResult && !bIgnoreErrors)
-            {
-                if (ExitCode) { *ExitCode = 1; }
-                bSuccess = false;
-            }
+            bSuccess = Internal_ExecuteCmd_NewDirectory(&Ctx);
         }
         else if (String_EndsWith(Name, S("Log"), false))
         {
-            if (Value.Length == 0)
-            {
-                LOG_LINE_BREAK();
-            }
-            else
-            {
-                LOG(" %S\n", Value);
-            }
+            Internal_ExecuteCmd_Log(Ctx.Value);
         }
         else if (String_EndsWith(Name, S("WriteFile"), false) ||
                 String_EndsWith(Name, S("AppendFile"), false))
         {
             const bool bAppend = String_EndsWith(Name, S("AppendFile"), false);
-
-            String Path = Value;
-            String Body = String_Null();
-
-            if (Content.Length > 0)
-            {
-                Path = Value;
-                Body = Content;
-            }
-            else
-            {
-                u32 SpaceIndex = 0;
-                if (String_IndexOfChar(Value, ' ', &SpaceIndex))
-                {
-                    Path = StrSlice(Value.Data, SpaceIndex);
-                    Body = StrShiftF(Value, SpaceIndex + 1);
-
-                    // strip a single pair of surrounding double-quotes from the body
-                    if (Body.Length >= 2 && Body.Data[0] == '"' && Body.Data[Body.Length - 1] == '"')
-                    {
-                        Body = StrSlice(Body.Data + 1, Body.Length - 2);
-                    }
-                }
-            }
-
-            StringLocal(FullFilePath, MAX_PATH_LENGTH);
-            String_BuildPath(&FullFilePath, WorkingDirectory, Path);
-
-            bool bSkip = false;
-            if (bParam_NotExist && Filesystem_DoesFileExist(FullFilePath))
-            {
-                LOG("[Skipping] %S: %S", bAppend ? S("AppendFile") : S("WriteFile"), Path);
-                bSkip = true;
-            }
-
-            if (!bSkip)
-            {
-                LOG(" > %S: %S", bAppend ? S("AppendFile") : S("WriteFile"), Path);
-
-                u32 LastSlash = 0;
-                if (String_IndexOfLastPathSlash(FullFilePath, &LastSlash))
-                {
-                    xx Filesystem_OpenDirectory(StrSlice(FullFilePath.Data, LastSlash));
-                }
-
-                if (bIgnoreErrors) { Logging_Disable(); }
-
-                FileHandle Handle = {0};
-                bool bResult = false;
-                EFileMode FileMode = bAppend ? FileMode_Read | FileMode_Write : FileMode_Write;
-                bResult = Filesystem_Open(FullFilePath, FileMode, &Handle);
-                
-                if (bResult)
-                {
-                    if (bAppend)
-                    {
-                        Filesystem_WriteLine(Handle, S("\n"), NULL);
-                        bResult = Filesystem_WriteLine(Handle, Body, NULL);
-                    }
-                    else
-                    {
-                        bResult = Filesystem_Write(Handle, Body.Length, Body.Data, NULL);
-                    }
-
-                    Filesystem_Close(&Handle);
-                }
-
-                if (bIgnoreErrors) { Logging_Enable(); }
-
-                if (!bResult && !bIgnoreErrors)
-                {
-                    LOG(
-                    "\n    You can ignore this error by using %S\n",
-                    bAppend ? S(".AppendFile(ignore_error)") : S(".WriteFile(ignore_error)"));
-
-                    if (ExitCode) { *ExitCode = 1; }
-                    bSuccess = false;
-                }
-            }
+            bSuccess = Internal_ExecuteCmd_WriteFile(&Ctx, bAppend);
         }
         else if (String_EndsWith(Name, S("Download"), false))
         {
-            StringList ArgList = String_SplitIntoList(&Scratch, Value, ' ', true);
-            String URL         = StringList_GetStringFromIndex(ArgList, 0);
-            String Destination = StringList_GetStringFromIndex(ArgList, 1);
-
-            // TODO:     PreBuild.Download https://github.com/glfw/glfw/releases/download/3.4/glfw-3.4.zip glfw.zip
-            // make it so that we dont have to specify .zip. if we want directory, a slash will be necessary.
-            // like this: ./deps or whatever/deps
-
-
-            StringLocal(FinalDestinationPath, MAX_PATH_LENGTH);
-            String_BuildPath(&FinalDestinationPath, WorkingDirectory, Destination);
-
-            if (!Filesystem_DoesPathHaveFileExtension(Destination))
-            {
-                if (Filesystem_OpenDirectory(FinalDestinationPath))
-                {
-                    const String FileName = Filesystem_ExtractFileName(URL, true);
-                    String_BuildPath(&FinalDestinationPath, FileName);
-                }
-                else
-                {
-                    bSuccess = false;
-                }
-            }
-
-            if (bSuccess)
-            {
-                LOG(" > Download: %S\n -> Destination: %S", URL, FinalDestinationPath);
-
-                if (Filesystem_DoesFileExist(FinalDestinationPath))
-                {
-                    LOG("    File already exists. Skipping download...\n");
-                }
-                else
-                {
-                    StringLocal(CmdLine, 8192);
-                    StringLocal(ProgramPath, MAX_PATH_LENGTH);
-
-                    #if PLATFORM_WINDOWS
-                    if (Platform_FindProgram_Ex(S("powershell"), &ProgramPath))
-                    {
-                        String_Concat(&CmdLine, S("powershell -Command \"(New-Object Net.WebClient).DownloadFile('"), URL, S("', '"), FinalDestinationPath, S("')\""));
-                    }
-                    else
-                    {
-                        LOG_ERROR("powershell was not found on this system");
-                        bSuccess = false;
-                    }
-                    #else
-                    if (Platform_FindProgram_Ex(S("curl"), &ProgramPath))
-                    {
-                        String_Concat(&CmdLine, S("curl -fsSL -o \""), FinalDestinationPath, S("\" \""), URL, S("\""));
-                    }
-                    else if (Platform_FindProgram_Ex(S("wget"), &ProgramPath))
-                    {
-                        String_Concat(&CmdLine, S("wget -q -O \""), FinalDestinationPath, S("\" \""), URL, S("\""));
-                    }
-                    #if PLATFORM_BSD
-                    // the BSD base systems ship neither curl nor wget: FreeBSD has fetch, and the
-                    // OpenBSD/NetBSD ftp speaks HTTP(S) - unlike the Linux ftp, which only does FTP
-                    else if (Platform_FindProgram_Ex(S("fetch"), &ProgramPath))
-                    {
-                        String_Concat(&CmdLine, S("fetch -q -o \""), FinalDestinationPath, S("\" \""), URL, S("\""));
-                    }
-                    else if (Platform_FindProgram_Ex(S("ftp"), &ProgramPath))
-                    {
-                        String_Concat(&CmdLine, S("ftp -V -o \""), FinalDestinationPath, S("\" \""), URL, S("\""));
-                    }
-                    #endif
-                    else
-                    {
-                        LOG_ERROR("No download tool was found on this system. Please install curl or wget");
-                        bSuccess = false;
-                    }
-                    #endif
-
-                    if (bSuccess)
-                    {
-                        if (bVerboseLog) { LOG("    %S", CmdLine); }
-
-                        PlatformHandle H = Platform_RunProcess(ProgramPath, CmdLine, WorkingDirectory, String_Null());
-                        bSuccess = Platform_IsValidHandle(H);
-                        if (bSuccess)
-                        {
-                            u32 ProcessCode = Platform_WaitForProcessAndGetExitCode(H);
-                            if (ExitCode) { *ExitCode = ProcessCode; }
-
-                            // wget and curl can leave an empty or partial file behind when the download
-                            // fails, which the exists-check above would then mistake for a completed
-                            // download on the next run
-                            if (ProcessCode != 0 && Filesystem_DoesFileExist(FinalDestinationPath))
-                            {
-                                xx Filesystem_DeleteFile(FinalDestinationPath);
-                            }
-
-                            if (ProcessCode != 0 && !bIgnoreErrors)
-                            {
-                                bSuccess = false;
-                            }
-                            else
-                            {
-                                LOG_LINE_BREAK();
-                            }
-                        }
-                    }
-                }
-            }
+            bSuccess = Internal_ExecuteCmd_Download(&Ctx);
         }
         else if (String_EndsWith(Name, S(".Unzip"), false) ||
                 String_EndsWith(Name, S(".Extract"), false))
         {
-            StringList ArgList = String_SplitIntoList(&Scratch, Value, ' ', true);
-            String ZipFilePath = StringList_GetStringFromIndex(ArgList, 0);
-            String Destination = StringList_GetStringFromIndex(ArgList, 1);
-
-            if (!Filesystem_DoesFileExist(ZipFilePath))
-            {
-                LOG_ERROR("Zip file \"%S\" does not exist", ZipFilePath);
-                bSuccess = false;
-            }
-
-            StringLocal(FinalDestinationPath, MAX_PATH_LENGTH);
-            String_BuildPath(&FinalDestinationPath, WorkingDirectory, Destination);
-
-            if (!Filesystem_OpenDirectory(FinalDestinationPath))
-            {
-                bSuccess = false;
-            }
-
-            if (bSuccess)
-            {
-                StringLocal(CmdLine, 8192);
-                StringLocal(ProgramPath, MAX_PATH_LENGTH);
-
-                LOG(" > Unzip: %S\n -> Destination: %S", ZipFilePath, FinalDestinationPath);
-
-                // tar archives cannot go through Expand-Archive or unzip: route them to tar,
-                // which takes the same command line on every supported platform - Windows 10+
-                // ships bsdtar as tar.exe, every unix has one in the base system - and every
-                // one of them detects the compression (.gz, .bz2, .xz) on its own when reading
-                const bool bIsTarArchive = String_EndsWith(ZipFilePath, S(".tar"), false)     ||
-                                           String_EndsWith(ZipFilePath, S(".tar.gz"), false)  ||
-                                           String_EndsWith(ZipFilePath, S(".tgz"), false)     ||
-                                           String_EndsWith(ZipFilePath, S(".tar.bz2"), false) ||
-                                           String_EndsWith(ZipFilePath, S(".tar.xz"), false)  ||
-                                           String_EndsWith(ZipFilePath, S(".txz"), false);
-
-                if (bIsTarArchive)
-                {
-                    if (Platform_FindProgram_Ex(S("tar"), &ProgramPath))
-                    {
-                        String_Concat(&CmdLine, S("tar -xf \""), ZipFilePath, S("\" -C \""), FinalDestinationPath, S("\""));
-                    }
-                    else
-                    {
-                        LOG_ERROR("No tar tool was found on this system. Please install tar");
-                        bSuccess = false;
-                    }
-                }
-                else
-                {
-                    #if PLATFORM_WINDOWS
-                    if (Platform_FindProgram_Ex(S("powershell"), &ProgramPath))
-                    {
-                        String_Concat(&CmdLine, S("powershell -Command \"Expand-Archive -Force -Path \"\"\""), ZipFilePath, S("\"\"\" -DestinationPath \"\""), FinalDestinationPath, S("\"\"\""));
-                    }
-                    else
-                    {
-                        LOG_ERROR("powershell was not found on this system");
-                        bSuccess = false;
-                    }
-                    #else
-                    if (Platform_FindProgram_Ex(S("unzip"), &ProgramPath))
-                    {
-                        String_Concat(&CmdLine, S("unzip -oq \""), ZipFilePath, S("\" -d \""), FinalDestinationPath, S("\""));
-                    }
-                    // bsdtar extracts zip archives natively - it is the base system tar on FreeBSD
-                    // and macOS, and the libarchive-tools package on Linux
-                    else if (Platform_FindProgram_Ex(S("bsdtar"), &ProgramPath))
-                    {
-                        String_Concat(&CmdLine, S("bsdtar -xf \""), ZipFilePath, S("\" -C \""), FinalDestinationPath, S("\""));
-                    }
-                    else
-                    {
-                        LOG_ERROR("No unzip tool was found on this system. Please install unzip");
-                        bSuccess = false;
-                    }
-                    #endif
-                }
-
-                if (bSuccess)
-                {
-                    if (bVerboseLog) { LOG("    %S", CmdLine); }
-
-                    PlatformHandle H = Platform_RunProcess(ProgramPath, CmdLine, WorkingDirectory, String_Null());
-                    bSuccess = Platform_IsValidHandle(H);
-                    if (bSuccess)
-                    {
-                        u32 ProcessCode = Platform_WaitForProcessAndGetExitCode(H);
-                        if (ExitCode) { *ExitCode = ProcessCode; }
-
-                        if (ProcessCode != 0 && !bIgnoreErrors)
-                        {
-                            bSuccess = false;
-                        }
-                        else
-                        {
-                            LOG_LINE_BREAK();
-                        }
-                    }
-                }
-            }
+            bSuccess = Internal_ExecuteCmd_Unzip(&Ctx);
         }
         else if (String_EndsWith(Name, S(".Zip"), false) ||
                 String_EndsWith(Name, S(".Archive"), false))
         {
-            StringList ArgList = String_SplitIntoList(&Scratch, Value, ' ', true);
-            String FilePath    = StringList_GetStringFromIndex(ArgList, 0);
-            String Destination = StringList_GetStringFromIndex(ArgList, 1);
-
-            xx String_EatPathSeparatorsInlineFromEnd(&FilePath);
-
-            if (!Filesystem_DoesFileExist(FilePath) &&
-                !Filesystem_DoesDirectoryExist(FilePath))
-            {
-                LOG_ERROR("File path \"%S\" does not exist", FilePath);
-                bSuccess = false;
-            }
-
-            StringLocal(FinalDestinationPath, MAX_PATH_LENGTH);
-            String_BuildPath(&FinalDestinationPath, WorkingDirectory, Destination);
-
-            if (bSuccess)
-            {
-                if (!String_EndsWith(Destination, S(".zip"), false))
-                {
-                    String FileName = FilePath;
-                    u32 LastSlash = 0;
-                    if (String_IndexOfLastPathSlash(FilePath, &LastSlash))
-                    {
-                        FileName = StrShiftF(FilePath, LastSlash+1);
-                    }
-
-                    String_BuildPath(&FinalDestinationPath, FileName);
-                    String_Append(&FinalDestinationPath, S(".zip"));
-                }
-
-                u32 LastSlash = 0;
-                if (String_IndexOfLastPathSlash(FinalDestinationPath, &LastSlash))
-                {
-                    if (!Filesystem_OpenDirectory(StrSlice(FinalDestinationPath.Data, LastSlash)))
-                    {
-                        bSuccess = false;
-                    }
-                }
-            }
-
-            if (bSuccess)
-            {
-                StringLocal(CmdLine, 8192);
-                StringLocal(ProgramPath, MAX_PATH_LENGTH);
-
-                // zipping a directory runs the tool from inside it so its contents sit at
-                // the archive root, matching the \* the Windows command line appends
-                StringLocal(ProcessWorkingDir, MAX_PATH_LENGTH);
-                String_Copy(&ProcessWorkingDir, WorkingDirectory);
-
-                LOG(" > Zip: %S\n -> Destination: %S", FilePath, FinalDestinationPath);
-
-                #if PLATFORM_WINDOWS
-                const bool bFilePathHasExtension = Filesystem_DoesPathHaveFileExtension(FilePath);
-                if (Platform_FindProgram_Ex(S("powershell"), &ProgramPath))
-                {
-                    String_Concat(&CmdLine, S("powershell -Command \"Compress-Archive -Force -Path \"\"\""), FilePath, bFilePathHasExtension ? String_Null() : S("\\*"),  S("\"\"\" -DestinationPath \"\""), FinalDestinationPath, S("\"\"\""));
-                }
-                else
-                {
-                    LOG_ERROR("powershell was not found on this system");
-                    bSuccess = false;
-                }
-                #else
-                const bool bFilePathHasExtension = Filesystem_DoesPathHaveFileExtension(FilePath);
-
-                if (Platform_FindProgram_Ex(S("zip"), &ProgramPath))
-                {
-                    if (bFilePathHasExtension)
-                    {
-                        // -j stores just the file name, like Compress-Archive does with a file path
-                        String_Concat(&CmdLine, S("zip -jq \""), FinalDestinationPath, S("\" \""), FilePath, S("\""));
-                    }
-                    else
-                    {
-                        String_BuildPath(&ProcessWorkingDir, FilePath);
-                        String_Concat(&CmdLine, S("zip -rq \""), FinalDestinationPath, S("\" ."));
-                    }
-                }
-                // bsdtar writes zip archives natively - it is the base system tar on FreeBSD
-                // and macOS, and the libarchive-tools package on Linux
-                else if (Platform_FindProgram_Ex(S("bsdtar"), &ProgramPath))
-                {
-                    if (bFilePathHasExtension)
-                    {
-                        String FileName  = FilePath;
-                        String ParentDir = S(".");
-
-                        u32 LastSlash = 0;
-                        if (String_IndexOfLastPathSlash(FilePath, &LastSlash))
-                        {
-                            FileName  = StrShiftF(FilePath, LastSlash+1);
-                            ParentDir = StrSlice(FilePath.Data, LastSlash);
-                        }
-
-                        String_Concat(&CmdLine, S("bsdtar --format zip -cf \""), FinalDestinationPath, S("\" -C \""), ParentDir, S("\" \""), FileName, S("\""));
-                    }
-                    else
-                    {
-                        String_Concat(&CmdLine, S("bsdtar --format zip -cf \""), FinalDestinationPath, S("\" -C \""), FilePath, S("\" ."));
-                    }
-                }
-                else
-                {
-                    LOG_ERROR("No zip tool was found on this system. Please install zip");
-                    bSuccess = false;
-                }
-                #endif
-
-                if (bSuccess)
-                {
-                    #if PLATFORM_UNIX
-                    // zip updates an existing archive in place instead of replacing it the way
-                    // Compress-Archive -Force does, so an existing destination has to go first
-                    if (Filesystem_DoesFileExist(FinalDestinationPath))
-                    {
-                        xx Filesystem_DeleteFile(FinalDestinationPath);
-                    }
-                    #endif
-
-                    if (bVerboseLog) { LOG("    %S", CmdLine); }
-
-                    PlatformHandle H = Platform_RunProcess(ProgramPath, CmdLine, ProcessWorkingDir, String_Null());
-                    bSuccess = Platform_IsValidHandle(H);
-                    if (bSuccess)
-                    {
-                        u32 ProcessCode = Platform_WaitForProcessAndGetExitCode(H);
-                        if (ExitCode) { *ExitCode = ProcessCode; }
-
-                        if (ProcessCode != 0 && !bIgnoreErrors)
-                        {
-                            bSuccess = false;
-                        }
-                        else
-                        {
-                            LOG_LINE_BREAK();
-                        }
-                    }
-                }
-            }
+            bSuccess = Internal_ExecuteCmd_Zip(&Ctx);
         }
         else if (String_EndsWith(Name, S("InstallPackage"), false) ||
                 String_EndsWith(Name, S("InstallPackages"), false))
         {
-            const String Packages = Value;
-            const String Manager  = Platform_DetectPackageManager();
-
-            if (Manager.Length == 0)
-            {
-                LOG_ERROR("InstallPackage is not supported on this system: no package manager was found (looked for winget on Windows; apt-get, dnf, yum, zypper and pacman on Linux; brew on macOS; pkg, pkg_add or pkgin on the BSDs)");
-
-                if (ExitCode) { *ExitCode = 1; }
-
-                if (!bIgnoreErrors)
-                {
-                    bSuccess = false;
-                }
-            }
-            else
-            {
-                LOG(" > InstallPackage (%S): %S", Manager, Packages);
-
-                // one silent query pass: when everything is already present the install
-                // transaction (and its sudo/doas prompt) is skipped, keeping rebuilds fast
-                bool bAllInstalled = false;
-                StringLocal(MissingPackages, 2048);
-                {
-                    StringLocal(QueryCmd, 8192);
-
-                    if (String_IsEqual(Manager, S("winget"), false))
-                    {
-                        // winget refuses to reinstall an already-present package (it tries to
-                        // upgrade it instead and errors), so query each package individually
-                        // and collect only the missing ones for the install
-                        StringList PackageList = String_SplitIntoList(&Scratch, Packages, ' ', true);
-                        for each_string_in_list (PackageList)
-                        {
-                            StringLocal(OneQuery, 1024);
-                            String_Concat(&OneQuery, S("cmd.exe /c \"winget list -e "), It.String, S(" >NUL 2>&1\""));
-
-                            if (bVerboseLog) { LOG("    %S", OneQuery); }
-
-                            bool bInstalled = false;
-                            PlatformHandle H = Platform_RunCommand(OneQuery, WorkingDirectory, String_Null());
-                            if (Platform_IsValidHandle(H))
-                            {
-                                bInstalled = Platform_WaitForProcessAndGetExitCode(H) == 0;
-                            }
-
-                            if (!bInstalled)
-                            {
-                                if (MissingPackages.Length > 0)
-                                {
-                                    String_AppendChar(&MissingPackages, ' ');
-                                }
-
-                                String_Append(&MissingPackages, It.String);
-                            }
-                        }
-
-                        bAllInstalled = MissingPackages.Length == 0;
-                    }
-                    else if (String_IsEqual(Manager, S("apt"), false))
-                    {
-                        String_Concat(&QueryCmd, S("dpkg -s "), Packages, S(" >/dev/null 2>&1"));
-                    }
-                    else if (String_IsEqual(Manager, S("pacman"), false))
-                    {
-                        String_Concat(&QueryCmd, S("pacman -Q "), Packages, S(" >/dev/null 2>&1"));
-                    }
-                    else if (String_IsEqual(Manager, S("pkg"), false) ||
-                            String_IsEqual(Manager, S("pkgin"), false) ||
-                            String_IsEqual(Manager, S("pkg_add"), false))
-                    {
-                        // the BSD query flags check one package at a time - chain one query per
-                        // package. OpenBSD's pkg_info takes a pkgspec, so the name gets a
-                        // version glob appended
-                        const bool bFreeBSDQuery = String_IsEqual(Manager, S("pkg"), false);
-                        const bool bOpenBSDQuery = String_IsEqual(Manager, S("pkg_add"), false);
-
-                        StringList PackageList = String_SplitIntoList(&Scratch, Packages, ' ', true);
-                        for each_string_in_list (PackageList)
-                        {
-                            if (QueryCmd.Length > 0)
-                            {
-                                String_Append(&QueryCmd, S(" && "));
-                            }
-
-                            String_Append(&QueryCmd, bFreeBSDQuery ? S("pkg info -e \"") : S("pkg_info -e \""));
-                            String_Append(&QueryCmd, It.String);
-                            String_Append(&QueryCmd, bOpenBSDQuery ? S("-*\" >/dev/null 2>&1") : S("\" >/dev/null 2>&1"));
-                        }
-                    }
-                    else if (String_IsEqual(Manager, S("brew"), false))
-                    {
-                        // brew list checks one formula at a time - chain one query per package
-                        StringList PackageList = String_SplitIntoList(&Scratch, Packages, ' ', true);
-                        for each_string_in_list (PackageList)
-                        {
-                            if (QueryCmd.Length > 0)
-                            {
-                                String_Append(&QueryCmd, S(" && "));
-                            }
-
-                            String_Append(&QueryCmd, S("brew list --versions \""));
-                            String_Append(&QueryCmd, It.String);
-                            String_Append(&QueryCmd, S("\" >/dev/null 2>&1"));
-                        }
-                    }
-                    else // dnf, yum and zypper all query through rpm
-                    {
-                        String_Concat(&QueryCmd, S("rpm -q "), Packages, S(" >/dev/null 2>&1"));
-                    }
-
-                    // winget ran its queries above and left QueryCmd empty
-                    if (QueryCmd.Length > 0)
-                    {
-                        if (bVerboseLog) { LOG("    %S", QueryCmd); }
-
-                        PlatformHandle H = Platform_RunCommand(QueryCmd, WorkingDirectory, String_Null());
-                        if (Platform_IsValidHandle(H))
-                        {
-                            bAllInstalled = Platform_WaitForProcessAndGetExitCode(H) == 0;
-                        }
-                    }
-                }
-
-                if (bAllInstalled)
-                {
-                    LOG("    All packages already installed. Skipping...\n");
-
-                    if (ExitCode) { *ExitCode = 0; }
-                }
-                else
-                {
-                    StringLocal(CmdLine, 8192);
-
-                    // installs need root; outside root shells (docker, CI) that means sudo or
-                    // doas, which may prompt for a password on the terminal. Two exceptions:
-                    // winget elevates itself (UAC) when a package needs it, and brew refuses
-                    // to run as root at all
-                    if (!String_IsEqual(Manager, S("winget"), false) &&
-                        !String_IsEqual(Manager, S("brew"), false))
-                    {
-                        const String RootPrefix = Platform_GetRootCmdPrefix();
-                        if (RootPrefix.Length > 0)
-                        {
-                            String_Append(&CmdLine, RootPrefix);
-                        }
-                    }
-
-                    if (String_IsEqual(Manager, S("winget"), false))
-                    {
-                        // winget installs one package per invocation - chain them through
-                        // cmd.exe, and only the missing ones (see the query pass above)
-                        StringList PackageList = String_SplitIntoList(&Scratch, MissingPackages, ' ', true);
-
-                        String_Append(&CmdLine, S("cmd.exe /c \""));
-
-                        bool bFirstPackage = true;
-                        for each_string_in_list (PackageList)
-                        {
-                            if (!bFirstPackage)
-                            {
-                                String_Append(&CmdLine, S(" && "));
-                            }
-
-                            // pinned to the winget community source: deterministic, and a broken
-                            // or unreachable msstore source can't turn the install ambiguous
-                            String_Append(&CmdLine, S("winget install -e "));
-                            String_Append(&CmdLine, It.String);
-                            String_Append(&CmdLine, S(" -s winget --accept-source-agreements --accept-package-agreements --silent"));
-
-                            bFirstPackage = false;
-                        }
-
-                        String_AppendChar(&CmdLine, '"');
-                    }
-                    else
-                    {
-                        if (String_IsEqual(Manager, S("apt"), false))
-                        {
-                            String_Append(&CmdLine, S("apt-get install -y "));
-                        }
-                        else if (String_IsEqual(Manager, S("dnf"), false))
-                        {
-                            String_Append(&CmdLine, S("dnf install -y "));
-                        }
-                        else if (String_IsEqual(Manager, S("yum"), false))
-                        {
-                            String_Append(&CmdLine, S("yum install -y "));
-                        }
-                        else if (String_IsEqual(Manager, S("zypper"), false))
-                        {
-                            String_Append(&CmdLine, S("zypper --non-interactive install "));
-                        }
-                        else if (String_IsEqual(Manager, S("pacman"), false))
-                        {
-                            // --needed skips reinstalling up-to-date packages
-                            String_Append(&CmdLine, S("pacman -S --needed --noconfirm "));
-                        }
-                        else if (String_IsEqual(Manager, S("pkg"), false))
-                        {
-                            String_Append(&CmdLine, S("pkg install -y "));
-                        }
-                        else if (String_IsEqual(Manager, S("pkgin"), false))
-                        {
-                            String_Append(&CmdLine, S("pkgin -y install "));
-                        }
-                        else if (String_IsEqual(Manager, S("brew"), false))
-                        {
-                            // installing already-present formulae is a warning, not an error, so
-                            // the batch is safe; skipping brew's auto-update keeps it predictable
-                            String_Append(&CmdLine, S("HOMEBREW_NO_AUTO_UPDATE=1 brew install "));
-                        }
-                        else // pkg_add (OpenBSD): -I forces non-interactive mode
-                        {
-                            String_Append(&CmdLine, S("pkg_add -I "));
-                        }
-
-                        String_Append(&CmdLine, Packages);
-                    }
-
-                    if (bVerboseLog) { LOG("    %S", CmdLine); }
-
-                    PlatformHandle H = Platform_RunCommand(CmdLine, WorkingDirectory, String_Null());
-                    bSuccess = Platform_IsValidHandle(H);
-                    if (bSuccess)
-                    {
-                        u32 ProcessCode = Platform_WaitForProcessAndGetExitCode(H);
-                        if (ExitCode) { *ExitCode = ProcessCode; }
-
-                        if (ProcessCode != 0 && !bIgnoreErrors)
-                        {
-                            bSuccess = false;
-                        }
-                        else
-                        {
-                            LOG_LINE_BREAK();
-                        }
-                    }
-                }
-            }
+            bSuccess = Internal_ExecuteCmd_InstallPackage(&Ctx);
         }
         else
         {
@@ -3924,17 +4151,21 @@ static void ExpandDefineFlags(String* Dest, const String Flags, const String Fla
 
         for each_string_in_list (List)
         {
+            // the whole define arrives quoted when it holds a path with spaces, and the quotes
+            // we add below replace them - "-D"NAME=C:/Program Files"" splits back into two arguments
+            const String Define = String_TrimQuotes(It.String);
+
             if (bPrefixOutsideQuotes)  { String_Append(Dest, FlagPrefix); }
             if (!bExportingSomething)  { String_AppendChar(Dest, '"'); }
             if (!bPrefixOutsideQuotes) { String_Append(Dest, FlagPrefix); }
 
             u32 Equals = 0;
-            if (String_IndexOfChar(It.String, '=', &Equals))
+            if (String_IndexOfChar(Define, '=', &Equals))
             {
                 // is this define a string?
 
-                String Name = StrSlice(It.String.Data, Equals);
-                String Value = StrShiftF(It.String, Equals+1);
+                String Name = StrSlice(Define.Data, Equals);
+                String Value = StrShiftF(Define, Equals+1);
                 bool bIsString = String_IsFirst(Value, '"') && String_IsLast(Value, '"');
 
                 String_Append    (Dest, Name);
@@ -3958,7 +4189,7 @@ static void ExpandDefineFlags(String* Dest, const String Flags, const String Fla
             }
             else
             {
-                String_Append(Dest, It.String);
+                String_Append(Dest, Define);
             }
 
             if (!bExportingSomething) { String_AppendChar(Dest, '"'); }
@@ -5224,16 +5455,18 @@ static void RecordGeneratedHelperFiles(const BuildParams* p)
 // Manifest-driven clean: delete the exact files recorded in <buildfile>.artifact_paths, then the
 // manifest itself. Returns true if anything was removed.
 //
-// Every line read back is treated as untrusted input. The manifest lives in the intermediate
-// directory and could be tampered with, so before acting on a line we (1) reject any path carrying
-// shell metacharacters, this neutralizes an injected "&& <command>" or an attempt to smuggle the
-// path into a shell, (2) reject path-traversal ("..") so a poisoned line cannot climb out of the
-// build tree, and (3) require the path to live inside one of the directories the .build file itself
-// declared as an output root: the build directory, the intermediate directory, or the compiler
-// object directory (Compiler.ObjectDirectory, used by codegen modules that emit outside the build
-// tree - their outputs must clean like any other artifact). ObjectBaseDirectory is null when the
-// key was not declared. Deletion itself goes through Filesystem_DeleteFile (the Win32 DeleteFile
-// API / unlink), never a shell, so a rejected-but-somehow-missed line still cannot execute a
+// Every line read back is treated as untrusted input.
+// The manifest lives in the intermediate
+// directory and could be tampered with, so before acting on a line we
+//   (1) reject any path carrying shell metacharacters, this neutralizes an injected "&& <command>"
+//       or an attempt to smuggle the path into a shell
+//   (2) reject path-traversal ("..") so a poisoned line cannot climb out of the
+//       build tree
+//   (3) require the path to live inside one of the directories the .build file itself
+//       declared as an output root: the build directory, the intermediate directory, or the compiler
+//       object directory.
+// Deletion itself goes through Filesystem_DeleteFile (the Win32 DeleteFile API / unlink),
+// never a shell, so a rejected-but-somehow-missed line still cannot execute a
 // command, the checks are defense in depth.
 static bool TryCleanFromManifest(const String IntermediateBaseDirectory, const String BuildBaseDirectory, const String ObjectBaseDirectory, const String BuildFileName)
 {
@@ -7070,8 +7303,7 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
     // A static library never runs a link of its own: every library it lists is a requirement
     // imposed on whoever eventually links it, not a private implementation detail, so by default
-    // it exports the full plain-key set. (CMake forwards static-library link inputs the same way,
-    // via LINK_ONLY, even for PRIVATE dependencies.) When it declares a .Export key it is being
+    // it exports the full plain-key set. When it declares a .Export key it is being
     // explicit about its exports, so that list takes precedence over the plain one. Targets that
     // do link (exe/dll) resolved their libraries at their own link step, so they only export what
     // they explicitly publish via the .Export keys.

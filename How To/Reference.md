@@ -142,7 +142,7 @@ This will expand to
 ```ini
 Library.Paths "C:/Program Files/curl/lib"
 ```
-If the value is a path containing spaces, RiftBuild wraps it in quotes for you (as above). Referencing an environment variable that does not exist is an error.
+If the value is a path containing spaces, RiftBuild wraps the *whole value* in quotes for you (as above) - `@(CURL_PATH)/lib` gives `"C:/Program Files/curl/lib"`, not `"C:/Program Files/curl"/lib`. Quote the value yourself and RiftBuild leaves it alone. Referencing an environment variable that does not exist is an error.
 
 ---
 
@@ -268,8 +268,8 @@ Do not mix the forms: `{` after a single-line if is an error. And note there is 
 - **Built-in platform names**: `windows`, `linux`, `macos` (also `apple`, `mac`, `osx`), `bsd`, `unix`, `posix`, `win32`, `win64`.
 - **Built-in architecture names**: `x64`, `x86`, `x86_64`, `arm`, `arm64`, `ppc`, ... plus `64_bit`/`32_bit` and `big_endian`/`little_endian`.
 - **Options and command line arguments** (see [Options](#options)).
-- **Any variable**: a variable holding `1`/`on`/`yes`/`true` is true, `0`/`off`/`no`/`false` is false, any other non-empty value counts as "defined, therefore true".
-- **A path**: any condition containing a path separator becomes an existence check. A trailing `/` checks for a *directory*, otherwise a *file*:
+- **Any variable**: a variable holding `1`/`on`/`yes`/`true` is true, `0`/`off`/`no`/`false` is false, any other non-empty value counts as "defined, therefore true". What the value *holds* never changes the test - `if @CUDA_PATH` is true whenever that environment variable is set, path or not.
+- **A path**: any condition containing a path separator becomes an existence check. A trailing `/` checks for a *directory*, otherwise a *file*. This is the *condition you write*, so add the separator yourself to test a variable against the disk: `if @CUDA_PATH/` checks the directory, `if @CUDA_PATH` only checks that it is set.
 ```make
 if !external/glfw/ PreDepend.Cmd git clone https://github.com/glfw/glfw external/glfw
 ```

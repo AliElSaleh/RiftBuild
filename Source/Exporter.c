@@ -2326,14 +2326,6 @@ bool TryBuildMacBundle(LinearAllocator Scratch, const BuildParams* Params, TArra
 
 
 // Script command capture ------------------------------------------------------------------------
-//
-// Both script exporters route through the backend's command construction: while capture is active
-// (Export_BeginCommandCapture .. Export_EndCommandCapture), C_Compile_Spawn and C_Link redirect
-// every command line they build into the script instead of spawning it, via the three hooks
-// declared in Backend.h (Export_IsCapturingCommands, Export_EmitScriptCommand,
-// Export_TryWriteFlagsAndReturnThisValue). The scripts therefore contain the exact commands a real
-// build runs - .asm and .rc sources, PCHs, per-file overrides and all - without duplicating the
-// backend's logic, while all capture state and script formatting lives here.
 
 static EBuildMode GBuildMode = BuildMode_Build;
 static FileHandle GExportScript = {0};

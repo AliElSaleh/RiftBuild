@@ -14,12 +14,6 @@
 #include "Core/HashUtils.h"
 #endif
 
-// Cached header write times for one module's compile loop (see "Header dependency tracking" below).
-// Open-addressed, keyed by the FNV1a hash of the path exactly as the dependency file spells it (a
-// collision could reuse a wrong timestamp, but at ~10^4 entries the odds are ~10^-12 - accepted).
-// Sized to the module and carved from the build arena in C_Compile_Spawn. Lookups tolerate a NULL
-// Entries table (they fall through to the filesystem), but that is pure defense - the table is
-// always allocated.
 STRUCT(DepTimeCacheEntry)
 {
     u64 PathHash; // 0 = empty slot
@@ -2618,28 +2612,12 @@ bool C_Link(const BuildParams* Params)
             #else
             Handle = Platform_RunProcess(ProgramPath, CmdLine, Params->RootDirectory, String_Null());
             #endif
-            /*
-            if (bIsMicrosoftLinker)
-            {
-                Handle = Platform_RunProcess_Ex(ProgramPath, CmdLine, Params->RootDirectory, &StdOutHandle);
-            }
-            */
-            /*
-            else
-            #endif
-            {
-                Handle = Platform_RunProcess(ProgramPath, CmdLine, Params->RootDirectory, String_Null());
-            }
-            */
 
             if (Platform_IsValidHandle(Handle))
             {
                 // TODO: switch between fancy and non fancy logging
                 #if PLATFORM_WINDOWS
-                // if (bIsMicrosoftLinker)
-                {
-                    Internal_ProcessLinkerOutput(Params->CompilerVendor, Handle, StdOutHandle);
-                }
+                Internal_ProcessLinkerOutput(Params->CompilerVendor, Handle, StdOutHandle);
                 #endif
 
                 u32 ExitCode = Platform_WaitForProcessAndGetExitCode(Handle);
