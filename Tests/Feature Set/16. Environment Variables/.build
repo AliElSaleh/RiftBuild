@@ -4,3 +4,10 @@ Assembly    EnvVars
 SourceFiles main
 
 Compiler.Defines:windows HOST_OS_@OS
+
+# A set environment variable is a true condition on its own, whatever the value holds.
+if windows if @ProgramFiles Compiler.Defines ENV_IS_A_CONDITION=1
+
+# The quotes must wrap the whole token. "C:/Program Files"/sub splits into two arguments
+# and the compile fails, so this define is the test.
+Compiler.Defines:windows ENV_PATH_TOKEN=@(ProgramFiles)/sub/dir

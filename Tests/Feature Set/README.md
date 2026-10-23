@@ -33,7 +33,7 @@ folders - the sources only compile with the defines the .build file provides.
 | 13 | Conditional Values | `Key:cond` / `Key:!cond` suffixes (platform, bit-width) |
 | 14 | If Else Blocks | Block `if/else` and single-line `if` |
 | 15 | Custom Variables | `$Var` expansion, `$-lower` / `$^UPPER` case modifiers |
-| 16 | Environment Variables | `@ENVVAR` expansion |
+| 16 | Environment Variables | `@ENVVAR` expansion, `if @ENVVAR` as a condition, whole-token quoting of a path with spaces |
 | 17 | Command Expansion | `!command` runs a shell command at parse time |
 | 18 | Options Binary | `option.name` as a build condition (run with/without `turbo`) |
 | 19 | Options Values | `%option` value paste (run with `level=7`) |
