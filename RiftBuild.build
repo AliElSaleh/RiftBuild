@@ -24,7 +24,7 @@ Icon                      riftbuild
 
 TitleName                 Rift Build %^%debug
 Description               A simpler build tool for C/C++, because fuck cmake
-Version(define)           0.4.0-beta-&date.nosep
+Version(define)           $RiftBuildVersion
 CompanyName               Artisan Softworks
 Copyright(enforce)        Copyright (c) $CompanyName
 License(generate)         BSD 3-Clause
@@ -37,7 +37,7 @@ IntermediateDirectory     Intermediate/$SourceDirectory
 RiftCoreFiles             Core/Memory Core/StringUtils Core/Log Core/Platform_Core Core/Platform_&(Platform)
 RiftCoreFiles:unix        Core/Platform_Unix
 RiftCoreFiles:bsd         Core/Platform_BSD
-SourceFiles               $RiftCoreFiles Program Backend Exporter Parse
+SourceFiles               $RiftCoreFiles Main Program Backend Exporter Parse
 SourceFiles:windows       MicrosoftCraziness
 
 Compiler.Flags            $SharedCompilerFlags
@@ -65,6 +65,7 @@ option.compiler(clang gcc msvc tcc) Select a compiler vendor to build with.
 option.debug                        Build the debug version of this program.
 option.32                           Build for 32-bit architectures.
 option.asan                         Enable address sanitizer for memory debugging purposes.
+option.mem_check                    Keep the arena out-of-memory check in a release build. A debug build always has it.
 option.hood                         Enable hood mode, the program will talk to you like a gangster!
 option.no_print_config              Disable printing of the build configuration flags.
 option.asm                          Generate disassembly (.S) files.

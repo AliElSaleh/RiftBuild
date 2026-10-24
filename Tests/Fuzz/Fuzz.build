@@ -1,0 +1,73 @@
+.Help
+{
+    Builds the parser fuzzer. It links the tool's own sources and replaces the tool's top level
+    with the harness, so the lexer and the parser under test are the real ones.
+
+     > riftbuild                       build it
+     > riftbuild asan compiler=clang   build it with the address sanitizer, which is the point
+     > riftbuild debug                 build it with the asserts and the arena bounds check on
+
+    Then run the program it builds from the repository root:
+
+     > Tests/Fuzz/Build/RiftFuzz.exe --iterations 200000 --seed 7
+}
+
+import ../../Source/Common.buildvars
+
+Compiler                  %compiler
+
+Assembly                  RiftFuzz
+Description               RiftBuild .build parser fuzzer
+Version(define)           $RiftBuildVersion
+
+BuildDirectory            Build
+IntermediateDirectory     Intermediate
+
+# The harness sources sit beside this file and the sources under test sit two directories up, so
+# the source directory has to be the repository root for the whitelist below to reach both.
+SourceDirectory           ../..
+
+RiftCoreFiles             Source/Core/Memory Source/Core/StringUtils Source/Core/Log
+RiftCoreFiles             Source/Core/Platform_Core Source/Core/Platform_&(Platform)
+RiftCoreFiles:unix        Source/Core/Platform_Unix
+RiftCoreFiles:bsd         Source/Core/Platform_BSD
+
+# Source/Main holds the tool's own main and stays out: FuzzMain.c has this binary's main.
+RiftBuildFiles            Source/Program Source/Backend Source/Exporter Source/Parse
+RiftBuildFiles:windows    Source/MicrosoftCraziness
+
+SourceFiles               $RiftCoreFiles $RiftBuildFiles
+SourceFiles               Tests/Fuzz/Source/FuzzMain Tests/Fuzz/Source/FuzzMutator
+
+Compiler.Flags            $SharedCompilerFlags
+Compiler.Includes         ../../Source Source
+Compiler.Defines          $SharedDefines
+
+# Version(define) names its macros after the assembly, and the sources under test read the ones
+# named after RiftBuild. Point each name at the macro this assembly generated.
+Compiler.Defines          RIFTBUILD_VERSION_STRING=RIFTFUZZ_VERSION_STRING
+Compiler.Defines          RIFTBUILD_MAJOR_VERSION=RIFTFUZZ_MAJOR_VERSION
+Compiler.Defines          RIFTBUILD_MINOR_VERSION=RIFTFUZZ_MINOR_VERSION
+Compiler.Defines          RIFTBUILD_PATCH_VERSION=RIFTFUZZ_PATCH_VERSION
+
+Linker.Flags              $SharedLinkerFlags
+Linker.Subsystem          Console
+Linker.Stack              8000000 # 8MB, the same stack the tool itself gets
+
+Libraries:bsd             pthread
+
+if windows
+{
+    Libraries            kernel32 user32 shell32 ole32 advapi32 ntdll shlwapi bcrypt oleaut32
+    Libraries:tcc        kernelbase
+
+    Libraries:asan:msvc         clang_rt.asan_dynamic_runtime_thunk-x86_64.lib
+    Libraries:asan:clang:debug  clang_rt.asan_dbg_dynamic-x86_64.lib
+    Libraries:asan:clang:!debug clang_rt.asan_dynamic-x86_64
+}
+
+option.compiler(clang gcc msvc tcc) Select a compiler vendor to build with.
+option.debug                        Build the debug version, which keeps the asserts.
+option.32                           Build for 32-bit architectures.
+option.asan                         Enable address sanitizer, which is how the fuzzer finds bugs.
+option.asm                          Generate disassembly (.S) files.

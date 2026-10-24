@@ -254,7 +254,6 @@ STRUCT(StringList) // 24 bytes
 #define global extern
 //#define internal static
 #define local_persist static
-#define thread_local _Thread_local
 
 #define constant enum
 #define constant_x(X, Value) enum { X = Value };
@@ -536,17 +535,20 @@ STRUCT(StringList) // 24 bytes
     MSVC_SECTION(x) \
     GCC_SECTION(x)
 
-// Old: GCC_SECTION(".roglob,\"l\",@progbits#")
-
 #ifdef _MSC_VER
     #pragma section(".roglob", read)
     #define read_only SECTION(".roglob")
+#elif PLATFORM_APPLE
+    // __DATA_CONST is read-only once dyld applies the fixups. __TEXT refuses them outright.
+    #define read_only SECTION("__DATA_CONST,__const")
+#elif PLATFORM_WINDOWS
+    // the PE loader makes a page writable to apply a base relocation and restores it after, so
+    // .rdata holds the sentinels and still maps read-only
+    #define read_only SECTION(".rdata")
 #else
-    #if defined(__APPLE__) && defined(__MACH__)
-    #define read_only SECTION("__DATA,__roglob")
-    #else
-    #define read_only SECTION(".roglob")
-    #endif
+    // ELF: .rodata would need a dynamic relocation into a read-only section, which a PIE link
+    // refuses. .data.rel.ro exists for exactly this, and -z relro maps it read-only at startup.
+    #define read_only SECTION(".data.rel.ro")
 #endif
 
 #if COMPILER_CLANG || COMPILER_GCC
@@ -593,6 +595,7 @@ STRUCT(StringList) // 24 bytes
     #define NO_RETURN        __attribute__((noreturn))
     #define RETURN_NON_NULL  __attribute__((returns_nonnull))
     #define NO_THROW         __attribute__((__nothrow__ ))
+    #define thread_local     __thread
 
     #if LANG_C_STD_89
     #define FORCEINLINE      __attribute__((always_inline))
@@ -636,7 +639,8 @@ STRUCT(StringList) // 24 bytes
     #define FALL_THROUGH     
     #define NO_RETURN        __declspec(noreturn)
     #define RETURN_NON_NULL  _Ret_notnull_
-    #define NO_THROW         
+    #define NO_THROW
+    #define thread_local     __declspec(thread)
     #define ASM              __asm
     #define FORCEINLINE      __forceinline
     #define FORCENOINLINE    __declspec(noinline)
@@ -660,9 +664,13 @@ STRUCT(StringList) // 24 bytes
     #define NO_DISCARD       
     #define FALL_THROUGH     
     #define NO_RETURN        
-    #define RETURN_NON_NULL  
-    #define NO_THROW         
-    #define FORCEINLINE      
+    #define RETURN_NON_NULL
+    #define NO_THROW
+    #define FORCEINLINE
+
+    // TCC has no thread-local storage, and it ignores __declspec(thread) with no warning. A
+    // thread_local variable is then one variable for the process, so a TCC build is single-threaded.
+    #define thread_local
 
     #define UNLIKELY(Expression) Expression
     #define LIKELY(Expression)   Expression

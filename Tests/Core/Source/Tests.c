@@ -5427,7 +5427,7 @@ TEST(MathUtils_MinMaxF64)
 const usize GEngineMemoryAmount = Megabytes(1);
 const usize GEngineScratchAmount = 0;
 
-u32 RunApplication(const StringArray Arguments)
+static u32 RunApplication(const StringArray Arguments)
 {
     Logging_ToggleLogTimeStamp(false);
     Logging_ToggleLogCategory(false);
@@ -5470,4 +5470,9 @@ u32 RunApplication(const StringArray Arguments)
     #endif
 
     return bSuccess ? 0 : 1;
+}
+
+int main(i32 ArgC, char* ArgV[], char* ArgEnv[])
+{
+    return Entry_Run(RunApplication, GEngineMemoryAmount, GEngineScratchAmount, ArgC, ArgV, ArgEnv);
 }

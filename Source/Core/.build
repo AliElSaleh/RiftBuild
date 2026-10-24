@@ -37,6 +37,7 @@ SourceFiles:BSD      Platform_BSD
 
 option.compiler(clang gcc cl) Select a compiler vendor to build with.
 option.debug                  Build the debug version of this program.
+option.mem_check              Keep the arena out-of-memory check in a release build. A debug build always has it.
 
 # -- Help ---------------------------------
 

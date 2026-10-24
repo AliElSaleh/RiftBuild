@@ -5,6 +5,7 @@
 #include "Backend.h"
 
 #include "Core/Allocators.h"
+#include "Core/Memory.h"
 #include "Core/Platform.h"
 #include "Core/StringUtils.h"
 #include "Core/Array.h"
@@ -217,6 +218,8 @@ ENUM_T(ETokenType, u32)
 };
 
 #define MAX_TOKENS        4096
+#define MAX_PARSE_DEPTH   64
+
 #define Token_Char_Not    '!'
 #define Token_Char_At     '@'
 #define Token_Char_Mod    '%'
@@ -449,10 +452,12 @@ read_only static Node Node_Null = { .Type = Node_None, .Left = &Node_Null, .Righ
 
 STRUCT(Parser)
 {
-    u32    Current;
-    u32    NumTokens;
     Token* Tokens;
     String FilePath;
+    u32    Current;
+    u32    NumTokens;
+    u32    Depth;      // levels of nested blocks open above the block being parsed
+    u8     Padding[4];
 };
 
 FORCEINLINE NO_DISCARD RETURN_NON_NULL static NodeList* NodeList_Create(LinearAllocator* Arena, Node* InNode, NodeList* Next)
@@ -474,6 +479,7 @@ FORCEINLINE NO_DISCARD RETURN_NON_NULL static NodeList* NodeList_CreateNull(Line
 FORCEINLINE NO_DISCARD RETURN_NON_NULL static Node* Node_Create(LinearAllocator* Arena, ENodeType Type)
 {
     Node* NewNode = LinearAllocator_Allocate(Arena, sizeof(struct Node));
+    MemZero(NewNode, sizeof(struct Node));
     NewNode->Type = Type;
     return NewNode;
 }
@@ -481,6 +487,7 @@ FORCEINLINE NO_DISCARD RETURN_NON_NULL static Node* Node_Create(LinearAllocator*
 FORCEINLINE NO_DISCARD RETURN_NON_NULL static Node* Node_Create_KeyValue(LinearAllocator* Arena, String Key, StringList* Value)
 {
     Node* NewNode  = LinearAllocator_Allocate(Arena, sizeof(struct Node));
+    MemZero(NewNode, sizeof(struct Node));
     NewNode->Type  = Node_KeyValue;
     NewNode->Key   = Key;
     NewNode->Value = Value;
@@ -1027,7 +1034,8 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Special_LogMessage(LinearAllocator
     StringList* ValueList = NULL;
     StringList** Next = &ValueList;
 
-    while (Parser_Peek(P).Type != Token_Quote)
+    while (Parser_Peek(P).Type != Token_None &&
+           Parser_Peek(P).Type != Token_Quote)
     {
         Token Peek = Parser_Peek(P);
         String Lexeme = Peek.Lexeme;
@@ -1035,7 +1043,7 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Special_LogMessage(LinearAllocator
         {
             Lexeme = S("\n");
         }
-        
+
         SLinkedList_Push(Next, StringList_Create(Arena, String_EatCharFromEnd(Lexeme, '\\'), NULL));
         Parser_Advance(P);
 
@@ -1133,7 +1141,8 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Special_Help(LinearAllocator* Aren
     if (Parser_Match(P, Token_LCurly) || 
         Parser_Match(P, Token_LSquare))
     {
-        while (Parser_Peek(P).Type != Token_RCurly &&
+        while (Parser_Peek(P).Type != Token_None &&
+               Parser_Peek(P).Type != Token_RCurly &&
                Parser_Peek(P).Type != Token_RSquare)
         {
             Token Peek = Parser_Peek(P);
@@ -1562,25 +1571,32 @@ static void Internal_AssignParentToChildrenRecursively(Node* Parent, NodeList* C
     NodeList** This = &Children;
     while (*This)
     {
-        if (!(*This)->Node->Parent)
-        {
-            (*This)->Node->Parent = Parent;
+        Node* Child = (*This)->Node;
 
-            if ((*This)->Node->Left)
+        // CAUTION: Left and Right can hold &Node_Null, and the writes below then land on that
+        // one shared node. Do not add a Node_Null test to skip them - the analysis passes read
+        // Parent back off the sentinel, and skipping the write loses the options that a
+        // 'Depend path | option' line forwards (Feature Set test 32, measured both ways). The
+        // coupling wants removing at the source, by giving a parse its own null node.
+        if (Child != NULL && !Child->Parent)
+        {
+            Child->Parent = Parent;
+
+            if (Child->Left)
             {
-                (*This)->Node->Left->Parent = Parent;
-                if ((*This)->Node->Left->List)
+                Child->Left->Parent = Parent;
+                if (Child->Left->List)
                 {
-                    Internal_AssignParentToChildrenRecursively(Parent, (*This)->Node->Left->List);
+                    Internal_AssignParentToChildrenRecursively(Parent, Child->Left->List);
                 }
             }
 
-            if ((*This)->Node->Right)
+            if (Child->Right)
             {
-                (*This)->Node->Right->Parent = Parent;
-                if ((*This)->Node->Right->List)
+                Child->Right->Parent = Parent;
+                if (Child->Right->List)
                 {
-                    Internal_AssignParentToChildrenRecursively(Parent, (*This)->Node->Right->List);
+                    Internal_AssignParentToChildrenRecursively(Parent, Child->Right->List);
                 }
             }
         }
@@ -1736,6 +1752,21 @@ static StringList* Parse_HeredocContent(LinearAllocator* Arena, Parser* P)
 
 NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Parser* P, u32 Offset, bool bInlineIf, bool bInsidePhaseBlock)
 {
+    if (P->Depth >= MAX_PARSE_DEPTH)
+    {
+        const u32 Line = P->Current < P->NumTokens ? P->Tokens[P->Current].Line : 0;
+
+        LOG_ERROR("\n%S:%u: Blocks are nested more than %u levels deep.\n\n"
+                  "  Move the inner blocks into a build file of their own and use 'import':\n"
+                  "    import common.buildvars\n", P->FilePath, Line, MAX_PARSE_DEPTH);
+
+        return &Node_Null;
+    }
+
+    // Every other path out of this function skips the matching decrement at the end. Each one of
+    // them is a failure that ends the whole parse, so the depth it leaves behind is never read.
+    P->Depth += 1;
+
     Node* Root = Node_Create(Arena, Node_Block);
     NodeList** NextNode = &Root->List;
 
@@ -1880,7 +1911,8 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Pars
                 StringList* ValueList = NULL;
                 StringList** NextValue = &ValueList;
 
-                while (Parser_Peek(P).Type != Token_RSquare)
+                while (Parser_Peek(P).Type != Token_None &&
+                       Parser_Peek(P).Type != Token_RSquare)
                 {
                     String Lexeme = Parser_Peek(P).Lexeme;
                     if (Parser_Peek(P).Type == Token_Newline)
@@ -2333,6 +2365,8 @@ NO_DISCARD RETURN_NON_NULL static Node* Parse_Block(LinearAllocator* Arena, Pars
         SLinkedList_Push(NextNode, List);
     }
 
+    P->Depth -= 1;
+
     return Root;
 }
 
@@ -2666,306 +2700,321 @@ static void Print_IfNode(Node* Root, u32 Level)
 }
 #endif // _DEBUG
 
-NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Arena, const FileHandle H, const String FilePath)
+NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseText(LinearAllocator* Arena, const String Text, const String FilePath)
 {
     Node* Result = &Node_Null;
 
-    //Clock c;
-    //Clock_Start(&c);
+    bool bAllowWhitespace = false;
+    bool bInsideWhitespaceAllowedBlock = false;
+    bool bLexSuccess = true;
 
-    usize FileSize = 0;
-    xx Filesystem_GetFileSize(H, &FileSize);
+    // tokenize the text
+    Lexer l = {0};
+    l.Text = Text;
+    l.Line = 1;
 
-    if (FileSize > Kibibytes(48))
+    Token* Tokens = LinearAllocator_Allocate(Arena, sizeof(struct Token) * MAX_TOKENS);
+    l.Tokens = Tokens;
+
+    while (l.Current < l.Text.Length)
     {
-        TODO("ruh roh");
-    }
+        l.Start = l.Current;
+        
+        const uchar Char = l.Text.Data[l.Current];
+        const uchar PrevChar = l.Text.Data[ClampI32_Min((i32)l.Current-1, 0)];
+        Lexer_Advance(&l);
 
-    String Text = String_Reserve(Arena, (u32)FileSize);
-    
-    bool bLexSuccess = false;
-    usize Length = 0;
-    if (Filesystem_ReadEntireFile(H, Text.Data, &Length))
-    {
-        Text.Length = (u32)Min(Length, FileSize);
-
-        bool bAllowWhitespace = false;
-        bool bInsideWhitespaceAllowedBlock = false;
-
-        bLexSuccess = true;
-
-        // tokenize the text
-        Lexer l = {0};
-        l.Text = Text;
-        l.Line = 1;
-
-        Token* Tokens = LinearAllocator_Allocate(Arena, sizeof(struct Token) * MAX_TOKENS);
-        l.Tokens = Tokens;
-
-        while (l.Current < l.Text.Length)
+        if (Char == '\n')
         {
-            l.Start = l.Current;
-            
-            const uchar Char = l.Text.Data[l.Current];
-            const uchar PrevChar = l.Text.Data[ClampI32_Min((i32)l.Current-1, 0)];
-            Lexer_Advance(&l);
+            l.Line += 1;
+        }
 
-            if (Char == '\n')
+        if (l.NumTokens >= MAX_TOKENS)
+        {
+            LOG_ERROR("\n%S: Build file exceeds the maximum of %u tokens.\n\n"
+                      "  Split your build file into smaller files and use 'import':\n"
+                      "    import common.buildvars\n", FilePath, MAX_TOKENS);
+
+            bLexSuccess = false;
+            break;
+        }
+
+        ETokenType TokenToAdd = Token_None;
+        
+        const usize LastIndex = l.NumTokens > 0 ? l.NumTokens-1 : 0;
+        ETokenType LastTokenType = l.Tokens[LastIndex].Type;
+
+        if (LastTokenType == Token_Help || LastTokenType == Token_ErrorMessage)
+        {
+            bInsideWhitespaceAllowedBlock = true;
+        }
+
+        if      (Char == '(')               { TokenToAdd = Token_LParen;    }
+        else if (Char == ')')               { TokenToAdd = Token_RParen;    }
+        else if (Char == '^')               { TokenToAdd = Token_Caret;     }
+        else if (Char == ';')               { TokenToAdd = Token_Semicolon; }
+        else if (Char == ':')               { TokenToAdd = Token_Colon;     }
+        else if (Char == Token_Char_Dollar) { TokenToAdd = Token_Dollar;    }
+        else if (Char == Token_Char_At)     { TokenToAdd = Token_At;        }
+        else if (Char == Token_Char_Mod)    { TokenToAdd = Token_Mod;       }
+        else if (Char == '|')               { TokenToAdd = Token_Pipe;      }
+        else if (Char == '`')               { TokenToAdd = Token_BackTick;  }
+        else if (Char == '"')
+        {
+            if (!bInsideWhitespaceAllowedBlock)
             {
-                l.Line += 1;
-            }
-
-            if (l.NumTokens >= MAX_TOKENS)
-            {
-                LOG_ERROR("\n%S: Build file exceeds the maximum of %u tokens.\n\n"
-                          "  Split your build file into smaller files and use 'import':\n"
-                          "    import common.buildvars\n", FilePath, MAX_TOKENS);
-
-                bLexSuccess = false;
-                break;
-            }
-
-            ETokenType TokenToAdd = Token_None;
-            
-            const usize LastIndex = l.NumTokens > 0 ? l.NumTokens-1 : 0;
-            ETokenType LastTokenType = l.Tokens[LastIndex].Type;
-
-            if (LastTokenType == Token_Help || LastTokenType == Token_ErrorMessage)
-            {
-                bInsideWhitespaceAllowedBlock = true;
-            }
-
-            if      (Char == '(')               { TokenToAdd = Token_LParen;    }
-            else if (Char == ')')               { TokenToAdd = Token_RParen;    }
-            else if (Char == '^')               { TokenToAdd = Token_Caret;     }
-            else if (Char == ';')               { TokenToAdd = Token_Semicolon; }
-            else if (Char == ':')               { TokenToAdd = Token_Colon;     }
-            else if (Char == Token_Char_Dollar) { TokenToAdd = Token_Dollar;    }
-            else if (Char == Token_Char_At)     { TokenToAdd = Token_At;        }
-            else if (Char == Token_Char_Mod)    { TokenToAdd = Token_Mod;       }
-            else if (Char == '|')               { TokenToAdd = Token_Pipe;      }
-            else if (Char == '`')               { TokenToAdd = Token_BackTick;  }
-            else if (Char == '"')
-            {
-                if (!bInsideWhitespaceAllowedBlock)
+                if (PrevChar != '\\')
                 {
-                    if (PrevChar != '\\')
+                    bAllowWhitespace = !bAllowWhitespace;
+                }
+            }
+
+            TokenToAdd = Token_Quote;
+        }
+        else if (Char == '{')
+        {
+            if (bInsideWhitespaceAllowedBlock)
+            {
+                bAllowWhitespace = true;
+            }
+
+            TokenToAdd = Token_LCurly;
+        }
+        else if (Char == '}')
+        {
+            if (bInsideWhitespaceAllowedBlock && PrevChar != '\\')
+            {
+                bInsideWhitespaceAllowedBlock = false;
+                bAllowWhitespace = false;
+            }
+
+            TokenToAdd = Token_RCurly;
+        }
+        else if (Char == '[')
+        { 
+            if (bInsideWhitespaceAllowedBlock)
+            {
+                bAllowWhitespace = true;
+            }
+
+            TokenToAdd = Token_LSquare;
+        }
+        else if (Char == ']')
+        {
+            if (bInsideWhitespaceAllowedBlock && PrevChar != '\\')
+            {
+                bInsideWhitespaceAllowedBlock = false;
+                bAllowWhitespace = false;
+            }
+
+            TokenToAdd = Token_RSquare;
+        }
+        else if (Char == '#' && PrevChar != '\\')
+        {
+            bool bIsMultiLine = Lexer_Match(&l, '#');
+            if (bIsMultiLine)
+            {
+                while (1)
+                {
+                    uchar PeekChar = Lexer_Peek(&l);
+                    if (PeekChar == '#')
                     {
-                        bAllowWhitespace = !bAllowWhitespace;
-                    }
-                }
-
-                TokenToAdd = Token_Quote;
-            }
-            else if (Char == '{')
-            {
-                if (bInsideWhitespaceAllowedBlock)
-                {
-                    bAllowWhitespace = true;
-                }
-
-                TokenToAdd = Token_LCurly;
-            }
-            else if (Char == '}')
-            {
-                if (bInsideWhitespaceAllowedBlock && PrevChar != '\\')
-                {
-                    bInsideWhitespaceAllowedBlock = false;
-                    bAllowWhitespace = false;
-                }
-
-                TokenToAdd = Token_RCurly;
-            }
-            else if (Char == '[')
-            { 
-                if (bInsideWhitespaceAllowedBlock)
-                {
-                    bAllowWhitespace = true;
-                }
-
-                TokenToAdd = Token_LSquare;
-            }
-            else if (Char == ']')
-            {
-                if (bInsideWhitespaceAllowedBlock && PrevChar != '\\')
-                {
-                    bInsideWhitespaceAllowedBlock = false;
-                    bAllowWhitespace = false;
-                }
-
-                TokenToAdd = Token_RSquare;
-            }
-            else if (Char == '#' && PrevChar != '\\')
-            {
-                bool bIsMultiLine = Lexer_Match(&l, '#');
-                if (bIsMultiLine)
-                {
-                    while (1)
-                    {
-                        uchar PeekChar = Lexer_Peek(&l);
-                        if (PeekChar == '#')
-                        {
-                            Lexer_Advance(&l);
-                            if (Lexer_Match(&l, '#'))
-                            {
-                                break;
-                            }
-                        }
-
-                        if (PeekChar == 0)
+                        Lexer_Advance(&l);
+                        if (Lexer_Match(&l, '#'))
                         {
                             break;
                         }
+                    }
 
-                        if (PeekChar == '\n')
-                        {
-                            l.Line += 1;
-                        }
+                    if (PeekChar == 0)
+                    {
+                        break;
+                    }
 
-                        Lexer_Advance(&l);
-                    }
-                }
-                else
-                {
-                    while (!IsNewline(Lexer_Peek(&l)) && Lexer_Peek(&l) != 0) // EOF
-                    {
-                        Lexer_Advance(&l);
-                    }
-                }
-            }
-            else if (Char == Token_Char_Not)
-            {
-                TokenToAdd = Lexer_Match(&l, '=') ? Token_NotEqual : Token_Not;
-            }
-            else if (Char == '=')
-            {
-                TokenToAdd = Lexer_Match(&l, '=') ? Token_EqualEqual : Token_Equal;
-            }
-            else if (Char == '<')
-            {
-                TokenToAdd = Lexer_Match(&l, '=') ? Token_LessOrEqual : Token_LessThan;
-            }
-            else if (Char == '>')
-            {
-                TokenToAdd = Lexer_Match(&l, '=') ? Token_GreaterOrEqual : Token_GreaterThan;
-            }
-            else if ((!bAllowWhitespace && IsWhitespace(Char)) || IsNewline(Char) || Char == '\0')
-            {
-                if (Char == '\n')
-                {
-                    if (bAllowWhitespace || LastTokenType != Token_Newline)
-                    {
-                        TokenToAdd = Token_Newline;
-                    }
-                }
-                else
-                {
-                    if ((Char == ' ' || Char == '\t') && LastTokenType != Token_Newline)
-                    {
-                        while (Lexer_Peek(&l) == ' ' ||
-                               Lexer_Peek(&l) == '\t')
-                        {
-                            Lexer_Advance(&l);
-                        }
-
-                        TokenToAdd = Token_Whitespace;
-                    }
-                }
-            }
-            else
-            {
-                uchar Peek = Lexer_Peek(&l);
-                while (IsValidTextToken(Peek, bAllowWhitespace))
-                {
-                    if (Peek == '\n')
+                    if (PeekChar == '\n')
                     {
                         l.Line += 1;
                     }
 
                     Lexer_Advance(&l);
-                    Peek = Lexer_Peek(&l);
                 }
-
-                ETokenType FinalType = Token_Text;
-                {
-                    const u32 Diff = l.Current - l.Start;
-                    String Lexeme = StrSub(l.Text, l.Start, Diff);
-
-                    for (u8 j = 0; j < SArray_Capacity(ReservedKeywordsTable); j++)
-                    {
-                        if (String_IsEqual(Lexeme, ReservedKeywordsTable[j].Name, false))
-                        {
-                            FinalType = ReservedKeywordsTable[j].Type;
-                            break;
-                        }
-                    }
-
-                    for (u8 j = 0; j < SArray_Capacity(ReservedStartingKeywordsTable); j++)
-                    {
-                        if (String_StartsWith(Lexeme, ReservedStartingKeywordsTable[j].Name, false))
-                        {
-                            FinalType = ReservedStartingKeywordsTable[j].Type;
-                            break;
-                        }
-                    }
-
-                    for (u8 j = 0; j < SArray_Capacity(ReservedEndingKeywordsTable); j++)
-                    {
-                        if (String_EndsWith(Lexeme, ReservedEndingKeywordsTable[j].Name, false))
-                        {
-                            FinalType = ReservedEndingKeywordsTable[j].Type;
-                            break;
-                        }
-                    }
-                }
-
-                TokenToAdd = FinalType;
             }
-
-            if (TokenToAdd != Token_None)
+            else
             {
-                Lexer_AddToken(&l, TokenToAdd);
+                while (!IsNewline(Lexer_Peek(&l)) && Lexer_Peek(&l) != 0) // EOF
+                {
+                    Lexer_Advance(&l);
+                }
             }
         }
+        else if (Char == Token_Char_Not)
+        {
+            TokenToAdd = Lexer_Match(&l, '=') ? Token_NotEqual : Token_Not;
+        }
+        else if (Char == '=')
+        {
+            TokenToAdd = Lexer_Match(&l, '=') ? Token_EqualEqual : Token_Equal;
+        }
+        else if (Char == '<')
+        {
+            TokenToAdd = Lexer_Match(&l, '=') ? Token_LessOrEqual : Token_LessThan;
+        }
+        else if (Char == '>')
+        {
+            TokenToAdd = Lexer_Match(&l, '=') ? Token_GreaterOrEqual : Token_GreaterThan;
+        }
+        else if ((!bAllowWhitespace && IsWhitespace(Char)) || IsNewline(Char) || Char == '\0')
+        {
+            if (Char == '\n')
+            {
+                if (bAllowWhitespace || LastTokenType != Token_Newline)
+                {
+                    TokenToAdd = Token_Newline;
+                }
+            }
+            else
+            {
+                if ((Char == ' ' || Char == '\t') && LastTokenType != Token_Newline)
+                {
+                    while (Lexer_Peek(&l) == ' ' ||
+                           Lexer_Peek(&l) == '\t')
+                    {
+                        Lexer_Advance(&l);
+                    }
+
+                    TokenToAdd = Token_Whitespace;
+                }
+            }
+        }
+        else
+        {
+            uchar Peek = Lexer_Peek(&l);
+            while (IsValidTextToken(Peek, bAllowWhitespace))
+            {
+                if (Peek == '\n')
+                {
+                    l.Line += 1;
+                }
+
+                Lexer_Advance(&l);
+                Peek = Lexer_Peek(&l);
+            }
+
+            ETokenType FinalType = Token_Text;
+            {
+                const u32 Diff = l.Current - l.Start;
+                String Lexeme = StrSub(l.Text, l.Start, Diff);
+
+                for (u8 j = 0; j < SArray_Capacity(ReservedKeywordsTable); j++)
+                {
+                    if (String_IsEqual(Lexeme, ReservedKeywordsTable[j].Name, false))
+                    {
+                        FinalType = ReservedKeywordsTable[j].Type;
+                        break;
+                    }
+                }
+
+                for (u8 j = 0; j < SArray_Capacity(ReservedStartingKeywordsTable); j++)
+                {
+                    if (String_StartsWith(Lexeme, ReservedStartingKeywordsTable[j].Name, false))
+                    {
+                        FinalType = ReservedStartingKeywordsTable[j].Type;
+                        break;
+                    }
+                }
+
+                for (u8 j = 0; j < SArray_Capacity(ReservedEndingKeywordsTable); j++)
+                {
+                    if (String_EndsWith(Lexeme, ReservedEndingKeywordsTable[j].Name, false))
+                    {
+                        FinalType = ReservedEndingKeywordsTable[j].Type;
+                        break;
+                    }
+                }
+            }
+
+            TokenToAdd = FinalType;
+        }
+
+        if (TokenToAdd != Token_None)
+        {
+            Lexer_AddToken(&l, TokenToAdd);
+        }
+    }
+
+    //Clock_Tick(&c);
+    //Clock_PrintElapsedTime(&c, true);
+
+    /*
+    for each (Token, t, Tokens)
+    {
+        if (t.Lexeme.Length > 0 && t.Type != Token_Newline)
+        {
+            LOG("[%u] %S -> %S.", t.Line, ETokenType_ToString(t.Type), t.Lexeme);
+        }
+        else
+        {
+            LOG("[%u] %S", t.Line, ETokenType_ToString(t.Type));
+        }
+    }
+    LOG("Num Tokens: %u", Array_Num(Tokens));
+    */
+
+    // Parse the tokens into a tree
+    if (bLexSuccess)
+    {
+        //Clock_Start(&c);
+
+        Parser p    = {0};
+        p.Tokens    = Tokens;
+        p.NumTokens = l.NumTokens;
+        p.FilePath  = FilePath;
+
+        Result = Parse_Block(Arena, &p, 0, false, false);
 
         //Clock_Tick(&c);
         //Clock_PrintElapsedTime(&c, true);
 
-        /*
-        for each (Token, t, Tokens)
+        // Print_BlockNode(Result->List, 0);
+    }
+
+    return Result;
+}
+
+NO_DISCARD RETURN_NON_NULL static Node* Internal_ParseFile(LinearAllocator* Arena, const FileHandle H, const String FilePath)
+{
+    Node* Result = &Node_Null;
+
+    usize FileSize = 0;
+    xx Filesystem_GetFileSize(H, &FileSize);
+
+    if (FileSize > MAX_BUILD_FILE_SIZE)
+    {
+        LOG_ERROR("\n%S: Build file is %u bytes, over the maximum of %u bytes.\n\n"
+                  "  Split your build file into smaller files and use 'import':\n"
+                  "    import common.buildvars\n", FilePath, (u32)Min(FileSize, (usize)UINT32_MAX), (u32)MAX_BUILD_FILE_SIZE);
+    }
+    else
+    {
+        String Text = String_Reserve(Arena, (u32)FileSize);
+
+        usize Length = 0;
+        if (Filesystem_ReadEntireFile(H, Text.Data, &Length))
         {
-            if (t.Lexeme.Length > 0 && t.Type != Token_Newline)
-            {
-                LOG("[%u] %S -> %S.", t.Line, ETokenType_ToString(t.Type), t.Lexeme);
-            }
-            else
-            {
-                LOG("[%u] %S", t.Line, ETokenType_ToString(t.Type));
-            }
-        }
-        LOG("Num Tokens: %u", Array_Num(Tokens));
-        */
+            Text.Length = (u32)Min(Length, FileSize);
 
-        // Parse the tokens into a tree
-        if (bLexSuccess)
-        {
-            //Clock_Start(&c);
-
-            Parser p    = {0};
-            p.Tokens    = Tokens;
-            p.NumTokens = l.NumTokens;
-            p.FilePath  = FilePath;
-
-            Result = Parse_Block(Arena, &p, 0, false, false);
-
-            //Clock_Tick(&c);
-            //Clock_PrintElapsedTime(&c, true);
-
-            // Print_BlockNode(Result->List, 0);
+            Result = Internal_ParseText(Arena, Text, FilePath);
         }
     }
 
     return Result;
+}
+
+NO_DISCARD bool LexAndParseBuildText(LinearAllocator* Arena, const String Text, const String FilePath)
+{
+    const Node* AST = Internal_ParseText(Arena, Text, FilePath);
+
+    return AST != &Node_Null;
 }
 
 NO_DISCARD static String GetOptionParamsFromVarList(FileVariableList* VarList, String OptionName, bool* bFound)
@@ -3809,34 +3858,25 @@ NO_DISCARD static NodeList* Analyze_IfNode(Node* Root, ParsingContext* Context, 
                 }
             }
 
-            if (bFoundVar)
-            {
-                bIsPath = String_ContainsPathSeparators(VarValue);
-            }
-
+            // What the user writes decides the test, not what the variable holds. "if external/glfw/"
+            // is an existence check because the condition is a path. "if @CUDA_PATH" is a defined
+            // check, even though the value is a path - write "if @CUDA_PATH/" for the disk test.
             if (bIsPath)
             {
                 StringLocal(Expanded, MAX_PATH_LENGTH);
-                if (bFoundVar)
+                if (bPrefixedWithSymbol)
                 {
-                    xx ExpandVariable(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, String_Null(), VarValue, String_Null(), Context->WorkingDirectory, NULL);
+                    StringLocal(ConditionPrefixed, MAX_PATH_LENGTH);
+
+                    uchar Symbol = bSearchFileVar ? Token_Char_Dollar : (bSearchInternalVar ? Token_Char_Mod : (bSearchEnvironmentVar ? Token_Char_At : 0));
+                    if (Symbol) { String_AppendChar(&ConditionPrefixed, Symbol); }
+                    String_Append(&ConditionPrefixed, Condition);
+
+                    xx ExpandVariable(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, String_Null(), ConditionPrefixed, String_Null(), Context->WorkingDirectory, NULL);
                 }
                 else
                 {
-                    if (bPrefixedWithSymbol)
-                    {
-                        StringLocal(ConditionPrefixed, MAX_PATH_LENGTH);
-
-                        uchar Symbol = bSearchFileVar ? Token_Char_Dollar : (bSearchInternalVar ? Token_Char_Mod : (bSearchEnvironmentVar ? Token_Char_At : 0));
-                        if (Symbol) { String_AppendChar(&ConditionPrefixed, Symbol); }
-                        String_Append(&ConditionPrefixed, Condition);
-
-                        xx ExpandVariable(*Context->TempArena, Context->VarListHead, Context->CmdOptionsDB, &Expanded, String_Null(), ConditionPrefixed, String_Null(), Context->WorkingDirectory, NULL);
-                    }
-                    else
-                    {
-                        Expanded = Condition;
-                    }
+                    Expanded = Condition;
                 }
 
                 bool bIsDirectory = String_IsLast(Expanded, '/') || String_IsLast(Expanded, '\\');
@@ -6997,16 +7037,59 @@ static bool IsInternalVarSigilAt(const String Value, u32 Index)
     return bResult;
 }
 
-bool ExpandVariable(LinearAllocator Scratch, FileVariableList* VariablesDB, TArray(CmdOption) CmdOptionsDB,
+// A path with spaces needs the quotes around the whole token. Quotes around the value alone
+// give -DX="C:/Program Files/CUDA"/bin, which no compiler or linker accepts.
+static void WrapTokenInQuotes(String* Dest, u32 TokenStart)
+{
+    if (TokenStart < Dest->Length)
+    {
+        // a nested expansion wrapped its own part of this token, so drop those quotes first
+        u32 Write = TokenStart;
+        for (u32 Read = TokenStart; Read < Dest->Length; Read++)
+        {
+            if (Dest->Data[Read] != '"')
+            {
+                Dest->Data[Write] = Dest->Data[Read];
+                Write += 1;
+            }
+        }
+
+        Dest->Length = Write;
+        Dest->Data[Dest->Length] = 0;
+
+        const u32 TokenLength = Dest->Length - TokenStart;
+        const bool bHasRoom = (Dest->Length + 2) <= Dest->Capacity;
+
+        if (TokenLength > 0 && bHasRoom)
+        {
+            MemMove(&Dest->Data[TokenStart + 1], &Dest->Data[TokenStart], TokenLength);
+
+            Dest->Data[TokenStart] = '"';
+            Dest->Length += 1;
+
+            String_AppendChar(Dest, '"');
+        }
+    }
+}
+
+// bOutWrappedWholeValue reports that the whole expanded value is one quoted token, so a caller
+// that appends more to it - $(CudaDir)/bin - knows to quote the token again.
+static bool Internal_ExpandVariable(LinearAllocator Scratch, FileVariableList* VariablesDB, TArray(CmdOption) CmdOptionsDB,
                             String* Dest, const String Key, const String Value, const String Root, const String WorkingDirectory,
-                            bool* bFailed)
+                            bool* bFailed, bool* bOutWrappedWholeValue)
 {
     if (!String_IsValid(Value))
     {
         return true;
     }
 
-    bool bInsideQuote = false; // what happens when we expand a variable inside a quote and recursively call this func?
+    // A value holds several space separated tokens. TokenStart marks where the current one starts
+    // in Dest, so an expansion that brings in spaces can quote the token as a whole.
+    bool bInsideQuote = false;
+    bool bTokenEnded  = false;
+    bool bWrapToken   = false;
+    u32  TokenStart   = Dest->Length;
+
     u32 Offset = 1;
     for (u32 i = 0; i < Value.Length; i+=Offset)
     {
@@ -7015,8 +7098,26 @@ bool ExpandVariable(LinearAllocator Scratch, FileVariableList* VariablesDB, TArr
         String StrVal = StrSlice(Value.Data+i, Value.Length-i);
         u8 C = Value.Data[i];
 
-        if (bInsideQuote  && C == '"') { bInsideQuote = false; }
-        if (!bInsideQuote && C == '"') { bInsideQuote = true; }
+        if (C == '"')
+        {
+            bInsideQuote = !bInsideQuote;
+        }
+
+        if (IsWhitespace(C) && !bInsideQuote)
+        {
+            if (bWrapToken)
+            {
+                WrapTokenInQuotes(Dest, TokenStart);
+                bWrapToken = false;
+            }
+
+            bTokenEnded = true;
+        }
+        else if (bTokenEnded)
+        {
+            TokenStart = Dest->Length;
+            bTokenEnded = false;
+        }
 
         String Slice = String_Null();
         bool bWantsToLower = false;
@@ -7039,6 +7140,12 @@ bool ExpandVariable(LinearAllocator Scratch, FileVariableList* VariablesDB, TArr
         // escape the next character after the backslash
         if (C == '\\' && (i + 1) < Value.Length)
         {
+            // \" opens and closes a string define, so the token carries its own quotes
+            if (Value.Data[i + 1] == '"')
+            {
+                bInsideQuote = !bInsideQuote;
+            }
+
             String_AppendChar(Dest, Value.Data[i + 1]);
             Offset = 2;
             continue;
@@ -7360,14 +7467,23 @@ bool ExpandVariable(LinearAllocator Scratch, FileVariableList* VariablesDB, TArr
                     {
                         if (Dest->Length > 0)
                         {
+                            if (bWrapToken)
+                            {
+                                WrapTokenInQuotes(Dest, TokenStart);
+                                bWrapToken = false;
+                            }
+
                             xx String_EatSpacesInlineFromEnd(Dest);
                             String_AppendSpace(Dest);
+
+                            TokenStart = Dest->Length;
                         }
                     }
 
                     LinearAllocator Scratch2 = Scratch;
                     String TempDest = String_Reserve(&Scratch2, Dest->Capacity);
-                    if (!ExpandVariable(Scratch2, VariablesDB, CmdOptionsDB, &TempDest, Slice, Var.Value, Root, WorkingDirectory, bFailed))
+                    bool bWrappedWholeValue = false;
+                    if (!Internal_ExpandVariable(Scratch2, VariablesDB, CmdOptionsDB, &TempDest, Slice, Var.Value, Root, WorkingDirectory, bFailed, &bWrappedWholeValue))
                     {
                         return false;
                     }
@@ -7376,6 +7492,11 @@ bool ExpandVariable(LinearAllocator Scratch, FileVariableList* VariablesDB, TArr
                     if (bWantsToUpper) { String_ToUpper(&TempDest); }
                     
                     String_Append(Dest, TempDest);
+
+                    if (bWrappedWholeValue && !bInsideQuote)
+                    {
+                        bWrapToken = true;
+                    }
 
                     if (Var.Value.Length > 0)
                     {
@@ -7411,13 +7532,12 @@ bool ExpandVariable(LinearAllocator Scratch, FileVariableList* VariablesDB, TArr
             String DestEnd = StrShiftF(*Dest, Dest->Length);
             u32 DestLengthBefore = Dest->Length;
 
-            if (String_CountPathSeparators(VarValue) > 0 && String_CountSpaces(VarValue) > 0)
+            String_Append(Dest, VarValue);
+
+            // the user writes the quotes when the token is already quoted, so only mark ours
+            if (!bInsideQuote && String_CountPathSeparators(VarValue) > 0 && String_CountSpaces(VarValue) > 0)
             {
-                String_WrapPath(Dest, VarValue);
-            }
-            else
-            {
-                String_Append(Dest, VarValue);
+                bWrapToken = true;
             }
 
             DestEnd.Length = Dest->Length - DestLengthBefore;
@@ -7587,9 +7707,26 @@ bool ExpandVariable(LinearAllocator Scratch, FileVariableList* VariablesDB, TArr
         }
     }
 
+    if (bWrapToken)
+    {
+        WrapTokenInQuotes(Dest, TokenStart);
+
+        if (bOutWrappedWholeValue && TokenStart == 0)
+        {
+            *bOutWrappedWholeValue = true;
+        }
+    }
+
     xx String_EatSpacesInlineFromEnd(Dest);
 
     return true;
+}
+
+bool ExpandVariable(LinearAllocator Scratch, FileVariableList* VariablesDB, TArray(CmdOption) CmdOptionsDB,
+                    String* Dest, const String Key, const String Value, const String Root, const String WorkingDirectory,
+                    bool* bFailed)
+{
+    return Internal_ExpandVariable(Scratch, VariablesDB, CmdOptionsDB, Dest, Key, Value, Root, WorkingDirectory, bFailed, NULL);
 }
 
 // ===================================================================================================

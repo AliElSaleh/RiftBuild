@@ -23,7 +23,7 @@ STRUCT(MemoryRange)
     usize Size;
 };
 
-RIFT_API NO_DISCARD bool Memory_Initialize(void* Memory, usize MemSize, void* ScratchMemory, usize ScratchSize);
+RIFT_API NO_DISCARD bool Memory_Initialize(void* Memory, usize MemSize, usize ScratchSize);
 RIFT_API            void Memory_Shutdown(void);
 
 RIFT_API NO_DISCARD void* MemAlloc(usize Size, EMemoryTag Tag);
@@ -34,7 +34,21 @@ RIFT_API            void  MemCopy(void* Destination, const void* Source, usize S
 RIFT_API            void  MemMove(void* Destination, const void* Source, usize Size);
 RIFT_API NO_DISCARD bool  MemEqual(const void* Block1, const void* Block2, usize Size);
 
-RIFT_API NO_DISCARD LinearAllocator Memory_GetScratch(void);
 RIFT_API NO_DISCARD usize Memory_GetEngineMemoryRemaining(void);
+
+// Scratch arenas --------------------
+
+STRUCT(ScratchArena)
+{
+    LinearAllocator* Arena;
+    usize            StartPosition;
+};
+
+RIFT_API NO_DISCARD bool         Memory_InitializeThread(usize ScratchSize);
+RIFT_API            void         Memory_ShutdownThread(void);
+
+RIFT_API NO_DISCARD ScratchArena Memory_GetScratch(void);
+RIFT_API NO_DISCARD ScratchArena Memory_GetScratch_Ex(LinearAllocator* const* Conflicts, u32 NumConflicts);
+RIFT_API            void         Memory_ReleaseScratch(ScratchArena Scratch);
 
 #endif // MEMORY_H

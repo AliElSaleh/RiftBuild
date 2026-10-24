@@ -1,0 +1,4 @@
+# Found by the fuzzer: the log-message loop ran past the end of the token stream and
+# allocated once per turn, which ran the parse arena out. The closing quote is missing.
+Assembly Unterminated
+"this log message never closes

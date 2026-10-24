@@ -2015,7 +2015,7 @@ static bool IsCSourceFile(String Path)
 // Entry point
 // -----------------------------------------------------------------------------
 
-u32 RunApplication(const StringArray Arguments)
+static u32 RunApplication(const StringArray Arguments)
 {
     Logging_ToggleLogCategory(false);
     Logging_ToggleLogTimeStamp(false);
@@ -2209,4 +2209,9 @@ u32 RunApplication(const StringArray Arguments)
 
     Platform_MemFree(PersistentMem); // frees the task list and all output paths at once
     return Errors > 0 ? 1 : 0;
+}
+
+int main(i32 ArgC, char* ArgV[], char* ArgEnv[])
+{
+    return Entry_Run(RunApplication, GEngineMemoryAmount, GEngineScratchAmount, ArgC, ArgV, ArgEnv);
 }

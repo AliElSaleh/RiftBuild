@@ -1,9 +1,12 @@
+RiftBuildVersion                 0.4.0-beta-&date.nosep
+
 SharedIncludeFlags               $SourceDirectory
 
 SharedDefines                    RIFT_STATIC
 SharedDefines:debug              _DEBUG RIFT_DEBUG
 SharedDefines:!debug             NDEBUG RIFT_RELEASE NO_ASSERT 
 SharedDefines:asan               RIFT_ASAN
+SharedDefines:debug|mem_check    RIFT_MEM_CHECK
 
 if msvc
 {

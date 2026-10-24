@@ -1,0 +1,4 @@
+# Found by the fuzzer: the .help loop ran past the end of the token stream and
+# allocated once per turn. The closing brace is missing.
+.help {
+    This help text never closes.

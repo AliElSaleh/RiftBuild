@@ -1,0 +1,6 @@
+# Found by the fuzzer: the '[' list loop ran past the end of the token stream and
+# allocated once per turn. The closing bracket is missing.
+Assembly Unterminated
+SourceFiles [
+    main
+    other

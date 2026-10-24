@@ -1,0 +1,1202 @@
+# Found by the fuzzer: Parse_Block and Parse_If recursed once per level with no limit,
+# so this file ended the process with a stack overflow. MAX_PARSE_DEPTH refuses it now.
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+if windows
+{
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}

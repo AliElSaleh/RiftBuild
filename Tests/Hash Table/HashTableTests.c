@@ -141,7 +141,7 @@ static void u32TableTest(u32 MaxEntries)
     }
 }
 
-u32 RunApplication(const StringArray Arguments)
+static u32 RunApplication(const StringArray Arguments)
 {
     Logging_ToggleLogFile(false);
     Logging_ToggleLogTimeStamp(false);
@@ -158,3 +158,8 @@ u32 RunApplication(const StringArray Arguments)
     return 0;
 }
 
+
+int main(i32 ArgC, char* ArgV[], char* ArgEnv[])
+{
+    return Entry_Run(RunApplication, GEngineMemoryAmount, GEngineScratchAmount, ArgC, ArgV, ArgEnv);
+}

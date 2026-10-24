@@ -7,19 +7,19 @@
 #include "Log.h"
 #endif
 
-PRAGMA_DISABLE_MISSING_PROTOTYPES_WARNING
-
-extern u32 RunApplication(const StringArray Arguments);
+typedef u32 (*ApplicationFn)(const StringArray Arguments);
 
 #if !PLATFORM_WINDOWS
 extern void pre_main(int argc, char* argv[], char* env[]);
 #endif
 
-int main(i32 ArgC, char* ArgV[], char* ArgEnv[])
+FORCEINLINE static i32 Entry_Run(ApplicationFn Application,
+                                 usize MemoryAmount,
+                                 usize ScratchAmount,
+                                 i32 ArgC,
+                                 char* ArgV[],
+                                 char* ArgEnv[])
 {
-    global const usize GEngineMemoryAmount;
-    global const usize GEngineScratchAmount;
-
     #if !PLATFORM_WINDOWS
     pre_main(ArgC, ArgV, ArgEnv);
     #else
@@ -27,10 +27,6 @@ int main(i32 ArgC, char* ArgV[], char* ArgEnv[])
     xx ArgV;
     xx ArgEnv;
     #endif
-
-    // Note: one giant dynamic allocation. then let the engine dish the memory out
-    const usize MemoryAmount = GEngineMemoryAmount;
-    const usize ScratchAmount = GEngineScratchAmount;
 
     if (MemoryAmount == 0)
     {
@@ -43,34 +39,33 @@ int main(i32 ArgC, char* ArgV[], char* ArgEnv[])
     // for example, clock frequency, critical sections, etc.
     Platform_PreInitialize();
 
-    void* EngineMemory = Platform_MemAlloc(MemoryAmount + ScratchAmount);
-    
+    // Note: one giant dynamic allocation. then let the engine dish the memory out
+    void* EngineMemory = Platform_MemAlloc(MemoryAmount);
+
     if (!EngineMemory)
     {
         Platform_ConsoleWrite("Failed to acquire memory from the OS. Aborting...\n", 4, true);
         Platform_Abort(1);
         return 1;
     }
-    
-    void* EngineScratch = ((u8*)EngineMemory) + MemoryAmount;
 
     u32 ReturnVal = 0;
-    
+
     StringArray Arguments = Platform_GetCommandLineArgs();
 
     // "Use" the memory so the OS assigns it all to us
-    Platform_MemZero(EngineMemory, MemoryAmount + ScratchAmount);
-    
+    Platform_MemZero(EngineMemory, MemoryAmount);
+
     // Initialize core engine subsystems
     // Memory subsystem
-    if (!Memory_Initialize(EngineMemory, MemoryAmount, EngineScratch, GEngineScratchAmount))
+    if (!Memory_Initialize(EngineMemory, MemoryAmount, ScratchAmount))
     {
         Platform_ConsoleWrite("Failed to initialize memory subsystem. Required for engine to run. Aborting...\n", 4, true);
 
         ReturnVal = 1;
         goto Shutdown_Lvl0;
     }
-    
+
     // Logging subsystem
     #ifndef NO_LOG
     void* LogSubsystemState = MemAlloc(Logging_GetMemoryRequirement(), MemoryTag_Engine);
@@ -87,7 +82,7 @@ int main(i32 ArgC, char* ArgV[], char* ArgEnv[])
     }
     #endif
 
-    ReturnVal = RunApplication(Arguments);
+    ReturnVal = Application(Arguments);
 
     #ifndef NO_LOG
     Logging_Shutdown();
@@ -106,7 +101,5 @@ Shutdown_Lvl0:
 
     return (i32)ReturnVal;
 }
-
-PRAGMA_ENABLE_WARNINGS
 
 #endif // ENTRY_POINT_H

@@ -1,24 +1,22 @@
 // Copyright (c) Artisan Softworks
 // Licensed under the BSD 3-Clause License. See the LICENSE file for details.
 
-#include "Core/EntryPoint.h"
-
 #ifndef UNITY_BUILD
 #include "Backend.h"
 
 #include "Core/Allocators.h"
-#include "Core/Clock.h"
-#include "Core/StringUtils.h"
 #include "Core/Array.h"
+#include "Core/Clock.h"
+#include "Core/Log.h"
+#include "Core/Memory.h"
+#include "Core/Platform.h"
+#include "Core/StringUtils.h"
 #include "Core/Uuid.h"
 #endif
 
 #if PLATFORM_WINDOWS
 #include "MicrosoftCraziness.h"
 #endif
-
-const usize GEngineMemoryAmount  = Kibibytes(128);
-const usize GEngineScratchAmount = Kibibytes(8);
 
 // Let the user in the build script customize how much memory we should pre-allocate.
 // Default is 1MiB
@@ -32,7 +30,6 @@ const usize GEngineScratchAmount = Kibibytes(8);
     #endif
 #endif
 
-#define BUILD_PARSE_SCRATCH_SIZE Kibibytes(512)
 #define MAX_DEPENDENCY_DEPTH 32
 
 TArray(InternalVariable) InternalVariablesDB = NULL;
@@ -3339,15 +3336,15 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const FileVa
 
     if (ALWAYS(String_IsValid(Name)) && ALWAYS(String_IsValid(Var.Value)))
     {
-        LinearAllocator Scratch = Memory_GetScratch();
+        ScratchArena Scratch = Memory_GetScratch();
 
         BuildCmdContext Ctx  = {0};
-        Ctx.Scratch          = &Scratch;
+        Ctx.Scratch          = Scratch.Arena;
         Ctx.ExitCode         = ExitCode;
         Ctx.WorkingDirectory = WorkingDirectory;
         Ctx.Value            = Var.Value;
         Ctx.Content          = Var.Content;
-        Internal_ParseCmdParams(&Scratch, Var.Params, &Ctx);
+        Internal_ParseCmdParams(Scratch.Arena, Var.Params, &Ctx);
 
         if (String_EndsWith(Name, S("Cmd"), false) ||
             String_EndsWith(Name, S("Exec"), false) ||
@@ -3417,6 +3414,8 @@ static bool Internal_ExecuteBuildCmd(const String WorkingDirectory, const FileVa
         {
             // no action required
         }
+
+        Memory_ReleaseScratch(Scratch);
     }
 
     return bSuccess;
@@ -7465,11 +7464,12 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
 
     u32 NumCompiled = 0;
 
-    // Declared before the "Nothing to compile" goto End below: the End: tail reads bCanLink for
-    // Receipt.bWorkWasDone, so jumping there must not skip this initialization.
+    // Declared before the "Nothing to compile" goto End below: the End: tail reads bCanLink and
+    // bDidLink for Receipt.bWorkWasDone, so jumping there must not skip these initializations.
     bool bExplicitLinker = DoesCmdOptionExist(CmdOptionsDB, S("Linker.Explicit"));
     bool bCanLink = AssemblyType != AssemblyType_CustomCompilerObject ||
                     (AssemblyType == AssemblyType_CustomCompilerObject && bExplicitLinker);
+    bool bDidLink = false;
 
     if (AssemblyType == AssemblyType_NoCompilerObject)
     {
@@ -9170,7 +9170,6 @@ static BuildReceipt BuildTarget(LinearAllocator* Arena,
     // prelink step
     Clock LinkClock = {0};
 
-    bool bDidLink = false;
     if (bCanLink)
     {
         if (!TryRunBuildCommands(S("PreLink"), WorkingPath, VariablesDB, &ExternalClock, bIsClean))

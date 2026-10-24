@@ -6,6 +6,5 @@ Assembly CoreTests
 
 Compiler.Flags $SharedCompilerFlags
 
-Linker.EntryPoint:windows:!asan  EntryPoint
-Linker.Subsystem                 Console
-Linker.Stack                     8000000 # 8MB
+Linker.Subsystem Console
+Linker.Stack     8000000 # 8MB

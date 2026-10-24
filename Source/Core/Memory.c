@@ -10,9 +10,19 @@
 #include "Array.h"
 #endif
 
+constant
+{
+    MaxScratchArenas = 2
+};
+
 static FreeListAllocator GEngineAllocator = { 0 };
-static LinearAllocator GEngineScratchAllocator = { 0 };
+static thread_local LinearAllocator GThreadScratchArenas[MaxScratchArenas] = { 0 };
 static PlatformCriticalSection GCriticalSection = NULL;
+
+FORCEINLINE NO_DISCARD static usize GetAligned(usize Operand, usize Granularity)
+{
+    return ((Operand + (Granularity-1)) & ~(Granularity-1));
+}
 
 #ifdef RIFT_ASAN
 extern void __asan_poison_memory_region(void const volatile* addr, usize size);
@@ -59,9 +69,9 @@ static PlatformCriticalSection GCriticalSection_Debug = NULL;
 
 NO_DISCARD
 #ifdef RIFT_DEBUG_MEMORY
-bool Memory_Initialize(void* Memory, usize MemSize, void* DebugMemory, usize DebugMemSize, void* ScratchMemory, usize ScratchSize)
+bool Memory_Initialize(void* Memory, usize MemSize, void* DebugMemory, usize DebugMemSize, usize ScratchSize)
 #else
-bool Memory_Initialize(void* Memory, usize MemSize, void* ScratchMemory, usize ScratchSize)
+bool Memory_Initialize(void* Memory, usize MemSize, usize ScratchSize)
 #endif
 {
     #ifdef RIFT_DEBUG_MEMORY
@@ -69,11 +79,6 @@ bool Memory_Initialize(void* Memory, usize MemSize, void* ScratchMemory, usize S
     #endif
 
     FreeListAllocator_Create(&GEngineAllocator, MemSize, Memory);
-    
-    if (ScratchSize > 0)
-    {
-        LinearAllocator_Create(ScratchSize, ScratchMemory, &GEngineScratchAllocator);
-    }
 
     //void* GlobalsMemory = FreeListAllocator_Allocate(&GEngineAllocator, Kilobytes(16), NULL);
     //Globals_Init(GlobalsMemory, Kilobytes(16));
@@ -88,7 +93,7 @@ bool Memory_Initialize(void* Memory, usize MemSize, void* ScratchMemory, usize S
     Platform_InitializeCriticalSection(GCriticalSection_Debug);
 #endif
 
-    return true;
+    return Memory_InitializeThread(ScratchSize);
 }
 
 void Memory_Shutdown(void)
@@ -176,7 +181,7 @@ void Memory_Shutdown(void)
 #endif
 */
 
-    LinearAllocator_Destroy(&GEngineScratchAllocator);
+    Memory_ShutdownThread();
     FreeListAllocator_Destroy(&GEngineAllocator);
 }
 
@@ -279,9 +284,103 @@ NO_DISCARD bool Platform_MemEqual(const void* Block1, const void* Block2, usize 
 }
 #endif
 
-NO_DISCARD LinearAllocator Memory_GetScratch(void)
+// True when an arena in Conflicts allocates from the memory of Scratch. A by-value copy of a
+// scratch arena, or an arena made inside one, is a different struct on the same memory, so the
+// test compares memory and not struct addresses.
+NO_DISCARD static bool DoesConflictUseScratch(const LinearAllocator* Scratch, LinearAllocator* const* Conflicts, u32 NumConflicts)
 {
-    return GEngineScratchAllocator;
+    const uptr ScratchStart = (uptr)Scratch->Memory;
+    const uptr ScratchEnd   = ScratchStart + Scratch->TotalSize;
+
+    bool bResult = false;
+    for (u32 i = 0; (i < NumConflicts) && !bResult; i++)
+    {
+        const uptr ConflictStart = (uptr)Conflicts[i]->Memory;
+        bResult = (ConflictStart >= ScratchStart) && (ConflictStart < ScratchEnd);
+    }
+
+    return bResult;
+}
+
+NO_DISCARD bool Memory_InitializeThread(usize ScratchSize)
+{
+    // A second call on one thread finds the arenas set. So does each thread after the first when
+    // the compiler has no thread-local storage - see thread_local.
+    if (UNLIKELY(GThreadScratchArenas[0].Memory != NULL))
+    {
+        Platform_ConsoleWrite("The scratch arenas of this thread are set already!\n", 4, true);
+        _Crash_;
+    }
+
+    bool bResult = true;
+    if (ScratchSize > 0)
+    {
+        u8* Block = Platform_MemAlloc(ScratchSize * MaxScratchArenas);
+        bResult = (Block != NULL);
+
+        if (bResult)
+        {
+            for (u32 i = 0; i < MaxScratchArenas; i++)
+            {
+                LinearAllocator_Create(ScratchSize, Block + (i * ScratchSize), &GThreadScratchArenas[i]);
+            }
+        }
+    }
+
+    return bResult;
+}
+
+void Memory_ShutdownThread(void)
+{
+    u8* Block = GThreadScratchArenas[0].Memory;
+    if (Block != NULL)
+    {
+        // The heap gives these bytes out again, so they must not stay poisoned.
+        ASAN_UNPOISON(Block, Block + (GThreadScratchArenas[0].TotalSize * MaxScratchArenas));
+        Platform_MemFree(Block);
+    }
+
+    MemZero(GThreadScratchArenas, sizeof(GThreadScratchArenas));
+}
+
+NO_DISCARD ScratchArena Memory_GetScratch(void)
+{
+    return Memory_GetScratch_Ex(NULL, 0);
+}
+
+NO_DISCARD ScratchArena Memory_GetScratch_Ex(LinearAllocator* const* Conflicts, u32 NumConflicts)
+{
+    u32 Index = 0;
+    while ((Index < MaxScratchArenas) && DoesConflictUseScratch(&GThreadScratchArenas[Index], Conflicts, NumConflicts))
+    {
+        Index++;
+    }
+
+    ScratchArena Result = {0};
+    if (UNLIKELY(GThreadScratchArenas[0].Memory == NULL))
+    {
+        // The arenas of a thread stay empty until it calls Memory_InitializeThread.
+        Platform_ConsoleWrite("This thread has no scratch arenas! Call Memory_InitializeThread on it first.\n", 4, true);
+        _Crash_;
+    }
+    else if (UNLIKELY(Index == MaxScratchArenas))
+    {
+        // Every scratch arena holds output of the caller, so each choice overwrites it.
+        Platform_ConsoleWrite("All scratch arenas are in use by the caller!\n", 4, true);
+        _Crash_;
+    }
+    else
+    {
+        Result.Arena         = &GThreadScratchArenas[Index];
+        Result.StartPosition = Result.Arena->Allocated;
+    }
+
+    return Result;
+}
+
+void Memory_ReleaseScratch(ScratchArena Scratch)
+{
+    LinearAllocator_Reset(Scratch.Arena, Scratch.StartPosition);
 }
 
 NO_DISCARD usize Memory_GetEngineMemoryRemaining(void)
@@ -319,11 +418,6 @@ NO_DISCARD static usize MemoryUtils_CalculatePaddingWithHeader(usize Ptr, usize 
     }
     
     return Padding;
-}
-
-FORCEINLINE NO_DISCARD static usize GetAligned(usize Operand, usize Granularity)
-{
-    return ((Operand + (Granularity-1)) & ~(Granularity-1));
 }
 
 UNUSED FORCEINLINE NO_DISCARD static MemoryRange GetAlignedRange(usize Offset, usize Size, usize Granularity)
@@ -401,11 +495,9 @@ read_only u8 OutOfMemory[64] = {0};
 
 FORCEINLINE NO_DISCARD RETURN_NON_NULL static void* Internal_LA_Allocate(LinearAllocator* Allocator, usize Size, usize Offset)
 {
-    // i dont know if this is a good idea to wrap this behind debug only...
-    // it does result in fewer instructions and zero branches, which is faster!
-    // but then again, if you run out of memory, you have other problems.
-    // we could switch this to a different flag that can also run in release mode
-    #ifdef RIFT_DEBUG
+    // The check costs a branch on every allocation, so a release build has it only with the
+    // mem_check option - see RIFT_MEM_CHECK in Common.buildvars.
+    #ifdef RIFT_MEM_CHECK
     ASSERT(Size > 0);
 
     if (UNLIKELY(NEVER(Allocator->Allocated + Offset + Size > Allocator->TotalSize)))

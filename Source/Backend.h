@@ -8,8 +8,13 @@
 
 #define MAX_KEY_LENGTH 128
 
+#define BUILD_PARSE_SCRATCH_SIZE Kibibytes(512)
+#define MAX_BUILD_FILE_SIZE      Kibibytes(48)
+
 #define MAX_ICON_RESOURCES 16
 #define MAX_ICON_RC_LENGTH ((MAX_ICON_RESOURCES + 1) * (MAX_KEY_LENGTH + MAX_PATH_LENGTH + 16))
+
+extern u32 RunApplication(const StringArray Arguments);
 
 global bool bQuietBuild;
 global bool bNoWordWrapLogging;
@@ -424,6 +429,8 @@ NO_DISCARD bool ParseBuildFile(
                     const String BuildFilePath,
                     ParsingContext Context,
                     bool bIsIncludeFile);
+
+NO_DISCARD bool LexAndParseBuildText(LinearAllocator* Arena, const String Text, const String FilePath);
 
 // Called for every dependency path recorded in a compiler-written dependency file.
 typedef void (*DependencyPathIterator)(const String Path, void* UserData);
