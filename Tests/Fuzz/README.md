@@ -20,17 +20,25 @@ check, which catch an overrun of the parse arena at the allocation instead of af
 
 ## Run it
 
-Run it from the repository root, because the default paths are relative to it.
+The build file has a `.Run` key, so the build above also runs the harness. Put arguments after
+that key to fix them for every build.
+
+To run it on its own, from anywhere:
 
 ```bash
 Tests/Fuzz/Build/RiftFuzz.exe --iterations 200000 --seed 7
 ```
 
+The harness finds the repository root itself, by walking up from the working directory until it
+sees `RiftBuild.build`, so the two default paths below do not depend on where you start it. A
+path you pass yourself is taken as it is, which means a relative one is read against the working
+directory.
+
 | Option | What it does |
 |---|---|
-| `--corpus <dir>` | Read the seed `.build` files from here. The default is `Tests/Feature Set`. |
+| `--corpus <dir>` | Read the seed `.build` files from here. The default is `Tests/Feature Set` under the repository root. |
 | `--input <file>` | Parse one named file and stop. This is how a saved finding comes back. |
-| `--out <dir>` | Where the harness saves a finding. The default is `Tests/Fuzz/Build/Findings`. |
+| `--out <dir>` | Where the harness saves a finding. The default is `Tests/Fuzz/Build/Findings` under the repository root. |
 | `--seed <number>` | The seed of the run. The same seed gives the same inputs in the same order. |
 | `--iterations <n>` | How many mutated inputs to parse. The default is 100000. |
 | `--trace` | Name every input and write it to `last-input.build` before the parse. |
@@ -44,6 +52,9 @@ Tests/Fuzz/Build/RiftFuzz.exe --iterations 200000 --seed 7
    ```bash
    Tests/Fuzz/Build/RiftFuzz.exe --corpus Tests/Fuzz/Corpus --iterations 20000
    ```
+
+   That `--corpus` path is read against the working directory, so it assumes the repository root.
+   From the build directory the same corpus is `--corpus ../Corpus`.
 
 2. The **discovery run** uses the feature-set tests as seeds, which cover far more of the syntax.
 

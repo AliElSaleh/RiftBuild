@@ -19,9 +19,10 @@
 
 constant
 {
-    FuzzDefaultIterations = 100000,
-    FuzzMaxCorpusEntries  = 1024,
-    FuzzMaxFindings       = 64
+    FuzzDefaultIterations  = 100000,
+    FuzzMaxCorpusEntries   = 1024,
+    FuzzMaxFindings        = 64,
+    FuzzMaxRootSearchDepth = 8
 };
 
 // Corpus text, the mutation buffer and the entry list all live here. The parse arena is separate,
@@ -280,14 +281,56 @@ static void Internal_PrintUsage(void)
     LOG_LINE_BREAK();
 }
 
+// Walks up from the working directory until a parent holds the repository's own build file, and
+// reports whether it found one. The default corpus and findings paths hang off the root, and the
+// harness gets launched both from the root and from its own build directory, where the same
+// relative path means somewhere else. OutRoot must hold MAX_PATH_LENGTH.
+NO_DISCARD static bool Internal_FindRepositoryRoot(String* OutRoot)
+{
+    Platform_GetWorkingDirectory(OutRoot);
+
+    bool bFound = false;
+
+    for (u32 i = 0; i < FuzzMaxRootSearchDepth && !bFound; i++)
+    {
+        StringLocal(Marker, MAX_PATH_LENGTH);
+        String_BuildPath(&Marker, *OutRoot, S("RiftBuild.build"));
+
+        if (Filesystem_DoesFileExist(Marker))
+        {
+            bFound = true;
+        }
+        else
+        {
+            // the directory part always starts at index 0 of the same buffer, so this shortens
+            // the path in place
+            const String Parent = Filesystem_ExtractFilePath(*OutRoot, false);
+
+            if (Parent.Length == 0 || Parent.Length == OutRoot->Length)
+            {
+                break;
+            }
+
+            String_Copy(OutRoot, Parent);
+        }
+    }
+
+    return bFound;
+}
+
 // Fills OutOptions from the command line, and reports whether every argument was understood.
-NO_DISCARD static bool Internal_ReadOptions(const StringArray Arguments, FuzzOptions* OutOptions)
+// DefaultCorpus and DefaultFindings are the paths to use when the command line names none; the
+// caller owns their buffers, which must outlive OutOptions.
+NO_DISCARD static bool Internal_ReadOptions(const StringArray Arguments,
+                                           const String DefaultCorpus,
+                                           const String DefaultFindings,
+                                           FuzzOptions* OutOptions)
 {
     bool bSuccess = true;
 
-    OutOptions->CorpusDirectory = S("Tests/Feature Set");
+    OutOptions->CorpusDirectory = DefaultCorpus;
     OutOptions->InputPath       = String_Null();
-    OutOptions->OutputDirectory = S("Tests/Fuzz/Build/Findings");
+    OutOptions->OutputDirectory = DefaultFindings;
     OutOptions->Seed            = 1;
     OutOptions->NumIterations   = FuzzDefaultIterations;
     OutOptions->bTrace          = false;
@@ -406,8 +449,26 @@ static u32 RunFuzzer(const StringArray Arguments)
 
     u32 ExitCode = 0;
 
+    // These buffers back the default paths in Options, so they live for the whole run.
+    StringLocal(DefaultCorpus, MAX_PATH_LENGTH);
+    StringLocal(DefaultFindings, MAX_PATH_LENGTH);
+    {
+        StringLocal(Root, MAX_PATH_LENGTH);
+        if (Internal_FindRepositoryRoot(&Root))
+        {
+            String_BuildPath(&DefaultCorpus, Root, S("Tests/Feature Set"));
+            String_BuildPath(&DefaultFindings, Root, S("Tests/Fuzz/Build/Findings"));
+        }
+        else
+        {
+            // no repository around us - fall back to paths relative to the working directory
+            String_Copy(&DefaultCorpus, S("Tests/Feature Set"));
+            String_Copy(&DefaultFindings, S("Tests/Fuzz/Build/Findings"));
+        }
+    }
+
     FuzzOptions Options = {0};
-    if (!Internal_ReadOptions(Arguments, &Options))
+    if (!Internal_ReadOptions(Arguments, DefaultCorpus, DefaultFindings, &Options))
     {
         Internal_PrintUsage();
         ExitCode = 1;

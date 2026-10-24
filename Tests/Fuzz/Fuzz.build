@@ -20,6 +20,8 @@ Assembly                  RiftFuzz
 Description               RiftBuild .build parser fuzzer
 Version(define)           $RiftBuildVersion
 
+.Run
+
 BuildDirectory            Build
 IntermediateDirectory     Intermediate
 
